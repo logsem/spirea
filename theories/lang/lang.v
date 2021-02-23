@@ -19,32 +19,31 @@ Module nvm_lang.
 
   (* Literals of the language. *)
   Inductive lit : Set :=
-  | LitInt (n : Z) | LitBool (b : bool) | LitUnit | LitLoc ℓ.
+    | LitInt (n : Z) | LitBool (b : bool) | LitUnit | LitLoc ℓ.
 
   Inductive expr :=
-  (* Embed values inside expressions. *)
-  | Val (v : val)
-  (* Functions and application. *)
-  | Var (x : string)
-  | Rec (f x : binder) (e : expr)
-  | App (e1 e2 : expr)
-  (* Concurrency *)
-  | Fork (e : expr)
-  (* Memory operations. *)
-  | Read (e : expr)
-  | ReadAcquire (e : expr)
-  | Store (e1 e2 : expr)
-  | StoreRelease (e1 e2 : expr)
-  (* RMW memory operations. *)
-  | CmpXchg (e0 : expr) (e1 : expr) (e2 : expr) (* Compare-exchange *)
-  | FAA (e1 : expr) (e2 : expr) (* Fetch-and-add *)
-  with val :=
-  | LitV (l : lit)
-  | RecV (f x : binder) (e : expr)
-  | PairV (v1 v2 : val)
-  | InjLV (v : val)
-  | InjRV (v : val)
-  .
+    (* Embed values inside expressions. *)
+    | Val (v : val)
+    (* Functions and application. *)
+    | Var (x : string)
+    | Rec (f x : binder) (e : expr)
+    | App (e1 e2 : expr)
+    (* Concurrency *)
+    | Fork (e : expr)
+    (* Memory operations. *)
+    | Read (e : expr)
+    | ReadAcquire (e : expr)
+    | Store (e1 e2 : expr)
+    | StoreRelease (e1 e2 : expr)
+    (* RMW memory operations. *)
+    | CmpXchg (e0 : expr) (e1 : expr) (e2 : expr) (* Compare-exchange *)
+    | FAA (e1 : expr) (e2 : expr) (* Fetch-and-add *)
+    with val :=
+    | LitV (l : lit)
+    | RecV (f x : binder) (e : expr)
+    | PairV (v1 v2 : val)
+    | InjLV (v : val)
+    | InjRV (v : val).
 
   Bind Scope expr_scope with expr.
   Bind Scope val_scope with val.
@@ -56,5 +55,25 @@ Module nvm_lang.
     | Val v => Some v
     | _ => None
     end.
+
+  (* Evaluation contexts. *)
+  Inductive ectx_item :=
+  .
+
+  (* [fill_item] inserts an expression into an evaluation context. On paper this
+  is often denoted K[e]. *)
+  Fixpoint fill_item (Ki : ectx_item) (e : expr) : expr :=
+    e.
+
+  (** Substitution *)
+  (* Replace occurrences of [x] in [e] with [v]. *)
+  Fixpoint subst (x : string) (v : val) (e : expr)  : expr := e.
+
+
+  (* Per thread expression reductions. Note: This does not fit the format that
+  Iris expects---we mold it later on. *)
+  Inductive head_step : expr → option mem_event → expr → list expr → Prop :=
+
+  Inductive head_step : expr → state → list observation → expr → state → list expr → Prop :=
 
 End nvm_lang.
