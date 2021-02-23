@@ -1,0 +1,4 @@
+-Q theories self
+
+theories/lang/memory.v
+theories/lang/lang.v
