@@ -55,6 +55,7 @@ Section memory.
   (* Small-step reduction steps on the memory. *)
 
   Inductive mem_step : mem_config → thread_view → mem_event → mem_config → thread_view → Prop :=
+  (* Allocating a new location. *)
   | MStepAlloc σ V P B ℓ v V' p :
     σ !! ℓ = None → (* This is a fresh location not already in the heap. *)
     V' = <[ ℓ := 0 ]>V → (* V' incorporates the new event in the threads view. *)
@@ -79,14 +80,13 @@ Section memory.
              (MEvStore ℓ v)
              (<[ℓ := <[t := Msg v ∅ P]>h]>σ, p) (ThreadView V' P B)
   (* An atomic acquire load. *)
-  | MStepLoadAcquire σ V P B t ℓ (v : val) MV MP h V' p :
+  | MStepLoadAcquire σ V P B t ℓ (v : val) MV MP h p :
     σ !! ℓ = Some h →
     (h !! t) = Some (Msg v MV MP) →
     (V !!0 ℓ) ≤ t →
-    V' = V ⊔ MV → (* FIXME: The lub here doesn't work (yet). *)
     mem_step (σ, p) (ThreadView V P B)
              (MEvLoad ℓ v)
-             (σ, p) (ThreadView V' P B)
+             (σ, p) (ThreadView (V ⊔ MV) (P ⊔ MP) B) (* An acquire incorporates both the store view and the persistent view. *)
   (* An atomic release write. *)
   | MStepStoreRelease σ V P B t ℓ (v : val) h V' p :
     σ !! ℓ = Some h →
@@ -95,9 +95,18 @@ Section memory.
     V' = <[ ℓ := t ]>V → (* V' incorporates the new event in the threads view. *)
     mem_step (σ, p) (ThreadView V P B)
              (MEvStoreRelease ℓ v)
-             (<[ℓ := <[t := Msg v V' P]>h]>σ, p) (ThreadView (<[ℓ := t]>V') P B)
+             (<[ℓ := <[t := Msg v V' P]>h]>σ, p) (ThreadView V' P B) (* A release releases both V' and P. *)
   (* Read-modify-write instructions. *)
-  (* | MStepRMW *)
+  | MStepRMW σ ℓ h v MV MP V t V' P P' B p :
+    σ !! ℓ = Some h →
+    (h !! t) = Some (Msg v MV MP) → (* We read an event at time [t]. *)
+    (V !!0 ℓ) ≤ t →
+    (h !! (t + 1)) = None → (* The next timestamp is available, ensures that no other RMW read this event. *)
+    V' = (<[ ℓ := t + 1 ]>(V ⊔ MV)) → (* V' incorporates the new event in the threads view. *)
+    P' = P ⊔ MP →
+    mem_step (σ, p) (ThreadView V P B)
+             (MEvStoreRelease ℓ v)
+             (<[ℓ := <[t := Msg v V' P']>h]>σ, p) (ThreadView V' P' B)
   (* Write-back instruction. *)
   | MStepWB σ V P B ℓ t h p :
     σ !! ℓ = Some h →
