@@ -98,6 +98,28 @@ Module nvm_lang.
   Global Instance of_val_inj : Inj (=) (=) of_val.
   Proof. intros. congruence. Qed.
 
+  Definition lit_is_unboxed (l: literal) : Prop :=
+    match l with
+    | LitProphecy _ | LitPoison => False
+    | LitInt _ | LitBool _  | LitLoc _ | LitUnit => True
+    end.
+  Definition val_is_unboxed (v : val) : Prop :=
+    match v with
+    | LitV l => lit_is_unboxed l
+    | InjLV (LitV l) => lit_is_unboxed l
+    | InjRV (LitV l) => lit_is_unboxed l
+    | _ => False
+    end.
+
+  Global Instance lit_is_unboxed_dec l : Decision (lit_is_unboxed l).
+  Proof. destruct l; simpl; exact (decide _). Defined.
+  Global Instance val_is_unboxed_dec v : Decision (val_is_unboxed v).
+  Proof. destruct v as [ | | | [] | [] ]; simpl; exact (decide _). Defined.
+
+  Definition vals_compare_safe (vl v1 : val) : Prop :=
+    val_is_unboxed vl ∨ val_is_unboxed v1.
+  Global Arguments vals_compare_safe !_ !_ /.
+
   (* Expressions have decidable equality. *)
   Global Instance base_lit_eq_dec : EqDecision literal.
   Proof. solve_decision. Defined.
@@ -382,29 +404,260 @@ Module nvm_lang.
   Definition subst' (mx : binder) (v : val) : expr → expr :=
     match mx with BNamed x => subst x v | BAnon => id end.
 
+  (* Steps. *)
+
   Definition un_op_eval (op : un_op) (v : val) : option val :=
-    match op, v with
-    | NegOp, LitV (LitBool b) => Some $ LitV $ LitBool (negb b)
-    (* | NegOp, LitV (LitInt n) => Some $ LitV $ LitInt (Z.lnot n) *) (* Negation on ints, let's leave that out for now. *)
-    | MinusUnOp, LitV (LitInt n) => Some $ LitV $ LitInt (- n)
+  match op, v with
+  | NegOp, LitV (LitBool b) => Some $ LitV $ LitBool (negb b)
+  | NegOp, LitV (LitInt n) => Some $ LitV $ LitInt (Z.lnot n)
+  | MinusUnOp, LitV (LitInt n) => Some $ LitV $ LitInt (- n)
+  | _, _ => None
+  end.
+
+  Definition bin_op_eval_int (op : bin_op) (n1 n2 : Z) : option literal :=
+    match op with
+    | PlusOp => Some $ LitInt (n1 + n2)
+    | MinusOp => Some $ LitInt (n1 - n2)
+    | MultOp => Some $ LitInt (n1 * n2)
+    | QuotOp => Some $ LitInt (n1 `quot` n2)
+    | RemOp => Some $ LitInt (n1 `rem` n2)
+    | AndOp => Some $ LitInt (Z.land n1 n2)
+    | OrOp => Some $ LitInt (Z.lor n1 n2)
+    | XorOp => Some $ LitInt (Z.lxor n1 n2)
+    | ShiftLOp => Some $ LitInt (n1 ≪ n2)
+    | ShiftROp => Some $ LitInt (n1 ≫ n2)
+    | LeOp => Some $ LitBool (bool_decide (n1 ≤ n2))
+    | LtOp => Some $ LitBool (bool_decide (n1 < n2))
+    | EqOp => Some $ LitBool (bool_decide (n1 = n2))
+    | OffsetOp => None (* Pointer arithmetic *)
+    end%Z.
+
+  Definition bin_op_eval_bool (op : bin_op) (b1 b2 : bool) : option literal :=
+    match op with
+    | PlusOp | MinusOp | MultOp | QuotOp | RemOp => None (* Arithmetic *)
+    | AndOp => Some (LitBool (b1 && b2))
+    | OrOp => Some (LitBool (b1 || b2))
+    | XorOp => Some (LitBool (xorb b1 b2))
+    | ShiftLOp | ShiftROp => None (* Shifts *)
+    | LeOp | LtOp => None (* InEquality *)
+    | EqOp => Some (LitBool (bool_decide (b1 = b2)))
+    | OffsetOp => None (* Pointer arithmetic *)
+    end.
+
+  Definition bin_op_eval_loc (op : bin_op) (l1 : loc) (v2 : literal) : option literal :=
+    match op, v2 with
+    | OffsetOp, LitInt off => Some $ LitLoc (l1 + off)
     | _, _ => None
     end.
 
-  Definition bin_op_eval (op: bin_op) (v1 v2: val) : option val :=
-    match op with
-    | PlusOp => match v1, v2 with
-                | LitV (LitInt n1), LitV (LitInt n2) =>
-                  Some (LitV (LitInt (n1 + n2)))
-                | _, _ => None
-                end
-    | EqOp => Some (LitV $ LitBool $ bool_decide (v1 = v2))
-    | PairOp => Some (PairV v1 v2)
-    end.
+  Definition bin_op_eval (op : bin_op) (v1 v2 : val) : option val :=
+    if decide (op = EqOp) then
+      if decide (vals_compare_safe v1 v2) then
+        Some $ LitV $ LitBool $ bool_decide (v1 = v2)
+      else
+        None
+    else
+      match v1, v2 with
+      | LitV (LitInt n1), LitV (LitInt n2) => LitV <$> bin_op_eval_int op n1 n2
+      | LitV (LitBool b1), LitV (LitBool b2) => LitV <$> bin_op_eval_bool op b1 b2
+      | LitV (LitLoc l1), LitV v2 => LitV <$> bin_op_eval_loc op l1 v2
+      | _, _ => None
+      end.
 
-  (* Per thread expression reductions. Note: This does not fit the format that
-  Iris expects---we mold it later on. *)
-  (* Inductive head_step : expr → option mem_event → expr → list expr → Prop := *)
+  Notation mem_event := (mem_event (val:=val)).
 
-  (* Inductive head_step : expr → state → list observation → expr → state → list expr → Prop := *)
+  Inductive head_step : expr → option mem_event → list observation → expr → list expr → Prop :=
+  (* Pure. *)
+   RecS f x e :
+     head_step (Rec f x e) None [] (Val $ RecV f x e) []
+  | PairS v1 v2 :
+     head_step (Pair (Val v1) (Val v2)) None [] (Val $ PairV v1 v2) []
+  | InjLS v :
+     head_step (InjL $ Val v) None [] (Val $ InjLV v) []
+  | InjRS v :
+     head_step (InjR $ Val v) None [] (Val $ InjRV v) []
+  | BetaS f x e1 v2 e' :
+     e' = subst' x v2 (subst' f (RecV f x e1) e1) →
+     head_step (App (Val $ RecV f x e1) (Val v2)) None [] e' []
+  | UnOpS op v v' :
+     un_op_eval op v = Some v' →
+     head_step (UnOp op (Val v)) None [] (Val v') []
+  | BinOpS op v1 v2 v' :
+     bin_op_eval op v1 v2 = Some v' →
+     head_step (BinOp op (Val v1) (Val v2)) None [] (Val v') []
+  | IfTrueS e1 e2 :
+     head_step (If (Val $ LitV $ LitBool true) e1 e2) None [] e1 []
+  | IfFalseS e1 e2 :
+     head_step (If (Val $ LitV $ LitBool false) e1 e2) None [] e2 []
+  | FstS v1 v2 :
+     head_step (Fst (Val $ PairV v1 v2)) None [] (Val v1) []
+  | SndS v1 v2 :
+     head_step (Snd (Val $ PairV v1 v2)) None [] (Val v2) []
+  | CaseLS v e1 e2 :
+     head_step (Case (Val $ InjLV v) e1 e2) None [] (App e1 (Val v)) []
+  | CaseRS v e1 e2 :
+     head_step (Case (Val $ InjRV v) e1 e2) None [] (App e2 (Val v)) []
+  (* Concurrency. *)
+  | ForkS e :
+     head_step (Fork e) None [] (Val $ LitV LitUnit) [e]
+  (* Memory. *)
+  | AllocNS (n : Z) v ℓ :
+     (0 < n)%Z →
+     (* (∀ i, (0 ≤ i)%Z → (i < n)%Z → σ.(heap) !! (ℓ + i) = None) → *)
+     head_step (AllocN (Val $ LitV $ LitInt n) (Val v))
+               (Some $ MEvAllocN ℓ (Z.to_nat n) v)
+               []
+               (Val $ LitV $ LitLoc ℓ)
+               []
+  (* | FreeS l v σ :
+     σ.(heap) !! l = Some $ Some v →
+     head_step (Free (Val $ LitV $ LitLoc l)) σ
+               []
+               (Val $ LitV LitUnit) (state_upd_heap <[l:=None]> σ)
+               [] *)
+  | LoadS ℓ v :
+     head_step (Load (Val $ LitV $ LitLoc ℓ))
+               (Some $ MEvLoad ℓ v)
+               []
+               (of_val v)
+               []
+     .
+  (* | StoreS l v w σ :
+     σ.(heap) !! l = Some $ Some v →
+     head_step (Store (Val $ LitV $ LitLoc l) (Val w)) σ
+               []
+               (Val $ LitV LitUnit) (state_upd_heap <[l:=Some w]> σ)
+               []
+  | CmpXchgS l v1 v2 vl σ b :
+     σ.(heap) !! l = Some $ Some vl →
+     (* Crucially, this compares the same way as [EqOp]! *)
+     vals_compare_safe vl v1 →
+     b = bool_decide (vl = v1) →
+     head_step (CmpXchg (Val $ LitV $ LitLoc l) (Val v1) (Val v2)) σ
+               []
+               (Val $ PairV vl (LitV $ LitBool b)) (if b then state_upd_heap <[l:=Some v2]> σ else σ)
+               []
+  | FaaS l i1 i2 σ :
+     σ.(heap) !! l = Some $ Some (LitV (LitInt i1)) →
+     head_step (FAA (Val $ LitV $ LitLoc l) (Val $ LitV $ LitInt i2)) σ
+               []
+               (Val $ LitV $ LitInt i1) (state_upd_heap <[l:=Some $ LitV (LitInt (i1 + i2))]>σ)
+               [] *)
+  (* Propechy. *)
+
+  (** Basic properties about the language *)
+  Global Instance fill_item_inj Ki : Inj (=) (=) (fill_item Ki).
+  Proof. induction Ki; intros ???; simplify_eq/=; auto with f_equal. Qed.
+
+  Lemma fill_item_val Ki e :
+    is_Some (to_val (fill_item Ki e)) → is_Some (to_val e).
+  Proof. intros [v ?]. induction Ki; simplify_option_eq; eauto. Qed.
+
+  (* Lemma val_head_stuck e1 σ1 κ e2 σ2 efs : head_step e1 σ1 κ e2 σ2 efs → to_val e1 = None.
+  Proof. destruct 1; naive_solver. Qed. *)
+
+  Lemma head_ctx_step_val Ki e ev κ e2 efs :
+    head_step (fill_item Ki e) ev κ e2 efs → is_Some (to_val e).
+  Proof. revert κ e2. induction Ki; inversion_clear 1; simplify_option_eq; eauto. Qed.
+
+  (* Lemma fill_item_no_val_inj Ki1 Ki2 e1 e2 :
+    to_val e1 = None → to_val e2 = None →
+    fill_item Ki1 e1 = fill_item Ki2 e2 → Ki1 = Ki2.
+  Proof.
+    revert Ki1. induction Ki2; intros Ki1; induction Ki1; naive_solver eauto with f_equal.
+  Qed. *)
+
+  (* We synchronize the memory model with the stepping relation for expressions
+  and arrive at a semantics in the form that Iris requires. *)
 
 End nvm_lang.
+
+Section iris_lang.
+
+  Record expr : Type :=
+    mkExpr { expr_expr : nvm_lang.expr; expr_view : thread_view }.
+  Record val : Type :=
+    mkVal { val_val : nvm_lang.val; val_view : thread_view }.
+  Definition ectx_item := nvm_lang.ectx_item.
+  Definition fill_item (Ki : ectx_item) (e : expr) : expr :=
+    mkExpr (nvm_lang.fill_item Ki e.(expr_expr)) e.(expr_view).
+  Definition of_val (v : val) : expr :=
+    mkExpr (nvm_lang.of_val v.(val_val)) v.(val_view).
+  Definition to_val (e : expr) : option val :=
+    (λ v, mkVal v e.(expr_view)) <$> nvm_lang.to_val e.(expr_expr).
+
+  Definition subst x es (e : expr) : expr :=
+    mkExpr (nvm_lang.subst x es e.(expr_expr)) (expr_view e).
+
+  (* Notation state := (@mem_config val). *)
+
+  Inductive head_step :
+    expr → mem_config → list nvm_lang.observation → expr → mem_config → list expr → Prop :=
+  | pure_step e V σ e' efs :
+      nvm_lang.head_step e None [] e' (expr_expr <$> efs) →
+      Forall (eq V) (expr_view <$> efs) →
+      head_step (mkExpr e V) σ [] (mkExpr e' V) σ efs
+  | impure_step e V σ evt e' V' σ' :
+      nvm_lang.head_step e (Some evt) [] e' [] →
+      mem_step σ V evt σ' V' →
+      head_step (mkExpr e V) σ [] (mkExpr e' V') σ' [].
+  Arguments head_step _%E _ _ _%E _ _%E.
+
+  (* Lemma head_step_view_sqsubseteq e V σ κs e' V' σ' ef P B P' B'
+    (step : head_step (mkExpr e (ThreadView V P B)) σ κs (mkExpr e' (ThreadView V' P' B')) σ' ef) :
+    V ⊑ V'.
+  Proof.
+    inversion step; first done. subst.
+    match goal with H : mem_step _ _ _ _ _ |- _ => destruct H; try solve_lat end.
+    intros ℓ'. case (decide (ℓ = ℓ')) => [ <- | ? ] ;
+      [ rewrite lookup_insert | by rewrite lookup_insert_ne ].
+    by subst.
+  Qed. *)
+
+  (** Some properties of the language. **)
+
+  Lemma to_of_val v : to_val (of_val v) = Some v.
+  Proof. by destruct v. Qed.
+
+  Lemma of_to_val e v : to_val e = Some v → of_val v = e.
+  Proof. by destruct e as [[] ?]=>// [= <-] //. Qed.
+
+  Instance of_val_inj : Inj (=) (=) of_val.
+  Proof. by intros [][][=-> ->]. Qed.
+
+  Instance fill_item_inj Ki : Inj (=) (=) (fill_item Ki).
+  Proof. by intros [][][= ->%nvm_lang.fill_item_inj ->]. Qed.
+
+  Lemma fill_item_val Ki e :
+    is_Some (to_val (fill_item Ki e)) → is_Some (to_val e).
+  Proof. move/fmap_is_Some/nvm_lang.fill_item_val => H. exact/fmap_is_Some. Qed.
+
+  (* Lemma val_stuck σ1 e1 κs σ2 e2 ef :
+    head_step e1 σ1 κs e2 σ2 ef → to_val e1 = None.
+  Proof.
+    by inversion 1; subst;
+      match goal with H : nvm_lang.head_step _ _ _ _ |- _ => inversion H end.
+  Qed. *)
+
+  Lemma head_ctx_step_val Ki e σ κs e2 σ2 ef :
+    head_step (fill_item Ki e) σ κs e2 σ2 ef → is_Some (to_val e).
+  Proof.
+    inversion 1; subst; apply fmap_is_Some; exact: nvm_lang.head_ctx_step_val.
+  Qed.
+
+  (* Lemma fill_item_no_val_inj Ki1 Ki2 e1 e2 :
+    to_val e1 = None → to_val e2 = None → fill_item Ki1 e1 = fill_item Ki2 e2
+    → Ki1 = Ki2.
+  Proof.
+    move => /fmap_None H1 /fmap_None H2 [] H3 ?.
+    exact: fill_item_no_val_inj H1 H2 H3.
+  Qed. *)
+
+  (* Lemma view_ectxi_lang_mixin :
+    EctxiLanguageMixin of_val to_val fill_item head_step.
+  Proof.
+    split; eauto using to_of_val, of_to_val, val_stuck, fill_item_val,
+      fill_item_no_val_inj, head_ctx_step_val with typeclass_instances.
+  Qed. *)
+
+End iris_lang.
