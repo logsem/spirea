@@ -360,11 +360,11 @@ Module nvm_lang.
     | AllocNLCtx v2 => AllocN e (Val v2)
     | AllocNRCtx e1 => AllocN e1 e
     | LoadCtx => Load e
-    | LoadAcquireCtx => Load e
+    | LoadAcquireCtx => LoadAcquire e
     | StoreLCtx v2 => Store e (Val v2)
     | StoreRCtx e1 => Store e1 e
-    | StoreReleaseLCtx v2 => Store e (Val v2)
-    | StoreReleaseRCtx e1 => Store e1 e
+    | StoreReleaseLCtx v2 => StoreRelease e (Val v2)
+    | StoreReleaseRCtx e1 => StoreRelease e1 e
     | CmpXchgLCtx v1 v2 => CmpXchg e (Val v1) (Val v2)
     | CmpXchgMCtx e0 v2 => CmpXchg e0 e (Val v2)
     | CmpXchgRCtx e0 e1 => CmpXchg e0 e1 e
@@ -553,26 +553,27 @@ Module nvm_lang.
     is_Some (to_val (fill_item Ki e)) → is_Some (to_val e).
   Proof. intros [v ?]. induction Ki; simplify_option_eq; eauto. Qed.
 
-  (* Lemma val_head_stuck e1 σ1 κ e2 σ2 efs : head_step e1 σ1 κ e2 σ2 efs → to_val e1 = None.
-  Proof. destruct 1; naive_solver. Qed. *)
+  (* If an expression [e] can take a step then it is not a value. *)
+  Lemma val_head_stuck e mev κ e' efs : head_step e mev κ e' efs → to_val e = None.
+  Proof. destruct 1; naive_solver. Qed.
 
   Lemma head_ctx_step_val Ki e ev κ e2 efs :
     head_step (fill_item Ki e) ev κ e2 efs → is_Some (to_val e).
   Proof. revert κ e2. induction Ki; inversion_clear 1; simplify_option_eq; eauto. Qed.
 
-  (* Lemma fill_item_no_val_inj Ki1 Ki2 e1 e2 :
+  Lemma fill_item_no_val_inj Ki1 Ki2 e1 e2 :
     to_val e1 = None → to_val e2 = None →
     fill_item Ki1 e1 = fill_item Ki2 e2 → Ki1 = Ki2.
   Proof.
-    revert Ki1. induction Ki2; intros Ki1; induction Ki1; naive_solver eauto with f_equal.
-  Qed. *)
-
-  (* We synchronize the memory model with the stepping relation for expressions
-  and arrive at a semantics in the form that Iris requires. *)
+    revert Ki2. induction Ki1; intros Ki2; induction Ki2; try naive_solver eauto with f_equal.
+  Qed.
 
 End nvm_lang.
 
 Section iris_lang.
+
+  (* We synchronize the memory model with the stepping relation for expressions
+  and arrive at a semantics in the form that Iris requires. *)
 
   Record expr : Type :=
     mkExpr { expr_expr : nvm_lang.expr; expr_view : thread_view }.
@@ -588,8 +589,6 @@ Section iris_lang.
 
   Definition subst x es (e : expr) : expr :=
     mkExpr (nvm_lang.subst x es e.(expr_expr)) (expr_view e).
-
-  (* Notation state := (@mem_config val). *)
 
   Inductive head_step :
     expr → mem_config → list nvm_lang.observation → expr → mem_config → list expr → Prop :=
@@ -632,12 +631,11 @@ Section iris_lang.
     is_Some (to_val (fill_item Ki e)) → is_Some (to_val e).
   Proof. move/fmap_is_Some/nvm_lang.fill_item_val => H. exact/fmap_is_Some. Qed.
 
-  (* Lemma val_stuck σ1 e1 κs σ2 e2 ef :
+  Lemma val_stuck σ1 e1 κs σ2 e2 ef :
     head_step e1 σ1 κs e2 σ2 ef → to_val e1 = None.
   Proof.
-    by inversion 1; subst;
-      match goal with H : nvm_lang.head_step _ _ _ _ |- _ => inversion H end.
-  Qed. *)
+    inversion 1 as [????? Hstep|??????? Hstep]; inversion Hstep; done.
+  Qed.
 
   Lemma head_ctx_step_val Ki e σ κs e2 σ2 ef :
     head_step (fill_item Ki e) σ κs e2 σ2 ef → is_Some (to_val e).
@@ -645,19 +643,19 @@ Section iris_lang.
     inversion 1; subst; apply fmap_is_Some; exact: nvm_lang.head_ctx_step_val.
   Qed.
 
-  (* Lemma fill_item_no_val_inj Ki1 Ki2 e1 e2 :
+  Lemma fill_item_no_val_inj Ki1 Ki2 e1 e2 :
     to_val e1 = None → to_val e2 = None → fill_item Ki1 e1 = fill_item Ki2 e2
     → Ki1 = Ki2.
   Proof.
     move => /fmap_None H1 /fmap_None H2 [] H3 ?.
-    exact: fill_item_no_val_inj H1 H2 H3.
-  Qed. *)
+    exact: nvm_lang.fill_item_no_val_inj _ _ H3.
+  Qed.
 
-  (* Lemma view_ectxi_lang_mixin :
+  Lemma view_ectxi_lang_mixin :
     EctxiLanguageMixin of_val to_val fill_item head_step.
   Proof.
     split; eauto using to_of_val, of_to_val, val_stuck, fill_item_val,
       fill_item_no_val_inj, head_ctx_step_val with typeclass_instances.
-  Qed. *)
+  Qed.
 
 End iris_lang.
