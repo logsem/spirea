@@ -521,29 +521,50 @@ Module nvm_lang.
                []
                (of_val v)
                []
-     .
-  (* | StoreS l v w σ :
-     σ.(heap) !! l = Some $ Some v →
-     head_step (Store (Val $ LitV $ LitLoc l) (Val w)) σ
+  | StoreS ℓ v :
+     (* σ.(heap) !! ℓ = Some $ Some v → *)
+     head_step (Store (Val $ LitV $ LitLoc ℓ) (Val v))
+               (Some $ MEvStore ℓ v)
                []
-               (Val $ LitV LitUnit) (state_upd_heap <[l:=Some w]> σ)
+               (Val $ LitV LitUnit)
                []
-  | CmpXchgS l v1 v2 vl σ b :
-     σ.(heap) !! l = Some $ Some vl →
-     (* Crucially, this compares the same way as [EqOp]! *)
+  | CmpXchgSuccS ℓ v1 v2 vl :
+    (* FIXME: We probably need to check that _all_ the possible things we
+    could've read here are safe to compare with. Let's see when that becomes a
+    problem :). Note: Do this in the memory transition probably. Also, figure
+    out why that neccessary. *)
      vals_compare_safe vl v1 →
-     b = bool_decide (vl = v1) →
-     head_step (CmpXchg (Val $ LitV $ LitLoc l) (Val v1) (Val v2)) σ
+     (vl = v1) →
+     head_step (CmpXchg (Val $ LitV $ LitLoc ℓ) (Val v1) (Val v2))
+               (Some $ MEvRMW ℓ vl v2)
                []
-               (Val $ PairV vl (LitV $ LitBool b)) (if b then state_upd_heap <[l:=Some v2]> σ else σ)
+               (Val $ PairV vl (LitV $ LitBool true))
                []
-  | FaaS l i1 i2 σ :
-     σ.(heap) !! l = Some $ Some (LitV (LitInt i1)) →
-     head_step (FAA (Val $ LitV $ LitLoc l) (Val $ LitV $ LitInt i2)) σ
+  | CmpXchgFailS ℓ v1 v2 vl :
+     vals_compare_safe vl v1 →
+     (vl ≠ v1) →
+     head_step (CmpXchg (Val $ LitV $ LitLoc ℓ) (Val v1) (Val v2))
+               (Some $ MEvLoadAcquire ℓ vl) (* FIXME: This is not enough per the above comment, probably need separate event. *)
                []
-               (Val $ LitV $ LitInt i1) (state_upd_heap <[l:=Some $ LitV (LitInt (i1 + i2))]>σ)
-               [] *)
+               (Val $ PairV vl (LitV $ LitBool false))
+               []
+  | FaaS ℓ (i1 i2 : Z) :
+     head_step (FAA (Val $ LitV $ LitLoc ℓ) (Val $ LitV $ LitInt i2))
+               (Some $ MEvRMW ℓ (LitV $ LitInt i1) (LitV $ LitInt $ i1 + i2)%Z)
+               []
+               (Val $ LitV $ LitInt i1)
+               []
   (* Propechy. *)
+  (* | NewProphS σ p :
+     p ∉ σ.(used_proph_id) →
+     head_step NewProph σ
+               []
+               (Val $ LitV $ LitProphecy p) (state_upd_used_proph_id ({[ p ]} ∪.) σ)
+               [] *)
+  (* | ResolveS p v e σ w σ' κs ts :
+     head_step e σ κs (Val v) σ' ts →
+     head_step (Resolve e (Val $ LitV $ LitProphecy p) (Val w)) σ
+               (κs ++ [(p, (v, w))]) (Val v) σ' ts *).
 
   (** Basic properties about the language *)
   Global Instance fill_item_inj Ki : Inj (=) (=) (fill_item Ki).
