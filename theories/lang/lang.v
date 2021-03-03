@@ -568,42 +568,45 @@ Module nvm_lang.
     revert Ki2. induction Ki1; intros Ki2; induction Ki2; try naive_solver eauto with f_equal.
   Qed.
 
-End nvm_lang.
-
-Section iris_lang.
-
   (* We synchronize the memory model with the stepping relation for expressions
   and arrive at a semantics in the form that Iris requires. *)
 
-  Record expr : Type :=
-    mkExpr { expr_expr : nvm_lang.expr; expr_view : thread_view }.
-  Record val : Type :=
-    mkVal { val_val : nvm_lang.val; val_view : thread_view }.
-  Definition ectx_item := nvm_lang.ectx_item.
-  Definition fill_item (Ki : ectx_item) (e : expr) : expr :=
-    mkExpr (nvm_lang.fill_item Ki e.(expr_expr)) e.(expr_view).
-  Definition of_val (v : val) : expr :=
-    mkExpr (nvm_lang.of_val v.(val_val)) v.(val_view).
-  Definition to_val (e : expr) : option val :=
-    (λ v, mkVal v e.(expr_view)) <$> nvm_lang.to_val e.(expr_expr).
+  (* In [EctxLanguage] each thread is represented by an "expression". However,
+  for our langauge the state of each thread consists of more than just an
+  expression. The definition below is will serve as the "expressions" in our
+  language definition, even though it really isnt' an expression. This requires
+  us to define a few things that feels a bit weird (substition, conversion to
+  val, etc.). *)
+  Record thread_state : Type :=
+    ThreadState { ts_expr : nvm_lang.expr; ts_view : thread_view }.
+  Record thread_val : Type :=
+    mkVal { val_val : val; val_view : thread_view }.
+  (* Definition ectx_item := nvm_lang.ectx_item. *)
+  Definition thread_fill_item (Ki : ectx_item) (e : thread_state) : thread_state :=
+    ThreadState (nvm_lang.fill_item Ki e.(ts_expr)) e.(ts_view).
+  Definition thread_of_val (v : thread_val) : thread_state :=
+    ThreadState (nvm_lang.of_val v.(val_val)) v.(val_view).
+  Definition thread_to_val (e : thread_state) : option thread_val :=
+    (λ v, mkVal v e.(ts_view)) <$> nvm_lang.to_val e.(ts_expr).
 
-  Definition subst x es (e : expr) : expr :=
-    mkExpr (nvm_lang.subst x es e.(expr_expr)) (expr_view e).
+  Definition thread_subst x es (e : thread_state) : thread_state :=
+    ThreadState (nvm_lang.subst x es e.(ts_expr)) (ts_view e).
 
-  Inductive head_step :
-    expr → mem_config → list nvm_lang.observation → expr → mem_config → list expr → Prop :=
+  Inductive thread_step :
+    thread_state → mem_config → list nvm_lang.observation →
+    thread_state → mem_config → list thread_state → Prop :=
   | pure_step e V σ e' efs :
-      nvm_lang.head_step e None [] e' (expr_expr <$> efs) →
-      Forall (eq V) (expr_view <$> efs) →
-      head_step (mkExpr e V) σ [] (mkExpr e' V) σ efs
+      head_step e None [] e' (ts_expr <$> efs) →
+      Forall (eq V) (ts_view <$> efs) →
+      thread_step (ThreadState e V) σ [] (ThreadState e' V) σ efs
   | impure_step e V σ evt e' V' σ' :
       nvm_lang.head_step e (Some evt) [] e' [] →
       mem_step σ V evt σ' V' →
-      head_step (mkExpr e V) σ [] (mkExpr e' V') σ' [].
-  Arguments head_step _%E _ _ _%E _ _%E.
+      thread_step (ThreadState e V) σ [] (ThreadState e' V') σ' [].
+  Arguments thread_step _%E _ _ _%E _ _%E.
 
   (* Lemma head_step_view_sqsubseteq e V σ κs e' V' σ' ef P B P' B'
-    (step : head_step (mkExpr e (ThreadView V P B)) σ κs (mkExpr e' (ThreadView V' P' B')) σ' ef) :
+    (step : head_step (ThreadState e (ThreadView V P B)) σ κs (ThreadState e' (ThreadView V' P' B')) σ' ef) :
     V ⊑ V'.
   Proof.
     inversion step; first done. subst.
@@ -615,47 +618,53 @@ Section iris_lang.
 
   (** Some properties of the language. **)
 
-  Lemma to_of_val v : to_val (of_val v) = Some v.
+  Lemma thread_to_of_val v : thread_to_val (thread_of_val v) = Some v.
   Proof. by destruct v. Qed.
 
-  Lemma of_to_val e v : to_val e = Some v → of_val v = e.
+  Lemma thread_of_to_val e v : thread_to_val e = Some v → thread_of_val v = e.
   Proof. by destruct e as [[] ?]=>// [= <-] //. Qed.
 
-  Instance of_val_inj : Inj (=) (=) of_val.
+  Instance thread_of_val_inj : Inj (=) (=) thread_of_val.
   Proof. by intros [][][=-> ->]. Qed.
 
-  Instance fill_item_inj Ki : Inj (=) (=) (fill_item Ki).
-  Proof. by intros [][][= ->%nvm_lang.fill_item_inj ->]. Qed.
+  Instance thread_fill_item_inj Ki : Inj (=) (=) (thread_fill_item Ki).
+  Proof. by intros [][][= ->%fill_item_inj ->]. Qed.
 
-  Lemma fill_item_val Ki e :
-    is_Some (to_val (fill_item Ki e)) → is_Some (to_val e).
+  Lemma thread_fill_item_val Ki e :
+    is_Some (thread_to_val (thread_fill_item Ki e)) → is_Some (thread_to_val e).
   Proof. move/fmap_is_Some/nvm_lang.fill_item_val => H. exact/fmap_is_Some. Qed.
 
-  Lemma val_stuck σ1 e1 κs σ2 e2 ef :
-    head_step e1 σ1 κs e2 σ2 ef → to_val e1 = None.
+  Lemma thread_val_stuck σ1 e1 κs σ2 e2 ef :
+    thread_step e1 σ1 κs e2 σ2 ef → thread_to_val e1 = None.
   Proof.
     inversion 1 as [????? Hstep|??????? Hstep]; inversion Hstep; done.
   Qed.
 
-  Lemma head_ctx_step_val Ki e σ κs e2 σ2 ef :
-    head_step (fill_item Ki e) σ κs e2 σ2 ef → is_Some (to_val e).
+  Lemma thread_head_ctx_step_val Ki e σ κs e2 σ2 ef :
+    thread_step (thread_fill_item Ki e) σ κs e2 σ2 ef → is_Some (thread_to_val e).
   Proof.
     inversion 1; subst; apply fmap_is_Some; exact: nvm_lang.head_ctx_step_val.
   Qed.
 
-  Lemma fill_item_no_val_inj Ki1 Ki2 e1 e2 :
-    to_val e1 = None → to_val e2 = None → fill_item Ki1 e1 = fill_item Ki2 e2
+  Lemma thread_fill_item_no_val_inj Ki1 Ki2 e1 e2 :
+    thread_to_val e1 = None → thread_to_val e2 = None → thread_fill_item Ki1 e1 = thread_fill_item Ki2 e2
     → Ki1 = Ki2.
   Proof.
     move => /fmap_None H1 /fmap_None H2 [] H3 ?.
-    exact: nvm_lang.fill_item_no_val_inj _ _ H3.
+    exact: fill_item_no_val_inj _ _ H3.
   Qed.
 
-  Lemma view_ectxi_lang_mixin :
-    EctxiLanguageMixin of_val to_val fill_item head_step.
+  Lemma nvm_lang_mixin :
+    EctxiLanguageMixin thread_of_val thread_to_val thread_fill_item thread_step.
   Proof.
-    split; eauto using to_of_val, of_to_val, val_stuck, fill_item_val,
-      fill_item_no_val_inj, head_ctx_step_val with typeclass_instances.
+    split; eauto using thread_to_of_val, thread_of_to_val, thread_val_stuck, thread_fill_item_val,
+      thread_fill_item_no_val_inj, thread_head_ctx_step_val with typeclass_instances.
   Qed.
 
-End iris_lang.
+End nvm_lang.
+
+Canonical Structure nvm_ectxi_lang := EctxiLanguage nvm_lang.nvm_lang_mixin.
+Canonical Structure nvm_ectx_lang := EctxLanguageOfEctxi nvm_ectxi_lang.
+Canonical Structure nvm_lang := LanguageOfEctx nvm_ectx_lang.
+
+Export nvm_lang.
