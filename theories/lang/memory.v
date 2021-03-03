@@ -2,6 +2,7 @@
 
 From stdpp Require Import countable numbers gmap.
 
+(* FIXME: Can we just use [Definition] instead of [Notation] here? *)
 Notation loc := Z. (* Any countable infinite type would do. *)
 
 Notation time := nat.
@@ -20,7 +21,7 @@ Section memory.
   Implicit Types (v : val) (ℓ : loc).
 
   Inductive mem_event : Type :=
-  | MEvAlloc ℓ v
+  | MEvAllocN ℓ (len : nat) v
   | MEvLoad ℓ v
   | MEvStore ℓ v
   (* acquire/release weak memory events *)
@@ -37,7 +38,6 @@ Section memory.
     msg_val : val;
     msg_store_view : view;
     msg_persist_view : view;
-    (* msg_wb_buffer : view; (* FIXME: Do we even need this in the message or does it suffice to have it in the thread_view? *) *)
   }.
 
   Record thread_view : Type := ThreadView {
@@ -56,11 +56,11 @@ Section memory.
 
   Inductive mem_step : mem_config → thread_view → mem_event → mem_config → thread_view → Prop :=
   (* Allocating a new location. *)
-  | MStepAlloc σ V P B ℓ v V' p :
-    σ !! ℓ = None → (* This is a fresh location not already in the heap. *)
+  | MStepAllocN σ V P B ℓ len v V' p :
+   (∀ idx, idx < len → σ !! (ℓ + idx)%Z = None) → (* This is a fresh segment of the heap not already in use. *)
     V' = <[ ℓ := 0 ]>V → (* V' incorporates the new event in the threads view. *)
     mem_step (σ, p) (ThreadView V P B)
-           (MEvAlloc ℓ v)
+           (MEvAllocN ℓ len v)
            (<[ℓ := {[ 0 := Msg v V' P ]}]>σ, p) (ThreadView V' P B)
   (* A normal non-atomic load. *)
   | MStepLoad σ V P B t ℓ (v : val) h p :
