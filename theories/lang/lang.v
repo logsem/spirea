@@ -60,6 +60,7 @@ Module nvm_lang.
     | LoadAcquire (e : expr)
     | Store (e1 e2 : expr)
     | StoreRelease (e1 e2 : expr)
+    | WB (e1 : expr)
     (* RMW memory operations. *)
     | CmpXchg (e0 : expr) (e1 : expr) (e2 : expr) (* Compare-exchange *)
     | FAA (e1 : expr) (e2 : expr) (* Fetch-and-add *)
@@ -159,6 +160,7 @@ Module nvm_lang.
           cast_if_and (decide (e1 = e1')) (decide (e2 = e2'))
       | StoreRelease e1 e2, StoreRelease e1' e2' =>
           cast_if_and (decide (e1 = e1')) (decide (e2 = e2'))
+      | WB e, WB e' => cast_if (decide (e = e'))
       | CmpXchg e0 e1 e2, CmpXchg e0' e1' e2' =>
           cast_if_and3 (decide (e0 = e0')) (decide (e1 = e1')) (decide (e2 = e2'))
       | FAA e1 e2, FAA e1' e2' =>
@@ -241,13 +243,14 @@ Module nvm_lang.
       | Fork e => GenNode 12 [go e]
       | AllocN e1 e2 => GenNode 13 [go e1; go e2]
       | Load e => GenNode 15 [go e]
-      | LoadAcquire e => GenNode 21 [go e]
-      | Store e1 e2 => GenNode 16 [go e1; go e2]
-      | StoreRelease e1 e2 => GenNode 22 [go e1; go e2]
-      | CmpXchg e0 e1 e2 => GenNode 17 [go e0; go e1; go e2]
-      | FAA e1 e2 => GenNode 18 [go e1; go e2]
-      | NewProph => GenNode 19 []
-      | Resolve e0 e1 e2 => GenNode 20 [go e0; go e1; go e2]
+      | LoadAcquire e => GenNode 16 [go e]
+      | Store e1 e2 => GenNode 17 [go e1; go e2]
+      | StoreRelease e1 e2 => GenNode 18 [go e1; go e2]
+      | WB e => GenNode 19 [go e]
+      | CmpXchg e0 e1 e2 => GenNode 20 [go e0; go e1; go e2]
+      | FAA e1 e2 => GenNode 21 [go e1; go e2]
+      | NewProph => GenNode 22 []
+      | Resolve e0 e1 e2 => GenNode 23 [go e0; go e1; go e2]
       end
     with gov v :=
       match v with
@@ -278,13 +281,14 @@ Module nvm_lang.
       | GenNode 12 [e] => Fork (go e)
       | GenNode 13 [e1; e2] => AllocN (go e1) (go e2)
       | GenNode 15 [e] => Load (go e)
-      | GenNode 21 [e] => LoadAcquire (go e)
-      | GenNode 16 [e1; e2] => Store (go e1) (go e2)
-      | GenNode 22 [e1; e2] => StoreRelease (go e1) (go e2)
-      | GenNode 17 [e0; e1; e2] => CmpXchg (go e0) (go e1) (go e2)
-      | GenNode 18 [e1; e2] => FAA (go e1) (go e2)
-      | GenNode 19 [] => NewProph
-      | GenNode 20 [e0; e1; e2] => Resolve (go e0) (go e1) (go e2)
+      | GenNode 16 [e] => LoadAcquire (go e)
+      | GenNode 17 [e1; e2] => Store (go e1) (go e2)
+      | GenNode 18 [e1; e2] => StoreRelease (go e1) (go e2)
+      | GenNode 19 [e] => WB (go e)
+      | GenNode 20 [e0; e1; e2] => CmpXchg (go e0) (go e1) (go e2)
+      | GenNode 21 [e1; e2] => FAA (go e1) (go e2)
+      | GenNode 22 [] => NewProph
+      | GenNode 23 [e0; e1; e2] => Resolve (go e0) (go e1) (go e2)
       | _ => Val $ LitV LitUnit (* dummy *)
       end
     with gov v :=
@@ -299,7 +303,7 @@ Module nvm_lang.
     for go).
   refine (inj_countable' enc dec _).
   refine (fix go (e : expr) {struct e} := _ with gov (v : val) {struct v} := _ for go).
-  - destruct e as [v| | | | | | | | | | | | | | | | | | | | | |]; simpl; f_equal;
+  - destruct e as [v| | | | | | | | | | | | | | | | | | | | | | |]; simpl; f_equal;
       [exact (gov v)|done..].
   - destruct v; by f_equal.
   Qed.
@@ -395,6 +399,7 @@ Module nvm_lang.
     | LoadAcquire e => LoadAcquire (subst x v e)
     | Store e1 e2 => Store (subst x v e1) (subst x v e2)
     | StoreRelease e1 e2 => StoreRelease (subst x v e1) (subst x v e2)
+    | WB e => WB (subst x v e)
     | CmpXchg e0 e1 e2 => CmpXchg (subst x v e0) (subst x v e1) (subst x v e2)
     | FAA e1 e2 => FAA (subst x v e1) (subst x v e2)
     | NewProph => NewProph
@@ -509,12 +514,6 @@ Module nvm_lang.
                []
                (Val $ LitV $ LitLoc ℓ)
                []
-  (* | FreeS l v σ :
-     σ.(heap) !! l = Some $ Some v →
-     head_step (Free (Val $ LitV $ LitLoc l)) σ
-               []
-               (Val $ LitV LitUnit) (state_upd_heap <[l:=None]> σ)
-               [] *)
   | LoadS ℓ v :
      head_step (Load (Val $ LitV $ LitLoc ℓ))
                (Some $ MEvLoad ℓ v)
@@ -522,9 +521,14 @@ Module nvm_lang.
                (of_val v)
                []
   | StoreS ℓ v :
-     (* σ.(heap) !! ℓ = Some $ Some v → *)
      head_step (Store (Val $ LitV $ LitLoc ℓ) (Val v))
                (Some $ MEvStore ℓ v)
+               []
+               (Val $ LitV LitUnit)
+               []
+  | WBS ℓ :
+     head_step (WB (Val $ LitV $ LitLoc ℓ))
+               (Some $ MEvWB ℓ)
                []
                (Val $ LitV LitUnit)
                []
