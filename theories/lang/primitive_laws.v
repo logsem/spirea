@@ -61,6 +61,26 @@ Section lifting.
   (* Create a message from a [value] and a [thread_view]. *)
   Definition mk_message (v : val) (T : thread_view) := Msg v T.(tv_store_view) T.(tv_persist_view).
 
+  (* This tactics performs inversion in [thread_step], and its constituents
+  [head_step] and [mem_step]. *)
+  Ltac inv_thread_step :=
+    repeat match goal with
+    | _ => progress simplify_map_eq/= (* simplify memory stuff *)
+    | H : to_val _ = Some _ |- _ => apply of_to_val in H
+    | H : mem_step ?e _ _ _ _ |- _ =>
+      try (is_var e; fail 1); (* inversion yields many goals if [e] is a variable
+      and should thus better be avoided. *)
+      inversion H; subst; clear H
+    | H : nvm_lang.head_step ?e _ _ _ _ |- _ =>
+      try (is_var e; fail 1); (* inversion yields many goals if [e] is a variable
+      and should thus better be avoided. *)
+      inversion H; subst; clear H
+    | H : thread_step ?e _ _ _ _ _ |- _ =>
+      try (is_var e; fail 1); (* inversion yields many goals if [e] is a variable
+      and should thus better be avoided. *)
+      inversion H; subst; clear H
+    end.
+
   Lemma wp_alloc_at_view_lang v T (hist : (@history val)) s E :
     {{{ True }}}
       (ThreadState (ref v) T) @ s; E
@@ -68,17 +88,16 @@ Section lifting.
   Proof.
     iIntros (Φ) "_ HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (_)); first done.
-    iIntros (σ1 κ κs k) "[Hσst Hσse] !>"; iSplit.
+    iIntros ([??] κ κs k) "[Hσst Hσse] !>"; iSplit.
     - (* We must show that [ref v] is can take tome step. *)
        rewrite /head_reducible.
+       destruct T.
        iExists [], _, _, _. simpl. iPureIntro.
        eapply impure_step.
        * constructor. done.
-       * destruct σ1, T.
-         apply MStepAllocN. constructor.
-       (* iExists _, _, _, _. *)
-       auto with lia head_step.
+       * apply alloc_fresh. done.
+    - iNext. iIntros (e2 σ2 efs Hstep). simpl in *. inv_thread_step. iSplitR=>//.
+      
   Qed.
-
 
 End lifting.

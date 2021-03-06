@@ -2,3 +2,5 @@
 
 theories/lang/memory.v
 theories/lang/lang.v
+theories/lang/notation.v
+theories/lang/primitive_laws.v

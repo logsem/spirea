@@ -451,7 +451,7 @@ Module nvm_lang.
 
   Definition bin_op_eval_loc (op : bin_op) (l1 : loc) (v2 : literal) : option literal :=
     match op, v2 with
-    | OffsetOp, LitInt off => Some $ LitLoc (l1 + off)
+    | OffsetOp, LitInt off => Some $ LitLoc (l1 +ₗ off)
     | _, _ => None
     end.
 
@@ -622,7 +622,7 @@ Module nvm_lang.
     thread_state → mem_config → list thread_state → Prop :=
   | pure_step e V σ e' efs :
       head_step e None [] e' (ts_expr <$> efs) →
-      Forall (eq V) (ts_view <$> efs) →
+      (* Forall (eq V) (ts_view <$> efs) → *) (* FIXME: Is this really needed? *)
       thread_step (ThreadState e V) σ [] (ThreadState e' V) σ efs
   | impure_step e V σ evt e' V' σ' :
       nvm_lang.head_step e (Some evt) [] e' [] →

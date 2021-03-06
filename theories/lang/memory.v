@@ -1,9 +1,10 @@
 (* This module defines the memory model or the memory subsystem. *)
 
 From stdpp Require Import countable numbers gmap.
+From iris.heap_lang Require Export locations.
 
 (* FIXME: Can we just use [Definition] instead of [Notation] here? *)
-Notation loc := Z. (* Any countable infinite type would do. *)
+(* Notation loc := Z. Any countable infinite type would do. *)
 
 Notation time := nat.
 
@@ -53,18 +54,30 @@ Section memory.
 
   Definition mem_config : Type := store * view.
 
+  (* Convert an array into a store. *)
+  Fixpoint heap_array (l : loc) P (vs : list val) : store :=
+    match vs with
+    | [] => ∅
+    | v :: vs' => {[l := {[0 := Msg v ∅ P]}]} ∪ heap_array (l +ₗ 1) P vs'
+    end.
+
+  (* Initializes a region of the memory starting at [ℓ] *)
+  Definition state_init_heap (ℓ : loc) (n : nat) P (v : val) (σ : store) : store :=
+    heap_array ℓ P (replicate n v) ∪ σ.
+
   (* Small-step reduction steps on the memory. *)
 
   Inductive mem_step : mem_config → thread_view → mem_event → mem_config → thread_view → Prop :=
   (* Allocating a new location. *)
-  | MStepAllocN σ V P B ℓ len v V' p :
+  | MStepAllocN σ V P B ℓ (len : nat) v p :
    (0 < len)%Z →
-    (∀ i, (0 ≤ i)%Z → (i < n)%Z → σ.(heap) !! (l +ₗ i) = None) →
-   (∀ idx, idx < len → σ !! (ℓ + idx)%Z = None) → (* This is a fresh segment of the heap not already in use. *)
+   (* (∀ i, (0 ≤ i)%Z → (i < n)%Z → σ.(heap) !! (l +ₗ i) = None) → *)
+   (∀ idx, (0 ≤ idx)%Z → (idx < len)%Z → σ !! (ℓ +ₗ idx) = None) → (* This is a fresh segment of the heap not already in use. *)
     (* V' = <[ ℓ := 0 ]>V → (* V' incorporates the new event in the threads view. *) This may not be needed. *)
     mem_step (σ, p) (ThreadView V P B)
            (MEvAllocN ℓ len v)
-           (<[ℓ := {[ 0 := Msg v V' P ]}]>σ, p) (ThreadView V' P B)
+           (state_init_heap ℓ len P v σ, p) (ThreadView V P B)
+           (* (<[ℓ := {[ 0 := Msg v V' P ]}]>σ, p) (ThreadView V' P B) *)
   (* A normal non-atomic load. *)
   | MStepLoad σ V P B t ℓ (v : val) h p :
     σ !! ℓ = Some h →
@@ -127,5 +140,18 @@ Section memory.
     mem_step (σ, p) (ThreadView V P B)
              MEvFence
              (σ, p ⊔ P) (ThreadView V (P ⊔ B) ∅).
+
+  (* It is always possible to allocate a section of memory. *)
+  Lemma alloc_fresh v (len : nat) σ p V P B :
+    let ℓ := fresh_locs (dom (gset loc) σ) in (* ℓ is directly after the largest allocated location. *)
+    (0 < len)%Z →
+    mem_step (σ, p) (ThreadView V P B)
+             (MEvAllocN ℓ len v)
+             (state_init_heap ℓ len P v σ, p) (ThreadView V P B).
+  Proof.
+    intros. apply MStepAllocN; first done.
+    intros. apply not_elem_of_dom.
+    by apply fresh_locs_fresh.
+  Qed.
 
 End memory.
