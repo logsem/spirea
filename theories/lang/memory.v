@@ -24,12 +24,13 @@ Section memory.
   | MEvAllocN ℓ (len : nat) v
   | MEvLoad ℓ v
   | MEvStore ℓ v
-  (* acquire/release weak memory events *)
+  (* Acquire/release weak memory events. *)
   | MEvLoadAcquire ℓ v
   | MEvStoreRelease ℓ v
   (* RMW are special *)
   | MEvRMW ℓ (vOld vNew : val) (* read-modify-write *)
-  (* persistent memor specific *)
+  (* FIXME: Probably also need event for failed RMW. *)
+  (* Persistent memory specific. *)
   | MEvWB ℓ
   | MEvFence
   | MEvFenceSync.
@@ -57,8 +58,10 @@ Section memory.
   Inductive mem_step : mem_config → thread_view → mem_event → mem_config → thread_view → Prop :=
   (* Allocating a new location. *)
   | MStepAllocN σ V P B ℓ len v V' p :
+   (0 < len)%Z →
+    (∀ i, (0 ≤ i)%Z → (i < n)%Z → σ.(heap) !! (l +ₗ i) = None) →
    (∀ idx, idx < len → σ !! (ℓ + idx)%Z = None) → (* This is a fresh segment of the heap not already in use. *)
-    V' = <[ ℓ := 0 ]>V → (* V' incorporates the new event in the threads view. *)
+    (* V' = <[ ℓ := 0 ]>V → (* V' incorporates the new event in the threads view. *) This may not be needed. *)
     mem_step (σ, p) (ThreadView V P B)
            (MEvAllocN ℓ len v)
            (<[ℓ := {[ 0 := Msg v V' P ]}]>σ, p) (ThreadView V' P B)
