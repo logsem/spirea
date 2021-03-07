@@ -54,12 +54,46 @@ Section memory.
 
   Definition mem_config : Type := store * view.
 
+  (* Takes a value and creates an initial history for that value. *)
+  Definition initial_history P v : history := {[0 := Msg v ∅ P]}.
+
   (* Convert an array into a store. *)
   Fixpoint heap_array (l : loc) P (vs : list val) : store :=
     match vs with
     | [] => ∅
-    | v :: vs' => {[l := {[0 := Msg v ∅ P]}]} ∪ heap_array (l +ₗ 1) P vs'
+    | v :: vs' => {[l := initial_history P v]} ∪ heap_array (l +ₗ 1) P vs'
     end.
+
+  Lemma heap_array_lookup (l : loc) P (vs : list val) (ow : history) (k : loc) :
+    (heap_array l P vs : store) !! k = Some ow ↔
+    (* True ↔ *)
+    ∃ j w, (0 ≤ j)%Z ∧ k = l +ₗ j ∧ (ow = {[0 := Msg w ∅ P]}) ∧ vs !! (Z.to_nat j) = (Some w).
+  Proof.
+    revert k l; induction vs as [|v' vs IH]=> l' l /=.
+    { rewrite lookup_empty. naive_solver lia. }
+    rewrite -insert_union_singleton_l lookup_insert_Some IH. split.
+    - intros [[-> ?] | (Hl & j & w & ? & -> & -> & ?)].
+      { eexists 0, _. rewrite loc_add_0. naive_solver lia. }
+      eexists (1 + j)%Z, _. rewrite loc_add_assoc !Z.add_1_l Z2Nat.inj_succ; auto with lia.
+    - intros (j & w & ? & -> & -> & Hil). destruct (decide (j = 0)); simplify_eq/=.
+      { rewrite loc_add_0; eauto. }
+      right. split.
+      { rewrite -{1}(loc_add_0 l). intros ?%(inj (loc_add _)); lia. }
+      assert (Z.to_nat j = S (Z.to_nat (j - 1))) as Hj.
+      { rewrite -Z2Nat.inj_succ; last lia. f_equal; lia. }
+      rewrite Hj /= in Hil.
+      eexists (j - 1)%Z, _. rewrite loc_add_assoc Z.add_sub_assoc Z.add_simpl_l.
+      auto with lia.
+  Qed.
+
+  Lemma heap_array_map_disjoint (h : gmap loc history) P (l : loc) (vs : list val) :
+    (∀ i, (0 ≤ i)%Z → (i < length vs)%Z → h !! (l +ₗ i) = None) →
+    (heap_array l P vs) ##ₘ h.
+  Proof.
+    intros Hdisj. apply map_disjoint_spec=> l' v1 v2.
+    intros (j&w&?&->&?&Hj%lookup_lt_Some%inj_lt)%heap_array_lookup.
+    move: Hj. rewrite Z2Nat.id // => ?. by rewrite Hdisj.
+  Qed.
 
   (* Initializes a region of the memory starting at [ℓ] *)
   Definition state_init_heap (ℓ : loc) (n : nat) P (v : val) (σ : store) : store :=
