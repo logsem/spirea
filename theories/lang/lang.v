@@ -605,14 +605,14 @@ Module nvm_lang.
   Record thread_state : Type :=
     ThreadState { ts_expr : nvm_lang.expr; ts_view : thread_view }.
   Record thread_val : Type :=
-    mkVal { val_val : val; val_view : thread_view }.
+    ThreadVal { val_val : val; val_view : thread_view }.
   (* Definition ectx_item := nvm_lang.ectx_item. *)
   Definition thread_fill_item (Ki : ectx_item) (e : thread_state) : thread_state :=
     ThreadState (nvm_lang.fill_item Ki e.(ts_expr)) e.(ts_view).
   Definition thread_of_val (v : thread_val) : thread_state :=
     ThreadState (nvm_lang.of_val v.(val_val)) v.(val_view).
   Definition thread_to_val (e : thread_state) : option thread_val :=
-    (λ v, mkVal v e.(ts_view)) <$> nvm_lang.to_val e.(ts_expr).
+    (λ v, ThreadVal v e.(ts_view)) <$> nvm_lang.to_val e.(ts_expr).
 
   Definition thread_subst x es (e : thread_state) : thread_state :=
     ThreadState (nvm_lang.subst x es e.(ts_expr)) (ts_view e).

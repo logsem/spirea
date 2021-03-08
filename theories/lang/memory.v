@@ -3,16 +3,10 @@
 From stdpp Require Import countable numbers gmap.
 From iris.heap_lang Require Export locations.
 
+From self.algebra Require Export view.
+
 (* FIXME: Can we just use [Definition] instead of [Notation] here? *)
 (* Notation loc := Z. Any countable infinite type would do. *)
-
-Notation time := nat.
-
-Notation view := (gmap loc time).
-
-Instance join_view : Join view := (union_with (λ (x1 x2 : nat), Some (x1 `max` x2))).
-
-Infix "!!0" := (λ m i, default 0 (m !! i)) (at level 80).
 
 Section memory.
 
