@@ -6,6 +6,8 @@ Notation time := nat.
 
 Notation view := (gmap loc time).
 
+Implicit Types (V W : view) (ℓ : loc).
+
 Instance join_view : Join view := (union_with (λ (x1 x2 : nat), Some (x1 `max` x2))).
 
 Instance subseteq_view : SqSubsetEq view :=
@@ -16,6 +18,14 @@ Proof.
 Admitted.
 
 Infix "!!0" := (λ m i, default 0 (m !! i)) (at level 80).
+
+Lemma view_lt_lt V W ℓ : V ⊑ W → (V !!0 ℓ) ≤ (W !!0 ℓ).
+Proof.
+  intros H.
+  destruct (V !! ℓ) as [t|] eqn:Eq; rewrite Eq; simpl.
+  - apply H in Eq as (t' & -> & ?). done.
+  - lia.
+Qed.
 
 (* Resource algebra for views. *)
 Definition viewUR := gmapUR loc max_natUR.

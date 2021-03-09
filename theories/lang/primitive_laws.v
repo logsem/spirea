@@ -3,17 +3,11 @@ From iris.bi.lib Require Import fractional.
 From iris.base_logic.lib Require Export gen_heap proph_map gen_inv_heap.
 From iris.program_logic Require Export weakestpre total_weakestpre.
 From iris.program_logic Require Import ectx_lifting total_ectx_lifting.
-From iris.heap_lang Require Export class_instances.
-From iris.heap_lang Require Import tactics notation.
 From iris.algebra Require Import auth gmap numbers.
 From iris.prelude Require Import options.
 
+From self.algebra Require Import view.
 From self.lang Require Import notation.
-
-(* Resource algebra for views. *)
-Definition viewUR := gmapUR loc max_natUR.
-
-Definition view_to_ra (v : view) : viewUR := MaxNat <$> v.
 
 Class nvmG Σ := NvmG {
   nvmG_invG : invG Σ;
@@ -22,18 +16,70 @@ Class nvmG Σ := NvmG {
   (* heapG_inv_heapG :> inv_heapG loc (option val) Σ; *)
   nvmG_proph_mapG :> proph_mapG proph_id (val * val) Σ;
   store_view_name : gname;
+  persist_view_name : gname;
 }.
+
+Definition max_msg (h : @history val) : time :=
+  max_list (elements (dom (gset time) h)).
+
+Lemma max_list_elem_of ns : ns ≠ [] → max_list ns ∈ ns.
+Proof.
+  intros H. induction ns; first done.
+  simpl.
+  edestruct (Nat.max_spec a) as [[Hle ->]|[HO ->]].
+  - destruct ns; first simpl in *; first lia.
+    apply elem_of_list_further.
+    apply IHns.
+    done.
+  - apply elem_of_list_here.
+Qed.
+
+(* Proving this directly for history, does not work. *)
+Lemma lookup_max_msg_helper (hist : gmap time message) :
+  is_Some (hist !! 0) → is_Some (hist !! max_msg hist).
+Proof.
+  intros H.
+  apply elem_of_dom.
+  rewrite /max_msg.
+  apply elem_of_elements.
+  apply max_list_elem_of.
+  apply elem_of_dom in H.
+  apply elem_of_elements in H.
+  eapply elem_of_not_nil.
+  done.
+Qed.
+
+Lemma lookup_max_msg (hist : history) :
+  is_Some (hist !! 0) → is_Some (hist !! max_msg hist).
+Proof. apply lookup_max_msg_helper. Qed.
+
+Definition lub_view (heap : (@store val)) : view := max_msg <$> heap.
 
 Global Instance nvmG_irisG `{!nvmG Σ} : irisG nvm_lang Σ := {
   iris_invG := nvmG_invG;
   state_interp σ κs _ := (
+    (* The interpetation of the heap. This is standard, except the heap store
+    historie and not plain values. *)
     gen_heap_interp (fst σ) ∗
-    ∃ W, own store_view_name (● (view_to_ra W))
+    own store_view_name (● (view_to_ra (lub_view (fst σ)))) ∗
+    ([∗ map] ℓ ↦ hist ∈ (fst σ),
+      (* Every history has an initial message. *)
+      ⌜is_Some (hist !! 0)⌝ ∗
+      (* Every view in every message is included in the lub view. *)
+      ([∗ map] t ↦ msg ∈ hist, ⌜msg.(msg_store_view) ⊑ lub_view (fst σ)⌝)) ∗
+    (*
+    (* There exists some "all-knowing" view [W]. *)
+    (∃ W, (* We know what [W] is. *)
+          own store_view_name (● (view_to_ra W)) ∗
+          ([∗ map] ℓ ↦ hist ∈ (fst σ), ⌜is_Some (hist !! (W !!0 ℓ))⌝ ∗
+                                       ([∗ map] t ↦ msg ∈ hist, ⌜msg.(msg_store_view) ⊑ W⌝)) ∗
+          ⌜∀ ℓ t hist, (W !!0 ℓ ) = t ∧ ((fst σ) !! ℓ) = Some hist ∧ is_Some (hist !! t)⌝) ∗
+    *)
+    own persist_view_name (● (view_to_ra (snd σ)))
     (* proph_map_interp κs σ.(used_proph_id) *)
   )%I;
   fork_post _ := True%I;
 }.
-
 
 (* NOTE: Uncomment as needed. *)
 (* Notation "l ↦h{ dq } v" := (mapsto (L:=loc) (V:=val) l dq (Some v%V))
@@ -49,9 +95,35 @@ Section lifting.
 
   Context `{!nvmG Σ}.
 
-  Definition valid (V : view) : iProp Σ := True%I.
+  Definition valid (V : view) : iProp Σ := own store_view_name (◯ (view_to_ra V)).
 
-  Implicit Types P Q : iProp Σ.
+  Global Instance valid_persistent V : Persistent (valid V).
+  Proof. apply _. Qed.
+
+  Definition persisted (V : view) : iProp Σ := own persist_view_name (◯ (view_to_ra V)).
+
+  Global Instance persisted_persistent V : Persistent (persisted V).
+  Proof. apply _. Qed.
+
+  Lemma auth_frag_leq V W γ : ⊢ own γ (◯ (view_to_ra V)) -∗ own γ (● view_to_ra W) -∗ ⌜V ⊑ W⌝.
+  Proof.
+    iIntros "H1 H2".
+    rewrite /valid.
+    iDestruct (own_valid_2 with "H2 H1") as %[Hincl%view_to_ra_incl _]%auth_both_valid_discrete.
+    done.
+  Qed.
+
+  (* If a location has history [hist] then looking up a message from the
+  lub_view will result in some message. *)
+  Lemma history_lookup_lub heap ℓ hist :
+    heap !! ℓ = Some hist → is_Some (hist !! 0) → is_Some (hist !! ((lub_view heap) !!0 ℓ)).
+  Proof.
+    intros Ha Hb.
+    rewrite /lub_view. rewrite lookup_fmap. rewrite Ha.
+    simpl. apply lookup_max_msg_helper. done.
+  Qed.
+
+  Implicit Types Q : iProp Σ.
   Implicit Types Φ Ψ : val → iProp Σ.
   Implicit Types efs : list expr.
   (* Implicit Types σ : state. *)
@@ -81,7 +153,9 @@ Section lifting.
       inversion H; subst; clear H
     end.
 
-  Lemma heap_array_to_seq_mapsto l (P : view) v (n : nat) :
+  (*** Rules for memory operations. ***)
+
+  Lemma heap_array_to_seq_mapsto l (P : view) (v : val) (n : nat) :
     ([∗ map] l' ↦ ov ∈ heap_array l P (replicate n v), gen_heap.mapsto l' (DfracOwn 1) ov) -∗
     [∗ list] i ∈ seq 0 n, (l +ₗ (i : nat)) ↦h initial_history P v.
   Proof.
@@ -97,11 +171,11 @@ Section lifting.
     rewrite big_opM_singleton; iDestruct "Hvs" as "[$ Hvs]". by iApply "IH".
   Qed.
 
-  Lemma wp_allocN_at_view_lang v T (hist : (@history val)) n s E :
+  Lemma wp_allocN v T (hist : (@history val)) n s E :
     (0 < n)%Z →
     {{{ True }}}
       (ThreadState (AllocN #n v) T) @ s; E
-    {{{ ℓ, RET (mkVal #ℓ T); [∗ list] i ∈ seq 0 (Z.to_nat n), (ℓ +ₗ (i : nat)) ↦h initial_history T.(tv_persist_view) v }}}.
+    {{{ ℓ, RET (ThreadVal #ℓ T); [∗ list] i ∈ seq 0 (Z.to_nat n), (ℓ +ₗ (i : nat)) ↦h initial_history T.(tv_persist_view) v }}}.
   Proof.
     iIntros (Hn Φ) "_ HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (_)); first done.
@@ -121,9 +195,78 @@ Section lifting.
       { apply heap_array_map_disjoint.
         rewrite replicate_length Z2Nat.id; auto with lia. }
       iModIntro.
-      iFrame "Hσse Hσ". iApply "HΦ".
+      iFrame "Hσ".
+      (* FIXME: This changed after state interpretation changed. *)
+  Abort.
+      (* iFrame "Hσse". iApply "HΦ".
       iApply heap_array_to_seq_mapsto.
       iFrame.
-  Qed.
+  Qed. *)
+
+  (* Non-atomic load. *)
+  Lemma wp_load V p B ℓ (hist : (@history val)) s E :
+    {{{ ℓ ↦h hist ∗ valid V }}}
+      (ThreadState (! #ℓ) (ThreadView V p B)) @ s; E
+    {{{ t v, RET (ThreadVal v (ThreadView V p B)); ⌜msg_val <$> (hist !! t) = Some v ∧ (V !!0 ℓ) ≤ t⌝ }}}.
+  Proof.
+    iIntros (Φ) "[ℓPts Hval] HΦ".
+    iApply (wp_lift_atomic_head_step_no_fork (_)); first done.
+    iIntros ([heap ?] κ κs k) "(Hheap & lubauth & #Hincl & persist) /= !>"; iSplit.
+    - (* We must show that the load can take some step. To do this we must use
+         the points-to predicate and fact that the view is valid. *)
+      rewrite /head_reducible.
+      (* From the points-to predicate we know that [hist] is in the heap at ℓ. *)
+      iDestruct (gen_heap_valid with "Hheap ℓPts") as %Hlook.
+      (* We need to show that there is _some_ message that the load could read.
+      It could certainly read the most recent message. *)
+      iAssert (⌜is_Some (hist !! 0)⌝%I) as %HisS.
+      { iDestruct (big_sepM_lookup with "Hincl") as "[% _]"; first apply Hlook. done. }
+      pose proof (history_lookup_lub _ _ _ Hlook HisS) as [msg Hmsgeq].
+      (* The time at the view is smaller than the time in the lub view (which is the time of the most recent message *)
+      iDestruct (auth_frag_leq with "Hval lubauth") as %Vincl.
+      iExists [], _, _, _. simpl. iPureIntro.
+      eapply impure_step.
+      * constructor.
+      * econstructor; last by apply view_lt_lt.
+        + done.
+        + rewrite Hmsgeq. done.
+    - iNext. iIntros (e2 σ2 efs Hstep).
+      simpl in *. inv_thread_step. iSplitR=>//.
+      (* We now update the [gen_heap] ghost state to include the allocated location. *)
+      iMod (gen_heap_alloc_big _ (heap_array ℓ _ (replicate (Z.to_nat n) v0)) with "Hσ")
+        as "(Hσ & Hl & Hm)".
+      { apply heap_array_map_disjoint.
+        rewrite replicate_length Z2Nat.id; auto with lia. }
+      iModIntro.
+      iFrame "Hσ".
+  Abort.
+
+  Lemma wp_load_acquire V p B ℓ (hist : (@history val)) s E :
+    {{{ ℓ ↦h hist ∗ valid V }}}
+      (ThreadState (!{acq} #ℓ) (ThreadView V p B)) @ s; E
+    {{{ (v : thread_val), RET v; True }}}.
+  Proof.
+  Abort.
+
+  Lemma wp_store V v p B ℓ (hist : (@history val)) s E :
+    {{{ ℓ ↦h hist ∗ valid V }}}
+      (ThreadState (#ℓ <- v) (ThreadView V p B)) @ s; E
+    {{{ V', RET ThreadVal #() V'; True }}}.
+  Proof.
+  Abort.
+
+  Lemma wp_store_release V v p B ℓ (hist : (@history val)) s E :
+    {{{ ℓ ↦h hist ∗ valid V }}}
+      (ThreadState (#ℓ <-{rel} v) (ThreadView V p B)) @ s; E
+    {{{ V', RET ThreadVal #() V'; True }}}.
+  Proof.
+  Abort.
+
+  Lemma wp_wb V p B ℓ (hist : (@history val)) s E :
+    {{{ ℓ ↦h hist ∗ valid V }}}
+      (ThreadState (WB #ℓ) (ThreadView V p B)) @ s; E
+    {{{ (v : thread_val), RET v; True }}}.
+  Proof.
+  Abort.
 
 End lifting.

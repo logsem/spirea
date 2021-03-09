@@ -5,9 +5,6 @@ From iris.heap_lang Require Export locations.
 
 From self.algebra Require Export view.
 
-(* FIXME: Can we just use [Definition] instead of [Notation] here? *)
-(* Notation loc := Z. Any countable infinite type would do. *)
-
 Section memory.
 
   (* We assume a type of values. *)
@@ -113,7 +110,8 @@ Section memory.
     (default 0 (V !! ℓ)) ≤ t →
     mem_step (σ, p) (ThreadView V P B)
              (MEvLoad ℓ v)
-             (σ, p) (ThreadView (<[ ℓ := t ]>V) P B)
+             (σ, p) (ThreadView V P B)
+             (* (σ, p) (ThreadView (<[ ℓ := t ]>V) P B) (* This variant includes the timestamp of the loaded msg. *) *)
   (* A normal non-atomic write. *)
   | MStepStore σ V P B t ℓ (v : val) h V' p :
     σ !! ℓ = Some h →
@@ -129,7 +127,7 @@ Section memory.
     (h !! t) = Some (Msg v MV MP) →
     (V !!0 ℓ) ≤ t →
     mem_step (σ, p) (ThreadView V P B)
-             (MEvLoad ℓ v)
+             (MEvLoadAcquire ℓ v)
              (σ, p) (ThreadView (V ⊔ MV) (P ⊔ MP) B) (* An acquire incorporates both the store view and the persistent view. *)
   (* An atomic release write. *)
   | MStepStoreRelease σ V P B t ℓ (v : val) h V' p :
