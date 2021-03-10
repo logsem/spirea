@@ -307,10 +307,24 @@ Section lifting.
   Proof.
   Abort.
 
-  Lemma wp_wb V p B ℓ (hist : (@history val)) s E :
+  Lemma wp_wb V P B ℓ (hist : history) s E :
     {{{ ℓ ↦h hist ∗ valid V }}}
-      (ThreadState (WB #ℓ) (ThreadView V p B)) @ s; E
-    {{{ (v : thread_val), RET v; True }}}.
+      (ThreadState (WB #ℓ) (ThreadView V P B)) @ s; E
+    {{{ RET ThreadVal #() (ThreadView V (<[ℓ := MaxNat (V !!0 ℓ)]>P) B); True }}}.
+  Proof.
+  Abort.
+
+  Lemma wp_fence V P B ℓ (hist : history) s E :
+    {{{ ℓ ↦h hist ∗ valid V }}}
+      (ThreadState (WB #ℓ) (ThreadView V P B)) @ s; E
+    {{{ RET ThreadVal #() (ThreadView V (P ⊔ B) ∅); True }}}.
+  Proof.
+  Abort.
+
+  Lemma wp_fence_fence V P B ℓ (hist : history) s E :
+    {{{ ℓ ↦h hist ∗ valid V }}}
+      (ThreadState (WB #ℓ) (ThreadView V P B)) @ s; E
+    {{{ RET ThreadVal #() (ThreadView V (P ⊔ B) ∅); persisted P}}}.
   Proof.
   Abort.
 

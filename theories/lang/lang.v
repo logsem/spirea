@@ -106,6 +106,8 @@ Module nvm_lang.
     | Store e1 e2 => Store (subst x v e1) (subst x v e2)
     | StoreRelease e1 e2 => StoreRelease (subst x v e1) (subst x v e2)
     | WB e => WB (subst x v e)
+    | Fence => Fence
+    | FenceSync => FenceSync
     | CmpXchg e0 e1 e2 => CmpXchg (subst x v e0) (subst x v e1) (subst x v e2)
     | FAA e1 e2 => FAA (subst x v e1) (subst x v e2)
     | NewProph => NewProph
@@ -233,6 +235,16 @@ Module nvm_lang.
   | WBS ℓ :
      head_step (WB (Val $ LitV $ LitLoc ℓ))
                (Some $ MEvWB ℓ)
+               []
+               (Val $ LitV LitUnit)
+               []
+  | FenceS : head_step Fence
+               (Some $ MEvFence)
+               []
+               (Val $ LitV LitUnit)
+               []
+  | FenceSyncS : head_step Fence
+               (Some $ MEvFenceSync)
                []
                (Val $ LitV LitUnit)
                []

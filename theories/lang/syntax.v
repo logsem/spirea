@@ -53,6 +53,8 @@ Module syntax.
     | Store (e1 e2 : expr)
     | StoreRelease (e1 e2 : expr)
     | WB (e1 : expr)
+    | Fence
+    | FenceSync
     (* RMW memory operations. *)
     | CmpXchg (e0 : expr) (e1 : expr) (e2 : expr) (* Compare-exchange *)
     | FAA (e1 : expr) (e2 : expr) (* Fetch-and-add *)
@@ -153,6 +155,8 @@ Module syntax.
       | StoreRelease e1 e2, StoreRelease e1' e2' =>
           cast_if_and (decide (e1 = e1')) (decide (e2 = e2'))
       | WB e, WB e' => cast_if (decide (e = e'))
+      | Fence, Fence => left _
+      | FenceSync, FenceSync => left _
       | CmpXchg e0 e1 e2, CmpXchg e0' e1' e2' =>
           cast_if_and3 (decide (e0 = e0')) (decide (e1 = e1')) (decide (e2 = e2'))
       | FAA e1 e2, FAA e1' e2' =>
@@ -239,10 +243,12 @@ Module syntax.
       | Store e1 e2 => GenNode 17 [go e1; go e2]
       | StoreRelease e1 e2 => GenNode 18 [go e1; go e2]
       | WB e => GenNode 19 [go e]
-      | CmpXchg e0 e1 e2 => GenNode 20 [go e0; go e1; go e2]
-      | FAA e1 e2 => GenNode 21 [go e1; go e2]
-      | NewProph => GenNode 22 []
-      | Resolve e0 e1 e2 => GenNode 23 [go e0; go e1; go e2]
+      | Fence => GenNode 20 []
+      | FenceSync => GenNode 21 []
+      | CmpXchg e0 e1 e2 => GenNode 22 [go e0; go e1; go e2]
+      | FAA e1 e2 => GenNode 23 [go e1; go e2]
+      | NewProph => GenNode 24 []
+      | Resolve e0 e1 e2 => GenNode 25 [go e0; go e1; go e2]
       end
     with gov v :=
       match v with
@@ -277,10 +283,12 @@ Module syntax.
       | GenNode 17 [e1; e2] => Store (go e1) (go e2)
       | GenNode 18 [e1; e2] => StoreRelease (go e1) (go e2)
       | GenNode 19 [e] => WB (go e)
-      | GenNode 20 [e0; e1; e2] => CmpXchg (go e0) (go e1) (go e2)
-      | GenNode 21 [e1; e2] => FAA (go e1) (go e2)
-      | GenNode 22 [] => NewProph
-      | GenNode 23 [e0; e1; e2] => Resolve (go e0) (go e1) (go e2)
+      | GenNode 20 [] => Fence
+      | GenNode 21 [] => FenceSync
+      | GenNode 22 [e0; e1; e2] => CmpXchg (go e0) (go e1) (go e2)
+      | GenNode 23 [e1; e2] => FAA (go e1) (go e2)
+      | GenNode 24 [] => NewProph
+      | GenNode 25 [e0; e1; e2] => Resolve (go e0) (go e1) (go e2)
       | _ => Val $ LitV LitUnit (* dummy *)
       end
     with gov v :=
@@ -295,7 +303,7 @@ Module syntax.
     for go).
   refine (inj_countable' enc dec _).
   refine (fix go (e : expr) {struct e} := _ with gov (v : val) {struct v} := _ for go).
-  - destruct e as [v| | | | | | | | | | | | | | | | | | | | | | |]; simpl; f_equal;
+  - destruct e as [v| | | | | | | | | | | | | | | | | | | | | | | | |]; simpl; f_equal;
       [exact (gov v)|done..].
   - destruct v; by f_equal.
   Qed.
