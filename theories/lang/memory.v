@@ -133,7 +133,7 @@ Section memory.
     σ !! ℓ = Some h →
     (h !! t) = None → (* No event exists at t already. *)
     (V !!0 ℓ) ≤ t →
-    V' = <[ ℓ := MaxNat t ]>V → (* V' incorporates the new event in the threads view. *)
+    V' = <[ℓ := MaxNat t]>V → (* V' incorporates the new event in the threads view. *)
     mem_step (σ, p) (ThreadView V P B)
              (MEvStoreRelease ℓ v)
              (<[ℓ := <[t := Msg v V' P]>h]>σ, p) (ThreadView V' P B) (* A release releases both V' and P. *)
@@ -163,7 +163,7 @@ Section memory.
   (* Synchronous fence. *)
   | MStepFenceSync σ V P B p :
     mem_step (σ, p) (ThreadView V P B)
-             MEvFence
+             MEvFenceSync
              (σ, p ⊔ P) (ThreadView V (P ⊔ B) ∅).
 
   (* It is always possible to allocate a section of memory. *)

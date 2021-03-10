@@ -209,7 +209,8 @@ Section lifting.
     (0 < n)%Z →
     {{{ True }}}
       (ThreadState (AllocN #n v) T) @ s; E
-    {{{ ℓ, RET (ThreadVal #ℓ T); [∗ list] i ∈ seq 0 (Z.to_nat n), (ℓ +ₗ (i : nat)) ↦h initial_history T.(tv_persist_view) v }}}.
+    {{{ ℓ, RET (ThreadVal #ℓ T);
+          [∗ list] i ∈ seq 0 (Z.to_nat n), (ℓ +ₗ (i : nat)) ↦h initial_history T.(tv_persist_view) v }}}.
   Proof.
     iIntros (Hn Φ) "_ HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (_)); first done.
@@ -243,7 +244,8 @@ Section lifting.
   Lemma wp_load V p B ℓ (hist : history) s E :
     {{{ ℓ ↦h hist ∗ valid V }}}
       (ThreadState (! #ℓ) (ThreadView V p B)) @ s; E
-    {{{ t v, RET (ThreadVal v (ThreadView V p B)); ⌜msg_val <$> (hist !! t) = Some v ∧ (V !!0 ℓ) ≤ t⌝ }}}.
+    {{{ t v, RET (ThreadVal v (ThreadView V p B));
+          ⌜msg_val <$> (hist !! t) = Some v ∧ (V !!0 ℓ) ≤ t⌝ }}}.
   Proof.
     iIntros (Φ) "[ℓPts Hval] HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (_)); first done.
@@ -274,24 +276,34 @@ Section lifting.
       by iApply "HΦ".
   Qed.
 
-  Lemma wp_load_acquire V p B ℓ (hist : (@history val)) s E :
+  Lemma wp_load_acquire V p B ℓ (hist : history) s E :
     {{{ ℓ ↦h hist ∗ valid V }}}
       (ThreadState (!{acq} #ℓ) (ThreadView V p B)) @ s; E
-    {{{ (v : thread_val), RET v; True }}}.
+    {{{ t v V' P' B', RET (ThreadVal v (ThreadView (V' ⊔ V) P' B'));
+        ⌜(hist !! t) = Some (Msg v P' B') ∧ (V !!0 ℓ) ≤ t⌝ ∗
+        valid (V' ⊔ V) }}}.
   Proof.
   Abort.
 
-  Lemma wp_store V v p B ℓ (hist : (@history val)) s E :
+  Lemma wp_store V v p B ℓ (hist : history) s E :
     {{{ ℓ ↦h hist ∗ valid V }}}
       (ThreadState (#ℓ <- v) (ThreadView V p B)) @ s; E
-    {{{ V', RET ThreadVal #() V'; True }}}.
+    {{{ t, RET ThreadVal #() (ThreadView (<[ℓ := MaxNat t]>V) p B);
+          ⌜msg_val <$> (hist !! t) = None⌝ ∗
+          ⌜(V !!0 ℓ) ≤ t⌝ ∗
+          valid (<[ℓ := MaxNat t]>V) ∗
+          ℓ ↦h (<[t := Msg v ∅ p]>hist) }}}.
   Proof.
   Abort.
 
-  Lemma wp_store_release V v p B ℓ (hist : (@history val)) s E :
+  Lemma wp_store_release V v p B ℓ (hist : history) s E :
     {{{ ℓ ↦h hist ∗ valid V }}}
       (ThreadState (#ℓ <-{rel} v) (ThreadView V p B)) @ s; E
-    {{{ V', RET ThreadVal #() V'; True }}}.
+    {{{ t, RET ThreadVal #() (ThreadView (<[ℓ := MaxNat t]>V) p B);
+          ⌜msg_val <$> (hist !! t) = None⌝ ∗
+          ⌜(V !!0 ℓ) ≤ t⌝ ∗
+          valid (<[ℓ := MaxNat t]>V) ∗
+          ℓ ↦h (<[t := Msg v (<[ℓ := MaxNat t]>V) p]>hist) }}}.
   Proof.
   Abort.
 
