@@ -2,13 +2,30 @@
 
 From stdpp Require Import countable numbers gmap.
 From iris.heap_lang Require Export locations.
+From iris.algebra Require Export gmap numbers.
 
 From self.algebra Require Export view.
+From self.lang Require Export syntax.
+
+Record message : Type := Msg {
+  msg_val : val;
+  msg_store_view : view;
+  msg_persist_view : view;
+}.
+
+Record thread_view : Type := ThreadView {
+  tv_store_view : view;
+  tv_persist_view : view;
+  tv_wb_buffer : view;
+}.
+
+Definition history : Type := gmap time message.
+
+Notation store := (gmap loc history).
+
+Definition mem_config : Type := store * view.
 
 Section memory.
-
-  (* We assume a type of values. *)
-  Context {val : Type}.
 
   Implicit Types (v : val) (ℓ : loc).
 
@@ -26,24 +43,6 @@ Section memory.
   | MEvWB ℓ
   | MEvFence
   | MEvFenceSync.
-
-  Record message : Type := Msg {
-    msg_val : val;
-    msg_store_view : view;
-    msg_persist_view : view;
-  }.
-
-  Record thread_view : Type := ThreadView {
-    tv_store_view : view;
-    tv_persist_view : view;
-    tv_wb_buffer : view;
-  }.
-
-  Definition history : Type := gmap time message.
-
-  Definition store := gmap loc history.
-
-  Definition mem_config : Type := store * view.
 
   (* Takes a value and creates an initial history for that value. *)
   Definition initial_history P v : history := {[0 := Msg v ∅ P]}.
@@ -104,10 +103,10 @@ Section memory.
            (state_init_heap ℓ len P v σ, p) (ThreadView V P B)
            (* (<[ℓ := {[ 0 := Msg v V' P ]}]>σ, p) (ThreadView V' P B) *)
   (* A normal non-atomic load. *)
-  | MStepLoad σ V P B t ℓ (v : val) h p :
+  | MStepLoad (σ : store) V P B t (ℓ : loc) (v : val) h p :
     σ !! ℓ = Some h →
     msg_val <$> (h !! t) = Some v →
-    (default 0 (V !! ℓ)) ≤ t →
+    ((V !!0 ℓ)) ≤ t →
     mem_step (σ, p) (ThreadView V P B)
              (MEvLoad ℓ v)
              (σ, p) (ThreadView V P B)
@@ -117,7 +116,7 @@ Section memory.
     σ !! ℓ = Some h →
     (h !! t) = None → (* No event exists at t already. *)
     (V !!0 ℓ) ≤ t →
-    V' = <[ℓ := t]>V → (* V' incorporates the new event in the threads view. *)
+    V' = <[ℓ := MaxNat t]>V → (* V' incorporates the new event in the threads view. *)
     mem_step (σ, p) (ThreadView V P B)
              (MEvStore ℓ v)
              (<[ℓ := <[t := Msg v ∅ P]>h]>σ, p) (ThreadView V' P B)
@@ -134,7 +133,7 @@ Section memory.
     σ !! ℓ = Some h →
     (h !! t) = None → (* No event exists at t already. *)
     (V !!0 ℓ) ≤ t →
-    V' = <[ ℓ := t ]>V → (* V' incorporates the new event in the threads view. *)
+    V' = <[ ℓ := MaxNat t ]>V → (* V' incorporates the new event in the threads view. *)
     mem_step (σ, p) (ThreadView V P B)
              (MEvStoreRelease ℓ v)
              (<[ℓ := <[t := Msg v V' P]>h]>σ, p) (ThreadView V' P B) (* A release releases both V' and P. *)
@@ -144,7 +143,7 @@ Section memory.
     (h !! t) = Some (Msg v MV MP) → (* We read an event at time [t]. *)
     (V !!0 ℓ) ≤ t →
     (h !! (t + 1)) = None → (* The next timestamp is available, ensures that no other RMW read this event. *)
-    V' = (<[ ℓ := t + 1 ]>(V ⊔ MV)) → (* V' incorporates the new event in the threads view. *)
+    V' = (<[ ℓ := MaxNat (t + 1) ]>(V ⊔ MV)) → (* V' incorporates the new event in the threads view. *)
     P' = P ⊔ MP →
     mem_step (σ, p) (ThreadView V P B)
              (MEvStoreRelease ℓ v)
@@ -152,10 +151,10 @@ Section memory.
   (* Write-back instruction. *)
   | MStepWB σ V P B ℓ t h p :
     σ !! ℓ = Some h →
-    V !! ℓ = Some t → (* An equality here _should_ be fine, the timestamps are only lower bounds anyway? *)
+    (V !!0 ℓ) = t → (* An equality here _should_ be fine, the timestamps are only lower bounds anyway? *)
     mem_step (σ, p) (ThreadView V P B)
              (MEvWB ℓ)
-             (σ, p) (ThreadView V (<[ℓ := t]>P) B)
+             (σ, p) (ThreadView V (<[ℓ := MaxNat t]>P) B)
   (* Asynchronous fence. *)
   | MStepFence σ V P B p :
     mem_step (σ, p) (ThreadView V P B)
