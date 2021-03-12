@@ -51,9 +51,26 @@ Qed.
 Global Instance view_core_id (v : view) : CoreId v.
 Proof. apply _. Qed.
 
+Lemma option_max_nat_included (on on' om : option max_nat) : on ≼ om → on' ≼ om → on ⋅ on' ≼ om.
+Proof.
+  destruct on, on', om; auto.
+  - rewrite !Some_included_total.
+    destruct m, m0, m1.
+    rewrite max_nat_op !max_nat_included. simpl. lia.
+  - rewrite option_included.
+    intros [[=]|(? & ? & _ & [=] & _)].
+Qed.
+
 Lemma view_le_lub V V' W :
   V ⊑ W → V' ⊑ W → (V ⊔ V') ⊑ W.
-Proof. Admitted.
+Proof.
+  rewrite !subseteq_view_incl view_join.
+  rewrite !lookup_included.
+  intros Vle V'le.
+  intros ℓ.
+  rewrite lookup_op.
+  apply option_max_nat_included; done.
+Qed.
 
 (* A view is always valid. *)
 Lemma view_valid V : ✓ V.
@@ -61,10 +78,24 @@ Proof. intros k. case (V !! k); done. Qed.
 
 Lemma view_insert_le V ℓ t :
   (V !!0 ℓ) ≤ t → V ⊑ <[ℓ := MaxNat t]>V.
-Proof. Admitted.
+Proof.
+  intros le.
+  rewrite subseteq_view_incl.
+  rewrite lookup_included.
+  intros ℓ'.
+  destruct (decide (ℓ = ℓ')).
+  - subst. rewrite lookup_insert.
+    destruct (V !! ℓ') as [[m]|] eqn:eq; simpl.
+    * rewrite eq. simpl in *. apply Some_included_2. apply max_nat_included. done.
+    * rewrite eq.
+      replace (None) with (ε); last done.
+      apply ucmra_unit_least.
+  - rewrite lookup_insert_ne; done.
+Qed.
+
 
 Lemma view_insert_op V ℓ t :
   (V !!0 ℓ) ≤ t → (V ⊔ {[ℓ := MaxNat t]}) = (<[ℓ := MaxNat t]> V).
 Proof.
-  intros look.
+  intros le.
 Admitted.
