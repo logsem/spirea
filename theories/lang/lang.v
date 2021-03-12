@@ -238,6 +238,12 @@ Module nvm_lang.
                []
                (of_val v)
                []
+  | StoreReleaseS ℓ v :
+     head_step (StoreRelease (Val $ LitV $ LitLoc ℓ) (Val v))
+               (Some $ MEvStoreRelease ℓ v)
+               []
+               (Val $ LitV LitUnit)
+               []
   | WBS ℓ :
      head_step (WB (Val $ LitV $ LitLoc ℓ))
                (Some $ MEvWB ℓ)

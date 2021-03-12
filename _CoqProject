@@ -4,6 +4,7 @@
 # (https://github.com/coq/coq/issues/6294).
 -arg -w -arg -redundant-canonical-projection
 
+theories/extra.v
 theories/algebra/view.v
 theories/lang/syntax.v
 theories/lang/memory.v

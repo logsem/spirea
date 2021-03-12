@@ -138,7 +138,7 @@ Section memory.
              (MEvStoreRelease ℓ v)
              (<[ℓ := <[t := Msg v V' P]>h]>σ, p) (ThreadView V' P B) (* A release releases both V' and P. *)
   (* Read-modify-write instructions. *)
-  | MStepRMW σ ℓ h v MV MP V t V' P P' B p :
+  | MStepRMW σ ℓ h v MV MP V t V' P P' B p v' :
     σ !! ℓ = Some h →
     (h !! t) = Some (Msg v MV MP) → (* We read an event at time [t]. *)
     (V !!0 ℓ) ≤ t →
@@ -146,7 +146,7 @@ Section memory.
     V' = (<[ ℓ := MaxNat (t + 1) ]>(V ⊔ MV)) → (* V' incorporates the new event in the threads view. *)
     P' = P ⊔ MP →
     mem_step (σ, p) (ThreadView V P B)
-             (MEvStoreRelease ℓ v)
+             (MEvRMW ℓ v v')
              (<[ℓ := <[t := Msg v V' P']>h]>σ, p) (ThreadView V' P' B)
   (* Write-back instruction. *)
   | MStepWB σ V P B ℓ t h p :

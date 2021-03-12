@@ -6,6 +6,7 @@ From iris.program_logic Require Import ectx_lifting total_ectx_lifting.
 From iris.algebra Require Import auth gmap numbers.
 From iris.prelude Require Import options.
 
+From self Require Import extra.
 From self.algebra Require Import view.
 From self.lang Require Import notation.
 
@@ -22,17 +23,7 @@ Class nvmG Σ := NvmG {
 Definition max_msg (h : history) : time :=
   max_list (elements (dom (gset time) h)).
 
-Lemma max_list_elem_of ns : ns ≠ [] → max_list ns ∈ ns.
-Proof.
-  intros H. induction ns; first done.
-  simpl.
-  edestruct (Nat.max_spec a) as [[Hle ->]|[HO ->]].
-  - destruct ns; first simpl in *; first lia.
-    apply elem_of_list_further.
-    apply IHns.
-    done.
-  - apply elem_of_list_here.
-Qed.
+(***** Lemmas about [max_msg]. *)
 
 Lemma lookup_max_msg (hist : history) :
   is_Some (hist !! 0) → is_Some (hist !! max_msg hist).
@@ -46,6 +37,19 @@ Proof.
   apply elem_of_elements in H.
   eapply elem_of_not_nil.
   done.
+Qed.
+
+Lemma max_msg_insert t msg hist : max_msg (<[t:=msg]> hist) = t `max` max_msg hist.
+Proof.
+  rewrite /max_msg. rewrite dom_insert.
+  destruct (decide (t ∈ (dom (gset time) hist))) as [Hin|Hin].
+  - replace ({[t]} ∪ dom (gset time) hist) with (dom (gset time) hist) by set_solver.
+    symmetry. apply max_r.
+    apply max_list_elem_of_le.
+    apply elem_of_elements.
+    done.
+  - rewrite elements_union_singleton; last done.
+    simpl. done.
 Qed.
 
 (* Lemma max_msg_lookup_included. *)
@@ -121,6 +125,8 @@ Section lifting.
     done.
   Qed.
 
+  (**** Lemmas about [lub_view] *)
+
   (* If a location has history [hist] then looking up a message from the
   lub_view will result in some message. *)
   Lemma history_lookup_lub heap ℓ hist :
@@ -140,13 +146,32 @@ Section lifting.
     simpl. apply lookup_max_msg_succ.
   Qed.
 
+  Lemma lub_view_incl_insert V heap ℓ t msg hist :
+    heap !! ℓ = Some hist →
+    V ≼ lub_view heap →
+    <[ℓ := MaxNat t]>V ≼ lub_view (<[ℓ := (<[t := msg]> hist)]> heap).
+  Proof.
+    intros look incl.
+    rewrite lookup_included. intros ℓ'.
+    rewrite !lookup_fmap.
+    destruct (decide (ℓ = ℓ')).
+    * subst. rewrite !lookup_insert. simpl.
+      apply Some_included_2.
+      apply max_nat_included. simpl.
+      rewrite max_msg_insert.
+      lia.
+    * rewrite !lookup_insert_ne; [|done|done].
+      move: incl. rewrite lookup_included.
+      intros H. pose proof (H ℓ') as H.
+      etrans; first apply H.
+      rewrite !lookup_fmap. done.
+  Qed.
+
   (* This lemma is wrong. *)
   Lemma lub_view_insert V (ℓ : loc) (t : time) (msg : message) (hist : history) (heap : store) :
     (V !!0 ℓ) < t →
     lub_view (<[ℓ := (<[t := msg]> hist)]> heap) = <[ℓ := MaxNat t]>(lub_view heap).
-  Proof.
-
-   Abort.
+  Proof. Abort.
 
   (* If a new message is inserted into the heap the lub_view can only grow. *)
   Lemma lub_view_insert_incl (ℓ : loc) (t : time) (msg : message) hist (heap : store) :
@@ -164,6 +189,8 @@ Section lifting.
       apply max_msg_le_insert.
     * rewrite lookup_insert_ne; done.
   Qed.
+
+  (***** Lemmas about ownership over [lub_view]. *)
 
   Lemma auth_lub_view_insert V ℓ t (heap : store) (hist : history) msg :
     (V !!0 ℓ) < t →
@@ -213,6 +240,28 @@ Section lifting.
         iSplit.
         + simpl. iPureIntro. rewrite subseteq_view_incl.
           apply (ucmra_unit_least (lub_view _)).
+        + done.
+  Qed.
+
+  Lemma hist_inv_insert_msg' (heap : store) v p ℓ t hist V :
+    heap !! ℓ = Some hist →
+    hist !! t = None →
+    V ≼ (lub_view
+              (<[ℓ:=<[t:= Msg v V p]> hist]> heap)) →
+    ([∗ map] h ∈ heap, hist_inv (lub_view heap) h) -∗
+    ([∗ map] h ∈ <[ℓ:=<[t := Msg v V p]> hist]> heap,
+         hist_inv (lub_view (<[ℓ:=<[t:=Msg v V p]> hist]> heap)) h).
+  Proof.
+    iIntros (look histLook Vincl) "#M".
+    iApply big_sepM_insert_override_2; simpl; first done.
+    - iApply (hist_inv_grow with "M").
+      by apply lub_view_insert_incl.
+    - iIntros "[% map]". iSplit.
+      * iPureIntro. apply lookup_insert_is_Some'. by right.
+      * iApply big_sepM_insert; first apply histLook.
+        iSplit.
+        + simpl. iPureIntro. rewrite subseteq_view_incl. done.
+          (* apply (ucmra_unit_least (lub_view _)). *)
         + done.
   Qed.
 
@@ -470,11 +519,56 @@ Section lifting.
       (ThreadState (#ℓ <-{rel} v) (ThreadView V p B)) @ s; E
     {{{ t, RET ThreadVal #() (ThreadView (<[ℓ := MaxNat t]>V) p B);
           ⌜msg_val <$> (hist !! t) = None⌝ ∗
-          ⌜(V !!0 ℓ) ≤ t⌝ ∗
+          ⌜(V !!0 ℓ) < t⌝ ∗
           valid (<[ℓ := MaxNat t]>V) ∗
           ℓ ↦h (<[t := Msg v (<[ℓ := MaxNat t]>V) p]>hist) }}}.
   Proof.
-  Abort.
+    iIntros (Φ) "[ℓPts Hval] HΦ".
+    iApply (wp_lift_atomic_head_step_no_fork (_)); first done.
+    iIntros ([heap ?] κ κs k) "(Hheap & lubauth & #Hincl & persist) /= !>".
+    (* The time at the view is smaller than the time in the lub view (which is the time of the most recent message *)
+    iDestruct (auth_frag_leq with "Hval lubauth") as %Vincl.
+    (* From the points-to predicate we know that [hist] is in the heap at ℓ. *)
+    iDestruct (gen_heap_valid with "Hheap ℓPts") as %Hlook.
+    iSplit.
+    - (* We must show that the store can take some step. To do this we must use
+         the points-to predicate and fact that the view is valid. *)
+      rewrite /head_reducible.
+      (* We need to show that there is _some_ message that the load could read.
+      It could certainly read the most recent message. *)
+      iAssert (⌜is_Some (hist !! 0)⌝%I) as %HisS.
+      { iDestruct (big_sepM_lookup with "Hincl") as "[% _]"; first apply Hlook. done. }
+      (* pose proof (history_lookup_lub _ _ _ Hlook HisS) as [[msgv msgV msgP] Hmsgeq]. *)
+      pose proof (history_lookup_lub_succ _ _ _ Hlook) as lookNone.
+      iExists [], _, _, _. simpl. iPureIntro.
+      eapply impure_step.
+      * constructor.
+      * econstructor.
+        + done.
+        + apply lookNone.
+        + pose proof (view_lt_lt _ _ ℓ Vincl). lia.
+        + done.
+    - iNext. iIntros (e2 σ2 efs Hstep).
+      simpl in *. inv_thread_step. iSplitR=>//.
+      (* The persist view didn't change. *)
+      iFrame "persist".
+      (* We update the heap with the new history at ℓ. *)
+      iMod (gen_heap_update with "Hheap ℓPts") as "[Hheap ℓPts]".
+      iFrame "Hheap".
+      (* We must now update the authorative element for the lub_view. *)
+      iMod (auth_lub_view_insert with "lubauth") as "[lubauth viewT]"; first done.
+      iFrame "lubauth".
+      (* We now update the big op. *)
+      iSplitR.
+      { iApply hist_inv_insert_msg'; try done. apply lub_view_incl_insert; done. }
+      iApply "HΦ".
+      iModIntro.
+      iFrame "%∗".
+      iSplit. { rewrite H10. done. }
+      iCombine "Hval viewT" as "v".
+      rewrite -view_insert_op; last lia.
+      iFrame "v".
+  Qed.
 
   (* Lemma wp_cmpxch  *)
 
