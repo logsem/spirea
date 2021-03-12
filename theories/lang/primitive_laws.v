@@ -34,8 +34,7 @@ Proof.
   - apply elem_of_list_here.
 Qed.
 
-(* Proving this directly for history, does not work. *)
-Lemma lookup_max_msg_helper (hist : gmap time message) :
+Lemma lookup_max_msg (hist : history) :
   is_Some (hist !! 0) → is_Some (hist !! max_msg hist).
 Proof.
   intros H.
@@ -49,15 +48,16 @@ Proof.
   done.
 Qed.
 
-Lemma lookup_max_msg (hist : history) :
-  is_Some (hist !! 0) → is_Some (hist !! max_msg hist).
-Proof. apply lookup_max_msg_helper. Qed.
+Lemma lookup_max_msg_succ (hist : history) :
+  hist !! (max_msg hist + 1) = None.
+Proof.
+Admitted.
 
-Definition lub_view (heap : store) : gmap loc max_nat := MaxNat <$> (max_msg <$> heap).
+Definition lub_view (heap : store) : view := MaxNat <$> (max_msg <$> heap).
 
 Definition hist_inv heap hist `{!nvmG Σ} : iProp Σ :=
   ( (* Every history has an initial message. *)
-    ⌜is_Some (hist !! 0)⌝ ∗
+    ⌜is_Some (hist !! 0)⌝ ∗ (* FIXME: Move this into the points-to predicate. *)
     (* Every view in every message is included in the lub view. *)
     ([∗ map] t ↦ msg ∈ hist, ⌜msg.(msg_store_view) ⊑ lub_view heap⌝))%I.
 
@@ -69,18 +69,6 @@ Global Instance nvmG_irisG `{!nvmG Σ} : irisG nvm_lang Σ := {
     gen_heap_interp (fst σ) ∗
     own store_view_name (● (lub_view (fst σ))) ∗
     ([∗ map] ℓ ↦ hist ∈ (fst σ), hist_inv (fst σ) hist) ∗
-      (* Every history has an initial message. *)
-      (* ⌜is_Some (hist !! 0)⌝ ∗ *)
-      (* Every view in every message is included in the lub view. *)
-      (* ([∗ map] t ↦ msg ∈ hist, ⌜msg.(msg_store_view) ⊑ lub_view (fst σ)⌝)) ∗ *)
-    (*
-    (* There exists some "all-knowing" view [W]. *)
-    (∃ W, (* We know what [W] is. *)
-          own store_view_name (● (view_to_ra W)) ∗
-          ([∗ map] ℓ ↦ hist ∈ (fst σ), ⌜is_Some (hist !! (W !!0 ℓ))⌝ ∗
-                                       ([∗ map] t ↦ msg ∈ hist, ⌜msg.(msg_store_view) ⊑ W⌝)) ∗
-          ⌜∀ ℓ t hist, (W !!0 ℓ ) = t ∧ ((fst σ) !! ℓ) = Some hist ∧ is_Some (hist !! t)⌝) ∗
-    *)
     own persist_view_name (● (snd σ))
     (* proph_map_interp κs σ.(used_proph_id) *)
   )%I;
@@ -107,6 +95,8 @@ Section lifting.
   (* Implicit Types σ : state. *)
   Implicit Types v : val.
   Implicit Types ℓ : loc.
+  Implicit Types V W : view.
+  Implicit Types hist : history.
 
   Definition valid (V : view) : iProp Σ := own store_view_name (◯ V).
 
@@ -133,8 +123,30 @@ Section lifting.
   Proof.
     intros Ha Hb.
     rewrite /lub_view. rewrite !lookup_fmap. rewrite Ha.
-    simpl. apply lookup_max_msg_helper. done.
+    simpl. apply lookup_max_msg. done.
   Qed.
+
+  Lemma history_lookup_lub_succ heap ℓ hist :
+    heap !! ℓ = Some hist →
+    hist !! ((lub_view heap !!0 ℓ) + 1) = None.
+  Proof.
+    intros look.
+    rewrite /lub_view. rewrite !lookup_fmap. rewrite look.
+    simpl. apply lookup_max_msg_succ.
+  Qed.
+
+  Lemma lub_view_insert V (ℓ : loc) (t : time) (msg : message) (hist : history) (heap : store) :
+    (V !!0 ℓ) < t →
+    lub_view (<[ℓ := (<[t := msg]> hist)]> heap) = <[ℓ := MaxNat t]>(lub_view heap).
+  Proof. Admitted.
+
+  Lemma auth_lub_view_insert V ℓ t (heap : store) (hist : history) msg :
+    (V !!0 ℓ) < t →
+    own store_view_name (● lub_view heap) ==∗
+    own store_view_name (● lub_view (<[ℓ := <[t := msg]> hist]> heap)) ∗
+    own store_view_name (◯ {[ ℓ := MaxNat t ]}).
+  Proof.
+  Admitted.
 
   Lemma store_view_alloc_big (σ σ' : (gmap loc history)) :
     σ' ##ₘ σ →
@@ -142,6 +154,18 @@ Section lifting.
     own store_view_name (● (lub_view (σ' ∪ σ))).
   Proof.
   Admitted.
+
+  Lemma message_included_in_lub_view ℓ (hist : history) heap t v MV MP :
+    heap !! ℓ = Some hist →
+    hist !! t = Some {| msg_val := v; msg_store_view := MV; msg_persist_view := MP |} →
+    ([∗ map] h ∈ heap, hist_inv heap h) -∗
+    ⌜MV ⊑ lub_view heap⌝.
+  Proof.
+    iIntros (heapLook histLook) "M".
+    iDestruct (big_sepM_lookup with "M") as "[_ M]"; first done.
+    iDestruct (big_sepM_lookup with "M") as "%"; first done.
+    done.
+  Qed.
 
   Lemma hist_inv_alloc ℓ P v0 n heap :
     heap_array ℓ P (replicate (Z.to_nat n) v0) ##ₘ heap →
@@ -279,11 +303,44 @@ Section lifting.
   Lemma wp_load_acquire V p B ℓ (hist : history) s E :
     {{{ ℓ ↦h hist ∗ valid V }}}
       (ThreadState (!{acq} #ℓ) (ThreadView V p B)) @ s; E
-    {{{ t v V' P' B', RET (ThreadVal v (ThreadView (V' ⊔ V) P' B'));
-        ⌜(hist !! t) = Some (Msg v P' B') ∧ (V !!0 ℓ) ≤ t⌝ ∗
-        valid (V' ⊔ V) }}}.
+    {{{ t v V' P', RET (ThreadVal v (ThreadView (V ⊔ V') (p ⊔ P') B));
+        ⌜(hist !! t) = Some (Msg v V' P') ∧ (V !!0 ℓ) ≤ t⌝ ∗
+        valid (V ⊔ V') }}}.
   Proof.
-  Abort.
+    iIntros (Φ) "[ℓPts Hval] HΦ".
+    iApply (wp_lift_atomic_head_step_no_fork (_)); first done.
+    iIntros ([heap ?] κ κs k) "(Hheap & lubauth & #Hincl & persist) /= !>".
+    (* The time at the view is smaller than the time in the lub view (which is the time of the most recent message *)
+    iDestruct (auth_frag_leq with "Hval lubauth") as %Vincl.
+    (* From the points-to predicate we know that [hist] is in the heap at ℓ. *)
+    iDestruct (gen_heap_valid with "Hheap ℓPts") as %Hlook.
+    iSplit.
+    - (* We must show that the load can take some step. To do this we must use
+         the points-to predicate and fact that the view is valid. *)
+      rewrite /head_reducible.
+      (* We need to show that there is _some_ message that the load could read.
+      It could certainly read the most recent message. *)
+      iAssert (⌜is_Some (hist !! 0)⌝%I) as %HisS.
+      { iDestruct (big_sepM_lookup with "Hincl") as "[% _]"; first apply Hlook. done. }
+      pose proof (history_lookup_lub _ _ _ Hlook HisS) as [[msgv msgV msgP] Hmsgeq].
+      (* The time at the view is smaller than the time in the lub view (which is the time of the most recent message *)
+      iExists [], _, _, _. simpl. iPureIntro.
+      eapply impure_step.
+      * constructor.
+      * econstructor; last by apply view_lt_lt.
+        + done.
+        + rewrite Hmsgeq. done.
+    - iNext. iIntros (e2 σ2 efs Hstep).
+      simpl in *. inv_thread_step. iSplitR=>//.
+      iDestruct (message_included_in_lub_view with "Hincl") as "%"; try done.
+      iMod (own_update with "lubauth") as "[lubauth valid']".
+      { apply (auth_update_dfrac_alloc _ _ (V ⋅ MV)).
+        rewrite -subseteq_view_incl.
+        apply view_le_lub; done. }
+      iFrame "Hheap lubauth persist Hincl". iModIntro.
+      iApply ("HΦ" $! t v MV MP). iSplit; first done.
+      done.
+  Qed.
 
   Lemma wp_store V v p B ℓ (hist : history) s E :
     {{{ ℓ ↦h hist ∗ valid V }}}
@@ -294,6 +351,44 @@ Section lifting.
           valid (<[ℓ := MaxNat t]>V) ∗
           ℓ ↦h (<[t := Msg v ∅ p]>hist) }}}.
   Proof.
+    iIntros (Φ) "[ℓPts Hval] HΦ".
+    iApply (wp_lift_atomic_head_step_no_fork (_)); first done.
+    iIntros ([heap ?] κ κs k) "(Hheap & lubauth & #Hincl & persist) /= !>".
+    (* The time at the view is smaller than the time in the lub view (which is the time of the most recent message *)
+    iDestruct (auth_frag_leq with "Hval lubauth") as %Vincl.
+    (* From the points-to predicate we know that [hist] is in the heap at ℓ. *)
+    iDestruct (gen_heap_valid with "Hheap ℓPts") as %Hlook.
+    iSplit.
+    - (* We must show that the store can take some step. To do this we must use
+         the points-to predicate and fact that the view is valid. *)
+      rewrite /head_reducible.
+      (* We need to show that there is _some_ message that the load could read.
+      It could certainly read the most recent message. *)
+      iAssert (⌜is_Some (hist !! 0)⌝%I) as %HisS.
+      { iDestruct (big_sepM_lookup with "Hincl") as "[% _]"; first apply Hlook. done. }
+      (* pose proof (history_lookup_lub _ _ _ Hlook HisS) as [[msgv msgV msgP] Hmsgeq]. *)
+      pose proof (history_lookup_lub_succ _ _ _ Hlook) as lookNone.
+      iExists [], _, _, _. simpl. iPureIntro.
+      eapply impure_step.
+      * constructor.
+      * econstructor.
+        + done.
+        + apply lookNone.
+        + pose proof (view_lt_lt _ _ ℓ Vincl). lia.
+        + done.
+    - iNext. iIntros (e2 σ2 efs Hstep).
+      simpl in *. inv_thread_step. iSplitR=>//.
+      (* The persist view didn't change. *)
+      iFrame "persist".
+      (* We update the heap with the new history at ℓ. *)
+      iMod (gen_heap_update with "Hheap ℓPts") as "[Hheap ℓPts]".
+      iFrame "Hheap".
+      (* We must now update the authorative element for the lub_view. *)
+      iMod (auth_lub_view_insert with "lubauth") as "[lubauth viewT]"; first done.
+      iFrame "lubauth".
+      iModIntro.
+      iApply ("HΦ" $! t v MV MP). iSplit; first done.
+      done.
   Abort.
 
   Lemma wp_store_release V v p B ℓ (hist : history) s E :
@@ -307,25 +402,74 @@ Section lifting.
   Proof.
   Abort.
 
+  (* Lemma wp_cmpxch  *)
+
+  (* Lemma wp_faa  *)
+
   Lemma wp_wb V P B ℓ (hist : history) s E :
-    {{{ ℓ ↦h hist ∗ valid V }}}
+    {{{ ℓ ↦h hist }}}
       (ThreadState (WB #ℓ) (ThreadView V P B)) @ s; E
-    {{{ RET ThreadVal #() (ThreadView V (<[ℓ := MaxNat (V !!0 ℓ)]>P) B); True }}}.
+    {{{ RET ThreadVal #() (ThreadView V P (<[ℓ := MaxNat (V !!0 ℓ)]>B)); ℓ ↦h hist }}}.
   Proof.
-  Abort.
+    iIntros (ϕ) "pts HΦ".
+    iApply (wp_lift_atomic_head_step_no_fork (_)); first done.
+    iIntros ([??] κ κs k) "(Hheap & Hauth & Hop & Hpers) /= !>".
+    (* From the points-to predicate we know that [hist] is in the heap at ℓ. *)
+    iDestruct (gen_heap_valid with "Hheap pts") as %Hlook.
+    iSplit.
+    - rewrite /head_reducible.
+       iExists [], _, _, _. simpl. iPureIntro.
+       eapply impure_step; by econstructor; done.
+    - iNext. iIntros (e2 σ2 efs Hstep).
+      inv_thread_step. iSplitR=>//.
+      iModIntro. iFrame. iApply "HΦ". iFrame.
+  Qed.
 
   Lemma wp_fence V P B ℓ (hist : history) s E :
-    {{{ ℓ ↦h hist ∗ valid V }}}
-      (ThreadState (WB #ℓ) (ThreadView V P B)) @ s; E
-    {{{ RET ThreadVal #() (ThreadView V (P ⊔ B) ∅); True }}}.
+    {{{ ℓ ↦h hist }}}
+      (ThreadState Fence (ThreadView V P B)) @ s; E
+    {{{ RET ThreadVal #() (ThreadView V (P ⊔ B) ∅); ℓ ↦h hist }}}.
   Proof.
-  Abort.
+    iIntros (ϕ) "pts HΦ".
+    iApply (wp_lift_atomic_head_step_no_fork (_)); first done.
+    iIntros ([??] κ κs k) "(Hheap & Hauth & Hop & Hpers) /= !>".
+    (* From the points-to predicate we know that [hist] is in the heap at ℓ. *)
+    iDestruct (gen_heap_valid with "Hheap pts") as %Hlook.
+    iSplit.
+    - rewrite /head_reducible.
+       iExists [], _, _, _. simpl. iPureIntro.
+       eapply impure_step; by econstructor; done.
+    - iNext. iIntros (e2 σ2 efs Hstep).
+      inv_thread_step. iSplitR=>//.
+      iModIntro. iFrame. iApply "HΦ". iFrame.
+  Qed.
 
   Lemma wp_fence_fence V P B ℓ (hist : history) s E :
-    {{{ ℓ ↦h hist ∗ valid V }}}
-      (ThreadState (WB #ℓ) (ThreadView V P B)) @ s; E
-    {{{ RET ThreadVal #() (ThreadView V (P ⊔ B) ∅); persisted P}}}.
+    {{{ ℓ ↦h hist ∗ valid V ∗ persisted P }}}
+      (ThreadState FenceSync (ThreadView V P B)) @ s; E
+    {{{ RET ThreadVal #() (ThreadView V (P ⊔ B) ∅);
+          persisted (P ⊔ B) }}}.
   Proof.
-  Abort.
+    iIntros (ϕ) "(pts & valV & perP) HΦ".
+    iApply (wp_lift_atomic_head_step_no_fork (_)); first done.
+    iIntros ([??] κ κs k) "(Hheap & Hauth & Hop & Hpers) /= !>".
+    (* From the points-to predicate we know that [hist] is in the heap at ℓ. *)
+    iDestruct (gen_heap_valid with "Hheap pts") as %Hlook.
+    iSplit.
+    - rewrite /head_reducible.
+       iExists [], _, _, _. simpl. iPureIntro.
+       eapply impure_step; by econstructor; done.
+    - iNext. iIntros (e2 σ2 efs Hstep).
+      inv_thread_step. iSplitR=>//.
+      iMod (own_update with "Hpers") as "[Hpers perB]".
+      { apply auth_update_alloc.
+        apply (op_local_update_discrete _ _ B).
+        intros. apply view_valid. }
+      iCombine "perP perB" as "perPB".
+      rewrite right_id.
+      replace (B ⋅ g0) with (g0 ⋅ B) by apply: comm.
+      iModIntro. iFrame.
+      iApply "HΦ". iFrame.
+  Qed.
 
 End lifting.

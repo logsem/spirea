@@ -115,7 +115,7 @@ Section memory.
   | MStepStore σ V P B t ℓ (v : val) h V' p :
     σ !! ℓ = Some h →
     (h !! t) = None → (* No event exists at t already. *)
-    (V !!0 ℓ) ≤ t →
+    (V !!0 ℓ) < t →
     V' = <[ℓ := MaxNat t]>V → (* V' incorporates the new event in the threads view. *)
     mem_step (σ, p) (ThreadView V P B)
              (MEvStore ℓ v)
@@ -132,7 +132,7 @@ Section memory.
   | MStepStoreRelease σ V P B t ℓ (v : val) h V' p :
     σ !! ℓ = Some h →
     (h !! t) = None → (* No event exists at t already. *)
-    (V !!0 ℓ) ≤ t →
+    (V !!0 ℓ) < t →
     V' = <[ℓ := MaxNat t]>V → (* V' incorporates the new event in the threads view. *)
     mem_step (σ, p) (ThreadView V P B)
              (MEvStoreRelease ℓ v)
@@ -154,7 +154,7 @@ Section memory.
     (V !!0 ℓ) = t → (* An equality here _should_ be fine, the timestamps are only lower bounds anyway? *)
     mem_step (σ, p) (ThreadView V P B)
              (MEvWB ℓ)
-             (σ, p) (ThreadView V (<[ℓ := MaxNat t]>P) B)
+             (σ, p) (ThreadView V P (<[ℓ := MaxNat t]>B))
   (* Asynchronous fence. *)
   | MStepFence σ V P B p :
     mem_step (σ, p) (ThreadView V P B)
@@ -164,7 +164,7 @@ Section memory.
   | MStepFenceSync σ V P B p :
     mem_step (σ, p) (ThreadView V P B)
              MEvFenceSync
-             (σ, p ⊔ P) (ThreadView V (P ⊔ B) ∅).
+             (σ, p ⊔ B) (ThreadView V (P ⊔ B) ∅).
 
   (* It is always possible to allocate a section of memory. *)
   Lemma alloc_fresh v (len : nat) σ p V P B :

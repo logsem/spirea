@@ -232,6 +232,12 @@ Module nvm_lang.
                []
                (Val $ LitV LitUnit)
                []
+  | LoadAcquireS ℓ v :
+     head_step (LoadAcquire (Val $ LitV $ LitLoc ℓ))
+               (Some $ MEvLoadAcquire ℓ v)
+               []
+               (of_val v)
+               []
   | WBS ℓ :
      head_step (WB (Val $ LitV $ LitLoc ℓ))
                (Some $ MEvWB ℓ)
@@ -243,7 +249,7 @@ Module nvm_lang.
                []
                (Val $ LitV LitUnit)
                []
-  | FenceSyncS : head_step Fence
+  | FenceSyncS : head_step FenceSync
                (Some $ MEvFenceSync)
                []
                (Val $ LitV LitUnit)

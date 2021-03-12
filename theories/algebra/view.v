@@ -71,6 +71,14 @@ Qed.
 Global Instance view_core_id (v : view) : CoreId v.
 Proof. apply _. Qed.
 
+Lemma view_le_lub V V' W :
+  V ⊑ W → V' ⊑ W → (V ⊔ V') ⊑ W.
+Proof. Admitted.
+
+(* A view is always valid. *)
+Lemma view_valid V : ✓ V.
+Proof. intros k. case (V !! k); done. Qed.
+
 (* Lemma view_to_ra_injective V U : view_to_ra V ≡ view_to_ra U → V = U.
 Proof.
   intros H.
