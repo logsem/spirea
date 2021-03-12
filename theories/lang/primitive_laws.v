@@ -48,6 +48,11 @@ Proof.
   done.
 Qed.
 
+(* Lemma max_msg_lookup_included. *)
+Lemma max_msg_le_insert hist t msg :
+  max_msg hist ≤ max_msg (<[t:=msg]> hist).
+Proof. Admitted.
+
 Lemma lookup_max_msg_succ (hist : history) :
   hist !! (max_msg hist + 1) = None.
 Proof.
@@ -55,11 +60,11 @@ Admitted.
 
 Definition lub_view (heap : store) : view := MaxNat <$> (max_msg <$> heap).
 
-Definition hist_inv heap hist `{!nvmG Σ} : iProp Σ :=
+Definition hist_inv lub hist `{!nvmG Σ} : iProp Σ :=
   ( (* Every history has an initial message. *)
     ⌜is_Some (hist !! 0)⌝ ∗ (* FIXME: Move this into the points-to predicate. *)
     (* Every view in every message is included in the lub view. *)
-    ([∗ map] t ↦ msg ∈ hist, ⌜msg.(msg_store_view) ⊑ lub_view heap⌝))%I.
+    ([∗ map] t ↦ msg ∈ hist, ⌜msg.(msg_store_view) ⊑ lub⌝))%I.
 
 Global Instance nvmG_irisG `{!nvmG Σ} : irisG nvm_lang Σ := {
   iris_invG := nvmG_invG;
@@ -68,7 +73,7 @@ Global Instance nvmG_irisG `{!nvmG Σ} : irisG nvm_lang Σ := {
     historie and not plain values. *)
     gen_heap_interp (fst σ) ∗
     own store_view_name (● (lub_view (fst σ))) ∗
-    ([∗ map] ℓ ↦ hist ∈ (fst σ), hist_inv (fst σ) hist) ∗
+    ([∗ map] ℓ ↦ hist ∈ (fst σ), hist_inv (lub_view (fst σ)) hist) ∗
     own persist_view_name (● (snd σ))
     (* proph_map_interp κs σ.(used_proph_id) *)
   )%I;
@@ -135,10 +140,30 @@ Section lifting.
     simpl. apply lookup_max_msg_succ.
   Qed.
 
+  (* This lemma is wrong. *)
   Lemma lub_view_insert V (ℓ : loc) (t : time) (msg : message) (hist : history) (heap : store) :
     (V !!0 ℓ) < t →
     lub_view (<[ℓ := (<[t := msg]> hist)]> heap) = <[ℓ := MaxNat t]>(lub_view heap).
-  Proof. Admitted.
+  Proof.
+
+   Abort.
+
+  (* If a new message is inserted into the heap the lub_view can only grow. *)
+  Lemma lub_view_insert_incl (ℓ : loc) (t : time) (msg : message) hist (heap : store) :
+    heap !! ℓ = Some hist →
+    lub_view heap ⊑ lub_view (<[ℓ := (<[t := msg]> hist)]> heap).
+  Proof.
+    rewrite subseteq_view_incl.
+    rewrite lookup_included.
+    intros look ℓ'.
+    rewrite !lookup_fmap.
+    destruct (decide (ℓ = ℓ')).
+    * subst. rewrite lookup_insert. rewrite look. simpl.
+      apply Some_included_2.
+      apply max_nat_included. simpl.
+      apply max_msg_le_insert.
+    * rewrite lookup_insert_ne; done.
+  Qed.
 
   Lemma auth_lub_view_insert V ℓ t (heap : store) (hist : history) msg :
     (V !!0 ℓ) < t →
@@ -147,6 +172,49 @@ Section lifting.
     own store_view_name (◯ {[ ℓ := MaxNat t ]}).
   Proof.
   Admitted.
+
+  Lemma hist_inv_grow (heap : store) (W W' : view) :
+    W ⊑ W' →
+    ([∗ map] h ∈ heap, hist_inv W h) -∗
+    ([∗ map] h ∈ heap, hist_inv W' h).
+  Proof.
+    iIntros (incl) "#M".
+    iApply big_sepM_intuitionistically_forall.
+    iModIntro.
+    iIntros (ℓ h look).
+    iDestruct (big_sepM_lookup with "M") as "[% #M']"; first done.
+    iSplitL; first done.
+    iApply big_sepM_intuitionistically_forall. iModIntro.
+    iIntros (t msg look').
+    iDestruct (big_sepM_lookup with "M'") as %incl'; first done.
+    iPureIntro. by trans W.
+  Qed.
+
+  Lemma hist_inv_insert_msg (heap : store) v p ℓ t hist :
+    heap !! ℓ = Some hist →
+    hist !! t = None →
+    ([∗ map] h ∈ heap, hist_inv (lub_view heap) h) -∗
+    ([∗ map] h ∈ <[ℓ:=<[t:={| msg_val := v;
+                              msg_store_view := ∅;
+                              msg_persist_view := p |}]> hist]> heap, 
+         hist_inv
+           (lub_view
+              (<[ℓ:=<[t:={| msg_val := v;
+                            msg_store_view := ∅;
+                            msg_persist_view := p |}]> hist]> heap)) h).
+  Proof.
+    iIntros (look histLook) "#M".
+    iApply big_sepM_insert_override_2; simpl; first done.
+    - iApply (hist_inv_grow with "M").
+      by apply lub_view_insert_incl.
+    - iIntros "[% map]". iSplit.
+      * iPureIntro. apply lookup_insert_is_Some'. by right.
+      * iApply big_sepM_insert; first apply histLook.
+        iSplit.
+        + simpl. iPureIntro. rewrite subseteq_view_incl.
+          apply (ucmra_unit_least (lub_view _)).
+        + done.
+  Qed.
 
   Lemma store_view_alloc_big (σ σ' : (gmap loc history)) :
     σ' ##ₘ σ →
@@ -158,7 +226,7 @@ Section lifting.
   Lemma message_included_in_lub_view ℓ (hist : history) heap t v MV MP :
     heap !! ℓ = Some hist →
     hist !! t = Some {| msg_val := v; msg_store_view := MV; msg_persist_view := MP |} →
-    ([∗ map] h ∈ heap, hist_inv heap h) -∗
+    ([∗ map] h ∈ heap, hist_inv (lub_view heap) h) -∗
     ⌜MV ⊑ lub_view heap⌝.
   Proof.
     iIntros (heapLook histLook) "M".
@@ -169,9 +237,9 @@ Section lifting.
 
   Lemma hist_inv_alloc ℓ P v0 n heap :
     heap_array ℓ P (replicate (Z.to_nat n) v0) ##ₘ heap →
-    ([∗ map] hist ∈ heap, hist_inv heap hist) -∗
+    ([∗ map] hist ∈ heap, hist_inv (lub_view heap) hist) -∗
     ([∗ map] hist ∈ (heap_array ℓ P (replicate (Z.to_nat n) v0) ∪ heap),
-      hist_inv (heap_array ℓ P (replicate (Z.to_nat n) v0) ∪ heap) hist).
+      hist_inv (lub_view (heap_array ℓ P (replicate (Z.to_nat n) v0) ∪ heap)) hist).
   Proof.
     iIntros (disj) "H".
     rewrite big_sepM_union; last apply disj.
@@ -347,7 +415,7 @@ Section lifting.
       (ThreadState (#ℓ <- v) (ThreadView V p B)) @ s; E
     {{{ t, RET ThreadVal #() (ThreadView (<[ℓ := MaxNat t]>V) p B);
           ⌜msg_val <$> (hist !! t) = None⌝ ∗
-          ⌜(V !!0 ℓ) ≤ t⌝ ∗
+          ⌜(V !!0 ℓ) < t⌝ ∗
           valid (<[ℓ := MaxNat t]>V) ∗
           ℓ ↦h (<[t := Msg v ∅ p]>hist) }}}.
   Proof.
@@ -386,10 +454,16 @@ Section lifting.
       (* We must now update the authorative element for the lub_view. *)
       iMod (auth_lub_view_insert with "lubauth") as "[lubauth viewT]"; first done.
       iFrame "lubauth".
+      (* We now update the big op. *)
+      iSplitR. { iApply hist_inv_insert_msg; done. }
+      iApply "HΦ".
       iModIntro.
-      iApply ("HΦ" $! t v MV MP). iSplit; first done.
-      done.
-  Abort.
+      iFrame "%∗".
+      iSplit. { rewrite H10. done. }
+      iCombine "Hval viewT" as "v".
+      rewrite -view_insert_op; last lia.
+      iFrame "v".
+  Qed.
 
   Lemma wp_store_release V v p B ℓ (hist : history) s E :
     {{{ ℓ ↦h hist ∗ valid V }}}
