@@ -97,5 +97,16 @@ Qed.
 Lemma view_insert_op V ℓ t :
   (V !!0 ℓ) ≤ t → (V ⊔ {[ℓ := MaxNat t]}) = (<[ℓ := MaxNat t]> V).
 Proof.
-  intros le.
-Admitted.
+  intros le. rewrite view_join.
+  apply map_eq. intros ℓ'.
+  rewrite lookup_op.
+  destruct (decide (ℓ = ℓ')).
+  - subst. rewrite lookup_singleton.
+    rewrite lookup_insert.
+    destruct (V !! ℓ') as [[m]|] eqn:eq; rewrite eq; last done.
+    rewrite -Some_op. rewrite max_nat_op.
+    f_equiv. f_equiv. simpl in le. lia.
+  - rewrite lookup_singleton_ne; last done.
+    rewrite right_id.
+    rewrite lookup_insert_ne; done.
+Qed.

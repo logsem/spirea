@@ -19,7 +19,7 @@ Record thread_view : Type := ThreadView {
   tv_wb_buffer : view;
 }.
 
-Definition history : Type := gmap time message.
+Notation history := (gmap time message).
 
 Notation store := (gmap loc history).
 

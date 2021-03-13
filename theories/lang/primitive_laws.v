@@ -55,12 +55,17 @@ Qed.
 (* Lemma max_msg_lookup_included. *)
 Lemma max_msg_le_insert hist t msg :
   max_msg hist ≤ max_msg (<[t:=msg]> hist).
-Proof. Admitted.
+Proof. rewrite max_msg_insert. lia. Qed.
 
 Lemma lookup_max_msg_succ (hist : history) :
   hist !! (max_msg hist + 1) = None.
 Proof.
-Admitted.
+  rewrite /max_msg.
+  apply not_elem_of_dom.
+  rewrite -elem_of_elements.
+  apply max_list_not_elem_of_gt.
+  lia.
+Qed.
 
 Definition lub_view (heap : store) : view := MaxNat <$> (max_msg <$> heap).
 
@@ -167,11 +172,11 @@ Section lifting.
       rewrite !lookup_fmap. done.
   Qed.
 
-  (* This lemma is wrong. *)
   Lemma lub_view_insert V (ℓ : loc) (t : time) (msg : message) (hist : history) (heap : store) :
     (V !!0 ℓ) < t →
+    heap !! ℓ = Some hist →
     lub_view (<[ℓ := (<[t := msg]> hist)]> heap) = <[ℓ := MaxNat t]>(lub_view heap).
-  Proof. Abort.
+  Proof. Admitted.
 
   (* If a new message is inserted into the heap the lub_view can only grow. *)
   Lemma lub_view_insert_incl (ℓ : loc) (t : time) (msg : message) hist (heap : store) :
@@ -193,12 +198,29 @@ Section lifting.
   (***** Lemmas about ownership over [lub_view]. *)
 
   Lemma auth_lub_view_insert V ℓ t (heap : store) (hist : history) msg :
+    heap !! ℓ = Some hist →
     (V !!0 ℓ) < t →
     own store_view_name (● lub_view heap) ==∗
     own store_view_name (● lub_view (<[ℓ := <[t := msg]> hist]> heap)) ∗
     own store_view_name (◯ {[ ℓ := MaxNat t ]}).
   Proof.
-  Admitted.
+    iIntros (look lt) "Olub".
+    pose proof (lub_view_insert_incl ℓ t msg hist heap look) as [V' eq].
+    iMod (own_update with "Olub") as "Olub".
+    { eapply (auth_update_auth _ (lub_view (<[ℓ:=<[t:=msg]> hist]> heap))).
+      rewrite eq.
+      rewrite comm.
+      simpl.
+      epose proof (op_local_update_discrete (lub_view heap) ε V').
+      apply H.
+      intros. apply view_valid. }
+    iMod (own_update with "Olub") as "[$ $]".
+    { apply: auth_update_dfrac_alloc.
+      erewrite lub_view_insert; [|apply lt|done].
+      apply singleton_included_insert.
+      done. }
+    done.
+  Qed.
 
   Lemma hist_inv_grow (heap : store) (W W' : view) :
     W ⊑ W' →
@@ -501,7 +523,7 @@ Section lifting.
       iMod (gen_heap_update with "Hheap ℓPts") as "[Hheap ℓPts]".
       iFrame "Hheap".
       (* We must now update the authorative element for the lub_view. *)
-      iMod (auth_lub_view_insert with "lubauth") as "[lubauth viewT]"; first done.
+      iMod (auth_lub_view_insert with "lubauth") as "[lubauth viewT]"; [done|done|].
       iFrame "lubauth".
       (* We now update the big op. *)
       iSplitR. { iApply hist_inv_insert_msg; done. }
@@ -556,7 +578,7 @@ Section lifting.
       iMod (gen_heap_update with "Hheap ℓPts") as "[Hheap ℓPts]".
       iFrame "Hheap".
       (* We must now update the authorative element for the lub_view. *)
-      iMod (auth_lub_view_insert with "lubauth") as "[lubauth viewT]"; first done.
+      iMod (auth_lub_view_insert with "lubauth") as "[lubauth viewT]"; [done|done|].
       iFrame "lubauth".
       (* We now update the big op. *)
       iSplitR.

@@ -1,4 +1,6 @@
 From stdpp Require Import countable numbers gmap fin_maps list.
+From iris Require Import cmra.
+From iris.algebra Require Import gmap.
 
 (* Section union_with.
 
@@ -20,13 +22,14 @@ From stdpp Require Import countable numbers gmap fin_maps list.
 
 End union_with. *)
 
-Definition max_list := foldr max 0.
+(* Definition max_list := foldr max 0. *)
+
 
 Global Instance max_list_perm_proper : Proper ((≡ₚ) ==> (=)) max_list.
 Proof. apply _. Qed.
 
 Section max_list.
-  Context {A : Type}.
+  (* Context {A : Type}. *)
 
   Lemma max_list_elem_of_le n ns:
     n ∈ ns → n ≤ max_list ns.
@@ -41,4 +44,16 @@ Section max_list.
     - apply elem_of_list_here.
   Qed.
 
+  Lemma max_list_not_elem_of_gt n ns : max_list ns < n → n ∉ ns.
+  Proof. intros ?. induction 1; simpl in *; lia. Qed.
+
 End max_list.
+
+Lemma singleton_included_insert `{Countable K} {A : cmra} (k : K) (a a' : A) (m : gmap K A) :
+  a ≼ a' → {[k := a]} ≼ <[k:=a']> m.
+Proof.
+  intros le.
+  apply singleton_included_l.
+  exists a'.
+  split. - by rewrite lookup_insert. - apply Some_included. right. done.
+Qed.
