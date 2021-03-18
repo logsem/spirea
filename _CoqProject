@@ -10,4 +10,6 @@ theories/lang/syntax.v
 theories/lang/memory.v
 theories/lang/lang.v
 theories/lang/notation.v
+theories/lang/tactics.v
+theories/lang/primitive_laws.v
 theories/lang/primitive_laws.v

@@ -8,7 +8,7 @@ From iris.prelude Require Import options.
 
 From self Require Import extra.
 From self.algebra Require Import view.
-From self.lang Require Import notation.
+From self.lang Require Import notation tactics.
 
 Class nvmG Σ := NvmG {
   nvmG_invG : invG Σ;
@@ -245,7 +245,7 @@ Section lifting.
     ([∗ map] h ∈ heap, hist_inv (lub_view heap) h) -∗
     ([∗ map] h ∈ <[ℓ:=<[t:={| msg_val := v;
                               msg_store_view := ∅;
-                              msg_persist_view := p |}]> hist]> heap, 
+                              msg_persist_view := p |}]> hist]> heap,
          hist_inv
            (lub_view
               (<[ℓ:=<[t:={| msg_val := v;
@@ -329,26 +329,6 @@ Section lifting.
 
   (* Create a message from a [value] and a [thread_view]. *)
   Definition mk_message (v : val) (T : thread_view) := Msg v T.(tv_store_view) T.(tv_persist_view).
-
-  (* This tactics performs inversion in [thread_step], and its constituents
-  [head_step] and [mem_step]. *)
-  Ltac inv_thread_step :=
-    repeat match goal with
-    | _ => progress simplify_map_eq/= (* simplify memory stuff *)
-    | H : to_val _ = Some _ |- _ => apply of_to_val in H
-    | H : mem_step ?e _ _ _ _ |- _ =>
-      try (is_var e; fail 1); (* inversion yields many goals if [e] is a variable
-      and should thus better be avoided. *)
-      inversion H; subst; clear H
-    | H : nvm_lang.head_step ?e _ _ _ _ |- _ =>
-      try (is_var e; fail 1); (* inversion yields many goals if [e] is a variable
-      and should thus better be avoided. *)
-      inversion H; subst; clear H
-    | H : thread_step ?e _ _ _ _ _ |- _ =>
-      try (is_var e; fail 1); (* inversion yields many goals if [e] is a variable
-      and should thus better be avoided. *)
-      inversion H; subst; clear H
-    end.
 
   (*** Rules for memory operations. ***)
 
