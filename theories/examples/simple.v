@@ -1,6 +1,7 @@
 From iris.proofmode Require Import tactics.
-From iris.program_logic Require Export weakestpre.
+(* From iris.program_logic Require Export weakestpre. *)
 From self.lang Require Export notation primitive_laws lang.
+From self Require Export weakestpre.
 
 Definition prog : expr := let: "l" := ref #1 in ! "l".
 
@@ -11,6 +12,13 @@ Definition pure : expr :=
 
 Section specs.
   Context `{!nvmG Σ}.
+
+  Lemma wp_pure :
+    {{{ True }}} pure {{{ RET (#8); True }}}.
+  Proof.
+    iIntros (Φ) "_ Post".
+    wp_pures.
+  Admitted.
 
   Lemma wp_pure TV :
     {{{ True }}}

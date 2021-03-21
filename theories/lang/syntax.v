@@ -1,6 +1,7 @@
 From stdpp Require Export binders strings.
 From stdpp Require Import gmap.
 From iris.prelude Require Import options.
+From iris.algebra Require Import ofe.
 From iris.heap_lang Require Export locations.
 
 (* From self.lang Require Export memory. *)
@@ -309,6 +310,9 @@ Module syntax.
   Qed.
   Global Instance val_countable : Countable val.
   Proof. refine (inj_countable of_val to_val _); auto using to_of_val. Qed.
+
+  Canonical Structure valO := leibnizO val.
+  Canonical Structure exprO := leibnizO expr.
 
 End syntax.
 

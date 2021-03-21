@@ -16,7 +16,7 @@ Delimit Scope val_scope with V.
 
 Module nvm_lang.
 
-  (** Evaluation contexts *)
+  (** Evaluation context items. *)
   Inductive ectx_item :=
     (* Functions and application. *)
     | AppLCtx (v2 : val)
@@ -26,12 +26,12 @@ Module nvm_lang.
     | BinOpLCtx (op : bin_op) (v2 : val)
     | BinOpRCtx (op : bin_op) (e1 : expr)
     | IfCtx (e1 e2 : expr)
-    (* Products *)
+    (* Products. *)
     | PairLCtx (v2 : val)
     | PairRCtx (e1 : expr)
     | FstCtx
     | SndCtx
-    (* Sums *)
+    (* Sums. *)
     | InjLCtx
     | InjRCtx
     | CaseCtx (e1 : expr) (e2 : expr)
@@ -177,6 +177,9 @@ Module nvm_lang.
       | _, _ => None
       end.
 
+  (* We define a labeled per-thread reduction. This will be synchronized later
+  with the memory model to derive a unlabeled reductions (which is what Iris
+  expects). *)
   Inductive head_step : expr → option mem_event → list observation → expr → list expr → Prop :=
   (* Pure. *)
    RecS f x e :
@@ -264,7 +267,7 @@ Module nvm_lang.
     (* FIXME: We probably need to check that _all_ the possible things we
     could've read here are safe to compare with. Let's see when that becomes a
     problem :). Note: Do this in the memory transition probably. Also, figure
-    out why that neccessary. *)
+    out why that neccessary. Update: It is definitely necessary!! *)
      vals_compare_safe vl v1 →
      (vl = v1) →
      head_step (CmpXchg (Val $ LitV $ LitLoc ℓ) (Val v1) (Val v2))
@@ -320,6 +323,25 @@ Module nvm_lang.
   Proof.
     revert Ki2. induction Ki1; intros Ki2; induction Ki2; try naive_solver eauto with f_equal.
   Qed.
+
+  (* Even though what we have so far does not qualify as a "language" that we
+  can instantiate Iris with, we will instantiate Iris with a pseudo instance.
+  This is because the WP notation is constructed using a type class called [Wp]
+  which requires the expression argument to be the expression for some language.
+  We call it `expr_lang` since it expressions are actually expressions (in
+  comparison to `nvm_lang` where expressions are thread states. )
+  *)
+  Lemma expr_ectxi_lang_mixin :
+    EctxiLanguageMixin (state:=unit) (observation:=Empty_set)
+      of_val to_val fill_item
+      (fun e _ _ e' _ efs => False).
+  Proof.
+    split; eauto using to_of_val, of_to_val, fill_item_val,
+      fill_item_no_val_inj, head_ctx_step_val with typeclass_instances=>//.
+  Qed.
+
+  Definition expr_ectxi_lang := EctxiLanguage expr_ectxi_lang_mixin.
+  Definition expr_ectx_lang := EctxLanguageOfEctxi expr_ectxi_lang.
 
   (* We synchronize the memory model with the stepping relation for expressions
   and arrive at a semantics in the form that Iris requires. *)
@@ -416,6 +438,7 @@ Module nvm_lang.
 
 End nvm_lang.
 
+Canonical Structure expr_lang := LanguageOfEctx nvm_lang.expr_ectx_lang.
 Canonical Structure nvm_ectxi_lang := EctxiLanguage nvm_lang.nvm_lang_mixin.
 Canonical Structure nvm_ectx_lang := EctxLanguageOfEctxi nvm_ectxi_lang.
 Canonical Structure nvm_lang := LanguageOfEctx nvm_ectx_lang.

@@ -77,7 +77,7 @@ Definition hist_inv lub hist `{!nvmG Σ} : iProp Σ :=
 
 Global Instance nvmG_irisG `{!nvmG Σ} : irisG nvm_lang Σ := {
   iris_invG := nvmG_invG;
-  state_interp σ κs _ := (
+  state_interp σ _ κs _ := (
     (* The interpetation of the heap. This is standard, except the heap store
     historie and not plain values. *)
     gen_heap_interp (fst σ) ∗
@@ -87,6 +87,8 @@ Global Instance nvmG_irisG `{!nvmG Σ} : irisG nvm_lang Σ := {
     (* proph_map_interp κs σ.(used_proph_id) *)
   )%I;
   fork_post _ := True%I;
+  num_laters_per_step _ := 0;
+  state_interp_mono _ _ _ _ := fupd_intro _ _
 }.
 
 (* NOTE: Uncomment as needed. *)
@@ -357,7 +359,7 @@ Section lifting.
   Proof.
     iIntros (Hn Φ) "_ HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (_)); first done.
-    iIntros ([??] κ κs k) "(Hσ & Hauth & Hop & Hpers) !>"; iSplit.
+    iIntros ([??] κ κs ? k) "(Hσ & Hauth & Hop & Hpers) !>"; iSplit.
     - (* We must show that [ref v] is can take tome step. *)
        rewrite /head_reducible.
        destruct T.
@@ -392,7 +394,7 @@ Section lifting.
   Proof.
     iIntros (Φ) "[ℓPts Hval] HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (_)); first done.
-    iIntros ([heap ?] κ κs k) "(Hheap & lubauth & #Hincl & persist) /= !>".
+    iIntros ([heap ?] κ κs ? k) "(Hheap & lubauth & #Hincl & persist) /= !>".
     (* From the points-to predicate we know that [hist] is in the heap at ℓ. *)
     iDestruct (gen_heap_valid with "Hheap ℓPts") as %Hlook.
     iSplit.
@@ -428,7 +430,7 @@ Section lifting.
   Proof.
     iIntros (Φ) "[ℓPts Hval] HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (_)); first done.
-    iIntros ([heap ?] κ κs k) "(Hheap & lubauth & #Hincl & persist) /= !>".
+    iIntros ([heap ?] κ κs ? k) "(Hheap & lubauth & #Hincl & persist) /= !>".
     (* The time at the view is smaller than the time in the lub view (which is the time of the most recent message *)
     iDestruct (auth_frag_leq with "Hval lubauth") as %Vincl.
     (* From the points-to predicate we know that [hist] is in the heap at ℓ. *)
@@ -472,7 +474,7 @@ Section lifting.
   Proof.
     iIntros (Φ) "[ℓPts Hval] HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (_)); first done.
-    iIntros ([heap ?] κ κs k) "(Hheap & lubauth & #Hincl & persist) /= !>".
+    iIntros ([heap ?] κ κs ? k) "(Hheap & lubauth & #Hincl & persist) /= !>".
     (* The time at the view is smaller than the time in the lub view (which is the time of the most recent message *)
     iDestruct (auth_frag_leq with "Hval lubauth") as %Vincl.
     (* From the points-to predicate we know that [hist] is in the heap at ℓ. *)
@@ -527,7 +529,7 @@ Section lifting.
   Proof.
     iIntros (Φ) "[ℓPts Hval] HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (_)); first done.
-    iIntros ([heap ?] κ κs k) "(Hheap & lubauth & #Hincl & persist) /= !>".
+    iIntros ([heap ?] κ κs ? k) "(Hheap & lubauth & #Hincl & persist) /= !>".
     (* The time at the view is smaller than the time in the lub view (which is the time of the most recent message *)
     iDestruct (auth_frag_leq with "Hval lubauth") as %Vincl.
     (* From the points-to predicate we know that [hist] is in the heap at ℓ. *)
@@ -583,7 +585,7 @@ Section lifting.
   Proof.
     iIntros (ϕ) "pts HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (_)); first done.
-    iIntros ([??] κ κs k) "(Hheap & Hauth & Hop & Hpers) /= !>".
+    iIntros ([??] κ κs ? k) "(Hheap & Hauth & Hop & Hpers) /= !>".
     (* From the points-to predicate we know that [hist] is in the heap at ℓ. *)
     iDestruct (gen_heap_valid with "Hheap pts") as %Hlook.
     iSplit.
@@ -602,7 +604,7 @@ Section lifting.
   Proof.
     iIntros (ϕ) "pts HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (_)); first done.
-    iIntros ([??] κ κs k) "(Hheap & Hauth & Hop & Hpers) /= !>".
+    iIntros ([??] κ κs ? k) "(Hheap & Hauth & Hop & Hpers) /= !>".
     (* From the points-to predicate we know that [hist] is in the heap at ℓ. *)
     iDestruct (gen_heap_valid with "Hheap pts") as %Hlook.
     iSplit.
@@ -622,7 +624,7 @@ Section lifting.
   Proof.
     iIntros (ϕ) "(pts & valV & perP) HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (_)); first done.
-    iIntros ([??] κ κs k) "(Hheap & Hauth & Hop & Hpers) /= !>".
+    iIntros ([??] κ κs ? k) "(Hheap & Hauth & Hop & Hpers) /= !>".
     (* From the points-to predicate we know that [hist] is in the heap at ℓ. *)
     iDestruct (gen_heap_valid with "Hheap pts") as %Hlook.
     iSplit.

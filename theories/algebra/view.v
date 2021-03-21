@@ -32,6 +32,13 @@ Proof. apply _. Qed.
 
 Infix "!!0" := (λ m i, default 0 (max_nat_car <$> (m !! i))) (at level 80).
 
+Lemma view_empty_least V : ∅ ⊑ V. 
+Proof.
+  rewrite subseteq_view_incl.
+  replace ∅ with ε by done.
+  apply: ucmra_unit_least.
+Qed.
+
 Lemma view_lt_lt V W ℓ : V ⊑ W → (V !!0 ℓ) ≤ (W !!0 ℓ).
 Proof.
   rewrite subseteq_view_incl lookup_included.
