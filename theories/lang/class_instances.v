@@ -107,84 +107,71 @@ Global Hint Extern 0 (AsRecV (RecV _ _ _) _ _ _) =>
   apply AsRecV_recv : typeclass_instances.
 
 Section pure_exec.
-  Local Ltac solve_exec_safe := intros; subst; do 3 eexists; econstructor; eauto.
-  Local Ltac solve_exec_puredet := simpl; intros; by inv_thread_step.
+  Local Ltac solve_exec_safe :=
+    intros; eexists _, _, _; apply pure_step with (efs := []); econstructor; eauto.
+  Local Ltac solve_exec_puredet :=
+    simpl; intros; inv_thread_step; eauto using fmap_nil_inv.
   Local Ltac solve_pure_exec :=
-    subst; intros ?; apply nsteps_once, pure_head_step_pure_step;
+    subst; intros ??; apply nsteps_once, pure_head_step_pure_step;
       constructor; [solve_exec_safe | solve_exec_puredet].
-  
+
   Notation PureExecBase P nsteps e1 e2 :=
     (∀ TV, PureExec P nsteps (ThreadState e1 TV) (ThreadState e2 TV)).
 
-  (* Global Instance pure_recc f x (erec : expr) :
-    PureExecBase True 1 (Rec f x erec) (Val $ RecV f x erec).
-  Proof. Admitted. *)
-
   Global Instance pure_recc f x (erec : expr) :
     PureExecBase True 1 (Rec f x erec) (Val $ RecV f x erec).
-    (* PureExec True 1 (ThreadState (Rec f x erec) TV) (ThreadState (Val $ RecV f x erec) TV). *)
-  Proof.
-    intros TV.
-    rewrite /PureExec. intros _. apply nsteps_once.
-    apply pure_head_step_pure_step.
-    constructor.
-    - intros. eexists _, _, _. apply pure_step with (efs := []). econstructor.
-    - intros. inv_thread_step.
-      split; first done. split; first done. split; first done.
-      eapply fmap_nil_inv. done.
-  Qed.
+  Proof. solve_pure_exec. Qed.
   Global Instance pure_pairc (v1 v2 : val) :
     PureExecBase True 1 (Pair (Val v1) (Val v2)) (Val $ PairV v1 v2).
-  Proof. Admitted. (* solve_pure_exec. Qed. *)
+  Proof. solve_pure_exec. Qed. (* solve_pure_exec. Qed. *)
   Global Instance pure_injlc (v : val) :
     PureExecBase True 1 (InjL $ Val v) (Val $ InjLV v).
-  Proof. Admitted. (* solve_pure_exec. Qed. *)
+  Proof. solve_pure_exec. Qed.
   Global Instance pure_injrc (v : val) :
     PureExecBase True 1 (InjR $ Val v) (Val $ InjRV v).
-  Proof. Admitted. (* solve_pure_exec. Qed. *)
+  Proof. solve_pure_exec. Qed.
 
   Global Instance pure_beta f x (erec : expr) (v1 v2 : val) `{!AsRecV v1 f x erec} :
     PureExecBase True 1 (App (Val v1) (Val v2)) (subst' x v2 (subst' f v1 erec)).
-  Proof. unfold AsRecV in *. Admitted. (* solve_pure_exec. Qed. *)
+  Proof. unfold AsRecV in *. solve_pure_exec. Qed.
 
   Global Instance pure_unop op v v' :
     PureExecBase (un_op_eval op v = Some v') 1 (UnOp op (Val v)) (Val v').
-  Proof. Admitted. (* solve_pure_exec. Qed. *)
+  Proof. solve_pure_exec. Qed.
 
   Global Instance pure_binop op v1 v2 v' :
     PureExecBase (bin_op_eval op v1 v2 = Some v') 1 (BinOp op (Val v1) (Val v2)) (Val v') | 10.
-  Proof. Admitted. (* solve_pure_exec. Qed. *)
+  Proof. solve_pure_exec. Qed.
   (* Higher-priority instance for [EqOp]. *)
   Global Instance pure_eqop v1 v2 :
     PureExecBase (vals_compare_safe v1 v2) 1
       (BinOp EqOp (Val v1) (Val v2))
       (Val $ LitV $ LitBool $ bool_decide (v1 = v2)) | 1.
   Proof.
-    intros Hcompare.
+    intros TV Hcompare.
     cut (bin_op_eval EqOp v1 v2 = Some $ LitV $ LitBool $ bool_decide (v1 = v2)).
-    { intros. revert Hcompare. admit. } (* solve_pure_exec. }
-    rewrite /bin_op_eval /= decide_True //. *)
-  Admitted.
-  (* Qed. *)
+    { intros. revert TV Hcompare. solve_pure_exec. }
+    rewrite /bin_op_eval /= decide_True //.
+  Qed.
 
   Global Instance pure_if_true e1 e2 :
     PureExecBase True 1 (If (Val $ LitV $ LitBool true) e1 e2) e1.
-  Proof. Admitted. (* solve_pure_exec. Qed. *)
+  Proof. solve_pure_exec. Qed.
   Global Instance pure_if_false e1 e2 :
     PureExecBase True 1 (If (Val $ LitV  $ LitBool false) e1 e2) e2.
-  Proof. Admitted. (* solve_pure_exec. Qed. *)
+  Proof. solve_pure_exec. Qed.
 
   Global Instance pure_fst v1 v2 :
     PureExecBase True 1 (Fst (Val $ PairV v1 v2)) (Val v1).
-  Proof. Admitted. (* solve_pure_exec. Qed. *)
+  Proof. solve_pure_exec. Qed.
   Global Instance pure_snd v1 v2 :
     PureExecBase True 1 (Snd (Val $ PairV v1 v2)) (Val v2).
-  Proof. Admitted. (* solve_pure_exec. Qed. *)
+  Proof. solve_pure_exec. Qed.
 
   Global Instance pure_case_inl v e1 e2 :
     PureExecBase True 1 (Case (Val $ InjLV v) e1 e2) (App e1 (Val v)).
-  Proof. Admitted. (* solve_pure_exec. Qed. *)
+  Proof. solve_pure_exec. Qed.
   Global Instance pure_case_inr v e1 e2 :
     PureExecBase True 1 (Case (Val $ InjRV v) e1 e2) (App e2 (Val v)).
-  Proof. Admitted. (* solve_pure_exec. Qed. *)
+  Proof. solve_pure_exec. Qed.
 End pure_exec.
