@@ -14,3 +14,5 @@ theories/vprop.v
 theories/lang/tactics.v
 theories/lang/primitive_laws.v
 theories/weakestpre.v
+theories/lang/class_instances.v
+theories/lang/proofmode.v

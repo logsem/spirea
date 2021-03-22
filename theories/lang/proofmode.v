@@ -1,3 +1,7 @@
+(* This file implements the tactics for working with NvmLang.
+
+Is is an adaptation of the tactics for HeapLang. *)
+
 From iris.proofmode Require Import coq_tactics reduction.
 From iris.proofmode Require Export tactics.
 From iris.program_logic Require Import atomic.
@@ -5,11 +9,13 @@ From iris.program_logic Require Import atomic.
 (* From iris.heap_lang Require Import notation. *)
 From iris.prelude Require Import options.
 
-From self.lang Require Export tactics.
-From self.lang Require Import notation.
-From self.lang Require Import notation primitive_laws.
+From self.lang Require Export tactics class_instances primitive_laws.
+From self.lang Require Import lang notation.
+From self Require Import weakestpre.
 
 Import uPred.
+
+Implicit Types (e : expr).
 
 Lemma tac_wp_expr_eval `{!nvmG Σ} Δ s E Φ e e' :
   (∀ (e'':=e'), e = e'') →
@@ -33,8 +39,29 @@ Tactic Notation "wp_expr_eval" tactic3(t) :=
   end.
 Ltac wp_expr_simpl := wp_expr_eval simpl.
 
+Notation PureExecBase P nsteps e1 e2 :=
+  (∀ TV, PureExec P nsteps (ThreadState e1 TV) (ThreadState e2 TV)).
+
+(* There is a correspondance between [fill] in nvm_lang and expr_lang. *)
+Lemma fill_fill (K : list ectx_item) e1 TV :
+  ThreadState (fill K e1) TV =
+    fill (K : list (ectxi_language.ectx_item nvm_ectxi_lang)) (ThreadState e1 TV).
+Proof.
+  induction K using rev_ind.
+  - done.
+  - rewrite !fill_app. rewrite -IHK. done.
+Qed.
+
+Lemma pure_exec_fill K φ n e1 e2 :
+  PureExecBase φ n e1 e2 →
+  PureExecBase φ n (fill K e1) (fill K e2).
+Proof.
+  intros ? TV. rewrite !fill_fill. apply: pure_exec_ctx.
+Qed.
+
 Lemma tac_wp_pure `{!nvmG Σ} Δ Δ' s E K e1 e2 φ n Φ :
-  PureExec φ n e1 e2 →
+  (∀ TV, PureExec φ n (ThreadState e1 TV) (ThreadState e2 TV)) →
+  (* PureExecBase φ n e1 e2 → *)
   φ →
   MaybeIntoLaterNEnvs n Δ Δ' →
   envs_entails Δ' (WP (fill K e2) @ s; E {{ Φ }}) →
@@ -43,33 +70,26 @@ Proof.
   rewrite envs_entails_eq=> ??? HΔ'. rewrite into_laterN_env_sound /=.
   (* We want [pure_exec_fill] to be available to TC search locally. *)
   pose proof @pure_exec_fill.
-  rewrite HΔ' -lifting.wp_pure_step_later //.
-Qed.
-Lemma tac_twp_pure `{!nvmG Σ} Δ s E K e1 e2 φ n Φ :
-  PureExec φ n e1 e2 →
-  φ →
-  envs_entails Δ (WP (fill K e2) @ s; E [{ Φ }]) →
-  envs_entails Δ (WP (fill K e1) @ s; E [{ Φ }]).
-Proof.
-  rewrite envs_entails_eq=> ?? ->.
-  (* We want [pure_exec_fill] to be available to TC search locally. *)
-  pose proof @pure_exec_fill.
-  rewrite -total_lifting.twp_pure_step //.
+  rewrite HΔ'. rewrite -wp_pure_step_later //.
 Qed.
 
 Lemma tac_wp_value_nofupd `{!nvmG Σ} Δ s E Φ v :
   envs_entails Δ (Φ v) → envs_entails Δ (WP (Val v) @ s; E {{ Φ }}).
-Proof. rewrite envs_entails_eq=> ->. by apply wp_value. Qed.
-Lemma tac_twp_value_nofupd `{!nvmG Σ} Δ s E Φ v :
+Proof. rewrite envs_entails_eq=> ->. apply wp_value. Qed.
+(* Lemma tac_twp_value_nofupd `{!nvmG Σ} Δ s E Φ v :
   envs_entails Δ (Φ v) → envs_entails Δ (WP (Val v) @ s; E [{ Φ }]).
-Proof. rewrite envs_entails_eq=> ->. by apply twp_value. Qed.
+Proof. rewrite envs_entails_eq=> ->. by apply twp_value. Qed. *)
 
-Lemma tac_wp_value `{!nvmG Σ} Δ s E (Φ : val → iPropI Σ) v :
+Lemma tac_wp_value `{!nvmG Σ} Δ s E (Φ : val → vPropI Σ) v :
   envs_entails Δ (|={E}=> Φ v) → envs_entails Δ (WP (Val v) @ s; E {{ Φ }}).
-Proof. rewrite envs_entails_eq=> ->. by rewrite wp_value_fupd. Qed.
-Lemma tac_twp_value `{!nvmG Σ} Δ s E (Φ : val → iPropI Σ) v :
+Proof.
+  rewrite envs_entails_eq=> ->.
+  (* rewrite wp_value. *)
+  rewrite wp_value_fupd. Qed.
+Admitted.
+(* Lemma tac_twp_value `{!nvmG Σ} Δ s E (Φ : val → iPropI Σ) v :
   envs_entails Δ (|={E}=> Φ v) → envs_entails Δ (WP (Val v) @ s; E [{ Φ }]).
-Proof. rewrite envs_entails_eq=> ->. by rewrite twp_value_fupd. Qed.
+Proof. rewrite envs_entails_eq=> ->. by rewrite twp_value_fupd. Qed. *)
 
 (** Simplify the goal if it is [WP] of a value.
   If the postcondition already allows a fupd, do not add a second one.
@@ -83,12 +103,12 @@ Ltac wp_value_head :=
       eapply tac_wp_value_nofupd
   | |- envs_entails _ (wp ?s ?E (Val _) _) =>
       eapply tac_wp_value
-  | |- envs_entails _ (twp ?s ?E (Val _) (λ _, fupd ?E _ _)) =>
+  (* | |- envs_entails _ (twp ?s ?E (Val _) (λ _, fupd ?E _ _)) =>
       eapply tac_twp_value_nofupd
   | |- envs_entails _ (twp ?s ?E (Val _) (λ _, twp _ ?E _ _)) =>
       eapply tac_twp_value_nofupd
   | |- envs_entails _ (twp ?s ?E (Val _) _) =>
-      eapply tac_twp_value
+      eapply tac_twp_value *)
   end.
 
 Ltac wp_finish :=
@@ -125,6 +145,7 @@ Tactic Notation "wp_pure" open_constr(efoc) :=
       |wp_finish                      (* new goal *)
       ])
     || fail "wp_pure: cannot find" efoc "in" e "or" efoc "is not a redex"
+  (*
   | |- envs_entails _ (twp ?s ?E ?e ?Q) =>
     let e := eval simpl in e in
     reshape_expr e ltac:(fun K e' =>
@@ -135,6 +156,7 @@ Tactic Notation "wp_pure" open_constr(efoc) :=
       |wp_finish                      (* new goal *)
       ])
     || fail "wp_pure: cannot find" efoc "in" e "or" efoc "is not a redex"
+    *)
   | _ => fail "wp_pure: not a 'wp'"
   end.
 
@@ -175,6 +197,7 @@ Tactic Notation "wp_inj" := wp_pure (InjL _) || wp_pure (InjR _).
 Tactic Notation "wp_pair" := wp_pure (Pair _ _).
 Tactic Notation "wp_closure" := wp_pure (Rec _ _ _).
 
+(*
 Lemma tac_wp_bind `{!nvmG Σ} K Δ s E Φ e f :
   f = (λ e, fill K e) → (* as an eta expanded hypothesis so that we can `simpl` it *)
   envs_entails Δ (WP e @ s; E {{ v, WP f (Val v) @ s; E {{ Φ }} }})%I →
@@ -786,3 +809,5 @@ Tactic Notation "wp_faa" :=
     |pm_reduce; wp_finish]
   | _ => fail "wp_faa: not a 'wp'"
   end.
+
+  *)

@@ -340,8 +340,8 @@ Module nvm_lang.
       fill_item_no_val_inj, head_ctx_step_val with typeclass_instances=>//.
   Qed.
 
-  Definition expr_ectxi_lang := EctxiLanguage expr_ectxi_lang_mixin.
-  Definition expr_ectx_lang := EctxLanguageOfEctxi expr_ectxi_lang.
+  (* Definition expr_ectxi_lang := EctxiLanguage expr_ectxi_lang_mixin.
+  Definition expr_ectx_lang := EctxLanguageOfEctxi expr_ectxi_lang. *)
 
   (* We synchronize the memory model with the stepping relation for expressions
   and arrive at a semantics in the form that Iris requires. *)
@@ -438,7 +438,10 @@ Module nvm_lang.
 
 End nvm_lang.
 
-Canonical Structure expr_lang := LanguageOfEctx nvm_lang.expr_ectx_lang.
+Canonical Structure expr_ectxi_lang := EctxiLanguage nvm_lang.expr_ectxi_lang_mixin.
+Canonical Structure expr_ectx_lang := EctxLanguageOfEctxi expr_ectxi_lang.
+Canonical Structure expr_lang := LanguageOfEctx expr_ectx_lang.
+
 Canonical Structure nvm_ectxi_lang := EctxiLanguage nvm_lang.nvm_lang_mixin.
 Canonical Structure nvm_ectx_lang := EctxLanguageOfEctxi nvm_ectxi_lang.
 Canonical Structure nvm_lang := LanguageOfEctx nvm_ectx_lang.
