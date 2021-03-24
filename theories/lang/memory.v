@@ -13,17 +13,18 @@ Record message : Type := Msg {
   msg_persist_view : view;
 }.
 
-Definition thread_view : Type := view * view * view.
+Notation thread_view := (view * view * view)%type.
 
 Definition store_view (tv : thread_view) : view := (tv.1).1.
 Definition persist_view (tv : thread_view) : view := (tv.1).2.
 Definition wb_buffer_view (tv : thread_view) : view := (tv.2).
 
-(* Record thread_view : Type := ThreadView {
-  tv_store_view : view;
-  tv_persist_view : view;
-  tv_wb_buffer : view;
-}. *)
+Global Instance store_view_mono : Proper ((⊑) ==> (⊑)) store_view.
+Proof. solve_proper. Qed.
+Global Instance persist_view_mono : Proper ((⊑) ==> (⊑)) persist_view.
+Proof. solve_proper. Qed.
+Global Instance wb_buffer_view_mono : Proper ((⊑) ==> (⊑)) wb_buffer_view.
+Proof. solve_proper. Qed.
 
 Notation history := (gmap time message).
 

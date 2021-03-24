@@ -7,9 +7,6 @@ From iris.base_logic.lib Require Import fancy_updates.
 
 From self Require Import view memory.
 
-Instance subseteq_thread_view : SqSubsetEq thread_view :=
-  λ TV TV', TV ≼ TV'.
-
 (* We define a canonical [biIndex] structure for [thread_view]. All fields except for
 [bi_index_type] can be infered by Coq. *)
 Canonical Structure thread_view_bi_index : biIndex :=
@@ -19,7 +16,11 @@ Canonical Structure thread_view_bi_index : biIndex :=
 Print thread_view_bi_index.
 
 Instance view_bi_index_bot (TV : thread_view) : BiIndexBottom (ε : thread_view).
-Proof. apply: ucmra_unit_least. Qed.
+Proof.
+  rewrite /BiIndexBottom. intros [[??] ?]. rewrite !subseteq_prod'.
+  rewrite !subseteq_view_incl.
+  split; first split; apply: ucmra_unit_least.
+Qed.
 
 (* Types of view predicates. *)
 Definition dProp Σ := monPred thread_view_bi_index (uPredI (iResUR Σ)). (* FIXME: use iPropI here. *)

@@ -1,7 +1,7 @@
 (* In this we define [view] type which is both a unital resource algebra and a
 lattice. We use the lattice notation from stdpp. *)
 
-From stdpp Require Import countable numbers gmap.
+From stdpp Require Import tactics countable numbers gmap.
 From iris.heap_lang Require Export locations.
 From iris.algebra Require Export gmap numbers.
 
@@ -103,7 +103,6 @@ Proof.
   - rewrite lookup_insert_ne; done.
 Qed.
 
-
 Lemma view_insert_op V ℓ t :
   (V !!0 ℓ) ≤ t → (V ⊔ {[ℓ := MaxNat t]}) = (<[ℓ := MaxNat t]> V).
 Proof.
@@ -128,6 +127,10 @@ Global Instance join_prod `{!Join A, !Join B} : Join (A * B) :=
 Global Instance subseteq_prod `{!SqSubsetEq A, !SqSubsetEq B} : SqSubsetEq (A * B) :=
   λ '(a, b) '(a', b'), a ⊑ a' ∧ b ⊑ b'.
 
+Lemma subseteq_prod' `{SqSubsetEq A, SqSubsetEq B} (a a' : A) (b b' : B) :
+  (a, b) ⊑ (a', b') = (a ⊑ a' ∧ b ⊑ b').
+Proof. done. Qed.
+
 (* Projections are monotone. *)
 Global Instance fst_mono `{!SqSubsetEq A, !SqSubsetEq B} : Proper ((⊑) ==> (⊑)) (@fst A B).
 Proof. intros [??] [??] [??]. done. Qed.
@@ -135,3 +138,12 @@ Proof. intros [??] [??] [??]. done. Qed.
 (* Projections are monotone. *)
 Global Instance snd_mono `{!SqSubsetEq A, !SqSubsetEq B} : Proper ((⊑) ==> (⊑)) (@snd A B).
 Proof. intros [??] [??] [??]. done. Qed.
+
+Instance pair_preorder `{!SqSubsetEq A, !SqSubsetEq B, !PreOrder (⊑@{A}),
+                         !PreOrder (⊑@{B})} : PreOrder (⊑@{A * B}).
+Proof.
+  constructor.
+  - intros [??]. rewrite subseteq_prod'. done.
+  - intros [??] [??] [??]. rewrite !subseteq_prod'. intros [??] [??].
+    split; etrans; done.
+Qed.
