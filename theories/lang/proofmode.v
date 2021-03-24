@@ -80,16 +80,11 @@ Proof. rewrite envs_entails_eq=> ->. apply wp_value. Qed.
   envs_entails Δ (Φ v) → envs_entails Δ (WP (Val v) @ s; E [{ Φ }]).
 Proof. rewrite envs_entails_eq=> ->. by apply twp_value. Qed. *)
 
-Lemma tac_wp_value `{!nvmG Σ} Δ s E (Φ : val → vPropI Σ) v :
+Lemma tac_wp_value `{!nvmG Σ} Δ s E (Φ : val → dPropI Σ) v :
   envs_entails Δ (|={E}=> Φ v) → envs_entails Δ (WP (Val v) @ s; E {{ Φ }}).
 Proof.
-  rewrite envs_entails_eq=> ->.
-  (* rewrite wp_value. *)
-  rewrite wp_value_fupd. Qed.
-Admitted.
-(* Lemma tac_twp_value `{!nvmG Σ} Δ s E (Φ : val → iPropI Σ) v :
-  envs_entails Δ (|={E}=> Φ v) → envs_entails Δ (WP (Val v) @ s; E [{ Φ }]).
-Proof. rewrite envs_entails_eq=> ->. by rewrite twp_value_fupd. Qed. *)
+  rewrite envs_entails_eq=> ->. rewrite wp_value_fupd. done.
+Qed.
 
 (** Simplify the goal if it is [WP] of a value.
   If the postcondition already allows a fupd, do not add a second one.

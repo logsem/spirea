@@ -1,8 +1,11 @@
+(* In this we define [view] type which is both a unital resource algebra and a
+lattice. We use the lattice notation from stdpp. *)
+
 From stdpp Require Import countable numbers gmap.
 From iris.heap_lang Require Export locations.
 From iris.algebra Require Export gmap numbers.
 
-Notation time := nat.
+Notation time := nat (only parsing).
 
 (* A view is a finite map from locations to natural numbers. A view is a monoid
   with the empty map as the unit and point-wise max as the operation. To get
@@ -117,3 +120,18 @@ Proof.
     rewrite right_id.
     rewrite lookup_insert_ne; done.
 Qed.
+
+(* Instances of the lattice type classes for products. *)
+Global Instance join_prod `{!Join A, !Join B} : Join (A * B) :=
+  λ '(a, b) '(a', b'), (a ⊔ a', b ⊔ b').
+
+Global Instance subseteq_prod `{!SqSubsetEq A, !SqSubsetEq B} : SqSubsetEq (A * B) :=
+  λ '(a, b) '(a', b'), a ⊑ a' ∧ b ⊑ b'.
+
+(* Projections are monotone. *)
+Global Instance fst_mono `{!SqSubsetEq A, !SqSubsetEq B} : Proper ((⊑) ==> (⊑)) (@fst A B).
+Proof. intros [??] [??] [??]. done. Qed.
+
+(* Projections are monotone. *)
+Global Instance snd_mono `{!SqSubsetEq A, !SqSubsetEq B} : Proper ((⊑) ==> (⊑)) (@snd A B).
+Proof. intros [??] [??] [??]. done. Qed.

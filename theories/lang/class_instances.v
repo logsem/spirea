@@ -1,15 +1,23 @@
+(* This file add instances for the [Atomic] and the [PureExec] type classes.
+These are used in the proof mode. *)
+
 From iris.program_logic Require Export language.
-
-From self Require Export lang.
-(* From iris.heap_lang Require Import tactics. *)
-
-From self.lang Require Import tactics.
 From iris.prelude Require Import options.
 
-Global Instance into_val_val v TV : IntoVal (ThreadState (Val v) TV) (ThreadVal v TV).
+From self Require Export lang.
+From self.lang Require Import tactics.
+
+(* [IntoVal] and [AsVal] for nvm_lang. *)
+Global Instance into_val_ts v TV : IntoVal (ThreadState (Val v) TV) (ThreadVal v TV).
 Proof. done. Qed.
-Global Instance as_val_val v TV : AsVal (ThreadState (Val v) TV).
+Global Instance as_val_val_ts v TV : AsVal (ThreadState (Val v) TV).
 Proof. by eexists (ThreadVal _ _). Qed.
+
+(* [IntoVal] and [AsVal] for expr_lang. *)
+Global Instance into_val_val v : IntoVal (Val v) v.
+Proof. done. Qed.
+Global Instance as_val_val v : AsVal (Val v).
+Proof. by exists v. Qed.
 
 (** * Instances of the [Atomic] class *)
 (*
@@ -84,21 +92,11 @@ Section atomic.
 End atomic.
 *)
 
-(** * Instances of the [PureExec] class *)
-(** The behavior of the various [wp_] tactics with regard to lambda differs in
-the following way:
+(** * Instances of the [PureExec] class
 
-- [wp_pures] does *not* reduce lambdas/recs that are hidden behind a definition.
-- [wp_rec] and [wp_lam] reduce lambdas/recs that are hidden behind a definition.
-
-To realize this behavior, we define the class [AsRecV v f x erec], which takes a
-value [v] as its input, and turns it into a [RecV f x erec] via the instance
-[AsRecV_recv : AsRecV (RecV f x e) f x e]. We register this instance via
-[Hint Extern] so that it is only used if [v] is syntactically a lambda/rec, and
-not if [v] contains a lambda/rec that is hidden behind a definition.
-
-To make sure that [wp_rec] and [wp_lam] do reduce lambdas/recs that are hidden
-behind a definition, we activate [AsRecV_recv] by hand in these tactics. *)
+Note that these instances are for nvm_lang thread states in the "normal" WP. In
+the proofmode these are then lifted to apply to expressions in our custom WP.
+*)
 Class AsRecV (v : val) (f x : binder) (erec : expr) :=
   as_recv : v = RecV f x erec.
 Global Hint Mode AsRecV ! - - - : typeclass_instances.

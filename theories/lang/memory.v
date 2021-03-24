@@ -13,11 +13,17 @@ Record message : Type := Msg {
   msg_persist_view : view;
 }.
 
-Record thread_view : Type := ThreadView {
+Definition thread_view : Type := view * view * view.
+
+Definition store_view (tv : thread_view) : view := (tv.1).1.
+Definition persist_view (tv : thread_view) : view := (tv.1).2.
+Definition wb_buffer_view (tv : thread_view) : view := (tv.2).
+
+(* Record thread_view : Type := ThreadView {
   tv_store_view : view;
   tv_persist_view : view;
   tv_wb_buffer : view;
-}.
+}. *)
 
 Notation history := (gmap time message).
 
@@ -98,45 +104,45 @@ Section memory.
    (* (∀ i, (0 ≤ i)%Z → (i < n)%Z → σ.(heap) !! (l +ₗ i) = None) → *)
    (∀ idx, (0 ≤ idx)%Z → (idx < len)%Z → σ !! (ℓ +ₗ idx) = None) → (* This is a fresh segment of the heap not already in use. *)
     (* V' = <[ ℓ := 0 ]>V → (* V' incorporates the new event in the threads view. *) This may not be needed. *)
-    mem_step (σ, p) (ThreadView V P B)
+    mem_step (σ, p) (V, P, B)
            (MEvAllocN ℓ len v)
-           (state_init_heap ℓ len P v σ, p) (ThreadView V P B)
-           (* (<[ℓ := {[ 0 := Msg v V' P ]}]>σ, p) (ThreadView V' P B) *)
+           (state_init_heap ℓ len P v σ, p) (V, P, B)
+           (* (<[ℓ := {[ 0 := Msg v V' P ]}]>σ, p) (V', P, B) *)
   (* A normal non-atomic load. *)
   | MStepLoad (σ : store) V P B t (ℓ : loc) (v : val) h p :
     σ !! ℓ = Some h →
     msg_val <$> (h !! t) = Some v →
     ((V !!0 ℓ)) ≤ t →
-    mem_step (σ, p) (ThreadView V P B)
+    mem_step (σ, p) (V, P, B)
              (MEvLoad ℓ v)
-             (σ, p) (ThreadView V P B)
-             (* (σ, p) (ThreadView (<[ ℓ := t ]>V) P B) (* This variant includes the timestamp of the loaded msg. *) *)
+             (σ, p) (V, P, B)
+             (* (σ, p) ((<[ ℓ := t ]>V), P, B) (* This variant includes the timestamp of the loaded msg. *) *)
   (* A normal non-atomic write. *)
   | MStepStore σ V P B t ℓ (v : val) h V' p :
     σ !! ℓ = Some h →
     (h !! t) = None → (* No event exists at t already. *)
     (V !!0 ℓ) < t →
     V' = <[ℓ := MaxNat t]>V → (* V' incorporates the new event in the threads view. *)
-    mem_step (σ, p) (ThreadView V P B)
+    mem_step (σ, p) (V, P, B)
              (MEvStore ℓ v)
-             (<[ℓ := <[t := Msg v ∅ P]>h]>σ, p) (ThreadView V' P B)
+             (<[ℓ := <[t := Msg v ∅ P]>h]>σ, p) (V', P, B)
   (* An atomic acquire load. *)
   | MStepLoadAcquire σ V P B t ℓ (v : val) MV MP h p :
     σ !! ℓ = Some h →
     (h !! t) = Some (Msg v MV MP) →
     (V !!0 ℓ) ≤ t →
-    mem_step (σ, p) (ThreadView V P B)
+    mem_step (σ, p) (V, P, B)
              (MEvLoadAcquire ℓ v)
-             (σ, p) (ThreadView (V ⊔ MV) (P ⊔ MP) B) (* An acquire incorporates both the store view and the persistent view. *)
+             (σ, p) (V ⊔ MV, P ⊔ MP, B) (* An acquire incorporates both the store view and the persistent view. *)
   (* An atomic release write. *)
   | MStepStoreRelease σ V P B t ℓ (v : val) h V' p :
     σ !! ℓ = Some h →
     (h !! t) = None → (* No event exists at t already. *)
     (V !!0 ℓ) < t →
     V' = <[ℓ := MaxNat t]>V → (* V' incorporates the new event in the threads view. *)
-    mem_step (σ, p) (ThreadView V P B)
+    mem_step (σ, p) (V, P, B)
              (MEvStoreRelease ℓ v)
-             (<[ℓ := <[t := Msg v V' P]>h]>σ, p) (ThreadView V' P B) (* A release releases both V' and P. *)
+             (<[ℓ := <[t := Msg v V' P]>h]>σ, p) (V', P, B) (* A release releases both V' and P. *)
   (* Read-modify-write instructions. *)
   | MStepRMW σ ℓ h v MV MP V t V' P P' B p v' :
     σ !! ℓ = Some h →
@@ -145,34 +151,34 @@ Section memory.
     (h !! (t + 1)) = None → (* The next timestamp is available, ensures that no other RMW read this event. *)
     V' = (<[ ℓ := MaxNat (t + 1) ]>(V ⊔ MV)) → (* V' incorporates the new event in the threads view. *)
     P' = P ⊔ MP →
-    mem_step (σ, p) (ThreadView V P B)
+    mem_step (σ, p) (V, P, B)
              (MEvRMW ℓ v v')
-             (<[ℓ := <[t := Msg v V' P']>h]>σ, p) (ThreadView V' P' B)
+             (<[ℓ := <[t := Msg v V' P']>h]>σ, p) (V', P', B)
   (* Write-back instruction. *)
   | MStepWB σ V P B ℓ t h p :
     σ !! ℓ = Some h →
     (V !!0 ℓ) = t → (* An equality here _should_ be fine, the timestamps are only lower bounds anyway? *)
-    mem_step (σ, p) (ThreadView V P B)
+    mem_step (σ, p) (V, P, B)
              (MEvWB ℓ)
-             (σ, p) (ThreadView V P (<[ℓ := MaxNat t]>B))
+             (σ, p) (V, P, <[ℓ := MaxNat t]>B)
   (* Asynchronous fence. *)
   | MStepFence σ V P B p :
-    mem_step (σ, p) (ThreadView V P B)
+    mem_step (σ, p) (V, P, B)
              MEvFence
-             (σ, p) (ThreadView V (P ⊔ B) ∅)
+             (σ, p) (V, P ⊔ B, ∅)
   (* Synchronous fence. *)
   | MStepFenceSync σ V P B p :
-    mem_step (σ, p) (ThreadView V P B)
+    mem_step (σ, p) (V, P, B)
              MEvFenceSync
-             (σ, p ⊔ B) (ThreadView V (P ⊔ B) ∅).
+             (σ, p ⊔ B) (V, P ⊔ B, ∅).
 
   (* It is always possible to allocate a section of memory. *)
   Lemma alloc_fresh v (len : nat) σ p V P B :
     let ℓ := fresh_locs (dom (gset loc) σ) in (* ℓ is directly after the largest allocated location. *)
     (0 < len)%Z →
-    mem_step (σ, p) (ThreadView V P B)
+    mem_step (σ, p) (V, P, B)
              (MEvAllocN ℓ len v)
-             (state_init_heap ℓ len P v σ, p) (ThreadView V P B).
+             (state_init_heap ℓ len P v σ, p) (V, P, B).
   Proof.
     intros. apply MStepAllocN; first done.
     intros. apply not_elem_of_dom.

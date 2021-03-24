@@ -330,7 +330,7 @@ Section lifting.
   Admitted.
 
   (* Create a message from a [value] and a [thread_view]. *)
-  Definition mk_message (v : val) (T : thread_view) := Msg v T.(tv_store_view) T.(tv_persist_view).
+  Definition mk_message (v : val) (T : thread_view) := Msg v (store_view T) (persist_view T).
 
   (*** Rules for memory operations. ***)
 
@@ -355,14 +355,14 @@ Section lifting.
     {{{ True }}}
       (ThreadState (AllocN #n v) T) @ s; E
     {{{ ℓ, RET (ThreadVal #ℓ T);
-          [∗ list] i ∈ seq 0 (Z.to_nat n), (ℓ +ₗ (i : nat)) ↦h initial_history T.(tv_persist_view) v }}}.
+          [∗ list] i ∈ seq 0 (Z.to_nat n), (ℓ +ₗ (i : nat)) ↦h initial_history (persist_view T) v }}}.
   Proof.
     iIntros (Hn Φ) "_ HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (_)); first done.
     iIntros ([??] κ κs ? k) "(Hσ & Hauth & Hop & Hpers) !>"; iSplit.
     - (* We must show that [ref v] is can take tome step. *)
        rewrite /head_reducible.
-       destruct T.
+       destruct T as [[sv pv] bv].
        iExists [], _, _, _. simpl. iPureIntro.
        eapply impure_step.
        * constructor. done.
@@ -386,10 +386,10 @@ Section lifting.
   Qed.
 
   (* Non-atomic load. *)
-  Lemma wp_load V p B ℓ (hist : history) s E :
+  Lemma wp_load (V p B : view) ℓ (hist : history) s E :
     {{{ ℓ ↦h hist ∗ valid V }}}
-      (ThreadState (! #ℓ) (ThreadView V p B)) @ s; E
-    {{{ t v, RET (ThreadVal v (ThreadView V p B));
+      (ThreadState (! #ℓ) (V, p, B)) @ s; E
+    {{{ t v, RET (ThreadVal v (V, p, B));
           ⌜msg_val <$> (hist !! t) = Some v ∧ (V !!0 ℓ) ≤ t⌝ }}}.
   Proof.
     iIntros (Φ) "[ℓPts Hval] HΦ".
@@ -423,8 +423,8 @@ Section lifting.
 
   Lemma wp_load_acquire V p B ℓ (hist : history) s E :
     {{{ ℓ ↦h hist ∗ valid V }}}
-      (ThreadState (!{acq} #ℓ) (ThreadView V p B)) @ s; E
-    {{{ t v V' P', RET (ThreadVal v (ThreadView (V ⊔ V') (p ⊔ P') B));
+      (ThreadState (!{acq} #ℓ) (V, p, B)) @ s; E
+    {{{ t v V' P', RET (ThreadVal v (V ⊔ V', p ⊔ P', B));
         ⌜(hist !! t) = Some (Msg v V' P') ∧ (V !!0 ℓ) ≤ t⌝ ∗
         valid (V ⊔ V') }}}.
   Proof.
@@ -465,8 +465,8 @@ Section lifting.
 
   Lemma wp_store V v p B ℓ (hist : history) s E :
     {{{ ℓ ↦h hist ∗ valid V }}}
-      (ThreadState (#ℓ <- v) (ThreadView V p B)) @ s; E
-    {{{ t, RET ThreadVal #() (ThreadView (<[ℓ := MaxNat t]>V) p B);
+      (ThreadState (#ℓ <- v) (V, p, B)) @ s; E
+    {{{ t, RET ThreadVal #() (<[ℓ := MaxNat t]>V, p, B);
           ⌜msg_val <$> (hist !! t) = None⌝ ∗
           ⌜(V !!0 ℓ) < t⌝ ∗
           valid (<[ℓ := MaxNat t]>V) ∗
@@ -520,8 +520,8 @@ Section lifting.
 
   Lemma wp_store_release V v p B ℓ (hist : history) s E :
     {{{ ℓ ↦h hist ∗ valid V }}}
-      (ThreadState (#ℓ <-{rel} v) (ThreadView V p B)) @ s; E
-    {{{ t, RET ThreadVal #() (ThreadView (<[ℓ := MaxNat t]>V) p B);
+      (ThreadState (#ℓ <-{rel} v) (V, p, B)) @ s; E
+    {{{ t, RET ThreadVal #() (<[ℓ := MaxNat t]>V, p, B);
           ⌜msg_val <$> (hist !! t) = None⌝ ∗
           ⌜(V !!0 ℓ) < t⌝ ∗
           valid (<[ℓ := MaxNat t]>V) ∗
@@ -580,8 +580,8 @@ Section lifting.
 
   Lemma wp_wb V P B ℓ (hist : history) s E :
     {{{ ℓ ↦h hist }}}
-      (ThreadState (WB #ℓ) (ThreadView V P B)) @ s; E
-    {{{ RET ThreadVal #() (ThreadView V P (<[ℓ := MaxNat (V !!0 ℓ)]>B)); ℓ ↦h hist }}}.
+      (ThreadState (WB #ℓ) (V, P, B)) @ s; E
+    {{{ RET ThreadVal #() (V, P, <[ℓ := MaxNat (V !!0 ℓ)]>B); ℓ ↦h hist }}}.
   Proof.
     iIntros (ϕ) "pts HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (_)); first done.
@@ -599,8 +599,8 @@ Section lifting.
 
   Lemma wp_fence V P B ℓ (hist : history) s E :
     {{{ ℓ ↦h hist }}}
-      (ThreadState Fence (ThreadView V P B)) @ s; E
-    {{{ RET ThreadVal #() (ThreadView V (P ⊔ B) ∅); ℓ ↦h hist }}}.
+      (ThreadState Fence (V, P, B)) @ s; E
+    {{{ RET ThreadVal #() (V, P ⊔ B, ∅); ℓ ↦h hist }}}.
   Proof.
     iIntros (ϕ) "pts HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (_)); first done.
@@ -618,8 +618,8 @@ Section lifting.
 
   Lemma wp_fence_fence V P B ℓ (hist : history) s E :
     {{{ ℓ ↦h hist ∗ valid V ∗ persisted P }}}
-      (ThreadState FenceSync (ThreadView V P B)) @ s; E
-    {{{ RET ThreadVal #() (ThreadView V (P ⊔ B) ∅);
+      (ThreadState FenceSync (V, P, B)) @ s; E
+    {{{ RET ThreadVal #() (V, P ⊔ B, ∅);
           persisted (P ⊔ B) }}}.
   Proof.
     iIntros (ϕ) "(pts & valV & perP) HΦ".

@@ -356,6 +356,13 @@ Module nvm_lang.
     ThreadState { ts_expr : expr; ts_view : thread_view }.
   Record thread_val : Type :=
     ThreadVal { val_val : val; val_view : thread_view }.
+  (* The second argument to [ThreadState] and [ThreadVal] is a pair, but if they
+  appear somewhere where our expression/value scope is in effect then the pair
+  notation of the language will be used. We add this annotation to ensure that
+  for the second arguments Coq's core pair notation is always used. *)
+  Arguments ThreadState _ _%core.
+  Arguments ThreadVal _ _%core.
+
   (* Definition ectx_item := nvm_lang.ectx_item. *)
   Definition thread_fill_item (Ki : ectx_item) (e : thread_state) : thread_state :=
     ThreadState (fill_item Ki e.(ts_expr)) e.(ts_view).
@@ -381,7 +388,7 @@ Module nvm_lang.
   Arguments thread_step _%E _ _ _%E _ _%E.
 
   (* Lemma head_step_view_sqsubseteq e V σ κs e' V' σ' ef P B P' B'
-    (step : head_step (ThreadState e (ThreadView V P B)) σ κs (ThreadState e' (ThreadView V' P' B')) σ' ef) :
+    (step : head_step (ThreadState e (V, P, B)) σ κs (ThreadState e' (V', P', B')) σ' ef) :
     V ⊑ V'.
   Proof.
     inversion step; first done. subst.

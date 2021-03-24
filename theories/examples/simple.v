@@ -1,7 +1,7 @@
 From iris.proofmode Require Import tactics.
 (* From iris.program_logic Require Export weakestpre. *)
 From self.lang Require Export notation primitive_laws lang class_instances proofmode.
-From self Require Import vprop view lang.
+From self Require Import dProp view lang.
 From self Require Export weakestpre.
 
 Definition prog : expr := let: "l" := ref #1 in ! "l".
