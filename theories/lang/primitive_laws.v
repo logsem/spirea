@@ -332,7 +332,7 @@ Section lifting.
   (* Create a message from a [value] and a [thread_view]. *)
   Definition mk_message (v : val) (T : thread_view) := Msg v (store_view T) (persist_view T).
 
-  (*** Rules for memory operations. ***)
+  (** Rules for memory operations. **)
 
   Lemma heap_array_to_seq_mapsto l (P : view) (v : val) (n : nat) :
     ([∗ map] l' ↦ ov ∈ heap_array l P (replicate n v), gen_heap.mapsto l' (DfracOwn 1) ov) -∗
@@ -368,8 +368,10 @@ Section lifting.
        * constructor. done.
        * apply alloc_fresh. lia.
     - iNext. iIntros (e2 σ2 efs Hstep).
-      simpl in *. inv_thread_step. iSplitR=>//.
-      assert (heap_array ℓ P (replicate (Z.to_nat n) v0) ##ₘ g) as Hdisj.
+      simpl in *.
+      inv_impure_thread_step.
+      iSplitR=>//.
+      assert (heap_array ℓ P (replicate (Z.to_nat n) v) ##ₘ g) as Hdisj.
       { apply heap_array_map_disjoint.
         rewrite replicate_length Z2Nat.id; auto with lia. }
       iFrame "Hpers".
@@ -415,8 +417,8 @@ Section lifting.
         + done.
         + rewrite Hmsgeq. done.
     - iNext. iIntros (e2 σ2 efs Hstep) "!>".
-      simpl in *. inv_thread_step. iSplitR=>//.
-      (* assert (h = hist) as ->. { rewrite Hlook in H9. congruence. } *)
+      inv_impure_thread_step.
+      iSplitR=>//.
       iFrame "Hheap lubauth persist Hincl".
       by iApply "HΦ".
   Qed.
@@ -452,7 +454,7 @@ Section lifting.
         + done.
         + rewrite Hmsgeq. done.
     - iNext. iIntros (e2 σ2 efs Hstep).
-      simpl in *. inv_thread_step. iSplitR=>//.
+      simpl in *. inv_impure_thread_step. iSplitR=>//.
       iDestruct (message_included_in_lub_view with "Hincl") as "%"; try done.
       iMod (own_update with "lubauth") as "[lubauth valid']".
       { apply (auth_update_dfrac_alloc _ _ (V ⋅ MV)).
@@ -498,7 +500,7 @@ Section lifting.
         + pose proof (view_lt_lt _ _ ℓ Vincl). lia.
         + done.
     - iNext. iIntros (e2 σ2 efs Hstep).
-      simpl in *. inv_thread_step. iSplitR=>//.
+      simpl in *. inv_impure_thread_step. iSplitR=>//.
       (* The persist view didn't change. *)
       iFrame "persist".
       (* We update the heap with the new history at ℓ. *)
@@ -553,7 +555,7 @@ Section lifting.
         + pose proof (view_lt_lt _ _ ℓ Vincl). lia.
         + done.
     - iNext. iIntros (e2 σ2 efs Hstep).
-      simpl in *. inv_thread_step. iSplitR=>//.
+      simpl in *. inv_impure_thread_step. iSplitR=>//.
       (* The persist view didn't change. *)
       iFrame "persist".
       (* We update the heap with the new history at ℓ. *)
@@ -593,7 +595,7 @@ Section lifting.
        iExists [], _, _, _. simpl. iPureIntro.
        eapply impure_step; by econstructor; done.
     - iNext. iIntros (e2 σ2 efs Hstep).
-      inv_thread_step. iSplitR=>//.
+      inv_impure_thread_step. iSplitR=>//.
       iModIntro. iFrame. iApply "HΦ". iFrame.
   Qed.
 
@@ -612,7 +614,7 @@ Section lifting.
        iExists [], _, _, _. simpl. iPureIntro.
        eapply impure_step; by econstructor; done.
     - iNext. iIntros (e2 σ2 efs Hstep).
-      inv_thread_step. iSplitR=>//.
+      inv_impure_thread_step. iSplitR=>//.
       iModIntro. iFrame. iApply "HΦ". iFrame.
   Qed.
 
@@ -632,7 +634,7 @@ Section lifting.
        iExists [], _, _, _. simpl. iPureIntro.
        eapply impure_step; by econstructor; done.
     - iNext. iIntros (e2 σ2 efs Hstep).
-      inv_thread_step. iSplitR=>//.
+      inv_impure_thread_step. iSplitR=>//.
       iMod (own_update with "Hpers") as "[Hpers perB]".
       { apply auth_update_alloc.
         apply (op_local_update_discrete _ _ B).

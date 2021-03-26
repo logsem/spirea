@@ -13,7 +13,7 @@ Canonical Structure thread_view_bi_index : biIndex :=
   {| bi_index_type := thread_view; |}.
 
 (* Uncomment this to see the fields that Coq infer. *)
-Print thread_view_bi_index.
+(* Print thread_view_bi_index. *)
 
 Instance view_bi_index_bot (TV : thread_view) : BiIndexBottom (ε : thread_view).
 Proof.

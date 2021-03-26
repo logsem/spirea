@@ -15,26 +15,12 @@ Section wp.
 
   Implicit Types (Φ : val → dProp Σ) (e : expr).
 
-  Program Definition test' P : dProp Σ :=
-    MonPred (λ V,
-      ∀ TV, ⌜V ⊑ TV⌝ -∗ P)%I _.
-  Next Obligation. solve_proper. Qed.
-
-  (* Program Definition test P : dProp Σ :=
-    MonPred (λ V,
-      ∀ TV, ⌜(store_view V) ⊑ (store_view TV)⌝ -∗ P)%I _.
-  Next Obligation. solve_proper. Qed. *)
-
-  (* Ltac Debug. *)
   (* Our weakest precondition is a [dProp]. We construct it using [MonPred]
   which wraps the function along with a proof that it is monotone. *)
   Program Definition wp_def s E e Φ : dProp Σ :=
     MonPred (λ V,
       ∀ TV,
         ⌜V ⊑ TV⌝ -∗
-        (* ⌜(store_view V) ⊑ (store_view TV)⌝ -∗ *)
-        (* ⌜(persist_view V) ⊑ (persist_view TV)⌝ -∗ *)
-        (* ⌜(wb_buffer_view V) ⊑ (wb_buffer_view TV)⌝ -∗ *)
         valid (store_view TV) -∗
         WP (ThreadState e TV) @ s; E {{ λ res,
           let '(ThreadVal v TV') := res return _ in

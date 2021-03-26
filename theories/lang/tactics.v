@@ -53,22 +53,55 @@ Ltac reshape_expr e tac :=
   in
   go (@nil ectx_item) (@nil (val * val)) e.
 
-(* This tactics performs inversion in [thread_step], and its constituents
-[head_step] and [mem_step]. *)
-Ltac inv_thread_step :=
-  repeat match goal with
-  | _ => progress simplify_map_eq/= (* simplify memory stuff *)
-  | H : to_val _ = Some _ |- _ => apply of_to_val in H
-  | H : mem_step ?e _ _ _ _ |- _ =>
-    try (is_var e; fail 1); (* inversion yields many goals if [e] is a variable
-    and should thus better be avoided. *)
-    inversion H; subst; clear H
-  | H : nvm_lang.head_step ?e _ _ _ _ |- _ =>
-    try (is_var e; fail 1); (* inversion yields many goals if [e] is a variable
-    and should thus better be avoided. *)
-    inversion H; subst; clear H
-  | H : thread_step ?e _ _ _ _ _ |- _ =>
-    try (is_var e; fail 1); (* inversion yields many goals if [e] is a variable
-    and should thus better be avoided. *)
-    inversion H; subst; clear H
-  end.
+  (* See [inv_impure_thread_step] below which is much faster than this
+  tactic. *)
+  Ltac inv_thread_step :=
+    repeat match goal with
+    | _ => progress simplify_map_eq/= (* simplify memory stuff *)
+    | H : to_val _ = Some _ |- _ => apply of_to_val in H
+    | H : mem_step ?e _ _ _ _ |- _ =>
+        try (is_var e; fail 1); (* inversion yields many goals if [e] is a variable
+        and should thus better be avoided. *)
+        inversion H; subst; clear H
+    | H : nvm_lang.head_step ?e _ _ _ _ |- _ =>
+        try (is_var e; fail 1); (* inversion yields many goals if [e] is a variable
+        and should thus better be avoided. *)
+        inversion H; subst; clear H
+    | H : thread_step ?e _ _ _ _ _ |- _ =>
+        try (is_var e; fail 1); (* inversion yields many goals if [e] is a variable
+        and should thus better be avoided. *)
+        inversion H; subst; clear H
+    end.
+
+  Ltac inv_head_step :=
+    repeat match goal with
+    | _ => progress simplify_map_eq/= (* simplify memory stuff *)
+    | H : to_val _ = Some _ |- _ => apply of_to_val in H
+    | H : nvm_lang.head_step ?e _ _ _ _ |- _ =>
+        try (is_var e; fail 1); (* inversion yields many goals if [e] is a variable
+        and should thus better be avoided. *)
+        inversion H; subst; clear H
+    end.
+
+  Ltac inv_mem_step :=
+    repeat match goal with
+    | _ => progress simplify_map_eq/= (* simplify memory stuff *)
+    | H : mem_step _ _ _ _ _ |- _ =>
+        inversion H; subst; clear H
+    end.
+
+  (* This tactic find an assumption in the context of the form [thread_step ...]
+  and performs inversion on it. It assumes that the expression is _impure_,
+  i.e., that all the steps the expression can take interact with the memory. *)
+  Ltac inv_impure_thread_step :=
+    match goal with
+    | H : thread_step ?e _ _ _ _ _ |- _ =>
+      inversion H;
+      [ (* The first goal corresponds to a pure step which we can rule out. *)
+        match goal with H : head_step _ _ _ _ _ |- _ => inversion H end
+        (* We do inversion in the [head_step] first. We know what the expression
+        is so this will determine the memory event which the inversion in the
+        memory step can use to find a unique constructor. *)
+      | inv_head_step; inv_mem_step
+      ]
+    end.
