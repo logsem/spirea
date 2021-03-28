@@ -34,7 +34,7 @@ Definition mem_config : Type := store * view.
 
 Section memory.
 
-  Implicit Types (v : val) (ℓ : loc).
+  Implicit Types (v : val) (ℓ : loc) (σ : store) (p : view).
 
   Inductive mem_event : Type :=
   | MEvAllocN ℓ (len : nat) v
@@ -101,77 +101,91 @@ Section memory.
   Inductive mem_step : mem_config → thread_view → mem_event → mem_config → thread_view → Prop :=
   (* Allocating a new location. *)
   | MStepAllocN σ V P B ℓ (len : nat) v p :
-   (0 < len)%Z →
-   (* (∀ i, (0 ≤ i)%Z → (i < n)%Z → σ.(heap) !! (l +ₗ i) = None) → *)
-   (∀ idx, (0 ≤ idx)%Z → (idx < len)%Z → σ !! (ℓ +ₗ idx) = None) → (* This is a fresh segment of the heap not already in use. *)
-    (* V' = <[ ℓ := 0 ]>V → (* V' incorporates the new event in the threads view. *) This may not be needed. *)
-    mem_step (σ, p) (V, P, B)
-           (MEvAllocN ℓ len v)
-           (state_init_heap ℓ len P v σ, p) (V, P, B)
-           (* (<[ℓ := {[ 0 := Msg v V' P ]}]>σ, p) (V', P, B) *)
+     (0 < len)%Z → (* (∀ i, (0 ≤ i)%Z → (i < n)%Z → σ.(heap) !! (l +ₗ i) = None) → *)
+     (∀ idx, (0 ≤ idx)%Z → (idx < len)%Z → σ !! (ℓ +ₗ idx) = None) → (* This is a fresh segment of the heap not already in use. *)
+     (* V' = <[ ℓ := 0 ]>V → (* V' incorporates the new event in the threads view. *) This may not be needed. *)
+     mem_step (σ, p) (V, P, B)
+              (MEvAllocN ℓ len v)
+              (state_init_heap ℓ len P v σ, p) (V, P, B)
+              (* (<[ℓ := {[ 0 := Msg v V' P ]}]>σ, p) (V', P, B) *)
   (* A normal non-atomic load. *)
   | MStepLoad (σ : store) V P B t (ℓ : loc) (v : val) h p :
-    σ !! ℓ = Some h →
-    msg_val <$> (h !! t) = Some v →
-    ((V !!0 ℓ)) ≤ t →
-    mem_step (σ, p) (V, P, B)
-             (MEvLoad ℓ v)
-             (σ, p) (V, P, B)
-             (* (σ, p) ((<[ ℓ := t ]>V), P, B) (* This variant includes the timestamp of the loaded msg. *) *)
+     σ !! ℓ = Some h →
+     msg_val <$> (h !! t) = Some v →
+     ((V !!0 ℓ)) ≤ t →
+     mem_step (σ, p) (V, P, B)
+              (MEvLoad ℓ v)
+              (σ, p) (V, P, B)
+              (* (σ, p) ((<[ ℓ := t ]>V), P, B) (* This variant includes the timestamp of the loaded msg. *) *)
   (* A normal non-atomic write. *)
   | MStepStore σ V P B t ℓ (v : val) h V' p :
-    σ !! ℓ = Some h →
-    (h !! t) = None → (* No event exists at t already. *)
-    (V !!0 ℓ) < t →
-    V' = <[ℓ := MaxNat t]>V → (* V' incorporates the new event in the threads view. *)
-    mem_step (σ, p) (V, P, B)
+     σ !! ℓ = Some h →
+     (h !! t) = None → (* No event exists at t already. *)
+     (V !!0 ℓ) < t →
+     V' = <[ℓ := MaxNat t]>V → (* V' incorporates the new event in the threads view. *)
+     mem_step (σ, p) (V, P, B)
              (MEvStore ℓ v)
              (<[ℓ := <[t := Msg v ∅ P]>h]>σ, p) (V', P, B)
   (* An atomic acquire load. *)
   | MStepLoadAcquire σ V P B t ℓ (v : val) MV MP h p :
-    σ !! ℓ = Some h →
-    (h !! t) = Some (Msg v MV MP) →
-    (V !!0 ℓ) ≤ t →
-    mem_step (σ, p) (V, P, B)
-             (MEvLoadAcquire ℓ v)
-             (σ, p) (V ⊔ MV, P ⊔ MP, B) (* An acquire incorporates both the store view and the persistent view. *)
+     σ !! ℓ = Some h →
+     (h !! t) = Some (Msg v MV MP) →
+     (V !!0 ℓ) ≤ t →
+     mem_step (σ, p) (V, P, B)
+              (MEvLoadAcquire ℓ v)
+              (σ, p) (V ⊔ MV, P ⊔ MP, B) (* An acquire incorporates both the store view and the persistent view. *)
   (* An atomic release write. *)
   | MStepStoreRelease σ V P B t ℓ (v : val) h V' p :
-    σ !! ℓ = Some h →
-    (h !! t) = None → (* No event exists at t already. *)
-    (V !!0 ℓ) < t →
-    V' = <[ℓ := MaxNat t]>V → (* V' incorporates the new event in the threads view. *)
-    mem_step (σ, p) (V, P, B)
-             (MEvStoreRelease ℓ v)
-             (<[ℓ := <[t := Msg v V' P]>h]>σ, p) (V', P, B) (* A release releases both V' and P. *)
+     σ !! ℓ = Some h →
+     (h !! t) = None → (* No event exists at t already. *)
+     (V !!0 ℓ) < t →
+     V' = <[ℓ := MaxNat t]>V → (* V' incorporates the new event in the threads view. *)
+     mem_step (σ, p) (V, P, B)
+              (MEvStoreRelease ℓ v)
+              (<[ℓ := <[t := Msg v V' P]>h]>σ, p) (V', P, B) (* A release releases both V' and P. *)
   (* Read-modify-write instructions. *)
   | MStepRMW σ ℓ h v MV MP V t V' P P' B p v' :
-    σ !! ℓ = Some h →
-    (h !! t) = Some (Msg v MV MP) → (* We read an event at time [t]. *)
-    (V !!0 ℓ) ≤ t →
-    (h !! (t + 1)) = None → (* The next timestamp is available, ensures that no other RMW read this event. *)
-    V' = (<[ ℓ := MaxNat (t + 1) ]>(V ⊔ MV)) → (* V' incorporates the new event in the threads view. *)
-    P' = P ⊔ MP →
-    mem_step (σ, p) (V, P, B)
-             (MEvRMW ℓ v v')
-             (<[ℓ := <[t := Msg v V' P']>h]>σ, p) (V', P', B)
+     σ !! ℓ = Some h →
+     (h !! t) = Some (Msg v MV MP) → (* We read an event at time [t]. *)
+     (V !!0 ℓ) ≤ t →
+     (h !! (t + 1)) = None → (* The next timestamp is available, ensures that no other RMW read this event. *)
+     V' = (<[ ℓ := MaxNat (t + 1) ]>(V ⊔ MV)) → (* V' incorporates the new event in the threads view. *)
+     P' = P ⊔ MP →
+     mem_step (σ, p) (V, P, B)
+              (MEvRMW ℓ v v')
+              (<[ℓ := <[t := Msg v V' P']>h]>σ, p) (V', P', B)
   (* Write-back instruction. *)
   | MStepWB σ V P B ℓ t h p :
-    σ !! ℓ = Some h →
-    (V !!0 ℓ) = t → (* An equality here _should_ be fine, the timestamps are only lower bounds anyway? *)
-    mem_step (σ, p) (V, P, B)
-             (MEvWB ℓ)
-             (σ, p) (V, P, <[ℓ := MaxNat t]>B)
+     σ !! ℓ = Some h →
+     (V !!0 ℓ) = t → (* An equality here _should_ be fine, the timestamps are only lower bounds anyway? *)
+     mem_step (σ, p) (V, P, B)
+              (MEvWB ℓ)
+              (σ, p) (V, P, <[ℓ := MaxNat t]>B)
   (* Asynchronous fence. *)
   | MStepFence σ V P B p :
-    mem_step (σ, p) (V, P, B)
-             MEvFence
-             (σ, p) (V, P ⊔ B, ∅)
+     mem_step (σ, p) (V, P, B)
+              MEvFence
+              (σ, p) (V, P ⊔ B, ∅)
   (* Synchronous fence. *)
   | MStepFenceSync σ V P B p :
-    mem_step (σ, p) (V, P, B)
-             MEvFenceSync
-             (σ, p ⊔ B) (V, P ⊔ B, ∅).
+     mem_step (σ, p) (V, P, B)
+              MEvFenceSync
+              (σ, p ⊔ B) (V, P ⊔ B, ∅).
+
+  (* Removes all events from histories after the view. *)
+  Definition cut_history p σ : store :=
+    map_imap (λ ℓ h, let t' := p !!0 ℓ in Some (filter (λ '(t, ev), t ≤ t') h)) σ.
+
+  Definition consistent_cut p σ : Prop :=
+    map_Forall (λ ℓ h, map_Forall (λ _ ev, (msg_persist_view ev) ⊑ p) h) (cut_history p σ).
+
+  (* The crash step is different from the other steps in that it does not depend
+  on any current thread. We therefore define it as a separate type. *)
+  Inductive crash_step : mem_config → mem_config → Prop :=
+  | MCrashStep σ p p' :
+     p ⊑ p' →
+     consistent_cut p' σ →
+     crash_step (σ, p) (cut_history p' σ, p').
 
   (* It is always possible to allocate a section of memory. *)
   Lemma alloc_fresh v (len : nat) σ p V P B :
