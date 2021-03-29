@@ -10,6 +10,32 @@ From iris_string_ident Require Import ltac2_string_ident.
 From self Require Export dprop view lang.
 From self.lang Require Import primitive_laws syntax.
 
+(* Resource algebra for location histories. *)
+(* Definition event states : Type := val * states. *)
+(* Definition abshist absev := gmap time absev. *)
+(* Definition abshistR (states : Type) : ucmra := gmapUR time (agreeR (leibnizO states)). *)
+
+(* Section test. *)
+(* Record locInfo {Σ} { *)
+(*          type : Type, *)
+(*          interp : type → val → dProp Σ. *)
+(* }. *)
+
+  (* We keep this in the weakest precondition. *)
+  (* For every location we want to store: A set of abstract events, it's full
+  abstract history, the invariant assertion. The abstract history maps
+  timestamps to elements of the abstract events. *)
+  (* Definition mapsto_store γ : (iProp Σ) := *)
+  (*   (∃ hopla : foobzi', (own γ (● hopla)) ∗ ([∗ map] ℓ ∈ hopla, ∃ hist, ℓ ↦h hist))%I. *)
+
+(* Definition foobzi' := discrete_fun (λ absev, abshistR absev). *)
+
+(* Definition foobzi := gmap loc ({ T : Type & (T * (T → iProp Σ))%type }). *)
+
+(* Definition tst {Σ} : ofe := sigTO (λ T, leibnizO (T * (T → iPropO Σ))%type). *)
+(* Definition test {Σ} := gmapR loc (agreeR (@tst Σ)). *)
+(* End test. *)
+
 Section wp.
   Context `{!nvmG Σ}.
 
@@ -90,5 +116,56 @@ Section wp.
     intros Hexec ?. rewrite -wp_pure_step_fupd //. clear Hexec.
     induction n as [|n IH]; by rewrite //= -step_fupd_intro // IH.
   Qed.
+
+  Definition mapsto_ex_inv `{!SqSubsetEq absev, !PreOrder (⊑@{absev})}
+             ℓ (ϕ : absev → val → dProp Σ) γabs γ' : iProp Σ :=
+    (∃ (hist_misc : gmap loc (message * absev)) (es es' : list absev),
+      ℓ ↦h (fst <$> hist_misc) ∗
+      ⌜sort_by fst (map_to_list hist_misc) = es ++ es'⌝ ∗
+      own γ' ((1/2)%Qp, to_agree es) ∗
+      ([∗ map] ℓ ↦ misc ∈ hist_misc, ϕ (snd misc) (msg_val $ fst $ misc))
+    )%I.
+
+  (* Exclusiv points-to predicate .This predcate says that we know that the last
+  events at [ℓ] corresponds to the *)
+  Definition mapsto_ex `{!SqSubsetEq absev, !PreOrder (⊑@{absev})}
+             ι ℓ (evs evs' : list absev) (ev : absev) (ϕ : absev → val → dProp Σ) : dProp Σ :=
+    (∃ tGlobalPers tPers tStore,
+      inv ι (mapsto_ex_inv ℓ ϕ γabs γ') ∗
+      monPred_in ({[ ℓ := tStore]}, {[ ℓ := tPers ]}, ⊥) ∗
+      persistent {[ ℓ := tGlobalPers ]} ∗
+      own γ' ((1/2)%Qp, to_agree absevs_hist)
+      mapsto_ex_inv ℓ
+    )%I.
+
+  Definition mapsto_read `{!SqSubsetEq absev, !PreOrder (⊑@{absev})}
+             ι ℓ (ev ev' ev'' : absev) : dProp Σ :=
+    (∃ tGlobalPers tPers tStore,
+      (* We know that the global persist view has [tGlobalPers]. *)
+      persistent {[ ℓ := tGlobalPers ]} ∗
+      (* We know that our lobal views have [tPers] and [tStore]. *)
+      monPred_in ({[ ℓ := tStore]}, {[ ℓ := tPers ]}, ⊥) ∗
+      inv ι (mapsto_ex_inv ℓ ϕ γabs γ') ∗
+      own γabs {[ tGlobalPers := ev ]} ∗
+      own γabs {[ tPers := ev' ]} ∗
+      own γabs {[ tStore := ev'' ]}).
+
+  Lemma wp_alloc ℓ v (ev : absev) ϕ s E :
+    {{{ ϕ ev v }}}
+      ref v @ s; E
+    {{{ ι, RET #ℓ; mapsto_ex ι ℓ [] [] ev Φ }}}
+  Proof.
+
+  Lemma wp_store ℓ ι ℓ evs evs' ev ev' ϕ s E :
+    {{{ mapsto_ex ι ℓ evs evs' ev Φ ∗ ϕ ev' v }}}
+      #ℓ <- v @ s; E
+    {{{ RET #(); mapsto_ex ι ℓ evs (evs' ++ [ev]) ev' Φ }}}
+  Proof.
+
+  Lemma wp_load ℓ ι ℓ evs evs' ϕ s E :
+    {{{ mapsto_ex ι ℓ evs evs' ev Φ }}}
+      !ℓ @ s; E
+    {{{ v, RET v; mapsto_ex ι ℓ evs evs' Φ ∗ ϕ ev v }}}
+  Proof.
 
 End wp.
