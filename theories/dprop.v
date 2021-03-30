@@ -27,3 +27,7 @@ Definition dProp Σ := monPred thread_view_bi_index (uPredI (iResUR Σ)). (* FIX
 Definition dPropO Σ := monPredO thread_view_bi_index (uPredI (iResUR Σ)).
 Definition dPropI Σ := monPredI thread_view_bi_index (uPredI (iResUR Σ)).
 
+(* [bi_scope] is the scope associated with the scope key [I] from Iris. We bind
+it to the [dProp] type such that we avoid having to type `%I` to get the right
+scope when writing definitions of type [dProp]. *)
+Bind Scope bi_scope with dProp.

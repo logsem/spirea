@@ -1,45 +1,53 @@
 (* In this file we define our weakest precondition on top of the weakest
-(* precondition included in Iris. *) *)
+precondition included in Iris. *)
 
+From stdpp Require Import countable numbers gmap.
+From iris Require Export invariants.
 From iris.proofmode Require Export tactics.
 From iris.algebra Require Import gmap excl auth.
 From iris.program_logic Require weakestpre.
 From iris.program_logic Require Import ownp.
 From iris_string_ident Require Import ltac2_string_ident.
+From iris.heap_lang Require Import locations.
 
 From self Require Export dprop view lang.
 From self.lang Require Import primitive_laws syntax.
 
 (* Resource algebra for location histories. *)
 (* Definition event states : Type := val * states. *)
-(* Definition abshist absev := gmap time absev. *)
+(* Definition abshist abs_state := gmap time abs_state. *)
 (* Definition abshistR (states : Type) : ucmra := gmapUR time (agreeR (leibnizO states)). *)
 
-(* Section test. *)
-(* Record locInfo {Σ} { *)
-(*          type : Type, *)
-(*          interp : type → val → dProp Σ. *)
-(* }. *)
+Notation st := positive.
+Notation stO := positiveO.
 
-  (* We keep this in the weakest precondition. *)
-  (* For every location we want to store: A set of abstract events, it's full
-  abstract history, the invariant assertion. The abstract history maps
-  timestamps to elements of the abstract events. *)
-  (* Definition mapsto_store γ : (iProp Σ) := *)
-  (*   (∃ hopla : foobzi', (own γ (● hopla)) ∗ ([∗ map] ℓ ∈ hopla, ∃ hist, ℓ ↦h hist))%I. *)
+Definition predicateR {Σ} := agreeR (st -d> laterO (dPropO Σ)).
+Definition predicatesR {Σ} := authR (gmapUR loc (@predicateR Σ)).
 
-(* Definition foobzi' := discrete_fun (λ absev, abshistR absev). *)
-
-(* Definition foobzi := gmap loc ({ T : Type & (T * (T → iProp Σ))%type }). *)
-
-(* Definition tst {Σ} : ofe := sigTO (λ T, leibnizO (T * (T → iPropO Σ))%type). *)
-(* Definition test {Σ} := gmapR loc (agreeR (@tst Σ)). *)
-(* End test. *)
+Definition abs_history := gmap time st.
+Definition abs_historyR := gmapUR nat (agreeR stO).
+Definition historiesR := authR (gmapUR loc abs_historyR).
 
 Section wp.
-  Context `{!nvmG Σ}.
+  Context `{!nvmG Σ, !inG Σ (@predicatesR Σ), !inG Σ historiesR}.
 
   Implicit Types (Φ : val → dProp Σ) (e : expr).
+
+  Definition abs_hist_to_ra (abs_hist : abs_history) : abs_historyR :=
+    to_agree <$> abs_hist.
+
+  Definition pred_to_ra (pred : st → dProp Σ) : (@predicateR Σ) :=
+    to_agree (Next ∘ (pred : st -d> dPropO Σ)).
+
+  (* We keep this in the weakest precondition. *)
+  (* For every location we want to store: A set of abstract events, it's full *)
+  (* abstract history, the invariant assertion. The abstract history maps *)
+  (* timestamps to elements of the abstract events. *)
+  Definition interp (γ : gname) : iProp Σ :=
+    (∃ (abs_hists : gmap loc (abs_history)) (preds : gmap loc (st → dProp Σ)),
+        (own γ ((● (abs_hist_to_ra <$> abs_hists)) : historiesR)) ∗
+        (own γ (● ((pred_to_ra <$> preds)) : predicatesR))). ∗
+        ([∗ map] ℓ ∈ foo, ∃ hist, ℓ ↦h hist)).
 
   (* Our weakest precondition is a [dProp]. We construct it using [MonPred]
   which wraps the function along with a proof that it is monotone. *)
@@ -117,55 +125,113 @@ Section wp.
     induction n as [|n IH]; by rewrite //= -step_fupd_intro // IH.
   Qed.
 
-  Definition mapsto_ex_inv `{!SqSubsetEq absev, !PreOrder (⊑@{absev})}
-             ℓ (ϕ : absev → val → dProp Σ) γabs γ' : iProp Σ :=
-    (∃ (hist_misc : gmap loc (message * absev)) (es es' : list absev),
-      ℓ ↦h (fst <$> hist_misc) ∗
-      ⌜sort_by fst (map_to_list hist_misc) = es ++ es'⌝ ∗
-      own γ' ((1/2)%Qp, to_agree es) ∗
-      ([∗ map] ℓ ↦ misc ∈ hist_misc, ϕ (snd misc) (msg_val $ fst $ misc))
-    )%I.
-
-  (* Exclusiv points-to predicate .This predcate says that we know that the last
-  events at [ℓ] corresponds to the *)
-  Definition mapsto_ex `{!SqSubsetEq absev, !PreOrder (⊑@{absev})}
-             ι ℓ (evs evs' : list absev) (ev : absev) (ϕ : absev → val → dProp Σ) : dProp Σ :=
-    (∃ tGlobalPers tPers tStore,
-      inv ι (mapsto_ex_inv ℓ ϕ γabs γ') ∗
-      monPred_in ({[ ℓ := tStore]}, {[ ℓ := tPers ]}, ⊥) ∗
-      persistent {[ ℓ := tGlobalPers ]} ∗
-      own γ' ((1/2)%Qp, to_agree absevs_hist)
-      mapsto_ex_inv ℓ
-    )%I.
-
-  Definition mapsto_read `{!SqSubsetEq absev, !PreOrder (⊑@{absev})}
-             ι ℓ (ev ev' ev'' : absev) : dProp Σ :=
-    (∃ tGlobalPers tPers tStore,
-      (* We know that the global persist view has [tGlobalPers]. *)
-      persistent {[ ℓ := tGlobalPers ]} ∗
-      (* We know that our lobal views have [tPers] and [tStore]. *)
-      monPred_in ({[ ℓ := tStore]}, {[ ℓ := tPers ]}, ⊥) ∗
-      inv ι (mapsto_ex_inv ℓ ϕ γabs γ') ∗
-      own γabs {[ tGlobalPers := ev ]} ∗
-      own γabs {[ tPers := ev' ]} ∗
-      own γabs {[ tStore := ev'' ]}).
-
-  Lemma wp_alloc ℓ v (ev : absev) ϕ s E :
-    {{{ ϕ ev v }}}
-      ref v @ s; E
-    {{{ ι, RET #ℓ; mapsto_ex ι ℓ [] [] ev Φ }}}
-  Proof.
-
-  Lemma wp_store ℓ ι ℓ evs evs' ev ev' ϕ s E :
-    {{{ mapsto_ex ι ℓ evs evs' ev Φ ∗ ϕ ev' v }}}
-      #ℓ <- v @ s; E
-    {{{ RET #(); mapsto_ex ι ℓ evs (evs' ++ [ev]) ev' Φ }}}
-  Proof.
-
-  Lemma wp_load ℓ ι ℓ evs evs' ϕ s E :
-    {{{ mapsto_ex ι ℓ evs evs' ev Φ }}}
-      !ℓ @ s; E
-    {{{ v, RET v; mapsto_ex ι ℓ evs evs' Φ ∗ ϕ ev v }}}
-  Proof.
-
 End wp.
+
+Definition abs_history (abs_state : Type) : Type := gmap time (agree (leibnizO abs_state)).
+Definition abs_historyR (abs_state : Type) : cmra := gmapR time (agreeR (leibnizO abs_state)).
+
+(* Definition last (abs_state : Type) : Type :=  *)
+Definition lastR (abs_state : Type) : cmra :=
+  prodR fracR (agreeR (prodO (leibnizO abs_state) valO)).
+
+Section wp_rules.
+  Context `{!SqSubsetEq abs_state, !PreOrder (⊑@{abs_state})}.
+  Context `{!nvmG Σ}.
+  Context `{!inG Σ (abs_historyR abs_state), !inG Σ (lastR abs_state)}.
+
+  Implicit Types (ℓ : loc) (ϕ : abs_state → val → dProp Σ).
+
+  Definition mapsto_ex_inv ℓ ϕ (γabs γlast : gname) : iProp Σ :=
+    (∃ (hist_misc : (gmap time (message * abs_state))) (s : abs_state) v, (* (es es' : list abs_state), *)
+      (* ℓ points to the messages in [hist_misc]. *)
+      ℓ ↦h (fst <$> hist_misc) ∗
+      (* ghost state for all the abstract states. *)
+      (* ⌜hi = (snd <$> hist_misc)⌝ ∗ *)
+      own γabs ((to_agree <$> (snd <$> hist_misc)) : abs_historyR abs_state) ∗
+      (* [s] and [v] is the state and value of the last write *)
+      own γlast (((1/2)%Qp, to_agree (s, v)) : lastR abs_state) ∗
+      (* FIXME *)
+      ([∗ map] ℓ ↦ misc ∈ hist_misc,
+        ϕ (snd misc) (msg_val $ fst $ misc) (msg_store_view $ fst $ misc, msg_persist_view $ fst $ misc, ∅))
+    ).
+
+  (* Exclusive points-to predicate. This predcate says that we know that the
+  last events at [ℓ] corresponds to the *)
+  Definition mapsto_ex ι γabs γlast ℓ (ss ss' : list abs_state)
+             (s : abs_state) v ϕ : dProp Σ :=
+    (∃ (tGlobalPers tPers tStore : time),
+      ⎡inv ι (mapsto_ex_inv ℓ ϕ γabs γlast)⎤ ∗
+      monPred_in ({[ ℓ := MaxNat tStore ]}, {[ ℓ := MaxNat tPers ]}, ∅) ∗
+      ⎡own γlast (((1/2)%Qp, to_agree (s, v)) : lastR abs_state)⎤ ∗
+      ⎡own γabs ({[ tStore := to_agree s ]} : abs_historyR abs_state)⎤ ∗
+      ⎡persisted ({[ ℓ := MaxNat tGlobalPers ]} : view)⎤
+    ).
+
+  Definition mapsto_read `{!SqSubsetEq abs_state, !PreOrder (⊑@{abs_state})}
+             ι γabs γlast ℓ (s1 s2 s3 : abs_state) ϕ : dProp Σ :=
+    (∃ (tGlobalPers tPers tStore : time),
+      (* We know that the global persist view has [tGlobalPers]. *)
+      ⎡persisted {[ ℓ := MaxNat tGlobalPers ]}⎤ ∗
+      (* We know that our lobal views have [tPers] and [tStore]. *)
+      monPred_in ({[ ℓ := MaxNat tStore]}, {[ ℓ := MaxNat tPers ]}, ∅) ∗
+      ⎡inv ι (mapsto_ex_inv ℓ ϕ γabs γlast)⎤ ∗
+      ⎡own γabs ({[ tGlobalPers := to_agree s1 ]} : abs_historyR abs_state)⎤ ∗
+      ⎡own γabs ({[ tPers := to_agree s2 ]} : abs_historyR abs_state)⎤ ∗
+      ⎡own γabs ({[ tStore := to_agree s3 ]} : abs_historyR abs_state)⎤).
+
+  Lemma wp_alloc `{!SqSubsetEq abs_state, !PreOrder (⊑@{abs_state})}
+        ℓ v (s : abs_state) (ϕ : abs_state → val → dProp Σ) st E :
+    {{{ ϕ s v }}}
+      ref v @ st; E
+    {{{ ι, RET #ℓ; mapsto_ex ι ℓ [] [] s Φ }}}
+  Proof.
+
+  Lemma wp_store ℓ ι ℓ ss ss' s ev' ϕ s E :
+    {{{ mapsto_ex ι ℓ ss ss' s Φ ∗ ϕ ev' v }}}
+      #ℓ <- v @ s; E
+    {{{ RET #(); mapsto_ex ι ℓ ss (ss' ++ [s]) ev' Φ }}}
+  Proof.
+
+  Lemma wp_load ℓ ι ℓ ss ss' ϕ s E :
+    {{{ mapsto_ex ι ℓ ss ss' s Φ }}}
+      !ℓ @ s; E
+    {{{ v, RET v; mapsto_ex ι ℓ ss ss' Φ ∗ ϕ s v }}}
+  Proof.
+
+Section wp_rules.
+
+Section test.
+
+  Definition historyR {T : Type} {Σ} :=
+    prodR (gmapR nat (agreeR (leibnizO T))) (agreeR (T -d> laterO (iPropO Σ))).
+  Definition historiesR {Σ} := gmapR loc historyR.
+
+  Record locInfo {Σ} {
+          type : Type,
+          interp : type → val → dProp Σ.
+  }.
+
+  (* We keep this in the weakest precondition. *)
+  (* For every location we want to store: A set of abstract events, it's full *)
+  (* abstract history, the invariant assertion. The abstract history maps *)
+  (* timestamps to elements of the abstract events. *)
+  Definition mapsto_store γ : (iProp Σ) :=
+    (∃ foo : foobzi', (own γ (● foo)) ∗ ([∗ map] ℓ ∈ foo, ∃ hist, ℓ ↦h hist))%I.
+
+  Definition foobzi' := discrete_fun (λ abs_state, abshistR abs_state).
+
+  Print Countable.
+
+  Definition foobzi := gmap loc ({ T : Type & (T * (T → iProp Σ))%type }).
+
+  Definition tst {Σ} : ofe := sigTO (λ T, leibnizO (T * (T → iPropO Σ))%type).
+  Definition test {Σ} := gmapR loc (agreeR (@tst Σ)).
+
+
+  Definition historyR {Σ} := sigT (λ (T : Type), (gmapR nat (agreeR (leibnizO T)) * (T → dProp Σ))%type).
+  Definition historiesR {Σ} := gmapR loc historyR.
+
+  Definition testR {Σ} :=
+    gmapR loc (agreeR (sigTO (λ (T : Type), leibnizO (T * (T → laterO (iPropO Σ)))%type))).
+
+End test.
