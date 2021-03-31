@@ -21,12 +21,34 @@ From self.lang Require Import primitive_laws syntax.
 Notation st := positive.
 Notation stO := positiveO.
 
-Definition predicateR {Σ} := agreeR (st -d> laterO (dPropO Σ)).
+Definition predicateR {Σ} := agreeR (st -d> laterO (optionO (dPropO Σ))).
 Definition predicatesR {Σ} := authR (gmapUR loc (@predicateR Σ)).
 
 Definition abs_history := gmap time st.
 Definition abs_historyR := gmapUR nat (agreeR stO).
 Definition historiesR := authR (gmapUR loc abs_historyR).
+
+(* For each location in the heap we maintain the following "meta data".
+For every location we want to store: A type/set of abstract events, its full
+abstract history, the invariant assertion. The abstract history maps
+timestamps to elements of the abstract events. *)
+Record loc_info {Σ} := {
+  l_state : Type;
+  l_ϕ : l_state → dProp Σ;
+  l_abstract_history : gmap nat l_state;
+
+  (* * Type class instances *)
+  l_sqsubseteq : SqSubsetEq l_state;
+  l_preorder : PreOrder (⊑@{l_state});
+  (* We need countable to squash states into [positive] *)
+  l_eqdecision : EqDecision l_state;
+  l_countable : Countable l_state;
+}.
+
+Existing Instances l_eqdecision l_countable.
+
+Definition encode_loc_info {Σ} (l : (@loc_info Σ)):=
+  (encode <$> (l_abstract_history l), λ s, (l_ϕ l) <$> decode s).
 
 Section wp.
   Context `{!nvmG Σ, !inG Σ (@predicatesR Σ), !inG Σ historiesR}.
@@ -36,18 +58,18 @@ Section wp.
   Definition abs_hist_to_ra (abs_hist : abs_history) : abs_historyR :=
     to_agree <$> abs_hist.
 
-  Definition pred_to_ra (pred : st → dProp Σ) : (@predicateR Σ) :=
-    to_agree (Next ∘ (pred : st -d> dPropO Σ)).
+  Definition pred_to_ra (pred : st → option (dProp Σ)) : (@predicateR Σ) :=
+    to_agree (Next ∘ (pred : st -d> optionO (dPropO Σ))).
+
+  (* Definition loc_to_hist_ra (l : (@loc_info Σ)) `{Countable l} : abs_historyR := *)
+  (*   (to_agree ∘ encode) <$> l_abstract_history l. *)
 
   (* We keep this in the weakest precondition. *)
-  (* For every location we want to store: A set of abstract events, it's full *)
-  (* abstract history, the invariant assertion. The abstract history maps *)
-  (* timestamps to elements of the abstract events. *)
   Definition interp (γ : gname) : iProp Σ :=
-    (∃ (abs_hists : gmap loc (abs_history)) (preds : gmap loc (st → dProp Σ)),
-        (own γ ((● (abs_hist_to_ra <$> abs_hists)) : historiesR)) ∗
-        (own γ (● ((pred_to_ra <$> preds)) : predicatesR))). ∗
-        ([∗ map] ℓ ∈ foo, ∃ hist, ℓ ↦h hist)).
+    (∃ (ls : gmap loc ((gmap time positive) * (positive → option (dProp Σ)))),
+        ⌜map_Forall (λ ℓ enc, ∃ l, enc = encode_loc_info l) ls⌝ ∗
+        (own γ ((● (abs_hist_to_ra <$> (fst <$> ls))) : historiesR)) ∗
+        (own γ (● ((pred_to_ra <$> (snd <$> ls))) : predicatesR))).
 
   (* Our weakest precondition is a [dProp]. We construct it using [MonPred]
   which wraps the function along with a proof that it is monotone. *)
@@ -60,9 +82,7 @@ Section wp.
           let '(ThreadVal v TV') := res return _ in
             valid (store_view TV') ∗ (Φ v TV')
         }})%I _.
-  Next Obligation.
-    solve_proper.
-  Qed.
+  Next Obligation. solve_proper. Qed.
 
   (* This is sealing follows the same ritual as the [wp] in Iris. *)
   Definition wp_aux : seal (@wp_def). by eexists. Qed.
@@ -199,39 +219,3 @@ Section wp_rules.
   Proof.
 
 Section wp_rules.
-
-Section test.
-
-  Definition historyR {T : Type} {Σ} :=
-    prodR (gmapR nat (agreeR (leibnizO T))) (agreeR (T -d> laterO (iPropO Σ))).
-  Definition historiesR {Σ} := gmapR loc historyR.
-
-  Record locInfo {Σ} {
-          type : Type,
-          interp : type → val → dProp Σ.
-  }.
-
-  (* We keep this in the weakest precondition. *)
-  (* For every location we want to store: A set of abstract events, it's full *)
-  (* abstract history, the invariant assertion. The abstract history maps *)
-  (* timestamps to elements of the abstract events. *)
-  Definition mapsto_store γ : (iProp Σ) :=
-    (∃ foo : foobzi', (own γ (● foo)) ∗ ([∗ map] ℓ ∈ foo, ∃ hist, ℓ ↦h hist))%I.
-
-  Definition foobzi' := discrete_fun (λ abs_state, abshistR abs_state).
-
-  Print Countable.
-
-  Definition foobzi := gmap loc ({ T : Type & (T * (T → iProp Σ))%type }).
-
-  Definition tst {Σ} : ofe := sigTO (λ T, leibnizO (T * (T → iPropO Σ))%type).
-  Definition test {Σ} := gmapR loc (agreeR (@tst Σ)).
-
-
-  Definition historyR {Σ} := sigT (λ (T : Type), (gmapR nat (agreeR (leibnizO T)) * (T → dProp Σ))%type).
-  Definition historiesR {Σ} := gmapR loc historyR.
-
-  Definition testR {Σ} :=
-    gmapR loc (agreeR (sigTO (λ (T : Type), leibnizO (T * (T → laterO (iPropO Σ)))%type))).
-
-End test.
