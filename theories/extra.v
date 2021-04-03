@@ -1,6 +1,10 @@
+(* A collection of a few fairly general constructions and lemmas. In other
+words, our own little (std++)++. *)
+
 From stdpp Require Import countable numbers gmap fin_maps list.
 From iris Require Import cmra.
 From iris.algebra Require Import gmap.
+
 
 (* Section union_with.
 
@@ -24,6 +28,54 @@ End union_with. *)
 
 (* Definition max_list := foldr max 0. *)
 
+Definition min_list := foldr min 0.
+
+(* Lemmas about finite maps of natural numbers. *)
+Section nat_map.
+  Context `{FinMap nat M} {A : Type}.
+
+  Implicit Types m : M A.
+  
+  (** Expresses that the map [m] contains, in order, the values [xs] from the
+  indeces starting at [lo] up to and including [hi]. *)
+  Fixpoint map_slice m (lo hi : nat) (xs : list A) :=
+    match xs with
+    | [] => False
+    | [x] => m !! hi = Some x ∧ lo = hi
+    | x :: xs =>
+      m !! lo = Some x ∧
+      ∃ lo', lo < lo' ∧
+             (∀ lo'', lo < lo'' → lo' = lo'' ∨ lo' < lo'') ∧
+             map_slice m lo' hi xs
+             (* map_slice m (min_list $ elements $ filter (λ t, lo < t) (dom (gset nat) m)) hi xs *)
+    end.
+
+  Lemma map_slice_lookup_between m lo hi xs t x :
+    map_slice m lo hi xs → lo ≤ t ≤ hi → m !! t = Some x → x ∈ xs.
+  Proof. Admitted.
+
+  Lemma map_slice_lookup_lo m lo hi xs :
+    map_slice m lo hi xs → m !! lo = xs !! 0.
+  Proof.
+    destruct xs as [|x xs]; [done|]. simpl.
+    destruct xs.
+    - intros [? ->]. done.
+    - intros [? _]. done.
+  Qed.
+
+  Lemma map_slice_lookup_hi m lo hi xs :
+    map_slice m lo hi xs → m !! hi = last xs.
+  Proof.
+    generalize dependent lo. generalize dependent hi.
+    induction xs as [|x xs IH]; [done|].
+    intros hi lo. simpl.
+    destruct xs as [|x' xs].
+    - intros [? ->]. done.
+    - intros [? [lo' Hh]]. apply (IH hi lo').
+      apply Hh.
+  Qed.
+  
+End nat_map.
 
 Global Instance max_list_perm_proper : Proper ((≡ₚ) ==> (=)) max_list.
 Proof. apply _. Qed.
