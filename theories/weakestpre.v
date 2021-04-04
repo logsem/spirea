@@ -15,7 +15,7 @@ From iris.program_logic Require Import ownp.
 From iris_string_ident Require Import ltac2_string_ident.
 From iris.heap_lang Require Import locations.
 
-From self Require Export dprop view lang.
+From self Require Export extra dprop view lang.
 From self.lang Require Import primitive_laws syntax.
 
 
@@ -92,7 +92,8 @@ Section wp.
   (*     ∃ (S : Type) _ : EqDecision S) (_ : Countable S) (_ : relation S), *)
   (*       ⌜encode s = enc⌝). *)
 
-  Lemma foo_testa {S : Set} `{Countable S} (ϕ : S → iProp Σ) (ϕenc : positive → iProp Σ) s p :
+  Lemma foo_testa {S : Set} `{Countable S}
+      (ϕ : S → iProp Σ) (ϕenc : positive → iProp Σ) s p :
     ϕ = ϕenc ∘ encode →
     encode s = p → 
     ϕenc p -∗ ϕ s.
@@ -100,10 +101,8 @@ Section wp.
     iIntros (eq eq') "H". rewrite eq. simpl. rewrite eq'. iApply "H".
   Qed.
 
-  (* Instance : Equiv (positive -d> option (iPropO Σ)). *)
-  (* Proof. apply _. *)
-
-  Lemma foo_testb {S : Set} `{Countable S} (ϕ : S → iProp Σ) (ϕenc : positive -d> optionO (iPropO Σ)) s p (P : iProp Σ) :
+  Lemma foo_testb {S : Set} `{Countable S}
+    (ϕ : S → iProp Σ) (ϕenc : positive -d> optionO (iPropO Σ)) s p (P : iProp Σ) :
     ϕenc ≡ (λ s, ϕ <$> (decode s)) →
     p ≡ encode s →
     ϕenc p ≡ Some P →
@@ -120,30 +119,84 @@ Section wp.
     done.
   Qed.
 
-  (* Context (γh γp : gname). *)
-
-  (* We keep this in the weakest precondition. *)
+  (** We keep this in the weakest precondition. **)
   Definition interp : iProp Σ :=
-    (∃ (ls : gmap loc ((gmap time (message * st)) * (st → val → option (dProp Σ)))),
-      ([∗ map] ℓ ↦ enc ∈ ls,
-        ℓ ↦h (fst <$> (fst enc)) ∗
-          ([∗ map] t ↦ p ∈ (fst enc),
-            (∃ (P : dProp Σ),
-              ⌜(snd enc) (snd p) (fst p).(msg_val) = Some P⌝ ∗
-              P (msg_to_tv (fst p))))) ∗
-          (* (∃ (S : Type) (l : loc_info) (p : EqDecision S), *)
-          (*   ⌜enc = encode_loc_info l⌝ ∗ *)
-          (*   (* ⌜Countable (l_state l)⌝ ∗ *) *)
-          (*  [∗ map] p ∈ l.(l_abstract_history), l.(l_ϕ) (fst p).(msg_val) (snd p) ((fst p).(msg_store_view), (fst p).(msg_persist_view), ∅))) ∗ *)
-      (own γh (● (abs_hist_to_ra <$> (fst <$> ls)) : historiesR)) ∗
-      (own γp (● (pred_to_ra <$> (snd <$> ls)) : predicatesR))).
+      (∃ (hists : gmap loc (gmap time (message * st)))
+       (preds : gmap loc (st → val → option (dProp Σ))),
+      (* We have the points-to predicates. *)
+      ([∗ map] ℓ ↦ hist ∈ hists, ℓ ↦h (fst <$> hist)) ∗
+      (* The predicates hold. *)
+      ([∗ map] ℓ ↦ hist; pred ∈ hists; preds,
+        ([∗ map] t ↦ p ∈ hist,
+           (∃ (P : dProp Σ),
+             ⌜(pred) (snd p) (fst p).(msg_val) = Some P⌝ ∗
+             P (msg_to_tv (fst p))))) ∗
+      (* Authorative ghost states. *)
+      own γh (● (abs_hist_to_ra <$> hists) : historiesR) ∗
+      own γp (● (pred_to_ra <$> preds) : predicatesR)).
 
   Definition know_pred `{Countable s}
-             (ℓ : loc) (ϕ : s → val → dProp Σ) : iProp Σ :=
+      (ℓ : loc) (ϕ : s → val → dProp Σ) : iProp Σ :=
     own γp (◯ {[ ℓ := pred_to_ra (λ s' v, (λ s, ϕ s v) <$> decode s') ]} : predicatesR).
 
   Definition know_state `{Countable s} ℓ (t : time) (s' : s) : iProp Σ :=
     own γh (◯ {[ ℓ := {[ t := to_agree (encode s') ]} ]} : historiesR).
+
+  (* A few lemmas about [interp], [know_pred], [know_state]. *)
+
+  Lemma singleton_included_l' `{Countable K} `{CmraTotal A} (m : gmap K A) (i : K) x :
+    {[i := x]} ≼ m ↔ (∃ y : A, m !! i ≡ Some y ∧ x ≼ y).
+  Proof.
+    (* Use [setoid_rewrite] to rewrite under the binder. *)
+    setoid_rewrite <-(Some_included_total x).
+    apply singleton_included_l.
+  Qed.
+
+  Lemma know_state_Some `{Countable ST} hists ℓ t (s : ST) :
+    own γh (● (abs_hist_to_ra <$> hists) : historiesR) -∗
+    know_state ℓ t s -∗
+    ∃ m, ⌜hists !! ℓ = Some m⌝.
+  Proof.
+    iIntros "A B".
+    destruct (hists !! ℓ) as [m|] eqn:Heq.
+    { iExists m. done. }
+    iDestruct (own_valid_2 with "A B") as %[Hincl _]%auth_both_valid_discrete.
+    apply singleton_included_l' in Hincl.
+    move: Hincl => [? [isSome ?]].
+    rewrite lookup_fmap in isSome.
+    rewrite Heq in isSome.
+    inversion isSome.
+  Qed.
+
+  (* _Exclusive_ points-to predicate. This predcate says that we know that the
+  last events at [ℓ] corresponds to the *)
+  Definition mapsto_ex `{Countable ST}
+      ℓ (ss ss' : list (ST * val)) (ϕ : ST → val → dProp Σ) : dProp Σ :=
+    (∃ (tGlobalPers tPers tStore : time) (abs_hist : gmap time (ST * val)) hist,
+      ⎡([∗ map] t ↦ msg; abs ∈ hist; abs_hist, ⌜msg.(msg_val) = abs.2⌝)⎤ ∗
+      ⎡ℓ ↦h hist⎤ ∗
+      ⌜abs_hist !! tStore = last ss'⌝ ∗
+      ⌜(∀ t', tStore < t' → abs_hist !! t' = None)⌝ ∗
+      (* ⌜max_member abs_hist tStore ⌝ ∗ *)
+      (* ⌜map_slice abs_hist tGlobalPers tStore (ss ++ ss')⌝ ∗ *)
+      (* ⌜map_slice abs_hist tPers tStore ss'⌝ ∗ *)
+      (* We "have"/"know" of the three timestamps. *)
+      monPred_in ({[ ℓ := MaxNat tStore ]}, {[ ℓ := MaxNat tPers ]}, ∅) ∗
+      ⎡persisted ({[ ℓ := MaxNat tGlobalPers ]} : view)⎤).
+
+  (*
+  Definition mapsto_read `{!SqSubsetEq abs_state, !PreOrder (⊑@{abs_state})}
+             ι γabs γlast ℓ (s1 s2 s3 : abs_state) ϕ : dProp Σ :=
+    (∃ (tGlobalPers tPers tStore : time),
+      (* We know that the global persist view has [tGlobalPers]. *)
+      ⎡persisted {[ ℓ := MaxNat tGlobalPers ]}⎤ ∗
+      (* We know that our lobal views have [tPers] and [tStore]. *)
+      monPred_in ({[ ℓ := MaxNat tStore]}, {[ ℓ := MaxNat tPers ]}, ∅) ∗
+      ⎡inv ι (mapsto_ex_inv ℓ ϕ γabs γlast)⎤ ∗
+      ⎡own γabs ({[ tGlobalPers := to_agree s1 ]} : abs_historyR abs_state)⎤ ∗
+      ⎡own γabs ({[ tPers := to_agree s2 ]} : abs_historyR abs_state)⎤ ∗
+      ⎡own γabs ({[ tStore := to_agree s3 ]} : abs_historyR abs_state)⎤).
+  *)
 
   (*
   Definition mapsto_ex_inv ℓ ϕ (γabs γlast : gname) : iProp Σ :=
@@ -251,35 +304,107 @@ Section wp_rules.
 
   Implicit Types (ℓ : loc) (s : abs_state) (ϕ : abs_state → val → dProp Σ).
 
+  (* The exclusive points-to predicate. *)
+  Notation "l ↦ xs ; ys | P" := (mapsto_ex l xs ys P) (at level 20).
+
+  Lemma wp_load_ex ℓ ss ss' s v ϕ st E :
+    last ss' = Some (s, v) →
+    {{{ ℓ ↦ ss ; ss' | ϕ }}}
+      Load (Val $ LitV $ LitLoc ℓ) @ st; E
+    {{{ RET v; ℓ ↦ ss ; ss' | ϕ }}}.
+  Proof.
+    intros last.
+    rewrite wp_eq /wp_def.
+    iStartProof (iProp _).
+    iIntros (post ((sv & pv) & bv)) "Hpts".
+    (* We destruct the exclusive points-to predicate. *)
+    iDestruct "Hpts" as (t1 t2 t3 abs hist) "(big & ℓPts & %look & %nolater & %incl & #pers)".
+    rewrite last in look.
+    simpl.
+    iPoseProof (big_sepM2_dom with "big") as "%domEq".
+    move: incl => [[incl3 incl2] incl'].
+    iIntros ([[idxS idxP] idxB] [[??]?]) "Hpost". simpl.
+    iIntros ([[sv' pv'] bv'] [[??]?]) "#Hv Hint".
+    iApply (wp_load with "[$ℓPts $Hv]").
+    iNext.
+    iIntros (t' v') "[ℓPts [%hi %ho]]".
+    rewrite /store_view. simpl.
+    iFrame "#∗".
+    assert ({[ℓ := MaxNat t3]} ⊑ sv').
+    { etrans. eassumption. etrans. eassumption. eassumption. }
+    (* We need to conclude that the only write we could read is the one at [t3]. *)
+    assert (t3 ≤ t') as lte.
+    { pose proof (view_lt_lt _ _ ℓ H7) as HIP.
+      pose proof (transitivity HIP ho).
+      rewrite lookup_singleton in H8.
+      simpl in H8.
+      apply H8. }
+    assert (is_Some (abs !! t')) as HI.
+    { apply elem_of_dom. rewrite -domEq. apply elem_of_dom.
+      rewrite -lookup_fmap in hi.
+      apply lookup_fmap_Some in hi.
+      destruct hi as [msg look'].
+      exists msg. apply look'. }
+    assert (t' = t3) as ->.
+    { apply Nat.lt_eq_cases in lte. destruct lte as [lt|]; last done.
+      pose proof (nolater t' lt) as eq.
+      rewrite eq in HI. inversion HI. inversion H8. }
+    iAssert (⌜v' = v⌝)%I as %->.
+    { rewrite -lookup_fmap in hi.
+      apply lookup_fmap_Some in hi.
+      destruct hi as [msg [msgEq look']].
+      iDestruct (big_sepM2_lookup with "big") as "%eq"; [done|done|].
+      iPureIntro. simpl in eq. congruence. }
+    (* We need this fact to be apple  to apply Hpost. *)
+    assert ((idxS, idxP, idxB) ⊑ (sv', pv', bv')). { done. }
+    iApply "Hpost".
+    iExists _, _, _, _, _.
+    rewrite last.
+    iFrame (look nolater) "big ℓPts pers".
+    iSplit; first iSplit; try done; iPureIntro.
+    - etrans. apply incl2.
+      etrans. eassumption.
+      eassumption.
+    - apply view_empty_least.
+  Qed.
+
   (* A read-only points-to predicate. *)
   Definition mapsto_ro ℓ (s : abs_state) ϕ : dProp Σ :=
     ∃ t, monPred_in ({[ ℓ := MaxNat t ]}, ∅, ∅) ∗
          ⎡know_pred ℓ ϕ⎤ ∗ ⎡know_state ℓ t s⎤.
 
+  Notation "l ↦ro s | P" := (mapsto_ro l s P) (at level 20).
 
-  (* Exclusive points-to predicate. This predcate says that we know that the
-  last events at [ℓ] corresponds to the *)
-  Definition mapsto_ex ι γabs γlast ℓ (ss ss' : list abs_state)
-             (s : abs_state) v ϕ : dProp Σ :=
-    (∃ (tGlobalPers tPers tStore : time),
-      ⎡inv ι (mapsto_ex_inv ℓ ϕ γabs γlast)⎤ ∗
-      monPred_in ({[ ℓ := MaxNat tStore ]}, {[ ℓ := MaxNat tPers ]}, ∅) ∗
-      ⎡own γlast (((1/2)%Qp, to_agree (s, v)) : lastR abs_state)⎤ ∗
-      ⎡own γabs ({[ tStore := to_agree s ]} : abs_historyR abs_state)⎤ ∗
-      ⎡persisted ({[ ℓ := MaxNat tGlobalPers ]} : view)⎤
-    ).
-
-  Definition mapsto_read `{!SqSubsetEq abs_state, !PreOrder (⊑@{abs_state})}
-             ι γabs γlast ℓ (s1 s2 s3 : abs_state) ϕ : dProp Σ :=
-    (∃ (tGlobalPers tPers tStore : time),
-      (* We know that the global persist view has [tGlobalPers]. *)
-      ⎡persisted {[ ℓ := MaxNat tGlobalPers ]}⎤ ∗
-      (* We know that our lobal views have [tPers] and [tStore]. *)
-      monPred_in ({[ ℓ := MaxNat tStore]}, {[ ℓ := MaxNat tPers ]}, ∅) ∗
-      ⎡inv ι (mapsto_ex_inv ℓ ϕ γabs γlast)⎤ ∗
-      ⎡own γabs ({[ tGlobalPers := to_agree s1 ]} : abs_historyR abs_state)⎤ ∗
-      ⎡own γabs ({[ tPers := to_agree s2 ]} : abs_historyR abs_state)⎤ ∗
-      ⎡own γabs ({[ tStore := to_agree s3 ]} : abs_historyR abs_state)⎤).
+  Lemma wp_load ℓ s ϕ st E R :
+    {{{ (∀ s' v, ϕ s' v -∗ ϕ s' v ∗ R s' v) ∗
+        ℓ ↦ro s | ϕ }}}
+      Load (Val $ LitV $ LitLoc ℓ) @ st; E
+    {{{ s' v, RET v; ℓ ↦ro s' | ϕ ∗ R s' v }}}.
+  Proof.
+    rewrite wp_eq /wp_def.
+    iStartProof (iProp _).
+    iIntros (post ((sv & pv) & bv)) "[Htrans #Hpts]".
+    iDestruct "Hpts" as (t) "(%seen & knowPred & knowState)".
+    iIntros (? ?) "Hpost". simpl. iIntros ([[sv' pv'] bv'] ?) "#Hv Hint".
+    iDestruct "Hint" as (hists preds) "(pointsToPreds & ? & authHists & authPreds)".
+    iDestruct (own_valid_2 with "authHists knowState") as %Hv.
+    iDestruct (know_state_Some with "[$] [$]") as %[hist look].
+    iDestruct (big_sepM_delete with "pointsToPreds") as "[ℓPts pointsToPreds]"; first done.
+    iApply (wp_load with "[$ℓPts $Hv]").
+    iNext.
+    iIntros (t' v') "[ℓPts %FOO]".
+    iFrame "Hv".
+    iSplitL "Hpost".
+    - iApply "Hpost".
+      admit.
+    - (* Re-establish interp. *)
+      rewrite /interp.
+      iExists _, _.
+      iFrame "authHists authPreds".
+      iFrame.
+      iApply big_sepM_delete; first done.
+      iFrame.
+  Abort.
 
   Lemma wp_alloc `{!SqSubsetEq abs_state, !PreOrder (⊑@{abs_state})}
         ℓ v (s : abs_state) (ϕ : abs_state → val → dProp Σ) st E :

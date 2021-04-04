@@ -392,7 +392,7 @@ Section lifting.
     {{{ ℓ ↦h hist ∗ valid V }}}
       (ThreadState (! #ℓ) (V, p, B)) @ s; E
     {{{ t v, RET (ThreadVal v (V, p, B));
-          ⌜msg_val <$> (hist !! t) = Some v ∧ (V !!0 ℓ) ≤ t⌝ }}}.
+        ℓ ↦h hist ∗ ⌜msg_val <$> (hist !! t) = Some v ∧ (V !!0 ℓ) ≤ t⌝ }}}.
   Proof.
     iIntros (Φ) "[ℓPts Hval] HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (_)); first done.
@@ -420,7 +420,7 @@ Section lifting.
       inv_impure_thread_step.
       iSplitR=>//.
       iFrame "Hheap lubauth persist Hincl".
-      by iApply "HΦ".
+      iApply "HΦ". iFrame. done.
   Qed.
 
   Lemma wp_load_acquire V p B ℓ (hist : history) s E :

@@ -35,6 +35,9 @@ Section nat_map.
   Context `{FinMap nat M} {A : Type}.
 
   Implicit Types m : M A.
+
+  Definition max_member m t v :=
+    (m !! t = Some v) ∧ (∀ t', t < t' → m !! t' = None).
   
   (** Expresses that the map [m] contains, in order, the values [xs] from the
   indeces starting at [lo] up to and including [hi]. *)
