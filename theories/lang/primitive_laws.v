@@ -1,8 +1,11 @@
 From iris.proofmode Require Import tactics.
 From iris.bi.lib Require Import fractional.
-From iris.base_logic.lib Require Export gen_heap proph_map gen_inv_heap.
-From iris.program_logic Require Export weakestpre total_weakestpre.
-From iris.program_logic Require Import ectx_lifting total_ectx_lifting.
+From iris.base_logic.lib Require Export gen_heap proph_map. (* gen_inv_heap. *)
+(* From iris.program_logic Require Export weakestpre. *)
+
+From Perennial.program_logic Require Import ectx_lifting.
+From Perennial.program_logic Require Export ectx_language weakestpre lifting.
+
 From iris.algebra Require Import auth gmap numbers.
 From iris.prelude Require Import options.
 
@@ -12,6 +15,7 @@ From self.lang Require Import notation tactics.
 
 Class nvmG Σ := NvmG {
   nvmG_invG : invG Σ;
+  nvmG_crashG : crashG Σ;
   nvmG_gen_heapG :> gen_heapG loc history Σ;
   view_inG :> inG Σ (authR viewUR);
   (* heapG_inv_heapG :> inv_heapG loc (option val) Σ; *)
@@ -75,9 +79,10 @@ Definition hist_inv lub hist `{!nvmG Σ} : iProp Σ :=
     (* Every view in every message is included in the lub view. *)
     ([∗ map] t ↦ msg ∈ hist, ⌜msg.(msg_store_view) ⊑ lub⌝))%I.
 
-Global Instance nvmG_irisG `{!nvmG Σ} : irisG nvm_lang Σ := {
+Global Program Instance nvmG_irisG `{!nvmG Σ} : irisG nvm_lang Σ := {
   iris_invG := nvmG_invG;
-  state_interp σ _ κs _ := (
+  iris_crashG := nvmG_crashG;
+  state_interp σ _ := (
     (* The interpetation of the heap. This is standard, except the heap store
     historie and not plain values. *)
     gen_heap_interp (fst σ) ∗
@@ -86,10 +91,12 @@ Global Instance nvmG_irisG `{!nvmG Σ} : irisG nvm_lang Σ := {
     own persist_view_name (● (snd σ))
     (* proph_map_interp κs σ.(used_proph_id) *)
   )%I;
+  global_state_interp g ns κs := True%I;
   fork_post _ := True%I;
   num_laters_per_step _ := 0;
-  state_interp_mono _ _ _ _ := fupd_intro _ _
+  (* state_interp_mono _ _ _ _ := fupd_intro _ _ *)
 }.
+Next Obligation. intros. eauto. Qed.
 
 (* NOTE: Uncomment as needed. *)
 (* Notation "l ↦h{ dq } v" := (mapsto (L:=loc) (V:=val) l dq (Some v%V))
@@ -113,6 +120,13 @@ Section lifting.
   Implicit Types ℓ : loc.
   Implicit Types V W : view.
   Implicit Types hist : history.
+
+  (* Set Typeclasses Unique Solutions. *)
+  (* Definition hi ℓ hist := (ℓ ↦h hist, (λ (x : nat), (ℓ ↦h hist)))%I. *)
+  (* Set Typeclasses Debug. *)
+  (* Definition hi ℓ hist := (ℓ ↦h hist, (λ (x : nvmG Σ), (ℓ ↦h hist)))%I. *)
+  (* Set Printing All. *)
+  (* Print hi. *)
 
   Definition valid (V : view) : iProp Σ := own store_view_name (◯ V).
 
@@ -358,16 +372,16 @@ Section lifting.
           [∗ list] i ∈ seq 0 (Z.to_nat n), (ℓ +ₗ (i : nat)) ↦h initial_history (persist_view T) v }}}.
   Proof.
     iIntros (Hn Φ) "_ HΦ".
-    iApply (wp_lift_atomic_head_step_no_fork (_)); first done.
-    iIntros ([??] κ κs ? k) "(Hσ & Hauth & Hop & Hpers) !>"; iSplit.
+    iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
+    iIntros ([??] [] ns κ κs k) "(Hσ & Hauth & Hop & Hpers) Ht !>". iSplit.
     - (* We must show that [ref v] is can take tome step. *)
        rewrite /head_reducible.
        destruct T as [[sv pv] bv].
-       iExists [], _, _, _. simpl. iPureIntro.
+       iExists [], _, _, _, _. simpl. iPureIntro.
        eapply impure_step.
        * constructor. done.
        * apply alloc_fresh. lia.
-    - iNext. iIntros (e2 σ2 efs Hstep).
+    - iNext. iIntros (e2 σ2 [] efs Hstep).
       simpl in *.
       inv_impure_thread_step.
       iSplitR=>//.
@@ -383,7 +397,7 @@ Section lifting.
       { apply Hdisj. }
       iModIntro.
       iDestruct (hist_inv_alloc with "Hop") as "Hop"; first apply Hdisj.
-      iFrame "Hop".
+      iFrame.
       iApply "HΦ". iApply heap_array_to_seq_mapsto. iFrame.
   Qed.
 
@@ -395,8 +409,8 @@ Section lifting.
         ℓ ↦h hist ∗ ⌜msg_val <$> (hist !! t) = Some v ∧ (V !!0 ℓ) ≤ t⌝ }}}.
   Proof.
     iIntros (Φ) "[ℓPts Hval] HΦ".
-    iApply (wp_lift_atomic_head_step_no_fork (_)); first done.
-    iIntros ([heap ?] κ κs ? k) "(Hheap & lubauth & #Hincl & persist) /= !>".
+    iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
+    iIntros ([heap ?] [] ns κ κs k) "(Hheap & lubauth & #Hincl & persist) Ht /= !>".
     (* From the points-to predicate we know that [hist] is in the heap at ℓ. *)
     iDestruct (gen_heap_valid with "Hheap ℓPts") as %Hlook.
     iSplit.
@@ -410,16 +424,16 @@ Section lifting.
       pose proof (history_lookup_lub _ _ _ Hlook HisS) as [msg Hmsgeq].
       (* The time at the view is smaller than the time in the lub view (which is the time of the most recent message *)
       iDestruct (auth_frag_leq with "Hval lubauth") as %Vincl.
-      iExists [], _, _, _. simpl. iPureIntro.
+      iExists [], _, _, _, _. simpl. iPureIntro.
       eapply impure_step.
       * constructor.
       * econstructor; last by apply view_lt_lt.
         + done.
         + rewrite Hmsgeq. done.
-    - iNext. iIntros (e2 σ2 efs Hstep) "!>".
+    - iNext. iIntros (e2 σ2 [] efs Hstep) "!>".
       inv_impure_thread_step.
       iSplitR=>//.
-      iFrame "Hheap lubauth persist Hincl".
+      iFrame "Hheap lubauth persist Hincl Ht".
       iApply "HΦ". iFrame. done.
   Qed.
 
@@ -431,8 +445,9 @@ Section lifting.
         valid (V ⊔ V') }}}.
   Proof.
     iIntros (Φ) "[ℓPts Hval] HΦ".
-    iApply (wp_lift_atomic_head_step_no_fork (_)); first done.
-    iIntros ([heap ?] κ κs ? k) "(Hheap & lubauth & #Hincl & persist) /= !>".
+    iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
+    (* iIntros ([heap ?] κ κs ? k) "(Hheap & lubauth & #Hincl & persist) /= !>". *)
+    iIntros ([heap ?] [] ns κ κs k) "(Hheap & lubauth & #Hincl & persist) Ht /= !>".
     (* The time at the view is smaller than the time in the lub view (which is the time of the most recent message *)
     iDestruct (auth_frag_leq with "Hval lubauth") as %Vincl.
     (* From the points-to predicate we know that [hist] is in the heap at ℓ. *)
@@ -447,20 +462,20 @@ Section lifting.
       { iDestruct (big_sepM_lookup with "Hincl") as "[% _]"; first apply Hlook. done. }
       pose proof (history_lookup_lub _ _ _ Hlook HisS) as [[msgv msgV msgP] Hmsgeq].
       (* The time at the view is smaller than the time in the lub view (which is the time of the most recent message *)
-      iExists [], _, _, _. simpl. iPureIntro.
+      iExists [], _, _, _, _. simpl. iPureIntro.
       eapply impure_step.
       * constructor.
       * econstructor; last by apply view_lt_lt.
         + done.
         + rewrite Hmsgeq. done.
-    - iNext. iIntros (e2 σ2 efs Hstep).
+    - iNext. iIntros (e2 σ2 [] efs Hstep).
       simpl in *. inv_impure_thread_step. iSplitR=>//.
       iDestruct (message_included_in_lub_view with "Hincl") as "%"; try done.
       iMod (own_update with "lubauth") as "[lubauth valid']".
       { apply (auth_update_dfrac_alloc _ _ (V ⋅ MV)).
         rewrite -subseteq_view_incl.
         apply view_le_lub; done. }
-      iFrame "Hheap lubauth persist Hincl". iModIntro.
+      iFrame "Hheap lubauth persist Hincl Ht". iModIntro.
       iApply ("HΦ" $! t v MV MP). iSplit; first done.
       done.
   Qed.
@@ -475,8 +490,9 @@ Section lifting.
           ℓ ↦h (<[t := Msg v ∅ p]>hist) }}}.
   Proof.
     iIntros (Φ) "[ℓPts Hval] HΦ".
-    iApply (wp_lift_atomic_head_step_no_fork (_)); first done.
-    iIntros ([heap ?] κ κs ? k) "(Hheap & lubauth & #Hincl & persist) /= !>".
+    iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
+    (* iIntros ([heap ?] κ κs ? k) "(Hheap & lubauth & #Hincl & persist) /= !>". *)
+    iIntros ([heap ?] [] ns κ κs k) "(Hheap & lubauth & #Hincl & persist) Ht /= !>".
     (* The time at the view is smaller than the time in the lub view (which is the time of the most recent message *)
     iDestruct (auth_frag_leq with "Hval lubauth") as %Vincl.
     (* From the points-to predicate we know that [hist] is in the heap at ℓ. *)
@@ -491,7 +507,7 @@ Section lifting.
       { iDestruct (big_sepM_lookup with "Hincl") as "[% _]"; first apply Hlook. done. }
       (* pose proof (history_lookup_lub _ _ _ Hlook HisS) as [[msgv msgV msgP] Hmsgeq]. *)
       pose proof (history_lookup_lub_succ _ _ _ Hlook) as lookNone.
-      iExists [], _, _, _. simpl. iPureIntro.
+      iExists [], _, _, _, _. simpl. iPureIntro.
       eapply impure_step.
       * constructor.
       * econstructor.
@@ -499,7 +515,7 @@ Section lifting.
         + apply lookNone.
         + pose proof (view_lt_lt _ _ ℓ Vincl). lia.
         + done.
-    - iNext. iIntros (e2 σ2 efs Hstep).
+    - iNext. iIntros (e2 σ2 [] efs Hstep).
       simpl in *. inv_impure_thread_step. iSplitR=>//.
       (* The persist view didn't change. *)
       iFrame "persist".
@@ -508,7 +524,7 @@ Section lifting.
       iFrame "Hheap".
       (* We must now update the authorative element for the lub_view. *)
       iMod (auth_lub_view_insert with "lubauth") as "[lubauth viewT]"; [done|done|].
-      iFrame "lubauth".
+      iFrame "lubauth Ht".
       (* We now update the big op. *)
       iSplitR. { iApply hist_inv_insert_msg; done. }
       iApply "HΦ".
@@ -530,8 +546,9 @@ Section lifting.
           ℓ ↦h (<[t := Msg v (<[ℓ := MaxNat t]>V) p]>hist) }}}.
   Proof.
     iIntros (Φ) "[ℓPts Hval] HΦ".
-    iApply (wp_lift_atomic_head_step_no_fork (_)); first done.
-    iIntros ([heap ?] κ κs ? k) "(Hheap & lubauth & #Hincl & persist) /= !>".
+    iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
+    (* iIntros ([heap ?] κ κs ? k) "(Hheap & lubauth & #Hincl & persist) /= !>". *)
+    iIntros ([heap ?] [] ns κ κs k) "(Hheap & lubauth & #Hincl & persist) Ht /= !>".
     (* The time at the view is smaller than the time in the lub view (which is the time of the most recent message *)
     iDestruct (auth_frag_leq with "Hval lubauth") as %Vincl.
     (* From the points-to predicate we know that [hist] is in the heap at ℓ. *)
@@ -546,7 +563,7 @@ Section lifting.
       { iDestruct (big_sepM_lookup with "Hincl") as "[% _]"; first apply Hlook. done. }
       (* pose proof (history_lookup_lub _ _ _ Hlook HisS) as [[msgv msgV msgP] Hmsgeq]. *)
       pose proof (history_lookup_lub_succ _ _ _ Hlook) as lookNone.
-      iExists [], _, _, _. simpl. iPureIntro.
+      iExists [], _, _, _, _. simpl. iPureIntro.
       eapply impure_step.
       * constructor.
       * econstructor.
@@ -554,7 +571,7 @@ Section lifting.
         + apply lookNone.
         + pose proof (view_lt_lt _ _ ℓ Vincl). lia.
         + done.
-    - iNext. iIntros (e2 σ2 efs Hstep).
+    - iNext. iIntros (e2 σ2 [] efs Hstep).
       simpl in *. inv_impure_thread_step. iSplitR=>//.
       (* The persist view didn't change. *)
       iFrame "persist".
@@ -563,7 +580,7 @@ Section lifting.
       iFrame "Hheap".
       (* We must now update the authorative element for the lub_view. *)
       iMod (auth_lub_view_insert with "lubauth") as "[lubauth viewT]"; [done|done|].
-      iFrame "lubauth".
+      iFrame "lubauth Ht".
       (* We now update the big op. *)
       iSplitR.
       { iApply hist_inv_insert_msg'; try done. apply lub_view_incl_insert; done. }
@@ -585,16 +602,16 @@ Section lifting.
       (ThreadState (WB #ℓ) (V, P, B)) @ s; E
     {{{ RET ThreadVal #() (V, P, <[ℓ := MaxNat (V !!0 ℓ)]>B); ℓ ↦h hist }}}.
   Proof.
-    iIntros (ϕ) "pts HΦ".
-    iApply (wp_lift_atomic_head_step_no_fork (_)); first done.
-    iIntros ([??] κ κs ? k) "(Hheap & Hauth & Hop & Hpers) /= !>".
+    iIntros (Φ) "pts HΦ".
+    iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
+    iIntros ([??] [] κ κs ? k) "(Hheap & Hauth & Hop & Hpers) Ht /= !>".
     (* From the points-to predicate we know that [hist] is in the heap at ℓ. *)
     iDestruct (gen_heap_valid with "Hheap pts") as %Hlook.
     iSplit.
     - rewrite /head_reducible.
-       iExists [], _, _, _. simpl. iPureIntro.
+       iExists [], _, _, _, _. simpl. iPureIntro.
        eapply impure_step; by econstructor; done.
-    - iNext. iIntros (e2 σ2 efs Hstep).
+    - iNext. iIntros (e2 σ2 [] efs Hstep).
       inv_impure_thread_step. iSplitR=>//.
       iModIntro. iFrame. iApply "HΦ". iFrame.
   Qed.
@@ -604,16 +621,16 @@ Section lifting.
       (ThreadState Fence (V, P, B)) @ s; E
     {{{ RET ThreadVal #() (V, P ⊔ B, ∅); ℓ ↦h hist }}}.
   Proof.
-    iIntros (ϕ) "pts HΦ".
-    iApply (wp_lift_atomic_head_step_no_fork (_)); first done.
-    iIntros ([??] κ κs ? k) "(Hheap & Hauth & Hop & Hpers) /= !>".
+    iIntros (Φ) "pts HΦ".
+    iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
+    iIntros ([??] [] κ κs ? k) "(Hheap & Hauth & Hop & Hpers) Ht /= !>".
     (* From the points-to predicate we know that [hist] is in the heap at ℓ. *)
     iDestruct (gen_heap_valid with "Hheap pts") as %Hlook.
     iSplit.
     - rewrite /head_reducible.
-       iExists [], _, _, _. simpl. iPureIntro.
+       iExists [], _, _, _, _. simpl. iPureIntro.
        eapply impure_step; by econstructor; done.
-    - iNext. iIntros (e2 σ2 efs Hstep).
+    - iNext. iIntros (e2 σ2 [] efs Hstep).
       inv_impure_thread_step. iSplitR=>//.
       iModIntro. iFrame. iApply "HΦ". iFrame.
   Qed.
@@ -624,16 +641,16 @@ Section lifting.
     {{{ RET ThreadVal #() (V, P ⊔ B, ∅);
           persisted (P ⊔ B) }}}.
   Proof.
-    iIntros (ϕ) "(pts & valV & perP) HΦ".
-    iApply (wp_lift_atomic_head_step_no_fork (_)); first done.
-    iIntros ([??] κ κs ? k) "(Hheap & Hauth & Hop & Hpers) /= !>".
+    iIntros (Φ) "(pts & valV & perP) HΦ".
+    iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
+    iIntros ([??] [] κ κs ? k) "(Hheap & Hauth & Hop & Hpers) Ht /= !>".
     (* From the points-to predicate we know that [hist] is in the heap at ℓ. *)
     iDestruct (gen_heap_valid with "Hheap pts") as %Hlook.
     iSplit.
     - rewrite /head_reducible.
-       iExists [], _, _, _. simpl. iPureIntro.
+       iExists [], _, _, _, _. simpl. iPureIntro.
        eapply impure_step; by econstructor; done.
-    - iNext. iIntros (e2 σ2 efs Hstep).
+    - iNext. iIntros (e2 σ2 [] efs Hstep).
       inv_impure_thread_step. iSplitR=>//.
       iMod (own_update with "Hpers") as "[Hpers perB]".
       { apply auth_update_alloc.

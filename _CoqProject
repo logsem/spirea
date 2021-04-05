@@ -1,4 +1,8 @@
 -Q theories self
+-Q external/perennial/external/stdpp/theories stdpp
+-Q external/perennial/external/iris/iris iris
+-Q external/perennial/src Perennial
+-Q external/perennial/external/iris/iris_heap_lang iris.heap_lang
 
 # Cannot use non-canonical projections as it causes massive unification failures
 # (https://github.com/coq/coq/issues/6294).
@@ -16,3 +20,4 @@ theories/lang/primitive_laws.v
 theories/weakestpre.v
 theories/lang/class_instances.v
 theories/lang/proofmode.v
+theories/examples/simple.v

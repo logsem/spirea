@@ -1,7 +1,7 @@
 (* This file add instances for the [Atomic] and the [PureExec] type classes.
 These are used in the proof mode. *)
 
-From iris.program_logic Require Export language.
+From Perennial.program_logic Require Export language.
 From iris.prelude Require Import options.
 
 From self Require Export lang.
@@ -106,11 +106,13 @@ Global Hint Extern 0 (AsRecV (RecV _ _ _) _ _ _) =>
 
 Section pure_exec.
   Local Ltac solve_exec_safe :=
-    intros; eexists _, _, _; apply pure_step with (efs := []); econstructor; eauto.
+    intros ? []; eexists _, _, _, _; simpl; apply pure_step with (efs := []); econstructor; eauto.
+    (* intros; eexists _, _, _, _; apply pure_step with (efs := []); econstructor; eauto. *)
   Local Ltac solve_exec_puredet :=
-    simpl; intros; inv_thread_step; eauto using fmap_nil_inv.
+    simpl; intros; inv_thread_step; repeat split_and; eauto using fmap_nil_inv.
+    (* simpl; intros; inv_thread_step; eauto using fmap_nil_inv. *)
   Local Ltac solve_pure_exec :=
-    subst; intros ??; apply nsteps_once, pure_head_step_pure_step;
+    subst; intros ??; apply nsteps_once, (pure_head_step_pure_step (ThreadState _ _));
       constructor; [solve_exec_safe | solve_exec_puredet].
 
   Notation PureExecBase P nsteps e1 e2 :=
@@ -118,7 +120,13 @@ Section pure_exec.
 
   Global Instance pure_recc f x (erec : expr) :
     PureExecBase True 1 (Rec f x erec) (Val $ RecV f x erec).
-  Proof. solve_pure_exec. Qed.
+  Proof.
+    solve_pure_exec.
+    (* subst. intros ??. apply nsteps_once. apply (pure_head_step_pure_step (ThreadState _ _)). *)
+    (* constructor. *)
+    (* - solve_exec_safe. *)
+    (* - solve_exec_puredet. *)
+  Qed.
   Global Instance pure_pairc (v1 v2 : val) :
     PureExecBase True 1 (Pair (Val v1) (Val v2)) (Val $ PairV v1 v2).
   Proof. solve_pure_exec. Qed. (* solve_pure_exec. Qed. *)

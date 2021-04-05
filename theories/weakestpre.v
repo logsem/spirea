@@ -11,8 +11,8 @@ From iris Require Export invariants.
 From iris.proofmode Require Export tactics.
 From iris.algebra Require Import gmap excl auth.
 From iris.program_logic Require weakestpre.
-From iris.program_logic Require Import ownp.
-From iris_string_ident Require Import ltac2_string_ident.
+(* From iris.program_logic Require Import ownp. *)
+(* From iris_string_ident Require Import ltac2_string_ident. *)
 From iris.heap_lang Require Import locations.
 
 From self Require Export extra dprop view lang.
@@ -406,11 +406,12 @@ Section wp_rules.
       iFrame.
   Abort.
 
+  (*
   Lemma wp_alloc `{!SqSubsetEq abs_state, !PreOrder (⊑@{abs_state})}
-        ℓ v (s : abs_state) (ϕ : abs_state → val → dProp Σ) st E :
-    {{{ ϕ s v }}}
+        ℓ v (s : abs_state) (Φ : abs_state → val → dProp Σ) st E :
+    {{{ Φ s v }}}
       ref v @ st; E
-    {{{ ι, RET #ℓ; mapsto_ex ι ℓ [] [] s Φ }}}
+    {{{ ι, RET ℓ; mapsto_ex ι ℓ [] [] s Φ }}}
   Proof.
 
   Lemma wp_store ℓ ι ℓ ss ss' s ev' ϕ s E :
@@ -424,5 +425,6 @@ Section wp_rules.
       !ℓ @ s; E
     {{{ v, RET v; mapsto_ex ι ℓ ss ss' Φ ∗ ϕ s v }}}
   Proof.
+  *)
 
-Section wp_rules.
+End wp_rules.

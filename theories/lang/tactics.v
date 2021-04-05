@@ -67,7 +67,7 @@ Ltac reshape_expr e tac :=
         try (is_var e; fail 1); (* inversion yields many goals if [e] is a variable
         and should thus better be avoided. *)
         inversion H; subst; clear H
-    | H : thread_step ?e _ _ _ _ _ |- _ =>
+    | H : thread_step ?e _ _ _ _ _ _ _ |- _ =>
         try (is_var e; fail 1); (* inversion yields many goals if [e] is a variable
         and should thus better be avoided. *)
         inversion H; subst; clear H
@@ -95,7 +95,7 @@ Ltac reshape_expr e tac :=
   i.e., that all the steps the expression can take interact with the memory. *)
   Ltac inv_impure_thread_step :=
     match goal with
-    | H : thread_step ?e _ _ _ _ _ |- _ =>
+    | H : thread_step ?e _ _ _ _ _ _ _ |- _ =>
       inversion H;
       [ (* The first goal corresponds to a pure step which we can rule out. *)
         match goal with H : head_step _ _ _ _ _ |- _ => inversion H end

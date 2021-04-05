@@ -1,11 +1,12 @@
 From stdpp Require Export binders strings.
 From stdpp Require Import gmap.
 From iris.algebra Require Export ofe.
-From iris.program_logic Require Export language ectx_language ectxi_language.
 From iris.prelude Require Import options.
+(* From iris.program_logic Require Export language ectx_language ectxi_language. *)
+From Perennial.program_logic Require Export language ectx_language ectxi_language.
+From Perennial.program_logic Require Export crash_lang.
 
-From self.lang Require Export syntax.
-From self.lang Require Export memory.
+From self.lang Require Export syntax memory.
 
 (* nvm_lang.  A language with release/acquire weak memory and persistent
 non-volatile memory. The language is adapted from HeapLang. *)
@@ -331,10 +332,11 @@ Module nvm_lang.
   We call it `expr_lang` since it expressions are actually expressions (in
   comparison to `nvm_lang` where expressions are thread states. )
   *)
+    (* expr -> state -> global_state -> list observation -> expr -> state -> global_state -> list expr -> Prop := *)
   Lemma expr_ectxi_lang_mixin :
-    EctxiLanguageMixin (state:=unit) (observation:=Empty_set)
+    EctxiLanguageMixin (state := unit) (observation := Empty_set) (global_state := unit)
       of_val to_val fill_item
-      (fun e _ _ e' _ efs => False).
+      (fun _ _ _ _ _ _ _ _ => False).
   Proof.
     split; eauto using to_of_val, of_to_val, fill_item_val,
       fill_item_no_val_inj, head_ctx_step_val with typeclass_instances=>//.
@@ -375,16 +377,16 @@ Module nvm_lang.
     ThreadState (subst x es e.(ts_expr)) (ts_view e).
 
   Inductive thread_step :
-    thread_state → mem_config → list observation →
-    thread_state → mem_config → list thread_state → Prop :=
+    thread_state → mem_config → unit → list observation →
+    thread_state → mem_config → unit → list thread_state → Prop :=
   | pure_step e V σ e' efs :
       head_step e None [] e' (ts_expr <$> efs) →
       (* Forall (eq V) (ts_view <$> efs) → *) (* FIXME: Is this really needed? *)
-      thread_step (ThreadState e V) σ [] (ThreadState e' V) σ efs
+      thread_step (ThreadState e V) σ () [] (ThreadState e' V) σ () efs
   | impure_step e V σ evt e' V' σ' :
       head_step e (Some evt) [] e' [] →
       mem_step σ V evt σ' V' →
-      thread_step (ThreadState e V) σ [] (ThreadState e' V') σ' [].
+      thread_step (ThreadState e V) σ () [] (ThreadState e' V') σ' () [].
   Arguments thread_step _%E _ _ _%E _ _%E.
 
   (* Lemma head_step_view_sqsubseteq e V σ κs e' V' σ' ef P B P' B'
@@ -416,14 +418,14 @@ Module nvm_lang.
     is_Some (thread_to_val (thread_fill_item Ki e)) → is_Some (thread_to_val e).
   Proof. move/fmap_is_Some/fill_item_val => H. exact/fmap_is_Some. Qed.
 
-  Lemma thread_val_stuck σ1 e1 κs σ2 e2 ef :
-    thread_step e1 σ1 κs e2 σ2 ef → thread_to_val e1 = None.
+  Lemma thread_val_stuck e1 σ1 g1 κs e2 σ2 g2 ef :
+    thread_step e1 σ1 g1 κs e2 σ2 g2 ef → thread_to_val e1 = None.
   Proof.
     inversion 1 as [????? Hstep|??????? Hstep]; inversion Hstep; done.
   Qed.
 
-  Lemma thread_head_ctx_step_val Ki e σ κs e2 σ2 ef :
-    thread_step (thread_fill_item Ki e) σ κs e2 σ2 ef → is_Some (thread_to_val e).
+  Lemma thread_head_ctx_step_val Ki e σ g1 κs e2 σ2 g2 ef :
+    thread_step (thread_fill_item Ki e) σ g1 κs e2 σ2 g2 ef → is_Some (thread_to_val e).
   Proof.
     inversion 1; subst; apply fmap_is_Some; exact: nvm_lang.head_ctx_step_val.
   Qed.
@@ -452,5 +454,8 @@ Canonical Structure expr_lang := LanguageOfEctx expr_ectx_lang.
 Canonical Structure nvm_ectxi_lang := EctxiLanguage nvm_lang.nvm_lang_mixin.
 Canonical Structure nvm_ectx_lang := EctxLanguageOfEctxi nvm_ectxi_lang.
 Canonical Structure nvm_lang := LanguageOfEctx nvm_ectx_lang.
+
+Canonical Structure goose_crash_lang : crash_semantics nvm_lang :=
+  {| crash_prim_step := crash_step |}.
 
 Export nvm_lang.
