@@ -1,8 +1,8 @@
 -Q theories self
 -Q external/perennial/external/stdpp/theories stdpp
 -Q external/perennial/external/iris/iris iris
--Q external/perennial/src Perennial
 -Q external/perennial/external/iris/iris_heap_lang iris.heap_lang
+-Q external/perennial/src Perennial
 
 # Cannot use non-canonical projections as it causes massive unification failures
 # (https://github.com/coq/coq/issues/6294).

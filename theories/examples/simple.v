@@ -14,29 +14,21 @@ Definition pure : expr :=
 Section specs.
   Context `{!nvmG Σ, !wpnvmG Σ}.
 
-  Lemma wp_bin_op : ⊢ WP (#1 + #2) {{ v, True }}.
+  Lemma wp_bin_op : ⊢ WP (#1 + #2) {{ v, ⌜1 = 1⌝ }}.
   Proof.
-    wp_pure _.
     wp_pures.
     done.
   Qed.
 
-  Lemma wp_pure :
+  Lemma wp_with_let :
     {{{ True }}} pure {{{ RET (#8); True }}}.
   Proof.
     iIntros (Φ) "_ Post".
     rewrite /pure.
     wp_pures.
-    wp_pure _.
-  Admitted.
-
-  Lemma wp_pure TV :
-    {{{ True }}}
-      (ThreadState pure TV)
-    {{{ RET (ThreadVal (#8) TV); True }}}.
-  Proof.
-    iIntros (Φ) "_ Post".
-    wp_pures.
-  Admitted.
+    iModIntro.
+    iApply "Post".
+    done.
+  Qed.
 
 End specs.

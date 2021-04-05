@@ -3,16 +3,12 @@ precondition included in Iris. *)
 
 From stdpp Require Import gmap.
 From iris.program_logic Require weakestpre.
-(* Record foo := { foo_car : Type; foo_rel : relation foo_car; }. *)
-(* Definition bar := gmap nat foo. *)
 
 From stdpp Require Import countable numbers gmap.
 From iris Require Export invariants.
 From iris.proofmode Require Export tactics.
 From iris.algebra Require Import gmap excl auth.
 From iris.program_logic Require weakestpre.
-(* From iris.program_logic Require Import ownp. *)
-(* From iris_string_ident Require Import ltac2_string_ident. *)
 From iris.heap_lang Require Import locations.
 
 From self Require Export extra dprop view lang.

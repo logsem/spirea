@@ -1,7 +1,6 @@
 From iris.proofmode Require Import tactics.
 From iris.bi.lib Require Import fractional.
 From iris.base_logic.lib Require Export gen_heap proph_map. (* gen_inv_heap. *)
-(* From iris.program_logic Require Export weakestpre. *)
 
 From Perennial.program_logic Require Import ectx_lifting.
 From Perennial.program_logic Require Export ectx_language weakestpre lifting.
@@ -446,7 +445,6 @@ Section lifting.
   Proof.
     iIntros (Φ) "[ℓPts Hval] HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
-    (* iIntros ([heap ?] κ κs ? k) "(Hheap & lubauth & #Hincl & persist) /= !>". *)
     iIntros ([heap ?] [] ns κ κs k) "(Hheap & lubauth & #Hincl & persist) Ht /= !>".
     (* The time at the view is smaller than the time in the lub view (which is the time of the most recent message *)
     iDestruct (auth_frag_leq with "Hval lubauth") as %Vincl.
@@ -491,7 +489,6 @@ Section lifting.
   Proof.
     iIntros (Φ) "[ℓPts Hval] HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
-    (* iIntros ([heap ?] κ κs ? k) "(Hheap & lubauth & #Hincl & persist) /= !>". *)
     iIntros ([heap ?] [] ns κ κs k) "(Hheap & lubauth & #Hincl & persist) Ht /= !>".
     (* The time at the view is smaller than the time in the lub view (which is the time of the most recent message *)
     iDestruct (auth_frag_leq with "Hval lubauth") as %Vincl.
@@ -547,7 +544,6 @@ Section lifting.
   Proof.
     iIntros (Φ) "[ℓPts Hval] HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
-    (* iIntros ([heap ?] κ κs ? k) "(Hheap & lubauth & #Hincl & persist) /= !>". *)
     iIntros ([heap ?] [] ns κ κs k) "(Hheap & lubauth & #Hincl & persist) Ht /= !>".
     (* The time at the view is smaller than the time in the lub view (which is the time of the most recent message *)
     iDestruct (auth_frag_leq with "Hval lubauth") as %Vincl.

@@ -120,13 +120,7 @@ Section pure_exec.
 
   Global Instance pure_recc f x (erec : expr) :
     PureExecBase True 1 (Rec f x erec) (Val $ RecV f x erec).
-  Proof.
-    solve_pure_exec.
-    (* subst. intros ??. apply nsteps_once. apply (pure_head_step_pure_step (ThreadState _ _)). *)
-    (* constructor. *)
-    (* - solve_exec_safe. *)
-    (* - solve_exec_puredet. *)
-  Qed.
+  Proof. solve_pure_exec. Qed.
   Global Instance pure_pairc (v1 v2 : val) :
     PureExecBase True 1 (Pair (Val v1) (Val v2)) (Val $ PairV v1 v2).
   Proof. solve_pure_exec. Qed. (* solve_pure_exec. Qed. *)

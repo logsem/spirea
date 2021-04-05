@@ -3,11 +3,13 @@
 Is is an adaptation of the tactics for HeapLang. *)
 
 From iris.proofmode Require Import coq_tactics reduction.
-(* From iris.proofmode Require Export tactics. *)
+From iris.proofmode Require Export tactics.
 (* From iris.program_logic Require Import atomic. *)
 (* From iris.heap_lang Require Export tactics derived_laws. *)
 (* From iris.heap_lang Require Import notation. *)
 From iris.prelude Require Import options.
+
+From Perennial.program_logic Require Export language ectx_language ectxi_language.
 
 From self.lang Require Export tactics class_instances primitive_laws.
 From self.lang Require Import lang notation.
@@ -17,14 +19,9 @@ Import uPred.
 
 Implicit Types (e : expr).
 
-Lemma tac_wp_expr_eval `{!nvmG Σ, !wpnvmG Σ} Δ s E (Φ : expr → dProp Σ) e e' :
-  (∀ (e'':=e'), e = e'') →
+Lemma tac_wp_expr_eval `{!nvmG Σ, !wpnvmG Σ} Δ s E Φ e e' : (∀ (e'':=e'), e = e'') →
   envs_entails Δ (WP e' @ s; E {{ Φ }}) → envs_entails Δ (WP e @ s; E {{ Φ }}).
 Proof. by intros ->. Qed.
-(* Lemma tac_twp_expr_eval `{!nvmG Σ} Δ s E Φ e e' :
-  (∀ (e'':=e'), e = e'') →
-  envs_entails Δ (WP e' @ s; E [{ Φ }]) → envs_entails Δ (WP e @ s; E [{ Φ }]).
-Proof. by intros ->. Qed. *)
 
 Tactic Notation "wp_expr_eval" tactic3(t) :=
   iStartProof;
@@ -56,11 +53,10 @@ Lemma pure_exec_fill K φ n e1 e2 :
   PureExecBase φ n e1 e2 →
   PureExecBase φ n (fill K e1) (fill K e2).
 Proof.
-  intros ? TV. rewrite !fill_fill. apply: pure_exec_ctx.
-  - admit.
-  Unshelve.
-  admit.
-Admitted.
+  intros ? TV. rewrite !fill_fill. apply pure_exec_ctx.
+  - apply: ectx_lang_ctx. (* FIXME: Why is this instance not picked up automatically? *)
+  - done.
+Qed.
 
 Lemma tac_wp_pure `{!nvmG Σ, !wpnvmG Σ} Δ Δ' s E K e1 e2 φ n Φ :
   (∀ TV, PureExec φ n (ThreadState e1 TV) (ThreadState e2 TV)) →
@@ -110,9 +106,9 @@ Ltac wp_value_head :=
   end.
 
 Ltac wp_finish :=
-  wp_expr_simpl.      (* simplify occurences of subst/fill *)
-  (* try wp_value_head. *)  (* in case we have reached a value, get rid of the WP *)
-  (* pm_prettify. *)        (* prettify ▷s caused by [MaybeIntoLaterNEnvs] and
+  wp_expr_simpl;      (* simplify occurences of subst/fill *)
+  try wp_value_head;  (* in case we have reached a value, get rid of the WP *)
+  pm_prettify.        (* prettify ▷s caused by [MaybeIntoLaterNEnvs] and
                          λs caused by wp_value *)
 
 Ltac solve_vals_compare_safe :=
