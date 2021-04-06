@@ -1,23 +1,18 @@
--Q theories self
+# Cannot use non-canonical projections as it causes massive unification failures
+# (https://github.com/coq/coq/issues/6294).
+-arg -w -arg -redundant-canonical-projection
+
+-Q src self
 -Q external/perennial/external/stdpp/theories stdpp
 -Q external/perennial/external/iris/iris iris
 -Q external/perennial/external/iris/iris_heap_lang iris.heap_lang
 -Q external/perennial/src Perennial
 
-# Cannot use non-canonical projections as it causes massive unification failures
-# (https://github.com/coq/coq/issues/6294).
--arg -w -arg -redundant-canonical-projection
-
-theories/extra.v
-theories/algebra/view.v
-theories/lang/syntax.v
-theories/lang/memory.v
-theories/lang/lang.v
-theories/lang/notation.v
-theories/dprop.v
-theories/lang/tactics.v
-theories/lang/primitive_laws.v
-theories/weakestpre.v
-theories/lang/class_instances.v
-theories/lang/proofmode.v
-theories/examples/simple.v
+# Included to ensure that Perennial can find what it is looking for
+-Q external/perennial/external/iris/iris_deprecated iris.deprecated
+-Q external/perennial/external/iris/iris_staging iris.staging
+-Q external/perennial/external/iris/iris_heap_lang iris.heap_lang
+-Q external/perennial/external/coqutil/src/coqutil coqutil
+-Q external/perennial/external/Goose Goose
+-Q external/perennial/external/record-update/src RecordUpdate
+-Q external/perennial/external/coq-tactical/src Tactical

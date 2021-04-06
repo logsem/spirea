@@ -1,0 +1,3 @@
+[submodule "external/perennial"]
+	path = external/perennial
+	url = git@github.com:mit-pdos/perennial.git

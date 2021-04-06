@@ -1,55 +1,63 @@
-# Default target
-all: Makefile.coq
-	+@$(MAKE) -f Makefile.coq all
-.PHONY: all
+SRC_DIRS := 'src' 'external'
+ALL_VFILES := $(shell find $(SRC_DIRS) -name "*.v")
+VFILES := $(shell find 'src' -name "*.v")
 
-# Permit local customization
--include Makefile.local
+# extract any global arguments for Coq from _CoqProject
+COQPROJECT_ARGS := $(shell sed -E -e '/^\#/d' -e 's/-arg ([^ ]*)/\1/g' _CoqProject)
+COQ_ARGS := -noglob
 
-# Forward most targets to Coq makefile (with some trick to make this phony)
-%: Makefile.coq phony
-	@#echo "Forwarding $@"
-	+@$(MAKE) -f Makefile.coq $@
-phony: ;
-.PHONY: phony
+Q:=@
 
-clean: Makefile.coq
-	+@$(MAKE) -f Makefile.coq clean
-	@# Make sure not to enter the `_opam` folder.
-	find [a-z]*/ \( -name "*.d" -o -name "*.vo" -o -name "*.vo[sk]" -o -name "*.aux" -o -name "*.cache" -o -name "*.glob" -o -name "*.vio" \) -print -delete || true
-	rm -f Makefile.coq .lia.cache builddep/*
-.PHONY: clean
+# COQC := coqc
 
-# Create Coq Makefile.
-Makefile.coq: _CoqProject Makefile
-	"$(COQBIN)coq_makefile" -f _CoqProject -o Makefile.coq $(EXTRA_COQFILES)
+ifneq (,$(TIMING))
+COQC := coqc
+else ifeq ($(TIMED), 1)
+COQC := time coqc
+else
+COQC := coqc
+endif
 
-# Install build-dependencies
-OPAMFILES=$(wildcard *.opam)
-BUILDDEPFILES=$(addsuffix -builddep.opam, $(addprefix builddep/,$(basename $(OPAMFILES))))
+# by default build all .vo files
+default: $(VFILES:.v=.vo)
 
-builddep/%-builddep.opam: %.opam Makefile
-	@echo "# Creating builddep package for $<."
-	@mkdir -p builddep
-	@sed <$< -E 's/^(build|install|remove):.*/\1: []/; s/"(.*)"(.*= *version.*)$$/"\1-builddep"\2/;' >$@
+vos: src/ShouldBuild.vos
+vok: $(QUICK_CHECK_FILES:.v=.vok)
 
-builddep-opamfiles: $(BUILDDEPFILES)
-.PHONY: builddep-opamfiles
+.coqdeps.d: $(ALL_VFILES) _CoqProject
+	@echo "COQDEP $@"
+	$(Q)coqdep -vos -f _CoqProject $(ALL_VFILES) > $@
 
-builddep: builddep-opamfiles
-	@# We want opam to not just install the build-deps now, but to also keep satisfying these
-	@# constraints.  Otherwise, `opam upgrade` may well update some packages to versions
-	@# that are incompatible with our build requirements.
-	@# To achieve this, we create a fake opam package that has our build-dependencies as
-	@# dependencies, but does not actually install anything itself.
-	@echo "# Installing builddep packages."
-	@opam install $(OPAMFLAGS) $(BUILDDEPFILES)
-.PHONY: builddep
+# do not try to build dependencies if cleaning or just building _CoqProject
+ifeq ($(filter clean,$(MAKECMDGOALS)),)
+-include .coqdeps.d
+endif
 
-# Backwards compatibility target
-build-dep: builddep
-.PHONY: build-dep
+ifneq (,$(TIMING))
+TIMING_ARGS=-time
+TIMING_EXT?=timing
+TIMING_EXTRA = > $<.$(TIMING_EXT)
+endif
 
-# Some files that do *not* need to be forwarded to Makefile.coq.
-# ("::" lets Makefile.local overwrite this.)
-Makefile Makefile.local _CoqProject $(OPAMFILES):: ;
+%.vo: %.v _CoqProject
+	@echo "COQC $<"
+	$(Q)$(COQC) $(COQPROJECT_ARGS) $(COQ_ARGS) $(TIMING_ARGS) -o $@ $< $(TIMING_EXTRA)
+
+%.vos: %.v _CoqProject
+	@echo "COQC -vos $<"
+	$(Q)$(COQC) $(COQPROJECT_ARGS) -vos $(COQ_ARGS) $< -o $@
+
+%.vok: %.v _CoqProject
+	@echo "COQC -vok $<"
+	$(Q)$(COQC) $(COQPROJECT_ARGS) $(TIMING_ARGS) -vok $(COQ_ARGS) $< -o $@
+
+clean:
+	@echo "CLEAN vo glob aux"
+	$(Q)find $(SRC_DIRS) \( -name "*.vo" -o -name "*.vo[sk]" \
+		-o -name ".*.aux" -o -name ".*.cache" -name "*.glob" \) -delete
+	$(Q)rm -f .lia.cache
+	rm -f .coqdeps.d
+
+.PHONY: default
+
+.DELETE_ON_ERROR:
