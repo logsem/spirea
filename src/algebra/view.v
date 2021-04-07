@@ -33,6 +33,9 @@ Proof. done. Qed.
 Global Instance subseteq_view_assoc : Assoc (=) (join_view).
 Proof. apply _. Qed.
 
+Global Instance join_mono : Proper ((⊑@{view}) ==> (⊑) ==> (⊑)) (⊔).
+Proof. solve_proper. Qed.
+
 Infix "!!0" := (λ m i, default 0 (max_nat_car <$> (m !! i))) (at level 80).
 
 Lemma view_empty_least V : ∅ ⊑ V. 
@@ -121,6 +124,7 @@ Proof.
 Qed.
 
 (* Instances of the lattice type classes for products. *)
+
 Global Instance join_prod `{!Join A, !Join B} : Join (A * B) :=
   λ '(a, b) '(a', b'), (a ⊔ a', b ⊔ b').
 
@@ -147,3 +151,15 @@ Proof.
   - intros [??] [??] [??]. rewrite !subseteq_prod'. intros [??] [??].
     split; etrans; done.
 Qed.
+
+(* Global Instance pair_join_mono `{!Join A, !Join B, !SqSubsetEq A, !SqSubsetEq B} : Proper ((⊑@{A * B}) ==> (⊑) ==> (⊑)) (⊔). *)
+(* Proof. *)
+(*   Check pointwise_relation. *)
+(*   intros [??] [??] ? ? ? ?. *)
+(* Admitted. *)
+  (* solve_proper.
+Qed. *)
+
+(* Global Instance foo_mono : *)
+(*   Proper (pointwise_relation _ (=) ==> (⊆) ==> (⊆)) (⊑). *)
+(* Proof. intros f g ? X Y. set_unfold; naive_solver. Qed. *)

@@ -424,3 +424,22 @@ Section wp_rules.
   *)
 
 End wp_rules.
+
+Section wp_things.
+  Context `{!nvmG Σ}.
+
+  Implicit Types (P : dProp Σ).
+
+  Program Definition post_fence P : dProp Σ :=
+    MonPred (λ '(s, p, b), P (s, (p ⊔ b), ∅)) _.
+  Next Obligation.
+    (* FIXME: Figure out if there is a way to make [solve_proper] handle this,
+    perhaps by using [pointwise_relatio]. *)
+    intros P. intros [[??]?] [[??]?] [[??]?]. rewrite /store_view /persist_view. simpl.
+    assert (g0 ⊔ g1 ⊑ g3 ⊔ g4). { solve_proper. }
+    apply monPred_mono.
+    rewrite !subseteq_prod'.
+    done.
+  Qed.
+
+End wp_things.

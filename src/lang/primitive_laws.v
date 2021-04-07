@@ -21,15 +21,6 @@ Class nvmG Σ := NvmG {
   persist_view_name : gname;                 (* For knowledge about the persisted view. *)
 }.
 
-(** A record of all the ghost names useb by [nvmG] that needs to change after a
-crash. *)
-Record nvm_names := {
-  name_gen_heap : gname;   (* Names used by [gen_heap]. *)
-  name_gen_meta : gname;
-  name_store_view : gname; (* Name used by the store view. *)
-  (* Note that the persist view does not need to change. *)
-}.
-
 (** Get the largest time of any message in a given history. *)
 Definition max_msg (h : history) : time :=
   max_list (elements (dom (gset time) h)).
@@ -89,18 +80,17 @@ Definition hist_inv lub hist `{!nvmG Σ} : iProp Σ :=
     (* Every view in every message is included in the lub view. *)
     ([∗ map] t ↦ msg ∈ hist, ⌜msg.(msg_store_view) ⊑ lub⌝))%I.
 
+Definition nvm_heap_ctx `{hG : !nvmG Σ} σ : iProp Σ :=
+  gen_heap_interp σ.1 ∗ (* The interpretation of the heap. This is standard, except the heap store historie and not plain values. *)
+  own store_view_name (● (lub_view σ.1)) ∗
+  ([∗ map] ℓ ↦ hist ∈ σ.1, hist_inv (lub_view σ.1) hist) ∗
+  own persist_view_name (● σ.2).
+
 Global Program Instance nvmG_irisG `{!nvmG Σ} : irisG nvm_lang Σ := {
   iris_invG := nvmG_invG;
   iris_crashG := nvmG_crashG;
   num_laters_per_step := λ n, n; (* This is they choice GooseLang takes. *)
-  state_interp σ _nt := (
-    (* The interpretation of the heap. This is standard, except the heap store
-    historie and not plain values. *)
-    gen_heap_interp σ.1 ∗
-    own store_view_name (● (lub_view σ.1)) ∗
-    ([∗ map] ℓ ↦ hist ∈ σ.1, hist_inv (lub_view σ.1) hist) ∗
-    own persist_view_name (● σ.2)
-  )%I;
+  state_interp σ _nt := nvm_heap_ctx σ;
   global_state_interp _g _ns _κs := True%I;
   fork_post _ := True%I;
 }.
