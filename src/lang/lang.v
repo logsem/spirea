@@ -454,7 +454,7 @@ Canonical Structure nvm_ectxi_lang := EctxiLanguage nvm_lang.nvm_lang_mixin.
 Canonical Structure nvm_ectx_lang := EctxLanguageOfEctxi nvm_ectxi_lang.
 Canonical Structure nvm_lang := LanguageOfEctx nvm_ectx_lang.
 
-Canonical Structure goose_crash_lang : crash_semantics nvm_lang :=
+Canonical Structure nvm_crash_lang : crash_semantics nvm_lang :=
   {| crash_prim_step := crash_step |}.
 
 Export nvm_lang.

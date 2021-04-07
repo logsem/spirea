@@ -13,16 +13,24 @@ From self.algebra Require Import view.
 From self.lang Require Import notation tactics.
 
 Class nvmG Σ := NvmG {
-  nvmG_invG : invG Σ;
-  nvmG_crashG : crashG Σ;
-  nvmG_gen_heapG :> gen_heapG loc history Σ;
-  view_inG :> inG Σ (authR viewUR);
-  (* heapG_inv_heapG :> inv_heapG loc (option val) Σ; *)
-  nvmG_proph_mapG :> proph_mapG proph_id (val * val) Σ;
-  store_view_name : gname;
-  persist_view_name : gname;
+  nvmG_invG : invG Σ;                        (* For invariants. *)
+  nvmG_crashG : crashG Σ;                    (* Stuff for Perennial. *)
+  nvmG_gen_heapG :> gen_heapG loc history Σ; (* For the heap. *)
+  view_inG :> inG Σ (authR viewUR);          (* For views. *)
+  store_view_name : gname;                   (* For validity of store views. *)
+  persist_view_name : gname;                 (* For knowledge about the persisted view. *)
 }.
 
+(** A record of all the ghost names useb by [nvmG] that needs to change after a
+crash. *)
+Record nvm_names := {
+  name_gen_heap : gname;   (* Names used by [gen_heap]. *)
+  name_gen_meta : gname;
+  name_store_view : gname; (* Name used by the store view. *)
+  (* Note that the persist view does not need to change. *)
+}.
+
+(** Get the largest time of any message in a given history. *)
 Definition max_msg (h : history) : time :=
   max_list (elements (dom (gset time) h)).
 
@@ -70,6 +78,9 @@ Proof.
   lia.
 Qed.
 
+(** Convert a [store] to a [view] by taking the largest time for of any message
+for each location. We call this the "lub view" b.c., in an actual execution this
+view will be the l.u.b. of all the threads views. *)
 Definition lub_view (heap : store) : view := MaxNat <$> (max_msg <$> heap).
 
 Definition hist_inv lub hist `{!nvmG Σ} : iProp Σ :=
@@ -81,19 +92,17 @@ Definition hist_inv lub hist `{!nvmG Σ} : iProp Σ :=
 Global Program Instance nvmG_irisG `{!nvmG Σ} : irisG nvm_lang Σ := {
   iris_invG := nvmG_invG;
   iris_crashG := nvmG_crashG;
-  state_interp σ _ := (
-    (* The interpetation of the heap. This is standard, except the heap store
+  num_laters_per_step := λ n, n; (* This is they choice GooseLang takes. *)
+  state_interp σ _nt := (
+    (* The interpretation of the heap. This is standard, except the heap store
     historie and not plain values. *)
-    gen_heap_interp (fst σ) ∗
-    own store_view_name (● (lub_view (fst σ))) ∗
-    ([∗ map] ℓ ↦ hist ∈ (fst σ), hist_inv (lub_view (fst σ)) hist) ∗
-    own persist_view_name (● (snd σ))
-    (* proph_map_interp κs σ.(used_proph_id) *)
+    gen_heap_interp σ.1 ∗
+    own store_view_name (● (lub_view σ.1)) ∗
+    ([∗ map] ℓ ↦ hist ∈ σ.1, hist_inv (lub_view σ.1) hist) ∗
+    own persist_view_name (● σ.2)
   )%I;
-  global_state_interp g ns κs := True%I;
+  global_state_interp _g _ns _κs := True%I;
   fork_post _ := True%I;
-  num_laters_per_step _ := 0;
-  (* state_interp_mono _ _ _ _ := fupd_intro _ _ *)
 }.
 Next Obligation. intros. eauto. Qed.
 
@@ -120,18 +129,15 @@ Section lifting.
   Implicit Types V W : view.
   Implicit Types hist : history.
 
-  (* Set Typeclasses Unique Solutions. *)
-  (* Definition hi ℓ hist := (ℓ ↦h hist, (λ (x : nat), (ℓ ↦h hist)))%I. *)
-  (* Set Typeclasses Debug. *)
-  (* Definition hi ℓ hist := (ℓ ↦h hist, (λ (x : nvmG Σ), (ℓ ↦h hist)))%I. *)
-  (* Set Printing All. *)
-  (* Print hi. *)
-
+  (* Expresses that the view [V] is valid. This means that it is included in the
+  lub view. *)
   Definition valid (V : view) : iProp Σ := own store_view_name (◯ V).
 
   Global Instance valid_persistent V : Persistent (valid V).
   Proof. apply _. Qed.
 
+  (* Expresses that the view [P] is persisted. This means that it is included in
+  the global persisted view. *)
   Definition persisted (V : view) : iProp Σ := own persist_view_name (◯ V).
 
   Global Instance persisted_persistent V : Persistent (persisted V).
