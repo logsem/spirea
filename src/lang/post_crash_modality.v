@@ -1,4 +1,4 @@
-(* In this file we define the crash modality for the base language. *)
+(* In this file we define the post crash modality for the base logic. *)
 From iris.proofmode Require Import reduction monpred tactics.
 
 From Perennial.program_logic Require Export crash_lang.
@@ -7,128 +7,145 @@ From self.lang Require Import lang primitive_laws.
 
 Set Default Proof Using "Type".
 
+(** If [σ] is the state before a crah and [σ'] the state after a crash, and [hG]
+and [hG'] the corresponding ghost state, then following property is true.*)
+Definition ghost_crash_rel {Σ}
+           (σ : mem_config) (hG : nvmG Σ) (σ' : mem_config) (hG' : nvmG Σ) : iProp Σ :=
+  ⌜hG.(@persist_view_name _) = hG'.(@persist_view_name _)⌝ ∗
+  ⌜hG.(@view_inG _) = hG'.(@view_inG _)⌝.
+
 (* Recall that [crash_step] is the state interpretation for our language. *)
-Definition post_crash {Σ} (P : nvmG Σ → iProp Σ) `{hG : !nvmG Σ} : iProp Σ :=
-  (∀ σ σ' (hG' : nvmG Σ),
-      ⌜crash_step σ σ'⌝ -∗ nvm_heap_ctx (hG := hG) σ -∗ nvm_heap_ctx (hG := hG') σ' -∗
-      (nvm_heap_ctx (hG := hG) σ ∗ nvm_heap_ctx (hG := hG') σ' ∗ P hG')).
+(* Definition post_crash {Σ} (P : nvmG Σ → iProp Σ) `{hG : !nvmG Σ} : iProp Σ := *)
+(*   (∀ σ σ' (hG' : nvmG Σ), *)
+(*       ⌜crash_step σ σ'⌝ -∗ nvm_heap_ctx (hG := hG) σ -∗ nvm_heap_ctx (hG := hG') σ' -∗ *)
+(*       (nvm_heap_ctx (hG := hG) σ ∗ nvm_heap_ctx (hG := hG') σ' ∗ P hG')). *)
+
+Definition post_crash {Σ} (P: nvmG Σ → iProp Σ) `{hG: !nvmG Σ}  : iProp Σ :=
+  (∀ σ σ' hG', ghost_crash_rel σ hG σ' hG' -∗ P hG').
 
 Class IntoCrash {Σ} `{!nvmG Σ} (P: iProp Σ) (Q: nvmG Σ → iProp Σ) :=
   into_crash : P -∗ post_crash (Σ := Σ) (λ hG', Q hG').
 
 Section post_crash_prop.
-Context `{hG: !nvmG Σ}.
-Implicit Types Φ : thread_val → iProp Σ.
-Implicit Types efs : list thread_state.
-Implicit Types σ : mem_config.
-Implicit Types v : thread_val.
+  Context `{hG: !nvmG Σ}.
+  Implicit Types Φ : thread_val → iProp Σ.
+  Implicit Types efs : list thread_state.
+  Implicit Types σ : mem_config.
+  Implicit Types v : thread_val.
 
-Definition hi := state_interp (∅, ∅).
-(* Set Printing All. *)
-Print hi.
-(* Existing Instances ffi_crash_rel_pers. *)
+  (** Tiny shortcut for introducing the assumption for a [post_crash]. *)
+  Ltac iIntrosPostCrash := iIntros (σ σ' hG') "%Hrel".
 
-(** Tiny shortcut for introducing the assumption for a [post_crash]. *)
-Ltac iIntrosPostCrash := iIntros (σ σ' hG') "%Hstep Hintrp Hintrp'".
+  Lemma post_crash_intro Q:
+    (⊢ Q) →
+    (⊢ post_crash (λ _, Q)).
+  Proof. iIntros (Hmono). iIntrosPostCrash. iApply Hmono. Qed.
 
-Lemma post_crash_intro Q:
-  (⊢ Q) →
-  (⊢ post_crash (λ _, Q)).
-Proof. iIntros (Hmono). iIntrosPostCrash. iFrame "∗". iApply Hmono. Qed.
+  (* Lemma post_crash_mono P Q: *)
+  (*   (∀ hG, P hG -∗ Q hG) → *)
+  (*   post_crash P -∗ post_crash Q. *)
+  (* Proof. *)
+  (*   iIntros (Hmono) "HP". iIntros (???) "#Hrel". *)
+  (*   iApply Hmono. iApply "HP"; eauto. *)
+  (* Qed. *)
 
-(* Lemma post_crash_mono P Q: *)
-(*   (∀ hG, P hG -∗ Q hG) → *)
-(*   post_crash P -∗ post_crash Q. *)
-(* Proof. *)
-(*   iIntros (Hmono) "HP". iIntros (???) "#Hrel". *)
-(*   iApply Hmono. iApply "HP"; eauto. *)
-(* Qed. *)
+  (* Lemma post_crash_pers P Q: *)
+  (*   (P -∗ post_crash Q) → *)
+  (*   □ P -∗ post_crash (λ hG, □ Q hG). *)
+  (* Proof. *)
+  (*   iIntros (Hmono) "#HP". iIntros (???) "#Hrel". *)
+  (*   iModIntro. iApply Hmono; eauto. *)
+  (* Qed. *)
 
-(* Lemma post_crash_pers P Q: *)
-(*   (P -∗ post_crash Q) → *)
-(*   □ P -∗ post_crash (λ hG, □ Q hG). *)
-(* Proof. *)
-(*   iIntros (Hmono) "#HP". iIntros (???) "#Hrel". *)
-(*   iModIntro. iApply Hmono; eauto. *)
-(* Qed. *)
+  Lemma post_crash_sep P Q:
+    post_crash P ∗ post_crash Q -∗ post_crash (λ hG, P hG ∗ Q hG).
+  Proof.
+    iIntros "(HP & HQ)".
+    iIntrosPostCrash.
+    iDestruct ("HP" $! σ σ' hG' Hrel) as "$".
+    iDestruct ("HQ" $! σ σ' hG' Hrel) as "$".
+  Qed.
 
-Lemma post_crash_sep P Q:
-  post_crash P ∗ post_crash Q -∗ post_crash (λ hG, P hG ∗ Q hG).
-Proof.
-  iIntros "(HP & HQ)".
-  iIntrosPostCrash.
-  iDestruct ("HP" $! _ _ _ Hstep with "Hintrp Hintrp'") as "(Hintrp & Hintrp' & $)".
-  iDestruct ("HQ" $! _ _ _ Hstep with "Hintrp Hintrp'") as "$".
-Qed.
+  (* Lemma post_crash_or P Q: *)
+  (*   post_crash P ∨ post_crash Q -∗ post_crash (λ hG, P hG ∨ Q hG). *)
+  (* Proof. *)
+  (*   iIntros "[HP|HQ]"; iIntros (???) "#Hrel". *)
+  (*   - iLeft. by iApply "HP". *)
+  (*   - iRight. by iApply "HQ". *)
+  (* Qed. *)
 
-(* Lemma post_crash_or P Q: *)
-(*   post_crash P ∨ post_crash Q -∗ post_crash (λ hG, P hG ∨ Q hG). *)
-(* Proof. *)
-(*   iIntros "[HP|HQ]"; iIntros (???) "#Hrel". *)
-(*   - iLeft. by iApply "HP". *)
-(*   - iRight. by iApply "HQ". *)
-(* Qed. *)
+  (* Lemma post_crash_and P Q: *)
+  (*   post_crash P ∧ post_crash Q -∗ post_crash (λ hG, P hG ∧ Q hG). *)
+  (* Proof. *)
+  (*   iIntros "HPQ"; iIntros (???) "#Hrel". *)
+  (*   iSplit. *)
+  (*   - iDestruct "HPQ" as "(HP&_)". by iApply "HP". *)
+  (*   - iDestruct "HPQ" as "(_&HQ)". by iApply "HQ". *)
+  (* Qed. *)
 
-(* Lemma post_crash_and P Q: *)
-(*   post_crash P ∧ post_crash Q -∗ post_crash (λ hG, P hG ∧ Q hG). *)
-(* Proof. *)
-(*   iIntros "HPQ"; iIntros (???) "#Hrel". *)
-(*   iSplit. *)
-(*   - iDestruct "HPQ" as "(HP&_)". by iApply "HP". *)
-(*   - iDestruct "HPQ" as "(_&HQ)". by iApply "HQ". *)
-(* Qed. *)
+  (* Lemma post_crash_pure (P: Prop) : *)
+  (*   P → ⊢ post_crash (λ _, ⌜ P ⌝). *)
+  (* Proof. *)
+  (*   iIntros (????); eauto. *)
+  (* Qed. *)
 
-(* Lemma post_crash_pure (P: Prop) : *)
-(*   P → ⊢ post_crash (λ _, ⌜ P ⌝). *)
-(* Proof. *)
-(*   iIntros (????); eauto. *)
-(* Qed. *)
+  (* Lemma post_crash_nodep (P: iProp Σ) : *)
+  (*   P -∗ post_crash (λ _, P). *)
+  (* Proof. iIntros "HP". iIntros (???); eauto. Qed. *)
 
-(* Lemma post_crash_nodep (P: iProp Σ) : *)
-(*   P -∗ post_crash (λ _, P). *)
-(* Proof. iIntros "HP". iIntros (???); eauto. Qed. *)
+  (* Lemma post_crash_exists {A} P Q: *)
+  (*   (∀ (x: A), P hG x -∗ post_crash (λ hG, Q hG x)) -∗ *)
+  (*   (∃ x, P hG x) -∗ post_crash (λ hG, ∃ x, Q hG x). *)
+  (* Proof. *)
+  (*   iIntros "Hall HP". iIntros (???) "#Hrel". *)
+  (*   iDestruct "HP" as (x) "HP". *)
+  (*   iExists x. iApply ("Hall" with "[$] [$]"). *)
+  (* Qed. *)
 
-(* Lemma post_crash_exists {A} P Q: *)
-(*   (∀ (x: A), P hG x -∗ post_crash (λ hG, Q hG x)) -∗ *)
-(*   (∃ x, P hG x) -∗ post_crash (λ hG, ∃ x, Q hG x). *)
-(* Proof. *)
-(*   iIntros "Hall HP". iIntros (???) "#Hrel". *)
-(*   iDestruct "HP" as (x) "HP". *)
-(*   iExists x. iApply ("Hall" with "[$] [$]"). *)
-(* Qed. *)
+  (* Lemma post_crash_forall {A} P Q: *)
+  (*   (∀ (x: A), P hG x -∗ post_crash (λ hG, Q hG x)) -∗ *)
+  (*   (∀ x, P hG x) -∗ post_crash (λ hG, ∀ x, Q hG x). *)
+  (* Proof. *)
+  (*   iIntros "Hall HP". iIntros (???) "#Hrel". *)
+  (*   iIntros (?). iApply ("Hall" with "[HP] [$]"). iApply "HP". *)
+  (* Qed. *)
 
-(* Lemma post_crash_forall {A} P Q: *)
-(*   (∀ (x: A), P hG x -∗ post_crash (λ hG, Q hG x)) -∗ *)
-(*   (∀ x, P hG x) -∗ post_crash (λ hG, ∀ x, Q hG x). *)
-(* Proof. *)
-(*   iIntros "Hall HP". iIntros (???) "#Hrel". *)
-(*   iIntros (?). iApply ("Hall" with "[HP] [$]"). iApply "HP". *)
-(* Qed. *)
+  (* Lemma post_crash_exists_intro {A} P (x: A): *)
+  (*   (∀ (x: A), P hG x -∗ post_crash (λ hG, P hG x)) -∗ *)
+  (*   P hG x -∗ post_crash (λ hG, ∃ x, P hG x). *)
+  (* Proof. *)
+  (*   iIntros "Hall HP". iIntros (???) "#Hrel". *)
+  (*   iExists x. iApply ("Hall" with "[$] [$]"). *)
+  (* Qed. *)
 
-(* Lemma post_crash_exists_intro {A} P (x: A): *)
-(*   (∀ (x: A), P hG x -∗ post_crash (λ hG, P hG x)) -∗ *)
-(*   P hG x -∗ post_crash (λ hG, ∃ x, P hG x). *)
-(* Proof. *)
-(*   iIntros "Hall HP". iIntros (???) "#Hrel". *)
-(*   iExists x. iApply ("Hall" with "[$] [$]"). *)
-(* Qed. *)
+  (* Global Instance from_exist_post_crash {A} (Φ: nvmG Σ → iProp Σ) (Ψ: nvmG Σ → A → iProp Σ) *)
+  (*   {Himpl: ∀ hG, FromExist (Φ hG) (λ x, Ψ hG x)} : *)
+  (*   FromExist (post_crash (λ hG, Φ hG)) (λ x, post_crash (λ hG, Ψ hG x)). *)
+  (* Proof. *)
+  (*   hnf; iIntros "H". *)
+  (*   iDestruct "H" as (x) "H". *)
+  (*   rewrite /post_crash. *)
+  (*   iIntros (σ σ' hG') "Hrel". *)
+  (*   iSpecialize ("H" with "Hrel"). *)
+  (*   iExists x; iFrame. *)
+  (* Qed. *)
 
-(* Global Instance from_exist_post_crash {A} (Φ: nvmG Σ → iProp Σ) (Ψ: nvmG Σ → A → iProp Σ) *)
-(*   {Himpl: ∀ hG, FromExist (Φ hG) (λ x, Ψ hG x)} : *)
-(*   FromExist (post_crash (λ hG, Φ hG)) (λ x, post_crash (λ hG, Ψ hG x)). *)
-(* Proof. *)
-(*   hnf; iIntros "H". *)
-(*   iDestruct "H" as (x) "H". *)
-(*   rewrite /post_crash. *)
-(*   iIntros (σ σ' hG') "Hrel". *)
-(*   iSpecialize ("H" with "Hrel"). *)
-(*   iExists x; iFrame. *)
-(* Qed. *)
+  (* Lemma post_crash_named P name: *)
+  (*   named name (post_crash (λ hG, P hG)) -∗ *)
+  (*   post_crash (λ hG, named name (P hG)). *)
+  (* Proof. rewrite //=. Qed. *)
 
-(* Lemma post_crash_named P name: *)
-(*   named name (post_crash (λ hG, P hG)) -∗ *)
-(*   post_crash (λ hG, named name (P hG)). *)
-(* Proof. rewrite //=. Qed. *)
+  Lemma post_crash_persisted P :
+    persisted P -∗ post_crash (λ hG', persisted P).
+  Proof.
+    iIntros "pers".
+    iIntrosPostCrash.
+    destruct Hrel as [pEq viewEq].
+    Set Printing All. (* It's time to dive deeper. *)
+    rewrite /persisted. rewrite pEq. rewrite viewEq.
+    Unset Printing All. (* Back to sanity. *)
+    iFrame "pers".
+  Qed.
 
 End post_crash_prop.
 
