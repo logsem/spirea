@@ -106,6 +106,33 @@ Notation "l ↦h{# q } v" := (mapsto (L:=loc) (V:=val) l (DfracOwn q) (Some v%V)
 Notation "l ↦h v" := (mapsto (L:=loc) (V:=history) l (DfracOwn 1) (v%V))
   (at level 20, format "l  ↦h  v") : bi_scope.
 
+Section view_ra_rules.
+  (** Rules for view RA. ***)
+  Context `{inG Σ (authR viewUR)}.
+
+  Lemma view_valid (V : view) : ✓ V.
+  Proof. intros ?. case (_ !! _); done. Qed.
+
+  Lemma auth_auth_view_grow_op γ V V' : ⊢ own γ (● V) ==∗ own γ (● (V ⋅ V')) ∗ own γ (◯ V').
+  Proof.
+    iIntros "H".
+    iMod (own_update with "H") as "[Ho Hf]".
+    { apply auth_update_alloc.
+      apply (op_local_update_discrete _ _ V').
+      intros. apply view_valid. }
+    rewrite comm.
+    rewrite right_id.
+    by iFrame.
+  Qed.
+
+  Lemma auth_auth_view_grow_incl γ V V' : V ⊑ V' → own γ (● V) ==∗ own γ (● V').
+  Proof.
+    iIntros ([x ->]) "H".
+    by iMod (auth_auth_view_grow_op with "H") as "[$ _]".
+  Qed.
+End view_ra_rules.
+
+
 Section lifting.
 
   Context `{!nvmG Σ}.
@@ -216,20 +243,13 @@ Section lifting.
     own store_view_name (◯ {[ ℓ := MaxNat t ]}).
   Proof.
     iIntros (look lt) "Olub".
-    pose proof (lub_view_insert_incl ℓ t msg hist heap look) as [V' eq].
-    iMod (own_update with "Olub") as "Olub".
-    { eapply (auth_update_auth _ (lub_view (<[ℓ:=<[t:=msg]> hist]> heap))).
-      rewrite eq.
-      rewrite comm.
-      simpl.
-      epose proof (op_local_update_discrete (lub_view heap) ε V').
-      apply H.
-      intros. apply view_valid. }
+    pose proof (lub_view_insert_incl ℓ t msg hist heap look) as incl.
+    iMod (auth_auth_view_grow_incl _ _ _ incl with "Olub") as "Olub".
     iMod (own_update with "Olub") as "[$ $]".
     { apply: auth_update_dfrac_alloc.
       erewrite lub_view_insert; [|apply lt|done].
       apply singleton_included_insert.
-      done. }
+      reflexivity. }
     done.
   Qed.
 
@@ -644,13 +664,8 @@ Section lifting.
        eapply impure_step; by econstructor; done.
     - iNext. iIntros (e2 σ2 [] efs Hstep).
       inv_impure_thread_step. iSplitR=>//.
-      iMod (own_update with "Hpers") as "[Hpers perB]".
-      { apply auth_update_alloc.
-        apply (op_local_update_discrete _ _ B).
-        intros. apply view_valid. }
+      iMod (auth_auth_view_grow_op with "Hpers") as "[$ perB]".
       iCombine "perP perB" as "perPB".
-      rewrite right_id.
-      replace (B ⋅ g0) with (g0 ⋅ B) by apply: comm.
       iModIntro. iFrame.
       iApply "HΦ". iFrame.
   Qed.
