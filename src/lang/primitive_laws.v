@@ -80,10 +80,13 @@ Definition hist_inv lub hist `{!nvmG Σ} : iProp Σ :=
     (* Every view in every message is included in the lub view. *)
     ([∗ map] t ↦ msg ∈ hist, ⌜msg.(msg_store_view) ⊑ lub⌝))%I.
 
+Definition store_inv `{hG : !nvmG Σ} store : iProp Σ :=
+  ([∗ map] ℓ ↦ hist ∈ store, hist_inv (lub_view store) hist).
+
 Definition nvm_heap_ctx `{hG : !nvmG Σ} σ : iProp Σ :=
   gen_heap_interp σ.1 ∗ (* The interpretation of the heap. This is standard, except the heap store historie and not plain values. *)
   own store_view_name (● (lub_view σ.1)) ∗
-  ([∗ map] ℓ ↦ hist ∈ σ.1, hist_inv (lub_view σ.1) hist) ∗
+  store_inv σ.1 ∗
   own persist_view_name (● σ.2).
 
 Global Program Instance nvmG_irisG `{!nvmG Σ} : irisG nvm_lang Σ := {

@@ -169,16 +169,26 @@ Section wp.
   Definition mapsto_ex `{Countable ST}
       ℓ (ss ss' : list (ST * val)) (ϕ : ST → val → dProp Σ) : dProp Σ :=
     (∃ (tGlobalPers tPers tStore : time) (abs_hist : gmap time (ST * val)) hist,
+
+      (* The abstract and physical history agrees on values. This map over two
+      lists also implies that their domans are equal. *)
       ⎡([∗ map] t ↦ msg; abs ∈ hist; abs_hist, ⌜msg.(msg_val) = abs.2⌝)⎤ ∗
+
+      (* The location ℓ points to the physical history expressed using the base logic. *)
       ⎡ℓ ↦h hist⎤ ∗
-      ⌜abs_hist !! tStore = last ss'⌝ ∗
+
+      (* [tStore] is the last message and it agrees with the last value in ss'. *)
+      ⌜abs_hist !! tStore = last ss'⌝ ∗ (* The last element of  *)
       ⌜(∀ t', tStore < t' → abs_hist !! t' = None)⌝ ∗
+
       (* ⌜max_member abs_hist tStore ⌝ ∗ *)
       (* ⌜map_slice abs_hist tGlobalPers tStore (ss ++ ss')⌝ ∗ *)
-      (* ⌜map_slice abs_hist tPers tStore ss'⌝ ∗ *)
+      (* ⌜map_slice abs_hist tGlobalPers tPers ss⌝ ∗ *)
+
       (* We "have"/"know" of the three timestamps. *)
       monPred_in ({[ ℓ := MaxNat tStore ]}, {[ ℓ := MaxNat tPers ]}, ∅) ∗
-      ⎡persisted ({[ ℓ := MaxNat tGlobalPers ]} : view)⎤).
+      ⎡persisted ({[ ℓ := MaxNat tGlobalPers ]} : view)⎤
+    ).
 
   (*
   Definition mapsto_read `{!SqSubsetEq abs_state, !PreOrder (⊑@{abs_state})}

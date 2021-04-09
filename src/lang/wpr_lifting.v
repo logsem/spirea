@@ -6,6 +6,7 @@ From Perennial.algebra Require Import proph_map.
 From Perennial.program_logic Require Import recovery_weakestpre recovery_adequacy.
 (* From Perennial.goose_lang Require Import crash_modality typing adequacy lang. *)
 
+From self Require Import extra.
 From self.lang Require Import lang primitive_laws post_crash_modality.
 
 Set Default Proof Using "Type".
@@ -116,22 +117,37 @@ Section wpr.
       * iIntros. by iApply "H".
   Qed.
 
+  Lemma store_inv_cut store p :
+    store_inv store -∗ store_inv (cut_store p store).
+  Proof.
+    rewrite /store_inv.
+    rewrite /cut_store.
+    (* big_sepM_mono. *)
+    (* big_sepM_impl *)
+    (* map_imap *)
+  Admitted.
+
+  Definition persist_auth {hG : nvmG Σ} (σ : mem_config) := own persist_view_name (● σ.2).
+
   Lemma nvm_heap_reinit (hG' : nvmG Σ) σ σ' (Hinv : invG Σ) (Hcrash : crashG Σ) :
     crash_step σ σ' →
-    ⊢ nvm_heap_ctx (hG := hG') σ ==∗
-        ∃ names : nvm_names,
-          ghost_crash_rel σ hG' σ' (nvm_update Σ hG' Hinv Hcrash names) ∗
-          nvm_heap_ctx (hG := nvm_update Σ hG' Hinv Hcrash names) σ'.
-  Proof.
-    iIntros ([store p p' pIncl]) "(? & ? & ? & pers)".
+    ⊢ store_inv (hG := hG') σ.1 -∗
+      persist_auth (hG := hG') σ
+      ==∗
+      ∃ names : nvm_names,
+        ghost_crash_rel σ hG' σ' (nvm_update Σ hG' Hinv Hcrash names) ∗
+        post_crash_map σ.1 hG' (nvm_update Σ hG' Hinv Hcrash names) ∗
+        nvm_heap_ctx (hG := nvm_update Σ hG' Hinv Hcrash names) σ'.
+  Proof using hG Σ.
+    iIntros ([store p p' pIncl]) "invs pers".
     rewrite /nvm_heap_ctx. simpl.
     (* Allocate a new heap at a _new_ ghost name. *)
-    iMod (gen_heap_init_names (cut_history p' store)) as (γh γm) "[heap RSE]".
+    iMod (gen_heap_init_names (cut_store p' store)) as (γh γm) "(heapNew & ptsMap & _)".
     (* Update the persisted view _in place_. *)
     iMod (auth_auth_view_grow_incl with "pers") as "pers".
     { apply pIncl. }
     (* Allocate the store view at a _new_ ghost name. *)
-    iMod (own_alloc (● lub_view (cut_history p' store))) as (storeG) "store".
+    iMod (own_alloc (● lub_view (cut_store p' store))) as (storeG) "store".
     { apply auth_auth_valid. apply view_valid. }
     iModIntro.
     iExists {| name_heap_names := Build_nvm_heap_names γh γm;
@@ -139,7 +155,14 @@ Section wpr.
     iFrame.
     (* We show the ghost crash relation. *)
     iSplit. { done. }
-  Admitted.
+    iSplitL "ptsMap".
+    { rewrite /post_crash_map. rewrite /cut_store. simpl.
+      rewrite big_sepM_imap.
+      iApply (big_sepM_impl with "ptsMap").
+      iModIntro. iIntros (ℓ hist eq) "pts".
+      iRight. iExists _. iFrame. }
+    iApply (store_inv_cut with "invs").
+  Qed.
 
   Lemma idempotence_wpr `{!ffi_interp_adequacy} s k E1 e rec Φx Φinv Φrx Φcx :
     ⊢ WPC e @ s ; k ; E1 {{ Φx }} {{ Φcx hG }} -∗
@@ -155,18 +178,18 @@ Section wpr.
     { simpl. rewrite nvm_update_id. iAssumption. }
     { iModIntro. iIntros (? t σ_pre_crash g σ_post_crash Hcrash ns κs ?) "H".
       iSpecialize ("Hidemp" $! (nvm_update _ _ _ _ _) with "[//] [//] H").
-      iIntros "interp Hg".
+      iIntros "(heap & authStor & inv & pers) Hg".
       (* Build new ghost state. *)
-      iMod (nvm_heap_reinit _ _ _ _ Hc with "interp") as (hnames) "[%rel interp']"; first apply Hcrash.
+      iMod (nvm_heap_reinit _ _ _ _ Hc with "inv pers") as (hnames) "(%rel & map & interp')"; first apply Hcrash.
       iModIntro.
       iNext. iIntros (Hc' ?) "HNC".
       set (hG' := (nvm_update _ _ _ Hc' hnames)).
       rewrite /post_crash.
-      iDestruct ("Hidemp" $! σ_pre_crash σ_post_crash hG' rel) as "P".
+      (* rewrite nvm_update_update. *)
+      iDestruct ("Hidemp" $! σ_pre_crash σ_post_crash hG' rel with "map heap interp'") as "(? & ? & ? & ?)".
       iExists ({| pbundleT := hnames |}).
       iModIntro.
       rewrite /state_interp//=.
-      rewrite nvm_update_update.
       iFrame. }
   Qed.
 

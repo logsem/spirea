@@ -7,6 +7,12 @@ From self.lang Require Import lang primitive_laws.
 
 Set Default Proof Using "Type".
 
+Definition post_crash_map {Σ} (σ__old : store) (hG hG' : nvmG Σ) : iProp Σ :=
+  [∗ map] ℓ ↦ hist ∈ σ__old,
+    (let hG := hG in ℓ ↦h hist) ∨ (let hG' := hG' in ∃ t, ℓ ↦h cut_history t hist).
+
+(* Note: The [let]s above are to manipulate the type class instance search. *)
+
 (** If [σ] is the state before a crah and [σ'] the state after a crash, and [hG]
 and [hG'] the corresponding ghost state, then following property is true.*)
 Definition ghost_crash_rel {Σ}
@@ -21,7 +27,15 @@ Definition ghost_crash_rel {Σ}
 (*       (nvm_heap_ctx (hG := hG) σ ∗ nvm_heap_ctx (hG := hG') σ' ∗ P hG')). *)
 
 Definition post_crash {Σ} (P: nvmG Σ → iProp Σ) `{hG: !nvmG Σ}  : iProp Σ :=
-  (∀ σ σ' hG', ghost_crash_rel σ hG σ' hG' -∗ P hG').
+  (∀ σ σ' hG',
+    ghost_crash_rel σ hG σ' hG' -∗
+    post_crash_map σ.1 hG hG' -∗
+    gen_heap_interp (hG := @nvmG_gen_heapG _ hG) σ.1 -∗
+    nvm_heap_ctx (hG := hG') σ' -∗ (* Note: This is not used yet. Remove it if it turns out not to be needed. *)
+    ( post_crash_map σ.1 hG hG' ∗
+      gen_heap_interp (hG := @nvmG_gen_heapG _ hG) σ.1 ∗
+      nvm_heap_ctx (hG := hG') σ' ∗
+      P hG')).
 
 Class IntoCrash {Σ} `{!nvmG Σ} (P: iProp Σ) (Q: nvmG Σ → iProp Σ) :=
   into_crash : P -∗ post_crash (Σ := Σ) (λ hG', Q hG').
@@ -34,12 +48,12 @@ Section post_crash_prop.
   Implicit Types v : thread_val.
 
   (** Tiny shortcut for introducing the assumption for a [post_crash]. *)
-  Ltac iIntrosPostCrash := iIntros (σ σ' hG') "%Hrel".
+  Ltac iIntrosPostCrash := iIntros (σ σ' hG') "%rel map heap ctxPost".
 
   Lemma post_crash_intro Q:
     (⊢ Q) →
     (⊢ post_crash (λ _, Q)).
-  Proof. iIntros (Hmono). iIntrosPostCrash. iApply Hmono. Qed.
+  Proof. iIntros (Hmono). iIntrosPostCrash. iFrame "∗". iApply Hmono. Qed.
 
   (* Lemma post_crash_mono P Q: *)
   (*   (∀ hG, P hG -∗ Q hG) → *)
@@ -62,8 +76,8 @@ Section post_crash_prop.
   Proof.
     iIntros "(HP & HQ)".
     iIntrosPostCrash.
-    iDestruct ("HP" $! σ σ' hG' Hrel) as "$".
-    iDestruct ("HQ" $! σ σ' hG' Hrel) as "$".
+    iDestruct ("HP" $! σ σ' hG' rel with "[$] [$] [$]") as "(map & ctxPre & ctxPost & $)".
+    iDestruct ("HQ" $! σ σ' hG' rel with "[$] [$] [$]") as "$".
   Qed.
 
   (* Lemma post_crash_or P Q: *)
@@ -139,12 +153,26 @@ Section post_crash_prop.
     persisted P -∗ post_crash (λ hG', persisted P).
   Proof.
     iIntros "pers".
-    iIntrosPostCrash.
-    destruct Hrel as [pEq viewEq].
+    iIntrosPostCrash. iFrame.
+    destruct rel as [pEq viewEq].
     Set Printing All. (* It's time to dive deeper. *)
     rewrite /persisted. rewrite pEq. rewrite viewEq.
     Unset Printing All. (* Back to sanity. *)
     iFrame "pers".
+  Qed.
+
+  Lemma post_crash_mapsto ℓ hist :
+    ℓ ↦h hist -∗ post_crash (λ hG', ∃ t, ℓ ↦h cut_history t hist).
+  Proof.
+    iIntros "pts".
+    iIntrosPostCrash.
+    iAssert (⌜σ.1 !! ℓ = Some hist⌝)%I as %elemof.
+    { iApply (gen_heap_valid with "heap pts"). }
+    iDestruct (big_sepM_lookup_acc with "map") as "[[pts' | newPts] reIns]"; first done.
+    { iDestruct (mapsto_ne with "pts pts'") as %hi. done. }
+    (* We reinsert. *)
+    iDestruct ("reIns" with "[$pts]") as "map".
+    iFrame.
   Qed.
 
 End post_crash_prop.

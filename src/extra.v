@@ -3,8 +3,10 @@ words, our own little (std++)++. *)
 
 From stdpp Require Import countable numbers gmap fin_maps list.
 From iris Require Import cmra.
+From iris.bi Require Import big_op.
 From iris.algebra Require Import gmap.
 
+From iris.bi Require Import derived_laws_later.
 
 (* Section union_with.
 
@@ -112,3 +114,7 @@ Proof.
   exists a'.
   split. - by rewrite lookup_insert. - apply Some_included. right. done.
 Qed.
+
+Lemma big_sepM_imap {PROP : bi} `{Countable K} {A B} (f : K → A → B) (Φ : K → B → PROP) (m : gmap K A) :
+  ([∗ map] k↦y ∈ map_imap (λ (k : K) a, Some (f k a)) m, Φ k y) ⊣⊢ ([∗ map] k↦y ∈ m, Φ k (f k y)).
+Proof. Admitted.

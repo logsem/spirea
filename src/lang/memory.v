@@ -177,12 +177,16 @@ Section memory.
               MEvFenceSync
               (σ, p ⊔ B) (V, P ⊔ B, ∅).
 
+  (* Removes all messages from [hist] after [t]. *)
+  Definition cut_history t (hist : history) : history :=
+    filter (λ '(t', ev), t' ≤ t) hist.
+
   (* Removes all events from histories after the view. *)
-  Definition cut_history p σ : store :=
-    map_imap (λ ℓ h, let t' := p !!0 ℓ in Some (filter (λ '(t, ev), t ≤ t') h)) σ.
+  Definition cut_store p σ : store :=
+    map_imap (λ ℓ hist, let t := p !!0 ℓ in Some (cut_history t hist)) σ.
 
   Definition consistent_cut p σ : Prop :=
-    map_Forall (λ ℓ h, map_Forall (λ _ ev, (msg_persist_view ev) ⊑ p) h) (cut_history p σ).
+    map_Forall (λ ℓ h, map_Forall (λ _ ev, (msg_persist_view ev) ⊑ p) h) (cut_store p σ).
 
   (* The crash step is different from the other steps in that it does not depend
   on any current thread. We therefore define it as a separate type. *)
@@ -190,7 +194,7 @@ Section memory.
   | MCrashStep σ p p' :
      p ⊑ p' →
      consistent_cut p' σ →
-     crash_step (σ, p) (cut_history p' σ, p').
+     crash_step (σ, p) (cut_store p' σ, p').
 
   (* It is always possible to allocate a section of memory. *)
   Lemma alloc_fresh v (len : nat) σ p V P B :
