@@ -121,11 +121,27 @@ Section wpr.
     store_inv store -∗ store_inv (cut_store p store).
   Proof.
     rewrite /store_inv.
-    rewrite /cut_store.
-    (* big_sepM_mono. *)
-    (* big_sepM_impl *)
-    (* map_imap *)
-  Admitted.
+    (* rewrite /cut_store. *)
+    rewrite big_sepM_imap.
+    iIntros "m".
+    iApply (big_sepM_impl with "m").
+    iModIntro. iIntros (ℓ hist eq) "[%iss m]".
+    destruct iss as [x eq'].
+    rewrite /discard_store_views.
+    iSplit.
+    { iPureIntro. eexists (Msg _ _ _).
+      rewrite /cut_history.
+      apply lookup_fmap_Some.
+      exists x.
+      split; first done.
+      apply map_filter_lookup_Some_2; [done|lia]. }
+    rewrite big_sepM_fmap.
+    rewrite big_sepM_filter.
+    iApply (big_sepM_impl with "m").
+    iModIntro. iPureIntro. intros t msg eq2 incl le.
+    simpl.
+    apply view_empty_least.
+  Qed.
 
   Definition persist_auth {hG : nvmG Σ} (σ : mem_config) := own persist_view_name (● σ.2).
 

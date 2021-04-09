@@ -9,7 +9,8 @@ Set Default Proof Using "Type".
 
 Definition post_crash_map {Σ} (σ__old : store) (hG hG' : nvmG Σ) : iProp Σ :=
   [∗ map] ℓ ↦ hist ∈ σ__old,
-    (let hG := hG in ℓ ↦h hist) ∨ (let hG' := hG' in ∃ t, ℓ ↦h cut_history t hist).
+    (let hG := hG in ℓ ↦h hist) ∨
+    (let hG' := hG' in ∃ t, ℓ ↦h (discard_store_views $ cut_history t hist)).
 
 (* Note: The [let]s above are to manipulate the type class instance search. *)
 
@@ -162,7 +163,7 @@ Section post_crash_prop.
   Qed.
 
   Lemma post_crash_mapsto ℓ hist :
-    ℓ ↦h hist -∗ post_crash (λ hG', ∃ t, ℓ ↦h cut_history t hist).
+    ℓ ↦h hist -∗ post_crash (λ hG', ∃ t, ℓ ↦h (discard_store_views $ cut_history t hist)).
   Proof.
     iIntros "pts".
     iIntrosPostCrash.

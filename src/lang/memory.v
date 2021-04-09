@@ -181,9 +181,12 @@ Section memory.
   Definition cut_history t (hist : history) : history :=
     filter (λ '(t', ev), t' ≤ t) hist.
 
+  Definition discard_store_views (hist : history) : history :=
+    (λ msg, Msg msg.(msg_val) ∅ msg.(msg_persist_view)) <$> hist.
+
   (* Removes all events from histories after the view. *)
   Definition cut_store p σ : store :=
-    map_imap (λ ℓ hist, let t := p !!0 ℓ in Some (cut_history t hist)) σ.
+    map_imap (λ ℓ hist, let t := p !!0 ℓ in Some (discard_store_views $ cut_history t hist)) σ.
 
   Definition consistent_cut p σ : Prop :=
     map_Forall (λ ℓ h, map_Forall (λ _ ev, (msg_persist_view ev) ⊑ p) h) (cut_store p σ).
