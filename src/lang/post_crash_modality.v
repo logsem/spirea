@@ -7,13 +7,18 @@ From self.lang Require Import lang primitive_laws.
 
 Set Default Proof Using "Type".
 
+Definition mapsto_post_crash {Σ} (hG : nvmG Σ) ℓ (hist : history) : iProp Σ :=
+  (∃ t msg, ⌜hist !! t = Some msg⌝ ∗
+            ℓ ↦h ({[ 0 := discard_store_view msg]}) ∗
+            recovered {[ ℓ := MaxNat t ]}) ∨
+  (∀ t, ¬ (recovered {[ ℓ := MaxNat t ]})).
+
 Definition post_crash_map {Σ} (σ__old : store) (hG hG' : nvmG Σ) : iProp Σ :=
-  [∗ map] ℓ ↦ hist ∈ σ__old,
-    (let hG := hG in ℓ ↦h hist) ∨
-    (let hG' := hG' in ∃ t, ℓ ↦h (discard_store_views $ cut_history t hist)).
+  [∗ map] ℓ ↦ hist ∈ σ__old, (let hG := hG in ℓ ↦h hist) ∨ (mapsto_post_crash hG' ℓ hist).
 
 (* Note: The [let]s above are to manipulate the type class instance search. *)
 
+                            (* ([∗ map] msg ∈ (discard_store_views $ cut_history t hist), recovered msg.(msg_persist_view)) *)
 (** If [σ] is the state before a crah and [σ'] the state after a crash, and [hG]
 and [hG'] the corresponding ghost state, then following property is true.*)
 Definition ghost_crash_rel {Σ}
@@ -163,7 +168,7 @@ Section post_crash_prop.
   Qed.
 
   Lemma post_crash_mapsto ℓ hist :
-    ℓ ↦h hist -∗ post_crash (λ hG', ∃ t, ℓ ↦h (discard_store_views $ cut_history t hist)).
+    ℓ ↦h hist -∗ post_crash (λ hG', mapsto_post_crash hG' ℓ hist).
   Proof.
     iIntros "pts".
     iIntrosPostCrash.

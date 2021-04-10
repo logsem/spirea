@@ -11,6 +11,7 @@ From self.lang Require Import lang primitive_laws post_crash_modality.
 
 Set Default Proof Using "Type".
 
+(** Names for the heap that should be changed after a crash. *)
 Record nvm_heap_names := {
   name_gen_heap : gname;
   name_gen_meta : gname;
@@ -31,7 +32,13 @@ Record nvm_names := {
   name_heap_names : nvm_heap_names;   (* Names used by [gen_heap]. *)
   name_store_view : gname; (* Name used by the store view. *)
   (* Note that the persist view does not need to change. *)
+  name_recovered_view : gname; (* Name used by the recover view. *)
 }.
+
+Definition nvm_get_names Σ (hG : nvmG Σ) : nvm_names :=
+  {| name_heap_names := nvm_get_heap_names nvmG_gen_heapG;
+     name_store_view := store_view_name;
+     name_recovered_view := recovered_view_name |}.
 
 Canonical Structure nvm_namesO := leibnizO nvm_names.
 
@@ -44,11 +51,8 @@ Definition nvm_update Σ (hG : nvmG Σ) (Hinv : invG Σ) (Hcrash : crashG Σ) (n
      nvmG_gen_heapG := nvm_heap_update hG.(@nvmG_gen_heapG _) names.(name_heap_names);
      view_inG := hG.(@view_inG _);
      store_view_name := names.(name_store_view);
-     persist_view_name := hG.(@persist_view_name _) |}.
-
-Definition nvm_get_names Σ (hG : nvmG Σ) : nvm_names :=
-  {| name_heap_names := nvm_get_heap_names nvmG_gen_heapG;
-     name_store_view := store_view_name; |}.
+     persist_view_name := hG.(@persist_view_name _);
+     recovered_view_name := names.(name_recovered_view) |}.
 
 (* Lemma heap_update_eq {Σ} heapG' (heapG : gen_heapG loc history Σ) : *)
 (*   (@nvm_heap_update Σ heapG' (@nvm_get_heap_names (@gmap nat nat_eq_dec nat_countable message) Σ heapG)) *)
@@ -118,32 +122,41 @@ Section wpr.
   Qed.
 
   Lemma store_inv_cut store p :
-    store_inv store -∗ store_inv (cut_store p store).
+    store_inv store -∗ store_inv (slice_of_store p store).
   Proof.
-    rewrite /store_inv.
-    (* rewrite /cut_store. *)
-    rewrite big_sepM_imap.
-    iIntros "m".
-    iApply (big_sepM_impl with "m").
-    iModIntro. iIntros (ℓ hist eq) "[%iss m]".
-    destruct iss as [x eq'].
-    rewrite /discard_store_views.
-    iSplit.
-    { iPureIntro. eexists (Msg _ _ _).
-      rewrite /cut_history.
-      apply lookup_fmap_Some.
-      exists x.
-      split; first done.
-      apply map_filter_lookup_Some_2; [done|lia]. }
-    rewrite big_sepM_fmap.
-    rewrite big_sepM_filter.
-    iApply (big_sepM_impl with "m").
-    iModIntro. iPureIntro. intros t msg eq2 incl le.
-    simpl.
-    apply view_empty_least.
-  Qed.
+  Admitted.
+
+  (* Lemma store_inv_cut store p : *)
+  (*   store_inv store -∗ store_inv (cut_store p store). *)
+  (* Proof. *)
+  (*   rewrite /store_inv. *)
+  (*   (* rewrite /cut_store. *) *)
+  (*   rewrite big_sepM_imap. *)
+  (*   iIntros "m". *)
+  (*   iApply (big_sepM_impl with "m"). *)
+  (*   iModIntro. iIntros (ℓ hist eq) "[%iss m]". *)
+  (*   destruct iss as [x eq']. *)
+  (*   rewrite /discard_store_views. *)
+  (*   iSplit. *)
+  (*   { iPureIntro. eexists (Msg _ _ _). *)
+  (*     rewrite /cut_history. *)
+  (*     apply lookup_fmap_Some. *)
+  (*     exists x. *)
+  (*     split; first done. *)
+  (*     apply map_filter_lookup_Some_2; [done|lia]. } *)
+  (*   rewrite big_sepM_fmap. *)
+  (*   rewrite big_sepM_filter. *)
+  (*   iApply (big_sepM_impl with "m"). *)
+  (*   iModIntro. iPureIntro. intros t msg eq2 incl le. *)
+  (*   simpl. *)
+  (*   apply view_empty_least. *)
+  (* Qed. *)
 
   Definition persist_auth {hG : nvmG Σ} (σ : mem_config) := own persist_view_name (● σ.2).
+
+  Instance tt (p : view) : CoreId (●□ p).
+  Proof. do 2 constructor; simpl; auto. apply: core_id_core. Qed.
+
 
   Lemma nvm_heap_reinit (hG' : nvmG Σ) σ σ' (Hinv : invG Σ) (Hcrash : crashG Σ) :
     crash_step σ σ' →
@@ -158,27 +171,60 @@ Section wpr.
     iIntros ([store p p' pIncl]) "invs pers".
     rewrite /nvm_heap_ctx. simpl.
     (* Allocate a new heap at a _new_ ghost name. *)
-    iMod (gen_heap_init_names (cut_store p' store)) as (γh γm) "(heapNew & ptsMap & _)".
+    iMod (gen_heap_init_names (slice_of_store p' store)) as (γh γm) "(heapNew & ptsMap & _)".
     (* Update the persisted view _in place_. *)
     iMod (auth_auth_view_grow_incl with "pers") as "pers".
     { apply pIncl. }
     (* Allocate the store view at a _new_ ghost name. *)
-    iMod (own_alloc (● lub_view (cut_store p' store))) as (storeG) "store".
+    iMod (own_alloc (● lub_view (slice_of_store p' store))) as (storeG) "store".
     { apply auth_auth_valid. apply view_valid. }
+    (* Allocate the recovered view at a _new_ ghost name. *)
+    iMod (own_alloc (● p' ⋅ ◯ p')) as (recoveredG) "[recovered #recFrag]".
+    { apply auth_both_valid_2; [apply view_valid|done]. }
+    iMod (own_update with "recovered") as "recovered".
+    { apply auth_update_auth_persist. }
+    iDestruct "recovered" as "#recovered".
     iModIntro.
     iExists {| name_heap_names := Build_nvm_heap_names γh γm;
-               name_store_view := storeG |}.
+               name_store_view := storeG;
+               name_recovered_view := recoveredG |}.
     iFrame.
     (* We show the ghost crash relation. *)
     iSplit. { done. }
     iSplitL "ptsMap".
-    { rewrite /post_crash_map. rewrite /cut_store. simpl.
-      rewrite big_sepM_imap.
-      iApply (big_sepM_impl with "ptsMap").
-      iModIntro. iIntros (ℓ hist eq) "pts".
-      iRight. iExists _. iFrame. }
-    iApply (store_inv_cut with "invs").
-  Qed.
+    { rewrite /post_crash_map. rewrite /slice_of_store. simpl.
+      rewrite /mapsto_post_crash. rewrite /recovered.
+
+      iEval (rewrite -(map_union_filter (λ '(ℓ, _), is_Some(p' !! ℓ)) store)).
+      rewrite big_sepM_union.
+      2: { apply map_disjoint_filter. }
+      iSplitR "recovered"; last first.
+      { rewrite big_sepM_filter.
+        iApply big_sepM_intuitionistically_forall.
+        iModIntro. iIntros (ℓ hist look not).
+        iRight.
+        iRight.
+        iIntros (t) "own".
+        iDestruct (own_valid_2 with "recovered own") as %[_ [incl _]]%auth_both_dfrac_valid_discrete.
+        iPureIntro.
+        apply not.
+        (* rewrite look in not. *)
+        apply singleton_included_l in incl.
+        destruct incl as [y [eq%leibniz_equiv _]].
+        exists y. done. }
+      (* FIXME: This seems a bit difficult due to a lack of suitable lemmas. *)
+      iApply (big_sepM_impl' with "ptsMap").
+      * admit.
+      * iModIntro. iIntros (ℓ hist hist').
+        (* rewrite map_lookup_zip_with. *)
+        (* rewrite lookup_map_zip_with. *)
+        simpl.
+        iIntros (look1 look2) "pts".
+        iRight.
+        admit. }
+    iDestruct (store_inv_cut with "invs") as "$".
+    iExists p'. iFrame.
+  Admitted.
 
   Lemma idempotence_wpr `{!ffi_interp_adequacy} s k E1 e rec Φx Φinv Φrx Φcx :
     ⊢ WPC e @ s ; k ; E1 {{ Φx }} {{ Φcx hG }} -∗
@@ -194,7 +240,7 @@ Section wpr.
     { simpl. rewrite nvm_update_id. iAssumption. }
     { iModIntro. iIntros (? t σ_pre_crash g σ_post_crash Hcrash ns κs ?) "H".
       iSpecialize ("Hidemp" $! (nvm_update _ _ _ _ _) with "[//] [//] H").
-      iIntros "(heap & authStor & inv & pers) Hg".
+      iIntros "(heap & authStor & inv & pers & recov) Hg".
       (* Build new ghost state. *)
       iMod (nvm_heap_reinit _ _ _ _ Hc with "inv pers") as (hnames) "(%rel & map & interp')"; first apply Hcrash.
       iModIntro.

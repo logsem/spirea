@@ -19,13 +19,14 @@ Class nvmG Σ := NvmG {
   view_inG :> inG Σ (authR viewUR);          (* For views. *)
   store_view_name : gname;                   (* For validity of store views. *)
   persist_view_name : gname;                 (* For knowledge about the persisted view. *)
+  recovered_view_name : gname;               (* For knowledge about the view recovered after the last crash. *)
 }.
 
 (** Get the largest time of any message in a given history. *)
 Definition max_msg (h : history) : time :=
   max_list (elements (dom (gset time) h)).
 
-(***** Lemmas about [max_msg]. *)
+(**** Lemmas about [max_msg]. *)
 
 Lemma lookup_max_msg (hist : history) :
   is_Some (hist !! 0) → is_Some (hist !! max_msg hist).
@@ -87,7 +88,8 @@ Definition nvm_heap_ctx `{hG : !nvmG Σ} σ : iProp Σ :=
   gen_heap_interp σ.1 ∗ (* The interpretation of the heap. This is standard, except the heap store historie and not plain values. *)
   own store_view_name (● (lub_view σ.1)) ∗
   store_inv σ.1 ∗
-  own persist_view_name (● σ.2).
+  own persist_view_name (● σ.2) ∗
+  (∃ (rv : view), own recovered_view_name (● rv)).
 
 Global Program Instance nvmG_irisG `{!nvmG Σ} : irisG nvm_lang Σ := {
   iris_invG := nvmG_invG;
@@ -153,7 +155,13 @@ Section lifting.
   lub view. *)
   Definition valid (V : view) : iProp Σ := own store_view_name (◯ V).
 
+  (* Expresses that the view [rv] was recovered after the last crash. *)
+  Definition recovered (rv : view) : iProp Σ := own recovered_view_name (◯ rv).
+
   Global Instance valid_persistent V : Persistent (valid V).
+  Proof. apply _. Qed.
+
+  Global Instance recovered_persistent rv : Persistent (valid rv).
   Proof. apply _. Qed.
 
   (* Expresses that the view [P] is persisted. This means that it is included in
@@ -658,7 +666,7 @@ Section lifting.
   Proof.
     iIntros (Φ) "(pts & valV & perP) HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
-    iIntros ([??] [] κ κs ? k) "(Hheap & Hauth & Hop & Hpers) Ht /= !>".
+    iIntros ([??] [] κ κs ? k) "(Hheap & Hauth & Hop & Hpers & recov) Ht /= !>".
     (* From the points-to predicate we know that [hist] is in the heap at ℓ. *)
     iDestruct (gen_heap_valid with "Hheap pts") as %Hlook.
     iSplit.

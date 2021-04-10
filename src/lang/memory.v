@@ -181,23 +181,56 @@ Section memory.
   Definition cut_history t (hist : history) : history :=
     filter (λ '(t', ev), t' ≤ t) hist.
 
-  Definition discard_store_views (hist : history) : history :=
-    (λ msg, Msg msg.(msg_val) ∅ msg.(msg_persist_view)) <$> hist.
+  Definition discard_store_view (msg : message) : message :=
+    Msg msg.(msg_val) ∅ msg.(msg_persist_view).
+
+  (* Definition discard_store_views (hist : history) : history := *)
+  (*   discard_store_view <$> hist. *)
 
   (* Removes all events from histories after the view. *)
-  Definition cut_store p σ : store :=
-    map_imap (λ ℓ hist, let t := p !!0 ℓ in Some (discard_store_views $ cut_history t hist)) σ.
+  (* Definition cut_store p σ : store := *)
+  (*   map_imap (λ ℓ hist, let t := p !!0 ℓ in Some (discard_store_views $ cut_history t hist)) σ. *)
 
-  Definition consistent_cut p σ : Prop :=
-    map_Forall (λ ℓ h, map_Forall (λ _ ev, (msg_persist_view ev) ⊑ p) h) (cut_store p σ).
+  (* Definition consistent_cut p σ : Prop := *)
+  (*   map_Forall (λ ℓ h, map_Forall (λ _ ev, (msg_persist_view ev) ⊑ p) h) (cut_store p σ). *)
+
+  (* The crash step is different from the other steps in that it does not depend
+  on any current thread. We therefore define it as a separate type. *)
+  (* Inductive crash_step : mem_config → mem_config → Prop := *)
+  (* | MCrashStep σ p p' : *)
+  (*    p ⊑ p' → *)
+  (*    consistent_cut p' σ → *)
+  (*    crash_step (σ, p) (cut_store p' σ, p'). *)
+
+  (* For each location in [p] pick the message in the store that it specifies. *)
+  Definition slice_of_store (p : view) (σ : store) : store :=
+    map_zip_with
+      (λ '(MaxNat t) hist,
+       match hist !! t with
+         Some msg => {[ 0 := discard_store_view msg]}
+       | None => ∅ (* The None branch here should never be taken. *)
+       end)
+      p σ.
+
+  (* Definition consistent_cut' (p : view) (σ : store) : Prop := *)
+  (*   map_Forall (λ ℓ h, ∃ t, p !! ℓ = Some (MaxNat t) → map_Forall (λ _ msg, (msg_persist_view msg) ⊑ p) (cut_history t h)) σ. *)
+
+  Definition consistent_cut' (p : view) (σ : store) : Prop :=
+    map_Forall
+      (λ ℓ '(MaxNat t),
+       ∃ hist msg, σ !! ℓ = Some hist ∧
+                   hist !! t = Some msg ∧
+                   map_Forall (λ _ msg', msg'.(msg_persist_view) ⊑ p)
+                              (cut_history t hist))
+      p.
 
   (* The crash step is different from the other steps in that it does not depend
   on any current thread. We therefore define it as a separate type. *)
   Inductive crash_step : mem_config → mem_config → Prop :=
   | MCrashStep σ p p' :
      p ⊑ p' →
-     consistent_cut p' σ →
-     crash_step (σ, p) (cut_store p' σ, p').
+     consistent_cut' p' σ →
+     crash_step (σ, p) (slice_of_store p' σ, p').
 
   (* It is always possible to allocate a section of memory. *)
   Lemma alloc_fresh v (len : nat) σ p V P B :
