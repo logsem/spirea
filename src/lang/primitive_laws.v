@@ -17,6 +17,7 @@ Class nvmG Σ := NvmG {
   nvmG_crashG : crashG Σ;                    (* Stuff for Perennial. *)
   nvmG_gen_heapG :> gen_heapG loc history Σ; (* For the heap. *)
   view_inG :> inG Σ (authR viewUR);          (* For views. *)
+  recovered_inG :> inG Σ (agreeR viewO);      (* For recovered knowledge. *)
   store_view_name : gname;                   (* For validity of store views. *)
   persist_view_name : gname;                 (* For knowledge about the persisted view. *)
   recovered_view_name : gname;               (* For knowledge about the view recovered after the last crash. *)
@@ -89,7 +90,7 @@ Definition nvm_heap_ctx `{hG : !nvmG Σ} σ : iProp Σ :=
   own store_view_name (● (lub_view σ.1)) ∗
   store_inv σ.1 ∗
   own persist_view_name (● σ.2) ∗
-  (∃ (rv : view), own recovered_view_name (● rv)).
+  (∃ (rv : view), own recovered_view_name (to_agree rv : agreeR viewO)).
 
 Global Program Instance nvmG_irisG `{!nvmG Σ} : irisG nvm_lang Σ := {
   iris_invG := nvmG_invG;
@@ -137,6 +138,17 @@ Section view_ra_rules.
   Qed.
 End view_ra_rules.
 
+(* Expresses that the view [V] is valid. This means that it is included in the
+lub view. *)
+Definition valid {Σ} `{hG : nvmG Σ} (V : view) : iProp Σ := own store_view_name (◯ V).
+
+(* Expresses that the view [P] is persisted. This means that it is included in
+the global persisted view. *)
+Definition persisted {Σ} `{hG : nvmG Σ} (V : view) : iProp Σ := own persist_view_name (◯ V).
+
+(* Expresses that the view [rv] was recovered after the last crash. *)
+Definition recovered {Σ} `{hG : nvmG Σ} (rv : view) : iProp Σ :=
+  ∃ fullRv, ⌜map_Forall (λ ℓ t, fullRv !! ℓ = Some t) rv⌝ ∗ own recovered_view_name (to_agree fullRv).
 
 Section lifting.
 
@@ -151,22 +163,12 @@ Section lifting.
   Implicit Types V W : view.
   Implicit Types hist : history.
 
-  (* Expresses that the view [V] is valid. This means that it is included in the
-  lub view. *)
-  Definition valid (V : view) : iProp Σ := own store_view_name (◯ V).
-
-  (* Expresses that the view [rv] was recovered after the last crash. *)
-  Definition recovered (rv : view) : iProp Σ := own recovered_view_name (◯ rv).
 
   Global Instance valid_persistent V : Persistent (valid V).
   Proof. apply _. Qed.
 
   Global Instance recovered_persistent rv : Persistent (valid rv).
   Proof. apply _. Qed.
-
-  (* Expresses that the view [P] is persisted. This means that it is included in
-  the global persisted view. *)
-  Definition persisted (V : view) : iProp Σ := own persist_view_name (◯ V).
 
   Global Instance persisted_persistent V : Persistent (persisted V).
   Proof. apply _. Qed.

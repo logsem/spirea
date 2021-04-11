@@ -29,15 +29,16 @@ Definition nvm_heap_update {Σ} (h : gen_heapG loc history Σ) (names : nvm_heap
 (** A record of all the ghost names useb by [nvmG] that needs to change after a
 crash. *)
 Record nvm_names := {
-  name_heap_names : nvm_heap_names;   (* Names used by [gen_heap]. *)
-  name_store_view : gname; (* Name used by the store view. *)
-  (* Note that the persist view does not need to change. *)
-  name_recovered_view : gname; (* Name used by the recover view. *)
+  name_heap_names : nvm_heap_names; (* Names used by [gen_heap]. *)
+  name_store_view : gname;          (* Name used by the store view. *)
+  name_persist_view : gname;        (* Name used by the persist view. *)
+  name_recovered_view : gname;      (* Name used by the recover view. *)
 }.
 
 Definition nvm_get_names Σ (hG : nvmG Σ) : nvm_names :=
   {| name_heap_names := nvm_get_heap_names nvmG_gen_heapG;
      name_store_view := store_view_name;
+     name_persist_view := persist_view_name;
      name_recovered_view := recovered_view_name |}.
 
 Canonical Structure nvm_namesO := leibnizO nvm_names.
@@ -51,7 +52,7 @@ Definition nvm_update Σ (hG : nvmG Σ) (Hinv : invG Σ) (Hcrash : crashG Σ) (n
      nvmG_gen_heapG := nvm_heap_update hG.(@nvmG_gen_heapG _) names.(name_heap_names);
      view_inG := hG.(@view_inG _);
      store_view_name := names.(name_store_view);
-     persist_view_name := hG.(@persist_view_name _);
+     persist_view_name := names.(name_persist_view);
      recovered_view_name := names.(name_recovered_view) |}.
 
 (* Lemma heap_update_eq {Σ} heapG' (heapG : gen_heapG loc history Σ) : *)
@@ -157,7 +158,6 @@ Section wpr.
   Instance tt (p : view) : CoreId (●□ p).
   Proof. do 2 constructor; simpl; auto. apply: core_id_core. Qed.
 
-
   Lemma nvm_heap_reinit (hG' : nvmG Σ) σ σ' (Hinv : invG Σ) (Hcrash : crashG Σ) :
     crash_step σ σ' →
     ⊢ store_inv (hG := hG') σ.1 -∗
@@ -166,27 +166,33 @@ Section wpr.
       ∃ names : nvm_names,
         ghost_crash_rel σ hG' σ' (nvm_update Σ hG' Hinv Hcrash names) ∗
         post_crash_map σ.1 hG' (nvm_update Σ hG' Hinv Hcrash names) ∗
-        nvm_heap_ctx (hG := nvm_update Σ hG' Hinv Hcrash names) σ'.
+        nvm_heap_ctx (hG := nvm_update Σ hG' Hinv Hcrash names) σ' ∗
+        persisted_impl hG' (nvm_update Σ hG' Hinv Hcrash names).
   Proof using hG Σ.
     iIntros ([store p p' pIncl]) "invs pers".
     rewrite /nvm_heap_ctx. simpl.
     (* Allocate a new heap at a _new_ ghost name. *)
     iMod (gen_heap_init_names (slice_of_store p' store)) as (γh γm) "(heapNew & ptsMap & _)".
-    (* Update the persisted view _in place_. *)
-    iMod (auth_auth_view_grow_incl with "pers") as "pers".
-    { apply pIncl. }
+    (* We persist/freeze the old persist view. *)
+    iMod (own_update with "pers") as "pers".
+    { apply auth_update_auth_persist. }
+    iDestruct "pers" as "#oldPers".
+    (* Allocate a new persist view. *)
+    iMod (own_alloc (● p' ⋅ ◯ p')) as (persistG) "[pers #persFrag]".
+    { apply auth_both_valid_2; [apply view_valid|done]. }
     (* Allocate the store view at a _new_ ghost name. *)
     iMod (own_alloc (● lub_view (slice_of_store p' store))) as (storeG) "store".
     { apply auth_auth_valid. apply view_valid. }
     (* Allocate the recovered view at a _new_ ghost name. *)
-    iMod (own_alloc (● p' ⋅ ◯ p')) as (recoveredG) "[recovered #recFrag]".
-    { apply auth_both_valid_2; [apply view_valid|done]. }
-    iMod (own_update with "recovered") as "recovered".
-    { apply auth_update_auth_persist. }
-    iDestruct "recovered" as "#recovered".
+    iMod (own_alloc (to_agree p' : agreeR viewO)) as (recoveredG) "#recovered".
+    { done. }
+    (* iMod (own_update with "recovered") as "recovered". *)
+    (* { apply auth_update_auth_persist. } *)
+    (* iDestruct "recovered" as "#recovered". *)
     iModIntro.
     iExists {| name_heap_names := Build_nvm_heap_names γh γm;
                name_store_view := storeG;
+               name_persist_view := persistG;
                name_recovered_view := recoveredG |}.
     iFrame.
     (* We show the ghost crash relation. *)
@@ -204,14 +210,14 @@ Section wpr.
         iModIntro. iIntros (ℓ hist look not).
         iRight.
         iRight.
-        iIntros (t) "own".
-        iDestruct (own_valid_2 with "recovered own") as %[_ [incl _]]%auth_both_dfrac_valid_discrete.
-        iPureIntro.
-        apply not.
-        (* rewrite look in not. *)
-        apply singleton_included_l in incl.
-        destruct incl as [y [eq%leibniz_equiv _]].
-        exists y. done. }
+        iIntros (t) "own". admit. }
+        (* iDestruct (own_valid_2 with "recovered own") as %[_ [incl _]]%auth_both_dfrac_valid_discrete. *)
+        (* iPureIntro. *)
+        (* apply not. *)
+        (* (* rewrite look in not. *) *)
+        (* apply singleton_included_l in incl. *)
+        (* destruct incl as [y [eq%leibniz_equiv _]]. *)
+        (* exists y. done. } *)
       (* FIXME: This seems a bit difficult due to a lack of suitable lemmas. *)
       iApply (big_sepM_impl' with "ptsMap").
       * admit.
@@ -222,8 +228,24 @@ Section wpr.
         iIntros (look1 look2) "pts".
         iRight.
         admit. }
-    iDestruct (store_inv_cut with "invs") as "$".
-    iExists p'. iFrame.
+    iSplit.
+    * iDestruct (store_inv_cut with "invs") as "$".
+      iExists p'. iFrame "recovered".
+    * iModIntro.
+      iIntros (V) "pers".
+      iAssert (⌜V ⊑ p⌝)%I as %incl.
+      { iDestruct (own_valid_2 with "oldPers pers") as %[_ [incl _]]%auth_both_dfrac_valid_discrete.
+        iPureIntro.
+        apply incl. }
+      iAssert (⌜V ⊑ p'⌝)%I as %incl'.
+      { iPureIntro. etrans; done. }
+      (* iDestrut (auth_both_valid_1). *)
+      iSplit.
+      - admit.
+      - iExists p'. iFrame "%". iExists p'. iFrame "#".
+        iPureIntro.
+        apply map_Forall_lookup_2.
+        done.
   Admitted.
 
   Lemma idempotence_wpr `{!ffi_interp_adequacy} s k E1 e rec Φx Φinv Φrx Φcx :
@@ -242,13 +264,14 @@ Section wpr.
       iSpecialize ("Hidemp" $! (nvm_update _ _ _ _ _) with "[//] [//] H").
       iIntros "(heap & authStor & inv & pers & recov) Hg".
       (* Build new ghost state. *)
-      iMod (nvm_heap_reinit _ _ _ _ Hc with "inv pers") as (hnames) "(%rel & map & interp')"; first apply Hcrash.
+      iMod (nvm_heap_reinit _ _ _ _ Hc with "inv pers") as (hnames) "(%rel & map & interp' & persImpl)"; first apply Hcrash.
       iModIntro.
       iNext. iIntros (Hc' ?) "HNC".
       set (hG' := (nvm_update _ _ _ Hc' hnames)).
       rewrite /post_crash.
       (* rewrite nvm_update_update. *)
-      iDestruct ("Hidemp" $! σ_pre_crash σ_post_crash hG' rel with "map heap interp'") as "(? & ? & ? & ?)".
+      (* iDestruct ("Hidemp" $! σ_pre_crash σ_post_crash hG' rel with "map heap") as "HI". *)
+      iDestruct ("Hidemp" $! σ_pre_crash σ_post_crash hG' rel with "map persImpl heap interp'") as "(? & ? & ? & ?)".
       iExists ({| pbundleT := hnames |}).
       iModIntro.
       rewrite /state_interp//=.

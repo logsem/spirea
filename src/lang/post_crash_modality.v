@@ -21,9 +21,10 @@ Definition post_crash_map {Σ} (σ__old : store) (hG hG' : nvmG Σ) : iProp Σ :
                             (* ([∗ map] msg ∈ (discard_store_views $ cut_history t hist), recovered msg.(msg_persist_view)) *)
 (** If [σ] is the state before a crah and [σ'] the state after a crash, and [hG]
 and [hG'] the corresponding ghost state, then following property is true.*)
+(* FIXME: Is this [ghost_crash_rel] used at all? *)
 Definition ghost_crash_rel {Σ}
            (σ : mem_config) (hG : nvmG Σ) (σ' : mem_config) (hG' : nvmG Σ) : iProp Σ :=
-  ⌜hG.(@persist_view_name _) = hG'.(@persist_view_name _)⌝ ∗
+  (* ⌜hG.(@persist_view_name _) = hG'.(@persist_view_name _)⌝ ∗ *)
   ⌜hG.(@view_inG _) = hG'.(@view_inG _)⌝.
 
 (* Recall that [crash_step] is the state interpretation for our language. *)
@@ -32,10 +33,15 @@ Definition ghost_crash_rel {Σ}
 (*       ⌜crash_step σ σ'⌝ -∗ nvm_heap_ctx (hG := hG) σ -∗ nvm_heap_ctx (hG := hG') σ' -∗ *)
 (*       (nvm_heap_ctx (hG := hG) σ ∗ nvm_heap_ctx (hG := hG') σ' ∗ P hG')). *)
 
+Definition persisted_impl {Σ} hG hG' : iProp Σ :=
+  □ ∀ V, persisted (hG := hG) V -∗ persisted (hG := hG') V ∗
+                                   ∃ RV, ⌜V ⊑ RV⌝ ∗ recovered (hG := hG') RV.
+
 Definition post_crash {Σ} (P: nvmG Σ → iProp Σ) `{hG: !nvmG Σ}  : iProp Σ :=
   (∀ σ σ' hG',
     ghost_crash_rel σ hG σ' hG' -∗
     post_crash_map σ.1 hG hG' -∗
+    persisted_impl hG hG' -∗
     gen_heap_interp (hG := @nvmG_gen_heapG _ hG) σ.1 -∗
     nvm_heap_ctx (hG := hG') σ' -∗ (* Note: This is not used yet. Remove it if it turns out not to be needed. *)
     ( post_crash_map σ.1 hG hG' ∗
@@ -54,20 +60,22 @@ Section post_crash_prop.
   Implicit Types v : thread_val.
 
   (** Tiny shortcut for introducing the assumption for a [post_crash]. *)
-  Ltac iIntrosPostCrash := iIntros (σ σ' hG') "%rel map heap ctxPost".
+  Ltac iIntrosPostCrash := iIntros (σ σ' hG') "%rel map #perToRec heap ctxPost".
 
   Lemma post_crash_intro Q:
     (⊢ Q) →
     (⊢ post_crash (λ _, Q)).
   Proof. iIntros (Hmono). iIntrosPostCrash. iFrame "∗". iApply Hmono. Qed.
 
-  (* Lemma post_crash_mono P Q: *)
-  (*   (∀ hG, P hG -∗ Q hG) → *)
-  (*   post_crash P -∗ post_crash Q. *)
-  (* Proof. *)
-  (*   iIntros (Hmono) "HP". iIntros (???) "#Hrel". *)
-  (*   iApply Hmono. iApply "HP"; eauto. *)
-  (* Qed. *)
+  Lemma post_crash_mono P Q:
+    (∀ hG, P hG -∗ Q hG) →
+    post_crash P -∗ post_crash Q.
+  Proof.
+    iIntros (Hmono) "HP".
+    iIntrosPostCrash.
+    iDestruct ("HP" $! σ σ' hG' rel with "[$] [$] [$] [$]") as "($ & $ & $ & P)".
+    by iApply Hmono.
+  Qed.
 
   (* Lemma post_crash_pers P Q: *)
   (*   (P -∗ post_crash Q) → *)
@@ -82,8 +90,8 @@ Section post_crash_prop.
   Proof.
     iIntros "(HP & HQ)".
     iIntrosPostCrash.
-    iDestruct ("HP" $! σ σ' hG' rel with "[$] [$] [$]") as "(map & ctxPre & ctxPost & $)".
-    iDestruct ("HQ" $! σ σ' hG' rel with "[$] [$] [$]") as "$".
+    iDestruct ("HP" $! σ σ' hG' rel with "[$] [$] [$] [$]") as "(map & ctxPre & ctxPost & $)".
+    iDestruct ("HQ" $! σ σ' hG' rel with "[$] [$] [$] [$]") as "$".
   Qed.
 
   (* Lemma post_crash_or P Q: *)
@@ -155,16 +163,32 @@ Section post_crash_prop.
   (*   post_crash (λ hG, named name (P hG)). *)
   (* Proof. rewrite //=. Qed. *)
 
-  Lemma post_crash_persisted P :
-    persisted P -∗ post_crash (λ hG', persisted P).
+  Lemma post_crash_persisted V :
+    persisted V -∗
+      post_crash (λ hG', persisted (hG := hG') V ∗ ∃ RV, ⌜V ⊑ RV⌝ ∗ recovered (hG := hG') RV).
   Proof.
     iIntros "pers".
-    iIntrosPostCrash. iFrame.
-    destruct rel as [pEq viewEq].
-    Set Printing All. (* It's time to dive deeper. *)
-    rewrite /persisted. rewrite pEq. rewrite viewEq.
-    Unset Printing All. (* Back to sanity. *)
-    iFrame "pers".
+    iIntrosPostCrash.
+    iFrame.
+    iDestruct ("perToRec" with "pers") as "[$ $]".
+  Qed.
+
+  Lemma post_crash_persisted_persiste V :
+    persisted V -∗ post_crash (λ hG', persisted V).
+  Proof.
+    iIntros "pers".
+    iDestruct (post_crash_persisted with "pers") as "p".
+    iApply (post_crash_mono with "p").
+    iIntros (?) "[??]". iFrame.
+  Qed.
+
+  Lemma post_crash_persisted_recovered V :
+    persisted V -∗ post_crash (λ hG', ∃ RV, ⌜V ⊑ RV⌝ ∗ recovered (hG := hG') RV).
+  Proof.
+    iIntros "pers".
+    iDestruct (post_crash_persisted with "pers") as "p".
+    iApply (post_crash_mono with "p").
+    iIntros (?) "[??]". iFrame.
   Qed.
 
   Lemma post_crash_mapsto ℓ hist :
