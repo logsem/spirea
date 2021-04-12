@@ -1,8 +1,10 @@
 (* In this file we define the post crash modality for the base logic. *)
+From iris.algebra Require Import agree.
 From iris.proofmode Require Import reduction monpred tactics.
 
 From Perennial.program_logic Require Export crash_lang.
 
+From self Require Import extra.
 From self.lang Require Import lang primitive_laws.
 
 Set Default Proof Using "Type".
@@ -18,7 +20,6 @@ Definition post_crash_map {Σ} (σ__old : store) (hG hG' : nvmG Σ) : iProp Σ :
 
 (* Note: The [let]s above are to manipulate the type class instance search. *)
 
-                            (* ([∗ map] msg ∈ (discard_store_views $ cut_history t hist), recovered msg.(msg_persist_view)) *)
 (** If [σ] is the state before a crah and [σ'] the state after a crash, and [hG]
 and [hG'] the corresponding ghost state, then following property is true.*)
 (* FIXME: Is this [ghost_crash_rel] used at all? *)
@@ -165,7 +166,7 @@ Section post_crash_prop.
 
   Lemma post_crash_persisted V :
     persisted V -∗
-      post_crash (λ hG', persisted (hG := hG') V ∗ ∃ RV, ⌜V ⊑ RV⌝ ∗ recovered (hG := hG') RV).
+      post_crash (λ hG', persisted V ∗ ∃ RV, ⌜V ⊑ RV⌝ ∗ recovered RV).
   Proof.
     iIntros "pers".
     iIntrosPostCrash.
@@ -183,7 +184,7 @@ Section post_crash_prop.
   Qed.
 
   Lemma post_crash_persisted_recovered V :
-    persisted V -∗ post_crash (λ hG', ∃ RV, ⌜V ⊑ RV⌝ ∗ recovered (hG := hG') RV).
+    persisted V -∗ post_crash (λ hG', ∃ RV, ⌜V ⊑ RV⌝ ∗ recovered RV).
   Proof.
     iIntros "pers".
     iDestruct (post_crash_persisted with "pers") as "p".
@@ -203,6 +204,58 @@ Section post_crash_prop.
     (* We reinsert. *)
     iDestruct ("reIns" with "[$pts]") as "map".
     iFrame.
+  Qed.
+
+  Lemma recovered_look_eq V W ℓ t t' :
+    V !! ℓ = Some (MaxNat t) →
+    W !! ℓ = Some (MaxNat t') →
+    recovered V -∗
+    recovered W -∗
+    ⌜t = t'⌝.
+  Proof.
+    iIntros (lookV lookW) "rec rec'".
+    iDestruct "rec" as (?) "[%all ag]".
+    iDestruct "rec'" as (full) "[%all' ag']".
+    iDestruct (own_valid_2 with "ag ag'") as %->%to_agree_op_inv_L.
+    iPureIntro.
+    eapply map_Forall_lookup_1 in all; last done.
+    eapply map_Forall_lookup_1 in all'; last done.
+    assert (Some (MaxNat t) = Some (MaxNat t')) as [=] by congruence.
+    done.
+  Qed.
+
+  Lemma recovered_lookup_extract_singleton V ℓ t :
+    V !! ℓ = Some (MaxNat t) →
+    recovered V -∗
+    recovered {[ℓ := MaxNat t]}.
+  Proof.
+    iIntros (look) "rec".
+    iDestruct "rec" as (full all) "ag".
+    iExists full. iFrame.
+    iPureIntro.
+    apply map_Forall_singleton.
+    apply all.
+    done.
+  Qed.
+
+  Lemma mapsto_post_crash_recovered V t__low ℓ hist :
+    V !! ℓ = Some (MaxNat t__low) →
+    (∃ RV, ⌜V ⊑ RV⌝ ∗ recovered RV) -∗  (* What persisted gives us after crash. *)
+    mapsto_post_crash hG ℓ hist -∗      (* What mapsto gives us after crash *)
+    (∃ t msg, ⌜hist !! t = Some msg⌝ ∗
+              ⌜t__low ≤ t⌝ ∗
+              ℓ ↦h ({[ 0 := discard_store_view msg]}) ∗
+              recovered {[ ℓ := MaxNat t ]}).
+  Proof.
+    iIntros (look) "A [B|B]"; iDestruct "A" as (RV incl) "#rec".
+    - iDestruct "B" as (t msg look') "[pts #rec']".
+      iExists t, msg. iFrame "%#∗".
+      pose proof (view_le_look _ _ _ _ look incl) as [t' [RVlook ho]].
+      iDestruct (recovered_look_eq with "rec rec'") as "<-"; [done|apply lookup_singleton|].
+      done.
+    - pose proof (view_le_look _ _ _ _ look incl) as [t' [RVlook ho]].
+      iExFalso. iApply "B".
+      iApply recovered_lookup_extract_singleton; done.
   Qed.
 
 End post_crash_prop.

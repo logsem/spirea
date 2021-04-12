@@ -38,6 +38,13 @@ Proof. apply _. Qed.
 Global Instance join_mono : Proper ((⊑@{view}) ==> (⊑) ==> (⊑)) (⊔).
 Proof. solve_proper. Qed.
 
+Global Instance view_core_id (v : view) : CoreId v.
+Proof. apply _. Qed.
+
+(* A view is always valid. *)
+Lemma view_valid V : ✓ V.
+Proof. intros k. case (V !! k); done. Qed.
+
 Infix "!!0" := (λ m i, default 0 (max_nat_car <$> (m !! i))) (at level 80).
 
 Lemma view_empty_least V : ∅ ⊑ V. 
@@ -50,9 +57,7 @@ Qed.
 Lemma view_lt_lt V W ℓ : V ⊑ W → (V !!0 ℓ) ≤ (W !!0 ℓ).
 Proof.
   rewrite subseteq_view_incl lookup_included.
-  intros le.
-  pose proof (le ℓ) as le.
-  move: le.
+  intros le. move: (le ℓ).
   destruct (V !! ℓ) as [[t]|] eqn:eq, (W !! ℓ) as [[t'']|] eqn:eq'; simpl; try lia.
   - rewrite eq. rewrite eq'.
     rewrite Some_included_total.
@@ -63,8 +68,25 @@ Proof.
     intros [?|[? [? (_ & ? & _)]]]; done.
 Qed.
 
-Global Instance view_core_id (v : view) : CoreId v.
-Proof. apply _. Qed.
+Lemma view_le_look ℓ V W t :
+  V !! ℓ = Some (MaxNat t) → V ⊑ W → ∃ t', W !! ℓ = Some (MaxNat t') ∧ t ≤ t'.
+Proof.
+  intros look incl.
+  destruct (W !! ℓ) as [[t']|] eqn:eq.
+  - exists t'. split; first done.
+    pose proof (view_lt_lt V W ℓ incl) as le.
+    rewrite eq in le.
+    rewrite look in le.
+    simpl in le.
+    done.
+  - move: incl.
+    rewrite subseteq_view_incl.
+    rewrite lookup_included.
+    intros l. move: (l ℓ).
+    rewrite look eq.
+    rewrite option_included.
+    intros [?|[? [? (_ & ? & _)]]]; done.
+Qed.
 
 Lemma option_max_nat_included (on on' om : option max_nat) : on ≼ om → on' ≼ om → on ⋅ on' ≼ om.
 Proof.
@@ -86,10 +108,6 @@ Proof.
   rewrite lookup_op.
   apply option_max_nat_included; done.
 Qed.
-
-(* A view is always valid. *)
-Lemma view_valid V : ✓ V.
-Proof. intros k. case (V !! k); done. Qed.
 
 Lemma view_insert_le V ℓ t :
   (V !!0 ℓ) ≤ t → V ⊑ <[ℓ := MaxNat t]>V.

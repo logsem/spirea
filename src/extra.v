@@ -125,3 +125,12 @@ Lemma big_sepM_impl' {PROP : bi} `{Countable K} {A B} (Φ : K → A → PROP) (�
   □ (∀ (k : K) (x : A) (y : B), ⌜m1 !! k = Some x⌝ → ⌜m2 !! k = Some y⌝ → Φ k x -∗ Ψ k y) -∗
   [∗ map] k↦y ∈ m2, Ψ k y.
 Proof. Admitted.
+
+Lemma map_Forall_singleton `{FinMap K M} {A} (j : K) (y : A) (P : K → A → Prop) :
+  P j y ↔
+  map_Forall (λ (i : K) (x : A), P i x) ({[j := y]} : M A).
+Proof.
+  split; intros HP.
+  - by intros i x [-> ->]%lookup_singleton_Some.
+  - apply HP, lookup_singleton.
+Qed.
