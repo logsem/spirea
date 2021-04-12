@@ -5,7 +5,8 @@ From iris.proofmode Require Import reduction monpred tactics.
 From Perennial.program_logic Require Export crash_lang.
 
 From self Require Import extra.
-From self.lang Require Import lang primitive_laws.
+From self.lang Require Import lang.
+From self.base Require Import primitive_laws.
 
 Set Default Proof Using "Type".
 

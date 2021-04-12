@@ -11,9 +11,12 @@ From iris.algebra Require Import gmap excl auth.
 From iris.program_logic Require weakestpre.
 From iris.heap_lang Require Import locations.
 
-From self Require Export extra dprop view lang.
-From self.lang Require Import primitive_laws syntax.
-
+From self Require Export extra.
+From self.high Require Export dprop.
+From self Require Export view.
+From self Require Export lang.
+From self.base Require Import primitive_laws.
+From self.lang Require Import syntax.
 
 (* Resource algebra for location histories. *)
 (* Definition event states : Type := val * states. *)

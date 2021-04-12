@@ -5,7 +5,7 @@ From Perennial.program_logic Require Export language.
 From iris.prelude Require Import options.
 
 From self Require Export lang.
-From self.lang Require Import tactics.
+From self.base Require Import tactics.
 
 (* [IntoVal] and [AsVal] for nvm_lang. *)
 Global Instance into_val_ts v TV : IntoVal (ThreadState (Val v) TV) (ThreadVal v TV).

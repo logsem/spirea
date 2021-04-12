@@ -5,15 +5,20 @@ Is is an adaptation of the tactics for HeapLang. *)
 From iris.proofmode Require Import coq_tactics reduction.
 From iris.proofmode Require Export tactics.
 (* From iris.program_logic Require Import atomic. *)
+(* From iris.program_logic Require Import weakestpre. *)
 (* From iris.heap_lang Require Export tactics derived_laws. *)
 (* From iris.heap_lang Require Import notation. *)
 From iris.prelude Require Import options.
 
 From Perennial.program_logic Require Export language ectx_language ectxi_language.
 
-From self.lang Require Export tactics class_instances primitive_laws.
+From self.base Require Export tactics class_instances primitive_laws.
 From self.lang Require Import lang notation.
-From self Require Import weakestpre.
+From self.high Require Import weakestpre.
+
+(* From self.lang Require Import lang notation. *)
+(* From self.base Require Export tactics class_instances primitive_laws. *)
+(* From self.high Require Import weakestpre. *)
 
 Import uPred.
 

@@ -7,7 +7,8 @@ From Perennial.program_logic Require Import recovery_weakestpre recovery_adequac
 (* From Perennial.goose_lang Require Import crash_modality typing adequacy lang. *)
 
 From self Require Import extra.
-From self.lang Require Import lang primitive_laws post_crash_modality.
+From self.lang Require Import lang.
+From self.base Require Import primitive_laws post_crash_modality.
 
 Set Default Proof Using "Type".
 

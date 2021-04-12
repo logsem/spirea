@@ -10,7 +10,8 @@ From iris.prelude Require Import options.
 
 From self Require Import extra.
 From self.algebra Require Import view.
-From self.lang Require Import notation tactics.
+From self.lang Require Import notation.
+From self.base Require Import tactics.
 
 Class nvmG Σ := NvmG {
   nvmG_invG : invG Σ;                        (* For invariants. *)
