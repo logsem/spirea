@@ -1,6 +1,7 @@
 From iris.program_logic Require Import language.
-From self.lang Require Export lang.
 From iris.prelude Require Import options.
+
+From self.lang Require Export lang.
 
 (* The notation in this file matches HeapLang. We've only extended it with the
 additional operations related to weak and persistent memory. *)

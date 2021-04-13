@@ -1,6 +1,6 @@
 From iris.proofmode Require Import tactics.
 From iris.bi.lib Require Import fractional.
-From iris.base_logic.lib Require Export gen_heap proph_map. (* gen_inv_heap. *)
+From iris.base_logic.lib Require Export gen_heap proph_map.
 
 From Perennial.program_logic Require Import ectx_lifting.
 From Perennial.program_logic Require Export ectx_language weakestpre lifting.
@@ -10,7 +10,7 @@ From iris.prelude Require Import options.
 
 From self Require Import extra.
 From self.algebra Require Import view.
-From self.lang Require Import notation.
+From self.lang Require Export notation.
 From self.base Require Import tactics.
 
 Class nvmG Σ := NvmG {
@@ -18,7 +18,7 @@ Class nvmG Σ := NvmG {
   nvmG_crashG : crashG Σ;                    (* Stuff for Perennial. *)
   nvmG_gen_heapG :> gen_heapG loc history Σ; (* For the heap. *)
   view_inG :> inG Σ (authR viewUR);          (* For views. *)
-  recovered_inG :> inG Σ (agreeR viewO);      (* For recovered knowledge. *)
+  recovered_inG :> inG Σ (agreeR viewO);     (* For recovered knowledge. *)
   store_view_name : gname;                   (* For validity of store views. *)
   persist_view_name : gname;                 (* For knowledge about the persisted view. *)
   recovered_view_name : gname;               (* For knowledge about the view recovered after the last crash. *)
