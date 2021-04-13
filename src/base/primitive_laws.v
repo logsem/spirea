@@ -393,12 +393,13 @@ Section lifting.
     rewrite big_opM_singleton; iDestruct "Hvs" as "[$ Hvs]". by iApply "IH".
   Qed.
 
-  Lemma wp_allocN v T (hist : history) n s E :
+  Lemma wp_allocN v T n s E :
     (0 < n)%Z →
     {{{ True }}}
       (ThreadState (AllocN #n v) T) @ s; E
     {{{ ℓ, RET (ThreadVal #ℓ T);
-          [∗ list] i ∈ seq 0 (Z.to_nat n), (ℓ +ₗ (i : nat)) ↦h initial_history (persist_view T) v }}}.
+      [∗ list] i ∈ seq 0 (Z.to_nat n), (ℓ +ₗ (i : nat)) ↦h initial_history (persist_view T) v
+    }}}.
   Proof.
     iIntros (Hn Φ) "_ HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
@@ -428,6 +429,17 @@ Section lifting.
       iDestruct (hist_inv_alloc with "Hop") as "Hop"; first apply Hdisj.
       iFrame.
       iApply "HΦ". iApply heap_array_to_seq_mapsto. iFrame.
+  Qed.
+
+  Lemma wp_alloc s E v TV :
+    {{{ True }}}
+      ThreadState (Alloc (Val v)) TV @ s; E
+    {{{ ℓ, RET (ThreadVal (LitV (LitLoc ℓ)) TV); ℓ ↦h initial_history (persist_view TV) v }}}.
+  Proof.
+    iIntros (Φ) "_ HΦ".
+    iApply wp_allocN; [lia|auto|].
+    iNext.
+    iIntros (ℓ) "/= [? _]". rewrite loc_add_0. iApply "HΦ"; iFrame.
   Qed.
 
   (* Non-atomic load. *)
