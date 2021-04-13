@@ -2,9 +2,25 @@ From iris.proofmode Require Import tactics.
 From Perennial.program_logic Require Import crash_weakestpre.
 From self.base Require Export primitive_laws class_instances.
 From self.algebra Require Import view.
+From self.base Require Import proofmode.
 
 Section simple_increment.
   Context `{!nvmG Σ}.
+
+  Definition pure : expr :=
+    let: "a" := #1 in
+    let: "b" := #7 in
+    "a" + "b".
+
+  Lemma wp_with_let :
+    {{{ True }}} ThreadState pure (∅, ∅, ∅) {{{ TV, RET ThreadVal (#8) TV; True }}}.
+  Proof.
+    iIntros (Φ) "_ Post".
+    rewrite /pure.
+    wp_pures.
+    iModIntro.
+    by iApply "Post".
+  Qed.
 
   Definition incr_both (ℓ1 ℓ2 : loc) : expr :=
     #ℓ1 <- #1 ;;
@@ -21,7 +37,7 @@ Section simple_increment.
 
   Definition init_hist : history := {[ 0 := Msg #0 ∅ ∅ ]}.
 
-  Lemma wp_with_let ℓ1 ℓ2 k E1 :
+  Lemma wp_incr ℓ1 ℓ2 k E1 :
     {{{ ℓ1 ↦h init_hist ∗ ℓ2 ↦h init_hist }}}
       ThreadState (incr_both ℓ1 ℓ2) (∅, ∅, ∅) @ k; E1
     {{{ v t1 t2 TV, RET ThreadVal v TV;

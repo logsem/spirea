@@ -97,12 +97,16 @@ End atomic.
 Note that these instances are for nvm_lang thread states in the "normal" WP. In
 the proofmode these are then lifted to apply to expressions in our custom WP.
 *)
+
 Class AsRecV (v : val) (f x : binder) (erec : expr) :=
   as_recv : v = RecV f x erec.
 Global Hint Mode AsRecV ! - - - : typeclass_instances.
 Definition AsRecV_recv f x e : AsRecV (RecV f x e) f x e := eq_refl.
 Global Hint Extern 0 (AsRecV (RecV _ _ _) _ _ _) =>
   apply AsRecV_recv : typeclass_instances.
+
+Global Notation PureExecBase P nsteps e1 e2 :=
+  (∀ TV, PureExec P nsteps (ThreadState e1 TV) (ThreadState e2 TV)).
 
 Section pure_exec.
   Local Ltac solve_exec_safe :=
@@ -114,9 +118,6 @@ Section pure_exec.
   Local Ltac solve_pure_exec :=
     subst; intros ??; apply nsteps_once, (pure_head_step_pure_step (ThreadState _ _));
       constructor; [solve_exec_safe | solve_exec_puredet].
-
-  Notation PureExecBase P nsteps e1 e2 :=
-    (∀ TV, PureExec P nsteps (ThreadState e1 TV) (ThreadState e2 TV)).
 
   Global Instance pure_recc f x (erec : expr) :
     PureExecBase True 1 (Rec f x erec) (Val $ RecV f x erec).
