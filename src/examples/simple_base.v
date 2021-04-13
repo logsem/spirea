@@ -12,8 +12,8 @@ Section simple_increment.
     let: "b" := #7 in
     "a" + "b".
 
-  Lemma wp_with_let :
-    {{{ True }}} ThreadState pure (∅, ∅, ∅) {{{ TV, RET ThreadVal (#8) TV; True }}}.
+  Lemma wp_with_let TV :
+    {{{ True }}} ThreadState pure TV {{{ RET ThreadVal (#8) TV; True }}}.
   Proof.
     iIntros (Φ) "_ Post".
     rewrite /pure.
@@ -21,6 +21,22 @@ Section simple_increment.
     iModIntro.
     by iApply "Post".
   Qed.
+
+  Definition alloc_load : expr :=
+    let: "ℓ" := ref #4
+    in !"ℓ".
+
+  Lemma wp_load_store TV :
+    {{{ True }}} ThreadState alloc_load TV {{{ TV', RET ThreadVal (#4) TV'; True }}}.
+  Proof.
+    iIntros (Φ) "_ Post".
+    rewrite /alloc_load.
+    wp_alloc ℓ as "pts".
+    wp_pures.
+  Abort.
+  (*   iModIntro. *)
+  (*   by iApply "Post". *)
+  (* Qed. *)
 
   Definition incr_both (ℓ1 ℓ2 : loc) : expr :=
     #ℓ1 <- #1 ;;

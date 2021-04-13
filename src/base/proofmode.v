@@ -186,17 +186,18 @@ Tactic Notation "wp_bind" open_constr(efoc) :=
     first [ reshape_expr e ltac:(fun K e' => unify e' efoc; wp_bind_core K)
           | fail 1 "wp_bind: cannot find" efoc "in" e ]
   | _ => fail "wp_bind: not a 'wp'"
-  end.
+  end.*)
 
 (** Heap tactics *)
 Section heap.
 Context `{!nvmG Σ}.
 Implicit Types P Q : iProp Σ.
-Implicit Types Φ : val → iProp Σ.
+Implicit Types Φ : thread_val → iProp Σ.
 Implicit Types Δ : envs (uPredI (iResUR Σ)).
 Implicit Types v : val.
 Implicit Types z : Z.
 
+(*
 Lemma tac_wp_allocN Δ Δ' s E j K v n Φ :
   (0 < n)%Z →
   MaybeIntoLaterNEnvs 1 Δ Δ' →
@@ -216,16 +217,17 @@ Proof.
   rewrite envs_app_sound //; simpl.
   apply wand_intro_l. by rewrite (sep_elim_l (l ↦∗ _)%I) right_id wand_elim_r.
 Qed.
+*)
 
-Lemma tac_wp_alloc Δ Δ' s E j K v Φ :
+Lemma tac_wp_alloc' Δ Δ' s E j K v TV Φ :
   MaybeIntoLaterNEnvs 1 Δ Δ' →
   (∀ l,
-    match envs_app false (Esnoc Enil j (l ↦ v)) Δ' with
+    match envs_app false (Esnoc Enil j (l ↦h initial_history (persist_view TV) v)) Δ' with
     | Some Δ'' =>
-       envs_entails Δ'' (WP fill K (Val $ LitV l) @ s; E {{ Φ }})
+       envs_entails Δ'' (WP fill K (ThreadState (Val $ LitV l) TV) @ s; E {{ Φ }})
     | None => False
     end) →
-  envs_entails Δ (WP fill K (Alloc (Val v)) @ s; E {{ Φ }}).
+  envs_entails Δ (WP fill K (ThreadState (Alloc (Val v)) TV) @ s; E {{ Φ }}).
 Proof.
   rewrite envs_entails_eq=> ? HΔ.
   rewrite -wp_bind. eapply wand_apply; first exact: wp_alloc.
@@ -233,9 +235,20 @@ Proof.
   specialize (HΔ l).
   destruct (envs_app _ _ _) as [Δ''|] eqn:HΔ'; [ | contradiction ].
   rewrite envs_app_sound //; simpl.
-  apply wand_intro_l. by rewrite (sep_elim_l (l ↦ v)%I) right_id wand_elim_r.
+  iIntros "H pts". iApply HΔ. iApply "H". iFrame.
 Qed.
 
+Lemma tac_wp_alloc Δ Δ' s E j K v TV Φ :
+  MaybeIntoLaterNEnvs 1 Δ Δ' →
+  (∀ l,
+    match envs_app false (Esnoc Enil j (l ↦h initial_history (persist_view TV) v)) Δ' with
+    | Some Δ'' =>
+       envs_entails Δ'' (WP (ThreadState (fill K (Val $ LitV l)) TV) @ s; E {{ Φ }})
+    | None => False
+    end) →
+  envs_entails Δ (WP (ThreadState (fill K (Alloc (Val v))) TV) @ s; E {{ Φ }}).
+Proof. Admitted.
+(*
 Lemma tac_wp_free Δ Δ' s E i K l v Φ :
   MaybeIntoLaterNEnvs 1 Δ Δ' →
   envs_lookup i Δ' = Some (false, l ↦ v)%I →
@@ -355,8 +368,10 @@ Proof.
   rewrite into_laterN_env_sound -later_sep envs_simple_replace_sound //; simpl.
   rewrite right_id. by apply later_mono, sep_mono_r, wand_mono.
 Qed.
+*)
 End heap.
 
+(*
 (** The tactic [wp_apply_core lem tac_suc tac_fail] evaluates [lem] to a
 hypothesis [H] that can be applied, and then runs [wp_bind_core K; tac_suc H]
 for every possible evaluation context [K].
@@ -406,6 +421,7 @@ Tactic Notation "awp_apply" open_constr(lem) "without" constr(Hs) :=
       iApply wp_frame_wand_l; iSplitL Hs; [iAccu|iApplyHyp H]) 
     ltac:(fun cont => fail);
   last iAuIntro.
+*)
 
 Tactic Notation "wp_alloc" ident(l) "as" constr(H) :=
   let Htmp := iFresh in
@@ -426,7 +442,7 @@ Tactic Notation "wp_alloc" ident(l) "as" constr(H) :=
      l ↦ v for single references. These are logically equivalent assertions
      but are not equal. *)
   lazymatch goal with
-  | |- envs_entails _ (wp ?s ?E ?e ?Q) =>
+  | |- envs_entails _ (wp ?s ?E (ThreadState ?e ?TV) ?Q) =>
     let process_single _ :=
         first
           [reshape_expr e ltac:(fun K e' => eapply (tac_wp_alloc _ _ _ _ Htmp K))
@@ -434,33 +450,35 @@ Tactic Notation "wp_alloc" ident(l) "as" constr(H) :=
         [iSolveTC
         |finish ()]
     in
-    let process_array _ :=
-        first
-          [reshape_expr e ltac:(fun K e' => eapply (tac_wp_allocN _ _ _ _ Htmp K))
-          |fail 1 "wp_alloc: cannot find 'Alloc' in" e];
-        [idtac|iSolveTC
-         |finish ()]
-    in (process_single ()) || (process_array ())
-  | |- envs_entails _ (twp ?s ?E ?e ?Q) =>
-    let process_single _ :=
-        first
-          [reshape_expr e ltac:(fun K e' => eapply (tac_twp_alloc _ _ _ Htmp K))
-          |fail 1 "wp_alloc: cannot find 'Alloc' in" e];
-        finish ()
-    in
-    let process_array _ :=
-        first
-          [reshape_expr e ltac:(fun K e' => eapply (tac_twp_allocN _ _ _ Htmp K))
-          |fail 1 "wp_alloc: cannot find 'Alloc' in" e];
-        [idtac
-        |finish ()]
-    in (process_single ()) || (process_array ())
+    let process_array _ := fail 1 "Can not allocate arrays" (* FIXME: Uncomment this when we want to support array allocation. *)
+        (* first *)
+        (*   [reshape_expr e ltac:(fun K e' => eapply (tac_wp_allocN _ _ _ _ Htmp K)) *)
+        (*   |fail 1 "wp_alloc: cannot find 'Alloc' in" e]; *)
+        (* [idtac|iSolveTC *)
+        (*  |finish ()] *)
+    (* in (process_single ()) || (process_array ()) *)
+    in (process_single ())
+  (* | |- envs_entails _ (twp ?s ?E ?e ?Q) => *)
+  (*   let process_single _ := *)
+  (*       first *)
+  (*         [reshape_expr e ltac:(fun K e' => eapply (tac_twp_alloc _ _ _ Htmp K)) *)
+  (*         |fail 1 "wp_alloc: cannot find 'Alloc' in" e]; *)
+  (*       finish () *)
+  (*   in *)
+  (*   let process_array _ := *)
+  (*       first *)
+  (*         [reshape_expr e ltac:(fun K e' => eapply (tac_twp_allocN _ _ _ Htmp K)) *)
+  (*         |fail 1 "wp_alloc: cannot find 'Alloc' in" e]; *)
+  (*       [idtac *)
+  (*       |finish ()] *)
+  (*   in (process_single ()) || (process_array ()) *)
   | _ => fail "wp_alloc: not a 'wp'"
   end.
 
 Tactic Notation "wp_alloc" ident(l) :=
   wp_alloc l as "?".
 
+(*
 Tactic Notation "wp_free" :=
   let solve_mapsto _ :=
     let l := match goal with |- _ = Some (_, (?l ↦{_} _)%I) => l end in
