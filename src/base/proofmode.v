@@ -1,6 +1,5 @@
 From iris.proofmode Require Import coq_tactics reduction.
 From iris.proofmode Require Export tactics.
-From iris.program_logic Require Import atomic.
 (* From iris.heap_lang Require Export tactics derived_laws. *)
 (* From iris.heap_lang Require Import notation. *)
 (* From iris.prelude Require Import options. *)
@@ -219,7 +218,7 @@ Proof.
 Qed.
 *)
 
-Lemma tac_wp_alloc' Δ Δ' s E j K v TV Φ :
+Lemma tac_wp_alloc Δ Δ' s E j K v TV Φ :
   MaybeIntoLaterNEnvs 1 Δ Δ' →
   (∀ l,
     match envs_app false (Esnoc Enil j (l ↦h initial_history (persist_view TV) v)) Δ' with
@@ -238,16 +237,6 @@ Proof.
   iIntros "H pts". iApply HΔ. iApply "H". iFrame.
 Qed.
 
-Lemma tac_wp_alloc Δ Δ' s E j K v TV Φ :
-  MaybeIntoLaterNEnvs 1 Δ Δ' →
-  (∀ l,
-    match envs_app false (Esnoc Enil j (l ↦h initial_history (persist_view TV) v)) Δ' with
-    | Some Δ'' =>
-       envs_entails Δ'' (WP (ThreadState (fill K (Val $ LitV l)) TV) @ s; E {{ Φ }})
-    | None => False
-    end) →
-  envs_entails Δ (WP (ThreadState (fill K (Alloc (Val v))) TV) @ s; E {{ Φ }}).
-Proof. Admitted.
 (*
 Lemma tac_wp_free Δ Δ' s E i K l v Φ :
   MaybeIntoLaterNEnvs 1 Δ Δ' →
@@ -450,7 +439,7 @@ Tactic Notation "wp_alloc" ident(l) "as" constr(H) :=
         [iSolveTC
         |finish ()]
     in
-    let process_array _ := fail 1 "Can not allocate arrays" (* FIXME: Uncomment this when we want to support array allocation. *)
+    let process_array _ := fail 1 "Can not allocate arrays" (* FIXME: Fix this if we want to support array allocation. *)
         (* first *)
         (*   [reshape_expr e ltac:(fun K e' => eapply (tac_wp_allocN _ _ _ _ Htmp K)) *)
         (*   |fail 1 "wp_alloc: cannot find 'Alloc' in" e]; *)
