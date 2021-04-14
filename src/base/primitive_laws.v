@@ -104,9 +104,9 @@ Global Program Instance nvmG_irisG `{!nvmG Σ} : irisG nvm_lang Σ := {
 Next Obligation. intros. eauto. Qed.
 
 (* NOTE: Uncomment as needed. *)
-(* Notation "l ↦h{ dq } v" := (mapsto (L:=loc) (V:=val) l dq (Some v%V))
+Notation "l ↦h{ dq } v" := (mapsto (L:=loc) (V:=val) l dq (Some v%V))
   (at level 20, format "l  ↦h{ dq }  v") : bi_scope.
-Notation "l ↦h□ v" := (mapsto (L:=loc) (V:=val) l DfracDiscarded (Some v%V))
+(* Notation "l ↦h□ v" := (mapsto (L:=loc) (V:=val) l DfracDiscarded (Some v%V))
   (at level 20, format "l  ↦h□  v") : bi_scope.
 Notation "l ↦h{# q } v" := (mapsto (L:=loc) (V:=val) l (DfracOwn q) (Some v%V))
   (at level 20, format "l  ↦h{# q }  v") : bi_scope. *)
@@ -141,7 +141,7 @@ End view_ra_rules.
 
 (* Expresses that the view [V] is valid. This means that it is included in the
 lub view. *)
-Definition valid {Σ} `{hG : nvmG Σ} (V : view) : iProp Σ := own store_view_name (◯ V).
+Definition validV {Σ} `{hG : nvmG Σ} (V : view) : iProp Σ := own store_view_name (◯ V).
 
 (* Expresses that the view [P] is persisted. This means that it is included in
 the global persisted view. *)
@@ -165,10 +165,10 @@ Section lifting.
   Implicit Types hist : history.
 
 
-  Global Instance valid_persistent V : Persistent (valid V).
+  Global Instance valid_persistent V : Persistent (validV V).
   Proof. apply _. Qed.
 
-  Global Instance recovered_persistent rv : Persistent (valid rv).
+  Global Instance recovered_persistent rv : Persistent (validV rv).
   Proof. apply _. Qed.
 
   Global Instance persisted_persistent V : Persistent (persisted V).
@@ -177,7 +177,7 @@ Section lifting.
   Lemma auth_frag_leq V W γ : ⊢ own γ (◯ V) -∗ own γ (● W) -∗ ⌜V ⊑ W⌝.
   Proof.
     iIntros "H1 H2".
-    rewrite /valid.
+    rewrite /validV.
     iDestruct (own_valid_2 with "H2 H1") as %[Hincl _]%auth_both_valid_discrete.
     done.
   Qed.
@@ -444,7 +444,7 @@ Section lifting.
 
   (* Non-atomic load. *)
   Lemma wp_load (V p B : view) ℓ (hist : history) s E :
-    {{{ ℓ ↦h hist ∗ valid V }}}
+    {{{ ℓ ↦h hist ∗ validV V }}}
       (ThreadState (! #ℓ) (V, p, B)) @ s; E
     {{{ t v, RET (ThreadVal v (V, p, B));
         ℓ ↦h hist ∗ ⌜msg_val <$> (hist !! t) = Some v ∧ (V !!0 ℓ) ≤ t⌝ }}}.
@@ -479,11 +479,11 @@ Section lifting.
   Qed.
 
   Lemma wp_load_acquire V p B ℓ (hist : history) s E :
-    {{{ ℓ ↦h hist ∗ valid V }}}
+    {{{ ℓ ↦h hist ∗ validV V }}}
       (ThreadState (!{acq} #ℓ) (V, p, B)) @ s; E
     {{{ t v V' P', RET (ThreadVal v (V ⊔ V', p ⊔ P', B));
         ⌜(hist !! t) = Some (Msg v V' P') ∧ (V !!0 ℓ) ≤ t⌝ ∗
-        valid (V ⊔ V') }}}.
+        validV (V ⊔ V') }}}.
   Proof.
     iIntros (Φ) "[ℓPts Hval] HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
@@ -521,12 +521,12 @@ Section lifting.
   Qed.
 
   Lemma wp_store V v p B ℓ (hist : history) s E :
-    {{{ ℓ ↦h hist ∗ valid V }}}
+    {{{ ℓ ↦h hist ∗ validV V }}}
       (ThreadState (#ℓ <- v) (V, p, B)) @ s; E
     {{{ t, RET ThreadVal #() (<[ℓ := MaxNat t]>V, p, B);
           ⌜msg_val <$> (hist !! t) = None⌝ ∗
           ⌜(V !!0 ℓ) < t⌝ ∗
-          valid (<[ℓ := MaxNat t]>V) ∗
+          validV (<[ℓ := MaxNat t]>V) ∗
           ℓ ↦h (<[t := Msg v ∅ p]>hist) }}}.
   Proof.
     iIntros (Φ) "[ℓPts Hval] HΦ".
@@ -576,12 +576,12 @@ Section lifting.
   Qed.
 
   Lemma wp_store_release V v p B ℓ (hist : history) s E :
-    {{{ ℓ ↦h hist ∗ valid V }}}
+    {{{ ℓ ↦h hist ∗ validV V }}}
       (ThreadState (#ℓ <-{rel} v) (V, p, B)) @ s; E
     {{{ t, RET ThreadVal #() (<[ℓ := MaxNat t]>V, p, B);
           ⌜msg_val <$> (hist !! t) = None⌝ ∗
           ⌜(V !!0 ℓ) < t⌝ ∗
-          valid (<[ℓ := MaxNat t]>V) ∗
+          validV (<[ℓ := MaxNat t]>V) ∗
           ℓ ↦h (<[t := Msg v (<[ℓ := MaxNat t]>V) p]>hist) }}}.
   Proof.
     iIntros (Φ) "[ℓPts Hval] HΦ".
@@ -674,7 +674,7 @@ Section lifting.
   Qed.
 
   Lemma wp_fence_fence V P B ℓ (hist : history) s E :
-    {{{ ℓ ↦h hist ∗ valid V ∗ persisted P }}}
+    {{{ ℓ ↦h hist ∗ validV V ∗ persisted P }}}
       (ThreadState FenceSync (V, P, B)) @ s; E
     {{{ RET ThreadVal #() (V, P ⊔ B, ∅);
           persisted (P ⊔ B) }}}.

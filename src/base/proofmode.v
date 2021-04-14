@@ -165,12 +165,13 @@ Tactic Notation "wp_inj" := wp_pure (InjL _) || wp_pure (InjR _).
 Tactic Notation "wp_pair" := wp_pure (Pair _ _).
 Tactic Notation "wp_closure" := wp_pure (Rec _ _ _).
 
-(* 
-Lemma tac_wp_bind `{!nvmG Σ} K Δ s E Φ e f :
-  f = (λ e, fill K e) → (* as an eta expanded hypothesis so that we can `simpl` it *)
-  envs_entails Δ (WP e @ s; E {{ v, WP f (Val v) @ s; E {{ Φ }} }})%I →
-  envs_entails Δ (WP fill K e @ s; E {{ Φ }}).
-Proof. rewrite envs_entails_eq=> -> ->. by apply: wp_bind. Qed.
+Lemma tac_wp_bind `{!nvmG Σ} K Δ s E Φ e TV f :
+  f = (λ (e : thread_state), fill K e) → (* as an eta expanded hypothesis so that we can `simpl` it *)
+  envs_entails Δ (WP ThreadState e TV @ s; E {{ tv, WP (f (ThreadState (Val tv.(val_val)) tv.(val_view))) @ s; E {{ Φ }} }})%I →
+  envs_entails Δ (WP (fill K (ThreadState e TV)) @ s; E {{ Φ }}).
+Proof. rewrite envs_entails_eq=> -> ->. apply: wp_bind.
+       Admitted.
+(* Qed. *)
 
 Ltac wp_bind_core K :=
   lazymatch eval hnf in K with
@@ -181,11 +182,11 @@ Ltac wp_bind_core K :=
 Tactic Notation "wp_bind" open_constr(efoc) :=
   iStartProof;
   lazymatch goal with
-  | |- envs_entails _ (wp ?s ?E ?e ?Q) =>
+  | |- envs_entails _ (wp ?s ?E (ThreadState ?e ?TV) ?Q) =>
     first [ reshape_expr e ltac:(fun K e' => unify e' efoc; wp_bind_core K)
           | fail 1 "wp_bind: cannot find" efoc "in" e ]
   | _ => fail "wp_bind: not a 'wp'"
-  end.*)
+  end.
 
 (** Heap tactics *)
 Section heap.
@@ -251,22 +252,24 @@ Proof.
   rewrite -Hfin wand_elim_r (envs_lookup_sound' _ _ _ _ _ Hlk).
   apply later_mono, sep_mono_r, wand_intro_r. rewrite right_id //.
 Qed.
+*)
 
-Lemma tac_wp_load Δ Δ' s E i K b l q v Φ :
-  MaybeIntoLaterNEnvs 1 Δ Δ' →
-  envs_lookup i Δ' = Some (b, l ↦{q} v)%I →
-  envs_entails Δ' (WP fill K (Val v) @ s; E {{ Φ }}) →
-  envs_entails Δ (WP fill K (Load (LitV l)) @ s; E {{ Φ }}).
-Proof.
-  rewrite envs_entails_eq=> ?? Hi.
-  rewrite -wp_bind. eapply wand_apply; first exact: wp_load.
-  rewrite into_laterN_env_sound -later_sep envs_lookup_split //; simpl.
-  apply later_mono.
-  destruct b; simpl.
-  * iIntros "[#$ He]". iIntros "_". iApply Hi. iApply "He". iFrame "#".
-  * by apply sep_mono_r, wand_mono.
-Qed.
+(* Lemma tac_wp_load Δ Δ' s E i K b l q hist TV Φ : *)
+(*   MaybeIntoLaterNEnvs 1 Δ Δ' → *)
+(*   envs_lookup i Δ' = Some (b, l ↦h{q} hist)%I → *)
+(*   envs_entails Δ' (WP fill K (ThreadState (Val v) TV) @ s; E {{ Φ }}) → *)
+(*   envs_entails Δ (WP fill K (ThreadState (Load (LitV l)) TV) @ s; E {{ Φ }}). *)
+(* Proof. *)
+(*   rewrite envs_entails_eq=> ?? Hi. *)
+(*   rewrite -wp_bind. eapply wand_apply; first exact: wp_load. *)
+(*   rewrite into_laterN_env_sound -later_sep envs_lookup_split //; simpl. *)
+(*   apply later_mono. *)
+(*   destruct b; simpl. *)
+(*   * iIntros "[#$ He]". iIntros "_". iApply Hi. iApply "He". iFrame "#". *)
+(*   * by apply sep_mono_r, wand_mono. *)
+(* Qed. *)
 
+(*
 Lemma tac_wp_store Δ Δ' s E i K l v v' Φ :
   MaybeIntoLaterNEnvs 1 Δ Δ' →
   envs_lookup i Δ' = Some (false, l ↦ v)%I →
@@ -489,29 +492,31 @@ Tactic Notation "wp_free" :=
     |pm_reduce; wp_finish]
   | _ => fail "wp_free: not a 'wp'"
   end.
+*)
 
-Tactic Notation "wp_load" :=
-  let solve_mapsto _ :=
-    let l := match goal with |- _ = Some (_, (?l ↦{_} _)%I) => l end in
-    iAssumptionCore || fail "wp_load: cannot find" l "↦ ?" in
-  wp_pures;
-  lazymatch goal with
-  | |- envs_entails _ (wp ?s ?E ?e ?Q) =>
-    first
-      [reshape_expr e ltac:(fun K e' => eapply (tac_wp_load _ _ _ _ _ K))
-      |fail 1 "wp_load: cannot find 'Load' in" e];
-    [iSolveTC
-    |solve_mapsto ()
-    |wp_finish]
-  | |- envs_entails _ (twp ?s ?E ?e ?Q) =>
-    first
-      [reshape_expr e ltac:(fun K e' => eapply (tac_twp_load _ _ _ _ K))
-      |fail 1 "wp_load: cannot find 'Load' in" e];
-    [solve_mapsto ()
-    |wp_finish]
-  | _ => fail "wp_load: not a 'wp'"
-  end.
+(* Tactic Notation "wp_load" := *)
+(*   let solve_mapsto _ := *)
+(*     let l := match goal with |- _ = Some (_, (?l ↦h{_} _)%I) => l end in *)
+(*     iAssumptionCore || fail "wp_load: cannot find" l "↦ ?" in *)
+(*   wp_pures; *)
+(*   lazymatch goal with *)
+(*   | |- envs_entails _ (wp ?s ?E (ThreadState ?e ?TV) ?Q) => *)
+(*     first *)
+(*       [reshape_expr e ltac:(fun K e' => eapply (tac_wp_load _ _ _ _ _ K)) *)
+(*       |fail 1 "wp_load: cannot find 'Load' in" e]; *)
+(*     [iSolveTC *)
+(*     |solve_mapsto () *)
+(*     |wp_finish] *)
+(*   (* | |- envs_entails _ (twp ?s ?E ?e ?Q) => *) *)
+(*   (*   first *) *)
+(*   (*     [reshape_expr e ltac:(fun K e' => eapply (tac_twp_load _ _ _ _ K)) *) *)
+(*   (*     |fail 1 "wp_load: cannot find 'Load' in" e]; *) *)
+(*   (*   [solve_mapsto () *) *)
+(*   (*   |wp_finish] *) *)
+(*   | _ => fail "wp_load: not a 'wp'" *)
+(*   end. *)
 
+(*
 Tactic Notation "wp_store" :=
   let solve_mapsto _ :=
     let l := match goal with |- _ = Some (_, (?l ↦{_} _)%I) => l end in
