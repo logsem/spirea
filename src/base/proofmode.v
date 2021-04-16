@@ -67,9 +67,9 @@ Proof. rewrite envs_entails_eq=> ->. rewrite wp_value_fupd. done. Qed.
   here are bidirectional, so we never will make a goal unprovable. *)
 Ltac wp_value_head :=
   lazymatch goal with
-  | |- envs_entails _ (wp ?s ?E (Val _) (λ _, fupd ?E _ _)) =>
+  | |- envs_entails _ (wp ?s ?E (ThreadState (Val _) _) (λ _, fupd ?E _ _)) =>
       eapply tac_wp_value_noncfupd
-  | |- envs_entails _ (wp ?s ?E (Val _) (λ _, wp _ ?E _ _)) => (* FIXME: Maybe do something different here. See Perennial. *)
+  | |- envs_entails _ (wp ?s ?E (ThreadState (Val _) _) (λ _, wp _ ?E _ _)) => (* FIXME: Maybe do something different here. See Perennial. *)
       eapply tac_wp_value_noncfupd
   | |- envs_entails _ (wp ?s ?E (ThreadState (Val _) _) _) =>
       eapply tac_wp_value

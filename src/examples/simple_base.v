@@ -2,7 +2,8 @@ From iris.proofmode Require Import tactics.
 From Perennial.program_logic Require Import crash_weakestpre.
 From self.base Require Export primitive_laws class_instances.
 From self.algebra Require Import view.
-From self.base Require Import proofmode.
+From self.base Require Import proofmode wpc_proofmode.
+From self.lang Require Import lang.
 
 Section simple_increment.
   Context `{!nvmG Σ}.
@@ -18,6 +19,22 @@ Section simple_increment.
     iIntros (Φ) "_ Post".
     rewrite /pure.
     wp_pures.
+    iModIntro.
+    by iApply "Post".
+  Qed.
+
+  Lemma wpc_with_let TV k E1 :
+    {{{ True }}} ThreadState pure TV @ k; E1 {{{ RET ThreadVal (#8) TV; True }}}{{{ True }}}.
+  Proof.
+    iIntros (Φ Φc) "_ Post".
+    rewrite /pure.
+    iCache with "Post".
+    { iDestruct "Post" as "[Post _]". iModIntro. by iApply "Post". }
+    wpc_pures.
+    iCache with "Post".
+    { iDestruct "Post" as "[Post _]". iModIntro. by iApply "Post". }
+    wpc_pures. rewrite /thread_fill_item. simpl.
+    wpc_pures.
     iModIntro.
     by iApply "Post".
   Qed.
@@ -59,7 +76,7 @@ Section simple_increment.
 
   Definition init_hist : history := {[ 0 := Msg #0 ∅ ∅ ]}.
 
-  Lemma wp_incr ℓ1 ℓ2 k E1 :
+  Lemma wpc_incr ℓ1 ℓ2 k E1 :
     {{{ ℓ1 ↦h init_hist ∗ ℓ2 ↦h init_hist }}}
       ThreadState (incr_both ℓ1 ℓ2) (∅, ∅, ∅) @ k; E1
     {{{ v t1 t2 TV, RET ThreadVal v TV;
@@ -68,6 +85,7 @@ Section simple_increment.
     }}}
     {{{ True }}}.
   Proof.
+    iIntros (Φ Φc) "[ℓ1pts ℓ2pts] Φpost".
   Abort.
   
 End simple_increment.

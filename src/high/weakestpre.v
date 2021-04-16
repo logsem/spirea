@@ -229,11 +229,11 @@ Section wp.
     MonPred (λ V,
       ∀ TV,
         ⌜V ⊑ TV⌝ -∗
-        valid (store_view TV) -∗
+        validV (store_view TV) -∗
         interp -∗
         WP (ThreadState e TV) @ s; E {{ λ res,
           let '(ThreadVal v TV') := res return _ in
-            valid (store_view TV') ∗ (Φ v TV') ∗ interp
+            validV (store_view TV') ∗ (Φ v TV') ∗ interp
         }})%I _.
   Next Obligation. solve_proper. Qed.
 
