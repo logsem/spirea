@@ -655,35 +655,31 @@ Section lifting.
   Qed.
 
   Lemma wp_fence V P B ℓ (hist : history) s E :
-    {{{ ℓ ↦h hist }}}
+    {{{ True }}}
       (ThreadState Fence (V, P, B)) @ s; E
-    {{{ RET ThreadVal #() (V, P ⊔ B, ∅); ℓ ↦h hist }}}.
+    {{{ RET ThreadVal #() (V, P ⊔ B, ∅); True }}}.
   Proof.
-    iIntros (Φ) "pts HΦ".
+    iIntros (Φ) "_ HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
     iIntros ([??] [] κ κs ? k) "(Hheap & Hauth & Hop & Hpers) Ht /= !>".
-    (* From the points-to predicate we know that [hist] is in the heap at ℓ. *)
-    iDestruct (gen_heap_valid with "Hheap pts") as %Hlook.
     iSplit.
     - rewrite /head_reducible.
        iExists [], _, _, _, _. simpl. iPureIntro.
        eapply impure_step; by econstructor; done.
     - iNext. iIntros (e2 σ2 [] efs Hstep).
       inv_impure_thread_step. iSplitR=>//.
-      iModIntro. iFrame. iApply "HΦ". iFrame.
+      iModIntro. iFrame. iApply "HΦ". done.
   Qed.
 
   Lemma wp_fence_fence V P B ℓ (hist : history) s E :
-    {{{ ℓ ↦h hist ∗ validV V ∗ persisted P }}}
+    {{{ persisted P }}}
       (ThreadState FenceSync (V, P, B)) @ s; E
     {{{ RET ThreadVal #() (V, P ⊔ B, ∅);
           persisted (P ⊔ B) }}}.
   Proof.
-    iIntros (Φ) "(pts & valV & perP) HΦ".
+    iIntros (Φ) "perP HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
     iIntros ([??] [] κ κs ? k) "(Hheap & Hauth & Hop & Hpers & recov) Ht /= !>".
-    (* From the points-to predicate we know that [hist] is in the heap at ℓ. *)
-    iDestruct (gen_heap_valid with "Hheap pts") as %Hlook.
     iSplit.
     - rewrite /head_reducible.
        iExists [], _, _, _, _. simpl. iPureIntro.
