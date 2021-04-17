@@ -86,6 +86,8 @@ Section simple_increment.
     {{{ True }}}.
   Proof.
     iIntros (Φ Φc) "[ℓ1pts ℓ2pts] Φpost".
+    rewrite /incr_both.
+    wpc_bind (_ <- _)%E.
   Abort.
   
 End simple_increment.

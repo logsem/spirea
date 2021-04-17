@@ -37,21 +37,11 @@ Ltac wp_expr_simpl := wp_expr_eval simpl.
 Notation PureExecBase P nsteps e1 e2 :=
   (∀ TV, PureExec P nsteps (ThreadState e1 TV) (ThreadState e2 TV)).
 
-(* There is a correspondance between [fill] in nvm_lang and expr_lang. *)
-Lemma fill_fill (K : list ectx_item) e1 TV :
-  ThreadState (fill K e1) TV =
-    fill (K : list (ectxi_language.ectx_item nvm_ectxi_lang)) (ThreadState e1 TV).
-Proof.
-  induction K using rev_ind.
-  - done.
-  - rewrite !fill_app. rewrite -IHK. done.
-Qed.
-
 Lemma pure_exec_fill K φ n e1 e2 :
   PureExecBase φ n e1 e2 →
   PureExecBase φ n (fill K e1) (fill K e2).
 Proof.
-  intros ? TV. rewrite !fill_fill. apply pure_exec_ctx.
+  intros ? TV. rewrite !nvm_fill_fill. apply pure_exec_ctx.
   - apply: ectx_lang_ctx. (* FIXME: Why is this instance not picked up automatically? *)
   - done.
 Qed.

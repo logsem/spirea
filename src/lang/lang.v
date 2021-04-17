@@ -443,7 +443,6 @@ Module nvm_lang.
     split; eauto using thread_to_of_val, thread_of_to_val, thread_val_stuck, thread_fill_item_val,
       thread_fill_item_no_val_inj, thread_head_ctx_step_val with typeclass_instances.
   Qed.
-
 End nvm_lang.
 
 Canonical Structure expr_ectxi_lang := EctxiLanguage nvm_lang.expr_ectxi_lang_mixin.
@@ -458,3 +457,13 @@ Canonical Structure nvm_crash_lang : crash_semantics nvm_lang :=
   {| crash_prim_step := crash_step |}.
 
 Export nvm_lang.
+
+(* There is a correspondance between [fill] in nvm_lang and expr_lang. *)
+Lemma nvm_fill_fill (K : list (ectx_item)) (e1 : expr) TV :
+  ThreadState (fill K e1) TV =
+    fill (K : list (ectxi_language.ectx_item nvm_ectxi_lang)) (ThreadState e1 TV).
+Proof.
+  induction K using rev_ind.
+  - done.
+  - rewrite !fill_app. rewrite -IHK. done.
+Qed.

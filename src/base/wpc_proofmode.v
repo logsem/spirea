@@ -263,14 +263,19 @@ Ltac wpc_pures :=
       [try iFromCache .. | repeat (wpc_pure_no_later wp_pure_filter as Hcrash; []); clear Hcrash]
   end.
 
-(*
-Lemma tac_wpc_bind `{ffi_sem: ext_semantics} `{!ffi_interp ffi}
-      `{!nvmG Σ, !crashG Σ} K Δ s k E1 Φ Φc e f :
+Lemma tac_wpc_bind `{!nvmG Σ, !crashG Σ} K Δ s k E1 Φ Φc e TV f :
   f = (λ e, fill K e) → (* as an eta expanded hypothesis so that we can `simpl` it *)
-  envs_entails Δ (WPC e @ s; k; E1 {{ v, WPC f (Val v) @ s; k; E1 {{ Φ }} {{ Φc }} }} {{ Φc }})%I →
-  envs_entails Δ (WPC fill K e @ s; k; E1 {{ Φ }} {{ Φc }}).
-Proof. rewrite envs_entails_eq=> -> ->. by apply: wpc_bind. Qed.
+  envs_entails Δ (WPC (ThreadState e TV) @ s; k; E1 {{ tv, WPC (ThreadState (f $ Val tv.(val_val)) (tv.(val_view))) @ s; k; E1 {{ Φ }} {{ Φc }} }} {{ Φc }})%I →
+  envs_entails Δ (WPC (ThreadState (fill K e) TV) @ s; k; E1 {{ Φ }} {{ Φc }}).
+Proof.
+  rewrite envs_entails_eq=> -> ->.
+  rewrite nvm_fill_fill.
+  setoid_rewrite nvm_fill_fill.
+  apply: wpc_bind.
+  apply: ectx_lang_ctx. (* FIXME: Why is this instance not picked up automatically? *)
+Qed.
 
+(*
 Lemma tac_wpc_wp_frame `{ffi_sem: ext_semantics} `{!ffi_interp ffi}
       `{!nvmG Σ, !crashG Σ} Δ d js s k E1 e (Φ: _ -> iProp Σ) (Φc: iProp Σ) :
   match envs_split d js Δ with
@@ -389,6 +394,7 @@ Ltac wpc_call :=
     try wpc_pure1 Hcrash;
       [try iFromCache; crash_case .. |
        repeat (wpc_pure_no_later wp_pure_filter as Hcrash; []); clear Hcrash] ].
+*)
 
 Ltac wpc_bind_core K :=
   lazymatch eval hnf in K with
@@ -399,13 +405,14 @@ Ltac wpc_bind_core K :=
 Tactic Notation "wpc_bind" open_constr(efoc) :=
   iStartProof;
   lazymatch goal with
-  | |- envs_entails _ (wpc ?s ?k ?E1 ?e ?Q1 ?Q2) =>
+  | |- envs_entails _ (wpc ?s ?k ?E1 (ThreadState ?e ?TV) ?Q1 ?Q2) =>
     first [ reshape_expr e ltac:(fun K e' => unify e' efoc; wpc_bind_core K)
       | fail 1 "wpc_bind: cannot find" efoc "in" e ]
   | |- envs_entails _ (wp ?s ?E ?e ?Q) => fail "wpc_bind: 'wp', not a 'wpc'"
   | _ => fail "wpc_bind: not a 'wpc'"
   end.
 
+(*
 Ltac wpc_bind_seq :=
   lazymatch goal with
   | [ |- envs_entails _ (wpc _ _ _ (App (Lam _ ?e2) ?e1) _ _) ] =>
