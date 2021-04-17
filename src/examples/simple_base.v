@@ -88,6 +88,7 @@ Section simple_increment.
     iIntros (Φ Φc) "[ℓ1pts ℓ2pts] Φpost".
     rewrite /incr_both.
     wpc_bind (_ <- _)%E.
+    iApply wpc_atomic_no_mask.
   Abort.
   
 End simple_increment.

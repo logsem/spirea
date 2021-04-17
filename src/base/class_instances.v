@@ -4,7 +4,7 @@ These are used in the proof mode. *)
 From Perennial.program_logic Require Export language.
 From iris.prelude Require Import options.
 
-From self Require Export lang.
+From self.lang Require Export lang notation.
 From self.base Require Import tactics.
 
 (* [IntoVal] and [AsVal] for nvm_lang. *)
@@ -20,54 +20,59 @@ Global Instance as_val_val v : AsVal (Val v).
 Proof. by exists v. Qed.
 
 (** * Instances of the [Atomic] class *)
-(*
+
+Global Notation AtomicBase s e := (∀ TV, Atomic s (ThreadState e TV)).
+
 Section atomic.
   Local Ltac solve_atomic :=
-    apply strongly_atomic_atomic, ectx_language_atomic;
-      [inversion 1; naive_solver
-      |apply ectxi_language_sub_redexes_are_values; intros [] **; naive_solver].
+    intros tv;
+    apply strongly_atomic_atomic;
+    apply: ectx_language_atomic; [
+      inversion 1; inv_head_step; rewrite /thread_to_val; naive_solver
+    | apply: ectxi_language_sub_redexes_are_values; intros [] [] [=]; naive_solver
+    ].
 
-  Global Instance rec_atomic s f x e : Atomic s (Rec f x e).
+  Global Instance rec_atomic s f x e : AtomicBase s (Rec f x e).
   Proof. solve_atomic. Qed.
-  Global Instance pair_atomic s v1 v2 : Atomic s (Pair (Val v1) (Val v2)).
+  Global Instance pair_atomic s v1 v2 : AtomicBase s (Pair (Val v1) (Val v2)).
   Proof. solve_atomic. Qed.
-  Global Instance injl_atomic s v : Atomic s (InjL (Val v)).
+  Global Instance injl_atomic s v : AtomicBase s (InjL (Val v)).
   Proof. solve_atomic. Qed.
-  Global Instance injr_atomic s v : Atomic s (InjR (Val v)).
+  Global Instance injr_atomic s v : AtomicBase s (InjR (Val v)).
   Proof. solve_atomic. Qed.
   (** The instance below is a more general version of [Skip] *)
-  Global Instance beta_atomic s f x v1 v2 : Atomic s (App (RecV f x (Val v1)) (Val v2)).
+  Global Instance beta_atomic s f x v1 v2 : AtomicBase s (App (RecV f x (Val v1)) (Val v2)).
   Proof. destruct f, x; solve_atomic. Qed.
-  Global Instance unop_atomic s op v : Atomic s (UnOp op (Val v)).
+  Global Instance unop_atomic s op v : AtomicBase s (UnOp op (Val v)).
   Proof. solve_atomic. Qed.
-  Global Instance binop_atomic s op v1 v2 : Atomic s (BinOp op (Val v1) (Val v2)).
+  Global Instance binop_atomic s op v1 v2 : AtomicBase s (BinOp op (Val v1) (Val v2)).
   Proof. solve_atomic. Qed.
   Global Instance if_true_atomic s v1 e2 :
-    Atomic s (If (Val $ LitV $ LitBool true) (Val v1) e2).
+    AtomicBase s (If (Val $ LitV $ LitBool true) (Val v1) e2).
   Proof. solve_atomic. Qed.
   Global Instance if_false_atomic s e1 v2 :
-    Atomic s (If (Val $ LitV $ LitBool false) e1 (Val v2)).
+    AtomicBase s (If (Val $ LitV $ LitBool false) e1 (Val v2)).
   Proof. solve_atomic. Qed.
-  Global Instance fst_atomic s v : Atomic s (Fst (Val v)).
+  Global Instance fst_atomic s v : AtomicBase s (Fst (Val v)).
   Proof. solve_atomic. Qed.
-  Global Instance snd_atomic s v : Atomic s (Snd (Val v)).
-  Proof. solve_atomic. Qed.
-
-  Global Instance fork_atomic s e : Atomic s (Fork e).
+  Global Instance snd_atomic s v : AtomicBase s (Snd (Val v)).
   Proof. solve_atomic. Qed.
 
-  Global Instance alloc_atomic s v w : Atomic s (AllocN (Val v) (Val w)).
+  Global Instance fork_atomic s e : AtomicBase s (Fork e).
   Proof. solve_atomic. Qed.
-  Global Instance free_atomic s v : Atomic s (Free (Val v)).
+
+  Global Instance alloc_atomic s v w : AtomicBase s (AllocN (Val v) (Val w)).
   Proof. solve_atomic. Qed.
-  Global Instance load_atomic s v : Atomic s (Load (Val v)).
+  Global Instance load_atomic s v : AtomicBase s (Load (Val v)).
   Proof. solve_atomic. Qed.
-  Global Instance store_atomic s v1 v2 : Atomic s (Store (Val v1) (Val v2)).
+  Global Instance store_atomic s v1 v2 : AtomicBase s (Store (Val v1) (Val v2)).
   Proof. solve_atomic. Qed.
-  Global Instance cmpxchg_atomic s v0 v1 v2 : Atomic s (CmpXchg (Val v0) (Val v1) (Val v2)).
+  Global Instance cmpxchg_atomic s v0 v1 v2 : AtomicBase s (CmpXchg (Val v0) (Val v1) (Val v2)).
   Proof. solve_atomic. Qed.
-  Global Instance faa_atomic s v1 v2 : Atomic s (FAA (Val v1) (Val v2)).
+  Global Instance faa_atomic s v1 v2 : AtomicBase s (FAA (Val v1) (Val v2)).
   Proof. solve_atomic. Qed.
+
+  (* Note: Uncomment if we need prophecy variables.
 
   Global Instance new_proph_atomic s : Atomic s NewProph.
   Proof. solve_atomic. Qed.
@@ -89,8 +94,8 @@ Section atomic.
         * apply irreducible_resolve. by rewrite fill_app in Hs.
       + econstructor; try done. simpl. by rewrite fill_app.
   Qed.
+  *)
 End atomic.
-*)
 
 (** * Instances of the [PureExec] class
 
