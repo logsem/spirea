@@ -104,12 +104,12 @@ Global Program Instance nvmG_irisG `{!nvmG Σ} : irisG nvm_lang Σ := {
 Next Obligation. intros. eauto. Qed.
 
 (* NOTE: Uncomment as needed. *)
-Notation "l ↦h{ dq } v" := (mapsto (L:=loc) (V:=val) l dq (Some v%V))
+Notation "l ↦h{ dq } v" := (mapsto (L:=loc) (V:=history) l dq (v%V))
   (at level 20, format "l  ↦h{ dq }  v") : bi_scope.
-(* Notation "l ↦h□ v" := (mapsto (L:=loc) (V:=val) l DfracDiscarded (Some v%V))
+Notation "l ↦h□ v" := (mapsto (L:=loc) (V:=history) l DfracDiscarded (v%V))
   (at level 20, format "l  ↦h□  v") : bi_scope.
-Notation "l ↦h{# q } v" := (mapsto (L:=loc) (V:=val) l (DfracOwn q) (Some v%V))
-  (at level 20, format "l  ↦h{# q }  v") : bi_scope. *)
+Notation "l ↦h{# q } v" := (mapsto (L:=loc) (V:=history) l (DfracOwn q) (v%V))
+  (at level 20, format "l  ↦h{# q }  v") : bi_scope.
 Notation "l ↦h v" := (mapsto (L:=loc) (V:=history) l (DfracOwn 1) (v%V))
   (at level 20, format "l  ↦h  v") : bi_scope.
 

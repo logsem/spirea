@@ -29,9 +29,10 @@ Notation stO := positiveO (only parsing).
 Definition predicateR {Σ} := agreeR (st -d> val -d> laterO (optionO (dPropO Σ))).
 Definition predicatesR {Σ} := authR (gmapUR loc (@predicateR Σ)).
 
-Definition abs_history := gmap time st.
-Definition abs_historyR := gmapUR nat (agreeR stO).
-Definition historiesR := authR (gmapUR loc abs_historyR).
+Definition encoded_abs_history := gmap time st.
+Definition encoded_abs_historyR := gmapUR nat (agreeR stO).
+Definition enc_abs_histories := gmap loc encoded_abs_history.
+Definition encoded_historiesR := authR (gmapUR loc encoded_abs_historyR).
 
 (* For each location in the heap we maintain the following "meta data".
 For every location we want to store: A type/set of abstract events, its full
@@ -61,7 +62,7 @@ Class wpnvmG Σ := WpnvmG {
   γh : gname;
   γp : gname;
   ra_inG :> inG Σ (@predicatesR Σ);
-  ra'_inG :> inG Σ historiesR;
+  ra'_inG :> inG Σ encoded_historiesR;
 }.
 
 Section wp.
@@ -69,15 +70,13 @@ Section wp.
 
   Implicit Types (Φ : val → dProp Σ) (e : expr).
 
-  Definition abs_hist_to_ra (abs_hist : gmap time (message * st)) : abs_historyR :=
+  Definition abs_hist_to_ra (abs_hist : gmap time (message * st)) : encoded_abs_historyR :=
     (to_agree ∘ snd) <$> abs_hist.
-
-  Definition hi (f : nat → nat) : natO -d> natO := f.
 
   Definition pred_to_ra (pred : st → val → option (dProp Σ)) : (@predicateR Σ) :=
     to_agree ((λ a b, Next (pred a b))).
 
-  (* Definition loc_to_hist_ra (l : (@loc_info Σ)) `{Countable l} : abs_historyR := *)
+  (* Definition loc_to_hist_ra (l : (@loc_info Σ)) `{Countable l} : encoded_abs_historyR := *)
   (*   (to_agree ∘ encode) <$> l_abstract_history l. *)
 
   (* Record foo := { foo_car : Type; foo_rel : relation foo_car; }. *)
@@ -91,36 +90,36 @@ Section wp.
   (*     ∃ (S : Type) _ : EqDecision S) (_ : Countable S) (_ : relation S), *)
   (*       ⌜encode s = enc⌝). *)
 
-  Lemma foo_testa {S : Set} `{Countable S}
-      (ϕ : S → iProp Σ) (ϕenc : positive → iProp Σ) s p :
-    ϕ = ϕenc ∘ encode →
-    encode s = p → 
-    ϕenc p -∗ ϕ s.
-  Proof.
-    iIntros (eq eq') "H". rewrite eq. simpl. rewrite eq'. iApply "H".
-  Qed.
+  (* Test the use of countable encoding. *)
+  (* Lemma test_encoding {S : Set} `{Countable S} *)
+  (*     (ϕ : S → iProp Σ) (ϕenc : positive → iProp Σ) s p : *)
+  (*   ϕ = ϕenc ∘ encode → *)
+  (*   encode s = p →  *)
+  (*   ϕenc p -∗ ϕ s. *)
+  (* Proof. *)
+  (*   iIntros (eq eq') "H". rewrite eq. simpl. rewrite eq'. iApply "H". *)
+  (* Qed. *)
 
-  Lemma foo_testb {S : Set} `{Countable S}
-    (ϕ : S → iProp Σ) (ϕenc : positive -d> optionO (iPropO Σ)) s p (P : iProp Σ) :
-    ϕenc ≡ (λ s, ϕ <$> (decode s)) →
-    p ≡ encode s →
-    ϕenc p ≡ Some P →
-    P ⊣⊢ ϕ s.
-  Proof.
-    iIntros (eq eq'). rewrite eq'.
-    pose proof (eq (encode s)) as HI.
-    rewrite HI.
-    rewrite decode_encode.
-    simpl.
-    intros HO.
-    apply Some_equiv_inj in HO.
-    rewrite HO.
-    done.
-  Qed.
+  (* Lemma test_encoding {S : Set} `{Countable S} *)
+  (*   (ϕ : S → iProp Σ) (ϕenc : positive -d> optionO (iPropO Σ)) s p (P : iProp Σ) : *)
+  (*   ϕenc ≡ (λ s, ϕ <$> (decode s)) → *)
+  (*   p ≡ encode s → *)
+  (*   ϕenc p ≡ Some P → *)
+  (*   P ⊣⊢ ϕ s. *)
+  (* Proof. *)
+  (*   iIntros (eq eq'). rewrite eq'. *)
+  (*   pose proof (eq (encode s)) as HI. *)
+  (*   rewrite HI. *)
+  (*   rewrite decode_encode. *)
+  (*   simpl. *)
+  (*   intros HO. *)
+  (*   apply Some_equiv_inj in HO. *)
+  (*   rewrite HO. *)
+  (*   done. *)
+  (* Qed. *)
 
-  (** We keep this in the weakest precondition. **)
-  Definition interp : iProp Σ :=
-      (∃ (hists : gmap loc (gmap time (message * st)))
+  Definition old_interp : iProp Σ :=
+    (∃ (hists : gmap loc (gmap time (message * st)))
        (preds : gmap loc (st → val → option (dProp Σ))),
       (* We have the points-to predicates. *)
       ([∗ map] ℓ ↦ hist ∈ hists, ℓ ↦h (fst <$> hist)) ∗
@@ -131,15 +130,32 @@ Section wp.
              ⌜(pred) (snd p) (fst p).(msg_val) = Some P⌝ ∗
              P (msg_to_tv (fst p))))) ∗
       (* Authorative ghost states. *)
-      own γh (● (abs_hist_to_ra <$> hists) : historiesR) ∗
+      own γh (● (abs_hist_to_ra <$> hists) : encoded_historiesR) ∗
       own γp (● (pred_to_ra <$> preds) : predicatesR)).
 
-  Definition know_pred `{Countable s}
-      (ℓ : loc) (ϕ : s → val → dProp Σ) : iProp Σ :=
-    own γp (◯ {[ ℓ := pred_to_ra (λ s' v, (λ s, ϕ s v) <$> decode s') ]} : predicatesR).
+  (** This is our analog to the state interpretation in the Iris weakest
+  precondition. We keep this in our weakest precondition ensuring that it holds
+  before and after each step. **)
+  Definition interp : iProp Σ :=
+    (∃ (abs_hists : enc_abs_histories),
+      ([∗ map] ℓ ↦ abs_hist ∈ abs_hists,
+       (* We keep half the points-to predicates to ensure that we know that the
+       keys in the abstract history correspond to the physical history. This
+       ensures that on a crash we know that the value recoreved after a crash
+       has a corresponding abstract value. *)
+       ∃ (hist : history), 
+         ⌜ dom (gset _) abs_hist = dom _ hist ⌝ ∗
+         ℓ ↦h{#1/2} hist
+       ) ∗
+      (* Authorative ghost states. *)
+      own γh (● ((λ (h : encoded_abs_history), to_agree <$> h) <$> abs_hists) : encoded_historiesR)).
 
-  Definition know_state `{Countable s} ℓ (t : time) (s' : s) : iProp Σ :=
-    own γh (◯ {[ ℓ := {[ t := to_agree (encode s') ]} ]} : historiesR).
+  (* Definition know_pred `{Countable s} *)
+  (*     (ℓ : loc) (ϕ : s → val → dProp Σ) : iProp Σ := *)
+  (*   own γp (◯ {[ ℓ := pred_to_ra (λ s' v, (λ s, ϕ s v) <$> decode s') ]} : predicatesR). *)
+
+  (* Definition know_state `{Countable s} ℓ (t : time) (s' : s) : iProp Σ := *)
+  (*   own γh (◯ {[ ℓ := {[ t := to_agree (encode s') ]} ]} : encoded_historiesR). *)
 
   (* A few lemmas about [interp], [know_pred], [know_state]. *)
 
@@ -151,38 +167,25 @@ Section wp.
     apply singleton_included_l.
   Qed.
 
-  Lemma know_state_Some `{Countable ST} hists ℓ t (s : ST) :
-    own γh (● (abs_hist_to_ra <$> hists) : historiesR) -∗
-    know_state ℓ t s -∗
-    ∃ m, ⌜hists !! ℓ = Some m⌝.
-  Proof.
-    iIntros "A B".
-    destruct (hists !! ℓ) as [m|] eqn:Heq.
-    { iExists m. done. }
-    iDestruct (own_valid_2 with "A B") as %[Hincl _]%auth_both_valid_discrete.
-    apply singleton_included_l' in Hincl.
-    move: Hincl => [? [isSome ?]].
-    rewrite lookup_fmap in isSome.
-    rewrite Heq in isSome.
-    inversion isSome.
-  Qed.
-
   (* _Exclusive_ points-to predicate. This predcate says that we know that the
   last events at [ℓ] corresponds to the *)
   Definition mapsto_ex `{Countable ST}
-      ℓ (ss ss' : list (ST * val)) (ϕ : ST → val → dProp Σ) : dProp Σ :=
-    (∃ (tGlobalPers tPers tStore : time) (abs_hist : gmap time (ST * val)) hist,
-
-      (* The abstract and physical history agrees on values. This map over two
-      lists also implies that their domans are equal. *)
-      ⎡([∗ map] t ↦ msg; abs ∈ hist; abs_hist, ⌜msg.(msg_val) = abs.2⌝)⎤ ∗
+      ℓ (ss ss' : list ST) (v : val) (ϕ : ST → val → dProp Σ) : dProp Σ :=
+    (∃ (tGlobalPers tPers tStore : time) (abs_hist : gmap time ST) hist,
 
       (* The location ℓ points to the physical history expressed using the base logic. *)
       ⎡ℓ ↦h hist⎤ ∗
 
-      (* [tStore] is the last message and it agrees with the last value in ss'. *)
-      ⌜abs_hist !! tStore = last ss'⌝ ∗ (* The last element of  *)
+      (* The abstract history and physical history satisfy the invariant
+      predicate. This pair-wise map over two lists also implies that their
+      domains are equal. *)
+      ⎡([∗ map] t ↦ msg; abs ∈ hist; abs_hist,
+          ϕ abs msg.(msg_val) (msg.(msg_store_view), msg.(msg_persist_view), ∅))⎤ ∗
+
+      (* [tStore] is the last message and it agrees with the last state in ss' and the value. *)
+      ⌜abs_hist !! tStore = last ss'⌝ ∗ (* Note: This also ensures that [ss'] is non-empty :) *)
       ⌜(∀ t', tStore < t' → abs_hist !! t' = None)⌝ ∗
+      ⌜msg_val <$> (hist !! tStore) = Some v⌝ ∗ (* The last element of  *)
 
       (* ⌜max_member abs_hist tStore ⌝ ∗ *)
       (* ⌜map_slice abs_hist tGlobalPers tStore (ss ++ ss')⌝ ∗ *)
@@ -202,9 +205,9 @@ Section wp.
       (* We know that our lobal views have [tPers] and [tStore]. *)
       monPred_in ({[ ℓ := MaxNat tStore]}, {[ ℓ := MaxNat tPers ]}, ∅) ∗
       ⎡inv ι (mapsto_ex_inv ℓ ϕ γabs γlast)⎤ ∗
-      ⎡own γabs ({[ tGlobalPers := to_agree s1 ]} : abs_historyR abs_state)⎤ ∗
-      ⎡own γabs ({[ tPers := to_agree s2 ]} : abs_historyR abs_state)⎤ ∗
-      ⎡own γabs ({[ tStore := to_agree s3 ]} : abs_historyR abs_state)⎤).
+      ⎡own γabs ({[ tGlobalPers := to_agree s1 ]} : encoded_abs_historyR abs_state)⎤ ∗
+      ⎡own γabs ({[ tPers := to_agree s2 ]} : encoded_abs_historyR abs_state)⎤ ∗
+      ⎡own γabs ({[ tStore := to_agree s3 ]} : encoded_abs_historyR abs_state)⎤).
   *)
 
   (*
@@ -214,7 +217,7 @@ Section wp.
       ℓ ↦h (fst <$> hist_misc) ∗
       (* ghost state for all the abstract states. *)
       (* ⌜hi = (snd <$> hist_misc)⌝ ∗ *)
-      own γabs ((to_agree <$> (snd <$> hist_misc)) : abs_historyR abs_state) ∗
+      own γabs ((to_agree <$> (snd <$> hist_misc)) : encoded_abs_historyR abs_state) ∗
       (* [s] and [v] is the state and value of the last write *)
       own γlast (((1/2)%Qp, to_agree (s, v)) : lastR abs_state) ∗
       (* FIXME *)
@@ -301,7 +304,7 @@ Section wp.
 End wp.
 
 (* Definition abs_history (abs_state : Type) : Type := gmap time (agree (leibnizO abs_state)). *)
-(* Definition abs_historyR (abs_state : Type) : cmra := gmapR time (agreeR (leibnizO abs_state)). *)
+(* Definition encoded_abs_historyR (abs_state : Type) : cmra := gmapR time (agreeR (leibnizO abs_state)). *)
 
 (* Definition last (abs_state : Type) : Type :=  *)
 Definition lastR (abs_state : Type) : cmra :=
@@ -314,13 +317,13 @@ Section wp_rules.
   Implicit Types (ℓ : loc) (s : abs_state) (ϕ : abs_state → val → dProp Σ).
 
   (* The exclusive points-to predicate. *)
-  Notation "l ↦ xs ; ys | P" := (mapsto_ex l xs ys P) (at level 20).
+  Notation "l ↦ xs ; ys ; v | P" := (mapsto_ex l xs ys v P) (at level 20).
 
   Lemma wp_load_ex ℓ ss ss' s v ϕ st E :
-    last ss' = Some (s, v) →
-    {{{ ℓ ↦ ss ; ss' | ϕ }}}
+    last ss' = Some s →
+    {{{ ℓ ↦ ss; ss'; v | ϕ }}}
       Load (Val $ LitV $ LitLoc ℓ) @ st; E
-    {{{ RET v; ℓ ↦ ss ; ss' | ϕ }}}.
+    {{{ RET v; ℓ ↦ ss; ss'; v | ϕ }}}.
   Proof.
     intros last.
     rewrite wp_eq /wp_def.
@@ -383,6 +386,22 @@ Section wp_rules.
          ⎡know_pred ℓ ϕ⎤ ∗ ⎡know_state ℓ t s⎤.
 
   Notation "l ↦ro s | P" := (mapsto_ro l s P) (at level 20).
+
+  Lemma know_state_Some `{Countable ST} hists ℓ t (s : ST) :
+    own γh (● (abs_hist_to_ra <$> hists) : encoded_historiesR) -∗
+    know_state ℓ t s -∗
+    ∃ m, ⌜hists !! ℓ = Some m⌝.
+  Proof.
+    iIntros "A B".
+    destruct (hists !! ℓ) as [m|] eqn:Heq.
+    { iExists m. done. }
+    iDestruct (own_valid_2 with "A B") as %[Hincl _]%auth_both_valid_discrete.
+    apply singleton_included_l' in Hincl.
+    move: Hincl => [? [isSome ?]].
+    rewrite lookup_fmap in isSome.
+    rewrite Heq in isSome.
+    inversion isSome.
+  Qed.
 
   Lemma wp_load ℓ s ϕ st E R :
     {{{ (∀ s' v, ϕ s' v -∗ ϕ s' v ∗ R s' v) ∗
