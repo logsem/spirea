@@ -161,16 +161,17 @@ Section wpr.
 
   Lemma nvm_heap_reinit (hG' : nvmG Σ) σ σ' (Hinv : invG Σ) (Hcrash : crashG Σ) :
     crash_step σ σ' →
-    ⊢ store_inv (hG := hG') σ.1 -∗
+    ⊢ gen_heap_interp (hG := @nvmG_gen_heapG _ hG') σ.1 -∗
+      store_inv (hG := hG') σ.1 -∗
       persist_auth (hG := hG') σ
       ==∗
       ∃ names : nvm_names,
-        ghost_crash_rel σ hG' σ' (nvm_update Σ hG' Hinv Hcrash names) ∗
+        (* ghost_crash_rel σ hG' σ' (nvm_update Σ hG' Hinv Hcrash names) ∗ *)
         post_crash_map σ.1 hG' (nvm_update Σ hG' Hinv Hcrash names) ∗
         nvm_heap_ctx (hG := nvm_update Σ hG' Hinv Hcrash names) σ' ∗
         persisted_impl hG' (nvm_update Σ hG' Hinv Hcrash names).
   Proof using hG Σ.
-    iIntros ([store p p' pIncl]) "invs pers".
+    iIntros ([store p p' pIncl]) "heapIntrp invs pers".
     rewrite /nvm_heap_ctx. simpl.
     (* Allocate a new heap at a _new_ ghost name. *)
     iMod (gen_heap_init_names (slice_of_store p' store)) as (γh γm) "(heapNew & ptsMap & _)".
@@ -197,9 +198,12 @@ Section wpr.
                name_recovered_view := recoveredG |}.
     iFrame.
     (* We show the ghost crash relation. *)
-    iSplit. { done. }
-    iSplitL "ptsMap".
-    { rewrite /post_crash_map. rewrite /slice_of_store. simpl.
+    (* iSplit. { done. } *)
+    iSplitL "ptsMap heapIntrp".
+    { iSplitL "heapIntrp".
+      { iIntros (??) "pts".
+        iApply (gen_heap_valid with "heapIntrp pts"). }
+      rewrite /post_crash_map. rewrite /slice_of_store. simpl.
       rewrite /mapsto_post_crash. rewrite /recovered.
 
       iEval (rewrite -(map_union_filter (λ '(ℓ, _), is_Some(p' !! ℓ)) store)).
@@ -265,14 +269,12 @@ Section wpr.
       iSpecialize ("Hidemp" $! (nvm_update _ _ _ _ _) with "[//] [//] H").
       iIntros "(heap & authStor & inv & pers & recov) Hg".
       (* Build new ghost state. *)
-      iMod (nvm_heap_reinit _ _ _ _ Hc with "inv pers") as (hnames) "(%rel & map & interp' & persImpl)"; first apply Hcrash.
+      iMod (nvm_heap_reinit _ _ _ _ Hc with "heap inv pers") as (hnames) "(map & interp' & persImpl)"; first apply Hcrash.
       iModIntro.
       iNext. iIntros (Hc' ?) "HNC".
       set (hG' := (nvm_update _ _ _ Hc' hnames)).
       rewrite /post_crash.
-      (* rewrite nvm_update_update. *)
-      (* iDestruct ("Hidemp" $! σ_pre_crash σ_post_crash hG' rel with "map heap") as "HI". *)
-      iDestruct ("Hidemp" $! σ_pre_crash σ_post_crash hG' rel with "map persImpl heap interp'") as "(? & ? & ? & ?)".
+      iDestruct ("Hidemp" $! σ_pre_crash σ_post_crash hG' with "persImpl map") as "(? & ?)".
       iExists ({| pbundleT := hnames |}).
       iModIntro.
       rewrite /state_interp//=.

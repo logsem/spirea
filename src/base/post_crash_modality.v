@@ -17,38 +17,20 @@ Definition mapsto_post_crash {Σ} (hG : nvmG Σ) ℓ (hist : history) : iProp Σ
   (∀ t, ¬ (recovered {[ ℓ := MaxNat t ]})).
 
 Definition post_crash_map {Σ} (σ__old : store) (hG hG' : nvmG Σ) : iProp Σ :=
+  (∀ ℓ (hist : history), (let hG := hG in ℓ ↦h hist) -∗ ⌜σ__old !! ℓ = Some hist⌝) ∗
   [∗ map] ℓ ↦ hist ∈ σ__old, (let hG := hG in ℓ ↦h hist) ∨ (mapsto_post_crash hG' ℓ hist).
 
 (* Note: The [let]s above are to manipulate the type class instance search. *)
-
-(** If [σ] is the state before a crah and [σ'] the state after a crash, and [hG]
-and [hG'] the corresponding ghost state, then following property is true.*)
-(* FIXME: Is this [ghost_crash_rel] used at all? *)
-Definition ghost_crash_rel {Σ}
-           (σ : mem_config) (hG : nvmG Σ) (σ' : mem_config) (hG' : nvmG Σ) : iProp Σ :=
-  (* ⌜hG.(@persist_view_name _) = hG'.(@persist_view_name _)⌝ ∗ *)
-  ⌜hG.(@view_inG _) = hG'.(@view_inG _)⌝.
-
-(* Recall that [crash_step] is the state interpretation for our language. *)
-(* Definition post_crash {Σ} (P : nvmG Σ → iProp Σ) `{hG : !nvmG Σ} : iProp Σ := *)
-(*   (∀ σ σ' (hG' : nvmG Σ), *)
-(*       ⌜crash_step σ σ'⌝ -∗ nvm_heap_ctx (hG := hG) σ -∗ nvm_heap_ctx (hG := hG') σ' -∗ *)
-(*       (nvm_heap_ctx (hG := hG) σ ∗ nvm_heap_ctx (hG := hG') σ' ∗ P hG')). *)
 
 Definition persisted_impl {Σ} hG hG' : iProp Σ :=
   □ ∀ V, persisted (hG := hG) V -∗ persisted (hG := hG') V ∗
                                    ∃ RV, ⌜V ⊑ RV⌝ ∗ recovered (hG := hG') RV.
 
-Definition post_crash {Σ} (P: nvmG Σ → iProp Σ) `{hG: !nvmG Σ}  : iProp Σ :=
-  (∀ σ σ' hG',
-    ghost_crash_rel σ hG σ' hG' -∗
-    post_crash_map σ.1 hG hG' -∗
+Definition post_crash {Σ} (P: nvmG Σ → iProp Σ) `{hG: !nvmG Σ} : iProp Σ :=
+  (∀ (σ σ' : mem_config) hG',
     persisted_impl hG hG' -∗
-    gen_heap_interp (hG := @nvmG_gen_heapG _ hG) σ.1 -∗
-    nvm_heap_ctx (hG := hG') σ' -∗ (* Note: This is not used yet. Remove it if it turns out not to be needed. *)
+    post_crash_map σ.1 hG hG' -∗
     ( post_crash_map σ.1 hG hG' ∗
-      gen_heap_interp (hG := @nvmG_gen_heapG _ hG) σ.1 ∗
-      nvm_heap_ctx (hG := hG') σ' ∗
       P hG')).
 
 Class IntoCrash {Σ} `{!nvmG Σ} (P: iProp Σ) (Q: nvmG Σ → iProp Σ) :=
@@ -62,7 +44,7 @@ Section post_crash_prop.
   Implicit Types v : thread_val.
 
   (** Tiny shortcut for introducing the assumption for a [post_crash]. *)
-  Ltac iIntrosPostCrash := iIntros (σ σ' hG') "%rel map #perToRec heap ctxPost".
+  Ltac iIntrosPostCrash := iIntros (σ σ' hG') "#perToRec map".
 
   Lemma post_crash_intro Q:
     (⊢ Q) →
@@ -75,16 +57,20 @@ Section post_crash_prop.
   Proof.
     iIntros (Hmono) "HP".
     iIntrosPostCrash.
-    iDestruct ("HP" $! σ σ' hG' rel with "[$] [$] [$] [$]") as "($ & $ & $ & P)".
+    iDestruct ("HP" $! σ σ' hG' with "[$] [$]") as "($ & P)".
     by iApply Hmono.
   Qed.
 
+  (* This lemma seems to not hold. *)
   (* Lemma post_crash_pers P Q: *)
   (*   (P -∗ post_crash Q) → *)
   (*   □ P -∗ post_crash (λ hG, □ Q hG). *)
   (* Proof. *)
-  (*   iIntros (Hmono) "#HP". iIntros (???) "#Hrel". *)
-  (*   iModIntro. iApply Hmono; eauto. *)
+  (*   iIntros (Hmono) "#HP". *)
+  (*   iIntrosPostCrash. *)
+  (*   iDestruct (Hmono with "HP") as "HQ". *)
+  (*   iDestruct ("HQ" $! _ _ _ with "perToRec map") as "[$ HQ']". *)
+  (*   iModIntro. iFrame. *)
   (* Qed. *)
 
   Lemma post_crash_sep P Q:
@@ -92,8 +78,8 @@ Section post_crash_prop.
   Proof.
     iIntros "(HP & HQ)".
     iIntrosPostCrash.
-    iDestruct ("HP" $! σ σ' hG' rel with "[$] [$] [$] [$]") as "(map & ctxPre & ctxPost & $)".
-    iDestruct ("HQ" $! σ σ' hG' rel with "[$] [$] [$] [$]") as "$".
+    iDestruct ("HP" $! σ σ' hG' with "[$] [$]") as "(map & $)".
+    iDestruct ("HQ" $! σ σ' hG' with "[$] [$]") as "$".
   Qed.
 
   (* Lemma post_crash_or P Q: *)
@@ -198,13 +184,14 @@ Section post_crash_prop.
   Proof.
     iIntros "pts".
     iIntrosPostCrash.
+    iDestruct "map" as "[look map]".
     iAssert (⌜σ.1 !! ℓ = Some hist⌝)%I as %elemof.
-    { iApply (gen_heap_valid with "heap pts"). }
+    { iApply "look". iFrame. }
     iDestruct (big_sepM_lookup_acc with "map") as "[[pts' | newPts] reIns]"; first done.
     { iDestruct (mapsto_ne with "pts pts'") as %hi. done. }
     (* We reinsert. *)
     iDestruct ("reIns" with "[$pts]") as "map".
-    iFrame.
+    iFrame "#∗".
   Qed.
 
   Lemma recovered_look_eq V W ℓ t t' :
