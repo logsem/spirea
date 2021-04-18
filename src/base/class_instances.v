@@ -36,6 +36,16 @@ Section atomic.
   Proof. solve_atomic. Qed.
   Global Instance pair_atomic s v1 v2 : AtomicBase s (Pair (Val v1) (Val v2)).
   Proof. solve_atomic. Qed.
+  (* Proof. *)
+  (*   intros tv. *)
+  (*   apply strongly_atomic_atomic. *)
+  (*   apply: ectx_language_atomic. *)
+  (*   * inversion 1; inv_head_step; rewrite /thread_to_val; naive_solver. *)
+  (*   * apply: ectxi_language_sub_redexes_are_values. intros [] [] [=]; naive_solver. *)
+  (*     (* intros [] **; try naive_solver. *) *)
+  (*     (* - destruct e'. simpl in *. inversion H. naive_solver. *) *)
+  (*     (* -' *) *)
+  (* Qed. *)
   Global Instance injl_atomic s v : AtomicBase s (InjL (Val v)).
   Proof. solve_atomic. Qed.
   Global Instance injr_atomic s v : AtomicBase s (InjR (Val v)).
@@ -65,7 +75,17 @@ Section atomic.
   Proof. solve_atomic. Qed.
   Global Instance load_atomic s v : AtomicBase s (Load (Val v)).
   Proof. solve_atomic. Qed.
+  Global Instance load_acquire_atomic s v : AtomicBase s (LoadAcquire (Val v)).
+  Proof. solve_atomic. Qed.
   Global Instance store_atomic s v1 v2 : AtomicBase s (Store (Val v1) (Val v2)).
+  Proof. solve_atomic. Qed.
+  Global Instance store_release_atomic s v1 v2 : AtomicBase s (StoreRelease (Val v1) (Val v2)).
+  Proof. solve_atomic. Qed.
+  Global Instance wb_atomic s v : AtomicBase s (WB (Val v)).
+  Proof. solve_atomic. Qed.
+  Global Instance wb_fence s : AtomicBase s Fence.
+  Proof. solve_atomic. Qed.
+  Global Instance wb_fence_sync s : AtomicBase s FenceSync.
   Proof. solve_atomic. Qed.
   Global Instance cmpxchg_atomic s v0 v1 v2 : AtomicBase s (CmpXchg (Val v0) (Val v1) (Val v2)).
   Proof. solve_atomic. Qed.

@@ -77,18 +77,76 @@ Section simple_increment.
   Definition init_hist : history := {[ 0 := Msg #0 ∅ ∅ ]}.
 
   Lemma wpc_incr ℓ1 ℓ2 k E1 :
-    {{{ ℓ1 ↦h init_hist ∗ ℓ2 ↦h init_hist }}}
+    {{{ validV ∅ ∗ ℓ1 ↦h init_hist ∗ ℓ2 ↦h init_hist }}}
       ThreadState (incr_both ℓ1 ℓ2) (∅, ∅, ∅) @ k; E1
     {{{ v t1 t2 TV, RET ThreadVal v TV;
-      ℓ1 ↦h {[ 0 := Msg #0 ∅ ∅; t1 := Msg #1 ∅ ∅ ]} ∗
-      ℓ2 ↦h {[ 0 := Msg #0 ∅ ∅; t2 := Msg #1 {[ ℓ1 := MaxNat t1 ]} {[ ℓ1 := MaxNat t1 ]} ]}
+      ℓ1 ↦h {[ t1 := Msg #1 ∅ ∅; 0 := Msg #0 ∅ ∅ ]} ∗
+      ℓ2 ↦h {[ t2 := Msg #1 ∅ {[ ℓ1 := MaxNat t1 ]}; 0 := Msg #0 ∅ ∅ ]}
     }}}
     {{{ True }}}.
   Proof.
-    iIntros (Φ Φc) "[ℓ1pts ℓ2pts] Φpost".
+    iIntros (Φ Φc) "(val & ℓ1pts & ℓ2pts) Φpost".
     rewrite /incr_both.
+    iDestruct (mapsto_ne with "ℓ1pts ℓ2pts") as "%ℓne".
     wpc_bind (_ <- _)%E.
     iApply wpc_atomic_no_mask.
-  Abort.
+    iSplit.
+    { crash_case. done. }
+    iApply (wp_store with "[$ℓ1pts $val]").
+    iNext. iIntros (t) "(%hlook & %gtT & val & ℓ1pts)".
+    iSplit.
+    { iDestruct "Φpost" as "[Φpost _]". iModIntro. by iApply "Φpost". }
+    iModIntro.
+    iCache with "Φpost".
+    { iDestruct "Φpost" as "[Φpost _]". iModIntro. by iApply "Φpost". }
+    simpl.
+    wpc_pures. rewrite /thread_fill_item. simpl.
+    wpc_pures.
+
+    (* WB *)
+    wpc_bind (WB _)%E.
+    iApply wpc_atomic_no_mask.
+    iSplit. { iFromCache. }
+    iApply (wp_wb with "ℓ1pts").
+    iNext. iIntros "ℓ1pts".
+    iSplit.
+    { iDestruct "Φpost" as "[Φpost _]". iModIntro. by iApply "Φpost". }
+    iModIntro.
+    simpl.
+    wpc_pures. rewrite /thread_fill_item. simpl.
+    wpc_pures.
+
+    (* Fence *)
+    wpc_bind Fence.
+    iApply wpc_atomic_no_mask.
+    iSplit. { iFromCache. }
+    iApply (wp_fence with "[//]").
+    iIntros "!> _".
+    iSplit.
+    { iDestruct "Φpost" as "[Φpost _]". iModIntro. by iApply "Φpost". }
+    iModIntro.
+    simpl.
+    wpc_pures. rewrite /thread_fill_item. simpl.
+    wpc_pures.
+
+    (* Store *)
+    wpc_bind (_ <- _)%E.
+    iApply wpc_atomic_no_mask.
+    iSplit.
+    { crash_case. done. }
+    iApply (wp_store with "[$ℓ2pts $val]").
+    iNext. iIntros (t') "(%hlook' & %gt & val' & ℓ2pts)".
+    iSplit.
+    { iDestruct "Φpost" as "[Φpost _]". iModIntro. by iApply "Φpost". }
+    iModIntro.
+
+    iApply "Φpost".
+    rewrite /init_hist. simpl.
+    iFrame "ℓ1pts".
+    simpl.
+    autorewrite with view_simpl in gt.
+    autorewrite with view_simpl.
+    iFrame "ℓ2pts".
+  Qed.
   
 End simple_increment.

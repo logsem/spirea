@@ -654,7 +654,7 @@ Section lifting.
       iModIntro. iFrame. iApply "HΦ". iFrame.
   Qed.
 
-  Lemma wp_fence V P B ℓ (hist : history) s E :
+  Lemma wp_fence V P B s E :
     {{{ True }}}
       (ThreadState Fence (V, P, B)) @ s; E
     {{{ RET ThreadVal #() (V, P ⊔ B, ∅); True }}}.
@@ -671,7 +671,7 @@ Section lifting.
       iModIntro. iFrame. iApply "HΦ". done.
   Qed.
 
-  Lemma wp_fence_fence V P B ℓ (hist : history) s E :
+  Lemma wp_fence_fence V P B s E :
     {{{ persisted P }}}
       (ThreadState FenceSync (V, P, B)) @ s; E
     {{{ RET ThreadVal #() (V, P ⊔ B, ∅);
