@@ -35,6 +35,9 @@ Proof. done. Qed.
 Global Instance subseteq_view_assoc : Assoc (=) (join_view).
 Proof. apply _. Qed.
 
+Global Instance subseteq_view_comm : Comm (=) (join_view).
+Proof. apply _. Qed.
+
 Global Instance join_mono : Proper ((⊑@{view}) ==> (⊑) ==> (⊑)) (⊔).
 Proof. solve_proper. Qed.
 
@@ -45,7 +48,17 @@ Proof. apply _. Qed.
 Lemma view_valid V : ✓ V.
 Proof. intros k. case (V !! k); done. Qed.
 
-Infix "!!0" := (λ m i, default 0 (max_nat_car <$> (m !! i))) (at level 80).
+Instance view_join_bot_l : LeftId (=) (∅ : view) (⊔).
+Proof.
+  intros ?. rewrite view_join. apply leibniz_equiv. by rewrite left_id.
+Qed.
+Instance list_join_bot_r : RightId (=) (∅ : view) (⊔).
+Proof. intros ?. rewrite (comm (⊔)). by rewrite left_id. Qed.
+
+Notation "m !!0 l" := (default 0 (max_nat_car <$> (m !! l))) (at level 50).
+
+Lemma view_lookup_zero_empty ℓ : ((∅ : view) !!0 ℓ) = 0.
+Proof. by rewrite lookup_empty. Qed.
 
 Lemma view_empty_least V : ∅ ⊑ V. 
 Proof.
@@ -183,3 +196,12 @@ Qed. *)
 (* Global Instance foo_mono : *)
 (*   Proper (pointwise_relation _ (=) ==> (⊆) ==> (⊆)) (⊑). *)
 (* Proof. intros f g ? X Y. set_unfold; naive_solver. Qed. *)
+
+Hint Rewrite (insert_empty (M := gmap loc) (A := max_nat)) : view_simpl.
+Hint Rewrite (lookup_singleton (M := gmap loc) (A := max_nat)) : view_simpl.
+Hint Rewrite (view_lookup_zero_empty) : view_simpl.
+Hint Rewrite (left_id ∅ (⊔)) : view_simpl.
+Hint Rewrite (right_id ∅ (⊔)) : view_simpl.
+Hint Rewrite (lookup_singleton_ne (A := max_nat)) using assumption : view_simpl. (* FIXME: This hint doesn't seem to work. *)
+
+Ltac simpl_view := autorewrite with view_simpl.
