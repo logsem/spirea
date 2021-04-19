@@ -29,6 +29,8 @@ Notation stO := positiveO (only parsing).
 Definition predicateR {Σ} := agreeR (st -d> val -d> laterO (optionO (dPropO Σ))).
 Definition predicatesR {Σ} := authR (gmapUR loc (@predicateR Σ)).
 
+Definition abs_history (State : Type) `{Countable State} := gmap time State.
+
 Definition encoded_abs_history := gmap time st.
 Definition encoded_abs_historyR := gmapUR nat (agreeR stO).
 Definition enc_abs_histories := gmap loc encoded_abs_history.
@@ -170,11 +172,11 @@ Section wp.
   (* _Exclusive_ points-to predicate. This predcate says that we know that the
   last events at [ℓ] corresponds to the *)
   Definition mapsto_ex `{Countable ST}
-      ℓ (ss ss' : list ST) (v : val) (ϕ : ST → val → dProp Σ) : dProp Σ :=
-    (∃ (tGlobalPers tPers tStore : time) (abs_hist : gmap time ST) hist,
+      ℓ (ss1 ss2 : list ST) (v : val) (ϕ : ST → val → dProp Σ) : dProp Σ :=
+    (∃ (tGlobalPers tPers tStore : time) (abs_hist : abs_history ST) hist,
 
       (* The location ℓ points to the physical history expressed using the base logic. *)
-      ⎡ℓ ↦h hist⎤ ∗
+      ⎡ℓ ↦h{#1/2} hist⎤ ∗ (* The other half of the points-to predicate is in [interp]. *)
 
       (* The abstract history and physical history satisfy the invariant
       predicate. This pair-wise map over two lists also implies that their
@@ -182,14 +184,14 @@ Section wp.
       ⎡([∗ map] t ↦ msg; abs ∈ hist; abs_hist,
           ϕ abs msg.(msg_val) (msg.(msg_store_view), msg.(msg_persist_view), ∅))⎤ ∗
 
-      (* [tStore] is the last message and it agrees with the last state in ss' and the value. *)
-      ⌜abs_hist !! tStore = last ss'⌝ ∗ (* Note: This also ensures that [ss'] is non-empty :) *)
+      (* [tStore] is the last message and it agrees with the last state in ss2 and the value. *)
+      ⌜abs_hist !! tStore = last ss2⌝ ∗ (* Note: This also ensures that [ss'] is non-empty :) *)
       ⌜(∀ t', tStore < t' → abs_hist !! t' = None)⌝ ∗
-      ⌜msg_val <$> (hist !! tStore) = Some v⌝ ∗ (* The last element of  *)
+      ⌜msg_val <$> (hist !! tStore) = Some v⌝ ∗
 
-      (* ⌜max_member abs_hist tStore ⌝ ∗ *)
-      (* ⌜map_slice abs_hist tGlobalPers tStore (ss ++ ss')⌝ ∗ *)
-      (* ⌜map_slice abs_hist tGlobalPers tPers ss⌝ ∗ *)
+      (* ⌜max_member abs_hist tStore⌝ ∗ *)
+      ⌜map_slice abs_hist tGlobalPers tStore (ss1 ++ ss2)⌝ ∗
+      ⌜map_slice abs_hist tGlobalPers tPers ss1⌝ ∗
 
       (* We "have"/"know" of the three timestamps. *)
       monPred_in ({[ ℓ := MaxNat tStore ]}, {[ ℓ := MaxNat tPers ]}, ∅) ∗

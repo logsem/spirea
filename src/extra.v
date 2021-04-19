@@ -42,7 +42,7 @@ Section nat_map.
     (m !! t = Some v) ∧ (∀ t', t < t' → m !! t' = None).
   
   (** Expresses that the map [m] contains, in order, the values [xs] from the
-  indeces starting at [lo] up to and including [hi]. *)
+  indeces starting at exactly [lo] ending at exactly [hi]. *)
   Fixpoint map_slice m (lo hi : nat) (xs : list A) :=
     match xs with
     | [] => False
