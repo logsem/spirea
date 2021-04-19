@@ -201,7 +201,7 @@ Section wpr.
     (* iSplit. { done. } *)
     iSplitL "ptsMap heapIntrp".
     { iSplitL "heapIntrp".
-      { iIntros (??) "pts".
+      { iIntros (???) "pts".
         iApply (gen_heap_valid with "heapIntrp pts"). }
       rewrite /post_crash_map. rewrite /slice_of_store. simpl.
       rewrite /mapsto_post_crash. rewrite /recovered.
@@ -213,9 +213,10 @@ Section wpr.
       { rewrite big_sepM_filter.
         iApply big_sepM_intuitionistically_forall.
         iModIntro. iIntros (ℓ hist look not).
-        iRight.
-        iRight.
-        iIntros (t) "own". admit. }
+        iExists 0, 1. rewrite /if_non_zero. simpl.
+        iSplit; first done.
+        iSplit; last done.
+        admit. }
         (* iDestruct (own_valid_2 with "recovered own") as %[_ [incl _]]%auth_both_dfrac_valid_discrete. *)
         (* iPureIntro. *)
         (* apply not. *)
@@ -231,7 +232,7 @@ Section wpr.
         (* rewrite lookup_map_zip_with. *)
         simpl.
         iIntros (look1 look2) "pts".
-        iRight.
+        (* iRight. *)
         admit. }
     iSplit.
     * iDestruct (store_inv_cut with "invs") as "$".

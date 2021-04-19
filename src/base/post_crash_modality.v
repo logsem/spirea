@@ -1,4 +1,5 @@
 (* In this file we define the post crash modality for the base logic. *)
+From Coq Require Import QArith Qcanon.
 From iris.algebra Require Import agree.
 From iris.proofmode Require Import reduction monpred tactics.
 
@@ -10,17 +11,54 @@ From self.base Require Import primitive_laws.
 
 Set Default Proof Using "Type".
 
-Definition mapsto_post_crash {Σ} (hG : nvmBaseG Σ) ℓ (hist : history) : iProp Σ :=
+(** This definition captures the resources and knowledge you gain _after_ a
+crash if you own a points-to predicate _prior to_ a crash. *)
+Definition mapsto_post_crash {Σ} (hG : nvmBaseG Σ) ℓ q (hist : history) : iProp Σ :=
   (∃ t msg, ⌜hist !! t = Some msg⌝ ∗
-            ℓ ↦h ({[ 0 := discard_store_view msg]}) ∗
+            ℓ ↦h{#q} ({[ 0 := discard_store_view msg]}) ∗
             recovered {[ ℓ := MaxNat t ]}) ∨
   (∀ t, ¬ (recovered {[ ℓ := MaxNat t ]})).
 
-Definition post_crash_map {Σ} (σ__old : store) (hG hG' : nvmBaseG Σ) : iProp Σ :=
-  (∀ ℓ (hist : history), (let hG := hG in ℓ ↦h hist) -∗ ⌜σ__old !! ℓ = Some hist⌝) ∗
-  [∗ map] ℓ ↦ hist ∈ σ__old, (let hG := hG in ℓ ↦h hist) ∨ (mapsto_post_crash hG' ℓ hist).
+(* Record Qp := mk_Qp { Qp_to_Qc : Qc ; Qp_prf : (0 < Qp_to_Qc)%Qc }. *)
 
-(* Note: The [let]s above are to manipulate the type class instance search. *)
+Definition if_non_zero {Σ} (q : Qc) (P : Qp → iProp Σ) : iProp Σ :=
+  match (decide (0 < q)%Qc) with
+    left prf => P (mk_Qp q prf)
+  | right prf => ⌜q = 0⌝
+  end.
+
+(* Note: The odd [let]s below are to manipulate the type class instance search. *)
+
+(** This map is used to exchange points-to predicates valid prior to a crash
+into points-to predicates valid after the crash. *)
+Definition post_crash_map {Σ} (σ__old : store) (hG hG' : nvmBaseG Σ) : iProp Σ :=
+  (* Used to conclude that the locations owned are included in the heap in question. *)
+  (∀ ℓ dq (hist : history), (let hG := hG in ℓ ↦h{dq} hist) -∗ ⌜σ__old !! ℓ = Some hist⌝) ∗
+  (* The map used to the the exchange. *)
+  [∗ map] ℓ ↦ hist ∈ σ__old,
+    ∃ (qc pc : Qc),
+      (if_non_zero qc (λ q, let hG := hG in ℓ ↦h{#q} hist)) ∗
+      (if_non_zero pc (λ p, mapsto_post_crash hG' ℓ p hist)) ∗
+      ⌜(qc + pc = 1)%Qc⌝.
+
+Lemma post_crash_map_exchange {Σ} σ__old (hG hG' : nvmBaseG Σ) ℓ q hist :
+  post_crash_map σ__old hG hG' -∗
+  (let hG := hG in ℓ ↦h{#q} hist) -∗
+    post_crash_map σ__old hG hG' ∗
+    mapsto_post_crash hG' ℓ q hist.
+Proof.
+  iDestruct 1 as "[look map]".
+  iIntros "pts".
+  iAssert (⌜σ__old !! ℓ = Some hist⌝)%I as %elemof.
+  { iApply "look". iFrame. }
+  iDestruct (big_sepM_lookup_acc with "map") as "[elm reIns]"; first done.
+  iDestruct "elm" as (q' p) "(oldPts & new & %eq)".
+  (* { iDestruct (mapsto_ne with "pts pts'") as %hi. done. } *)
+  (* We reinsert. *)
+  (* iDestruct ("reIns" with "[$pts]") as "map". *)
+  (* iFrame "#∗". *)
+Admitted.
+
 
 Definition persisted_impl {Σ} hG hG' : iProp Σ :=
   □ ∀ V, persisted (hG := hG) V -∗ persisted (hG := hG') V ∗
@@ -30,8 +68,7 @@ Definition post_crash {Σ} (P: nvmBaseG Σ → iProp Σ) `{hG: !nvmBaseG Σ} : i
   (∀ (σ σ' : mem_config) hG',
     persisted_impl hG hG' -∗
     post_crash_map σ.1 hG hG' -∗
-    ( post_crash_map σ.1 hG hG' ∗
-      P hG')).
+    (post_crash_map σ.1 hG hG' ∗ P hG')).
 
 Class IntoCrash {Σ} `{!nvmBaseG Σ} (P: iProp Σ) (Q: nvmBaseG Σ → iProp Σ) :=
   into_crash : P -∗ post_crash (Σ := Σ) (λ hG', Q hG').
@@ -179,19 +216,12 @@ Section post_crash_prop.
     iIntros (?) "[??]". iFrame.
   Qed.
 
-  Lemma post_crash_mapsto ℓ hist :
-    ℓ ↦h hist -∗ post_crash (λ hG', mapsto_post_crash hG' ℓ hist).
+  Lemma post_crash_mapsto ℓ q hist :
+    ℓ ↦h{#q} hist -∗ post_crash (λ hG', mapsto_post_crash hG' ℓ q hist).
   Proof.
     iIntros "pts".
     iIntrosPostCrash.
-    iDestruct "map" as "[look map]".
-    iAssert (⌜σ.1 !! ℓ = Some hist⌝)%I as %elemof.
-    { iApply "look". iFrame. }
-    iDestruct (big_sepM_lookup_acc with "map") as "[[pts' | newPts] reIns]"; first done.
-    { iDestruct (mapsto_ne with "pts pts'") as %hi. done. }
-    (* We reinsert. *)
-    iDestruct ("reIns" with "[$pts]") as "map".
-    iFrame "#∗".
+    iApply (post_crash_map_exchange with "map pts").
   Qed.
 
   Lemma recovered_look_eq V W ℓ t t' :
@@ -226,13 +256,13 @@ Section post_crash_prop.
     done.
   Qed.
 
-  Lemma mapsto_post_crash_recovered V t__low ℓ hist :
+  Lemma mapsto_post_crash_recovered V t__low ℓ q hist :
     V !! ℓ = Some (MaxNat t__low) →
     (∃ RV, ⌜V ⊑ RV⌝ ∗ recovered RV) -∗  (* What persisted gives us after crash. *)
-    mapsto_post_crash hG ℓ hist -∗      (* What mapsto gives us after crash *)
+    mapsto_post_crash hG ℓ q hist -∗      (* What mapsto gives us after crash *)
     (∃ t msg, ⌜hist !! t = Some msg⌝ ∗
               ⌜t__low ≤ t⌝ ∗
-              ℓ ↦h ({[ 0 := discard_store_view msg]}) ∗
+              ℓ ↦h{#q} ({[ 0 := discard_store_view msg]}) ∗
               recovered {[ ℓ := MaxNat t ]}).
   Proof.
     iIntros (look) "A [B|B]"; iDestruct "A" as (RV incl) "#rec".
