@@ -27,7 +27,7 @@ Definition nvm_heap_update {Σ} (h : gen_heapG loc history Σ) (names : nvm_heap
      gen_heap_name := names.(name_gen_heap);
      gen_meta_name := names.(name_gen_meta) |}.
 
-(** A record of all the ghost names useb by [nvmG] that needs to change after a
+(** A record of all the ghost names useb by [nvmBaseG] that needs to change after a
 crash. *)
 Record nvm_names := {
   name_heap_names : nvm_heap_names; (* Names used by [gen_heap]. *)
@@ -36,21 +36,21 @@ Record nvm_names := {
   name_recovered_view : gname;      (* Name used by the recover view. *)
 }.
 
-Definition nvm_get_names Σ (hG : nvmG Σ) : nvm_names :=
-  {| name_heap_names := nvm_get_heap_names nvmG_gen_heapG;
+Definition nvm_get_names Σ (hG : nvmBaseG Σ) : nvm_names :=
+  {| name_heap_names := nvm_get_heap_names nvmBaseG_gen_heapG;
      name_store_view := store_view_name;
      name_persist_view := persist_view_name;
      name_recovered_view := recovered_view_name |}.
 
 Canonical Structure nvm_namesO := leibnizO nvm_names.
 
-(** Given an [hG : nvmG Σ], update the fields per the information in the rest of
+(** Given an [hG : nvmBaseG Σ], update the fields per the information in the rest of
 the arguments. In particular, all the gnames in [names] replaces the
 corresponding gnames in [hG]. *)
-Definition nvm_update Σ (hG : nvmG Σ) (Hinv : invG Σ) (Hcrash : crashG Σ) (names : nvm_names) :=
-  {| nvmG_invG := Hinv;
-     nvmG_crashG := Hcrash;
-     nvmG_gen_heapG := nvm_heap_update hG.(@nvmG_gen_heapG _) names.(name_heap_names);
+Definition nvm_update Σ (hG : nvmBaseG Σ) (Hinv : invG Σ) (Hcrash : crashG Σ) (names : nvm_names) :=
+  {| nvmBaseG_invG := Hinv;
+     nvmBaseG_crashG := Hcrash;
+     nvmBaseG_gen_heapG := nvm_heap_update hG.(@nvmBaseG_gen_heapG _) names.(name_heap_names);
      view_inG := hG.(@view_inG _);
      store_view_name := names.(name_store_view);
      persist_view_name := names.(name_persist_view);
@@ -75,9 +75,9 @@ Lemma nvm_update_id Σ hG :
   nvm_update Σ hG (iris_invG) (iris_crashG) (nvm_get_names _ hG) = hG.
 Proof. destruct hG as [? ? []]. auto. Qed.
 
-Program Global Instance nvmG_perennialG `{!nvmG Σ} : perennialG nvm_lang nvm_crash_lang nvm_namesO Σ := {
+Program Global Instance nvmBaseG_perennialG `{!nvmBaseG Σ} : perennialG nvm_lang nvm_crash_lang nvm_namesO Σ := {
   perennial_irisG := λ Hcrash hnames,
-                     @nvmG_irisG _ (nvm_update _ _ _ Hcrash (@pbundleT _ _ hnames));
+                     @nvmBaseG_irisG _ (nvm_update _ _ _ Hcrash (@pbundleT _ _ hnames));
   perennial_crashG := λ _ _, eq_refl;
   perennial_num_laters_per_step := λ n, n
 }.
@@ -88,15 +88,15 @@ Lemma nvm_update_update Σ hG Hinv Hcrash names Hinv' Hcrash' names' :
     nvm_update Σ hG Hinv Hcrash names.
 Proof. auto. Qed.
 
-Definition wpr `{hG : !nvmG Σ} `{hC : !crashG Σ} (s : stuckness) (k : nat) (E : coPset)
-  (e : thread_state) (recv : thread_state) (Φ : thread_val → iProp Σ) (Φinv : nvmG Σ → iProp Σ) (Φr : nvmG Σ → thread_val → iProp Σ) :=
+Definition wpr `{hG : !nvmBaseG Σ} `{hC : !crashG Σ} (s : stuckness) (k : nat) (E : coPset)
+  (e : thread_state) (recv : thread_state) (Φ : thread_val → iProp Σ) (Φinv : nvmBaseG Σ → iProp Σ) (Φr : nvmBaseG Σ → thread_val → iProp Σ) :=
   wpr s k hC ({| pbundleT := nvm_get_names Σ _ |}) E e recv
               Φ
               (λ Hc names, Φinv (nvm_update _ _ _ Hc (@pbundleT _ _ names)))
               (λ Hc names v, Φr (nvm_update _ _ _ Hc (@pbundleT _ _ names)) v).
 
 Section wpr.
-  Context `{hG : !nvmG Σ}.
+  Context `{hG : !nvmBaseG Σ}.
   (* Context {Σ : functorG}. *)
   Implicit Types s : stuckness.
   Implicit Types k : nat.
@@ -154,14 +154,14 @@ Section wpr.
   (*   apply view_empty_least. *)
   (* Qed. *)
 
-  Definition persist_auth {hG : nvmG Σ} (σ : mem_config) := own persist_view_name (● σ.2).
+  Definition persist_auth {hG : nvmBaseG Σ} (σ : mem_config) := own persist_view_name (● σ.2).
 
   Instance tt (p : view) : CoreId (●□ p).
   Proof. do 2 constructor; simpl; auto. apply: core_id_core. Qed.
 
-  Lemma nvm_heap_reinit (hG' : nvmG Σ) σ σ' (Hinv : invG Σ) (Hcrash : crashG Σ) :
+  Lemma nvm_heap_reinit (hG' : nvmBaseG Σ) σ σ' (Hinv : invG Σ) (Hcrash : crashG Σ) :
     crash_step σ σ' →
-    ⊢ gen_heap_interp (hG := @nvmG_gen_heapG _ hG') σ.1 -∗
+    ⊢ gen_heap_interp (hG := @nvmBaseG_gen_heapG _ hG') σ.1 -∗
       store_inv (hG := hG') σ.1 -∗
       persist_auth (hG := hG') σ
       ==∗
@@ -255,7 +255,7 @@ Section wpr.
 
   Lemma idempotence_wpr `{!ffi_interp_adequacy} s k E1 e rec Φx Φinv Φrx Φcx :
     ⊢ WPC e @ s ; k ; E1 {{ Φx }} {{ Φcx hG }} -∗
-    (□ ∀ (hG1 : nvmG Σ) (Hpf : @nvmG_invG Σ hG = @nvmG_invG Σ hG1) σ σ'
+    (□ ∀ (hG1 : nvmBaseG Σ) (Hpf : @nvmBaseG_invG Σ hG = @nvmBaseG_invG Σ hG1) σ σ'
           (HC : crash_prim_step (nvm_crash_lang) σ σ'),
           Φcx hG1 -∗ ▷ post_crash (λ hG2, (Φinv hG2 ∧ WPC rec @ s ; k; E1 {{ Φrx hG2 }} {{ Φcx hG2 }}))) -∗
       wpr s k E1 e rec Φx Φinv Φrx.

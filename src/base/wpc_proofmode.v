@@ -20,7 +20,7 @@ Set Default Proof Using "Type".
 Import uPred.
 
 (*
-Lemma wpc_fork `{ffi_sem: ext_semantics} `{!ffi_interp ffi} `{!nvmG Σ, !crashG Σ} s k E1 e Φ Φc :
+Lemma wpc_fork `{ffi_sem: ext_semantics} `{!ffi_interp ffi} `{!nvmBaseG Σ, !crashG Σ} s k E1 e Φ Φc :
   ▷ WPC e @ s; k; ⊤ {{ _, True }} {{ True }} -∗ (<disc> Φc ∧ ▷ Φ (LitV LitUnit)) -∗
                       WPC Fork e @ s; k; E1 {{ Φ }} {{ Φc }}.
 Proof.
@@ -40,7 +40,7 @@ Proof.
 Qed.
 *)
 
-Lemma tac_wpc_expr_eval `{!nvmG Σ} Δ (s: stuckness) (k: nat) E1 Φ (Φc: iProp Σ) e e' :
+Lemma tac_wpc_expr_eval `{!nvmBaseG Σ} Δ (s: stuckness) (k: nat) E1 Φ (Φc: iProp Σ) e e' :
   (∀ (e'':=e'), e = e'') →
   envs_entails Δ (WPC e' @ s; k; E1 {{ Φ }} {{ Φc }}) → envs_entails Δ (WPC e @ s; k; E1 {{ Φ }} {{ Φc }}).
 Proof. by intros ->. Qed.
@@ -54,7 +54,7 @@ Tactic Notation "wpc_expr_eval" tactic(t) :=
   end.
 
 (* XXX: this caches the wrong thing as compared to the old version *)
-Lemma tac_wpc_pure_ctx `{!nvmG Σ, !crashG Σ} Δ Δ' s k E1 K e1 e2 TV φ Φ Φc :
+Lemma tac_wpc_pure_ctx `{!nvmBaseG Σ, !crashG Σ} Δ Δ' s k E1 K e1 e2 TV φ Φ Φc :
   PureExecBase φ 1 e1 e2 →
   φ →
   MaybeIntoLaterNEnvs 1 Δ Δ' →
@@ -70,7 +70,7 @@ Admitted.
 (*   rewrite HΔ' //. *)
 (* Qed. *)
 
-Lemma tac_wpc_pure_no_later_ctx `{!nvmG Σ, !crashG Σ}
+Lemma tac_wpc_pure_no_later_ctx `{!nvmBaseG Σ, !crashG Σ}
       Δ s k E1 K e1 e2 TV φ Φ Φc :
   PureExecBase φ 1 e1 e2 →
   φ →
@@ -87,7 +87,7 @@ Proof.
     iApply HΔ'; iAssumption.
 Qed.
 
-Lemma tac_wpc_value `{!nvmG Σ} Δ s k E1 Φ Φc v TV :
+Lemma tac_wpc_value `{!nvmBaseG Σ} Δ s k E1 Φ Φc v TV :
   envs_entails Δ (|NC={E1}=> Φ (ThreadVal v TV)) →
   envs_entails Δ (<disc> Φc) →
   envs_entails Δ (WPC (ThreadState (Val v) TV) @ s; k; E1 {{ Φ }} {{ Φc }}).
@@ -100,7 +100,7 @@ Admitted.
 (*   - rewrite H2. iIntros. do 2 iModIntro; auto. *)
 (* Qed. *)
 
-Lemma tac_wpc_value_fupd `{!nvmG Σ} Δ s k E1 Φ Φc v TV :
+Lemma tac_wpc_value_fupd `{!nvmBaseG Σ} Δ s k E1 Φ Φc v TV :
   envs_entails Δ (|NC={E1}=> Φ (ThreadVal v TV)) →
   envs_entails Δ (<disc> Φc) →
   envs_entails Δ (WPC (ThreadState (Val v) TV) @ s; k; E1 {{ v, |={E1}=> Φ v }} {{ Φc }})%I.
@@ -111,7 +111,7 @@ Admitted.
 (*   - rewrite H1. iIntros ">?". eauto. *)
 (*   - rewrite H2. iIntros. do 2 iModIntro; auto. *)
 (* Qed. *)
-Lemma tac_wpc_value_noncfupd `{!nvmG Σ} Δ s k E1 Φ Φc v TV :
+Lemma tac_wpc_value_noncfupd `{!nvmBaseG Σ} Δ s k E1 Φ Φc v TV :
   envs_entails Δ (Φ (ThreadVal v TV)) →
   envs_entails Δ (<disc> Φc) →
   envs_entails Δ (WPC (ThreadState (Val v) TV) @ s; k; E1 {{ Φ }} {{ Φc }}).
@@ -263,7 +263,7 @@ Ltac wpc_pures :=
       [try iFromCache .. | repeat (wpc_pure_no_later wp_pure_filter as Hcrash; []); clear Hcrash]
   end.
 
-Lemma tac_wpc_bind `{!nvmG Σ, !crashG Σ} K Δ s k E1 Φ Φc e TV f :
+Lemma tac_wpc_bind `{!nvmBaseG Σ, !crashG Σ} K Δ s k E1 Φ Φc e TV f :
   f = (λ e, fill K e) → (* as an eta expanded hypothesis so that we can `simpl` it *)
   envs_entails Δ (WPC (ThreadState e TV) @ s; k; E1 {{ tv, WPC (ThreadState (f $ Val tv.(val_val)) (tv.(val_view))) @ s; k; E1 {{ Φ }} {{ Φc }} }} {{ Φc }})%I →
   envs_entails Δ (WPC (ThreadState (fill K e) TV) @ s; k; E1 {{ Φ }} {{ Φc }}).
@@ -277,7 +277,7 @@ Qed.
 
 (*
 Lemma tac_wpc_wp_frame `{ffi_sem: ext_semantics} `{!ffi_interp ffi}
-      `{!nvmG Σ, !crashG Σ} Δ d js s k E1 e (Φ: _ -> iProp Σ) (Φc: iProp Σ) :
+      `{!nvmBaseG Σ, !crashG Σ} Δ d js s k E1 e (Φ: _ -> iProp Σ) (Φc: iProp Σ) :
   match envs_split d js Δ with
   | Some (Δ1, Δ2) => envs_entails Δ1 (<disc> Φc) ∧
                      envs_entails Δ2 (WP e @ s; E1
@@ -306,7 +306,7 @@ Qed.
 (* combines using [wpc_frame Hs] with [iFromCache], simultaneously framing and
    proving the crash condition using a cache *)
 Lemma tac_wpc_wp_frame_cache `{ffi_sem: ext_semantics} `{!ffi_interp ffi}
-      `{!nvmG Σ, !crashG Σ} (Φc: iProp Σ) i (* name of cache *) (c: cache (<disc> Φc)%I)
+      `{!nvmBaseG Σ, !crashG Σ} (Φc: iProp Σ) i (* name of cache *) (c: cache (<disc> Φc)%I)
       Δ stk k E1 e (Φ: _ → iProp Σ)  :
   envs_lookup i Δ = Some (true, cached c) →
   match envs_split Left c.(cache_names) Δ with

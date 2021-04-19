@@ -19,7 +19,7 @@ Definition pure : expr :=
   "a" + "b".
 
 Section specs.
-  Context `{!nvmG Σ, !wpnvmG Σ}.
+  Context `{!nvmBaseG Σ, !nvmG Σ}.
 
   Lemma wp_bin_op : ⊢ WP (#1 + #2) {{ v, ⌜1 = 1⌝ }}.
   Proof.
@@ -41,6 +41,6 @@ Section specs.
 End specs.
 
 Section simple_increment.
-  Context `{!nvmG Σ}.
+  Context `{!nvmBaseG Σ}.
 
 End simple_increment.

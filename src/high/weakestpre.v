@@ -60,7 +60,8 @@ Record loc_info {Σ} := {
 (*   ((λ '(m, s), (m, encode s)) <$> (l_abstract_history l), *)
 (*    λ v s, (l_ϕ l $ v) <$> decode s). *)
 
-Class wpnvmG Σ := WpnvmG {
+Class nvmG Σ := NvmG {
+  nvmG_baseG :> nvmBaseG Σ;
   γh : gname;
   γp : gname;
   ra_inG :> inG Σ (@predicatesR Σ);
@@ -68,7 +69,7 @@ Class wpnvmG Σ := WpnvmG {
 }.
 
 Section wp.
-  Context `{!nvmG Σ, !wpnvmG Σ}.
+  Context `{!nvmG Σ}.
 
   Implicit Types (Φ : val → dProp Σ) (e : expr).
 
@@ -314,7 +315,7 @@ Definition lastR (abs_state : Type) : cmra :=
 
 Section wp_rules.
   Context `{SqSubsetEq abs_state, !PreOrder (⊑@{abs_state}), Countable abs_state}.
-  Context `{!nvmG Σ, !wpnvmG Σ}.
+  Context `{!nvmG Σ}.
 
   Implicit Types (ℓ : loc) (s : abs_state) (ϕ : abs_state → val → dProp Σ).
 

@@ -10,13 +10,13 @@ From self.base Require Import primitive_laws.
 
 Set Default Proof Using "Type".
 
-Definition mapsto_post_crash {Σ} (hG : nvmG Σ) ℓ (hist : history) : iProp Σ :=
+Definition mapsto_post_crash {Σ} (hG : nvmBaseG Σ) ℓ (hist : history) : iProp Σ :=
   (∃ t msg, ⌜hist !! t = Some msg⌝ ∗
             ℓ ↦h ({[ 0 := discard_store_view msg]}) ∗
             recovered {[ ℓ := MaxNat t ]}) ∨
   (∀ t, ¬ (recovered {[ ℓ := MaxNat t ]})).
 
-Definition post_crash_map {Σ} (σ__old : store) (hG hG' : nvmG Σ) : iProp Σ :=
+Definition post_crash_map {Σ} (σ__old : store) (hG hG' : nvmBaseG Σ) : iProp Σ :=
   (∀ ℓ (hist : history), (let hG := hG in ℓ ↦h hist) -∗ ⌜σ__old !! ℓ = Some hist⌝) ∗
   [∗ map] ℓ ↦ hist ∈ σ__old, (let hG := hG in ℓ ↦h hist) ∨ (mapsto_post_crash hG' ℓ hist).
 
@@ -26,18 +26,18 @@ Definition persisted_impl {Σ} hG hG' : iProp Σ :=
   □ ∀ V, persisted (hG := hG) V -∗ persisted (hG := hG') V ∗
                                    ∃ RV, ⌜V ⊑ RV⌝ ∗ recovered (hG := hG') RV.
 
-Definition post_crash {Σ} (P: nvmG Σ → iProp Σ) `{hG: !nvmG Σ} : iProp Σ :=
+Definition post_crash {Σ} (P: nvmBaseG Σ → iProp Σ) `{hG: !nvmBaseG Σ} : iProp Σ :=
   (∀ (σ σ' : mem_config) hG',
     persisted_impl hG hG' -∗
     post_crash_map σ.1 hG hG' -∗
     ( post_crash_map σ.1 hG hG' ∗
       P hG')).
 
-Class IntoCrash {Σ} `{!nvmG Σ} (P: iProp Σ) (Q: nvmG Σ → iProp Σ) :=
+Class IntoCrash {Σ} `{!nvmBaseG Σ} (P: iProp Σ) (Q: nvmBaseG Σ → iProp Σ) :=
   into_crash : P -∗ post_crash (Σ := Σ) (λ hG', Q hG').
 
 Section post_crash_prop.
-  Context `{hG: !nvmG Σ}.
+  Context `{hG: !nvmBaseG Σ}.
   Implicit Types Φ : thread_val → iProp Σ.
   Implicit Types efs : list thread_state.
   Implicit Types σ : mem_config.
@@ -134,7 +134,7 @@ Section post_crash_prop.
   (*   iExists x. iApply ("Hall" with "[$] [$]"). *)
   (* Qed. *)
 
-  (* Global Instance from_exist_post_crash {A} (Φ: nvmG Σ → iProp Σ) (Ψ: nvmG Σ → A → iProp Σ) *)
+  (* Global Instance from_exist_post_crash {A} (Φ: nvmBaseG Σ → iProp Σ) (Ψ: nvmBaseG Σ → A → iProp Σ) *)
   (*   {Himpl: ∀ hG, FromExist (Φ hG) (λ x, Ψ hG x)} : *)
   (*   FromExist (post_crash (λ hG, Φ hG)) (λ x, post_crash (λ hG, Ψ hG x)). *)
   (* Proof. *)
@@ -250,7 +250,7 @@ End post_crash_prop.
 
 (* Section IntoCrash. *)
 
-(*   Context `{hG: !nvmG Σ}. *)
+(*   Context `{hG: !nvmBaseG Σ}. *)
 (*   Global Instance sep_into_crash P P' Q Q': *)
 (*     IntoCrash P P' → *)
 (*     IntoCrash Q Q' → *)
@@ -326,7 +326,7 @@ End post_crash_prop.
 (*   Qed. *)
 
 (*   Global Instance big_sepL_into_crash: *)
-(*     ∀ (A : Type) Φ (Ψ : nvmG Σ → nat → A → iProp Σ) (l : list A), *)
+(*     ∀ (A : Type) Φ (Ψ : nvmBaseG Σ → nat → A → iProp Σ) (l : list A), *)
 (*     (∀ (k : nat) (x : A), IntoCrash (Φ k x) (λ hG, Ψ hG k x)) → *)
 (*     IntoCrash ([∗ list] k↦x ∈ l, Φ k x)%I (λ hG, [∗ list] k↦x ∈ l, Ψ hG k x)%I. *)
 (*   Proof. *)
@@ -343,7 +343,7 @@ End post_crash_prop.
 (*   Qed. *)
 
 (*   Global Instance big_sepM_into_crash `{Countable K} : *)
-(*     ∀ (A : Type) Φ (Ψ : nvmG Σ → K → A → iProp Σ) (m : gmap K A), *)
+(*     ∀ (A : Type) Φ (Ψ : nvmBaseG Σ → K → A → iProp Σ) (m : gmap K A), *)
 (*     (∀ (k : K) (x : A), IntoCrash (Φ k x) (λ hG, Ψ hG k x)) → *)
 (*     IntoCrash ([∗ map] k↦x ∈ m, Φ k x)%I (λ hG, [∗ map] k↦x ∈ m, Ψ hG k x)%I. *)
 (*   Proof. *)
@@ -360,7 +360,7 @@ End post_crash_prop.
 (*   Qed. *)
 
 (*   Global Instance big_sepS_into_crash `{Countable K} : *)
-(*     ∀ Φ (Ψ : nvmG Σ → K → iProp Σ) (m : gset K), *)
+(*     ∀ Φ (Ψ : nvmBaseG Σ → K → iProp Σ) (m : gset K), *)
 (*     (∀ (k : K), IntoCrash (Φ k) (λ hG, Ψ hG k)) → *)
 (*     IntoCrash ([∗ set] k ∈ m, Φ k)%I (λ hG, [∗ set] k ∈ m, Ψ hG k)%I. *)
 (*   Proof. *)
@@ -417,7 +417,7 @@ End post_crash_prop.
 (* Context `{!ffi_interp ffi}. *)
 (* Context {Σ: gFunctors}. *)
 (* Section modality_alt. *)
-(*   Context `{hG: !nvmG Σ}. *)
+(*   Context `{hG: !nvmBaseG Σ}. *)
 (*   Context `{Hi1: !IntoCrash P P'}. *)
 (*   Context `{Hi2: !IntoCrash Q Q'}. *)
 (*   Lemma test R : *)

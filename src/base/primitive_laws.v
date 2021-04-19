@@ -13,10 +13,10 @@ From self.algebra Require Import view.
 From self.lang Require Export notation.
 From self.base Require Import tactics.
 
-Class nvmG Σ := NvmG {
-  nvmG_invG : invG Σ;                        (* For invariants. *)
-  nvmG_crashG : crashG Σ;                    (* Stuff for Perennial. *)
-  nvmG_gen_heapG :> gen_heapG loc history Σ; (* For the heap. *)
+Class nvmBaseG Σ := NvmG {
+  nvmBaseG_invG : invG Σ;                        (* For invariants. *)
+  nvmBaseG_crashG : crashG Σ;                    (* Stuff for Perennial. *)
+  nvmBaseG_gen_heapG :> gen_heapG loc history Σ; (* For the heap. *)
   view_inG :> inG Σ (authR viewUR);          (* For views. *)
   recovered_inG :> inG Σ (agreeR viewO);     (* For recovered knowledge. *)
   store_view_name : gname;                   (* For validity of store views. *)
@@ -77,25 +77,25 @@ for each location. We call this the "lub view" b.c., in an actual execution this
 view will be the l.u.b. of all the threads views. *)
 Definition lub_view (heap : store) : view := MaxNat <$> (max_msg <$> heap).
 
-Definition hist_inv lub hist `{!nvmG Σ} : iProp Σ :=
+Definition hist_inv lub hist `{!nvmBaseG Σ} : iProp Σ :=
   ( (* Every history has an initial message. *)
     ⌜is_Some (hist !! 0)⌝ ∗ (* FIXME: Move this into the points-to predicate. *)
     (* Every view in every message is included in the lub view. *)
     ([∗ map] t ↦ msg ∈ hist, ⌜msg.(msg_store_view) ⊑ lub⌝))%I.
 
-Definition store_inv `{hG : !nvmG Σ} store : iProp Σ :=
+Definition store_inv `{hG : !nvmBaseG Σ} store : iProp Σ :=
   ([∗ map] ℓ ↦ hist ∈ store, hist_inv (lub_view store) hist).
 
-Definition nvm_heap_ctx `{hG : !nvmG Σ} σ : iProp Σ :=
+Definition nvm_heap_ctx `{hG : !nvmBaseG Σ} σ : iProp Σ :=
   gen_heap_interp σ.1 ∗ (* The interpretation of the heap. This is standard, except the heap store historie and not plain values. *)
   own store_view_name (● (lub_view σ.1)) ∗
   store_inv σ.1 ∗
   own persist_view_name (● σ.2) ∗
   (∃ (rv : view), own recovered_view_name (to_agree rv : agreeR viewO)).
 
-Global Program Instance nvmG_irisG `{!nvmG Σ} : irisG nvm_lang Σ := {
-  iris_invG := nvmG_invG;
-  iris_crashG := nvmG_crashG;
+Global Program Instance nvmBaseG_irisG `{!nvmBaseG Σ} : irisG nvm_lang Σ := {
+  iris_invG := nvmBaseG_invG;
+  iris_crashG := nvmBaseG_crashG;
   num_laters_per_step := λ n, n; (* This is they choice GooseLang takes. *)
   state_interp σ _nt := nvm_heap_ctx σ;
   global_state_interp _g _ns _κs := True%I;
@@ -141,19 +141,19 @@ End view_ra_rules.
 
 (* Expresses that the view [V] is valid. This means that it is included in the
 lub view. *)
-Definition validV {Σ} `{hG : nvmG Σ} (V : view) : iProp Σ := own store_view_name (◯ V).
+Definition validV {Σ} `{hG : nvmBaseG Σ} (V : view) : iProp Σ := own store_view_name (◯ V).
 
 (* Expresses that the view [P] is persisted. This means that it is included in
 the global persisted view. *)
-Definition persisted {Σ} `{hG : nvmG Σ} (V : view) : iProp Σ := own persist_view_name (◯ V).
+Definition persisted {Σ} `{hG : nvmBaseG Σ} (V : view) : iProp Σ := own persist_view_name (◯ V).
 
 (* Expresses that the view [rv] was recovered after the last crash. *)
-Definition recovered {Σ} `{hG : nvmG Σ} (rv : view) : iProp Σ :=
+Definition recovered {Σ} `{hG : nvmBaseG Σ} (rv : view) : iProp Σ :=
   ∃ fullRv, ⌜map_Forall (λ ℓ t, fullRv !! ℓ = Some t) rv⌝ ∗ own recovered_view_name (to_agree fullRv).
 
 Section lifting.
 
-  Context `{!nvmG Σ}.
+  Context `{!nvmBaseG Σ}.
 
   Implicit Types Q : iProp Σ.
   Implicit Types Φ Ψ : val → iProp Σ.

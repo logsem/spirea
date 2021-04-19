@@ -17,7 +17,7 @@ Import uPred.
 
 Implicit Types (e : expr).
 
-Lemma tac_wp_expr_eval `{!nvmG Σ, !wpnvmG Σ} Δ s E Φ e e' : (∀ (e'':=e'), e = e'') →
+Lemma tac_wp_expr_eval `{!nvmG Σ} Δ s E Φ e e' : (∀ (e'':=e'), e = e'') →
   envs_entails Δ (WP e' @ s; E {{ Φ }}) → envs_entails Δ (WP e @ s; E {{ Φ }}).
 Proof. by intros ->. Qed.
 
@@ -46,7 +46,7 @@ Proof.
   - done.
 Qed.
 
-Lemma tac_wp_pure `{!nvmG Σ, !wpnvmG Σ} Δ Δ' s E K e1 e2 φ n Φ :
+Lemma tac_wp_pure `{!nvmG Σ} Δ Δ' s E K e1 e2 φ n Φ :
   (∀ TV, PureExec φ n (ThreadState e1 TV) (ThreadState e2 TV)) →
   (* PureExecBase φ n e1 e2 → *)
   φ →
@@ -60,14 +60,14 @@ Proof.
   rewrite HΔ'. rewrite -wp_pure_step_later //.
 Qed.
 
-Lemma tac_wp_value_nofupd `{!nvmG Σ, !wpnvmG Σ} Δ s E Φ v :
+Lemma tac_wp_value_nofupd `{!nvmG Σ} Δ s E Φ v :
   envs_entails Δ (Φ v) → envs_entails Δ (WP (Val v) @ s; E {{ Φ }}).
 Proof. rewrite envs_entails_eq=> ->. apply wp_value. Qed.
-(* Lemma tac_twp_value_nofupd `{!nvmG Σ} Δ s E Φ v :
+(* Lemma tac_twp_value_nofupd `{!nvmBaseG Σ} Δ s E Φ v :
   envs_entails Δ (Φ v) → envs_entails Δ (WP (Val v) @ s; E [{ Φ }]).
 Proof. rewrite envs_entails_eq=> ->. by apply twp_value. Qed. *)
 
-Lemma tac_wp_value `{!nvmG Σ, !wpnvmG Σ} Δ s E (Φ : val → dPropI Σ) v :
+Lemma tac_wp_value `{!nvmG Σ} Δ s E (Φ : val → dPropI Σ) v :
   envs_entails Δ (|={E}=> Φ v) → envs_entails Δ (WP (Val v) @ s; E {{ Φ }}).
 Proof.
   rewrite envs_entails_eq=> ->. rewrite wp_value_fupd. done.
@@ -180,12 +180,12 @@ Tactic Notation "wp_pair" := wp_pure (Pair _ _).
 Tactic Notation "wp_closure" := wp_pure (Rec _ _ _).
 
 (*
-Lemma tac_wp_bind `{!nvmG Σ} K Δ s E Φ e f :
+Lemma tac_wp_bind `{!nvmBaseG Σ} K Δ s E Φ e f :
   f = (λ e, fill K e) → (* as an eta expanded hypothesis so that we can `simpl` it *)
   envs_entails Δ (WP e @ s; E {{ v, WP f (Val v) @ s; E {{ Φ }} }})%I →
   envs_entails Δ (WP fill K e @ s; E {{ Φ }}).
 Proof. rewrite envs_entails_eq=> -> ->. by apply: wp_bind. Qed.
-Lemma tac_twp_bind `{!nvmG Σ} K Δ s E Φ e f :
+Lemma tac_twp_bind `{!nvmBaseG Σ} K Δ s E Φ e f :
   f = (λ e, fill K e) → (* as an eta expanded hypothesis so that we can `simpl` it *)
   envs_entails Δ (WP e @ s; E [{ v, WP f (Val v) @ s; E [{ Φ }] }])%I →
   envs_entails Δ (WP fill K e @ s; E [{ Φ }]).
@@ -216,7 +216,7 @@ Tactic Notation "wp_bind" open_constr(efoc) :=
 
 (** Heap tactics *)
 Section heap.
-Context `{!nvmG Σ}.
+Context `{!nvmBaseG Σ}.
 Implicit Types P Q : iProp Σ.
 Implicit Types Φ : val → iProp Σ.
 Implicit Types Δ : envs (uPredI (iResUR Σ)).

@@ -6,7 +6,7 @@ From self.base Require Import proofmode wpc_proofmode.
 From self.lang Require Import lang.
 
 Section simple_increment.
-  Context `{!nvmG Σ}.
+  Context `{!nvmBaseG Σ}.
 
   Definition pure : expr :=
     let: "a" := #1 in
