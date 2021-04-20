@@ -4,6 +4,7 @@ From iris.algebra Require Import agree.
 From iris.proofmode Require Import reduction monpred tactics.
 
 From Perennial.program_logic Require Export crash_lang.
+From Perennial.Helpers Require Import ipm NamedProps.
 
 From self Require Import extra.
 From self.lang Require Import lang.
@@ -67,9 +68,6 @@ Definition post_crash {Σ} (P: nvmBaseG Σ → iProp Σ) `{hG: !nvmBaseG Σ} : i
     persisted_impl hG hG' -∗
     post_crash_map σ.1 hG hG' -∗
     (post_crash_map σ.1 hG hG' ∗ P hG')).
-
-Class IntoCrash {Σ} `{!nvmBaseG Σ} (P: iProp Σ) (Q: nvmBaseG Σ → iProp Σ) :=
-  into_crash : P -∗ post_crash (Σ := Σ) (λ hG', Q hG').
 
 Section post_crash_prop.
   Context `{hG: !nvmBaseG Σ}.
@@ -181,10 +179,10 @@ Section post_crash_prop.
   (*   iExists x; iFrame. *)
   (* Qed. *)
 
-  (* Lemma post_crash_named P name: *)
-  (*   named name (post_crash (λ hG, P hG)) -∗ *)
-  (*   post_crash (λ hG, named name (P hG)). *)
-  (* Proof. rewrite //=. Qed. *)
+  Lemma post_crash_named P name:
+    named name (post_crash (λ hG, P hG)) -∗
+    post_crash (λ hG, named name (P hG)).
+  Proof. rewrite //=. Qed.
 
   Lemma post_crash_persisted V :
     persisted V -∗
@@ -276,9 +274,12 @@ Section post_crash_prop.
 
 End post_crash_prop.
 
-(* Section IntoCrash. *)
+Class IntoCrash {Σ} `{!nvmBaseG Σ} (P: iProp Σ) (Q: nvmBaseG Σ → iProp Σ) :=
+  into_crash : P -∗ post_crash (Σ := Σ) (λ hG', Q hG').
 
-(*   Context `{hG: !nvmBaseG Σ}. *)
+Section IntoCrash.
+
+  Context `{hG: !nvmBaseG Σ}.
 (*   Global Instance sep_into_crash P P' Q Q': *)
 (*     IntoCrash P P' → *)
 (*     IntoCrash Q Q' → *)
@@ -412,46 +413,46 @@ End post_crash_prop.
 (*     post_crash Q -∗ P  -∗ post_crash (λ hG', Q hG' ∗ P' hG'). *)
 (*   Proof. iIntros "HP HQ". rewrite (@into_crash _ _ P). iApply post_crash_sep. iFrame. Qed. *)
 
-(* End IntoCrash. *)
-(* End goose_lang. *)
+End IntoCrash.
 
-(* Lemma modus_ponens {Σ} (P Q: iProp Σ)  : P -∗ (P -∗ Q) -∗ Q. *)
-(* Proof. iIntros "HP Hwand". by iApply "Hwand". Qed. *)
+Lemma modus_ponens {Σ} (P Q: iProp Σ)  : P -∗ (P -∗ Q) -∗ Q.
+Proof. iIntros "HP Hwand". by iApply "Hwand". Qed.
 
-(* Ltac crash_env Γ := *)
-(*   match Γ with *)
-(*     | environments.Enil => idtac *)
-(*     | environments.Esnoc ?Γ' ?id (post_crash _) => crash_env Γ' *)
-(*     | environments.Esnoc ?Γ' ?id ?A => first [ iEval (rewrite (@into_crash _ _ _ _ _ A) )in id || iClear id ] ; crash_env Γ' *)
-(*   end. *)
+Ltac crash_env Γ :=
+  match Γ with
+    | environments.Enil => idtac
+    | environments.Esnoc ?Γ' ?id (post_crash _) => crash_env Γ'
+    | environments.Esnoc ?Γ' ?id ?A => first [ iEval (rewrite (@into_crash _ _ A) ) in id || iClear id ] ; crash_env Γ'
+  end.
 
-(* Ltac crash_ctx := *)
-(*   match goal with *)
-(*   | [ |- environments.envs_entails ?Γ _] => *)
-(*     let spatial := pm_eval (environments.env_spatial Γ) in *)
-(*     let intuit := pm_eval (environments.env_intuitionistic Γ) in *)
-(*     crash_env spatial; crash_env intuit *)
-(*   end. *)
+Ltac crash_ctx :=
+  match goal with
+  | [ |- environments.envs_entails ?Γ _] =>
+    let spatial := pm_eval (environments.env_spatial Γ) in
+    let intuit := pm_eval (environments.env_intuitionistic Γ) in
+    crash_env spatial; crash_env intuit
+  end.
 
-(* Ltac iCrash := *)
-(*   crash_ctx; *)
-(*   iApply (modus_ponens with "[-]"); [ iNamedAccu | ]; *)
-(*   rewrite ?post_crash_named ?post_crash_sep; iApply post_crash_mono; *)
-(*   intros; simpl; *)
-(*   let H := iFresh in iIntros H; iNamed H. *)
+Ltac iCrash :=
+  crash_ctx;
+  iApply (modus_ponens with "[-]"); [ iNamedAccu | ];
+  rewrite ?post_crash_named ?post_crash_sep; iApply post_crash_mono;
+  intros; simpl;
+  let H := iFresh in iIntros H; iNamed H.
 
-(* Section goose_lang. *)
-(* Context `{ffi_semantics: ext_semantics}. *)
-(* Context `{!ffi_interp ffi}. *)
-(* Context {Σ: gFunctors}. *)
-(* Section modality_alt. *)
-(*   Context `{hG: !nvmBaseG Σ}. *)
-(*   Context `{Hi1: !IntoCrash P P'}. *)
-(*   Context `{Hi2: !IntoCrash Q Q'}. *)
-(*   Lemma test R : *)
-(*     P -∗ Q -∗ R -∗ post_crash (λ hG', P' hG' ∗ Q' hG'). *)
-(*   Proof using All. *)
-(*     iIntros "HP HQ HR". iCrash. iFrame. *)
-(*   Qed. *)
+Section post_crash_modality_test.
+  Context {Σ: gFunctors}.
+  Context `{hG: !nvmBaseG Σ}.
+  Context `{Q : iProp Σ}.
+  Context `{Hi1: !IntoCrash P P'}.
+  Context `{Hi2: !IntoCrash Q Q'}.
 
-(* End modality_alt. *)
+  Lemma test R :
+    P -∗ Q -∗ R -∗ post_crash (λ hG', P' hG' ∗ Q' hG').
+  Proof using All.
+    iIntros "HP HQ HR".
+    crash_ctx.
+    iCrash. iFrame.
+  Qed.
+
+End post_crash_modality_test.
