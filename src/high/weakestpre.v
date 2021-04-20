@@ -26,10 +26,8 @@ Definition predicatesR {Σ} := authR (gmapUR loc (@predicateR Σ)).
 
 Definition abs_history (State : Type) `{Countable State} := gmap time State.
 
-Definition encoded_abs_history := gmap time st.
 Definition encoded_abs_historyR := gmapUR time (agreeR stO).
-Definition enc_abs_histories := gmap loc encoded_abs_history.
-(* Definition encoded_historiesR := authR (gmapUR loc encoded_abs_historyR). *)
+Definition enc_abs_histories := gmap loc (gmap time st).
 
 Definition abs_historiesR := authR (gmapUR loc (authR encoded_abs_historyR)).
 
@@ -55,7 +53,7 @@ Class AbstractState T := {
 (** We define a few things about the resource algebra that that we use to encode
 abstract histories. *)
 Section abs_history_lemmas.
-  Context `{nvmG Σ}.
+  Context `{hG : nvmG Σ}.
   (* Context `{!inG Σ abs_historiesR}. *)
   Context `{Countable ST}.
 
@@ -64,8 +62,8 @@ Section abs_history_lemmas.
   Definition abs_hist_to_ra abs_hist : encoded_abs_historyR :=
     (to_agree ∘ encode) <$> abs_hist.
 
-  Definition own_full_history (abs_hists : gmap loc (abs_history ST)) :=
-    own abs_history_name ((● ((λ h, ● (abs_hist_to_ra h)) <$> abs_hists)) : abs_historiesR).
+  Definition own_full_history (abs_hists : gmap loc (gmap time positive)) :=
+    own abs_history_name ((● ((λ h, ● (to_agree <$> h)) <$> abs_hists)) : abs_historiesR).
 
   Definition know_full_history_loc ℓ abs_hist :=
     own abs_history_name ((◯ {[ ℓ := ● (abs_hist_to_ra abs_hist) ]}) : abs_historiesR).
@@ -91,30 +89,49 @@ Section abs_history_lemmas.
     done.
   Qed.
 
+  Lemma abs_hist_to_ra_agree hist hist' :
+    to_agree <$> hist' ≡ abs_hist_to_ra hist →
+    hist' = encode <$> hist.
+  Proof.
+    intros eq.
+    apply: map_eq. intros t.
+    pose proof (eq t) as eq'.
+    rewrite !lookup_fmap in eq'.
+    rewrite lookup_fmap.
+    destruct (hist' !! t) as [h|] eqn:leq, (hist !! t) as [h'|] eqn:leq';
+      rewrite ?leq leq'; rewrite ?leq ?leq' in eq'; try inversion eq'; auto.
+    simpl in eq'. simpl.
+    apply Some_equiv_inj in eq'.
+    apply to_agree_inj in eq'.
+    f_equiv.
+    apply eq'.
+  Qed.
+
   (** If you know the full history for a location and own the "all-knowing"
   resource, then those two will agree. *)
   Lemma own_full_history_agree ℓ hist hists :
     own_full_history hists -∗
     know_full_history_loc ℓ hist -∗
-    ⌜hists !! ℓ = Some hist⌝.
+    ⌜hists !! ℓ = Some (encode <$> hist)⌝.
   Proof.
     iIntros "O K".
     iDestruct (own_valid_2 with "O K") as %[Incl _]%auth_both_valid_discrete.
     iPureIntro.
     apply singleton_included_l in Incl as [encHist' [look incl]].
     rewrite lookup_fmap in look.
-    destruct (hists !! ℓ) as [hist'|].
-    2: { inversion look. }
+    destruct (hists !! ℓ) as [hist'|] eqn:histsLook.
+    2: { rewrite histsLook in look. inversion look. }
+    rewrite histsLook in look.
     simpl in look.
     apply Some_equiv_inj in look.
     f_equiv.
-    apply abs_hist_to_ra_inj.
+    apply abs_hist_to_ra_agree.
     apply Some_included in incl as [eq|incl].
     - rewrite <- eq in look.
       apply auth_auth_inj in look as [_ eq'].
       done.
     - rewrite <- look in incl.
-      assert (● abs_hist_to_ra hist' ≼ ● abs_hist_to_ra hist' ⋅ ◯ ε) as incl'.
+      assert (● (to_agree <$> hist') ≼ ● (to_agree <$> hist') ⋅ ◯ (ε : gmapUR _ _)) as incl'.
       { eexists _. reflexivity. }
       pose proof (transitivity incl incl') as incl''.
       apply auth_auth_included in incl''.

@@ -19,8 +19,6 @@ Definition mapsto_post_crash {Σ} (hG : nvmBaseG Σ) ℓ q (hist : history) : iP
             recovered {[ ℓ := MaxNat t ]}) ∨
   (∀ t, ¬ (recovered {[ ℓ := MaxNat t ]})).
 
-(* Record Qp := mk_Qp { Qp_to_Qc : Qc ; Qp_prf : (0 < Qp_to_Qc)%Qc }. *)
-
 Definition if_non_zero {Σ} (q : Qc) (P : Qp → iProp Σ) : iProp Σ :=
   match (decide (0 < q)%Qc) with
     left prf => P (mk_Qp q prf)
