@@ -27,40 +27,17 @@ Definition predicatesR {Σ} := authR (gmapUR loc (@predicateR Σ)).
 Definition abs_history (State : Type) `{Countable State} := gmap time State.
 
 Definition encoded_abs_history := gmap time st.
-Definition encoded_abs_historyR := gmapUR nat (agreeR stO).
+Definition encoded_abs_historyR := gmapUR time (agreeR stO).
 Definition enc_abs_histories := gmap loc encoded_abs_history.
-Definition encoded_historiesR := authR (gmapUR loc encoded_abs_historyR).
+(* Definition encoded_historiesR := authR (gmapUR loc encoded_abs_historyR). *)
 
-(* For each location in the heap we maintain the following "meta data".
-For every location we want to store: A type/set of abstract events, its full
-abstract history, the invariant assertion. The abstract history maps
-timestamps to elements of the abstract events. *)
-Record loc_info {Σ} := {
-  l_state : Type;
-  (* l_val : val; *)
-  l_ϕ : l_state → val → dProp Σ;
-  l_abstract_history : gmap nat (message * l_state);
-
-  (* * Type class instances *)
-  (* l_sqsubseteq : SqSubsetEq l_state; *)
-  (* l_preorder : PreOrder (⊑@{l_state}); *)
-  (* We need countable to squash states into [positive] *)
-  l_eqdecision : EqDecision l_state;
-  l_countable : Countable l_state;
-}.
-
-(* Existing Instances l_eqdecision l_countable. *)
-
-(* Definition encode_loc_info {Σ} (l : (@loc_info Σ)):= *)
-(*   ((λ '(m, s), (m, encode s)) <$> (l_abstract_history l), *)
-(*    λ v s, (l_ϕ l $ v) <$> decode s). *)
+Definition abs_historiesR := authR (gmapUR loc (authR encoded_abs_historyR)).
 
 Class nvmHighG Σ := NvmHighG {
-  abstract_history_name : gname;
-  γh : gname;
+  abs_history_name : gname;
   γp : gname;
   ra_inG :> inG Σ (@predicatesR Σ);
-  ra'_inG :> inG Σ encoded_historiesR;
+  ra'_inG :> inG Σ abs_historiesR;
 }.
 
 Class nvmG Σ := NvmG {
@@ -75,13 +52,105 @@ Class AbstractState T := {
   abs_state_preorder :> PreOrder (⊑@{T});
 }.
 
+(** We define a few things about the resource algebra that that we use to encode
+abstract histories. *)
+Section abs_history_lemmas.
+  Context `{nvmG Σ}.
+  (* Context `{!inG Σ abs_historiesR}. *)
+  Context `{Countable ST}.
+
+  Implicit Types (abs_hist : abs_history ST) (ℓ : loc).
+
+  Definition abs_hist_to_ra abs_hist : encoded_abs_historyR :=
+    (to_agree ∘ encode) <$> abs_hist.
+
+  Definition own_full_history (abs_hists : gmap loc (abs_history ST)) :=
+    own abs_history_name ((● ((λ h, ● (abs_hist_to_ra h)) <$> abs_hists)) : abs_historiesR).
+
+  Definition know_full_history_loc ℓ abs_hist :=
+    own abs_history_name ((◯ {[ ℓ := ● (abs_hist_to_ra abs_hist) ]}) : abs_historiesR).
+
+  Definition know_frag_history_loc ℓ abs_hist :=
+    own abs_history_name ((◯ {[ ℓ := ◯ (abs_hist_to_ra abs_hist) ]}) : abs_historiesR).
+
+  Lemma abs_hist_to_ra_inj hist hist' :
+    abs_hist_to_ra hist' ≡ abs_hist_to_ra hist →
+    hist' = hist.
+  Proof.
+    intros eq.
+    apply: map_eq. intros t.
+    pose proof (eq t) as eq'.
+    rewrite !lookup_fmap in eq'.
+    destruct (hist' !! t) as [h|] eqn:leq, (hist !! t) as [h'|] eqn:leq';
+      rewrite leq leq'; rewrite leq leq' in eq'; try inversion eq'; auto.
+    simpl in eq'.
+    apply Some_equiv_inj in eq'.
+    apply to_agree_inj in eq'.
+    apply encode_inj in eq'.
+    rewrite eq'.
+    done.
+  Qed.
+
+  (** If you know the full history for a location and own the "all-knowing"
+  resource, then those two will agree. *)
+  Lemma own_full_history_agree ℓ hist hists :
+    own_full_history hists -∗
+    know_full_history_loc ℓ hist -∗
+    ⌜hists !! ℓ = Some hist⌝.
+  Proof.
+    iIntros "O K".
+    iDestruct (own_valid_2 with "O K") as %[Incl _]%auth_both_valid_discrete.
+    iPureIntro.
+    apply singleton_included_l in Incl as [encHist' [look incl]].
+    rewrite lookup_fmap in look.
+    destruct (hists !! ℓ) as [hist'|].
+    2: { inversion look. }
+    simpl in look.
+    apply Some_equiv_inj in look.
+    f_equiv.
+    apply abs_hist_to_ra_inj.
+    apply Some_included in incl as [eq|incl].
+    - rewrite <- eq in look.
+      apply auth_auth_inj in look as [_ eq'].
+      done.
+    - rewrite <- look in incl.
+      assert (● abs_hist_to_ra hist' ≼ ● abs_hist_to_ra hist' ⋅ ◯ ε) as incl'.
+      { eexists _. reflexivity. }
+      pose proof (transitivity incl incl') as incl''.
+      apply auth_auth_included in incl''.
+      done.
+  Qed.
+
+End abs_history_lemmas.
+
+(* For each location in the heap we maintain the following "meta data".
+For every location we want to store: A type/set of abstract events, its full
+abstract history, the invariant assertion. The abstract history maps
+timestamps to elements of the abstract events. *)
+(* Record loc_info {Σ} := { *)
+(*   l_state : Type; *)
+(*   (* l_val : val; *) *)
+(*   l_ϕ : l_state → val → dProp Σ; *)
+(*   l_abstract_history : gmap nat (message * l_state); *)
+
+(*   (* * Type class instances *) *)
+(*   (* l_sqsubseteq : SqSubsetEq l_state; *) *)
+(*   (* l_preorder : PreOrder (⊑@{l_state}); *) *)
+(*   (* We need countable to squash states into [positive] *) *)
+(*   l_eqdecision : EqDecision l_state; *)
+(*   l_countable : Countable l_state; *)
+(* }. *)
+
+(* Existing Instances l_eqdecision l_countable. *)
+
+(* Definition encode_loc_info {Σ} (l : (@loc_info Σ)):= *)
+(*   ((λ '(m, s), (m, encode s)) <$> (l_abstract_history l), *)
+(*    λ v s, (l_ϕ l $ v) <$> decode s). *)
+
 Section wp.
   Context `{!nvmG Σ}.
 
   Implicit Types (Φ : val → dProp Σ) (e : expr).
-
-  Definition abs_hist_to_ra `{Countable ST} (abs_hist : abs_history ST) : encoded_abs_historyR :=
-    (to_agree ∘ encode) <$> abs_hist.
 
   Definition abs_hist_to_ra_old (abs_hist : gmap time (message * st)) : encoded_abs_historyR :=
     (to_agree ∘ snd) <$> abs_hist.
@@ -143,14 +212,14 @@ Section wp.
              ⌜(pred) (snd p) (fst p).(msg_val) = Some P⌝ ∗
              P (msg_to_tv (fst p))))) ∗
       (* Authorative ghost states. *)
-      own γh (● (abs_hist_to_ra_old <$> hists) : encoded_historiesR) ∗
+      (* own abs_history_name (● (abs_hist_to_ra_old <$> hists) : encoded_historiesR) ∗ *)
       own γp (● (pred_to_ra <$> preds) : predicatesR)).
 
-  Definition own_abstract_history `{Countable ST} ℓ q (abs_hist : abs_history ST) : dProp Σ :=
-    ⎡own abstract_history_name (●{#q} {[ ℓ := (abs_hist_to_ra abs_hist)]})⎤.
+  (* Definition own_abstract_history `{Countable ST} ℓ q (abs_hist : abs_history ST) : dProp Σ := *)
+  (*   ⎡own abs_history_name (●{#q} {[ ℓ := (abs_hist_to_ra abs_hist)]})⎤. *)
 
-  Definition know_abstract_history `{Countable ST} ℓ (abs_hist : abs_history ST) : dProp Σ :=
-    ⎡own abstract_history_name (◯ {[ ℓ := (abs_hist_to_ra abs_hist)]})⎤.
+  (* Definition know_abstract_history `{Countable ST} ℓ (abs_hist : abs_history ST) : dProp Σ := *)
+  (*   ⎡own abs_history_name (◯ {[ ℓ := (abs_hist_to_ra abs_hist)]})⎤. *)
 
   (** This is our analog to the state interpretation in the Iris weakest
   precondition. We keep this in our weakest precondition ensuring that it holds
@@ -166,16 +235,15 @@ Section wp.
          ⌜ dom (gset _) abs_hist = dom _ hist ⌝ ∗
          ℓ ↦h{#1/2} hist
        ) ∗
-      (* Authorative ghost states. *)
-      
-      own γh (● ((λ (h : encoded_abs_history), to_agree <$> h) <$> abs_hists) : encoded_historiesR)).
+      (* Ownership over the full knowledge of the abstract history of _all_ locations. *)
+      own_full_history abs_hists).
 
   (* Definition know_pred `{Countable s} *)
   (*     (ℓ : loc) (ϕ : s → val → dProp Σ) : iProp Σ := *)
   (*   own γp (◯ {[ ℓ := pred_to_ra (λ s' v, (λ s, ϕ s v) <$> decode s') ]} : predicatesR). *)
 
   (* Definition know_state `{Countable s} ℓ (t : time) (s' : s) : iProp Σ := *)
-  (*   own γh (◯ {[ ℓ := {[ t := to_agree (encode s') ]} ]} : encoded_historiesR). *)
+  (*   own (◯ {[ ℓ := {[ t := to_agree (encode s') ]} ]} : encoded_historiesR). *)
 
   (* A few lemmas about [interp], [know_pred], [know_state]. *)
 
@@ -213,7 +281,7 @@ Section wp.
       ⌜msg_val <$> (hist !! tStore) = Some v⌝ ∗
 
       (* Ownership over the abstract history. *)
-      ⎡own γh ((● ({[ ℓ := (to_agree ∘ encode) <$> abs_hist ]})) : encoded_historiesR)⎤ ∗
+      ⎡know_full_history_loc ℓ abs_hist⎤ ∗
 
       (* ⌜max_member abs_hist tStore⌝ ∗ *)
       ⌜map_slice abs_hist tGlobalPers tStore (ss1 ++ ss2)⌝ ∗
@@ -226,13 +294,15 @@ Section wp.
 
   Definition know_global_per_lower_bound `{Countable ST} (ℓ : loc) (t : time) (s : ST) : dProp Σ :=
     ⎡persisted ({[ ℓ := MaxNat t ]} : view)⎤ ∗
-               know_abstract_history ℓ {[ t := s ]}.
+    ⎡know_frag_history_loc ℓ {[ t := s ]}⎤.
 
   Definition know_persist_lower_bound `{Countable ST} (ℓ : loc) (t : time) (s : ST) : dProp Σ :=
-    monPred_in (∅, {[ ℓ := MaxNat t ]}, ∅) ∗ know_abstract_history ℓ {[ t := s ]}.
+    monPred_in (∅, {[ ℓ := MaxNat t ]}, ∅) ∗
+    ⎡know_frag_history_loc ℓ {[ t := s ]}⎤.
 
   Definition know_store_lower_bound `{Countable ST} (ℓ : loc) (t : time) (s : ST) : dProp Σ :=
-    monPred_in ({[ ℓ := MaxNat t ]}, ∅, ∅) ∗ know_abstract_history ℓ {[ t := s ]}.
+    monPred_in ({[ ℓ := MaxNat t ]}, ∅, ∅) ∗
+    ⎡know_frag_history_loc ℓ {[ t := s ]}⎤.
 
   (*
   Definition mapsto_read `{!SqSubsetEq abs_state, !PreOrder (⊑@{abs_state})}
@@ -423,7 +493,7 @@ Section wp_rules.
   (* Notation "l ↦ro s | P" := (mapsto_ro l s P) (at level 20). *)
 
   (* Lemma know_state_Some `{Countable ST} hists ℓ t (s : ST) : *)
-  (*   own γh (● (abs_hist_to_ra_old <$> hists) : encoded_historiesR) -∗ *)
+  (*   own abs_history_name (● (abs_hist_to_ra_old <$> hists) : encoded_historiesR) -∗ *)
   (*   know_state ℓ t s -∗ *)
   (*   ∃ m, ⌜hists !! ℓ = Some m⌝. *)
   (* Proof. *)
