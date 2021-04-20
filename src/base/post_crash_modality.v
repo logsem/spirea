@@ -80,6 +80,10 @@ Section post_crash_prop.
   Ltac iIntrosPostCrash := iIntros (σ σ' hG') "#perToRec map".
 
   Lemma post_crash_intro Q:
+    Q -∗ post_crash (λ _, Q).
+  Proof. iIntros "Hq". iIntrosPostCrash. iFrame "∗". Qed.
+
+  Lemma post_crash_intro_vdash Q:
     (⊢ Q) →
     (⊢ post_crash (λ _, Q)).
   Proof. iIntros (Hmono). iIntrosPostCrash. iFrame "∗". iApply Hmono. Qed.

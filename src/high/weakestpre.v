@@ -68,8 +68,25 @@ Section abs_history_lemmas.
   Definition know_full_history_loc ℓ abs_hist :=
     own abs_history_name ((◯ {[ ℓ := ● (abs_hist_to_ra abs_hist) ]}) : abs_historiesR).
 
+  Definition know_full_encoded_history_loc ℓ (abs_hist : gmap time st) :=
+    own abs_history_name ((◯ {[ ℓ := ● ((to_agree <$> abs_hist) : gmap _ (agreeR stO)) ]}) : abs_historiesR).
+
   Definition know_frag_history_loc ℓ abs_hist :=
     own abs_history_name ((◯ {[ ℓ := ◯ (abs_hist_to_ra abs_hist) ]}) : abs_historiesR).
+
+  Lemma equivI_elim_own {A: cmra} `{Hin: inG Σ A} γ (a b: A):
+    (a ≡ b) → own γ a ⊣⊢ own γ b.
+  Proof. iIntros (Hequiv). rewrite Hequiv. eauto. Qed.
+
+  Lemma know_full_equiv ℓ abs_hist :
+    know_full_history_loc ℓ abs_hist ⊣⊢ know_full_encoded_history_loc ℓ (encode <$> abs_hist).
+  Proof.
+    apply equivI_elim_own.
+    do 3 f_equiv.
+    rewrite /abs_hist_to_ra.
+    rewrite map_fmap_compose.
+    done.
+  Qed.
 
   Lemma abs_hist_to_ra_inj hist hist' :
     abs_hist_to_ra hist' ≡ abs_hist_to_ra hist →
