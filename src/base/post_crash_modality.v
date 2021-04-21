@@ -81,10 +81,6 @@ Section post_crash_prop.
   Ltac iIntrosPostCrash := iIntros (σ σ' hG') "#perToRec map".
 
   Lemma post_crash_intro Q:
-    Q -∗ post_crash (λ _, Q).
-  Proof. iIntros "Hq". iIntrosPostCrash. iFrame "∗". Qed.
-
-  Lemma post_crash_intro_vdash Q:
     (⊢ Q) →
     (⊢ post_crash (λ _, Q)).
   Proof. iIntros (Hmono). iIntrosPostCrash. iFrame "∗". iApply Hmono. Qed.
@@ -137,15 +133,22 @@ Section post_crash_prop.
   (*   - iDestruct "HPQ" as "(_&HQ)". by iApply "HQ". *)
   (* Qed. *)
 
-  (* Lemma post_crash_pure (P: Prop) : *)
-  (*   P → ⊢ post_crash (λ _, ⌜ P ⌝). *)
-  (* Proof. *)
-  (*   iIntros (????); eauto. *)
-  (* Qed. *)
+  Lemma post_crash_pure (P : Prop) :
+    P → ⊢ post_crash (λ _, ⌜ P ⌝).
+  Proof.
+    intros HP. iIntrosPostCrash. iFrame "%∗".
+  Qed.
 
-  (* Lemma post_crash_nodep (P: iProp Σ) : *)
-  (*   P -∗ post_crash (λ _, P). *)
-  (* Proof. iIntros "HP". iIntros (???); eauto. Qed. *)
+  Lemma post_crash_nodep P :
+    P -∗ post_crash (λ _, P).
+  Proof. iIntros "?". iIntrosPostCrash. iFrame "∗". Qed.
+
+  Lemma post_crash_for_all Q :
+    (∀ hG, Q hG) -∗ post_crash Q.
+  Proof.
+    iIntros "HP".
+    iIntrosPostCrash. iFrame. iApply "HP".
+  Qed.
 
   (* Lemma post_crash_exists {A} P Q: *)
   (*   (∀ (x: A), P hG x -∗ post_crash (λ hG, Q hG x)) -∗ *)
@@ -319,10 +322,10 @@ Section IntoCrash.
 (*     rewrite post_crash_and //. *)
 (*   Qed. *)
 
-(*   (* XXX: probably should rephrase in terms of IntoPure *) *)
-(*   Global Instance pure_into_crash (P: Prop) : *)
-(*     IntoCrash (⌜ P ⌝%I) (λ _, ⌜ P ⌝%I). *)
-(*   Proof. rewrite /IntoCrash. iIntros "%". by iApply post_crash_pure. Qed. *)
+  (* XXX: probably should rephrase in terms of IntoPure *)
+  Global Instance pure_into_crash (P: Prop) :
+    IntoCrash (⌜ P ⌝%I) (λ _, ⌜ P ⌝%I).
+  Proof. rewrite /IntoCrash. iIntros "%". by iApply post_crash_pure. Qed.
 
 (*   Global Instance exist_into_crash {A} Φ Ψ: *)
 (*     (∀ x : A, IntoCrash (Φ x) (λ hG, Ψ hG x)) → *)
@@ -454,10 +457,9 @@ Section post_crash_modality_test.
   Context `{Hi2: !IntoCrash Q Q'}.
 
   Lemma test R :
-    P -∗ Q -∗ R -∗ post_crash (λ hG', P' hG' ∗ Q' hG').
+    P -∗ Q -∗ ⌜ R ⌝ -∗ post_crash (λ hG', P' hG' ∗ Q' hG').
   Proof using All.
     iIntros "HP HQ HR".
-    crash_ctx.
     iCrash. iFrame.
   Qed.
 
