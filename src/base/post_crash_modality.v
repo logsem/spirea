@@ -16,8 +16,9 @@ Set Default Proof Using "Type".
 crash if you own a points-to predicate _prior to_ a crash. *)
 Definition mapsto_post_crash {Σ} (hG : nvmBaseG Σ) ℓ q (hist : history) : iProp Σ :=
   (∃ t msg, ⌜hist !! t = Some msg⌝ ∗
-            ℓ ↦h{#q} ({[ 0 := discard_store_view msg]}) ∗
-            recovered {[ ℓ := MaxNat t ]}) ∨
+            ℓ ↦h{#q} ({[ 0 := Msg msg.(msg_val) ∅ ∅ ]}) ∗
+            recovered {[ ℓ := MaxNat t ]} ∗
+            ∃ RV, ⌜msg.(msg_persist_view) ⊑ RV⌝ ∗ recovered RV) ∨
   (∀ t, ¬ (recovered {[ ℓ := MaxNat t ]})).
 
 Definition if_non_zero {Σ} (q : Qc) (P : Qp → iProp Σ) : iProp Σ :=
@@ -198,7 +199,7 @@ Section post_crash_prop.
     iDestruct ("perToRec" with "pers") as "[$ $]".
   Qed.
 
-  Lemma post_crash_persisted_persiste V :
+  Lemma post_crash_persisted_persisted V :
     persisted V -∗ post_crash (λ hG', persisted V).
   Proof.
     iIntros "pers".
@@ -262,11 +263,12 @@ Section post_crash_prop.
     mapsto_post_crash hG ℓ q hist -∗      (* What mapsto gives us after crash *)
     (∃ t msg, ⌜hist !! t = Some msg⌝ ∗
               ⌜t__low ≤ t⌝ ∗
-              ℓ ↦h{#q} ({[ 0 := discard_store_view msg]}) ∗
+              ℓ ↦h{#q} ({[ 0 := Msg msg.(msg_val) ∅ ∅]}) ∗
+              (∃ RV, ⌜msg.(msg_persist_view) ⊑ RV⌝ ∗ recovered RV) ∗
               recovered {[ ℓ := MaxNat t ]}).
   Proof.
     iIntros (look) "A [B|B]"; iDestruct "A" as (RV incl) "#rec".
-    - iDestruct "B" as (t msg look') "[pts #rec']".
+    - iDestruct "B" as (t msg look') "(pts & #rec' & hihi)".
       iExists t, msg. iFrame "%#∗".
       pose proof (view_le_look _ _ _ _ look incl) as [t' [RVlook ho]].
       iDestruct (recovered_look_eq with "rec rec'") as "<-"; [done|apply lookup_singleton|].
