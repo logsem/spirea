@@ -671,13 +671,12 @@ Section lifting.
       iModIntro. iFrame. iApply "HΦ". done.
   Qed.
 
-  Lemma wp_fence_fence V P B s E :
-    {{{ persisted P }}}
+  Lemma wp_fence_sync V P B s E :
+    {{{ True }}}
       (ThreadState FenceSync (V, P, B)) @ s; E
-    {{{ RET ThreadVal #() (V, P ⊔ B, ∅);
-          persisted (P ⊔ B) }}}.
+    {{{ RET ThreadVal #() (V, P ⊔ B, ∅); persisted (B) }}}.
   Proof.
-    iIntros (Φ) "perP HΦ".
+    iIntros (Φ) "_ HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
     iIntros ([??] [] κ κs ? k) "(Hheap & Hauth & Hop & Hpers & recov) Ht /= !>".
     iSplit.
@@ -687,7 +686,6 @@ Section lifting.
     - iNext. iIntros (e2 σ2 [] efs Hstep).
       inv_impure_thread_step. iSplitR=>//.
       iMod (auth_auth_view_grow_op with "Hpers") as "[$ perB]".
-      iCombine "perP perB" as "perPB".
       iModIntro. iFrame.
       iApply "HΦ". iFrame.
   Qed.
