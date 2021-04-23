@@ -54,7 +54,6 @@ Class AbstractState T := {
 abstract histories. *)
 Section abs_history_lemmas.
   Context `{hG : nvmG Σ}.
-  (* Context `{!inG Σ abs_historiesR}. *)
   Context `{Countable ST}.
 
   Implicit Types (abs_hist : abs_history ST) (ℓ : loc).
