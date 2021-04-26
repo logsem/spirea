@@ -82,6 +82,7 @@ Program Global Instance nvmBaseG_perennialG `{!nvmBaseG Σ} : perennialG nvm_lan
   perennial_num_laters_per_step := λ n, n
 }.
 Next Obligation. eauto. Qed.
+Next Obligation. eauto. Qed.
 
 Lemma nvm_update_update Σ hG Hinv Hcrash names Hinv' Hcrash' names' :
   nvm_update Σ (nvm_update Σ hG Hinv' Hcrash' names') Hinv Hcrash names =
@@ -276,7 +277,7 @@ Section wpr.
       set (hG' := (nvm_update _ _ _ Hc' hnames)).
       rewrite /post_crash.
       iDestruct ("Hidemp" $! σ_pre_crash σ_post_crash hG' with "persImpl map") as "(? & ?)".
-      iExists ({| pbundleT := hnames |}).
+      iExists {| pbundleT := hnames |}, (reflexivity _), (reflexivity _).
       iModIntro.
       rewrite /state_interp//=.
       iFrame. }

@@ -12,6 +12,7 @@
 -Q external/perennial/external/iris/iris_deprecated iris.deprecated
 -Q external/perennial/external/iris/iris_staging iris.staging
 -Q external/perennial/external/iris/iris_heap_lang iris.heap_lang
+-Q external/perennial/external/iris-named-props/src iris_named_props
 -Q external/perennial/external/coqutil/src/coqutil coqutil
 -Q external/perennial/external/Goose Goose
 -Q external/perennial/external/record-update/src RecordUpdate

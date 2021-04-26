@@ -1,5 +1,4 @@
 From Perennial.program_logic Require crash_weakestpre.
-
 From self.high Require Export dprop.
 From self.base Require Import primitive_laws.
 From self.high Require Import weakestpre.
@@ -39,8 +38,6 @@ Section wpc.
     iFrame "obj".
     iIntros (TV) "incl val interp".
     iDestruct ("WP" with "incl val interp") as "HI".
-    (* iApply (crash_weakestpre.wpc_bind nvm_lang). *)
-    Check wp_bind.
     rewrite nvm_fill_fill.
     iApply crash_weakestpre.wpc_bind.
     { apply: ectx_lang_ctx. }
