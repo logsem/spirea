@@ -12,7 +12,7 @@ From self.base Require Import primitive_laws post_crash_modality.
 
 Set Default Proof Using "Type".
 
-(** Names for the heap that should be changed after a crash. *)
+(** Names for the heap that needs to change after a crash. *)
 Record nvm_heap_names := {
   name_gen_heap : gname;
   name_gen_meta : gname;

@@ -23,9 +23,9 @@ Proof.
 Qed.
 
 (* Types of view predicates. *)
-Definition dProp Σ := monPred thread_view_bi_index (uPredI (iResUR Σ)). (* FIXME: use iPropI here. *)
-Definition dPropO Σ := monPredO thread_view_bi_index (uPredI (iResUR Σ)).
-Definition dPropI Σ := monPredI thread_view_bi_index (uPredI (iResUR Σ)).
+Definition dProp Σ := monPred thread_view_bi_index (iPropI Σ). (* FIXME: use iPropI here. *)
+Definition dPropO Σ := monPredO thread_view_bi_index (iPropI Σ).
+Definition dPropI Σ := monPredI thread_view_bi_index (iPropI Σ).
 
 (* [bi_scope] is the scope associated with the scope key [I] from Iris. We bind
 it to the [dProp] type such that we avoid having to type `%I` to get the right
