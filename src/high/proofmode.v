@@ -11,7 +11,7 @@ From Perennial.program_logic Require Export language ectx_language ectxi_languag
 
 From self.base Require Import tactics class_instances primitive_laws.
 From self.lang Require Export notation.
-From self.high Require Import weakestpre.
+From self.high Require Import resources crash_weakestpre weakestpre.
 
 Import uPred.
 

@@ -5,7 +5,7 @@ From Perennial.Helpers Require Import ipm NamedProps.
 
 From self.base Require Import primitive_laws.
 From self.base Require post_crash_modality.
-From self.high Require Import dprop weakestpre.
+From self.high Require Import dprop resources crash_weakestpre weakestpre.
 
 Set Default Proof Using "Type".
 

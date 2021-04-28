@@ -6,7 +6,7 @@ From Perennial.program_logic Require Import recovery_adequacy.
 From self Require Import view.
 From self.base Require Import primitive_laws wpr_lifting.
 From self.high Require Import dprop.
-From self.high Require Import weakestpre crash_weakestpre.
+From self.high Require Import resources weakestpre crash_weakestpre.
 
 Set Default Proof Using "Type".
 

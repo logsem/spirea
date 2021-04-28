@@ -17,144 +17,7 @@ From self Require Export view.
 From self Require Export lang.
 From self.base Require Import primitive_laws.
 From self.lang Require Import syntax.
-
-Notation st := positive (only parsing).
-Notation stO := positiveO (only parsing).
-
-Definition predicateR {Σ} := agreeR (st -d> val -d> laterO (optionO (dPropO Σ))).
-Definition predicatesR {Σ} := authR (gmapUR loc (@predicateR Σ)).
-
-Definition abs_history (State : Type) `{Countable State} := gmap time State.
-
-Definition encoded_abs_historyR := gmapUR time (agreeR stO).
-Definition enc_abs_histories := gmap loc (gmap time st).
-
-Definition abs_historiesR := authR (gmapUR loc (authR encoded_abs_historyR)).
-
-Class nvmHighG Σ := NvmHighG {
-  abs_history_name : gname;
-  predicates_name : gname;
-  ra_inG :> inG Σ (@predicatesR Σ);
-  ra'_inG :> inG Σ abs_historiesR;
-}.
-
-Class nvmG Σ := NvmG {
-  nvmG_baseG :> nvmBaseG Σ;
-  nvmG_highG :> nvmHighG Σ;
-}.
-
-Class AbstractState T := {
-  abs_state_eqdecision :> EqDecision T;
-  abs_state_countable :> Countable T;
-  abs_state_subseteq :> SqSubsetEq T;
-  abs_state_preorder :> PreOrder (⊑@{T});
-}.
-
-(** We define a few things about the resource algebra that that we use to encode
-abstract histories. *)
-Section abs_history_lemmas.
-  Context `{hG : nvmG Σ}.
-  Context `{Countable ST}.
-
-  Implicit Types (abs_hist : abs_history ST) (ℓ : loc).
-
-  Definition abs_hist_to_ra abs_hist : encoded_abs_historyR :=
-    (to_agree ∘ encode) <$> abs_hist.
-
-  Definition own_full_history (abs_hists : gmap loc (gmap time positive)) :=
-    own abs_history_name ((● ((λ h, ● (to_agree <$> h)) <$> abs_hists)) : abs_historiesR).
-
-  Definition know_full_history_loc ℓ abs_hist :=
-    own abs_history_name ((◯ {[ ℓ := ● (abs_hist_to_ra abs_hist) ]}) : abs_historiesR).
-
-  Definition know_full_encoded_history_loc ℓ (abs_hist : gmap time st) :=
-    own abs_history_name ((◯ {[ ℓ := ● ((to_agree <$> abs_hist) : gmap _ (agreeR stO)) ]}) : abs_historiesR).
-
-  Definition know_frag_history_loc ℓ abs_hist :=
-    own abs_history_name ((◯ {[ ℓ := ◯ (abs_hist_to_ra abs_hist) ]}) : abs_historiesR).
-
-  Lemma equivI_elim_own {A: cmra} `{Hin: inG Σ A} γ (a b: A):
-    (a ≡ b) → own γ a ⊣⊢ own γ b.
-  Proof. iIntros (Hequiv). rewrite Hequiv. eauto. Qed.
-
-  Lemma know_full_equiv ℓ abs_hist :
-    know_full_history_loc ℓ abs_hist ⊣⊢ know_full_encoded_history_loc ℓ (encode <$> abs_hist).
-  Proof.
-    apply equivI_elim_own.
-    do 3 f_equiv.
-    rewrite /abs_hist_to_ra.
-    rewrite map_fmap_compose.
-    done.
-  Qed.
-
-  Lemma abs_hist_to_ra_inj hist hist' :
-    abs_hist_to_ra hist' ≡ abs_hist_to_ra hist →
-    hist' = hist.
-  Proof.
-    intros eq.
-    apply: map_eq. intros t.
-    pose proof (eq t) as eq'.
-    rewrite !lookup_fmap in eq'.
-    destruct (hist' !! t) as [h|] eqn:leq, (hist !! t) as [h'|] eqn:leq';
-      rewrite leq leq'; rewrite leq leq' in eq'; try inversion eq'; auto.
-    simpl in eq'.
-    apply Some_equiv_inj in eq'.
-    apply to_agree_inj in eq'.
-    apply encode_inj in eq'.
-    rewrite eq'.
-    done.
-  Qed.
-
-  Lemma abs_hist_to_ra_agree hist hist' :
-    to_agree <$> hist' ≡ abs_hist_to_ra hist →
-    hist' = encode <$> hist.
-  Proof.
-    intros eq.
-    apply: map_eq. intros t.
-    pose proof (eq t) as eq'.
-    rewrite !lookup_fmap in eq'.
-    rewrite lookup_fmap.
-    destruct (hist' !! t) as [h|] eqn:leq, (hist !! t) as [h'|] eqn:leq';
-      rewrite ?leq leq'; rewrite ?leq ?leq' in eq'; try inversion eq'; auto.
-    simpl in eq'. simpl.
-    apply Some_equiv_inj in eq'.
-    apply to_agree_inj in eq'.
-    f_equiv.
-    apply eq'.
-  Qed.
-
-  (** If you know the full history for a location and own the "all-knowing"
-  resource, then those two will agree. *)
-  Lemma own_full_history_agree ℓ hist hists :
-    own_full_history hists -∗
-    know_full_history_loc ℓ hist -∗
-    ⌜hists !! ℓ = Some (encode <$> hist)⌝.
-  Proof.
-    iIntros "O K".
-    iDestruct (own_valid_2 with "O K") as %[Incl _]%auth_both_valid_discrete.
-    iPureIntro.
-    apply singleton_included_l in Incl as [encHist' [look incl]].
-    rewrite lookup_fmap in look.
-    destruct (hists !! ℓ) as [hist'|] eqn:histsLook.
-    2: { rewrite histsLook in look. inversion look. }
-    rewrite histsLook in look.
-    simpl in look.
-    apply Some_equiv_inj in look.
-    f_equiv.
-    apply abs_hist_to_ra_agree.
-    apply Some_included in incl as [eq|incl].
-    - rewrite <- eq in look.
-      apply auth_auth_inj in look as [_ eq'].
-      done.
-    - rewrite <- look in incl.
-      assert (● (to_agree <$> hist') ≼ ● (to_agree <$> hist') ⋅ ◯ (ε : gmapUR _ _)) as incl'.
-      { eexists _. reflexivity. }
-      pose proof (transitivity incl incl') as incl''.
-      apply auth_auth_included in incl''.
-      done.
-  Qed.
-
-End abs_history_lemmas.
+From self.high Require Import resources crash_weakestpre.
 
 (* For each location in the heap we maintain the following "meta data".
 For every location we want to store: A type/set of abstract events, its full
@@ -254,23 +117,6 @@ Section wp.
   (* Definition know_abstract_history `{Countable ST} ℓ (abs_hist : abs_history ST) : dProp Σ := *)
   (*   ⎡own abs_history_name (◯ {[ ℓ := (abs_hist_to_ra abs_hist)]})⎤. *)
 
-  (** This is our analog to the state interpretation in the Iris weakest
-  precondition. We keep this in our weakest precondition ensuring that it holds
-  before and after each step. **)
-  Definition interp : iProp Σ :=
-    (∃ (abs_hists : enc_abs_histories),
-      ([∗ map] ℓ ↦ abs_hist ∈ abs_hists,
-       (* We keep half the points-to predicates to ensure that we know that the
-       keys in the abstract history correspond to the physical history. This
-       ensures that on a crash we know that the value recoreved after a crash
-       has a corresponding abstract value. *)
-       ∃ (hist : history), 
-         ⌜ dom (gset _) abs_hist = dom _ hist ⌝ ∗
-         ℓ ↦h{#1/2} hist
-       ) ∗
-      (* Ownership over the full knowledge of the abstract history of _all_ locations. *)
-      own_full_history abs_hists).
-
   (* Definition know_pred `{Countable s} *)
   (*     (ℓ : loc) (ϕ : s → val → dProp Σ) : iProp Σ := *)
   (*   own predicates_name (◯ {[ ℓ := pred_to_ra (λ s' v, (λ s, ϕ s v) <$> decode s') ]} : predicatesR). *)
@@ -369,78 +215,79 @@ Section wp.
 
   (* Our weakest precondition is a [dProp]. We construct it using [MonPred]
   which wraps the function along with a proof that it is monotone. *)
-  Program Definition wp_def s E e Φ : dProp Σ :=
-    MonPred (λ V,
-      ∀ TV,
-        ⌜V ⊑ TV⌝ -∗
-        validV (store_view TV) -∗
-        interp -∗
-        WP (ThreadState e TV) @ s; E {{ λ res,
-          let '(ThreadVal v TV') := res return _ in
-            validV (store_view TV') ∗ (Φ v TV') ∗ interp
-        }})%I _.
-  Next Obligation. solve_proper. Qed.
+  (* Program Definition wp_def s E e Φ : dProp Σ := *)
+  (*   MonPred (λ V, *)
+  (*     ∀ TV, *)
+  (*       ⌜V ⊑ TV⌝ -∗ *)
+  (*       validV (store_view TV) -∗ *)
+  (*       interp -∗ *)
+  (*       WP (ThreadState e TV) @ s; E {{ λ res, *)
+  (*         let '(ThreadVal v TV') := res return _ in *)
+  (*           validV (store_view TV') ∗ (Φ v TV') ∗ interp *)
+  (*       }})%I _. *)
+  (* Next Obligation. solve_proper. Qed. *)
 
-  (* This is sealing follows the same ritual as the [wp] in Iris. *)
-  Definition wp_aux : seal (@wp_def). by eexists. Qed.
+  (* (* This is sealing follows the same ritual as the [wp] in Iris. *) *)
+  (* Definition wp_aux : seal (@wp_def). by eexists. Qed. *)
 
-  Global Instance expr_wp : Wp expr_lang (dProp Σ) stuckness := wp_aux.(unseal).
+  (* Global Instance expr_wp : Wp expr_lang (dProp Σ) stuckness := wp_aux.(unseal). *)
 
-  Lemma wp_eq : wp = wp_def.
-  Proof. rewrite -wp_aux.(seal_eq). done. Qed.
+  (* Lemma wp_eq : wp = wp_def. *)
+  (* Proof. rewrite -wp_aux.(seal_eq). done. Qed. *)
 
   (* We prove a few basic facts about our weakest precondition. *)
   Global Instance wp_ne s E e n :
     Proper (pointwise_relation _ (dist n) ==> dist n) (wp s E e).
-  Proof. rewrite wp_eq. constructor=>V. solve_proper. Qed.
+  Proof. rewrite wp_eq. solve_proper. Qed.
   Global Instance wp_proper s E e :
     Proper (pointwise_relation val (≡) ==> (≡)) (wp s E e).
-  Proof. rewrite wp_eq. constructor=>V. solve_proper. Qed.
+  Proof. rewrite wp_eq. solve_proper. Qed.
 
   (* For the WP in Iris the other direction also holds, but not for this WP *)
   Lemma wp_value_fupd' s E Φ v : (|={E}=> Φ v) ⊢ WP of_val v @ s; E {{ Φ }}.
   Proof.
     iStartProof (iProp _). iIntros (TV').
     rewrite wp_eq. rewrite /wp_def.
-    iIntros ">HΦ %TV **".
-    iApply (weakestpre.wp_value_fupd' _ _ _ (ThreadVal v TV)).
-    iFrame "#∗". done.
-  Qed.
+  Abort.
+  (*   iIntros ">HΦ %TV **". *)
+  (*   iApply (weakestpre.wp_value_fupd' _ _ _ (ThreadVal v TV)). *)
+  (*   iFrame "#∗". done. *)
+  (* Qed. *)
 
-  Lemma wp_value_fupd s E Φ e v : IntoVal e v → (|={E}=> Φ v) ⊢ WP e @ s; E {{ Φ }}.
-  Proof. intros <-. by apply wp_value_fupd'. Qed.
+  (* Lemma wp_value_fupd s E Φ e v : IntoVal e v → (|={E}=> Φ v) ⊢ WP e @ s; E {{ Φ }}. *)
+  (* Proof. intros <-. by apply wp_value_fupd'. Qed. *)
 
   (* If the expression is a value then showing the postcondition for the value
   suffices. *)
-  Lemma wp_value s E Φ v : Φ v ⊢ WP (of_val v) @ s; E {{ Φ }}.
-  Proof. rewrite -wp_value_fupd'. auto. Qed.
+  (* Lemma wp_value s E Φ v : Φ v ⊢ WP (of_val v) @ s; E {{ Φ }}. *)
+  (* Proof. rewrite -wp_value_fupd'. auto. Qed. *)
 
   Notation PureExecBase P nsteps e1 e2 :=
     (∀ TV, PureExec P nsteps (ThreadState e1 TV) (ThreadState e2 TV)).
 
-  Lemma wp_pure_step_fupd `{!Inhabited (state Λ)} s E E' e1 e2 φ n Φ :
-    PureExecBase φ n e1 e2 →
-    φ →
-    (|={E}[E']▷=>^n WP e2 @ s; E {{ Φ }}) ⊢ WP e1 @ s; E {{ Φ }}.
-  Proof.
-    rewrite wp_eq=>Hexec Hφ. iStartProof (iProp _).
-    iIntros "% Hwp" (V ->) "Hseen Hinterp". iApply (lifting.wp_pure_step_fupd _ E E')=>//.
-    clear Hexec. iInduction n as [|n] "IH"=>/=.
-    - iApply ("Hwp" with "[% //] Hseen Hinterp").
-    - iMod "Hwp". iModIntro. iModIntro. iMod "Hwp". iModIntro.
-      iApply ("IH" with "Hwp [$] [$]").
-  Qed.
+  (* Lemma wp_pure_step_fupd `{!Inhabited (state Λ)} s E E' e1 e2 φ n Φ : *)
+  (*   PureExecBase φ n e1 e2 → *)
+  (*   φ → *)
+  (*   (|={E}[E']▷=>^n WP e2 @ s; E {{ Φ }}) ⊢ WP e1 @ s; E {{ Φ }}. *)
+  (* Proof. *)
+  (*   rewrite wp_eq=>Hexec Hφ. iStartProof (iProp _). *)
+  (*   iIntros "% Hwp" (V ->) "Hseen Hinterp". iApply (lifting.wp_pure_step_fupd _ E E')=>//. *)
+  (*   clear Hexec. iInduction n as [|n] "IH"=>/=. *)
+  (*   - iApply ("Hwp" with "[% //] Hseen Hinterp"). *)
+  (*   - iMod "Hwp". iModIntro. iModIntro. iMod "Hwp". iModIntro. *)
+  (*     iApply ("IH" with "Hwp [$] [$]"). *)
+  (* Qed. *)
 
   (* This lemma is like the [wp_pure_step_later] in Iris except its premise uses
   [PureExecBase] instead of [PureExec]. *)
-  Lemma wp_pure_step_later `{!nvmG Σ} s E e1 e2 φ n Φ :
-    PureExecBase φ n e1 e2 →
-    φ →
-    ▷^n WP e2 @ s; E {{ Φ }} ⊢ WP e1 @ s; E {{ Φ }}.
-  Proof.
-    intros Hexec ?. rewrite -wp_pure_step_fupd //. clear Hexec.
-    induction n as [|n IH]; by rewrite //= -step_fupd_intro // IH.
-  Qed.
+  (* Lemma wp_pure_step_later `{!nvmG Σ} s E e1 e2 φ n Φ : *)
+  (*   PureExecBase φ n e1 e2 → *)
+  (*   φ → *)
+  (*   ▷^n WP e2 @ s; E {{ Φ }} ⊢ WP e1 @ s; E {{ Φ }}. *)
+  (* Proof. *)
+  (*   intros Hexec ?. rewrite -wp_pure_step_fupd //. clear Hexec. *)
+  (*   induction n as [|n IH]; by rewrite //= -step_fupd_intro // IH. *)
+  (* Qed. *)
 
 End wp.
 
