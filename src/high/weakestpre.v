@@ -5,8 +5,8 @@ From stdpp Require Import gmap.
 From iris.program_logic Require weakestpre.
 
 From stdpp Require Import countable numbers gmap.
-From iris Require Export invariants.
-From iris.proofmode Require Export tactics.
+From iris Require Import invariants.
+From iris.proofmode Require Import tactics.
 From iris.algebra Require Import gmap excl auth.
 From iris.program_logic Require weakestpre.
 From iris.heap_lang Require Import locations.
@@ -33,7 +33,7 @@ Definition abs_historiesR := authR (gmapUR loc (authR encoded_abs_historyR)).
 
 Class nvmHighG Σ := NvmHighG {
   abs_history_name : gname;
-  γp : gname;
+  predicates_name : gname;
   ra_inG :> inG Σ (@predicatesR Σ);
   ra'_inG :> inG Σ abs_historiesR;
 }.
@@ -246,7 +246,7 @@ Section wp.
              P (msg_to_tv (fst p))))) ∗
       (* Authorative ghost states. *)
       (* own abs_history_name (● (abs_hist_to_ra_old <$> hists) : encoded_historiesR) ∗ *)
-      own γp (● (pred_to_ra <$> preds) : predicatesR)).
+      own predicates_name (● (pred_to_ra <$> preds) : predicatesR)).
 
   (* Definition own_abstract_history `{Countable ST} ℓ q (abs_hist : abs_history ST) : dProp Σ := *)
   (*   ⎡own abs_history_name (●{#q} {[ ℓ := (abs_hist_to_ra abs_hist)]})⎤. *)
@@ -273,7 +273,7 @@ Section wp.
 
   (* Definition know_pred `{Countable s} *)
   (*     (ℓ : loc) (ϕ : s → val → dProp Σ) : iProp Σ := *)
-  (*   own γp (◯ {[ ℓ := pred_to_ra (λ s' v, (λ s, ϕ s v) <$> decode s') ]} : predicatesR). *)
+  (*   own predicates_name (◯ {[ ℓ := pred_to_ra (λ s' v, (λ s, ϕ s v) <$> decode s') ]} : predicatesR). *)
 
   (* Definition know_state `{Countable s} ℓ (t : time) (s' : s) : iProp Σ := *)
   (*   own (◯ {[ ℓ := {[ t := to_agree (encode s') ]} ]} : encoded_historiesR). *)
