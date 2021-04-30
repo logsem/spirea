@@ -17,7 +17,7 @@ From self Require Export view.
 From self Require Export lang.
 From self.base Require Import primitive_laws.
 From self.lang Require Import syntax.
-From self.high Require Import resources crash_weakestpre.
+From self.high Require Import resources crash_weakestpre lifted_modalities.
 
 (* For each location in the heap we maintain the following "meta data".
 For every location we want to store: A type/set of abstract events, its full
@@ -244,33 +244,37 @@ Section wp.
   Proof. rewrite wp_eq. solve_proper. Qed.
 
   (* For the WP in Iris the other direction also holds, but not for this WP *)
-  Lemma wp_value_fupd' s E Φ v : (|={E}=> Φ v) ⊢ WP of_val v @ s; E {{ Φ }}.
+  Lemma wp_value_fupd' s E Φ v : WP of_val v @ s; E {{ Φ }} ⊣⊢ |NC={E}=> Φ v.
   Proof.
-    iStartProof (iProp _). iIntros (TV').
-    rewrite wp_eq. rewrite /wp_def.
-  Abort.
-  (*   iIntros ">HΦ %TV **". *)
-  (*   iApply (weakestpre.wp_value_fupd' _ _ _ (ThreadVal v TV)). *)
-  (*   iFrame "#∗". done. *)
-  (* Qed. *)
+    rewrite wp_eq /wp_def. iStartProof (iProp _). iIntros (TV). iSplit.
+    - rewrite ncfupd_unfold_at. simpl.
+      iIntros "Hwp" (q).
+      (* iApply wpc_value_inv'. done. *)
+      admit.
+    - iIntros "HΦ". iApply ncfupd_wpc. iSplit; first done.
+      rewrite ncfupd_eq. rewrite /ncfupd_def. simpl.
+      iMod "HΦ". iApply wpc_value'. rewrite monPred_at_and. eauto.
+  Admitted.
 
   (* Lemma wp_value_fupd s E Φ e v : IntoVal e v → (|={E}=> Φ v) ⊢ WP e @ s; E {{ Φ }}. *)
-  (* Proof. intros <-. by apply wp_value_fupd'. Qed. *)
+  Lemma wp_value_fupd s E Φ e v : IntoVal e v → WP e @ s; E {{ Φ }} ⊣⊢ |NC={E}=> Φ v.
+  Proof. intros <-. apply wp_value_fupd'. Qed.
 
   (* If the expression is a value then showing the postcondition for the value
   suffices. *)
-  (* Lemma wp_value s E Φ v : Φ v ⊢ WP (of_val v) @ s; E {{ Φ }}. *)
-  (* Proof. rewrite -wp_value_fupd'. auto. Qed. *)
+  Lemma wp_value s E Φ v : Φ v ⊢ WP (of_val v) @ s; E {{ Φ }}.
+  Proof. rewrite wp_value_fupd'. iIntros "H". iModIntro. iFrame. Qed.
 
   Notation PureExecBase P nsteps e1 e2 :=
     (∀ TV, PureExec P nsteps (ThreadState e1 TV) (ThreadState e2 TV)).
 
-  (* Lemma wp_pure_step_fupd `{!Inhabited (state Λ)} s E E' e1 e2 φ n Φ : *)
-  (*   PureExecBase φ n e1 e2 → *)
-  (*   φ → *)
-  (*   (|={E}[E']▷=>^n WP e2 @ s; E {{ Φ }}) ⊢ WP e1 @ s; E {{ Φ }}. *)
-  (* Proof. *)
-  (*   rewrite wp_eq=>Hexec Hφ. iStartProof (iProp _). *)
+  Lemma wp_pure_step_fupd `{!Inhabited (state Λ)} s E E' e1 e2 φ n Φ :
+    PureExecBase φ n e1 e2 →
+    φ →
+    (|={E}[E']▷=>^n WP e2 @ s; E {{ Φ }}) ⊢ WP e1 @ s; E {{ Φ }}.
+  Proof.
+    rewrite wp_eq=>Hexec Hφ. iStartProof (iProp _).
+  Admitted.
   (*   iIntros "% Hwp" (V ->) "Hseen Hinterp". iApply (lifting.wp_pure_step_fupd _ E E')=>//. *)
   (*   clear Hexec. iInduction n as [|n] "IH"=>/=. *)
   (*   - iApply ("Hwp" with "[% //] Hseen Hinterp"). *)
@@ -280,14 +284,14 @@ Section wp.
 
   (* This lemma is like the [wp_pure_step_later] in Iris except its premise uses
   [PureExecBase] instead of [PureExec]. *)
-  (* Lemma wp_pure_step_later `{!nvmG Σ} s E e1 e2 φ n Φ : *)
-  (*   PureExecBase φ n e1 e2 → *)
-  (*   φ → *)
-  (*   ▷^n WP e2 @ s; E {{ Φ }} ⊢ WP e1 @ s; E {{ Φ }}. *)
-  (* Proof. *)
-  (*   intros Hexec ?. rewrite -wp_pure_step_fupd //. clear Hexec. *)
-  (*   induction n as [|n IH]; by rewrite //= -step_fupd_intro // IH. *)
-  (* Qed. *)
+  Lemma wp_pure_step_later s E e1 e2 φ n Φ :
+    PureExecBase φ n e1 e2 →
+    φ →
+    ▷^n WP e2 @ s; E {{ Φ }} ⊢ WP e1 @ s; E {{ Φ }}.
+  Proof.
+    intros Hexec ?. rewrite -wp_pure_step_fupd //. clear Hexec.
+    induction n as [|n IH]; by rewrite //= -step_fupd_intro // IH.
+  Qed.
 
 End wp.
 

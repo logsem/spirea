@@ -8,7 +8,7 @@ From self.lang Require Import notation lang.
 From self.algebra Require Import view.
 From self.base Require Import primitive_laws class_instances.
 From self.high Require Import proofmode.
-From self.high Require Import dprop weakestpre recovery_weakestpre.
+From self.high Require Import dprop resources weakestpre recovery_weakestpre lifted_modalities.
 
 Definition prog : expr := let: "l" := ref #1 in ! "l".
 
@@ -23,6 +23,7 @@ Section specs.
   Lemma wp_bin_op : ⊢ WP (#1 + #2) {{ v, ⌜1 = 1⌝ }}.
   Proof.
     wp_pures.
+    iModIntro.
     done.
   Qed.
 

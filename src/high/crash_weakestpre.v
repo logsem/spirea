@@ -5,7 +5,7 @@ From Perennial.program_logic Require crash_weakestpre.
 
 From self.high Require Export dprop.
 From self.base Require Import primitive_laws.
-From self.high Require Import resources.
+From self.high Require Import resources lifted_modalities.
 
 (** We define a few things about the resource algebra that that we use to encode
 abstract histories. *)
@@ -133,8 +133,8 @@ Section wpc.
       own_full_history abs_hists).
 
   Program Definition wpc_def s k E e (Φ : val → dProp Σ) (Φc : dProp Σ) : dProp Σ :=
+    (* monPred_objectively Φc ∗ *)
     MonPred (λ V,
-      (* ⌜ Objective Φc ⌝ ∗ *)
       ∀ TV,
         ⌜V ⊑ TV⌝ -∗
         validV (store_view TV) -∗
@@ -184,8 +184,8 @@ Section wpc.
     rewrite wpc_eq.
     iStartProof (iProp _). iIntros (V).
     iIntros "WP".
-    iIntros (TV) "incl val interp".
-    iDestruct ("WP" with "incl val interp") as "HI".
+    iIntros (TV) "%incl val interp".
+    iDestruct ("WP" with "[% //] val interp") as "HI".
     rewrite nvm_fill_fill.
     iApply crash_weakestpre.wpc_bind.
     { apply: ectx_lang_ctx. }
@@ -194,10 +194,16 @@ Section wpc.
     iIntros ([v TV']) "(val & wpc & interp)".
     iDestruct ("wpc" $! TV' with "[//] val interp") as "HI".
     rewrite nvm_fill_fill.
-    simpl. rewrite /thread_of_val. simpl.
+    simpl. rewrite /thread_of_val.
     iApply (wpc_crash_mono with "[] HI").
     iModIntro.
     iIntros "$".
+    (* iApply (wpc_strong_mono' with "HI"); eauto. *)
+    (* iSplit. *)
+    (* - admit. *)
+    (* - iModIntro. iIntros "H". iModIntro. *)
+    (*   iApply monPred_mono. done. *)
+    (* Abort. *)
   Qed.
 
   Lemma wp_wpc s k E1 e Φ:
@@ -222,47 +228,39 @@ Section wpc.
     iApply (wpc0_strong_mono with "H"); auto. by apply omega_le_refl.
   Qed.
   *)
-
-  Locate "={".
-  (* uPred_fupd_level *)
-
-  Program Definition ncfupd_def `{!invG Σ, !crashG Σ} (E1 E2 : coPset) (P : dProp Σ) : dProp Σ :=
-    MonPred (λ TV, ∀ q, NC q -∗ |={E1, E2}=> (P TV) ∗ NC q)%I _.
-  Next Obligation. solve_proper. Qed.
-  Definition ncfupd_aux `{!invG Σ, !crashG Σ} : seal (ncfupd_def). Proof. by eexists. Qed.
-  Definition ncfupd `{!invG Σ, !crashG Σ} := ncfupd_aux.(unseal).
-  Definition ncfupd_eq `{!invG Σ, !crashG Σ} : ncfupd = ncfupd_def := ncfupd_aux.(seal_eq).
-
-  (* Program Definition uPred_fupd_level_def `{!invG Σ} (E1 E2 : coPset) (k : nat) (P : dProp Σ) : dProp Σ := *)
-  (*   MonPred (λ TV, uPred_fupd_split_level E1 E2 k None (P TV)) _. *)
-  (* Next Obligation. solve_proper. Qed. *)
-  (* Definition uPred_fupd_level_aux `{!invG Σ} : seal uPred_fupd_level_def. Proof. by eexists. Qed. *)
-  (* Definition uPred_fupd_level `{!invG Σ} := uPred_fupd_level_aux.(unseal). *)
-
-  (* Notation "| k ={ E1 }=> Q" := (uPred_fupd_level E1 E1 k Q) : bi_scope. *)
-  (* From Perennial.base_logic.lib Require Export ncfupd. *)
-
-  Lemma wpc_value s k E1 (Φ : val → dProp Σ) Φc (v : val) :
-    ((ncfupd_def E1 E1 (Φ v))) ∧ (<disc> |C={E1}_k=> Φc) ⊢ WPC of_val v @ s; k; E1 {{ Φ }} {{ Φc }}.
-    (* ((|NC={E1}=> Φ v) : dProp _) ∧ (<disc> |C={E1}_k=> Φc) ⊢ WPC of_val v @ s; k; E1 {{ Φ }} {{ Φc }}. *)
+  Lemma ncfupd_wpc s k E1 e Φ Φc :
+    <disc> (cfupd k E1 Φc) ∧ (|NC={E1}=> WPC e @ s; k; E1 {{ Φ }} {{ Φc }}) ⊢
+    WPC e @ s; k; E1 {{ Φ }} {{ Φc }}.
   Proof.
-    rewrite wpc_unfold /wpc_pre to_of_val. iIntros "H".
-    iIntros (mj).
-    iModIntro.
+  Admitted.
+
+  Lemma wpc_value s k E1 (Φ : val → dProp Σ) (Φc : dProp Σ) `{!Objective Φc} (v : val) :
+    ((|NC={E1}=> Φ v) : dProp _) ∧ (<disc> |C={E1}_k=> Φc) ⊢ WPC of_val v @ s; k; E1 {{ Φ }} {{ Φc }}.
+  Proof.
+    rewrite wpc_eq.
+    iStartProof (iProp _). iIntros (TV).
+    simpl.
+    iIntros "H".
+    iIntros (TV') "%lec hv i".
+    iApply (wpc_value _ _ _ _ _ (ThreadVal _ _)).
     iSplit.
-    - iDestruct "H" as "(H&_)". rewrite ncfupd_eq /ncfupd_def.
-      iIntros (q) "HNC". iMod ("H" with "HNC"). by iFrame.
-    - iDestruct "H" as "(_&H)". iIntros. iModIntro.
-      by iApply cfupd_split_level_cfupd.
+    - iFrame. iDestruct "H" as "(H & _)".
+      iApply monPred_mono.
+      * apply lec.
+      * rewrite ncfupd_eq.
+        iApply "H".
+    - iDestruct "H" as "(_ & HO)".
+      rewrite objective_at.
+      iFrame.
   Qed.
 
-  Lemma wpc_value' s k E1 Φ Φc v :
-  Φ v ∧ <disc> Φc ⊢ WPC of_val v @ s; k; E1 {{ Φ }} {{ Φc }}.
+  Lemma wpc_value' s k E1 Φ Φc `{!Objective Φc} v :
+    Φ v ∧ <disc> Φc ⊢ WPC of_val v @ s; k; E1 {{ Φ }} {{ Φc }}.
   Proof.
     iIntros "H". iApply wpc_value.
     iSplit.
     - iModIntro. iDestruct "H" as "($&_)".
-    - iDestruct "H" as "(_&H)". by do 2 iModIntro.
+    - iDestruct "H" as "(_&H)". iModIntro. iModIntro. iFrame.
   Qed.
 
 End wpc.

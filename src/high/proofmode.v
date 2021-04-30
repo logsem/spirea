@@ -11,7 +11,7 @@ From Perennial.program_logic Require Export language ectx_language ectxi_languag
 
 From self.base Require Import tactics class_instances primitive_laws.
 From self.lang Require Export notation.
-From self.high Require Import resources crash_weakestpre weakestpre.
+From self.high Require Import resources crash_weakestpre weakestpre lifted_modalities.
 
 Import uPred.
 
@@ -68,7 +68,7 @@ Proof. rewrite envs_entails_eq=> ->. apply wp_value. Qed.
 Proof. rewrite envs_entails_eq=> ->. by apply twp_value. Qed. *)
 
 Lemma tac_wp_value `{!nvmG Σ} Δ s E (Φ : val → dPropI Σ) v :
-  envs_entails Δ (|={E}=> Φ v) → envs_entails Δ (WP (Val v) @ s; E {{ Φ }}).
+  envs_entails Δ (|NC={E}=> Φ v) → envs_entails Δ (WP (Val v) @ s; E {{ Φ }}).
 Proof.
   rewrite envs_entails_eq=> ->. rewrite wp_value_fupd. done.
 Qed.
