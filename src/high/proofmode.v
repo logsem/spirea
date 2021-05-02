@@ -3,9 +3,8 @@
 Is is an adaptation of the tactics for HeapLang. *)
 
 From iris.proofmode Require Import coq_tactics reduction.
-From iris.proofmode Require Export tactics.
-(* From iris.program_logic Require Import atomic. *)
-From iris.prelude Require Import options.
+From iris.proofmode Require Export environments.
+From Perennial.Helpers Require Export ipm.
 
 From Perennial.program_logic Require Export language ectx_language ectxi_language.
 
@@ -13,6 +12,7 @@ From self.base Require Import tactics class_instances primitive_laws.
 From self.lang Require Export notation.
 From self.high Require Import resources crash_weakestpre weakestpre lifted_modalities.
 
+Set Default Proof Using "Type".
 Import uPred.
 
 Implicit Types (e : expr).
@@ -58,6 +58,18 @@ Proof.
   (* We want [pure_exec_fill] to be available to TC search locally. *)
   pose proof @pure_exec_fill.
   rewrite HΔ'. rewrite -wp_pure_step_later //.
+Qed.
+Lemma tac_wp_pure_no_later `{!nvmG Σ} Δ s E K e1 e2 φ n Φ :
+  (∀ TV, PureExec φ n (ThreadState e1 TV) (ThreadState e2 TV)) →
+  φ →
+  envs_entails Δ (WP (fill K e2) @ s; E {{ Φ }}) →
+  envs_entails Δ (WP (fill K e1) @ s; E {{ Φ }}).
+Proof.
+  rewrite envs_entails_eq=> ?? HΔ'.
+  (* We want [pure_exec_fill] to be available to TC search locally. *)
+  pose proof @pure_exec_fill.
+  rewrite HΔ' -wp_pure_step_later //.
+  iIntros "$".
 Qed.
 
 Lemma tac_wp_value_nofupd `{!nvmG Σ} Δ s E Φ v :
@@ -112,43 +124,90 @@ for an [EIf _ _ _] in the expression, and reduce it.
 The use of [open_constr] in this tactic is essential. It will convert all holes
 (i.e. [_]s) into evars, that later get unified when an occurences is found
 (see [unify e' efoc] in the code below). *)
-Tactic Notation "wp_pure" open_constr(efoc) :=
-  iStartProof;
+Tactic Notation "wp_pure_later" tactic3(filter) :=
   lazymatch goal with
-  | |- envs_entails _ (wp ?s ?E ?e ?Q) =>
+  | |- envs_entails ?envs (wp ?s ?E ?e ?Q) =>
     let e := eval simpl in e in
     reshape_expr e ltac:(fun K e' =>
-      unify e' efoc;
-      eapply (tac_wp_pure _ _ _ _ K e');
+      filter e';
+      first [ eapply (tac_wp_pure _ _ _ _ K e');
       [iSolveTC                       (* PureExec *)
-      |try solve_vals_compare_safe    (* The pure condition for PureExec --
-         handles trivial goals, including [vals_compare_safe] *)
+      |try solve_vals_compare_safe    (* The pure condition for PureExec -- handles trivial goals, including [vals_compare_safe] *)
       |iSolveTC                       (* IntoLaters *)
       |wp_finish                      (* new goal *)
-      ])
-    || fail "wp_pure: cannot find" efoc "in" e "or" efoc "is not a redex"
-  (*
-  | |- envs_entails _ (twp ?s ?E ?e ?Q) =>
-    let e := eval simpl in e in
-    reshape_expr e ltac:(fun K e' =>
-      unify e' efoc;
-      eapply (tac_twp_pure _ _ _ K e');
-      [iSolveTC                       (* PureExec *)
-      |try solve_vals_compare_safe    (* The pure condition for PureExec *)
-      |wp_finish                      (* new goal *)
-      ])
-    || fail "wp_pure: cannot find" efoc "in" e "or" efoc "is not a redex"
-    *)
+      ] | fail 3 "wp_pure: first pattern match is not a redex" ]
+          (* "3" is carefully chose to bubble up just enough to not break out of the [repeat] in [wp_pures] *)
+   ) || fail "wp_pure: cannot find redex pattern"
   | _ => fail "wp_pure: not a 'wp'"
   end.
 
-(* TODO: do this in one go, without [repeat]. *)
+Tactic Notation "wp_pure_no_later" tactic3(filter) :=
+  lazymatch goal with
+  | |- envs_entails ?envs (wp ?s ?E ?e ?Q) =>
+    let e := eval simpl in e in
+    reshape_expr e ltac:(fun K e' =>
+      filter e';
+      first [ eapply (tac_wp_pure_no_later _ _ _ K e');
+      [iSolveTC                       (* PureExec *)
+      |try solve_vals_compare_safe    (* The pure condition for PureExec -- handles trivial goals, including [vals_compare_safe] *)
+      |wp_finish                      (* new goal *)
+      ] | fail 3 "wp_pure: first pattern match is not a redex" ]
+   ) || fail "wp_pure: cannot find redex pattern"
+  | _ => fail "wp_pure: not a 'wp'"
+  end.
+
+(** Hack to work around ltac parsing idiosyncracies: make 2nd argument an open_constr *)
+Tactic Notation "open_unify" constr(e1) open_constr(e2) :=
+  unify e1 e2.
+
+(* smart version that decides which one to use *)
+Tactic Notation "wp_pure_smart" tactic3(filter) :=
+  iStartProof;
+  lazymatch goal with
+  | |- envs_entails ?envs _ =>
+    lazymatch envs with
+    | context[Esnoc _ _ (bi_later _)] => wp_pure_later filter
+    | _ => wp_pure_no_later filter
+    end
+  end.
+Tactic Notation "wp_pure" open_constr(efoc) :=
+  wp_pure_smart ltac:(fun e => unify e efoc).
+
+(* This needs to detect all things that [wp_pures] should reduce. *)
+Ltac wp_pure_filter e' :=
+  (* For Beta-redices, we do *syntactic* matching only, to avoid unfolding
+     definitions. This matches the treatment for [pure_beta] via [AsRecV]. *)
+  first [ lazymatch e' with (App (Val (RecV _ _ _)) (Val _)) => idtac end
+        | open_unify e' (rec: _ _ := _)%E
+        | open_unify e' (InjL (Val _))
+        | open_unify e' (InjR (Val _))
+        | open_unify e' (Val _, Val _)%E
+        | open_unify e' (Fst (Val _))
+        | open_unify e' (Snd (Val _))
+        | open_unify e' (if: (Val _) then _ else _)%E
+        | open_unify e' (Case (Val _) _ _)
+        | open_unify e' (UnOp _ (Val _))
+        | open_unify e' (BinOp _ (Val _) (Val _))].
+
+Ltac wp_pure1 :=
+  iStartProof; wp_pure_smart wp_pure_filter.
 Ltac wp_pures :=
   iStartProof;
-  first [ (* The `;[]` makes sure that no side-condition magically spawns. *)
-          progress repeat (wp_pure _; [])
-        | wp_finish (* In case wp_pure never ran, make sure we do the usual cleanup. *)
-        ].
+  lazymatch goal with
+    | |- envs_entails ?envs (wp ?s ?E (Val ?v) ?Q) => wp_finish
+    | |- _ =>
+      (* The `;[]` makes sure that no side-condition
+                             magically spawns. *)
+      (* TODO: do this in one go, without [repeat]. *)
+      try ((wp_pure1; []); repeat (wp_pure_no_later wp_pure_filter; []))
+  end.
+
+(* Ltac wp_pures := *)
+(*   iStartProof; *)
+(*   first [ (* The `;[]` makes sure that no side-condition magically spawns. *) *)
+(*           progress repeat (wp_pure _; []) *)
+(*         | wp_finish (* In case wp_pure never ran, make sure we do the usual cleanup. *) *)
+(*         ]. *)
 
 (** Unlike [wp_pures], the tactics [wp_rec] and [wp_lam] should also reduce
 lambdas/recs that are hidden behind a definition, i.e. they should use

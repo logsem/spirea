@@ -3,9 +3,8 @@ From iris.algebra Require Import agree auth.
 From Perennial.base_logic.lib Require Export ncfupd.
 From Perennial.program_logic Require crash_weakestpre.
 
-From self.high Require Export dprop.
 From self.base Require Import primitive_laws.
-From self.high Require Import resources lifted_modalities.
+From self.high Require Export dprop resources lifted_modalities.
 
 (** We define a few things about the resource algebra that that we use to encode
 abstract histories. *)
