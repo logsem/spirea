@@ -49,10 +49,11 @@ Section nat_map.
     | [x] => m !! hi = Some x ∧ lo = hi
     | x :: xs =>
       m !! lo = Some x ∧
-      ∃ lo', lo < lo' ∧
-             (∀ lo'', lo < lo'' → lo' = lo'' ∨ lo' < lo'') ∧
-             map_slice m lo' hi xs
-             (* map_slice m (min_list $ elements $ filter (λ t, lo < t) (dom (gset nat) m)) hi xs *)
+      ∃ lo',
+        lo < lo' ∧
+        (∀ lo'', lo < lo'' < lo' → m !! lo'' = None) ∧ (* There are not elements in between. *)
+        map_slice m lo' hi xs
+        (* map_slice m (min_list $ elements $ filter (λ t, lo < t) (dom (gset nat) m)) hi xs *)
     end.
 
   Lemma map_slice_lookup_between m lo hi xs t x :

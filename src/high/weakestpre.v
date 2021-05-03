@@ -134,8 +134,8 @@ Section wp.
     apply singleton_included_l.
   Qed.
 
-  (* Definition increasing_list `{Preorder ST} (ss : list ST) := *)
-  (*   ∀ i j s s', i ≤ j → ss !! i = Some s → ss !! j = Some s' → s ≤ s'. *)
+  Definition increasing_list `{AbstractState ST} (ss : list ST) :=
+    ∀ i j (s s' : ST), i ≤ j → (ss !! i = Some s) → (ss !! j = Some s') → s ⊑ s'.
 
   (* _Exclusive_ points-to predicate. This predcate says that we know that the
   last events at [ℓ] corresponds to the *)
@@ -152,10 +152,11 @@ Section wp.
       ⎡([∗ map] t ↦ msg; abs ∈ hist; abs_hist,
           ϕ abs msg.(msg_val) (msg.(msg_store_view), msg.(msg_persist_view), ∅))⎤ ∗
 
-      (* FIXME: We also need to spell out that the lists of states are sorted. *)
+      ⌜ increasing_list (ss1 ++ ss2) ⌝ ∗
 
+      ⌜abs_hist !! tPers = head ss2⌝ ∗ (* Note: This also ensures that [ss2] is non-empty :) *)
       (* [tStore] is the last message and it agrees with the last state in ss2 and the value. *)
-      ⌜abs_hist !! tStore = last ss2⌝ ∗ (* Note: This also ensures that [ss'] is non-empty :) *)
+      ⌜abs_hist !! tStore = last ss2⌝ ∗
       ⌜(∀ t', tStore < t' → abs_hist !! t' = None)⌝ ∗
       ⌜msg_val <$> (hist !! tStore) = Some v⌝ ∗
 
@@ -164,7 +165,7 @@ Section wp.
 
       (* ⌜max_member abs_hist tStore⌝ ∗ *)
       ⌜map_slice abs_hist tGlobalPers tStore (ss1 ++ ss2)⌝ ∗
-      ⌜map_slice abs_hist tGlobalPers tPers ss1⌝ ∗
+      (* ⌜map_slice abs_hist tGlobalPers tPers ss1⌝ ∗ *)
 
       (* We "have"/"know" of the three timestamps. *)
       monPred_in ({[ ℓ := MaxNat tStore ]}, {[ ℓ := MaxNat tPers ]}, ∅) ∗
@@ -212,28 +213,6 @@ Section wp.
         ϕ (snd misc) (msg_val $ fst $ misc) (msg_store_view $ fst $ misc, msg_persist_view $ fst $ misc, ∅))
     ).
   *)
-
-  (* Our weakest precondition is a [dProp]. We construct it using [MonPred]
-  which wraps the function along with a proof that it is monotone. *)
-  (* Program Definition wp_def s E e Φ : dProp Σ := *)
-  (*   MonPred (λ V, *)
-  (*     ∀ TV, *)
-  (*       ⌜V ⊑ TV⌝ -∗ *)
-  (*       validV (store_view TV) -∗ *)
-  (*       interp -∗ *)
-  (*       WP (ThreadState e TV) @ s; E {{ λ res, *)
-  (*         let '(ThreadVal v TV') := res return _ in *)
-  (*           validV (store_view TV') ∗ (Φ v TV') ∗ interp *)
-  (*       }})%I _. *)
-  (* Next Obligation. solve_proper. Qed. *)
-
-  (* (* This is sealing follows the same ritual as the [wp] in Iris. *) *)
-  (* Definition wp_aux : seal (@wp_def). by eexists. Qed. *)
-
-  (* Global Instance expr_wp : Wp expr_lang (dProp Σ) stuckness := wp_aux.(unseal). *)
-
-  (* Lemma wp_eq : wp = wp_def. *)
-  (* Proof. rewrite -wp_aux.(seal_eq). done. Qed. *)
 
   (* We prove a few basic facts about our weakest precondition. *)
   Global Instance wp_ne s E e n :
@@ -307,67 +286,78 @@ Section wp_rules.
 
   Implicit Types (ℓ : loc) (s : abs_state) (ϕ : abs_state → val → dProp Σ).
 
+  Ltac iIntrosPtsEx :=
+    iDestruct 1 as (?tGP ?tP ?tS absHist hist) "(pts & map & %incrL & %lookupP & %lookupV & %nolater & %lastVal & hist & slice & %know & per)".
+
   Lemma wp_load_ex ℓ ss ss' s v ϕ st E :
-    last ss' = Some s →
+    (* last ss' = Some s → *)
     {{{ ℓ ↦ ss; ss'; v | ϕ }}}
       Load (Val $ LitV $ LitLoc ℓ) @ st; E
     {{{ RET v; ℓ ↦ ss; ss'; v | ϕ }}}.
   Proof.
-    intros last.
-    rewrite wp_eq /wp_def.
-    iStartProof (iProp _).
-    iIntros (post ((sv & pv) & bv)) "Hpts".
-  Admitted.
+    intros Φ.
+    iStartProof (iProp _). iIntros (TV).
+    iIntrosPtsEx.
+    rewrite monPred_at_wand. simpl.
     (* We destruct the exclusive points-to predicate. *)
-    (* iDestruct "Hpts" as (t1 t2 t3 abs hist) "(big & ℓPts & %look & %nolater & %incl & #pers)". *)
-    (* rewrite last in look. *)
-    (* simpl. *)
-  (*   iPoseProof (big_sepM2_dom with "big") as "%domEq". *)
-  (*   move: incl => [[incl3 incl2] incl']. *)
-  (*   iIntros ([[idxS idxP] idxB] [[??]?]) "Hpost". simpl. *)
-  (*   iIntros ([[sv' pv'] bv'] [[??]?]) "#Hv Hint". *)
-  (*   iApply (wp_load with "[$ℓPts $Hv]"). *)
-  (*   iNext. *)
-  (*   iIntros (t' v') "[ℓPts [%hi %ho]]". *)
-  (*   rewrite /store_view. simpl. *)
-  (*   iFrame "#∗". *)
-  (*   assert ({[ℓ := MaxNat t3]} ⊑ sv'). *)
-  (*   { etrans. eassumption. etrans. eassumption. eassumption. } *)
-  (*   (* We need to conclude that the only write we could read is the one at [t3]. *) *)
-  (*   assert (t3 ≤ t') as lte. *)
-  (*   { pose proof (view_lt_lt _ _ ℓ H7) as HIP. *)
-  (*     pose proof (transitivity HIP ho). *)
-  (*     rewrite lookup_singleton in H8. *)
-  (*     simpl in H8. *)
-  (*     apply H8. } *)
-  (*   assert (is_Some (abs !! t')) as HI. *)
-  (*   { apply elem_of_dom. rewrite -domEq. apply elem_of_dom. *)
-  (*     rewrite -lookup_fmap in hi. *)
-  (*     apply lookup_fmap_Some in hi. *)
-  (*     destruct hi as [msg look']. *)
-  (*     exists msg. apply look'. } *)
-  (*   assert (t' = t3) as ->. *)
-  (*   { apply Nat.lt_eq_cases in lte. destruct lte as [lt|]; last done. *)
-  (*     pose proof (nolater t' lt) as eq. *)
-  (*     rewrite eq in HI. inversion HI. inversion H8. } *)
-  (*   iAssert (⌜v' = v⌝)%I as %->. *)
-  (*   { rewrite -lookup_fmap in hi. *)
-  (*     apply lookup_fmap_Some in hi. *)
-  (*     destruct hi as [msg [msgEq look']]. *)
-  (*     iDestruct (big_sepM2_lookup with "big") as "%eq"; [done|done|]. *)
-  (*     iPureIntro. simpl in eq. congruence. } *)
-  (*   (* We need this fact to be apple  to apply Hpost. *) *)
-  (*   assert ((idxS, idxP, idxB) ⊑ (sv', pv', bv')). { done. } *)
-  (*   iApply "Hpost". *)
-  (*   iExists _, _, _, _, _. *)
-  (*   rewrite last. *)
-  (*   iFrame (look nolater) "big ℓPts pers". *)
-  (*   iSplit; first iSplit; try done; iPureIntro. *)
-  (*   - etrans. apply incl2. *)
-  (*     etrans. eassumption. *)
-  (*     eassumption. *)
-  (*   - apply view_empty_least. *)
-  (* Qed. *)
+    iIntros (TV' incl) "Φpost".
+    rewrite monPred_at_later.
+    rewrite wp_eq /wp_def.
+    rewrite wpc_eq. simpl.
+    iIntros ([[SV PV] BV] incl2) "#val interp".
+    rewrite monPred_at_pure.
+    iApply program_logic.crash_weakestpre.wp_wpc.
+    iApply (wp_load with "[$pts $val]").
+    iNext. iIntros (t' v') "[pts [%look %gt]]".
+    rewrite /store_view. simpl.
+    iFrame "#∗".
+    iPoseProof (big_sepM2_dom with "map") as "%domEq".
+    assert ({[ℓ := MaxNat tS]} ⊑ SV) as inclSingl.
+    { destruct TV as [[??]?].
+      destruct TV' as [[??]?].
+      etrans.
+      apply know.
+      etrans.
+      apply incl.
+      apply incl2. }
+      (* etrans. eassumption. etrans. eassumption. eassumption. } *)
+    (* We need to conclude that the only write we could read is the one at [t3]. *)
+    assert (tS ≤ t') as lte.
+    { pose proof (view_lt_lt _ _ ℓ inclSingl) as HIP.
+      rewrite lookup_singleton in HIP.
+      pose proof (transitivity HIP gt) as leq.
+      simpl in leq.
+      apply leq. }
+    assert (is_Some (absHist !! t')) as HI.
+    { apply (elem_of_dom (M:=gmap time)). rewrite -domEq. apply elem_of_dom.
+      rewrite -lookup_fmap in look.
+      apply lookup_fmap_Some in look.
+      destruct look as [msg look'].
+      exists msg. apply look'. }
+    assert (t' = tS) as ->.
+    { apply Nat.lt_eq_cases in lte. destruct lte as [lt|]; last done.
+      pose proof (nolater t' lt) as eq.
+      rewrite eq in HI. inversion HI as [? [=]]. }
+    assert (v' = v) as ->.
+    { apply (inj Some).
+      rewrite -lastVal -look.
+      done. }
+    (* iAssert (⌜v' = v⌝)%I as %->. *)
+    (* { rewrite -lookup_fmap in look. *)
+    (*   apply lookup_fmap_Some in look. *)
+    (*   destruct look as [msg [msgEq look']]. *)
+    (*   iDestruct (big_sepM2_lookup with "map") as "%eq"; [done|done|]. *)
+    (*   iPureIntro. simpl in eq. congruence. } *)
+    (* We need this fact to be apple  to apply Hpost. *)
+    (* assert ((idxS, idxP, idxB) ⊑ (sv', pv', bv')). { done. } *)
+    iApply "Φpost".
+    iExists _, _, _, _, _.
+    iFrame "pts". iFrame "∗". iFrame "%".
+    iPureIntro.
+    etrans. eassumption.
+    etrans. eassumption.
+    eassumption.
+  Qed.
 
   (* A read-only points-to predicate. *)
   (* Definition mapsto_ro ℓ (s : abs_state) ϕ : dProp Σ := *)

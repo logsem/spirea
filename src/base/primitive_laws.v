@@ -443,11 +443,11 @@ Section lifting.
   Qed.
 
   (* Non-atomic load. *)
-  Lemma wp_load (V p B : view) ℓ (hist : history) s E :
-    {{{ ℓ ↦h hist ∗ validV V }}}
+  Lemma wp_load (V p B : view) ℓ q (hist : history) s E :
+    {{{ ℓ ↦h{q} hist ∗ validV V }}}
       (ThreadState (! #ℓ) (V, p, B)) @ s; E
     {{{ t v, RET (ThreadVal v (V, p, B));
-        ℓ ↦h hist ∗ ⌜msg_val <$> (hist !! t) = Some v ∧ (V !!0 ℓ) ≤ t⌝ }}}.
+        ℓ ↦h{q} hist ∗ ⌜msg_val <$> (hist !! t) = Some v ∧ (V !!0 ℓ) ≤ t⌝ }}}.
   Proof.
     iIntros (Φ) "[ℓPts Hval] HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
@@ -478,11 +478,11 @@ Section lifting.
       iApply "HΦ". iFrame. done.
   Qed.
 
-  Lemma wp_load_acquire V p B ℓ (hist : history) s E :
-    {{{ ℓ ↦h hist ∗ validV V }}}
+  Lemma wp_load_acquire V p B ℓ q (hist : history) s E :
+    {{{ ℓ ↦h{q} hist ∗ validV V }}}
       (ThreadState (!{acq} #ℓ) (V, p, B)) @ s; E
     {{{ t v V' P', RET (ThreadVal v (V ⊔ V', p ⊔ P', B));
-        ⌜(hist !! t) = Some (Msg v V' P') ∧ (V !!0 ℓ) ≤ t⌝ ∗
+        ℓ ↦h{q} hist ∗ ⌜(hist !! t) = Some (Msg v V' P') ∧ (V !!0 ℓ) ≤ t⌝ ∗
         validV (V ⊔ V') }}}.
   Proof.
     iIntros (Φ) "[ℓPts Hval] HΦ".
@@ -516,7 +516,7 @@ Section lifting.
         rewrite -subseteq_view_incl.
         apply view_le_lub; done. }
       iFrame "Hheap lubauth persist Hincl Ht". iModIntro.
-      iApply ("HΦ" $! t v MV MP). iSplit; first done.
+      iApply ("HΦ" $! t v MV MP). iFrame. iSplit; first done.
       done.
   Qed.
 
