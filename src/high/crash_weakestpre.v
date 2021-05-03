@@ -1,5 +1,6 @@
 From iris.proofmode Require Import base tactics classes.
 From iris.algebra Require Import agree auth.
+From iris.base_logic Require Import ghost_map.
 From Perennial.base_logic.lib Require Export ncfupd.
 From Perennial.program_logic Require crash_weakestpre.
 
@@ -18,29 +19,33 @@ Section abs_history_lemmas.
     (to_agree ∘ encode) <$> abs_hist.
 
   Definition own_full_history (abs_hists : gmap loc (gmap time positive)) :=
-    own abs_history_name ((● ((λ h, ● (to_agree <$> h)) <$> abs_hists)) : abs_historiesR).
+    ghost_map_auth (abs_history_name) 1 abs_hists.
+        (* ((● ((λ h, ● (to_agree <$> h)) <$> abs_hists)) : abs_historiesR). *)
 
-  Definition know_full_history_loc ℓ abs_hist :=
-    own abs_history_name ((◯ {[ ℓ := ● (abs_hist_to_ra abs_hist) ]}) : abs_historiesR).
+  Definition know_full_history_loc ℓ abs_hist : iProp Σ :=
+    ℓ ↪[ abs_history_name ] (encode <$> abs_hist).
+    (* own abs_history_name ((◯ {[ ℓ := ● (abs_hist_to_ra abs_hist) ]}) : abs_historiesR). *)
 
-  Definition know_full_encoded_history_loc ℓ (abs_hist : gmap time st) :=
-    own abs_history_name ((◯ {[ ℓ := ● ((to_agree <$> abs_hist) : gmap _ (agreeR stO)) ]}) : abs_historiesR).
+  Definition know_full_encoded_history_loc ℓ (abs_hist : gmap time st) : iProp Σ :=
+    ℓ ↪[ abs_history_name ] abs_hist.
+    (* own abs_history_name ((◯ {[ ℓ := ● ((to_agree <$> abs_hist) : gmap _ (agreeR stO)) ]}) : abs_historiesR). *)
 
   Definition know_frag_history_loc ℓ abs_hist :=
     own abs_history_name ((◯ {[ ℓ := ◯ (abs_hist_to_ra abs_hist) ]}) : abs_historiesR).
 
   Lemma equivI_elim_own {A: cmra} `{Hin: inG Σ A} γ (a b: A):
     (a ≡ b) → own γ a ⊣⊢ own γ b.
-  Proof. iIntros (Hequiv). rewrite Hequiv. eauto. Qed.
+  Proof. iIntros (Hequiv). f_equiv. eauto. Qed.
 
   Lemma know_full_equiv ℓ abs_hist :
     know_full_history_loc ℓ abs_hist ⊣⊢ know_full_encoded_history_loc ℓ (encode <$> abs_hist).
   Proof.
-    apply equivI_elim_own.
-    do 3 f_equiv.
-    rewrite /abs_hist_to_ra.
-    rewrite map_fmap_compose.
     done.
+    (* apply equivI_elim_own. *)
+    (* do 3 f_equiv. *)
+    (* rewrite /abs_hist_to_ra. *)
+    (* rewrite map_fmap_compose. *)
+    (* done. *)
   Qed.
 
   Lemma abs_hist_to_ra_inj hist hist' :
@@ -87,49 +92,135 @@ Section abs_history_lemmas.
     ⌜hists !! ℓ = Some (encode <$> hist)⌝.
   Proof.
     iIntros "O K".
-    iDestruct (own_valid_2 with "O K") as %[Incl _]%auth_both_valid_discrete.
-    iPureIntro.
-    apply singleton_included_l in Incl as [encHist' [look incl]].
-    rewrite lookup_fmap in look.
-    destruct (hists !! ℓ) as [hist'|] eqn:histsLook.
-    2: { rewrite histsLook in look. inversion look. }
-    rewrite histsLook in look.
-    simpl in look.
-    apply Some_equiv_inj in look.
-    f_equiv.
-    apply abs_hist_to_ra_agree.
-    apply Some_included in incl as [eq|incl].
-    - rewrite <- eq in look.
-      apply auth_auth_inj in look as [_ eq'].
-      done.
-    - rewrite <- look in incl.
-      assert (● (to_agree <$> hist') ≼ ● (to_agree <$> hist') ⋅ ◯ (ε : gmapUR _ _)) as incl'.
-      { eexists _. reflexivity. }
-      pose proof (transitivity incl incl') as incl''.
-      apply auth_auth_included in incl''.
-      done.
-  Qed.
+  Admitted.
+  (*   iDestruct (own_valid_2 with "O K") as %[Incl _]%auth_both_valid_discrete. *)
+  (*   iPureIntro. *)
+  (*   apply singleton_included_l in Incl as [encHist' [look incl]]. *)
+  (*   rewrite lookup_fmap in look. *)
+  (*   destruct (hists !! ℓ) as [hist'|] eqn:histsLook. *)
+  (*   2: { rewrite histsLook in look. inversion look. } *)
+  (*   rewrite histsLook in look. *)
+  (*   simpl in look. *)
+  (*   apply Some_equiv_inj in look. *)
+  (*   f_equiv. *)
+  (*   apply abs_hist_to_ra_agree. *)
+  (*   apply Some_included in incl as [eq|incl]. *)
+  (*   - rewrite <- eq in look. *)
+  (*     apply auth_auth_inj in look as [_ eq']. *)
+  (*     done. *)
+  (*   - rewrite <- look in incl. *)
+  (*     assert (● (to_agree <$> hist') ≼ ● (to_agree <$> hist') ⋅ ◯ (ε : gmapUR _ _)) as incl'. *)
+  (*     { eexists _. reflexivity. } *)
+  (*     pose proof (transitivity incl incl') as incl''. *)
+  (*     apply auth_auth_included in incl''. *)
+  (*     done. *)
+  (* Qed. *)
 
 End abs_history_lemmas.
 
+Section predicates.
+  Context `{!nvmG Σ}.
+
+  Definition pred_to_ra (pred : st → val → option (dProp Σ)) : (@predicateR Σ) :=
+    to_agree ((λ a b, Next (pred a b))).
+
+  Definition know_all_preds preds :=
+      own predicates_name (● (pred_to_ra <$> preds) : predicatesR).
+
+  Definition know_pred `{Countable s}
+      (ℓ : loc) (ϕ : s → val → dProp Σ) : iProp Σ :=
+    own predicates_name (◯ {[ ℓ := pred_to_ra (λ s' v, (λ s, ϕ s v) <$> decode s') ]} : predicatesR).
+
+  Lemma know_pred_agree `{Countable s} ℓ (ϕ : s → val → dProp Σ) preds :
+    know_all_preds preds -∗
+    know_pred ℓ ϕ -∗
+    ⌜ preds !! ℓ = Some (λ s' v, (λ s, ϕ s v) <$> decode s') ⌝.
+  Proof.
+    iIntros "O K".
+    rewrite /know_all_preds.
+    rewrite /know_pred.
+    iDestruct (own_valid_2 with "O K") as "H".
+    (* setoid_rewrite auth_both_valid. *)
+    iDestruct (auth_both_validI with "H") as "[H A]".
+    iDestruct "H" as (c) "eq".
+    rewrite gmap_equivI.
+    iDestruct ("eq" $! ℓ) as "HI".
+    rewrite lookup_fmap.
+    rewrite lookup_op.
+    rewrite lookup_singleton.
+    case (c !! ℓ).
+    - admit.
+    - rewrite right_id.
+      case (preds !! ℓ).
+      2: { simpl. iDestruct "HI" as %HI. inversion HI. }
+      intros o.
+      simpl.
+      (* rewrite (option_equivI (Some o) (Some (λ (s' : positive) (v : val), (λ s0 : s, ϕ s0 v) <$> decode s'))). *)
+      rewrite option_equivI.
+      rewrite agree_equivI.
+      (* iEval (f_equiv). *)
+      (* rewrite to_agree_inj. *)
+      (* iEval (apply Some_equiv_inj) in "HI". *)
+      (* iEval (inj) in "HI". *)
+      (* rewrite Some_equiv. *)
+
+    (* iDestruct (own_valid_2 with "O K") as %[Incl _]%auth_both_valid. *)
+    (* rewrite singleton_included_l. *)
+    (* iDestruct ("eq" $! ℓ) as "H". *)
+    (* iDestruct (singleton_included_l with "eq") as "HI". *)
+    (* apply singleton_included_l in Incl as [encHist' [look incl]]. *)
+  (*   rewrite lookup_fmap in look. *)
+  (*   destruct (hists !! ℓ) as [hist'|] eqn:histsLook. *)
+  (*   2: { rewrite histsLook in look. inversion look. } *)
+  (*   rewrite histsLook in look. *)
+  (*   simpl in look. *)
+  (*   apply Some_equiv_inj in look. *)
+  (*   f_equiv. *)
+  (*   apply abs_hist_to_ra_agree. *)
+  (*   apply Some_included in incl as [eq|incl]. *)
+  (*   - rewrite <- eq in look. *)
+  (*     apply auth_auth_inj in look as [_ eq']. *)
+  (*     done. *)
+  (*   - rewrite <- look in incl. *)
+  (*     assert (● (to_agree <$> hist') ≼ ● (to_agree <$> hist') ⋅ ◯ (ε : gmapUR _ _)) as incl'. *)
+  (*     { eexists _. reflexivity. } *)
+  (*     pose proof (transitivity incl incl') as incl''. *)
+  (*     apply auth_auth_included in incl''. *)
+  (*     done. *)
+  (* Qed. *)
+  Admitted.
+End predicates.
+
 Section wpc.
   Context `{!nvmG Σ}.
+
+  (* NOTE: We can abstract this later if we need to. *)
+  Definition increasing_map (ss : gmap nat positive) :=
+    ∀ i j (s s' : positive), i ≤ j → (ss !! i = Some s) → (ss !! j = Some s') → (s ≤ s')%positive.
 
   (** This is our analog to the state interpretation in the Iris weakest
   precondition. We keep this in our crash weakest precondition ensuring that it
   holds before and after each step. **)
   Definition interp : iProp Σ :=
-    (∃ (abs_hists : enc_abs_histories),
-      ([∗ map] ℓ ↦ abs_hist ∈ abs_hists,
-        (* We keep half the points-to predicates to ensure that we know that the
-        keys in the abstract history correspond to the physical history. This
-        ensures that on a crash we know that the value recoreved after a crash
-        has a corresponding abstract value. *)
-        ∃ (hist : history), 
-          ⌜ dom (gset _) abs_hist = dom _ hist ⌝ ∗
-          ℓ ↦h{#1/2} hist) ∗
-      (* Ownership over the full knowledge of the abstract history of _all_ locations. *)
-      own_full_history abs_hists).
+    (∃ (hists : gmap loc (gmap time (message * st)))
+       (preds : gmap loc (st → val → option (dProp Σ))),
+      (* We keep the points-to predicates to ensure that we know that the keys
+      in the abstract history correspond to the physical history. This ensures
+      that on a crash we know that the value recoreved after a crash has a
+      corresponding abstract value. *)
+      ([∗ map] ℓ ↦ hist ∈ hists, ℓ ↦h (fst <$> hist)) ∗
+      ([∗ map] ℓ ↦ hist; pred ∈ hists; preds,
+        ⌜ increasing_map (snd <$> hist) ⌝ ∗
+        (* The predicate hold. *)
+        ([∗ map] t ↦ p ∈ hist,
+           (∃ (P : dProp Σ),
+             ⌜(pred) (snd p) (fst p).(msg_val) = Some P⌝ ∗
+             P (msg_to_tv (fst p))))) ∗
+      (* Ownership over the full knowledge of the abstract history of _all_
+      locations. *)
+      own_full_history ((λ (h : (gmap _ _)), snd <$> h) <$> hists) ∗
+      (* Knowledge of all the predicates. *)
+      own predicates_name (● (pred_to_ra <$> preds) : predicatesR)).
 
   Program Definition wpc_def s k E e (Φ : val → dProp Σ) (Φc : dProp Σ) : dProp Σ :=
     (* monPred_objectively Φc ∗ *)
@@ -145,7 +236,7 @@ Section wpc.
     )%I _.
   Next Obligation. solve_proper. Qed.
 
-  (* This is sealing follows the same ritual as the [wp] in Iris. *)
+  (* This sealing follows the same ritual as the [wp] in Iris. *)
   Definition wpc_aux : seal (@wpc_def). by eexists. Qed.
 
   Global Instance expr_wpc : Wpc expr_lang (dProp Σ) stuckness nat := wpc_aux.(unseal).

@@ -51,9 +51,6 @@ Section wp.
   Definition abs_hist_to_ra_old (abs_hist : gmap time (message * st)) : encoded_abs_historyR :=
     (to_agree ∘ snd) <$> abs_hist.
 
-  Definition pred_to_ra (pred : st → val → option (dProp Σ)) : (@predicateR Σ) :=
-    to_agree ((λ a b, Next (pred a b))).
-
   (* Definition loc_to_hist_ra (l : (@loc_info Σ)) `{Countable l} : encoded_abs_historyR := *)
   (*   (to_agree ∘ encode) <$> l_abstract_history l. *)
 
@@ -96,6 +93,7 @@ Section wp.
   (*   done. *)
   (* Qed. *)
 
+  (*
   Definition old_interp : iProp Σ :=
     (∃ (hists : gmap loc (gmap time (message * st)))
        (preds : gmap loc (st → val → option (dProp Σ))),
@@ -110,16 +108,13 @@ Section wp.
       (* Authorative ghost states. *)
       (* own abs_history_name (● (abs_hist_to_ra_old <$> hists) : encoded_historiesR) ∗ *)
       own predicates_name (● (pred_to_ra <$> preds) : predicatesR)).
+  *)
 
   (* Definition own_abstract_history `{Countable ST} ℓ q (abs_hist : abs_history ST) : dProp Σ := *)
   (*   ⎡own abs_history_name (●{#q} {[ ℓ := (abs_hist_to_ra abs_hist)]})⎤. *)
 
   (* Definition know_abstract_history `{Countable ST} ℓ (abs_hist : abs_history ST) : dProp Σ := *)
   (*   ⎡own abs_history_name (◯ {[ ℓ := (abs_hist_to_ra abs_hist)]})⎤. *)
-
-  (* Definition know_pred `{Countable s} *)
-  (*     (ℓ : loc) (ϕ : s → val → dProp Σ) : iProp Σ := *)
-  (*   own predicates_name (◯ {[ ℓ := pred_to_ra (λ s' v, (λ s, ϕ s v) <$> decode s') ]} : predicatesR). *)
 
   (* Definition know_state `{Countable s} ℓ (t : time) (s' : s) : iProp Σ := *)
   (*   own (◯ {[ ℓ := {[ t := to_agree (encode s') ]} ]} : encoded_historiesR). *)
@@ -140,17 +135,19 @@ Section wp.
   (* _Exclusive_ points-to predicate. This predcate says that we know that the
   last events at [ℓ] corresponds to the *)
   Definition mapsto_ex `{AbstractState ST}
-      ℓ (ss1 ss2 : list ST) (v : val) (ϕ : ST → val → dProp Σ) : dProp Σ :=
-    (∃ (tGlobalPers tPers tStore : time) (abs_hist : abs_history ST) hist,
+             ℓ (ss1 ss2 : list ST)
+             (* (v : val) *)
+             (ϕ : ST → val → dProp Σ) : dProp Σ :=
+    (∃ (tGlobalPers tPers tStore : time) (abs_hist : abs_history ST) (* hist *),
 
       (* The location ℓ points to the physical history expressed using the base logic. *)
-      ⎡ℓ ↦h{#1/2} hist⎤ ∗ (* The other half of the points-to predicate is in [interp]. *)
+      (* ⎡ℓ ↦h{#1/2} hist⎤ ∗ (* The other half of the points-to predicate is in [interp]. *) *)
 
       (* The abstract history and physical history satisfy the invariant
       predicate. This pair-wise map over two lists also implies that their
       domains are equal. *)
-      ⎡([∗ map] t ↦ msg; abs ∈ hist; abs_hist,
-          ϕ abs msg.(msg_val) (msg.(msg_store_view), msg.(msg_persist_view), ∅))⎤ ∗
+      (* ⎡([∗ map] t ↦ msg; abs ∈ hist; abs_hist, *)
+      (*     ϕ abs msg.(msg_val) (msg.(msg_store_view), msg.(msg_persist_view), ∅))⎤ ∗ *)
 
       ⌜ increasing_list (ss1 ++ ss2) ⌝ ∗
 
@@ -158,7 +155,7 @@ Section wp.
       (* [tStore] is the last message and it agrees with the last state in ss2 and the value. *)
       ⌜abs_hist !! tStore = last ss2⌝ ∗
       ⌜(∀ t', tStore < t' → abs_hist !! t' = None)⌝ ∗
-      ⌜msg_val <$> (hist !! tStore) = Some v⌝ ∗
+      (* ⌜msg_val <$> (hist !! tStore) = Some v⌝ ∗ *)
 
       (* Ownership over the abstract history. *)
       ⎡know_full_history_loc ℓ abs_hist⎤ ∗
@@ -275,7 +272,7 @@ Section wp.
 End wp.
 
 (** Notation for the exclusive points-to predicate. *)
-Notation "l ↦ xs ; ys ; v | P" := (mapsto_ex l xs ys v P) (at level 20).
+Notation "l ↦ xs ; ys | P" := (mapsto_ex l xs ys P) (at level 20).
 
 (* Definition lastR (abs_state : Type) : cmra := *)
 (*   prodR fracR (agreeR (prodO (leibnizO abs_state) valO)). *)
@@ -286,20 +283,17 @@ Section wp_rules.
 
   Implicit Types (ℓ : loc) (s : abs_state) (ϕ : abs_state → val → dProp Σ).
 
-  Ltac iIntrosPtsEx :=
-    iDestruct 1 as (?tGP ?tP ?tS absHist hist) "(pts & map & %incrL & %lookupP & %lookupV & %nolater & %lastVal & hist & slice & %know & per)".
-
-  Lemma wp_load_ex ℓ ss ss' s v ϕ st E :
+  Lemma wp_load_ex ℓ ss ss' s ϕ st E :
     (* last ss' = Some s → *)
-    {{{ ℓ ↦ ss; ss'; v | ϕ }}}
+    {{{ ℓ ↦ ss; ss' | ϕ }}}
       Load (Val $ LitV $ LitLoc ℓ) @ st; E
-    {{{ RET v; ℓ ↦ ss; ss'; v | ϕ }}}.
+    {{{ v, RET v; ℓ ↦ ss; ss' | ϕ }}}.
   Proof.
     intros Φ.
     iStartProof (iProp _). iIntros (TV).
-    iIntrosPtsEx.
-    rewrite monPred_at_wand. simpl.
     (* We destruct the exclusive points-to predicate. *)
+    iDestruct 1 as (?tGP ?tP ?tS absHist) "(incrL & lookupP & lookupV & %nolater & hist & slice & %know & per)".
+    rewrite monPred_at_wand. simpl.
     iIntros (TV' incl) "Φpost".
     rewrite monPred_at_later.
     rewrite wp_eq /wp_def.
@@ -307,6 +301,12 @@ Section wp_rules.
     iIntros ([[SV PV] BV] incl2) "#val interp".
     rewrite monPred_at_pure.
     iApply program_logic.crash_weakestpre.wp_wpc.
+    (* We now need to get the points-to predicate for [ℓ]. *)
+    iDestruct "interp" as (hists preds) "(pts & map & history & preds)".
+    iDestruct (own_full_history_agree with "[$] [$]") as %look.
+  Abort.
+  (*
+    iDestruct (big_sepM2_delete with "map") as "%eq"; [done|done|].
     iApply (wp_load with "[$pts $val]").
     iNext. iIntros (t' v') "[pts [%look %gt]]".
     rewrite /store_view. simpl.
@@ -358,6 +358,30 @@ Section wp_rules.
     etrans. eassumption.
     eassumption.
   Qed.
+*)
+
+  Lemma wp_store_ex ℓ ss1 ss2 v s__last s v' ϕ st E :
+    last ss2 = Some s__last →
+    s__last ⊑ s →
+    {{{ ℓ ↦ ss1; ss2 | ϕ ∗ ϕ s v' }}}
+      #ℓ <- v @ st; E
+    {{{ RET #(); ℓ ↦ ss1; ss2 ++ [s] | ϕ }}}.
+  Proof.
+    intros last stateGt Φ.
+    iStartProof (iProp _). iIntros (TV).
+    iIntros "[pts phi]".
+  Abort.
+  (*   iDestruct "pts" as (?tGP ?tP ?tS absHist hist) "(pts & map & %incrL & %lookupP & %lookupV & %nolater & %lastVal & hist & slice & %know & per)". *)
+  (*   rewrite monPred_at_wand. simpl. *)
+  (*   iIntros (TV' incl) "Φpost". *)
+  (*   rewrite monPred_at_later. *)
+  (*   rewrite wp_eq /wp_def. *)
+  (*   rewrite wpc_eq. simpl. *)
+  (*   iIntros ([[SV PV] BV] incl2) "#val interp". *)
+  (*   rewrite monPred_at_pure. *)
+  (*   iApply program_logic.crash_weakestpre.wp_wpc. *)
+  (*   iApply (wp_store with "pts"). *)
+  (* Qed. *)
 
   (* A read-only points-to predicate. *)
   (* Definition mapsto_ro ℓ (s : abs_state) ϕ : dProp Σ := *)
@@ -419,12 +443,6 @@ Section wp_rules.
     {{{ Φ s v }}}
       ref v @ st; E
     {{{ ι, RET ℓ; mapsto_ex ι ℓ [] [] s Φ }}}
-  Proof.
-
-  Lemma wp_store ℓ ι ℓ ss ss' s ev' ϕ s E :
-    {{{ mapsto_ex ι ℓ ss ss' s Φ ∗ ϕ ev' v }}}
-      #ℓ <- v @ s; E
-    {{{ RET #(); mapsto_ex ι ℓ ss (ss' ++ [s]) ev' Φ }}}
   Proof.
 
   Lemma wp_load ℓ ι ℓ ss ss' ϕ s E :

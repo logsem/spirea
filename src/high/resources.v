@@ -1,6 +1,6 @@
 (* We define the resource algebras that we use in the interpretation of the
 high-level logic. *)
-From iris.base_logic.lib Require Import own.
+From iris.base_logic.lib Require Import own ghost_map.
 From iris.algebra Require Import gmap excl auth.
 
 From self.lang Require Import lang.
@@ -25,6 +25,7 @@ Class nvmHighG Σ := NvmHighG {
   predicates_name : gname;
   ra_inG :> inG Σ (@predicatesR Σ);
   ra'_inG :> inG Σ abs_historiesR;
+  abs_histories :> ghost_mapG Σ loc (gmap time positive);
 }.
 
 Class nvmG Σ := NvmG {
