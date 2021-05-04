@@ -121,6 +121,8 @@ End abs_history_lemmas.
 Section predicates.
   Context `{!nvmG Σ}.
 
+  Definition predO := st -d> val -d> optionO (dPropO Σ).
+
   Definition pred_to_ra (pred : st → val → option (dProp Σ)) : (@predicateR Σ) :=
     to_agree ((λ a b, Next (pred a b))).
 
@@ -131,16 +133,17 @@ Section predicates.
       (ℓ : loc) (ϕ : s → val → dProp Σ) : iProp Σ :=
     own predicates_name (◯ {[ ℓ := pred_to_ra (λ s' v, (λ s, ϕ s v) <$> decode s') ]} : predicatesR).
 
-  Lemma know_pred_agree `{Countable s} ℓ (ϕ : s → val → dProp Σ) preds :
+  Lemma know_pred_agree `{Countable s} ℓ (ϕ : s → val → dProp Σ) (preds : gmap loc predO) :
     know_all_preds preds -∗
     know_pred ℓ ϕ -∗
-    ⌜ preds !! ℓ = Some (λ s' v, (λ s, ϕ s v) <$> decode s') ⌝.
+    (∃ (o : predO),
+       ⌜ preds !! ℓ = Some o ⌝ ∗
+       ▷ (o ≡ λ s' v, (λ s, ϕ s v) <$> decode s')).
   Proof.
     iIntros "O K".
     rewrite /know_all_preds.
     rewrite /know_pred.
     iDestruct (own_valid_2 with "O K") as "H".
-    (* setoid_rewrite auth_both_valid. *)
     iDestruct (auth_both_validI with "H") as "[H A]".
     iDestruct "H" as (c) "eq".
     rewrite gmap_equivI.
@@ -151,44 +154,21 @@ Section predicates.
     case (c !! ℓ).
     - admit.
     - rewrite right_id.
-      case (preds !! ℓ).
+      destruct (preds !! ℓ) as [o|] eqn:eq; rewrite eq.
       2: { simpl. iDestruct "HI" as %HI. inversion HI. }
-      intros o.
+      iExists o.
+      iSplit; first done.
       simpl.
-      (* rewrite (option_equivI (Some o) (Some (λ (s' : positive) (v : val), (λ s0 : s, ϕ s0 v) <$> decode s'))). *)
-      rewrite option_equivI.
+      rewrite !option_equivI.
       rewrite agree_equivI.
-      (* iEval (f_equiv). *)
-      (* rewrite to_agree_inj. *)
-      (* iEval (apply Some_equiv_inj) in "HI". *)
-      (* iEval (inj) in "HI". *)
-      (* rewrite Some_equiv. *)
+      rewrite !discrete_fun_equivI. iIntros (state).
+      iDestruct ("HI" $! state) as "HI".
+      rewrite !discrete_fun_equivI. iIntros (v).
+      iDestruct ("HI" $! v) as "HI".
+      rewrite later_equivI_1.
+      done.
+    Admitted.
 
-    (* iDestruct (own_valid_2 with "O K") as %[Incl _]%auth_both_valid. *)
-    (* rewrite singleton_included_l. *)
-    (* iDestruct ("eq" $! ℓ) as "H". *)
-    (* iDestruct (singleton_included_l with "eq") as "HI". *)
-    (* apply singleton_included_l in Incl as [encHist' [look incl]]. *)
-  (*   rewrite lookup_fmap in look. *)
-  (*   destruct (hists !! ℓ) as [hist'|] eqn:histsLook. *)
-  (*   2: { rewrite histsLook in look. inversion look. } *)
-  (*   rewrite histsLook in look. *)
-  (*   simpl in look. *)
-  (*   apply Some_equiv_inj in look. *)
-  (*   f_equiv. *)
-  (*   apply abs_hist_to_ra_agree. *)
-  (*   apply Some_included in incl as [eq|incl]. *)
-  (*   - rewrite <- eq in look. *)
-  (*     apply auth_auth_inj in look as [_ eq']. *)
-  (*     done. *)
-  (*   - rewrite <- look in incl. *)
-  (*     assert (● (to_agree <$> hist') ≼ ● (to_agree <$> hist') ⋅ ◯ (ε : gmapUR _ _)) as incl'. *)
-  (*     { eexists _. reflexivity. } *)
-  (*     pose proof (transitivity incl incl') as incl''. *)
-  (*     apply auth_auth_included in incl''. *)
-  (*     done. *)
-  (* Qed. *)
-  Admitted.
 End predicates.
 
 Section wpc.

@@ -446,8 +446,8 @@ Section lifting.
   Lemma wp_load (V p B : view) ℓ q (hist : history) s E :
     {{{ ℓ ↦h{q} hist ∗ validV V }}}
       (ThreadState (! #ℓ) (V, p, B)) @ s; E
-    {{{ t v, RET (ThreadVal v (V, p, B));
-        ℓ ↦h{q} hist ∗ ⌜msg_val <$> (hist !! t) = Some v ∧ (V !!0 ℓ) ≤ t⌝ }}}.
+    {{{ t v msg, RET (ThreadVal v (V, p, B));
+        ℓ ↦h{q} hist ∗ ⌜hist !! t = Some msg ∧ msg.(msg_val) = v ∧ (V !!0 ℓ) ≤ t⌝ }}}.
   Proof.
     iIntros (Φ) "[ℓPts Hval] HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
@@ -475,7 +475,12 @@ Section lifting.
       inv_impure_thread_step.
       iSplitR=>//.
       iFrame "Hheap lubauth persist Hincl Ht".
-      iApply "HΦ". iFrame. done.
+      rewrite -lookup_fmap in H10.
+      apply lookup_fmap_Some in H10.
+      destruct H10 as [x [??]].
+      iApply "HΦ". iFrame.
+      iPureIntro.
+      split_and!; done.
   Qed.
 
   Lemma wp_load_acquire V p B ℓ q (hist : history) s E :
@@ -514,7 +519,7 @@ Section lifting.
       iMod (own_update with "lubauth") as "[lubauth valid']".
       { apply (auth_update_dfrac_alloc _ _ (V ⋅ MV)).
         rewrite -subseteq_view_incl.
-        apply view_le_lub; done. }
+        apply view_lub_le; done. }
       iFrame "Hheap lubauth persist Hincl Ht". iModIntro.
       iApply ("HΦ" $! t v MV MP). iFrame. iSplit; first done.
       done.

@@ -111,7 +111,17 @@ Proof.
     intros [[=]|(? & ? & _ & [=] & _)].
 Qed.
 
-Lemma view_le_lub V V' W :
+Lemma view_le_l V W : V ⊑ V ⊔ W.
+Proof.
+  rewrite subseteq_view_incl. rewrite view_join.
+  eapply (cmra_included_l V).
+Qed.
+
+Lemma view_le_r V W : V ⊑ W ⊔ V.
+Proof. rewrite comm. apply view_le_l. Qed.
+
+(* NOTE: Perhaps this lema could be an instance of some [Proper] thing. *)
+Lemma view_lub_le V V' W :
   V ⊑ W → V' ⊑ W → (V ⊔ V') ⊑ W.
 Proof.
   rewrite !subseteq_view_incl view_join.

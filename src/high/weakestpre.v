@@ -159,6 +159,8 @@ Section wp.
 
       (* Ownership over the abstract history. *)
       ⎡know_full_history_loc ℓ abs_hist⎤ ∗
+      (* Knowledge of the predicate. *)
+      ⎡know_pred ℓ ϕ⎤ ∗
 
       (* ⌜max_member abs_hist tStore⌝ ∗ *)
       ⌜map_slice abs_hist tGlobalPers tStore (ss1 ++ ss2)⌝ ∗
@@ -283,16 +285,27 @@ Section wp_rules.
 
   Implicit Types (ℓ : loc) (s : abs_state) (ϕ : abs_state → val → dProp Σ).
 
-  Lemma wp_load_ex ℓ ss ss' s ϕ st E :
-    (* last ss' = Some s → *)
-    {{{ ℓ ↦ ss; ss' | ϕ }}}
-      Load (Val $ LitV $ LitLoc ℓ) @ st; E
-    {{{ v, RET v; ℓ ↦ ss; ss' | ϕ }}}.
+  Lemma last_cons (A : Type) (l : list A) (a b : A) :
+    last l = Some a → last (b :: l) = Some a.
+  Proof. intros Hl. induction l; [done|by rewrite -Hl]. Qed.
+  Lemma last_app (A : Type) (l1 l2 : list A) (a : A) :
+    last l2 = Some a → last (l1 ++ l2) = Some a.
   Proof.
-    intros Φ.
+    intros Hl. induction l1; [done|].
+    by erewrite <- app_comm_cons, last_cons.
+  Qed.
+
+  Lemma wp_load_ex ℓ ss ss' s Q ϕ st E :
+    last ss' = Some s →
+    {{{ ℓ ↦ ss; ss' | ϕ ∗ (∀ v, ϕ s v -∗ Q v ∗ ϕ s v) }}}
+      Load (Val $ LitV $ LitLoc ℓ) @ st; E
+    {{{ v, RET v; ℓ ↦ ss; ss' | ϕ ∗ Q v }}}.
+  Proof.
+    intros sLast Φ.
     iStartProof (iProp _). iIntros (TV).
     (* We destruct the exclusive points-to predicate. *)
-    iDestruct 1 as (?tGP ?tP ?tS absHist) "(incrL & lookupP & lookupV & %nolater & hist & slice & %know & per)".
+    iIntros "[pts pToQ]".
+    iDestruct "pts" as (?tGP ?tP ?tS absHist) "(%incrL & %lookupP & %lookupV & %nolater & hist & knowPred & %slice & %know & per)".
     rewrite monPred_at_wand. simpl.
     iIntros (TV' incl) "Φpost".
     rewrite monPred_at_later.
@@ -301,17 +314,25 @@ Section wp_rules.
     iIntros ([[SV PV] BV] incl2) "#val interp".
     rewrite monPred_at_pure.
     iApply program_logic.crash_weakestpre.wp_wpc.
-    (* We now need to get the points-to predicate for [ℓ]. *)
-    iDestruct "interp" as (hists preds) "(pts & map & history & preds)".
+
+    (* We need to get the points-to predicate for [ℓ]. This is inside [interp]. *)
+    iDestruct "interp" as (hists preds) "(ptsMap & map & history & preds)".
+    iDestruct (know_pred_agree with "preds knowPred") as (pred predsLook) "#predsEquiv".
     iDestruct (own_full_history_agree with "[$] [$]") as %look.
-  Abort.
-  (*
-    iDestruct (big_sepM2_delete with "map") as "%eq"; [done|done|].
+    apply lookup_fmap_Some in look.
+    destruct look as [ℓhist [histAbsHist l]].
+    iDestruct (big_sepM_lookup_acc with "ptsMap") as "[pts ptsMap]"; first done.
     iApply (wp_load with "[$pts $val]").
-    iNext. iIntros (t' v') "[pts [%look %gt]]".
+    iNext. iIntros (t' v' msg) "[pts (%look & %msgVal & %gt)]".
+    apply lookup_fmap_Some in look.
+    destruct look as [[hip s'] [msgEq histLook]].
+    simpl in msgEq. subst.
     rewrite /store_view. simpl.
-    iFrame "#∗".
-    iPoseProof (big_sepM2_dom with "map") as "%domEq".
+    iDestruct ("ptsMap" with "pts") as "ptsMap".
+    iFrame "val".
+
+    (* We need to conclude that the only write we could read is [tS]. I.e., that
+    [t' = tS]. *)
     assert ({[ℓ := MaxNat tS]} ⊑ SV) as inclSingl.
     { destruct TV as [[??]?].
       destruct TV' as [[??]?].
@@ -320,8 +341,6 @@ Section wp_rules.
       etrans.
       apply incl.
       apply incl2. }
-      (* etrans. eassumption. etrans. eassumption. eassumption. } *)
-    (* We need to conclude that the only write we could read is the one at [t3]. *)
     assert (tS ≤ t') as lte.
     { pose proof (view_lt_lt _ _ ℓ inclSingl) as HIP.
       rewrite lookup_singleton in HIP.
@@ -329,36 +348,91 @@ Section wp_rules.
       simpl in leq.
       apply leq. }
     assert (is_Some (absHist !! t')) as HI.
-    { apply (elem_of_dom (M:=gmap time)). rewrite -domEq. apply elem_of_dom.
-      rewrite -lookup_fmap in look.
-      apply lookup_fmap_Some in look.
-      destruct look as [msg look'].
-      exists msg. apply look'. }
+    { eapply fmap_is_Some.
+      rewrite -lookup_fmap.
+      rewrite <- histAbsHist.
+      rewrite lookup_fmap.
+      rewrite histLook.
+      eauto. }
+      (* ∘rewrite fmap_comp in histAbsHist. *)
+      (* apply (elem_of_dom (M:=gmap time)). rewrite -domEq. apply elem_of_dom. *)
+      (* rewrite -lookup_fmap in look. *)
+      (* apply lookup_fmap_Some in look. *)
+      (* destruct look as [msg look']. *)
+      (* exists msg. apply look'. } *)
     assert (t' = tS) as ->.
     { apply Nat.lt_eq_cases in lte. destruct lte as [lt|]; last done.
       pose proof (nolater t' lt) as eq.
       rewrite eq in HI. inversion HI as [? [=]]. }
-    assert (v' = v) as ->.
-    { apply (inj Some).
-      rewrite -lastVal -look.
-      done. }
+    (* assert (v' = v) as ->. *)
+    (* { apply (inj Some). *)
+    (*   rewrite -lastVal -look. *)
+    (*   done. } *)
     (* iAssert (⌜v' = v⌝)%I as %->. *)
     (* { rewrite -lookup_fmap in look. *)
     (*   apply lookup_fmap_Some in look. *)
     (*   destruct look as [msg [msgEq look']]. *)
     (*   iDestruct (big_sepM2_lookup with "map") as "%eq"; [done|done|]. *)
     (*   iPureIntro. simpl in eq. congruence. } *)
+    assert (absHist !! tS = Some s) as lookS.
+    { rewrite -sLast.
+      apply map_slice_lookup_hi in slice.
+      rewrite slice.
+      erewrite last_app; done. }
+    clear lte HI.
+
+    iPoseProof (big_sepM2_dom with "map") as "%domEq".
+    (* We need to get the predicate for [s] and [v']. *)
+    iDestruct (big_sepM2_lookup_acc with "map") as "[(%incr & predMap) map]"; [done|done|].
+    (* We now know exactly what the value in [ℓhist] at [tS] is. *)
+    assert (s' = encode s).
+    { setoid_rewrite map_eq_iff in histAbsHist.
+      move: (histAbsHist tS).
+      rewrite !lookup_fmap.
+      rewrite histLook.
+      rewrite lookupV.
+      rewrite sLast.
+      simpl.
+      congruence. }
+    (* assert (ℓhist !! tS = Some (msg, encode s)). *)
+    (* { setoid_rewrite map_eq_iff in histAbsHist. *)
+    (*   pose proof (histAbsHist tS) as eq. *)
+    (* } *)
+    iDestruct (big_sepM_lookup_acc with "predMap") as "[predHolds predMap]"; first done.
+    simpl.
+    iDestruct "predHolds" as (P') "[%eq PH]".
+    iDestruct (discrete_fun_equivI with "predsEquiv") as "HI".
+    iDestruct ("HI" $! s') as "HIP". iClear "HI".
+    iEval (rewrite discrete_fun_equivI) in "HIP".
+    iDestruct ("HIP" $! (msg_val msg)) as "HI". iClear "HIP".
+    rewrite H0.
+    rewrite decode_encode.
+    simpl.
+    iEval (rewrite -H0) in "HI".
+    rewrite eq.
+    rewrite option_equivI.
+    iRewrite "HI" in "PH".
+    iSpecialize ("pToQ" $! (msg_val msg)).
+    rewrite monPred_at_wand.
+    iSpecialize ("pToQ" $! (TV ⊔ (msg_to_tv msg))).
+    iDestruct ("pToQ" with "[] [PH]") as "hi".
+    { iPureIntro. apply thread_view_le_l. }
+    { iApply monPred_mono; [apply thread_view_le_r|done]. }
+
+    (* etrans. eassumption. etrans. eassumption. eassumption. } *)
+    (* We need to conclude that the only write we could read is the one at [t3]. *)
     (* We need this fact to be apple  to apply Hpost. *)
     (* assert ((idxS, idxP, idxB) ⊑ (sv', pv', bv')). { done. } *)
+    iSplitR "ptsMap map history preds".
+    2: { iExists _, _. iFrame. }
     iApply "Φpost".
-    iExists _, _, _, _, _.
-    iFrame "pts". iFrame "∗". iFrame "%".
+    iExists _, _, _, _.
+    iFrame "∗". iFrame "%".
     iPureIntro.
     etrans. eassumption.
     etrans. eassumption.
     eassumption.
   Qed.
-*)
 
   Lemma wp_store_ex ℓ ss1 ss2 v s__last s v' ϕ st E :
     last ss2 = Some s__last →

@@ -246,3 +246,17 @@ Section memory.
   Qed.
 
 End memory.
+
+(* A few lattice rules for thread_view. *)
+
+Lemma thread_view_le_l (tv1 tv2 : thread_view) : tv1 ⊑ tv1 ⊔ tv2.
+Proof.
+  destruct tv1 as [[??]?], tv2 as [[??]?].
+  repeat split; apply view_le_l.
+Qed.
+
+Lemma thread_view_le_r (tv1 tv2 : thread_view) : tv1 ⊑ tv2 ⊔ tv1.
+Proof.
+  destruct tv1 as [[??]?], tv2 as [[??]?].
+  repeat split; apply view_le_r.
+Qed.
