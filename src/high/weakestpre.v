@@ -297,7 +297,7 @@ Section wp_rules.
 
   Lemma wp_load_ex ℓ ss ss' s Q ϕ st E :
     last ss' = Some s →
-    {{{ ℓ ↦ ss; ss' | ϕ ∗ (∀ v, ϕ s v -∗ Q v ∗ ϕ s v) }}}
+    {{{ ℓ ↦ ss; ss' | ϕ ∗ <obj> (∀ v, ϕ s v -∗ Q v ∗ ϕ s v) }}}
       Load (Val $ LitV $ LitLoc ℓ) @ st; E
     {{{ v, RET v; ℓ ↦ ss; ss' | ϕ ∗ Q v }}}.
   Proof.
@@ -385,7 +385,7 @@ Section wp_rules.
     (* We need to get the predicate for [s] and [v']. *)
     iDestruct (big_sepM2_lookup_acc with "map") as "[(%incr & predMap) map]"; [done|done|].
     (* We now know exactly what the value in [ℓhist] at [tS] is. *)
-    assert (s' = encode s).
+    assert (s' = encode s) as sEq.
     { setoid_rewrite map_eq_iff in histAbsHist.
       move: (histAbsHist tS).
       rewrite !lookup_fmap.
@@ -405,34 +405,42 @@ Section wp_rules.
     iDestruct ("HI" $! s') as "HIP". iClear "HI".
     iEval (rewrite discrete_fun_equivI) in "HIP".
     iDestruct ("HIP" $! (msg_val msg)) as "HI". iClear "HIP".
-    rewrite H0.
+    rewrite sEq.
     rewrite decode_encode.
     simpl.
-    iEval (rewrite -H0) in "HI".
+    iEval (rewrite -sEq) in "HI".
     rewrite eq.
     rewrite option_equivI.
     iRewrite "HI" in "PH".
-    iSpecialize ("pToQ" $! (msg_val msg)).
+    rewrite monPred_at_objectively.
+    iSpecialize ("pToQ" $! (msg_to_tv msg) (msg_val msg)).
     rewrite monPred_at_wand.
-    iSpecialize ("pToQ" $! (TV ⊔ (msg_to_tv msg))).
-    iDestruct ("pToQ" with "[] [PH]") as "hi".
-    { iPureIntro. apply thread_view_le_l. }
-    { iApply monPred_mono; [apply thread_view_le_r|done]. }
+    iSpecialize ("pToQ" $! (msg_to_tv msg)).
+    iDestruct ("pToQ" with "[//] PH") as "[Q phi]".
+    (* Reinsert into the predicate map. *)
+    iDestruct ("predMap" with "[phi]") as "predMap".
+    { iExists _. rewrite -sEq. iSplit; first done.
+      iRewrite "HI". done. }
+    (* Reinsert into the map. *)
+    iDestruct ("map" with "[$predMap]") as "map".
+    { done. }
 
-    (* etrans. eassumption. etrans. eassumption. eassumption. } *)
-    (* We need to conclude that the only write we could read is the one at [t3]. *)
-    (* We need this fact to be apple  to apply Hpost. *)
-    (* assert ((idxS, idxP, idxB) ⊑ (sv', pv', bv')). { done. } *)
     iSplitR "ptsMap map history preds".
     2: { iExists _, _. iFrame. }
     iApply "Φpost".
+    iSplitR "Q".
+    2: {
+      (* This _should_ hold bc. the view in the message is smaller. But, we
+      don't have that fact. *)
+      admit.
+    }
     iExists _, _, _, _.
     iFrame "∗". iFrame "%".
     iPureIntro.
     etrans. eassumption.
     etrans. eassumption.
     eassumption.
-  Qed.
+  Admitted.
 
   Lemma wp_store_ex ℓ ss1 ss2 v s__last s v' ϕ st E :
     last ss2 = Some s__last →
