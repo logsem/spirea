@@ -4,7 +4,7 @@ From iris.base_logic Require Import ghost_map.
 From Perennial.base_logic.lib Require Export ncfupd.
 From Perennial.program_logic Require crash_weakestpre.
 
-From self.base Require Import primitive_laws.
+From self.base Require Import primitive_laws class_instances.
 From self.high Require Export dprop resources lifted_modalities.
 
 (** We define a few things about the resource algebra that that we use to encode
@@ -32,10 +32,6 @@ Section abs_history_lemmas.
 
   Definition know_frag_history_loc ℓ abs_hist :=
     own abs_history_name ((◯ {[ ℓ := ◯ (abs_hist_to_ra abs_hist) ]}) : abs_historiesR).
-
-  Lemma equivI_elim_own {A: cmra} `{Hin: inG Σ A} γ (a b: A):
-    (a ≡ b) → own γ a ⊣⊢ own γ b.
-  Proof. iIntros (Hequiv). f_equiv. eauto. Qed.
 
   Lemma know_full_equiv ℓ abs_hist :
     know_full_history_loc ℓ abs_hist ⊣⊢ know_full_encoded_history_loc ℓ (encode <$> abs_hist).
@@ -304,6 +300,16 @@ Section wpc.
   Proof.
   Admitted.
 
+  Lemma wpc_atomic_crash_modality s k E1 e Φ Φc `{!Atomic StronglyAtomic e} :
+    <disc> (cfupd k E1 (Φc)) ∧
+    (WP e @ s; E1 {{ v, |={E1}=> (|={E1}=>Φ v) ∧ <disc> cfupd k E1 (Φc) }}) ⊢
+    WPC e @ s; k; E1 {{ Φ }} {{ Φc }}.
+  Proof.
+    rewrite wpc_eq.
+    iStartProof (iProp _). iIntros (TV).
+    iIntros "H".
+  Admitted.
+
   Lemma wpc_value s k E1 (Φ : val → dProp Σ) (Φc : dProp Σ) `{!Objective Φc} (v : val) :
     ((|NC={E1}=> Φ v) : dProp _) ∧ (<disc> |C={E1}_k=> Φc) ⊢ WPC of_val v @ s; k; E1 {{ Φ }} {{ Φc }}.
   Proof.
@@ -320,6 +326,8 @@ Section wpc.
       * rewrite ncfupd_eq.
         iApply "H".
     - iDestruct "H" as "(_ & HO)".
+      rewrite disc_unfold_at.
+      simpl.
       rewrite objective_at.
       iFrame.
   Qed.
@@ -333,4 +341,62 @@ Section wpc.
     - iDestruct "H" as "(_&H)". iModIntro. iModIntro. iFrame.
   Qed.
 
+  (** * Derived rules *)
+
+  Lemma wpc_mono s k E1 e Φ Ψ Φc Ψc :
+    (∀ v, Φ v ⊢ Ψ v) → (Φc ⊢ Ψc) → WPC e @ s; k; E1 {{ Φ }} {{ Φc }} ⊢ WPC e @ s; k; E1 {{ Ψ }} {{ Ψc }}.
+  Proof.
+  Admitted.
+  (*   iIntros (HΦ HΦc) "H"; iApply (wpc_strong_mono' with "H"); auto. *)
+  (*   iSplit. *)
+  (*   - iIntros (v) "?". by iApply HΦ. *)
+  (*   - iIntros "!> ? !>". by iApply HΦc. *)
+  (* Qed. *)
+
+  Lemma wp_mono s E e Φ Ψ : (∀ v, Φ v ⊢ Ψ v) → WP e @ s; E {{ Φ }} ⊢ WP e @ s; E {{ Ψ }}.
+  Proof. intros Hpost. rewrite wp_eq. apply wpc_mono; done. Qed.
+
+  Lemma wpc_atomic s k E1 e Φ Φc `{!Atomic StronglyAtomic e} :
+    <disc> (|k={E1}=> Φc) ∧ WP e @ s; E1 {{ v, (|={E1}=> Φ v) ∧ <disc> |k={E1}=> Φc }} ⊢
+    WPC e @ s; k; E1 {{ Φ }} {{ Φc }}.
+  Proof.
+    iIntros "H". iApply (wpc_atomic_crash_modality); iApply (bi.and_mono with "H").
+    {
+      f_equiv.
+      iStartProof (iProp _). iIntros (tv).
+      rewrite uPred_fupd_level_eq.
+      rewrite /uPred_fupd_level_def.
+      simpl.
+      iIntros "H HC".
+      eauto.
+      admit. }
+    iIntros "H".
+    iApply (wp_mono with "H"). iIntros (?).
+    iIntros "H". iModIntro.
+    iApply (bi.and_mono with "H"); auto.
+    { f_equiv. admit. (* iIntros "H HC". eauto. *) }
+  Admitted.
+
+  (* note that this also reverses the postcondition and crash condition, so we
+  prove the crash condition first *)
+  Lemma wpc_atomic_no_mask s k E1 e Φ Φc `{!AtomicBase StronglyAtomic e} :
+    <disc> Φc ∧ WP e @ s; E1 {{ v, <disc> (|k={E1}=> Φc) ∧ (|={E1}=> Φ v) }} ⊢
+    WPC e @ s; k; E1 {{ Φ }} {{ Φc }}.
+  Proof.
+  Admitted.
+  (*   iIntros "Hc_wp". *)
+  (*   iApply wpc_atomic. *)
+  (*   iSplit. *)
+  (*   - iDestruct "Hc_wp" as "(?&_)". iModIntro. *)
+  (*     iApply fupd_level_mask_intro_discard; [ set_solver+ | ]. *)
+  (*     eauto. *)
+  (*   - iDestruct "Hc_wp" as "[_ Hwp]". *)
+  (*     iApply (wp_mono with "Hwp"). *)
+  (*     iIntros (x) "HΦ". *)
+  (*     iSplit. *)
+  (*     + iDestruct "HΦ" as "[_  >HΦc]". eauto. *)
+  (*     + iDestruct "HΦ" as "[HΦ _]". iModIntro. *)
+  (*       iMod "HΦ" as "HΦ". *)
+  (*       iApply fupd_level_mask_intro_discard; [ set_solver+ | ]; iFrame. *)
+  (* Qed. *)
 End wpc.

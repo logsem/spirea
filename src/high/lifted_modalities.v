@@ -78,6 +78,29 @@ Notation "'<disc>' P" := (own_discrete_fupd P) (at level 20, right associativity
 Section lifted_modalities.
   Context `{crashG Σ, invG Σ}.
 
+  (*** fupd_level*)
+
+  Global Instance except_0_fupd_level' E1 E2 k P :
+    IsExcept0 (|k={E1,E2}=> P).
+  Proof. Admitted. (* by rewrite /IsExcept0 except_0_fupd_level. Qed. *)
+
+  Global Instance from_modal_fupd_level E k P :
+    FromModal modality_id (|k={E}=> P) (|k={E}=> P) P.
+  Proof. Admitted. (* by rewrite /FromModal /= -fupd_level_intro. Qed. *)
+
+  Global Instance elim_modal_bupd_fupd_level p E1 E2 k P Q :
+    ElimModal True p false (|==> P) P (|k={E1,E2}=> Q) (|k={E1,E2}=> Q) | 10.
+  Proof. Admitted.
+  (*   by rewrite /ElimModal intuitionistically_if_elim *)
+  (*     (bupd_fupd_level E1 k) fupd_level_frame_r wand_elim_r fupd_level_trans. *)
+  (* Qed. *)
+  Global Instance elim_modal_fupd_level_fupd_level p E1 E2 E3 k P Q :
+    ElimModal True p false (|k={E1,E2}=> P) P (|k={E1,E3}=> Q) (|k={E2,E3}=> Q).
+  Proof. Admitted.
+  (*   by rewrite /ElimModal intuitionistically_if_elim *)
+  (*     fupd_level_frame_r wand_elim_r fupd_level_trans. *)
+  (* Qed. *)
+
   (*** ncfupd *)
 
   Global Instance from_modal_ncfupd E P :
@@ -129,6 +152,8 @@ Section lifted_modalities.
     iModIntro. iFrame.
   Qed.
 
+  (*** <disc> *)
+
   Class IntoDiscreteFupd `{!invG Σ} (P Q : dProp Σ) :=
     into_discrete_fupd : P ⊢ own_discrete_fupd Q.
   Arguments IntoDiscreteFupd {_} _%I _%I.
@@ -156,8 +181,6 @@ Section lifted_modalities.
   (* Proof. *)
   (*   rewrite /FromPure=> <-. destruct a; simpl; iIntros (?); iModIntro; done. *)
   (* Qed. *)
-
-  (*** disc *)
 
   Lemma modality_own_discrete_fupd_mixin :
     modality_mixin (@own_discrete_fupd Σ _)

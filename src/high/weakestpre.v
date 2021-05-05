@@ -171,17 +171,25 @@ Section wp.
       ⎡persisted ({[ ℓ := MaxNat tGlobalPers ]} : view)⎤
     ).
 
-  Definition know_global_per_lower_bound `{Countable ST} (ℓ : loc) (t : time) (s : ST) : dProp Σ :=
-    ⎡persisted ({[ ℓ := MaxNat t ]} : view)⎤ ∗
-    ⎡know_frag_history_loc ℓ {[ t := s ]}⎤.
+  Global Instance mapsto_ex_discretizable `{AbstractState ST} ℓ ss1 ss2 ϕ :
+    IntoDiscreteFupd (mapsto_ex ℓ ss1 ss2 ϕ) (mapsto_ex ℓ ss1 ss2 ϕ).
+  Proof.
+  Admitted.
 
-  Definition know_persist_lower_bound `{Countable ST} (ℓ : loc) (t : time) (s : ST) : dProp Σ :=
-    monPred_in (∅, {[ ℓ := MaxNat t ]}, ∅) ∗
-    ⎡know_frag_history_loc ℓ {[ t := s ]}⎤.
+  Definition know_global_per_lower_bound `{Countable ST} (ℓ : loc) (s : ST) : dProp Σ :=
+    ∃ t,
+      ⎡persisted ({[ ℓ := MaxNat t ]} : view)⎤ ∗
+      ⎡know_frag_history_loc ℓ {[ t := s ]}⎤.
 
-  Definition know_store_lower_bound `{Countable ST} (ℓ : loc) (t : time) (s : ST) : dProp Σ :=
-    monPred_in ({[ ℓ := MaxNat t ]}, ∅, ∅) ∗
-    ⎡know_frag_history_loc ℓ {[ t := s ]}⎤.
+  Definition know_persist_lower_bound `{Countable ST} (ℓ : loc) (s : ST) : dProp Σ :=
+    ∃ t,
+      monPred_in (∅, {[ ℓ := MaxNat t ]}, ∅) ∗
+      ⎡know_frag_history_loc ℓ {[ t := s ]}⎤.
+
+  (* It appears that we don't actually need this one. *)
+  (* Definition know_store_lower_bound `{Countable ST} (ℓ : loc) (t : time) (s : ST) : dProp Σ := *)
+  (*   monPred_in ({[ ℓ := MaxNat t ]}, ∅, ∅) ∗ *)
+  (*   ⎡know_frag_history_loc ℓ {[ t := s ]}⎤. *)
 
   (*
   Definition mapsto_read `{!SqSubsetEq abs_state, !PreOrder (⊑@{abs_state})}
@@ -229,7 +237,8 @@ Section wp.
       iIntros "Hwp" (q).
       (* iApply wpc_value_inv'. done. *)
       admit.
-    - iIntros "HΦ". iApply ncfupd_wpc. iSplit; first done.
+    - iIntros "HΦ". iApply ncfupd_wpc. iSplit.
+      { rewrite disc_unfold_at. done. }
       rewrite ncfupd_eq. rewrite /ncfupd_def. simpl.
       iMod "HΦ". iApply wpc_value'. rewrite monPred_at_and. eauto.
   Admitted.
@@ -278,6 +287,27 @@ Notation "l ↦ xs ; ys | P" := (mapsto_ex l xs ys P) (at level 20).
 
 (* Definition lastR (abs_state : Type) : cmra := *)
 (*   prodR fracR (agreeR (prodO (leibnizO abs_state) valO)). *)
+
+Section post_fence_modalities.
+  Context `{!nvmG Σ}.
+
+  Implicit Types (P : dProp Σ).
+
+  Program Definition post_fence P : dProp Σ :=
+    MonPred (λ '(s, p, b), P (s, (p ⊔ b), ∅)) _.
+  Next Obligation.
+    (* FIXME: Figure out if there is a way to make [solve_proper] handle this,
+    perhaps by using [pointwise_relatio]. *)
+    intros P. intros [[??]?] [[??]?] [[??]?]. rewrite /store_view /persist_view. simpl.
+    assert (g0 ⊔ g1 ⊑ g3 ⊔ g4). { solve_proper. }
+    apply monPred_mono.
+    rewrite !subseteq_prod'.
+    done.
+  Qed.
+
+End post_fence_modalities.
+
+Notation "'<fence>' P" := (post_fence P) (at level 20, right associativity) : bi_scope.
 
 Section wp_rules.
   Context `{AbstractState abs_state}.
@@ -442,17 +472,17 @@ Section wp_rules.
     eassumption.
   Admitted.
 
-  Lemma wp_store_ex ℓ ss1 ss2 v s__last s v' ϕ st E :
+  Lemma wp_store_ex ℓ ss1 ss2 v s__last s ϕ st E :
     last ss2 = Some s__last →
     s__last ⊑ s →
-    {{{ ℓ ↦ ss1; ss2 | ϕ ∗ ϕ s v' }}}
+    {{{ ℓ ↦ ss1; ss2 | ϕ ∗ ϕ s v }}}
       #ℓ <- v @ st; E
     {{{ RET #(); ℓ ↦ ss1; ss2 ++ [s] | ϕ }}}.
   Proof.
     intros last stateGt Φ.
     iStartProof (iProp _). iIntros (TV).
     iIntros "[pts phi]".
-  Abort.
+  Admitted.
   (*   iDestruct "pts" as (?tGP ?tP ?tS absHist hist) "(pts & map & %incrL & %lookupP & %lookupV & %nolater & %lastVal & hist & slice & %know & per)". *)
   (*   rewrite monPred_at_wand. simpl. *)
   (*   iIntros (TV' incl) "Φpost". *)
@@ -534,23 +564,19 @@ Section wp_rules.
   Proof.
   *)
 
+  Lemma wp_wb_ex ℓ ss1 ss2 s ϕ st E :
+    last ss2 = Some s →
+    {{{ ℓ ↦ ss1; ss2 | ϕ }}}
+      WB #ℓ @ st; E
+    {{{ RET #(); ℓ ↦ ss1; ss2 | ϕ ∗ <fence> know_persist_lower_bound ℓ s }}}.
+   Proof. 
+   Admitted.
+
+  Lemma wp_fence P st E :
+    {{{ <fence> P }}}
+      Fence @ st; E
+    {{{ RET #(); P }}}.
+   Proof. 
+   Admitted.
+
 End wp_rules.
-
-Section wp_things.
-  Context `{!nvmG Σ}.
-
-  Implicit Types (P : dProp Σ).
-
-  Program Definition post_fence P : dProp Σ :=
-    MonPred (λ '(s, p, b), P (s, (p ⊔ b), ∅)) _.
-  Next Obligation.
-    (* FIXME: Figure out if there is a way to make [solve_proper] handle this,
-    perhaps by using [pointwise_relatio]. *)
-    intros P. intros [[??]?] [[??]?] [[??]?]. rewrite /store_view /persist_view. simpl.
-    assert (g0 ⊔ g1 ⊑ g3 ⊔ g4). { solve_proper. }
-    apply monPred_mono.
-    rewrite !subseteq_prod'.
-    done.
-  Qed.
-
-End wp_things.

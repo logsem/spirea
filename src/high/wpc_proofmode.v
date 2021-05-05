@@ -360,6 +360,7 @@ Ltac wpc_call :=
     try wpc_pure1 Hcrash;
       [try iFromCache; crash_case .. |
        repeat (wpc_pure_no_later wp_pure_filter as Hcrash; []); clear Hcrash] ].
+*)
 
 Ltac wpc_bind_core K :=
   lazymatch eval hnf in K with
@@ -385,6 +386,7 @@ Ltac wpc_bind_seq :=
 
 Ltac wpc_frame_seq := wpc_bind_seq; wpc_frame.
 
+(*
 Tactic Notation "wpc_atomic" :=
   iApply wpc_atomic_no_mask;
   iSplit; [ crash_case | ].
