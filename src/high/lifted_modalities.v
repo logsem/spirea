@@ -8,6 +8,33 @@ From Perennial.program_logic Require Import crash_weakestpre.
 
 From self.high Require Import dprop.
 
+(* fupd_level *)
+
+Program Definition uPred_fupd_split_level_def `{!invG Σ}
+           (E1 E2 : coPset) (k : nat) mj (P : dProp Σ) : dProp Σ :=
+  MonPred (λ TV, uPred_fupd_split_level_def E1 E2 k mj (P TV))%I _.
+Next Obligation. solve_proper. Qed.
+
+Definition uPred_fupd_split_level_aux `{!invG Σ} : seal uPred_fupd_split_level_def.
+Proof. by eexists. Qed.
+Definition uPred_fupd_split_level `{!invG Σ} := uPred_fupd_split_level_aux.(unseal).
+Definition uPred_fupd_split_level_eq `{!invG Σ} :
+    uPred_fupd_split_level = uPred_fupd_split_level_def :=
+  uPred_fupd_split_level_aux.(seal_eq).
+
+Definition uPred_fupd_level_def `{!invG Σ} (E1 E2 : coPset) (k : nat) (P : dProp Σ) : dProp Σ :=
+  uPred_fupd_split_level E1 E2 k None P.
+Definition uPred_fupd_level_aux `{!invG Σ} : seal uPred_fupd_level_def.
+Proof. by eexists. Qed.
+Definition uPred_fupd_level `{!invG Σ} := uPred_fupd_level_aux.(unseal).
+Definition uPred_fupd_level_eq `{!invG Σ} : uPred_fupd_level = uPred_fupd_level_def :=
+  uPred_fupd_level_aux.(seal_eq).
+
+Notation "| k , j ={ E1 , E2 }=> Q" := (uPred_fupd_split_level E1 E2 k j Q) : bi_scope.
+Notation "| k , j ={ E1 }=> Q" := (uPred_fupd_split_level E1 E1 k j Q) : bi_scope.
+Notation "| k ={ E1 , E2 }=> Q" := (uPred_fupd_level E1 E2 k Q) : bi_scope.
+Notation "| k ={ E1 }=> Q" := (uPred_fupd_level E1 E1 k Q) : bi_scope.
+
 Program Definition ncfupd_def `{!invG Σ, !crashG Σ} (E1 E2 : coPset) (P : dProp Σ) : dProp Σ :=
   MonPred (λ TV, ncfupd E1 E2 (P TV))%I _.
 Next Obligation. solve_proper. Qed.
@@ -36,9 +63,15 @@ Notation "|C={ E1 }_ k => P" := (cfupd k E1 P)
       (at level 99, E1 at level 50, P at level 200,
       format "|C={ E1 }_ k =>  P").
 
-Program Definition own_discrete_fupd `{!invG Σ} (P : dProp Σ) : dProp Σ :=
+Program Definition own_discrete_fupd_def `{!invG Σ} (P : dProp Σ) : dProp Σ :=
   MonPred (λ TV, own_discrete_fupd (P TV)) _.
 Next Obligation. solve_proper. Qed.
+Definition own_discrete_fupd_aux `{!invG Σ} : seal own_discrete_fupd_def.
+Proof. by eexists. Qed.
+Definition own_discrete_fupd `{!invG Σ} := own_discrete_fupd_aux.(unseal).
+Definition own_discrete_fupd_eq `{!invG Σ} : own_discrete_fupd = own_discrete_fupd_def :=
+  own_discrete_fupd_aux.(seal_eq).
+Arguments own_discrete_fupd {_ _} _%I.
 
 Notation "'<disc>' P" := (own_discrete_fupd P) (at level 20, right associativity) : bi_scope.
 
@@ -124,19 +157,22 @@ Section lifted_modalities.
   (*   rewrite /FromPure=> <-. destruct a; simpl; iIntros (?); iModIntro; done. *)
   (* Qed. *)
 
+  (*** disc *)
+
   Lemma modality_own_discrete_fupd_mixin :
     modality_mixin (@own_discrete_fupd Σ _)
                    (MIEnvId)
                    (MIEnvTransform (IntoDiscreteFupd)).
   Proof.
+    rewrite own_discrete_fupd_eq.
     split; red; iStartProof (iProp _); iIntros (P TV).
     - iIntros. iApply own_disc_own_disc_fupd. iModIntro.
       rewrite monPred_at_intuitionistically. done.
-    - iIntros (Hfupd ?). rewrite Hfupd. auto.
+    - iIntros (Hfupd ?). rewrite Hfupd. rewrite own_discrete_fupd_eq. auto.
     - iIntros. iApply own_disc_own_disc_fupd. by iModIntro.
-    - iIntros (HH ?) "H /=". rewrite own_discrete_fupd_eq /own_discrete_fupd_def.
+    - iIntros (HH ?) "H /=". rewrite own_discrete.own_discrete_fupd_eq /own_discrete_fupd_def.
       iModIntro. iMod "H". iModIntro. by iApply HH.
-    - iIntros (?) "(H1&H2) /=". rewrite own_discrete_fupd_eq /own_discrete_fupd_def.
+    - iIntros (?) "(H1&H2) /=". rewrite own_discrete.own_discrete_fupd_eq /own_discrete_fupd_def.
       iModIntro. iMod "H1". iMod "H2". by iFrame.
   Qed.
   Definition modality_own_discrete_fupd :=
@@ -145,6 +181,29 @@ Section lifted_modalities.
   Global Instance from_modal_own_discrete_fupd (P : dProp Σ) :
     FromModal modality_own_discrete_fupd (own_discrete_fupd P) (own_discrete_fupd P) P.
   Proof. rewrite /FromModal//=. Qed.
+  Lemma disc_unfold_at P TV :
+    (own_discrete_fupd P) TV = own_discrete.own_discrete_fupd (P TV).
+  Proof.
+    rewrite own_discrete_fupd_eq. simpl.
+    rewrite own_discrete.own_discrete_fupd_eq. reflexivity.
+  Qed.
+
+  Global Instance own_discrete_fupd_ne : NonExpansive own_discrete_fupd.
+  Proof.
+    rewrite own_discrete_fupd_eq.
+    constructor. intros ?. simpl.
+    rewrite own_discrete.own_discrete_fupd_eq. solve_proper.
+  Qed.
+  Global Instance own_discrete_fupd_proper : Proper ((≡) ==> (≡)) own_discrete_fupd := ne_proper _.
+  Global Instance own_discrete_fupd_mono' : Proper ((⊢) ==> (⊢)) own_discrete_fupd.
+  Proof.
+    rewrite own_discrete_fupd_eq. rewrite /own_discrete_fupd_def.
+    constructor. intros ?. simpl.
+    rewrite own_discrete.own_discrete_fupd_eq. solve_proper.
+  Qed.
+  Global Instance own_discrete_fupd_flip_mono' :
+    Proper (flip (⊢) ==> flip (⊢)) own_discrete_fupd.
+  Proof. solve_proper. Qed.
 
 End lifted_modalities.
 
