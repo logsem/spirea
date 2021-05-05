@@ -10,6 +10,14 @@ From self.base Require Import primitive_laws class_instances.
 From self.high Require Import proofmode wpc_proofmode.
 From self.high Require Import dprop resources crash_weakestpre weakestpre recovery_weakestpre lifted_modalities.
 
+Instance subseteq_nat : SqSubsetEq nat := λ v w, v ≤ w.
+
+Instance subseteq_nat_preorder : PreOrder (⊑@{nat}).
+Proof. apply _. Qed.
+
+Instance nat_abstract_state : AbstractState nat.
+Proof. esplit; apply _. Defined.
+
 Definition prog : expr := let: "l" := ref #1 in ! "l".
 
 Definition pure : expr :=
@@ -76,9 +84,71 @@ Section simple_increment.
     else #().
 
   Lemma wp_incr ℓa ℓb n E (Φ : val → dProp Σ) :
-    ⊢ WPC (incr ℓa ℓb) @ n; E {{ Φ }} {{ True }}.
+    ⊢ ℓa ↦ []; [0] | (λ s v, ⌜v = #s⌝) -∗
+      ℓb ↦ []; [0] | (λ s v, ⌜v = #s⌝ ∗ know_persist_lower_bound ℓa s) -∗
+      WPC (incr ℓa ℓb) @ n; E
+        {{ λ _,
+           ℓa ↦ []; [0; 1] | (λ s v, ⌜v = #s⌝) ∗ (* FIXME: The [0] should be moved left. *)
+           ℓb ↦ []; [0; 1] | (λ s v, ⌜v = #s⌝ ∗ know_persist_lower_bound ℓa s)
+        }}
+        {{ ∃ (sa1 sa2 sb1 sb2 : list nat),
+           ℓa ↦ sa1; sa2 | (λ s v, ⌜v = #s⌝) ∗
+           ℓb ↦ sb1; sb2 | (λ s v, ⌜v = #s⌝ ∗ know_persist_lower_bound ℓa s) }}.
   Proof.
-  Abort.
+    iIntros "aPts bPts".
+    rewrite /incr.
+
+    (* The first store *)
+    wpc_bind (_ <- _)%E.
+    iApply wpc_atomic_no_mask.
+    iSplit. { iModIntro. iExists _, _, _, _. iFrame "aPts bPts". }
+    iApply (wp_store_ex with "[$aPts]").
+    { reflexivity. }
+    { suff H : (0 ≤ 1); first apply H. lia. }
+    { done. }
+    simpl.
+    iNext. iIntros "aPts".
+    iSplit. { iModIntro. iModIntro. iExists _, _, _, _. iFrame. }
+    iModIntro.
+    wpc_pures.
+    { iModIntro. iExists _, _, _, _. iFrame. }
+
+    (* The write back *)
+    wpc_bind (WB _)%E.
+    iApply wpc_atomic_no_mask.
+    iSplit. { iModIntro. iExists _, _, _, _. iFrame "aPts bPts". }
+    iApply (wp_wb_ex with "aPts"); first reflexivity.
+    iNext.
+    iIntros "[aPts afterFence]".
+    iSplit. { iModIntro. iModIntro. iExists _, _, _, _. iFrame "aPts bPts". }
+    iModIntro.
+    wpc_pures.
+    { iModIntro. iExists _, _, _, _. iFrame. }
+
+    (* The fence. *)
+    wpc_bind (Fence)%E.
+    iApply wpc_atomic_no_mask.
+    iSplit. { iModIntro. iExists _, _, _, _. iFrame "aPts bPts". }
+    iApply (wp_fence with "afterFence").
+    iNext.
+    iIntros "#pLowerBound".
+    iSplit. { iModIntro. iModIntro. iExists _, _, _, _. iFrame "aPts bPts". }
+    iModIntro.
+    wpc_pures.
+    { iModIntro. iExists _, _, _, _. iFrame. }
+
+    (* The last store *)
+    iApply wpc_atomic_no_mask.
+    iSplit. { iModIntro. iExists _, _, _, _. iFrame "aPts bPts". }
+    iApply (wp_store_ex with "[$bPts]").
+    { reflexivity. }
+    { suff H : (0 ≤ 1); first apply H. lia. }
+    { iFrame "#". done. }
+    iNext. iIntros "bPts".
+    iSplit. { iModIntro. iModIntro. iExists _, _, _, _. iFrame "aPts bPts". }
+    iModIntro.
+    iFrame "aPts bPts".
+  Qed.
 
   (* FIXME: Hoare triples don't work as Perennials Hoare triples are tied to iProp. *)
   (* Lemma wpc_incr' (ℓa ℓb : loc) : *)
