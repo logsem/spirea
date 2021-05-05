@@ -63,6 +63,67 @@ Notation "|C={ E1 }_ k => P" := (cfupd k E1 P)
       (at level 99, E1 at level 50, P at level 200,
       format "|C={ E1 }_ k =>  P").
 
+(*** own_discrete *)
+Section lifted_own_discrete.
+  Context {Σ : gFunctors}.
+
+  Program Definition own_discrete_def (P : dProp Σ) :=
+    MonPred (λ TV, own_discrete (P TV)) _ .
+  Next Obligation. solve_proper. Qed.
+  Definition own_discrete_aux : seal own_discrete_def. Proof. by eexists. Qed.
+  Definition own_discrete := own_discrete_aux.(unseal).
+  Definition own_discrete_eq  : own_discrete = own_discrete_def :=
+    own_discrete_aux.(seal_eq).
+  Arguments own_discrete _%I.
+
+  Lemma own_discrete_elim Q :
+    own_discrete Q -∗ Q.
+  Proof.
+    rewrite own_discrete_eq.
+    iStartProof (iProp _). iIntros (tv).
+    iApply own_discrete_elim.
+  Qed.
+
+  Class Discretizable (P : dProp Σ) := discretizable : P -∗ own_discrete P.
+  Arguments Discretizable _%I : simpl never.
+  Arguments discretizable _%I {_}.
+  Hint Mode Discretizable ! : typeclass_instances.
+
+  Class IntoDiscrete (P Q : dProp Σ) :=
+    into_discrete : P ⊢ own_discrete Q.
+  Arguments IntoDiscrete _%I _%I.
+  Arguments into_discrete _%I _%I.
+  Hint Mode IntoDiscrete ! - : typeclass_instances.
+
+  Global Instance embed_discretizable (P : iProp Σ) :
+    own_discrete.Discretizable P → Discretizable ⎡P⎤.
+  Proof.
+    rewrite /Discretizable.
+    rewrite own_discrete_eq.
+    iStartProof (iProp _). iIntros (D tv) "P".
+    simpl.
+    rewrite monPred_at_embed.
+    by iModIntro.
+  Qed.
+
+  Global Instance persistent_discretizable (P : dProp Σ) :
+    Persistent P → Discretizable P.
+  Proof.
+    rewrite /Discretizable.
+    rewrite own_discrete_eq.
+    iStartProof (iProp _). iIntros (pers tv) "#P".
+    iModIntro.
+    iApply "P".
+  Qed.
+
+  Global Instance discretizable_into_discrete (P : dProp Σ):
+    Discretizable P → IntoDiscrete P P.
+  Proof. rewrite /Discretizable. rewrite /IntoDiscrete. done. Qed.
+
+End lifted_own_discrete.
+
+Notation "'<bdisc>' P" := (own_discrete P) (at level 20, right associativity) : bi_scope.
+
 Program Definition own_discrete_fupd_def `{!invG Σ} (P : dProp Σ) : dProp Σ :=
   MonPred (λ TV, own_discrete_fupd (P TV)) _.
 Next Obligation. solve_proper. Qed.
@@ -160,21 +221,9 @@ Section lifted_modalities.
   Arguments into_discrete_fupd {_} _%I _%I {_}.
   Hint Mode IntoDiscreteFupd + ! - : typeclass_instances.
 
-  Global Instance own_discrete_fupd_into_discrete_fupd P:
-    IntoDiscreteFupd (own_discrete_fupd P) P.
-  Proof. rewrite /IntoDiscreteFupd//=. Qed.
-
   (* Global Instance own_discrete_into_discrete_fupd P: *)
   (*   IntoDiscreteFupd (own_discrete P) P. *)
   (* Proof. rewrite /IntoDiscreteFupd//=. apply own_disc_own_disc_fupd. Qed. *)
-
-  (* Global Instance into_discrete_into_discrete_fupd P P': *)
-  (*   IntoDiscrete P P' → *)
-  (*   IntoDiscreteFupd P P'. *)
-  (* Proof. *)
-  (*   rewrite /Discretizable/IntoDiscreteFupd//=. *)
-  (*   iIntros (?) "HP". rewrite (into_discrete P). iModIntro. auto. *)
-  (* Qed. *)
 
   (* Global Instance from_pure_own_discrete a P φ : *)
   (*   FromPure a P φ → FromPure a (<disc> P) φ. *)
@@ -227,6 +276,31 @@ Section lifted_modalities.
   Global Instance own_discrete_fupd_flip_mono' :
     Proper (flip (⊢) ==> flip (⊢)) own_discrete_fupd.
   Proof. solve_proper. Qed.
+
+  Lemma own_disc_own_disc_fupd (P : dProp Σ) : <bdisc> P -∗ <disc> P.
+  Proof.
+    rewrite own_discrete_fupd_eq. rewrite /own_discrete_fupd_def.
+    rewrite own_discrete_eq. rewrite /own_discrete_def.
+    iStartProof (iProp _). iIntros (tv).
+    iApply own_disc_own_disc_fupd.
+  Qed.
+
+  Global Instance own_discrete_fupd_into_discrete_fupd P:
+    IntoDiscreteFupd (own_discrete_fupd P) P.
+  Proof. rewrite /IntoDiscreteFupd. done. Qed.
+
+  Global Instance own_discrete_into_discrete_fupd P:
+    IntoDiscreteFupd (own_discrete P) P.
+  Proof. rewrite /IntoDiscreteFupd. simpl. apply own_disc_own_disc_fupd. Qed.
+
+  Global Instance into_discrete_into_discrete_fupd P P':
+    IntoDiscrete P P' →
+    IntoDiscreteFupd P P'.
+  Proof.
+    (* rewrite /Discretizable/IntoDiscreteFupd. *)
+    rewrite /Discretizable. rewrite /IntoDiscreteFupd.
+    iIntros (?) "HP". rewrite (@into_discrete _ P). iModIntro. auto.
+  Qed.
 
 End lifted_modalities.
 

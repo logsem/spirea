@@ -172,7 +172,7 @@ Section wp.
     ).
 
   Global Instance mapsto_ex_discretizable `{AbstractState ST} ℓ ss1 ss2 ϕ :
-    IntoDiscreteFupd (mapsto_ex ℓ ss1 ss2 ϕ) (mapsto_ex ℓ ss1 ss2 ϕ).
+    Discretizable (mapsto_ex ℓ ss1 ss2 ϕ).
   Proof.
   Admitted.
 
@@ -576,7 +576,7 @@ Section wp_rules.
     {{{ <fence> P }}}
       Fence @ st; E
     {{{ RET #(); P }}}.
-   Proof. 
-   Admitted.
+  Proof.
+  Admitted.
 
 End wp_rules.
