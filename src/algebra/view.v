@@ -149,6 +149,10 @@ Proof.
   - rewrite lookup_insert_ne; done.
 Qed.
 
+Lemma view_lub_le_lub V V' W W' :
+  V ⊑ W → V' ⊑ W' → (V ⊔ V') ⊑ (W ⊔ W').
+Proof. Admitted.
+
 Lemma view_insert_op V ℓ t :
   (V !!0 ℓ) ≤ t → (V ⊔ {[ℓ := MaxNat t]}) = (<[ℓ := MaxNat t]> V).
 Proof.

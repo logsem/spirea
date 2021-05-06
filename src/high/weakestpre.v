@@ -17,7 +17,7 @@ From self Require Export view.
 From self Require Export lang.
 From self.base Require Import primitive_laws.
 From self.lang Require Import syntax.
-From self.high Require Import resources crash_weakestpre lifted_modalities.
+From self.high Require Import resources crash_weakestpre lifted_modalities monpred_simpl modalities.
 
 (* For each location in the heap we maintain the following "meta data".
 For every location we want to store: A type/set of abstract events, its full
@@ -287,27 +287,6 @@ Notation "l ↦ xs ; ys | P" := (mapsto_ex l xs ys P) (at level 20).
 (* Definition lastR (abs_state : Type) : cmra := *)
 (*   prodR fracR (agreeR (prodO (leibnizO abs_state) valO)). *)
 
-Section post_fence_modalities.
-  Context `{!nvmG Σ}.
-
-  Implicit Types (P : dProp Σ).
-
-  Program Definition post_fence P : dProp Σ :=
-    MonPred (λ '(s, p, b), P (s, (p ⊔ b), ∅)) _.
-  Next Obligation.
-    (* FIXME: Figure out if there is a way to make [solve_proper] handle this,
-    perhaps by using [pointwise_relatio]. *)
-    intros P. intros [[??]?] [[??]?] [[??]?]. rewrite /store_view /persist_view. simpl.
-    assert (g0 ⊔ g1 ⊑ g3 ⊔ g4). { solve_proper. }
-    apply monPred_mono.
-    rewrite !subseteq_prod'.
-    done.
-  Qed.
-
-End post_fence_modalities.
-
-Notation "'<fence>' P" := (post_fence P) (at level 20, right associativity) : bi_scope.
-
 Section wp_rules.
   Context `{AbstractState abs_state}.
   Context `{!nvmG Σ}.
@@ -576,6 +555,31 @@ Section wp_rules.
       Fence @ st; E
     {{{ RET #(); P }}}.
   Proof.
-  Admitted.
+    intros Φ.
+    iStartProof (iProp _). iIntros ([[sv pv] bv]).
+    rewrite monPred_at_wand.
+    iIntros "P". iIntros (tv' incl) "HΦ".
+    monPred_simpl.
+    rewrite wp_eq /wp_def.
+    rewrite wpc_eq. simpl.
+    iIntros ([[SV PV] BV] incl2) "#val interp".
+    monPred_simpl.
+    iApply program_logic.crash_weakestpre.wp_wpc.
+    iApply (wp_fence with "[//]").
+    iNext. iIntros (_).
+    cbn.
+    iFrame "#∗".
+    iApply "HΦ".
+    - iPureIntro. etrans. apply incl2. repeat split; try done.
+      apply view_le_l.
+    - iApply monPred_mono; last iApply "P".
+      destruct tv' as [[??]?].
+      repeat split; try done.
+      * etrans. apply incl. apply incl2.
+      * apply view_lub_le_lub.
+        + etrans. apply incl. apply incl2.
+        + etrans. apply incl. apply incl2.
+      * etrans. apply incl. apply incl2.
+  Qed.
 
 End wp_rules.

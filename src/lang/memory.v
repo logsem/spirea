@@ -170,12 +170,12 @@ Section memory.
   | MStepFence σ V P B p :
      mem_step (σ, p) (V, P, B)
               MEvFence
-              (σ, p) (V, P ⊔ B, ∅)
+              (σ, p) (V, P ⊔ B, B)
   (* Synchronous fence. *)
   | MStepFenceSync σ V P B p :
      mem_step (σ, p) (V, P, B)
               MEvFenceSync
-              (σ, p ⊔ B) (V, P ⊔ B, ∅).
+              (σ, p ⊔ B) (V, P ⊔ B, B).
 
   (* Removes all messages from [hist] after [t]. *)
   Definition cut_history t (hist : history) : history :=

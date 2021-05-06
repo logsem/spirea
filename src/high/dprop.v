@@ -5,7 +5,7 @@ From iris.bi Require Export monpred big_op.
 From iris.proofmode Require Import tactics monpred modality_instances.
 From iris.base_logic.lib Require Import fancy_updates.
 
-From self Require Import view memory.
+From self Require Export view memory.
 
 (* We define a canonical [biIndex] structure for [thread_view]. All fields except for
 [bi_index_type] can be infered by Coq. *)

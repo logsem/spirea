@@ -662,7 +662,7 @@ Section lifting.
   Lemma wp_fence V P B s E :
     {{{ True }}}
       (ThreadState Fence (V, P, B)) @ s; E
-    {{{ RET ThreadVal #() (V, P ⊔ B, ∅); True }}}.
+    {{{ RET ThreadVal #() (V, P ⊔ B, B); True }}}.
   Proof.
     iIntros (Φ) "_ HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
@@ -679,7 +679,7 @@ Section lifting.
   Lemma wp_fence_sync V P B s E :
     {{{ True }}}
       (ThreadState FenceSync (V, P, B)) @ s; E
-    {{{ RET ThreadVal #() (V, P ⊔ B, ∅); persisted (B) }}}.
+    {{{ RET ThreadVal #() (V, P ⊔ B, B); persisted (B) }}}.
   Proof.
     iIntros (Φ) "_ HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
