@@ -26,6 +26,14 @@ Section abs_history_lemmas.
     ℓ ↪[ abs_history_name ] (encode <$> abs_hist).
     (* own abs_history_name ((◯ {[ ℓ := ● (abs_hist_to_ra abs_hist) ]}) : abs_historiesR). *)
 
+  Global Instance discretizable_ghost_map_elem ℓ γ v :
+    own_discrete.Discretizable (ℓ ↪[ γ ] v).
+  Proof. rewrite ghost_map_elem_eq /ghost_map_elem_def. apply _. Qed.
+
+  Global Instance discretizable_know_full_history_loc ℓ abs_hist :
+    own_discrete.Discretizable (know_full_history_loc ℓ abs_hist).
+  Proof. apply _. Qed.
+
   Definition know_full_encoded_history_loc ℓ (abs_hist : gmap time st) : iProp Σ :=
     ℓ ↪[ abs_history_name ] abs_hist.
     (* own abs_history_name ((◯ {[ ℓ := ● ((to_agree <$> abs_hist) : gmap _ (agreeR stO)) ]}) : abs_historiesR). *)
@@ -186,11 +194,11 @@ Section wpc.
       corresponding abstract value. *)
       ([∗ map] ℓ ↦ hist ∈ hists, ℓ ↦h (fst <$> hist)) ∗
       ([∗ map] ℓ ↦ hist; pred ∈ hists; preds,
-        ⌜ increasing_map (snd <$> hist) ⌝ ∗
+        ⌜ increasing_map (snd <$> hist) ⌝ ∗ (* FIXME *)
         (* The predicate hold. *)
         ([∗ map] t ↦ p ∈ hist,
            (∃ (P : dProp Σ),
-             ⌜(pred) (snd p) (fst p).(msg_val) = Some P⌝ ∗
+             ⌜(pred) (snd p) (fst p).(msg_val) = Some P⌝ ∗ (* Should this be ≡ *)
              P (msg_to_tv (fst p))))) ∗
       (* Ownership over the full knowledge of the abstract history of _all_
       locations. *)

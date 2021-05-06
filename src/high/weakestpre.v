@@ -173,8 +173,7 @@ Section wp.
 
   Global Instance mapsto_ex_discretizable `{AbstractState ST} ℓ ss1 ss2 ϕ :
     Discretizable (mapsto_ex ℓ ss1 ss2 ϕ).
-  Proof.
-  Admitted.
+  Proof. apply _. Qed.
 
   Definition know_global_per_lower_bound `{Countable ST} (ℓ : loc) (s : ST) : dProp Σ :=
     ∃ t,

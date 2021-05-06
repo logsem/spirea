@@ -150,7 +150,7 @@ Section simple_increment.
     iFrame "aPts bPts".
   Qed.
 
-  (* FIXME: Hoare triples don't work as Perennials Hoare triples are tied to iProp. *)
+  (* FIXME: Hoare triples don't work as Perennial's Hoare triples are tied to iProp. *)
   (* Lemma wpc_incr' (ℓa ℓb : loc) : *)
   (*   {{{ (True : dProp Σ) }}} *)
   (*     incr ℓa ℓb @ 10; ⊤ *)

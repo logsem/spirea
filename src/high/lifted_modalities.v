@@ -84,6 +84,29 @@ Section lifted_own_discrete.
     iApply own_discrete_elim.
   Qed.
 
+  Lemma own_discrete_sep P Q : own_discrete P ∗ own_discrete Q ⊢ own_discrete (P ∗ Q).
+  Proof.
+    rewrite own_discrete_eq.
+    iStartProof (iProp _). iIntros (tv).
+    simpl.
+    rewrite monPred_at_sep.
+    iApply own_discrete_sep.
+  Qed.
+
+  Lemma own_discrete_wand Q1 Q2:
+    □ (Q1 -∗ Q2) -∗ (own_discrete Q1 -∗ own_discrete Q2).
+  Proof.
+    rewrite own_discrete_eq.
+    iStartProof (iProp _). iIntros (tv).
+    simpl.
+    rewrite !monPred_at_wand.
+    iIntros "#W".
+    iIntros (tv' incl).
+    iSpecialize ("W" $! tv' incl).
+    iApply own_discrete_wand.
+    done.
+  Qed.
+
   Class Discretizable (P : dProp Σ) := discretizable : P -∗ own_discrete P.
   Arguments Discretizable _%I : simpl never.
   Arguments discretizable _%I {_}.
@@ -94,6 +117,70 @@ Section lifted_own_discrete.
   Arguments IntoDiscrete _%I _%I.
   Arguments into_discrete _%I _%I.
   Hint Mode IntoDiscrete ! - : typeclass_instances.
+
+  Global Instance Discretizable_proper : Proper ((≡) ==> iff) Discretizable.
+  Proof.
+  Abort. (* Seem like something that _should_ be easy with [solve_proper]. *)
+    (* rewrite /Discretizable. *)
+    (* rewrite own_discrete_eq. *)
+    (* rewrite /own_discrete_def. *)
+    (* simpl. *)
+    (* rewrite /Proper. *)
+    (* intros P P' eq. *)
+    (* split. *)
+    (* - iStartProof (iProp _). iIntros (i H) "P". iApply i. rewrite -eq. *)
+    (* solve_proper. Qed. *)
+
+  Global Instance sep_discretizable P Q:
+    Discretizable P →
+    Discretizable Q →
+    Discretizable (P ∗ Q).
+  Proof.
+    rewrite /Discretizable.
+    iStartProof (iProp _). iIntros (Pd Qd tv) "(P & Q)".
+    iApply own_discrete_sep.
+    iPoseProof (Pd with "[$]") as "$".
+    iPoseProof (Qd with "[$]") as "$".
+  Qed.
+
+  Global Instance exist_discretizable {A} (Φ : A → dProp Σ):
+    (∀ x, Discretizable (Φ x)) → Discretizable (∃ x, Φ x).
+  Proof.
+    rewrite /Discretizable.
+    iIntros (HΦ) "HΦ".
+    iDestruct "HΦ" as (x) "Hx".
+    iPoseProof (HΦ with "[$]") as "Hx".
+    iApply (own_discrete_wand with "[] Hx").
+    iModIntro. eauto.
+  Qed.
+
+  Global Instance or_discretizable P Q:
+    Discretizable P →
+    Discretizable Q →
+    Discretizable (P ∨ Q).
+  Proof.
+    rewrite /Discretizable.
+  Abort. (* Prove this later if we need it. *)
+  (*   iIntros (HPd HQd) "[HP|HQ]". *)
+  (*   - iApply own_discrete_or_l. *)
+  (*     iApply (HPd with "HP"). *)
+  (*   - iApply own_discrete_or_r. *)
+  (*     iApply (HQd with "HQ"). *)
+  (* Qed. *)
+
+  (* Global Instance ownM_discretizable (a : M): *)
+  (*   Discrete a → *)
+  (*   Discretizable (uPred_ownM a). *)
+  (* Proof. intros ?. by apply own_discrete_ownM. Qed. *)
+
+  (* Global Instance discretizable_into_discrete (P: uPred M): *)
+  (*   Discretizable P → *)
+  (*   IntoDiscrete P P. *)
+  (* Proof. rewrite /Discretizable/IntoDiscrete//=. Qed. *)
+
+  (* Global Instance own_discrete_into_discrete (P: uPred M): *)
+  (*   IntoDiscrete (own_discrete P) P. *)
+  (* Proof. rewrite /Discretizable/IntoDiscrete//=. Qed. *)
 
   Global Instance embed_discretizable (P : iProp Σ) :
     own_discrete.Discretizable P → Discretizable ⎡P⎤.
