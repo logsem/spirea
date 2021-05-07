@@ -149,10 +149,6 @@ Proof.
   - rewrite lookup_insert_ne; done.
 Qed.
 
-Lemma view_lub_le_lub V V' W W' :
-  V ⊑ W → V' ⊑ W' → (V ⊔ V') ⊑ (W ⊔ W').
-Proof. Admitted.
-
 Lemma view_insert_op V ℓ t :
   (V !!0 ℓ) ≤ t → (V ⊔ {[ℓ := MaxNat t]}) = (<[ℓ := MaxNat t]> V).
 Proof.
@@ -197,6 +193,14 @@ Proof.
   - intros [??]. rewrite subseteq_prod'. done.
   - intros [??] [??] [??]. rewrite !subseteq_prod'. intros [??] [??].
     split; etrans; done.
+Qed.
+
+Instance prod_subseteq_trans `{!SqSubsetEq A, !SqSubsetEq B, !Transitive (⊑@{A}),
+                               !Transitive (⊑@{B})} : Transitive (⊑@{A * B}).
+Proof.
+  rewrite /Transitive.
+  intros [??] [??] [??] [??] [??].
+  split; etrans; done.
 Qed.
 
 (* Global Instance pair_join_mono `{!Join A, !Join B, !SqSubsetEq A, !SqSubsetEq B} : Proper ((⊑@{A * B}) ==> (⊑) ==> (⊑)) (⊔). *)

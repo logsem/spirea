@@ -573,13 +573,10 @@ Section wp_rules.
     - iPureIntro. etrans. apply incl2. repeat split; try done.
       apply view_le_l.
     - iApply monPred_mono; last iApply "P".
+      eassert ((sv, pv, bv) ⊑ _) as incl3. { etrans; [apply incl|apply incl2]. }
       destruct tv' as [[??]?].
-      repeat split; try done.
-      * etrans. apply incl. apply incl2.
-      * apply view_lub_le_lub.
-        + etrans. apply incl. apply incl2.
-        + etrans. apply incl. apply incl2.
-      * etrans. apply incl. apply incl2.
+      repeat split; try apply incl3.
+      f_equiv; apply incl3.
   Qed.
 
 End wp_rules.
