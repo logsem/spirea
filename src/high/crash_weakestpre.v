@@ -7,6 +7,10 @@ From Perennial.program_logic Require crash_weakestpre.
 From self.base Require Import primitive_laws class_instances.
 From self.high Require Export dprop resources lifted_modalities.
 
+Global Instance discretizable_ghost_map_elem `{ghost_mapG Σ K V} ℓ γ v :
+  own_discrete.Discretizable (ℓ ↪[γ] v).
+Proof. rewrite ghost_map_elem_eq /ghost_map_elem_def. apply _. Qed.
+
 (** We define a few things about the resource algebra that that we use to encode
 abstract histories. *)
 Section abs_history_lemmas.
@@ -20,26 +24,16 @@ Section abs_history_lemmas.
 
   Definition own_full_history (abs_hists : gmap loc (gmap time positive)) :=
     ghost_map_auth (abs_history_name) 1 abs_hists.
-        (* ((● ((λ h, ● (to_agree <$> h)) <$> abs_hists)) : abs_historiesR). *)
 
   Definition know_full_history_loc ℓ abs_hist : iProp Σ :=
     ℓ ↪[ abs_history_name ] (encode <$> abs_hist).
-    (* own abs_history_name ((◯ {[ ℓ := ● (abs_hist_to_ra abs_hist) ]}) : abs_historiesR). *)
 
-  Global Instance discretizable_ghost_map_elem ℓ γ v :
-    own_discrete.Discretizable (ℓ ↪[ γ ] v).
-  Proof. rewrite ghost_map_elem_eq /ghost_map_elem_def. apply _. Qed.
-
-  Global Instance discretizable_know_full_history_loc ℓ abs_hist :
-    own_discrete.Discretizable (know_full_history_loc ℓ abs_hist).
-  Proof. apply _. Qed.
-
-  Definition know_full_encoded_history_loc ℓ (abs_hist : gmap time st) : iProp Σ :=
+  Definition know_full_encoded_history_loc ℓ (abs_hist : gmap time positive) : iProp Σ :=
     ℓ ↪[ abs_history_name ] abs_hist.
-    (* own abs_history_name ((◯ {[ ℓ := ● ((to_agree <$> abs_hist) : gmap _ (agreeR stO)) ]}) : abs_historiesR). *)
 
-  Definition know_frag_history_loc ℓ abs_hist :=
-    own abs_history_name ((◯ {[ ℓ := ◯ (abs_hist_to_ra abs_hist) ]}) : abs_historiesR).
+  Definition know_frag_history_loc ℓ abs_hist : iProp Σ :=
+    True. (* FIXME *)
+    (* own abs_history_name ((◯ {[ ℓ := ◯ (abs_hist_to_ra abs_hist) ]}) : abs_historiesR). *)
 
   Lemma know_full_equiv ℓ abs_hist :
     know_full_history_loc ℓ abs_hist ⊣⊢ know_full_encoded_history_loc ℓ (encode <$> abs_hist).
@@ -125,9 +119,9 @@ End abs_history_lemmas.
 Section predicates.
   Context `{!nvmG Σ}.
 
-  Definition predO := st -d> val -d> optionO (dPropO Σ).
+  Definition predO := positive -d> val -d> optionO (dPropO Σ).
 
-  Definition pred_to_ra (pred : st → val → option (dProp Σ)) : (@predicateR Σ) :=
+  Definition pred_to_ra (pred : positive → val → option (dProp Σ)) : (@predicateR Σ) :=
     to_agree ((λ a b, Next (pred a b))).
 
   Definition know_all_preds preds :=
@@ -175,26 +169,102 @@ Section predicates.
 
 End predicates.
 
+(* (* For each location in the heap we maintain the following "meta data". *)
+(* For every location we want to store: A type/set of abstract events, its full *)
+(* abstract history, the invariant assertion. The abstract history maps *)
+(* timestamps to elements of the abstract events. *) *)
+(* Record loc_info := { *)
+(*   l_state : Type; *)
+(* (*   (* l_val : val; *) *) *)
+(* (*   l_ϕ : l_state → val → dProp Σ; *) *)
+(*   l_abstract_history : gmap nat l_state; *)
+(* (*   (* * Type class instances *) *) *)
+(*   l_sqsubseteq : SqSubsetEq l_state; *)
+(*   l_preorder : PreOrder (⊑@{l_state}); *)
+(*   (* We need countable to squash states into [positive] *) *)
+(*   l_eqdecision : EqDecision l_state; *)
+(*   l_countable : Countable l_state; *)
+(* }. *)
+
+(* Existing Instances l_eqdecision l_countable. *)
+
+(* Definition encode_loc_info {Σ} (l : (@loc_info Σ)):= *)
+(*   ((λ '(m, s), (m, encode s)) <$> (l_abstract_history l), *)
+(*    λ v s, (l_ϕ l $ v) <$> decode s). *)
+
+Definition lift2 {A B C} `{MBind M, MRet M, FMap M} (f : A → B → C) (am : M A) (bm : M B) :=
+  a ← am;
+  b ← bm;
+  mret (f a b).
+
+Definition mapply {A B} `{MBind M, FMap M} (mf : M (A → B)) (a : M A) :=
+  mf ≫= (λ f, f <$> a).
+
+(* This notation does not seem to work for some reason. *)
+(* Notation "<*>" := mapply (at level 61, left associativity). *)
+Notation "mf <*> a" := (mapply mf a) (at level 61, left associativity).
+
+(* Workaround for universe issues in stdpp. *)
+Definition relation2 A := A -> A -> Prop.
+
+Section preorders.
+  Context `{hG : nvmG Σ}.
+  Context `{Countable A}.
+
+  Definition encode_relation (R : relation2 A) : relation2 positive :=
+    λ (a b : positive), default False (R <$> decode a <*> decode b).
+
+  Lemma encode_relation_iff (R : relation2 A) (a b : A) :
+    R a b ↔ (encode_relation R) (encode a) (encode b).
+  Proof.
+    rewrite /encode_relation.
+    rewrite !decode_encode.
+    reflexivity.
+  Qed.
+
+  Definition own_all_preorders (preorders : gmap loc (relation2 positive)) :=
+    own preorders_name (● ((to_agree <$> preorders) : gmapUR _ (agreeR (positive -d> positive -d> PropO)))).
+
+  Definition own_preorder_loc ℓ (preorder : relation2 A) : iProp Σ :=
+    own preorders_name (◯ ({[ ℓ := to_agree (encode_relation preorder) ]})).
+
+  Global Instance persistent_own_preorder_loc ℓ preorder : Persistent (own_preorder_loc ℓ preorder).
+  Proof. apply _. Qed.
+
+  (* Global Instance discretizable_know_full_history_loc ℓ ord : *)
+  (*   own_discrete.Discretizable (own_preorder_loc ℓ ord). *)
+  (* Proof. *)
+  (*   apply _. *)
+  (* Qed. *)
+
+End preorders.
+
 Section wpc.
   Context `{!nvmG Σ}.
 
   (* NOTE: We can abstract this later if we need to. *)
-  Definition increasing_map (ss : gmap nat positive) :=
-    ∀ i j (s s' : positive), i ≤ j → (ss !! i = Some s) → (ss !! j = Some s') → (s ≤ s')%positive.
+  Definition increasing_map (ss : gmap nat positive) (R : relation2 positive) :=
+    ∀ i j (s s' : positive), i ≤ j → (ss !! i = Some s) → (ss !! j = Some s') → R s s'.
 
   (** This is our analog to the state interpretation in the Iris weakest
   precondition. We keep this in our crash weakest precondition ensuring that it
   holds before and after each step. **)
   Definition interp : iProp Σ :=
-    (∃ (hists : gmap loc (gmap time (message * st)))
-       (preds : gmap loc (st → val → option (dProp Σ))),
+    (∃ (hists : gmap loc (gmap time (message * positive)))
+       (preds : gmap loc (positive → val → option (dProp Σ)))
+       (orders : gmap loc (relation2 positive)),
       (* We keep the points-to predicates to ensure that we know that the keys
       in the abstract history correspond to the physical history. This ensures
       that on a crash we know that the value recoreved after a crash has a
       corresponding abstract value. *)
       ([∗ map] ℓ ↦ hist ∈ hists, ℓ ↦h (fst <$> hist)) ∗
+      (* Agreement on the preorders and the ordered/sorted property. *)
+      own_all_preorders orders ∗
+      ([∗ map] ℓ ↦ hist; order ∈ hists; orders, ⌜increasing_map (snd <$> hist) order⌝) ∗
+
       ([∗ map] ℓ ↦ hist; pred ∈ hists; preds,
-        ⌜ increasing_map (snd <$> hist) ⌝ ∗ (* FIXME *)
+        (* ⌜ ∃ (T : loc_info), True ⌝ ∗ *)
+        (* ⌜ increasing_map (snd <$> hist) ⌝ ∗ (* FIXME *) *)
         (* The predicate hold. *)
         ([∗ map] t ↦ p ∈ hist,
            (∃ (P : dProp Σ),

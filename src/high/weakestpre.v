@@ -19,36 +19,12 @@ From self.base Require Import primitive_laws.
 From self.lang Require Import syntax.
 From self.high Require Import resources crash_weakestpre lifted_modalities monpred_simpl modalities.
 
-(* For each location in the heap we maintain the following "meta data".
-For every location we want to store: A type/set of abstract events, its full
-abstract history, the invariant assertion. The abstract history maps
-timestamps to elements of the abstract events. *)
-(* Record loc_info {Σ} := { *)
-(*   l_state : Type; *)
-(*   (* l_val : val; *) *)
-(*   l_ϕ : l_state → val → dProp Σ; *)
-(*   l_abstract_history : gmap nat (message * l_state); *)
-
-(*   (* * Type class instances *) *)
-(*   (* l_sqsubseteq : SqSubsetEq l_state; *) *)
-(*   (* l_preorder : PreOrder (⊑@{l_state}); *) *)
-(*   (* We need countable to squash states into [positive] *) *)
-(*   l_eqdecision : EqDecision l_state; *)
-(*   l_countable : Countable l_state; *)
-(* }. *)
-
-(* Existing Instances l_eqdecision l_countable. *)
-
-(* Definition encode_loc_info {Σ} (l : (@loc_info Σ)):= *)
-(*   ((λ '(m, s), (m, encode s)) <$> (l_abstract_history l), *)
-(*    λ v s, (l_ϕ l $ v) <$> decode s). *)
-
 Section wp.
   Context `{!nvmG Σ}.
 
   Implicit Types (Φ : val → dProp Σ) (e : expr).
 
-  Definition abs_hist_to_ra_old (abs_hist : gmap time (message * st)) : encoded_abs_historyR :=
+  Definition abs_hist_to_ra_old (abs_hist : gmap time (message * positive)) : encoded_abs_historyR :=
     (to_agree ∘ snd) <$> abs_hist.
 
   (* Definition loc_to_hist_ra (l : (@loc_info Σ)) `{Countable l} : encoded_abs_historyR := *)
@@ -95,8 +71,8 @@ Section wp.
 
   (*
   Definition old_interp : iProp Σ :=
-    (∃ (hists : gmap loc (gmap time (message * st)))
-       (preds : gmap loc (st → val → option (dProp Σ))),
+    (∃ (hists : gmap loc (gmap time (message * positive)))
+       (preds : gmap loc (positive → val → option (dProp Σ))),
       (* We have the points-to predicates. *)
       ([∗ map] ℓ ↦ hist ∈ hists, ℓ ↦h (fst <$> hist)) ∗
       (* The predicates hold. *)
@@ -150,6 +126,7 @@ Section wp.
       (*     ϕ abs msg.(msg_val) (msg.(msg_store_view), msg.(msg_persist_view), ∅))⎤ ∗ *)
 
       ⌜ increasing_list (ss1 ++ ss2) ⌝ ∗
+      ⎡ own_preorder_loc ℓ ((⊑@{ST})) ⎤ ∗
 
       ⌜abs_hist !! tPers = head ss2⌝ ∗ (* Note: This also ensures that [ss2] is non-empty :) *)
       (* [tStore] is the last message and it agrees with the last state in ss2 and the value. *)
@@ -177,8 +154,8 @@ Section wp.
 
   Definition know_global_per_lower_bound `{Countable ST} (ℓ : loc) (s : ST) : dProp Σ :=
     ∃ t,
-      ⎡persisted ({[ ℓ := MaxNat t ]} : view)⎤ ∗
-      ⎡know_frag_history_loc ℓ {[ t := s ]}⎤.
+      ⎡ persisted ({[ ℓ := MaxNat t ]} : view) ⎤ ∗
+      ⎡ know_frag_history_loc ℓ {[ t := s ]} ⎤.
 
   Definition know_persist_lower_bound `{Countable ST} (ℓ : loc) (s : ST) : dProp Σ :=
     ∃ t,
@@ -303,17 +280,17 @@ Section wp_rules.
     by erewrite <- app_comm_cons, last_cons.
   Qed.
 
-  Lemma wp_load_ex ℓ ss ss' s Q ϕ st E :
+  Lemma wp_load_ex ℓ ss ss' s Q ϕ positive E :
     last ss' = Some s →
     {{{ ℓ ↦ ss; ss' | ϕ ∗ <obj> (∀ v, ϕ s v -∗ Q v ∗ ϕ s v) }}}
-      Load (Val $ LitV $ LitLoc ℓ) @ st; E
+      Load (Val $ LitV $ LitLoc ℓ) @ positive; E
     {{{ v, RET v; ℓ ↦ ss; ss' | ϕ ∗ Q v }}}.
   Proof.
     intros sLast Φ.
     iStartProof (iProp _). iIntros (TV).
     (* We destruct the exclusive points-to predicate. *)
     iIntros "[pts pToQ]".
-    iDestruct "pts" as (?tGP ?tP ?tS absHist) "(%incrL & %lookupP & %lookupV & %nolater & hist & knowPred & %slice & %know & per)".
+    iDestruct "pts" as (?tGP ?tP ?tS absHist) "(%incrL & #knowOrder & %lookupP & %lookupV & %nolater & hist & knowPred & %slice & %know & per)".
     rewrite monPred_at_wand. simpl.
     iIntros (TV' incl) "Φpost".
     rewrite monPred_at_later.
@@ -324,7 +301,7 @@ Section wp_rules.
     iApply program_logic.crash_weakestpre.wp_wpc.
 
     (* We need to get the points-to predicate for [ℓ]. This is inside [interp]. *)
-    iDestruct "interp" as (hists preds) "(ptsMap & map & history & preds)".
+    iDestruct "interp" as (hists preds orders) "(ptsMap & allOrders & ordered & map & history & preds)".
     iDestruct (know_pred_agree with "preds knowPred") as (pred predsLook) "#predsEquiv".
     iDestruct (own_full_history_agree with "[$] [$]") as %look.
     apply lookup_fmap_Some in look.
@@ -391,7 +368,8 @@ Section wp_rules.
 
     iPoseProof (big_sepM2_dom with "map") as "%domEq".
     (* We need to get the predicate for [s] and [v']. *)
-    iDestruct (big_sepM2_lookup_acc with "map") as "[(%incr & predMap) map]"; [done|done|].
+    (* iDestruct (big_sepM2_lookup_acc with "map") as "[HI HO]"; [done|done|]. *)
+    iDestruct (big_sepM2_lookup_acc with "map") as "[predMap map]"; [done|done|].
     (* We now know exactly what the value in [ℓhist] at [tS] is. *)
     assert (s' = encode s) as sEq.
     { setoid_rewrite map_eq_iff in histAbsHist.
@@ -431,10 +409,10 @@ Section wp_rules.
       iRewrite "HI". done. }
     (* Reinsert into the map. *)
     iDestruct ("map" with "[$predMap]") as "map".
-    { done. }
+    (* { done. } *)
 
-    iSplitR "ptsMap map history preds".
-    2: { iExists _, _. iFrame. }
+    iSplitR "ptsMap allOrders ordered map history preds".
+    2: { iExists _, _, _. iFrame. }
     iApply "Φpost".
     iSplitR "Q".
     2: {
@@ -443,7 +421,7 @@ Section wp_rules.
       admit.
     }
     iExists _, _, _, _.
-    iFrame "∗". iFrame "%".
+    iFrame "∗#%".
     iPureIntro.
     etrans. eassumption.
     etrans. eassumption.

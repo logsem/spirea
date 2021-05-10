@@ -7,25 +7,27 @@ From self.lang Require Import lang.
 From self.base Require Import primitive_laws.
 From self.high Require Import dprop.
 
-Notation st := positive (only parsing).
-Notation stO := positiveO (only parsing).
-
-Definition predicateR {Σ} := agreeR (st -d> val -d> laterO (optionO (dPropO Σ))).
+Definition predicateR {Σ} := agreeR (positive -d> val -d> laterO (optionO (dPropO Σ))).
 Definition predicatesR {Σ} := authR (gmapUR loc (@predicateR Σ)).
 
 Definition abs_history (State : Type) `{Countable State} := gmap time State.
 
-Definition encoded_abs_historyR := gmapUR time (agreeR stO).
-Definition enc_abs_histories := gmap loc (gmap time st).
+Definition encoded_abs_historyR := gmapUR time (agreeR positiveO).
+Definition enc_abs_histories := gmap loc (gmap time positive).
 
 Definition abs_historiesR := authR (gmapUR loc (authR encoded_abs_historyR)).
+
+Definition preordersR := authR (gmapUR loc (agreeR (positive -d> positive -d> PropO))).
 
 Class nvmHighG Σ := NvmHighG {
   abs_history_name : gname;
   predicates_name : gname;
+  preorders_name : gname;
   ra_inG :> inG Σ (@predicatesR Σ);
-  ra'_inG :> inG Σ abs_historiesR;
+  (* ra'_inG :> inG Σ abs_historiesR; *)
   abs_histories :> ghost_mapG Σ loc (gmap time positive);
+  (* preordersG :> ghost_mapG Σ loc (positiveO -d> positiveO -d> PropO) *)
+  preordersG :> inG Σ preordersR
 }.
 
 Class nvmG Σ := NvmG {
