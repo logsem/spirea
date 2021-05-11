@@ -17,7 +17,7 @@ Section abs_history_lemmas.
   Context `{hG : nvmG Σ}.
   Context `{Countable ST}.
 
-  Implicit Types (abs_hist : abs_history ST) (ℓ : loc).
+  Implicit Types (abs_hist : gmap time ST) (ℓ : loc).
 
   Definition abs_hist_to_ra abs_hist : encoded_abs_historyR :=
     (to_agree ∘ encode) <$> abs_hist.
@@ -31,7 +31,7 @@ Section abs_history_lemmas.
   Definition know_full_encoded_history_loc ℓ (abs_hist : gmap time positive) : iProp Σ :=
     ℓ ↪[ abs_history_name ] abs_hist.
 
-  Definition know_frag_history_loc ℓ abs_hist : iProp Σ :=
+  Definition know_frag_history_loc ℓ (abs_hist : abs_history ST) : iProp Σ :=
     True. (* FIXME *)
     (* own abs_history_name ((◯ {[ ℓ := ◯ (abs_hist_to_ra abs_hist) ]}) : abs_historiesR). *)
 
@@ -54,8 +54,7 @@ Section abs_history_lemmas.
     apply: map_eq. intros t.
     pose proof (eq t) as eq'.
     rewrite !lookup_fmap in eq'.
-    destruct (hist' !! t) as [h|] eqn:leq, (hist !! t) as [h'|] eqn:leq';
-      rewrite leq leq'; rewrite leq leq' in eq'; try inversion eq'; auto.
+    destruct (hist' !! t) as [h|] eqn:leq, (hist !! t) as [h'|] eqn:leq'; try inversion eq'; auto.
     simpl in eq'.
     apply Some_equiv_inj in eq'.
     apply to_agree_inj in eq'.
@@ -73,8 +72,7 @@ Section abs_history_lemmas.
     pose proof (eq t) as eq'.
     rewrite !lookup_fmap in eq'.
     rewrite lookup_fmap.
-    destruct (hist' !! t) as [h|] eqn:leq, (hist !! t) as [h'|] eqn:leq';
-      rewrite ?leq leq'; rewrite ?leq ?leq' in eq'; try inversion eq'; auto.
+    destruct (hist' !! t) as [h|] eqn:leq, (hist !! t) as [h'|] eqn:leq'; try inversion eq'; auto.
     simpl in eq'. simpl.
     apply Some_equiv_inj in eq'.
     apply to_agree_inj in eq'.
@@ -113,6 +111,14 @@ Section abs_history_lemmas.
   (*     apply auth_auth_included in incl''. *)
   (*     done. *)
   (* Qed. *)
+
+  Lemma own_frag_history_agree ℓ part_hist hists :
+    own_full_history hists -∗
+    know_frag_history_loc ℓ part_hist -∗
+    ⌜∃ hist, hists !! ℓ = Some (encode <$> hist) ∧ part_hist ⊆ hist⌝.
+  Proof.
+    iIntros "O K".
+  Admitted.
 
 End abs_history_lemmas.
 
@@ -223,7 +229,7 @@ Section preorders.
   Qed.
 
   Definition own_all_preorders (preorders : gmap loc (relation2 positive)) :=
-    own preorders_name (● ((to_agree <$> preorders) : gmapUR _ (agreeR (positive -d> positive -d> PropO)))).
+    own preorders_name (● ((to_agree <$> preorders) : gmapUR _ (agreeR relationO))).
 
   Definition own_preorder_loc ℓ (preorder : relation2 A) : iProp Σ :=
     own preorders_name (◯ ({[ ℓ := to_agree (encode_relation preorder) ]})).
@@ -234,8 +240,36 @@ Section preorders.
   (* Global Instance discretizable_know_full_history_loc ℓ ord : *)
   (*   own_discrete.Discretizable (own_preorder_loc ℓ ord). *)
   (* Proof. *)
-  (*   apply _. *)
-  (* Qed. *)
+  (*   apply _.  *)
+
+  Lemma orders_lookup ℓ order1 order2 (orders : gmap loc (relation2 positive)) :
+    orders !! ℓ = Some order1 →
+    own_all_preorders orders -∗
+    own_preorder_loc ℓ order2 -∗
+    ⌜ order1 = encode_relation order2 ⌝.
+  Proof.
+    iIntros (look) "auth frag".
+    iDestruct (own_valid_2 with "auth frag") as %[incl _]%auth_both_valid_discrete.
+    (* move: incl. *)
+    (* rewrite -> singleton_included_l. *)
+    (* rewrite singleton_included_l in incl. *)
+    iPureIntro.
+    move: incl.
+    rewrite singleton_included_l.
+    intros [y [eq incl]].
+    move: incl.
+    rewrite lookup_fmap in eq.
+    rewrite look in eq.
+    apply equiv_Some_inv_r' in eq.
+    destruct eq as [y' [look' eq]].
+    rewrite eq.
+    rewrite <- look'.
+    rewrite Some_included_total.
+    rewrite to_agree_included.
+    intros eq'.
+    rewrite eq'.
+    done.
+  Qed.
 
 End preorders.
 

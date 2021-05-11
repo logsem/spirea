@@ -10,14 +10,16 @@ From self.high Require Import dprop.
 Definition predicateR {Σ} := agreeR (positive -d> val -d> laterO (optionO (dPropO Σ))).
 Definition predicatesR {Σ} := authR (gmapUR loc (@predicateR Σ)).
 
-Definition abs_history (State : Type) `{Countable State} := gmap time State.
+Notation abs_history := (gmap time).
 
 Definition encoded_abs_historyR := gmapUR time (agreeR positiveO).
 Definition enc_abs_histories := gmap loc (gmap time positive).
 
 Definition abs_historiesR := authR (gmapUR loc (authR encoded_abs_historyR)).
 
-Definition preordersR := authR (gmapUR loc (agreeR (positive -d> positive -d> PropO))).
+Definition relationO := leibnizO (positive → positive → Prop).
+
+Definition preordersR := authR (gmapUR loc (agreeR relationO)).
 
 Class nvmHighG Σ := NvmHighG {
   abs_history_name : gname;

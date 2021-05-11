@@ -487,8 +487,10 @@ Section lifting.
     {{{ ℓ ↦h{q} hist ∗ validV V }}}
       (ThreadState (!{acq} #ℓ) (V, p, B)) @ s; E
     {{{ t v V' P', RET (ThreadVal v (V ⊔ V', p ⊔ P', B));
-        ℓ ↦h{q} hist ∗ ⌜(hist !! t) = Some (Msg v V' P') ∧ (V !!0 ℓ) ≤ t⌝ ∗
-        validV (V ⊔ V') }}}.
+        ⌜ (hist !! t) = Some (Msg v V' P') ⌝ ∗
+        ⌜ (V !!0 ℓ) ≤ t ⌝ ∗
+        validV (V ⊔ V') ∗
+        ℓ ↦h{q} hist }}}.
   Proof.
     iIntros (Φ) "[ℓPts Hval] HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
