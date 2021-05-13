@@ -35,7 +35,7 @@ Section wp.
 
   (* Definition test : Prop := ∃ (S : Set) (_ : relation S), True. *)
   (* Definition test : iProp Σ := ∃ (S : Set) (_ : relation S), True. *)
-  
+
   (* Definition test (m : gmap nat nat) : iProp Σ := *)
   (*   ([∗ map] ℓ ↦ enc ∈ m, *)
   (*     ∃ (S : Type) _ : EqDecision S) (_ : Countable S) (_ : relation S), *)
@@ -156,7 +156,9 @@ Section wp.
              ℓ (s1 s2 s3 : ST) (ϕ : ST → val → dProp Σ) : dProp Σ :=
     (∃ (tGlobalPers tPers tStore : time),
       ⎡ own_preorder_loc ℓ ((⊑@{ST})) ⎤ ∗
-      ⎡ know_frag_history_loc ℓ {[ tGlobalPers := s1; tPers := s2; tStore := s3 ]} ⎤ ∗
+      ⎡ know_frag_history_loc ℓ {[ tGlobalPers := s1 ]} ⎤ ∗
+      ⎡ know_frag_history_loc ℓ {[ tPers := s2 ]} ⎤ ∗
+      ⎡ know_frag_history_loc ℓ {[ tStore := s3 ]} ⎤ ∗
       ⎡ know_pred ℓ ϕ ⎤ ∗
       (* We "have"/"know" of the three timestamps. *)
       monPred_in ({[ ℓ := MaxNat tStore ]}, {[ ℓ := MaxNat tPers ]}, ∅) ∗
@@ -237,6 +239,10 @@ Section wp.
   suffices. *)
   Lemma wp_value s E Φ v : Φ v ⊢ WP (of_val v) @ s; E {{ Φ }}.
   Proof. rewrite wp_value_fupd'. iIntros "H". iModIntro. iFrame. Qed.
+
+  (* Lemma wp_fupd s E e Φ : WP e @ s; E {{ v, fupd E E (Φ v) }} ⊢ WP e @ s; E {{ Φ }}. *)
+  (* Proof. Admitted. *)
+  (*   (* iIntros "H". iApply (wp_strong_mono s s E with "H"); auto. by iIntros (v) ">H". Qed. *) *)
 
   Notation PureExecBase P nsteps e1 e2 :=
     (∀ TV, PureExec P nsteps (ThreadState e1 TV) (ThreadState e2 TV)).
@@ -538,7 +544,7 @@ Section wp_rules.
     {{{ ℓ ↦ ss1; ss2 | ϕ }}}
       WB #ℓ @ st; E
     {{{ RET #(); ℓ ↦ ss1; ss2 | ϕ ∗ <fence> know_persist_lower_bound ℓ s }}}.
-   Proof. 
+   Proof.
    Admitted.
 
   Lemma wp_fence P st E :
@@ -572,53 +578,50 @@ Section wp_rules.
 
   (*** Shared points-to predicate *)
 
-  Lemma encode_relation_decode_iff `{Countable A} (R : relation2 A) ea eb (a b : A) :
-    decode ea = Some a →
-    decode eb = Some b →
-    (encode_relation R) ea eb →
-    R a b.
-    (* R a b ↔ (encode_relation R) ea eb. *)
-  Proof.
-    rewrite /encode_relation.
-  Admitted.
-  (*   rewrite !decode_encode. *)
-  (*   reflexivity. *)
-  (* Qed. *)
-
   Lemma wp_load_shared ℓ s1 s2 s3 Q ϕ positive E :
-    {{{ ℓ ↦ (s1, s2, s3) | ϕ ∗ <obj> (∀ s v, ⌜ s3 ⊑ s ⌝ ∗ ϕ s v -∗ Q v ∗ ϕ s v) }}}
+    {{{ ℓ ↦ (s1, s2, s3) | ϕ ∗ <obj> (∀ s v, ⌜ s3 ⊑ s ⌝ ∗ ϕ s v -∗ Q s v ∗ ϕ s v) }}}
       LoadAcquire (Val $ LitV $ LitLoc ℓ) @ positive; E
-    {{{ s v, RET v; ℓ ↦ (s1, s2, s) | ϕ ∗ Q v }}}.
+    {{{ s v, RET v; ℓ ↦ (s1, s2, s) | ϕ ∗ Q s v }}}.
   Proof.
     intros Φ.
     iStartProof (iProp _). iIntros (TV).
     (* We destruct the exclusive points-to predicate. *)
     iIntros "[pts pToQ]".
-    iDestruct "pts" as (?tGP ?tP ?tS) "#(knowOrder & hist & knowPred & %know & per)".
-    rewrite monPred_at_wand. simpl.
+    (* We destruct the points-to predicate. *)
+    iDestruct "pts" as (?tGP ?tP ?tS) "#(knowOrder & histS1 & histS2 & histS3 & knowPred & %know & per)".
+    (* We unfold the WP. *)
     iIntros (TV' incl) "Φpost".
-    rewrite monPred_at_later.
     rewrite wp_eq /wp_def.
-    rewrite wpc_eq. simpl.
+    rewrite wpc_eq.
     iIntros ([[SV PV] BV] incl2) "#val interp".
-    rewrite monPred_at_pure.
+    monPred_simpl.
     iApply program_logic.crash_weakestpre.wp_wpc.
 
-    (* We need to get the points-to predicate for [ℓ]. This is inside [interp]. *)
+    (* We open [interp]. *)
     iDestruct "interp" as (hists preds orders) "(ptsMap & allOrders & #ordered & map & history & preds)".
+
+    (* _Before_ we load the points-to predicate we deal with the predicate ϕ. We
+    do this before such that the later that arrises is stripped off when we take
+    the step. *)
     iDestruct (know_pred_agree with "preds knowPred") as (pred predsLook) "#predsEquiv".
 
-    iDestruct (own_frag_history_agree with "history hist") as %look.
-    destruct look as [absHist [histAbsHist subset]].
+    (* We need to get the points-to predicate for [ℓ] which is is inside
+    [interp].  We want to look up the points-to predicate in [ptsMap]. To this
+r   end, we combine our fragment of the history with the authorative element. *)
+    iDestruct (own_frag_history_agree_singleton with "history histS3") as %look.
+    destruct look as [absHist [histAbsHist lookTS]].
     apply lookup_fmap_Some in histAbsHist.
     destruct histAbsHist as [hist [histAbsHist histsLook]].
+
+    (* We can now get the points-to predicate and execute the load. *)
     iDestruct (big_sepM_lookup_acc with "ptsMap") as "[pts ptsMap]"; first done.
+    iApply wp_fupd.
     iApply (wp_load_acquire with "[$pts $val]").
     iNext. iIntros (t' v' SV' PV') "(%look & %gt & #val' & pts)".
-    simpl.
+
     apply lookup_fmap_Some in look.
-    destruct look as [[hip s'] [msgEq histLook]].
-    simpl in msgEq. subst.
+    destruct look as [[? s'] [msgEq histLook]].
+    simpl in msgEq.
     rewrite /store_view. simpl.
     iDestruct ("ptsMap" with "pts") as "ptsMap".
     iFrame "val'".
@@ -641,7 +644,7 @@ Section wp_rules.
     { eapply fmap_is_Some.
       rewrite -lookup_fmap.
       rewrite <- histAbsHist.
-      rewrite lookup_fmap.
+      rewrite !lookup_fmap.
       rewrite histLook.
       eauto. }
     (* assert (t' = tS) as ->. *)
@@ -655,10 +658,18 @@ Section wp_rules.
     (*   erewrite last_app; done. } *)
     (* clear lte HI. *)
 
-    iPoseProof (big_sepM2_dom with "map") as "%domEq".
+    (* iPoseProof (big_sepM2_dom with "map") as "%domEq". *)
     (* We need to get the predicate for [s] and [v']. *)
     (* iDestruct (big_sepM2_lookup_acc with "map") as "[HI HO]"; [done|done|]. *)
+
     iDestruct (big_sepM2_lookup_acc with "map") as "[predMap map]"; [done|done|].
+    iDestruct (big_sepM_lookup_acc with "predMap") as "[predHolds predMap]"; first done.
+    simpl.
+    iDestruct "predHolds" as (P') "[%eq PH]".
+    iDestruct (discrete_fun_equivI with "predsEquiv") as "HI".
+    iDestruct ("HI" $! s') as "HIP". iClear "HI".
+    iEval (rewrite discrete_fun_equivI) in "HIP".
+    iDestruct ("HIP" $! v') as "HI". iClear "HIP".
     (* We now know exactly what the value in [ℓhist] at [tS] is. *)
     (* assert (s' = encode s) as sEq. *)
     (* { setoid_rewrite map_eq_iff in histAbsHist. *)
@@ -669,48 +680,57 @@ Section wp_rules.
     (*   rewrite sLast. *)
     (*   simpl. *)
     (*   congruence. } *)
-    iDestruct (big_sepM_lookup_acc with "predMap") as "[predHolds predMap]"; first done.
-    simpl.
-    iDestruct "predHolds" as (P') "[%eq PH]".
-    iDestruct (discrete_fun_equivI with "predsEquiv") as "HI".
-    iDestruct ("HI" $! s') as "HIP". iClear "HI".
-    iEval (rewrite discrete_fun_equivI) in "HIP".
-    iDestruct ("HIP" $! v') as "HI". iClear "HIP".
     (* rewrite sEq. *)
     (* rewrite decode_encode. *)
     (* iEval (rewrite -sEq) in "HI". *)
+    rewrite msgEq. simpl.
+    rewrite msgEq in eq. simpl in eq.
     rewrite eq.
+    (*
     iAssert (⌜∃ s, Some s = decode s'⌝)%I as %[s sEqs'].
     { destruct (decode s').
       - iPureIntro. by eexists _.
       - simpl.
         rewrite option_equivI.
         iDestruct "HI" as %[]. }
+     *)
     (* The loaded state must be greater than [s3]. *)
     iDestruct (big_sepM2_lookup_1 with "ordered") as (order) "[%ordersLook %increasingMap]".
     { apply histsLook. }
     iDestruct (orders_lookup with "allOrders knowOrder") as %orderEq; first apply ordersLook.
     (* epose proof (increasingMap tS t' (encode s3) s') as hihi. *)
-    iAssert (⌜s3 ⊑ s⌝)%I as %s3InclS.
-    { iPureIntro.
-      eapply encode_relation_decode_iff with (eb := s') (ea := encode s3).
-      { by rewrite decode_encode. }
-      { done. }
-      (* apply encode_relation_iff. *)
-      rewrite -orderEq.
-      epose proof (increasingMap tS t' (encode s3) s') as hihi.
-      apply hihi.
-      - assumption.
-      - admit. (* We need to derive more knowledge about [tS], probably using [subset]. *)
-      - rewrite lookup_fmap.
-        rewrite histLook.
-        simpl.
-        done. }
-    rewrite -sEqs'.
+    epose proof (increasingMap tS t' (encode s3) s') as hihi.
+    assert (order (encode s3) s') as orderRelated.
+    { eapply increasingMap.
+      - apply lte.
+      - subst. done.
+      - rewrite lookup_fmap. rewrite histLook. done. }
+    rewrite orderEq in orderRelated.
+    epose proof (encode_relation_related _ _ _ orderRelated) as (? & s & eqX & decodeS' & s3InclS').
+    rewrite decode_encode in eqX.
+    pose proof eqX as [= <-].
+    clear eqX.
+    (* iAssert (⌜s3 ⊑ s⌝)%I as %s3InclS. *)
+    (* { iPureIntro. *)
+    (*   eapply encode_relation_decode_iff with (eb := s') (ea := encode s3). *)
+    (*   { by rewrite decode_encode. } *)
+    (*   { done. } *)
+    (*   (* apply encode_relation_iff. *) *)
+    (*   rewrite -orderEq. *)
+    (*   epose proof (increasingMap tS t' (encode s3) s') as hihi. *)
+    (*   apply hihi. *)
+    (*   - assumption. *)
+    (*   - admit. (* We need to derive more knowledge about [tS], probably using [subset]. *) *)
+    (*   - rewrite lookup_fmap. *)
+    (*     rewrite histLook. *)
+    (*     simpl. *)
+    (*     done. } *)
+    (* rewrite -sEqs'. *)
+    rewrite decodeS'.
     simpl.
     rewrite option_equivI.
     iRewrite "HI" in "PH".
-    rewrite monPred_at_objectively.
+    (* rewrite monPred_at_objectively. *)
     rewrite /msg_to_tv. simpl.
     iSpecialize ("pToQ" $! (SV', PV', ∅) s v').
     monPred_simpl.
@@ -723,11 +743,44 @@ Section wp_rules.
       iRewrite "HI". done. }
     (* Reinsert into the map. *)
     iDestruct ("map" with "[$predMap]") as "map".
-    (* { done. } *)
 
+    iMod (own_full_history_alloc with "history") as "[history hiphop]".
+    { rewrite lookup_fmap.
+      erewrite histsLook.
+      simpl.
+      reflexivity. }
+    { rewrite lookup_fmap.
+      erewrite histLook.
+      simpl.
+    }
+
+    (* We re-establish [interp]. *)
     iSplitR "ptsMap allOrders ordered map history preds".
     2: { iExists _, _, _. iFrame. iFrame "#". }
-    iApply monPred_mono; last iApply "Φpost".
+    iSpecialize ("Φpost" $! s v').
+    monPred_simpl.
+    iApply "Φpost".
+    { iPureIntro.
+      etrans. eassumption.
+      repeat split.
+      - apply view_le_l.
+      - apply view_le_l.
+      - done. }
+    iSplitR "Q".
+    - iExists tGP, tP, t'.
+      iFrame "knowOrder histS1".
+      iFrame "∗#%".
+      admit.
+      (* iPureIntro. *)
+      (* etrans. eassumption. *)
+      (* etrans. eassumption. *)
+    - iApply monPred_mono; last iApply "Q".
+      repeat split.
+      * apply view_le_r.
+      * apply view_le_r.
+      * apply view_empty_least.
+
+    iApply monPred_mono. last iApply "Φpost".
     { etrans. apply incl2. repeat split.
       - apply view_le_l.
       - apply view_le_l.
@@ -737,7 +790,8 @@ Section wp_rules.
       (* Hmm. *)
       admit.
     }
-    iExists _, _, _.
+    iExists tGP, tP, _.
+    iFrame "knowOrder histS1".
     iFrame "∗#%".
     iPureIntro.
     etrans. eassumption.

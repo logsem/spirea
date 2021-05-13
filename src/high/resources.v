@@ -15,17 +15,19 @@ Notation abs_history := (gmap time).
 Definition encoded_abs_historyR := gmapUR time (agreeR positiveO).
 Definition enc_abs_histories := gmap loc (gmap time positive).
 
-Definition abs_historiesR := authR (gmapUR loc (authR encoded_abs_historyR)).
+(* Definition abs_historiesR := authR (gmapUR loc (authR encoded_abs_historyR)). *)
+Definition know_abs_historiesR := authR (gmapUR loc (gmapUR time (agreeR positiveO))).
 
 Definition relationO := leibnizO (positive → positive → Prop).
-
 Definition preordersR := authR (gmapUR loc (agreeR relationO)).
 
 Class nvmHighG Σ := NvmHighG {
   abs_history_name : gname;
+  know_abs_history_name : gname;
   predicates_name : gname;
   preorders_name : gname;
   ra_inG :> inG Σ (@predicatesR Σ);
+  ra_inG' :> inG Σ know_abs_historiesR;
   (* ra'_inG :> inG Σ abs_historiesR; *)
   abs_histories :> ghost_mapG Σ loc (gmap time positive);
   (* preordersG :> ghost_mapG Σ loc (positiveO -d> positiveO -d> PropO) *)

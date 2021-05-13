@@ -22,8 +22,10 @@ Section abs_history_lemmas.
   Definition abs_hist_to_ra abs_hist : encoded_abs_historyR :=
     (to_agree ∘ encode) <$> abs_hist.
 
-  Definition own_full_history (abs_hists : gmap loc (gmap time positive)) :=
-    ghost_map_auth (abs_history_name) 1 abs_hists.
+  Definition own_full_history (abs_hists : gmap loc (gmap time positive)) : iProp Σ :=
+    ghost_map_auth (abs_history_name) 1 abs_hists ∗
+    own know_abs_history_name
+        (● ((λ (m : gmap _ _), to_agree <$> m) <$> abs_hists) : know_abs_historiesR).
 
   Definition know_full_history_loc ℓ abs_hist : iProp Σ :=
     ℓ ↪[ abs_history_name ] (encode <$> abs_hist).
@@ -32,7 +34,7 @@ Section abs_history_lemmas.
     ℓ ↪[ abs_history_name ] abs_hist.
 
   Definition know_frag_history_loc ℓ (abs_hist : abs_history ST) : iProp Σ :=
-    True. (* FIXME *)
+    own know_abs_history_name (◯ {[ ℓ := abs_hist_to_ra abs_hist ]}).
     (* own abs_history_name ((◯ {[ ℓ := ◯ (abs_hist_to_ra abs_hist) ]}) : abs_historiesR). *)
 
   Lemma know_full_equiv ℓ abs_hist :
@@ -87,38 +89,133 @@ Section abs_history_lemmas.
     know_full_history_loc ℓ hist -∗
     ⌜hists !! ℓ = Some (encode <$> hist)⌝.
   Proof.
-    iIntros "O K".
-  Admitted.
-  (*   iDestruct (own_valid_2 with "O K") as %[Incl _]%auth_both_valid_discrete. *)
-  (*   iPureIntro. *)
-  (*   apply singleton_included_l in Incl as [encHist' [look incl]]. *)
-  (*   rewrite lookup_fmap in look. *)
-  (*   destruct (hists !! ℓ) as [hist'|] eqn:histsLook. *)
-  (*   2: { rewrite histsLook in look. inversion look. } *)
-  (*   rewrite histsLook in look. *)
-  (*   simpl in look. *)
-  (*   apply Some_equiv_inj in look. *)
-  (*   f_equiv. *)
-  (*   apply abs_hist_to_ra_agree. *)
-  (*   apply Some_included in incl as [eq|incl]. *)
-  (*   - rewrite <- eq in look. *)
-  (*     apply auth_auth_inj in look as [_ eq']. *)
-  (*     done. *)
-  (*   - rewrite <- look in incl. *)
-  (*     assert (● (to_agree <$> hist') ≼ ● (to_agree <$> hist') ⋅ ◯ (ε : gmapUR _ _)) as incl'. *)
-  (*     { eexists _. reflexivity. } *)
-  (*     pose proof (transitivity incl incl') as incl''. *)
-  (*     apply auth_auth_included in incl''. *)
-  (*     done. *)
-  (* Qed. *)
+    iIntros "[A _] B".
+    iApply (ghost_map_lookup with "[$] [$]").
+  Qed.
 
-  Lemma own_frag_history_agree ℓ part_hist hists :
+  Lemma own_frag_history_agree ℓ (part_hist : gmap time ST) hists :
     own_full_history hists -∗
     know_frag_history_loc ℓ part_hist -∗
-    ⌜∃ hist, hists !! ℓ = Some (encode <$> hist) ∧ part_hist ⊆ hist⌝.
+    ⌜∃ hist, hists !! ℓ = Some (hist) ∧ (encode <$> part_hist) ⊆ hist⌝.
   Proof.
-    iIntros "O K".
-  Admitted.
+    rewrite /own_full_history.
+    iIntros "[O A] K".
+    iDestruct (own_valid_2 with "A K") as %[incl _]%auth_both_valid_discrete.
+    apply singleton_included_l in incl.
+    destruct incl as [hist' [look incl]].
+    rewrite lookup_fmap in look.
+    destruct (hists !! ℓ) as [hist|]. 2: { inversion look. }
+    simpl in look.
+    iExists hist.
+    iSplit; first done.
+    setoid_rewrite (inj_iff Some) in look.
+    move: incl.
+    rewrite Some_included_total.
+    rewrite /abs_hist_to_ra.
+    rewrite -look.
+    rewrite map_fmap_compose.
+    rewrite lookup_included.
+    intros incl.
+    rewrite map_subseteq_spec.
+    iIntros (t enc lookPart).
+    specialize incl with t.
+    rewrite lookup_fmap in incl.
+    rewrite lookPart in incl.
+    simpl in incl.
+    rewrite lookup_fmap in incl.
+    apply option_included_total in incl.
+    destruct incl as [[=]|(? & ? & [=] & c & hih)].
+    rewrite -lookup_fmap in c.
+    apply lookup_fmap_Some in c.
+    destruct c as (? & ? & ?lookHist).
+    rewrite lookHist.
+    iPureIntro. f_equiv. subst.
+    apply to_agree_included in hih.
+    rewrite hih.
+    done.
+  Qed.
+
+  Lemma own_frag_history_agree_singleton ℓ t s hists :
+    own_full_history hists -∗
+    know_frag_history_loc ℓ {[ t := s ]} -∗
+    ⌜∃ hist, hists !! ℓ = Some (hist) ∧ hist !! t = Some (encode s)⌝.
+  Proof.
+    iIntros "H1 H2".
+    iDestruct (own_frag_history_agree with "H1 H2") as %[hist [look H1]].
+    iExists hist. iPureIntro. split; [done|].
+    (* elem_of *)
+    rewrite map_fmap_singleton in H1.
+    rewrite -> map_subseteq_spec in H1.
+    apply H1.
+    rewrite lookup_singleton.
+    done.
+  Qed.
+
+  Lemma own_full_history_alloc ℓ t (s : ST) hists hist :
+    hists !! ℓ = Some hist →
+    hist !! t = Some (encode s) →
+    own_full_history hists ==∗
+    own_full_history hists ∗ know_frag_history_loc ℓ {[ t := s ]}.
+  Proof.
+    rewrite /own_full_history.
+    iIntros (look lookHist) "[$ H2]".
+    iMod (own_update with "H2") as "[$ $]"; last done.
+    apply: auth_update_dfrac_alloc.
+    apply singleton_included_l.
+    eexists _.
+    rewrite lookup_fmap.
+    rewrite look.
+    simpl.
+    split; first reflexivity.
+    rewrite /abs_hist_to_ra.
+    apply Some_included_total.
+    rewrite map_fmap_compose.
+    rewrite !map_fmap_singleton.
+    apply singleton_included_l.
+    eexists _.
+    rewrite lookup_fmap.
+    rewrite lookHist.
+    simpl.
+    split; f_equiv.
+  Qed.
+
+  Lemma own_full_history_alloc' ℓ t encS (s : ST) hists hist :
+    hists !! ℓ = Some hist →
+    hist !! t = Some encS →
+    decode encS = Some s →
+    own_full_history hists ==∗
+    own_full_history hists ∗ know_frag_history_loc ℓ {[ t := s ]}.
+  Proof.
+    rewrite /own_full_history.
+    iIntros (look lookHist decEq) "[$ H2]".
+    iMod (own_update with "H2") as "[$ $]"; last done.
+    apply: auth_update_dfrac_alloc.
+    apply singleton_included_l.
+    eexists _.
+    rewrite lookup_fmap.
+    rewrite look.
+    simpl.
+    split; first reflexivity.
+    rewrite /abs_hist_to_ra.
+    apply Some_included_total.
+    rewrite map_fmap_compose.
+    rewrite !map_fmap_singleton.
+    apply singleton_included_l.
+    eexists _.
+    rewrite lookup_fmap.
+    rewrite lookHist.
+    simpl.
+    split; f_equiv.
+  Qed.
+
+  (* This lemma seems false :'( *)
+  (* Lemma own_frag_history_agree ℓ part_hist hists : *)
+  (*   own_full_history hists -∗ *)
+  (*   know_frag_history_loc ℓ part_hist -∗ *)
+  (*   ⌜∃ hist, hists !! ℓ = Some (encode <$> hist) ∧ part_hist ⊆ hist⌝. *)
+  (* Proof. w w *)
+  (*   iIntros "O K". *)
+  (* Admitted. *)
 
 End abs_history_lemmas.
 
@@ -270,6 +367,25 @@ Section preorders.
     rewrite eq'.
     done.
   Qed.
+
+  (* If we know that two encoded values are related by en encoded relation, then
+  we can "recover" rela unencoded values taht are related by the unencoded
+  relation. *)
+  Lemma encode_relation_related (R : relation2 A) ea eb :
+    (encode_relation R) ea eb →
+    ∃ a b, decode ea = Some a ∧ decode eb = Some b ∧ R a b.
+  Proof.
+    rewrite /encode_relation.
+    destruct (decode ea) as [|a], (decode eb) as [|b]; try done.
+    intros ?. eexists _, _. done.
+  Qed.
+
+  Lemma encode_relation_decode_iff (R : relation2 A) ea eb (a b : A) :
+    decode ea = Some a →
+    decode eb = Some b →
+    (encode_relation R) ea eb →
+    R a b.
+  Proof. rewrite /encode_relation. intros -> ->. done. Qed.
 
 End preorders.
 
