@@ -4,7 +4,7 @@ words, our own little (std++)++. *)
 From stdpp Require Import countable numbers gmap fin_maps list.
 From iris Require Import cmra.
 From iris.bi Require Import big_op.
-From iris.algebra Require Import gmap.
+From iris.algebra Require Import gmap agree.
 
 From iris.bi Require Import derived_laws_later.
 
@@ -134,4 +134,37 @@ Proof.
   split; intros HP.
   - by intros i x [-> ->]%lookup_singleton_Some.
   - apply HP, lookup_singleton.
+Qed.
+
+Lemma option_not_included_None {A : cmra} (x : A) : ¬ (Some x ≼ None).
+Proof. intros [[y|] eq]; inversion eq. Qed.
+
+Lemma to_agree_fmap (a b : gmap nat positive) :
+  a ⊆ b ↔ to_agree <$> a ≼ to_agree <$> b.
+Proof.
+  rewrite lookup_included.
+  rewrite  map_subseteq_spec.
+  setoid_rewrite lookup_fmap.
+  split.
+  - intros sub.
+    intros i.
+    (* apply option_included_total. *)
+    destruct (a !! i) eqn:eq.
+    2: { eexists _. rewrite left_id. reflexivity. }
+    rewrite (sub i p); done.
+  - intros incl.
+    intros i.
+    destruct (a !! i) eqn:eq.
+    2: { done. }
+    intros x [= ->].
+    specialize (incl i).
+    setoid_rewrite eq in incl.
+    simpl in incl.
+    destruct (b !! i) eqn:eq'.
+    2: { apply option_not_included_None in incl. done. }
+    simpl in incl.
+    setoid_rewrite Some_included_total in incl.
+    setoid_rewrite to_agree_included in incl.
+    setoid_rewrite incl.
+    done.
 Qed.

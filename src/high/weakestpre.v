@@ -609,7 +609,7 @@ Section wp_rules.
     [interp].  We want to look up the points-to predicate in [ptsMap]. To this
 r   end, we combine our fragment of the history with the authorative element. *)
     iDestruct (own_frag_history_agree_singleton with "history histS3") as %look.
-    destruct look as [absHist [histAbsHist lookTS]].
+    destruct look as (absHist & enc & histAbsHist & lookTS & decodeEnc).
     apply lookup_fmap_Some in histAbsHist.
     destruct histAbsHist as [hist [histAbsHist histsLook]].
 
@@ -640,13 +640,13 @@ r   end, we combine our fragment of the history with the authorative element. *)
       pose proof (transitivity HIP gt) as leq.
       simpl in leq.
       apply leq. }
-    assert (is_Some (absHist !! t')) as HI.
-    { eapply fmap_is_Some.
-      rewrite -lookup_fmap.
-      rewrite <- histAbsHist.
-      rewrite !lookup_fmap.
-      rewrite histLook.
-      eauto. }
+    (* assert (is_Some (absHist !! t')) as HI. *)
+    (* { eapply fmap_is_Some. *)
+    (*   rewrite -lookup_fmap. *)
+    (*   rewrite <- histAbsHist. *)
+    (*   rewrite !lookup_fmap. *)
+    (*   rewrite histLook. *)
+    (*   eauto. } *)
     (* assert (t' = tS) as ->. *)
     (* { apply Nat.lt_eq_cases in lte. destruct lte as [lt|]; last done. *)
     (*   pose proof (nolater t' lt) as eq. *)
@@ -700,16 +700,17 @@ r   end, we combine our fragment of the history with the authorative element. *)
     iDestruct (orders_lookup with "allOrders knowOrder") as %orderEq; first apply ordersLook.
     (* epose proof (increasingMap tS t' (encode s3) s') as hihi. *)
     epose proof (increasingMap tS t' (encode s3) s') as hihi.
-    assert (order (encode s3) s') as orderRelated.
+    assert (order enc s') as orderRelated.
     { eapply increasingMap.
       - apply lte.
       - subst. done.
       - rewrite lookup_fmap. rewrite histLook. done. }
     rewrite orderEq in orderRelated.
     epose proof (encode_relation_related _ _ _ orderRelated) as (? & s & eqX & decodeS' & s3InclS').
-    rewrite decode_encode in eqX.
-    pose proof eqX as [= <-].
-    clear eqX.
+    assert (x = s3) as -> by congruence.
+    (* rewrite decode_encode in eqX. *)
+    (* pose proof eqX as [= <-]. *)
+    (* clear eqX. *)
     (* iAssert (⌜s3 ⊑ s⌝)%I as %s3InclS. *)
     (* { iPureIntro. *)
     (*   eapply encode_relation_decode_iff with (eb := s') (ea := encode s3). *)
@@ -744,7 +745,7 @@ r   end, we combine our fragment of the history with the authorative element. *)
     (* Reinsert into the map. *)
     iDestruct ("map" with "[$predMap]") as "map".
 
-    iMod (own_full_history_alloc with "history") as "[history hiphop]".
+    iMod (own_full_history_alloc with "history") as "[history histS]".
     { rewrite lookup_fmap.
       erewrite histsLook.
       simpl.
@@ -752,8 +753,9 @@ r   end, we combine our fragment of the history with the authorative element. *)
     { rewrite lookup_fmap.
       erewrite histLook.
       simpl.
-    }
-
+      reflexivity. }
+    { eassumption. }
+    iModIntro.
     (* We re-establish [interp]. *)
     iSplitR "ptsMap allOrders ordered map history preds".
     2: { iExists _, _, _. iFrame. iFrame "#". }
@@ -770,33 +772,27 @@ r   end, we combine our fragment of the history with the authorative element. *)
     - iExists tGP, tP, t'.
       iFrame "knowOrder histS1".
       iFrame "∗#%".
-      admit.
-      (* iPureIntro. *)
-      (* etrans. eassumption. *)
-      (* etrans. eassumption. *)
+      iPureIntro.
+      repeat split.
+      * (* FIXME: Intuitively the lhs. should be included in because we read
+        [t'] and a write includes its own timestamp. We don't remember this
+        fact, however. *)
+        admit.
+      * destruct TV as [[??]?].
+        destruct TV' as [[??]?].
+        etrans.
+        apply know.
+        etrans.
+        apply incl.
+        etrans.
+        apply incl2.
+        apply view_le_l.
+      * apply view_empty_least.
     - iApply monPred_mono; last iApply "Q".
       repeat split.
       * apply view_le_r.
       * apply view_le_r.
       * apply view_empty_least.
-
-    iApply monPred_mono. last iApply "Φpost".
-    { etrans. apply incl2. repeat split.
-      - apply view_le_l.
-      - apply view_le_l.
-      - done. }
-    iSplitR "Q".
-    2: {
-      (* Hmm. *)
-      admit.
-    }
-    iExists tGP, tP, _.
-    iFrame "knowOrder histS1".
-    iFrame "∗#%".
-    iPureIntro.
-    etrans. eassumption.
-    etrans. eassumption.
-    reflexivity.
   Admitted.
 
 End wp_rules.
