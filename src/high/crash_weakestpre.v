@@ -143,7 +143,7 @@ Section abs_history_lemmas.
     repeat split; done.
   Qed.
 
-  Lemma own_full_history_alloc' ℓ t encS (s : ST) hists hist :
+  Lemma own_full_history_alloc ℓ t encS (s : ST) hists hist :
     hists !! ℓ = Some hist →
     hist !! t = Some encS →
     decode encS = Some s →

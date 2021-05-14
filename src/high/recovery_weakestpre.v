@@ -6,7 +6,7 @@ From Perennial.program_logic Require Import recovery_adequacy.
 From self Require Import view.
 From self.base Require Import primitive_laws wpr_lifting.
 From self.high Require Import dprop.
-From self.high Require Import resources weakestpre crash_weakestpre.
+From self.high Require Import resources weakestpre crash_weakestpre post_crash_modality.
 
 Set Default Proof Using "Type".
 
@@ -35,12 +35,17 @@ Definition wpr `{hG : !nvmG Σ} `{hC : !crashG Σ} (s : stuckness) (k : nat) E
 
 Record nvm_high_names := {
   name_abs_history : gname;
+  name_know_abs_history : gname;
   name_predicates : gname;
+  name_preorders : gname;
 }.
 
 Definition nvm_high_get_names Σ (hG : nvmHighG Σ) : nvm_high_names :=
   {| name_abs_history := abs_history_name;
-     name_predicates := predicates_name |}.
+     name_know_abs_history := know_abs_history_name;
+     name_predicates := predicates_name;
+     name_preorders := preorders_name;
+  |}.
 
 Canonical Structure nvm_high_namesO := leibnizO nvm_high_names.
 
@@ -48,10 +53,17 @@ Canonical Structure nvm_high_namesO := leibnizO nvm_high_names.
 the arguments. In particular, all the gnames in [names] replaces the
 corresponding gnames in [hG]. *)
 Definition nvm_high_update Σ (hG : nvmHighG Σ) (names : nvm_high_names) :=
-  {| abs_history_name := names.(name_abs_history);
+  {| (* Ghost names *)
+     abs_history_name := names.(name_abs_history);
+     know_abs_history_name := names.(name_know_abs_history);
      predicates_name := names.(name_predicates);
+     preorders_name := names.(name_preorders);
+     (* Functors *)
      ra_inG := hG.(@ra_inG _);
-     ra'_inG := hG.(@ra'_inG _); |}.
+     ra_inG' := hG.(@ra_inG' _);
+     abs_histories := hG.(@abs_histories _);
+     preordersG := hG.(@preordersG _);
+  |}.
 
 Record nvm_names := {
   name_base_names : nvm_base_names; (* Names used by the base logic. *)
@@ -79,7 +91,7 @@ Definition wpr_pre Σ (s : stuckness) (k : nat)
                      (nvmG Σ -d> val -d> dPropO Σ) -d> dPropO Σ) :
   crashG Σ -d> nvmG Σ -d> coPset -d> expr -d> expr -d> (val -d> dPropO Σ) -d>
   (nvmG Σ -d> val -d> dPropO Σ) -d> dPropO Σ :=
-  λ Hc hG E e rec Φ Φr,
+  λ Hc hG E e e_rec Φ Φr,
   (WPC e @ s ; k; E
      {{ Φ }}
      {{ ∀ σ σ' (HC: crash_prim_step nvm_crash_lang σ σ') n,
@@ -87,9 +99,9 @@ Definition wpr_pre Σ (s : stuckness) (k : nat)
           ∃ (names : nvm_names),
             let hG := (nvm_update _ hG _ Hc names) in
               state_interp σ 0 ∗
-              (monPred_at (wpr Hc1 hG E rec rec (λ v, Φr hG v) Φr) (∅, ∅, ∅)) ∗
+              (monPred_at (wpr Hc1 hG E e_rec e_rec (λ v, Φr hG v) Φr) (∅, ∅, ∅)) ∗
               NC q ⎤
-          }})%I.
+     }})%I.
 
 Local Instance wpr_pre_contractive {Σ} s k: Contractive (wpr_pre Σ s k).
 Proof.

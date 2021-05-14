@@ -1,4 +1,5 @@
 From iris.algebra Require Import auth.
+From iris.base_logic Require Import ghost_map.
 From iris.proofmode Require Import reduction monpred tactics.
 
 From Perennial.Helpers Require Import ipm NamedProps.
@@ -12,7 +13,7 @@ Set Default Proof Using "Type".
 Notation base_post_crash := post_crash_modality.post_crash.
 
 Definition know_history_post_crash {Σ}
-            (hG : nvmG Σ) ℓ (hist : gmap time st) : iProp Σ :=
+            (hG : nvmG Σ) ℓ (hist : gmap time positive) : iProp Σ :=
   (∃ t state,
     ⌜hist !! t = Some state⌝ ∗
     know_full_encoded_history_loc ℓ ({[ 0 := state ]}) ∗
@@ -21,7 +22,7 @@ Definition know_history_post_crash {Σ}
 
 (** This map is used to exchange [know_full_history_loc] valid prior to a crash
 into a version valid after the crash. *)
-Definition post_crash_map {Σ} (hh : gmap loc (gmap time st)) (hG hG' : nvmG Σ) : iProp Σ :=
+Definition post_crash_map {Σ} (hh : gmap loc (gmap time positive)) (hG hG' : nvmG Σ) : iProp Σ :=
   (* Used to conclude that the locations owned are included in the heap in question. *)
   (∀ ℓ hist, (know_full_encoded_history_loc (hG := hG) ℓ hist) -∗ ⌜hh !! ℓ = Some hist⌝) ∗
   (* The map used to the the exchange. *)
@@ -134,13 +135,19 @@ Section post_crash_prop.
     iAssert (⌜hh !! _ = Some _⌝)%I as %HI.
     { iApply ("in" with "HP"). }
     iDestruct (big_sepM_lookup_acc with "M") as "[[H|H] reIns]"; first done.
-    { iDestruct (own_valid_2 with "HP H") as %V.
-      rewrite -auth_frag_op in V.
-      apply auth_frag_valid_1 in V.
-      rewrite singleton_op in V.
-      apply singleton_valid in V.
-      apply auth_auth_op_valid in V.
-      done. }
+    { (* We derive a contradiction. *)
+      iExFalso.
+      rewrite /know_full_encoded_history_loc.
+      iDestruct (ghost_map_elem_valid_2 with "H HP") as %[v _].
+      iPureIntro.
+      by apply v. }
+      (* iDestruct (own_valid_2 with "HP H") as %V. *)
+      (* rewrite -auth_frag_op in V. *)
+      (* apply auth_frag_valid_1 in V. *)
+      (* rewrite singleton_op in V. *)
+      (* apply singleton_valid in V. *)
+      (* apply auth_auth_op_valid in V. *)
+      (* done. } *)
     iDestruct ("reIns" with "[$HP]") as "$".
     iFrame "in".
     iDestruct "H" as "[H|H]"; [iLeft|iRight; iFrame].
@@ -209,10 +216,10 @@ Section post_crash_derived.
   Context `{Hi1: !IntoCrash P P'}.
   Context `{Hi2: !IntoCrash Q Q'}.
 
-  Lemma post_crash_mapsto_ex `{AbstractState ST} ℓ ss1 ss2 v ϕ :
-    ℓ ↦ ss1; ss2; v | ϕ -∗
+  Lemma post_crash_mapsto_ex `{AbstractState ST} ℓ ss1 ss2 ϕ :
+    ℓ ↦ ss1; ss2 | ϕ -∗
     post_crash (λ hG',
-      (∃ s v', ⌜s ∈ (ss1 ++ ss2)⌝ ∗ ℓ ↦ []; [s]; v' | ϕ) ∨
+      (∃ s, ⌜s ∈ (ss1 ++ ss2)⌝ ∗ ℓ ↦ []; [s] | ϕ) ∨
       (∀ t, ⎡¬ (recovered {[ ℓ := MaxNat t ]})⎤)
     ).
    Proof.
