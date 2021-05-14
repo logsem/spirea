@@ -1,4 +1,5 @@
 (* Implementation of the recovery weakest precondition for NvmLang. *)
+From iris.proofmode Require Import tactics.
 From Perennial.program_logic Require Import crash_weakestpre.
 From Perennial.program_logic Require Import recovery_weakestpre.
 From Perennial.program_logic Require Import recovery_adequacy.
@@ -87,31 +88,58 @@ Definition nvm_update Σ (hG : nvmG Σ) (Hinv : invG Σ) (Hcrash : crashG Σ) (n
    for normal non-crashing execution and [Φr] is the postcondition satisfied in
    case of a crash. *)
 Definition wpr_pre Σ (s : stuckness) (k : nat)
-    (wpr : crashG Σ -d> nvmG Σ -d> coPset -d> expr -d> expr -d> (val -d> dPropO Σ) -d>
+    (wpr : nvmG Σ -d> coPset -d> expr -d> expr -d> (val -d> dPropO Σ) -d>
                      (nvmG Σ -d> val -d> dPropO Σ) -d> dPropO Σ) :
-  crashG Σ -d> nvmG Σ -d> coPset -d> expr -d> expr -d> (val -d> dPropO Σ) -d>
+  nvmG Σ -d> coPset -d> expr -d> expr -d> (val -d> dPropO Σ) -d>
   (nvmG Σ -d> val -d> dPropO Σ) -d> dPropO Σ :=
-  λ Hc hG E e e_rec Φ Φr,
+  λ hG E e e_rec Φ Φr,
   (WPC e @ s ; k; E
      {{ Φ }}
-     {{ ∀ σ σ' (HC: crash_prim_step nvm_crash_lang σ σ') n,
+     {{ ∀ σ σ' (HC : crash_prim_step nvm_crash_lang σ σ') n,
         ⎡ interp -∗ state_interp σ n ={E}=∗ ▷ ∀ (Hc1 : crashG Σ) q, NC q ={E}=∗
           ∃ (names : nvm_names),
-            let hG := (nvm_update _ hG _ Hc names) in
+            let hG := (nvm_update Σ hG _ Hc1 names) in
               state_interp σ 0 ∗
-              (monPred_at (wpr Hc1 hG E e_rec e_rec (λ v, Φr hG v) Φr) (∅, ∅, ∅)) ∗
+              (monPred_at (wpr hG E e_rec e_rec (λ v, Φr hG v) Φr) (∅, ∅, ∅)) ∗
               NC q ⎤
      }})%I.
 
 Local Instance wpr_pre_contractive {Σ} s k: Contractive (wpr_pre Σ s k).
 Proof.
-  rewrite /wpr_pre. intros ??? Hwp ???????.
+  rewrite /wpr_pre. intros ??? Hwp ??????.
   apply wpc_ne; eauto;
   repeat (f_contractive || f_equiv). apply Hwp.
 Qed.
 
 Definition wpr_def {Σ} (s : stuckness) k := fixpoint (wpr_pre Σ s k).
-
 Definition wpr_aux {Σ} : seal (@wpr_def Σ). by eexists. Qed.
+Definition wpr {Σ} := (@wpr_aux Σ).(unseal).
+Lemma wpr_eq {Σ} : @wpr Σ = @wpr_def Σ.
+Proof. rewrite /wpr. rewrite wpr_aux.(seal_eq). done. Qed.
 
-Definition wpr `{nvmG Σ} s k := wpr_aux.(unseal) s k _ _.
+Section wpr.
+  Context `{hG : nvmG Σ}.
+
+  Lemma wpr_unfold st k E e rec Φ Φc :
+    wpr st k hG E e rec Φ Φc ⊣⊢ wpr_pre Σ st k (wpr st k) hG E e rec Φ Φc.
+    (* wpr st k E e rec Φ Φinv Φc ⊣⊢ wpr_pre Σ st k (λ hG, wpr st k) Hc E e rec Φ Φinv Φc. *)
+  Proof.
+    rewrite wpr_eq. rewrite /wpr_def.
+    apply (fixpoint_unfold (wpr_pre Σ st k)).
+  Qed.
+
+  (* _The_ lemma for showing a recovery weakest precondition. *)
+  Lemma idempotence_wpr s k E1 e rec Φ Φr Φc :
+    ⊢ WPC e @ s ; k ; E1 {{ Φ }} {{ Φc hG }} -∗
+      (□ ∀ (hG' : nvmG Σ),
+            Φc hG' -∗ ▷ post_crash(λ hG', (WPC rec @ s ; k; E1 {{ Φr hG' }} {{ Φc hG' }}))) -∗
+      wpr s k hG E1 e rec Φ Φr.
+  Proof.
+    iLöb as "IH" forall (E1 e Φ).
+    iIntros "wpc #Hidemp".
+    rewrite wpr_unfold. rewrite /wpr_pre.
+    iApply (wpc_strong_mono' with  "wpc").
+
+  Qed.
+   
+End wpr.
