@@ -6,7 +6,7 @@ From Perennial.program_logic Require crash_weakestpre.
 
 From self Require Import extra.
 From self.base Require Import primitive_laws class_instances.
-From self.high Require Export dprop resources lifted_modalities.
+From self.high Require Export dprop resources lifted_modalities monpred_simpl.
 
 Global Instance discretizable_ghost_map_elem `{ghost_mapG Σ K V} ℓ γ v :
   own_discrete.Discretizable (ℓ ↪[γ] v).
@@ -404,6 +404,7 @@ Section wpc.
         interp -∗
         WPC (ThreadState e TV) @ s; k; E {{ λ res,
           let '(ThreadVal v TV') := res return _ in
+            ⌜TV ⊑ TV'⌝ ∗ (* The operational semantics always grow the thread view, encoding this in the WPC is convenient. *)
             validV (store_view TV') ∗ (Φ v TV') ∗ interp
           }}{{ Φc (∅, ∅, ∅) }}
     )%I _.
@@ -454,19 +455,15 @@ Section wpc.
     { apply: ectx_lang_ctx. }
     iApply (wpc_mono with "HI").
     2: { done. }
-    iIntros ([v TV']) "(val & wpc & interp)".
+    iIntros ([v TV']) "(%cinl & val & wpc & interp)".
     iDestruct ("wpc" $! TV' with "[//] val interp") as "HI".
     rewrite nvm_fill_fill.
     simpl. rewrite /thread_of_val.
-    iApply (wpc_crash_mono with "[] HI").
-    iModIntro.
-    iIntros "$".
-    (* iApply (wpc_strong_mono' with "HI"); eauto. *)
-    (* iSplit. *)
-    (* - admit. *)
-    (* - iModIntro. iIntros "H". iModIntro. *)
-    (*   iApply monPred_mono. done. *)
-    (* Abort. *)
+    iApply (wpc_strong_mono' with "HI"); try auto.
+    iSplit.
+    2: { iModIntro. iIntros "$". eauto. }
+    iIntros ([??]) "[%incl' $]".
+    iPureIntro. etrans; eassumption.
   Qed.
 
   Lemma wp_wpc s k E1 e Φ:
@@ -491,6 +488,69 @@ Section wpc.
     iApply (wpc0_strong_mono with "H"); auto. by apply omega_le_refl.
   Qed.
   *)
+
+  Lemma wpc_strong_mono s1 s2 k1 k2 E1 E2 e Φ Ψ Φc Ψc `{!Objective Φc, !Objective Ψc} :
+    s1 ⊑ s2 → k1 ≤ k2 → E1 ⊆ E2 →
+    WPC e @ s1; k1; E1 {{ Φ }} {{ Φc }} -∗
+    (∀ v, Φ v -∗ |NC={E2}=> Ψ v) ∧ <disc> (Φc -∗ |C={E2}_k2=> Ψc) -∗
+    WPC e @ s2; k2; E2 {{ Ψ }} {{ Ψc }}.
+  Proof.
+    intros ?? HE.
+    rewrite wpc_eq.
+    rewrite /wpc_def.
+    iStartProof (iProp _). iIntros (tv).
+    monPred_simpl. simpl.
+    iIntros "wpc".
+    iIntros (tv' ?) "conj".
+    iIntros (TV ?) "??".
+    iSpecialize ("wpc" $! TV with "[%] [$] [$]"); try eassumption.
+    { etrans; eassumption. }
+    iApply (wpc_strong_mono with "wpc"); try eassumption.
+    iSplit.
+    - iIntros ([??]) "(%incl & val & phi & int)".
+      monPred_simpl.
+      iDestruct "conj" as "[conj _]".
+      iSpecialize ("conj" $! _).
+      monPred_simpl.
+      iSpecialize ("conj" $! _ with "[%] phi").
+      { etrans. eassumption. eassumption. }
+      rewrite ncfupd_unfold_at.
+      iMod "conj" as "conj".
+      iModIntro.
+      iFrame "∗%".
+    - monPred_simpl.
+      iDestruct ("conj") as "[_ conj]".
+      rewrite disc_unfold_at.
+      iModIntro.
+      iIntros "phi".
+      monPred_simpl.
+      iSpecialize ("conj" $! tv' with "[% //]").
+      rewrite /cfupd.
+      iIntros "HC".
+      monPred_simpl.
+      iSpecialize ("conj" with "[phi]").
+      { iApply objective_at. iApply "phi". }
+      iSpecialize ("conj" $! tv' with "[% //] [HC]").
+      { iApply monPred_at_embed. done. }
+      rewrite fupd_level_unfold_at.
+      iApply fupd_level_mono; last iApply "conj".
+      iApply objective_at.
+  Qed.
+
+  Lemma wpc_strong_mono' s1 s2 k1 k2 E1 E2 e Φ Ψ Φc Ψc `{!Objective Φc, !Objective Ψc} :
+    s1 ⊑ s2 → k1 ≤ k2 → E1 ⊆ E2 →
+    WPC e @ s1; k1; E1 {{ Φ }} {{ Φc }} -∗
+    (∀ v, Φ v ={E2}=∗ Ψ v) ∧ <disc> (Φc -∗ |k2={E2}=> Ψc) -∗
+    WPC e @ s2; k2; E2 {{ Ψ }} {{ Ψc }}.
+  Proof.
+    iIntros (???) "? H".
+    iApply (wpc_strong_mono with "[$] [-]"); auto.
+    iSplit.
+    - iDestruct "H" as "(H&_)". iIntros. iMod ("H" with "[$]"). auto.
+    - iDestruct "H" as "(_&H)". iModIntro.
+      iIntros "HΦc C". iApply "H". iAssumption.
+  Qed.
+
   Lemma ncfupd_wpc s k E1 e Φ Φc :
     <disc> (cfupd k E1 Φc) ∧ (|NC={E1}=> WPC e @ s; k; E1 {{ Φ }} {{ Φc }}) ⊢
     WPC e @ s; k; E1 {{ Φ }} {{ Φc }}.
@@ -518,13 +578,15 @@ Section wpc.
     iApply (wpc_value _ _ _ _ _ (ThreadVal _ _)).
     iSplit.
     - iFrame. iDestruct "H" as "(H & _)".
-      iApply monPred_mono.
-      * apply lec.
-      * rewrite ncfupd_eq.
-        iApply "H".
+      rewrite ncfupd_unfold_at.
+      iMod "H" as "H".
+      iModIntro.
+      iFrame.
+      done.
     - iDestruct "H" as "(_ & HO)".
       rewrite disc_unfold_at.
-      simpl.
+      iModIntro.
+      rewrite cfupd_unfold_at.
       rewrite objective_at.
       iFrame.
   Qed.
@@ -560,19 +622,14 @@ Section wpc.
     iIntros "H". iApply (wpc_atomic_crash_modality); iApply (bi.and_mono with "H").
     {
       f_equiv.
-      iStartProof (iProp _). iIntros (tv).
-      rewrite uPred_fupd_level_eq.
-      rewrite /uPred_fupd_level_def.
-      simpl.
       iIntros "H HC".
-      eauto.
-      admit. }
+      iFrame "H". }
     iIntros "H".
     iApply (wp_mono with "H"). iIntros (?).
     iIntros "H". iModIntro.
     iApply (bi.and_mono with "H"); auto.
-    { f_equiv. admit. (* iIntros "H HC". eauto. *) }
-  Admitted.
+    { f_equiv. iIntros "H HC". eauto. }
+  Qed.
 
   (* note that this also reverses the postcondition and crash condition, so we
   prove the crash condition first *)

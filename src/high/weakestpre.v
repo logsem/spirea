@@ -221,12 +221,12 @@ Section wp.
   Lemma wp_value_fupd' s E Φ v : WP of_val v @ s; E {{ Φ }} ⊣⊢ |NC={E}=> Φ v.
   Proof.
     rewrite wp_eq /wp_def. iStartProof (iProp _). iIntros (TV). iSplit.
-    - rewrite ncfupd_unfold_at. simpl.
-      iIntros "Hwp" (q).
+    - rewrite ncfupd_unfold_at.
+      iIntros "Hwp".
       (* iApply wpc_value_inv'. done. *)
       admit.
     - iIntros "HΦ". iApply ncfupd_wpc. iSplit.
-      { rewrite disc_unfold_at. done. }
+      { rewrite disc_unfold_at. iModIntro. iModIntro. done. }
       rewrite ncfupd_eq. rewrite /ncfupd_def. simpl.
       iMod "HΦ". iApply wpc_value'. rewrite monPred_at_and. eauto.
   Admitted.
@@ -430,6 +430,7 @@ Section wp_rules.
     iDestruct ("map" with "[$predMap]") as "map".
     (* { done. } *)
 
+    iSplit; first done.
     iSplitR "ptsMap allOrders ordered map history preds".
     2: { iExists _, _, _. iFrame. }
     iApply "Φpost".
@@ -566,6 +567,7 @@ Section wp_rules.
     iNext. iIntros (_).
     cbn.
     iFrame "#∗".
+    iSplit. { iPureIntro. repeat split; try done. apply view_le_l. }
     iApply "HΦ".
     - iPureIntro. etrans. apply incl2. repeat split; try done.
       apply view_le_l.
@@ -757,6 +759,7 @@ r   end, we combine our fragment of the history with the authorative element. *)
     { eassumption. }
     iModIntro.
     (* We re-establish [interp]. *)
+    iSplit. { iPureIntro. repeat split; try done; apply view_le_l. }
     iSplitR "ptsMap allOrders ordered map history preds".
     2: { iExists _, _, _. iFrame. iFrame "#". }
     iSpecialize ("Φpost" $! s v').

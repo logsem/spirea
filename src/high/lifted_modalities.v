@@ -6,7 +6,7 @@ From iris.proofmode Require Import base tactics classes.
 From Perennial.base_logic.lib Require Import ncfupd.
 From Perennial.program_logic Require Import crash_weakestpre.
 
-From self.high Require Import dprop.
+From self.high Require Import dprop monpred_simpl.
 
 (* fupd_level *)
 
@@ -35,6 +35,51 @@ Notation "| k , j ={ E1 }=> Q" := (uPred_fupd_split_level E1 E1 k j Q) : bi_scop
 Notation "| k ={ E1 , E2 }=> Q" := (uPred_fupd_level E1 E2 k Q) : bi_scope.
 Notation "| k ={ E1 }=> Q" := (uPred_fupd_level E1 E1 k Q) : bi_scope.
 
+Section lifted_fupd_level.
+  Context `{!invG Σ}.
+
+  (*** fupd_level*)
+
+  Global Instance except_0_fupd_level' E1 E2 k P :
+    IsExcept0 (|k={E1,E2}=> P).
+  Proof. Admitted. (* by rewrite /IsExcept0 except_0_fupd_level. Qed. *)
+
+  Global Instance from_modal_fupd_level E k P :
+    FromModal modality_id (|k={E}=> P) (|k={E}=> P) P.
+  Proof. Admitted. (* by rewrite /FromModal /= -fupd_level_intro. Qed. *)
+
+  Global Instance elim_modal_bupd_fupd_level p E1 E2 k P Q :
+    ElimModal True p false (|==> P) P (|k={E1,E2}=> Q) (|k={E1,E2}=> Q) | 10.
+  Proof. Admitted.
+  (*   by rewrite /ElimModal intuitionistically_if_elim *)
+  (*     (bupd_fupd_level E1 k) fupd_level_frame_r wand_elim_r fupd_level_trans. *)
+  (* Qed. *)
+  Global Instance elim_modal_fupd_level_fupd_level p E1 E2 E3 k P Q :
+    ElimModal True p false (|k={E1,E2}=> P) P (|k={E1,E3}=> Q) (|k={E2,E3}=> Q).
+  Proof. Admitted.
+  (*   by rewrite /ElimModal intuitionistically_if_elim *)
+  (*     fupd_level_frame_r wand_elim_r fupd_level_trans. *)
+  (* Qed. *)
+  Lemma fupd_split_level_unfold_at E1 E2 k mj P TV :
+    (uPred_fupd_split_level E1 E2 k mj P) TV = fupd_level.uPred_fupd_split_level E1 E2 k mj (P TV).
+  Proof.
+    rewrite uPred_fupd_split_level_eq.
+    rewrite /uPred_fupd_split_level_def.
+    rewrite fupd_level.uPred_fupd_split_level_eq.
+    reflexivity.
+  Qed.
+
+  Lemma fupd_level_unfold_at E1 E2 k P TV :
+    (uPred_fupd_level E1 E2 k P) TV = fupd_level.uPred_fupd_level E1 E2 k (P TV).
+  Proof.
+    rewrite uPred_fupd_level_eq.
+    rewrite /uPred_fupd_level_def.
+    rewrite fupd_level.uPred_fupd_level_eq.
+    apply fupd_split_level_unfold_at.
+  Qed.
+
+End lifted_fupd_level.
+
 Program Definition ncfupd_def `{!invG Σ, !crashG Σ} (E1 E2 : coPset) (P : dProp Σ) : dProp Σ :=
   MonPred (λ TV, ncfupd E1 E2 (P TV))%I _.
 Next Obligation. solve_proper. Qed.
@@ -55,9 +100,10 @@ Notation "|NC={ E1 } [ E2 ]▷=>^ n Q" := (Nat.iter n (λ P, |NC={E1}[E2]▷=> P
   (at level 99, E1, E2 at level 50, n at level 9, Q at level 200,
   format "|NC={ E1 } [ E2 ]▷=>^ n  Q").
 
-Program Definition cfupd `{!invG Σ, !crashG Σ}(k: nat) E1 (P : dProp Σ) :=
-  MonPred (λ TV, cfupd k E1 (P TV))%I _.
-Next Obligation. solve_proper. Qed.
+Program Definition cfupd `{!invG Σ, !crashG Σ} (k: nat) E1 (P : dProp Σ) :=
+  (⎡C⎤ -∗ |k={E1}=> P)%I.
+  (* MonPred (λ TV, cfupd k E1 (P TV))%I _. *)
+(* Next Obligation. solve_proper. Qed. *)
 
 Notation "|C={ E1 }_ k => P" := (cfupd k E1 P)
       (at level 99, E1 at level 50, P at level 200,
@@ -226,29 +272,6 @@ Notation "'<disc>' P" := (own_discrete_fupd P) (at level 20, right associativity
 Section lifted_modalities.
   Context `{crashG Σ, invG Σ}.
 
-  (*** fupd_level*)
-
-  Global Instance except_0_fupd_level' E1 E2 k P :
-    IsExcept0 (|k={E1,E2}=> P).
-  Proof. Admitted. (* by rewrite /IsExcept0 except_0_fupd_level. Qed. *)
-
-  Global Instance from_modal_fupd_level E k P :
-    FromModal modality_id (|k={E}=> P) (|k={E}=> P) P.
-  Proof. Admitted. (* by rewrite /FromModal /= -fupd_level_intro. Qed. *)
-
-  Global Instance elim_modal_bupd_fupd_level p E1 E2 k P Q :
-    ElimModal True p false (|==> P) P (|k={E1,E2}=> Q) (|k={E1,E2}=> Q) | 10.
-  Proof. Admitted.
-  (*   by rewrite /ElimModal intuitionistically_if_elim *)
-  (*     (bupd_fupd_level E1 k) fupd_level_frame_r wand_elim_r fupd_level_trans. *)
-  (* Qed. *)
-  Global Instance elim_modal_fupd_level_fupd_level p E1 E2 E3 k P Q :
-    ElimModal True p false (|k={E1,E2}=> P) P (|k={E1,E3}=> Q) (|k={E2,E3}=> Q).
-  Proof. Admitted.
-  (*   by rewrite /ElimModal intuitionistically_if_elim *)
-  (*     fupd_level_frame_r wand_elim_r fupd_level_trans. *)
-  (* Qed. *)
-
   (*** ncfupd *)
 
   Global Instance from_modal_ncfupd E P :
@@ -283,21 +306,38 @@ Section lifted_modalities.
   (* Qed. *)
 
   Lemma ncfupd_unfold_at E1 E2 P TV :
-    (ncfupd E1 E2 P) TV = ncfupd.ncfupd_def E1 E2 (P TV).
-  Proof.
-    rewrite ncfupd_eq /ncfupd_def. simpl. rewrite ncfupd.ncfupd_eq. reflexivity.
-  Qed.
+    (ncfupd E1 E2 P) TV = ncfupd.ncfupd E1 E2 (P TV).
+  Proof. rewrite ncfupd_eq /ncfupd_def. reflexivity. Qed.
 
   (*** cfupd *)
+
+  Lemma cfupd_unfold_at E1 E2 P TV :
+    (cfupd E1 E2 P) TV ⊣⊢ crash_weakestpre.cfupd E1 E2 (P TV).
+  Proof.
+    rewrite /cfupd. rewrite /crash_weakestpre.cfupd.
+    (* rewrite monPred_at_wand. *)
+    monPred_simpl.
+    setoid_rewrite fupd_level_unfold_at.
+    setoid_rewrite monPred_at_embed.
+    iSplit.
+    - iIntros "H". iApply "H". done.
+    - iIntros "H". iIntros (? incl) "C".
+      iApply monPred_mono; first apply incl.
+      iApply "H". iFrame.
+  Qed.
 
   Global Instance from_modal_cfupd k E1 P :
     FromModal modality_id (cfupd k E1 P) (cfupd k E1 P) (P).
   Proof.
     rewrite /FromModal /=.
-    iStartProof (iProp _). iIntros (TV).
-    iIntros "P".
+    iIntros "HP".
     iIntros "_".
-    iModIntro. iFrame.
+    iModIntro. by iFrame.
+    (* rewrite /FromModal /=. *)
+    (* iStartProof (iProp _). iIntros (TV). *)
+    (* iIntros "P". *)
+    (* iIntros "_". *)
+    (* iModIntro. iFrame. *)
   Qed.
 
   (*** <disc> *)
