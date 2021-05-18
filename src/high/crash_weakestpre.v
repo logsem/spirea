@@ -359,7 +359,7 @@ Section preorders.
 End preorders.
 
 Section wpc.
-  Context `{!nvmG Σ}.
+  Context `{hG : !nvmG Σ}.
 
   (* NOTE: We can abstract this later if we need to. *)
   Definition increasing_map (ss : gmap nat positive) (R : relation2 positive) :=

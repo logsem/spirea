@@ -255,6 +255,24 @@ Section wpr.
         done.
   Admitted.
 
+  Lemma nvm_heap_reinit_alt (hG' : nvmBaseG Σ) σ σ' (Hinv : invG Σ) (Hcrash : crashG Σ) Pg :
+    crash_step σ σ' →
+    ⊢ nvm_heap_ctx σ -∗
+      post_crash Pg ==∗
+      ∃ names : nvm_base_names,
+        post_crash_map σ.1 hG' (nvm_base_update Σ hG' Hinv Hcrash names) ∗
+        nvm_heap_ctx (hG := nvm_base_update Σ hG' Hinv Hcrash names) σ' ∗
+        Pg (nvm_base_update Σ hG' Hinv Hcrash names).
+  Proof using hG.
+    iIntros (step).
+    iIntros "(heap & authStor & inv & pers & recov) Pg".
+    iMod (nvm_heap_reinit _ _ _ _ Hcrash step with "heap inv pers") as (hnames) "(map & interp' & #persImpl)".
+    rewrite /post_crash.
+    iDestruct ("Pg" $! σ σ' with "persImpl map") as "(map & Pg)".
+    iExists _. iFrame.
+    done.
+  Qed.
+
   Lemma idempotence_wpr `{!ffi_interp_adequacy} s k E1 e rec Φx Φinv Φrx Φcx :
     ⊢ WPC e @ s ; k ; E1 {{ Φx }} {{ Φcx hG }} -∗
     (□ ∀ (hG1 : nvmBaseG Σ) (Hpf : @nvmBaseG_invG Σ hG = @nvmBaseG_invG Σ hG1) σ σ'
@@ -269,17 +287,13 @@ Section wpr.
     { simpl. rewrite nvm_base_update_id. iAssumption. }
     { iModIntro. iIntros (? t σ_pre_crash g σ_post_crash Hcrash ns κs ?) "H".
       iSpecialize ("Hidemp" $! (nvm_base_update _ _ _ _ _) with "[//] [//] H").
-      iIntros "(heap & authStor & inv & pers & recov) Hg".
-      (* Build new ghost state. *)
-      iMod (nvm_heap_reinit _ _ _ _ Hc with "heap inv pers") as (hnames) "(map & interp' & persImpl)"; first apply Hcrash.
-      iModIntro.
-      iNext. iIntros (Hc' ?) "HNC".
-      set (hG' := (nvm_base_update _ _ _ Hc' hnames)).
-      rewrite /post_crash.
-      iDestruct ("Hidemp" $! σ_pre_crash σ_post_crash hG' with "persImpl map") as "(? & ?)".
+      iIntros "interp _ !> !>".
+      iIntros (Hc' ?) "HNC".
+      iMod (nvm_heap_reinit_alt _ _ _ _ Hc' _ Hcrash with "interp Hidemp") as (hnames) "(map & interp' & idemp)".
+      rewrite nvm_base_update_update.
       iExists {| pbundleT := hnames |}, (reflexivity _), (reflexivity _).
       iModIntro.
-      rewrite /state_interp//=.
+      rewrite /state_interp //=.
       iFrame. }
   Qed.
 

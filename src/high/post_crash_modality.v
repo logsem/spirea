@@ -45,6 +45,9 @@ Section post_crash_prop.
   Implicit Types efs : list thread_state.
   Implicit Types σ : mem_config.
 
+  Global Instance post_crash_objective P : Objective (post_crash P).
+  Proof. done. Qed.
+
   (** Tiny shortcut for introducing the assumption for a [post_crash]. *)
   Ltac iIntrosPostCrash := iIntros (hG' hh).
 
