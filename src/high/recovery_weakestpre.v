@@ -1,5 +1,6 @@
 (* Implementation of the recovery weakest precondition for NvmLang. *)
 From iris.proofmode Require Import tactics.
+From iris.base_logic Require Import ghost_map.
 From Perennial.program_logic Require Import crash_weakestpre.
 From Perennial.program_logic Require Import recovery_weakestpre.
 From Perennial.program_logic Require Import recovery_adequacy.
@@ -119,7 +120,6 @@ Proof. rewrite /wpr. rewrite wpr_aux.(seal_eq). done. Qed.
 
 Lemma wpr_unfold `{hG : nvmG Σ} st k E e rec Φ Φc :
   wpr st k hG E e rec Φ Φc ⊣⊢ wpr_pre Σ st k (wpr st k) hG E e rec Φ Φc.
-  (* wpr st k E e rec Φ Φinv Φc ⊣⊢ wpr_pre Σ st k (λ hG, wpr st k) Hc E e rec Φ Φinv Φc. *)
 Proof.
   rewrite wpr_eq. rewrite /wpr_def.
   apply (fixpoint_unfold (wpr_pre Σ st k)).
@@ -128,6 +128,18 @@ Qed.
 Section wpr.
   Context `{hG : nvmG Σ}.
 
+  (* For each location in [p] pick the message in the store that it specifies. *)
+  Definition slice_of_hist (p : view) (σ : gmap loc (gmap time (message * positive))) : gmap loc (gmap time (message * positive)) :=
+    map_zip_with
+      (λ '(MaxNat t) hist,
+       match hist !! t with
+         Some (msg, s) => {[ 0 := (discard_store_view msg, s) ]}
+       | None => ∅ (* The None branch here should never be taken. *)
+       end)
+      p σ.
+
+  (* Given the state interpretations _before_ a crash we reestablish the
+  interpretations _after_ a crash. *)
   Lemma nvm_reinit (hG' : nvmG Σ) n Pg tv σ σ' (Hinv : invG Σ) (Hcrash : crashG Σ) :
     crash_step σ σ' →
     ⊢ interp -∗
@@ -139,25 +151,55 @@ Section wpr.
           nvm_heap_ctx (hG := _) σ' ∗
           Pg hG (∅, ∅, ∅).
   Proof.
-    iIntros (step) "interp baseInterp".
-    rewrite /post_crash.
-    simpl.
-    nvmHighG
+    iIntros (step).
+    iDestruct 1 as (hists preds orders) "(psts & orders & incr & ? & ? & preds)".
+    iIntros "(heap & authStor & inv & pers & recov) Pg".
 
-    iMod (nvm_heap_reinit_alt _ _ _ _ Hcrash _ step with "baseInterp []") as (hnames) "(map & baseInterp & idemp)".
+    (* We need to first re-create the ghost state for the base interpretation. *)
+    iMod (nvm_heap_reinit _ _ _ _ Hcrash step with "heap inv pers") as (baseNames) "(map & interp' & #persImpl)".
 
-  (*
-    crash_step σ σ' →
-    ⊢ gen_heap_interp (hG := @nvmBaseG_gen_heapG _ hG') σ.1 -∗
-      store_inv (hG := hG') σ.1 -∗
-      persist_auth (hG := hG') σ
-      ==∗
-      ∃ names : nvm_base_names,
-        (* ghost_crash_rel σ hG' σ' (nvm_base_update Σ hG' Hinv Hcrash names) ∗ *)
-        post_crash_map σ.1 hG' (nvm_base_update Σ hG' Hinv Hcrash names) ∗
-        nvm_heap_ctx (hG := nvm_base_update Σ hG' Hinv Hcrash names) σ' ∗
-        persisted_impl hG' (nvm_base_update Σ hG' Hinv Hcrash names).
-  *)
+    destruct step as [store p p' pIncl].
+
+    (* Allocate new ghost state for the logical histories. *)
+    rewrite /interp.
+    set newHists := slice_of_hist p' hists.
+    iMod (own_full_history_gname_alloc ((λ h : abs_history (message * positive), snd <$> h) <$> newHists)) as (new_abs_history_name new_know_abs_history_name) "[hists' needThis]".
+    (* iMod (own_alloc ()) *)
+    (* own_full_history ((λ h : abs_history (message * positive), snd <$> h) <$> hists) *)
+
+    iModIntro.
+    iExists
+      ({| name_base_names := baseNames;
+          name_high_names := {| name_abs_history := new_abs_history_name;
+                                name_know_abs_history := new_know_abs_history_name;
+                                name_predicates := _;
+                                name_preorders := _ |} |}).
+    iFrame "interp'".
+    rewrite /nvm_heap_ctx.
+    (* iFrame. *)
+    iSplitR ""; last first. { admit. }
+    rewrite /interp.
+    iExists _, _, _.
+    rewrite /own_full_history.
+    iFrame "orders".
+    iFrame "preds".
+    iFrame "hists'".
+    iSplitL "".
+    { admit. } (* We need the points-to predicates. *)
+    iSplitL "".
+    { iApply big_sepM2_intuitionistically_forall.
+      - admit.
+      - iModIntro.
+        rewrite /newHists.
+        iIntros (??? slice ?).
+        iPureIntro.
+        apply map_lookup_zip_with_Some in slice.
+        destruct slice as ([t] & hist & -> & more).
+        destruct (hist !! t) as [[??]|]; simpl.
+        { rewrite map_fmap_singleton. simpl. apply increasing_map_singleton. }
+        { rewrite fmap_empty. apply increasing_map_empty. }
+    }
+    admit.
   Admitted.
    
   Lemma nvm_reinit' (hG' : nvmG Σ) n σ σ' (Hinv : invG Σ) (Hcrash : crashG Σ) Pg :
@@ -209,8 +251,6 @@ Section wpr.
     (* Allocate the new ghost state. *)
     iMod (nvm_reinit _ _ _ _ _ _ _ _ with "interp state idemp'") as (names) "(interp & stateInterp & idemp)".
     { apply step. }
-    (* iMod (nvm_reinit' with "interp state idemp'") as (names) "(interp & stateInterp & idemp)". *)
-    (* { apply step. } *)
  
     iModIntro (|={E1}=> _)%I.
     iExists names.

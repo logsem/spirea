@@ -703,10 +703,22 @@ r   end, we combine our fragment of the history with the authorative element. *)
     (* epose proof (increasingMap tS t' (encode s3) s') as hihi. *)
     epose proof (increasingMap tS t' (encode s3) s') as hihi.
     assert (order enc s') as orderRelated.
-    { eapply increasingMap.
-      - apply lte.
-      - subst. done.
-      - rewrite lookup_fmap. rewrite histLook. done. }
+    { destruct (le_lt_or_eq _ _ lte) as [le|tSEq].
+      (* destruct (lte) as [hi|ho]. *)
+      - eapply increasingMap.
+        * apply le.
+        * subst. done.
+        * rewrite lookup_fmap. rewrite histLook. done.
+      - (* We can conclude that [enc] is equal to [t']. *)
+        assert (enc = s') as ->.
+        2: { rewrite orderEq. rewrite /encode_relation. rewrite decodeEnc. simpl. done. }
+        move: lookTS.
+        rewrite -histAbsHist.
+        rewrite lookup_fmap.
+        rewrite tSEq.
+        rewrite histLook.
+        simpl.
+        by intros [=]. }
     rewrite orderEq in orderRelated.
     epose proof (encode_relation_related _ _ _ orderRelated) as (? & s & eqX & decodeS' & s3InclS').
     assert (x = s3) as -> by congruence.

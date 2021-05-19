@@ -19,14 +19,18 @@ Section abs_history_lemmas.
   Context `{Countable ST}.
 
   Implicit Types (abs_hist : gmap time ST) (ℓ : loc).
+  Implicit Types (abs_hists : gmap loc (gmap time positive)).
 
   Definition abs_hist_to_ra abs_hist : encoded_abs_historyR :=
     (to_agree ∘ encode) <$> abs_hist.
 
-  Definition own_full_history (abs_hists : gmap loc (gmap time positive)) : iProp Σ :=
-    ghost_map_auth (abs_history_name) 1 abs_hists ∗
-    own know_abs_history_name
-        (● ((λ (m : gmap _ _), to_agree <$> m) <$> abs_hists) : know_abs_historiesR).
+  Definition own_full_history_gname γ1 γ2 abs_hists : iProp Σ :=
+    ghost_map_auth γ1 1 abs_hists ∗
+    own γ2
+        (● ((λ m : gmap _ _, to_agree <$> m) <$> abs_hists) : know_abs_historiesR).
+
+  Definition own_full_history abs_hists : iProp Σ :=
+    own_full_history_gname abs_history_name know_abs_history_name abs_hists.
 
   Definition know_full_history_loc ℓ abs_hist : iProp Σ :=
     ℓ ↪[ abs_history_name ] (encode <$> abs_hist).
@@ -39,6 +43,24 @@ Section abs_history_lemmas.
       ⌜(decode <$> enc = Some <$> abs_hist)⌝ ∗
       own know_abs_history_name (◯ {[ ℓ := to_agree <$> enc ]}).
       (* own abs_history_name ((◯ {[ ℓ := ◯ (abs_hist_to_ra abs_hist) ]}) : abs_historiesR). *)
+
+  Lemma own_full_history_gname_alloc h :
+    ⊢ |==> ∃ γ1 γ2, own_full_history_gname γ1 γ2 h ∗
+                    [∗ map] k↦v ∈ h, k ↪[γ1] v.
+  Proof.
+    iMod (ghost_map_alloc h) as (new_abs_history_name) "[A B]".
+    iExists _. iFrame "A B".
+    iMod (own_alloc _) as "$".
+    { apply auth_auth_valid.
+      intros k.
+      rewrite lookup_fmap.
+      destruct (h !! k); simpl; last done.
+      apply Some_valid.
+      intros k'.
+      rewrite lookup_fmap.
+      destruct (g !! k'); done. }
+    done.
+  Qed.
 
   Lemma know_full_equiv ℓ abs_hist :
     know_full_history_loc ℓ abs_hist ⊣⊢ know_full_encoded_history_loc ℓ (encode <$> abs_hist).
@@ -361,9 +383,20 @@ End preorders.
 Section wpc.
   Context `{hG : !nvmG Σ}.
 
-  (* NOTE: We can abstract this later if we need to. *)
+  (* NOTE: The definition uses [i < j] and not [i ≤ j] in order to make the
+  lemma [increasing_map_singleton] provable. When we use [increating_map] the
+  relation [R] will always be reflexive, and hence this does not matter. The
+  _knowledge_ that [R] is reflexive may not always be available however (since
+  we may not know that [R] is in fact the encoding of some preorder, and hence
+  this definition works best. *)
   Definition increasing_map (ss : gmap nat positive) (R : relation2 positive) :=
-    ∀ i j (s s' : positive), i ≤ j → (ss !! i = Some s) → (ss !! j = Some s') → R s s'.
+    ∀ i j (s s' : positive), i < j → (ss !! i = Some s) → (ss !! j = Some s') → R s s'.
+
+  Lemma increasing_map_singleton t s R : increasing_map {[ t := s ]} R.
+  Proof. intros ????? ?%lookup_singleton_Some ?%lookup_singleton_Some. lia. Qed.
+
+  Lemma increasing_map_empty  R : increasing_map ∅ R.
+  Proof. intros ????? [=]. Qed.
 
   (** This is our analog to the state interpretation in the Iris weakest
   precondition. We keep this in our crash weakest precondition ensuring that it
