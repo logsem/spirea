@@ -16,9 +16,9 @@ Set Default Proof Using "Type".
 crash if you own a points-to predicate _prior to_ a crash. *)
 Definition mapsto_post_crash {Σ} (hG : nvmBaseG Σ) ℓ q (hist : history) : iProp Σ :=
   (∃ t msg, ⌜hist !! t = Some msg⌝ ∗
-            ℓ ↦h{#q} ({[ 0 := Msg msg.(msg_val) ∅ ∅ ]}) ∗
+            ℓ ↦h{#q} ({[ 0 := Msg msg.(msg_val) ∅ ∅ ∅ ]}) ∗
             recovered {[ ℓ := MaxNat t ]} ∗
-            ∃ RV, ⌜msg.(msg_persist_view) ⊑ RV⌝ ∗ recovered RV) ∨
+            ∃ RV, ⌜msg.(msg_persisted_after_view) ⊑ RV⌝ ∗ recovered RV) ∨
   (∀ t, ¬ (recovered {[ ℓ := MaxNat t ]})).
 
 Definition if_non_zero {Σ} (q : Qc) (P : Qp → iProp Σ) : iProp Σ :=
@@ -59,9 +59,8 @@ Proof.
   (* iFrame "#∗". *)
 Admitted.
 
-
 Definition persisted_impl {Σ} hG hG' : iProp Σ :=
-  □ ∀ V, persisted (hG := hG) V -∗ persisted (hG := hG') V ∗
+  □ ∀ V, persisted (hG := hG) V -∗ persisted (hG := hG') ∅ ∗
                                    ∃ RV, ⌜V ⊑ RV⌝ ∗ recovered (hG := hG') RV.
 
 Definition post_crash {Σ} (P: nvmBaseG Σ → iProp Σ) `{hG: !nvmBaseG Σ} : iProp Σ :=
@@ -194,7 +193,7 @@ Section post_crash_prop.
 
   Lemma post_crash_persisted V :
     persisted V -∗
-      post_crash (λ hG', persisted V ∗ ∃ RV, ⌜V ⊑ RV⌝ ∗ recovered RV).
+      post_crash (λ hG', persisted ∅ ∗ ∃ RV, ⌜V ⊑ RV⌝ ∗ recovered RV).
   Proof.
     iIntros "pers".
     iIntrosPostCrash.
@@ -203,7 +202,7 @@ Section post_crash_prop.
   Qed.
 
   Lemma post_crash_persisted_persisted V :
-    persisted V -∗ post_crash (λ hG', persisted V).
+    persisted V -∗ post_crash (λ hG', persisted ∅).
   Proof.
     iIntros "pers".
     iDestruct (post_crash_persisted with "pers") as "p".
@@ -266,8 +265,8 @@ Section post_crash_prop.
     mapsto_post_crash hG ℓ q hist -∗      (* What mapsto gives us after crash *)
     (∃ t msg, ⌜hist !! t = Some msg⌝ ∗
               ⌜t__low ≤ t⌝ ∗
-              ℓ ↦h{#q} ({[ 0 := Msg msg.(msg_val) ∅ ∅]}) ∗
-              (∃ RV, ⌜msg.(msg_persist_view) ⊑ RV⌝ ∗ recovered RV) ∗
+              ℓ ↦h{#q} ({[ 0 := Msg msg.(msg_val) ∅ ∅ ∅]}) ∗
+              (∃ RV, ⌜msg.(msg_persisted_after_view) ⊑ RV⌝ ∗ recovered RV) ∗
               recovered {[ ℓ := MaxNat t ]}).
   Proof.
     iIntros (look) "A [B|B]"; iDestruct "A" as (RV incl) "#rec".

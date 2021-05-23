@@ -11,6 +11,7 @@ Record message : Type := Msg {
   msg_val : val;
   msg_store_view : view;
   msg_persist_view : view;
+  msg_persisted_after_view : view;
 }.
 
 Notation thread_view := (view * view * view)%type.
@@ -49,27 +50,27 @@ Section memory.
   | MEvLoadAcquire ℓ v
   | MEvStoreRelease ℓ v
   (* RMW are special *)
-  | MEvRMW ℓ (vOld vNew : val) (* read-modify-write *)
-  (* FIXME: Probably also need event for failed RMW. *)
+  | MEvRMW ℓ (vExp vNew : val) (* read-modify-write *)
+  | MEvLoadEx ℓ (vExp : val) (* for failed RMWs *)
   (* Persistent memory specific. *)
   | MEvWB ℓ
   | MEvFence
   | MEvFenceSync.
 
   (* Takes a value and creates an initial history for that value. *)
-  Definition initial_history P v : history := {[0 := Msg v ∅ P]}.
+  Definition initial_history P v : history := {[0 := Msg v ∅ ∅ P]}.
 
   (* Convert an array into a store. *)
   Fixpoint heap_array (l : loc) P (vs : list val) : store :=
     match vs with
     | [] => ∅
-    | v :: vs' => {[l := initial_history P v]} ∪ heap_array (l +ₗ 1) P vs'
+    | v :: vs' => {[ l := initial_history P v ]} ∪ heap_array (l +ₗ 1) P vs'
     end.
 
   Lemma heap_array_lookup (l : loc) P (vs : list val) (ow : history) (k : loc) :
     (heap_array l P vs : store) !! k = Some ow ↔
     (* True ↔ *)
-    ∃ j w, (0 ≤ j)%Z ∧ k = l +ₗ j ∧ (ow = {[0 := Msg w ∅ P]}) ∧ vs !! (Z.to_nat j) = (Some w).
+    ∃ j w, (0 ≤ j)%Z ∧ k = l +ₗ j ∧ (ow = {[0 := Msg w ∅ ∅ P]}) ∧ vs !! (Z.to_nat j) = (Some w).
   Proof.
     revert k l; induction vs as [|v' vs IH]=> l' l /=.
     { rewrite lookup_empty. naive_solver lia. }
@@ -122,6 +123,14 @@ Section memory.
               (MEvLoad ℓ v)
               (σ, p) (V, P, B)
               (* (σ, p) ((<[ ℓ := t ]>V), P, B) (* This variant includes the timestamp of the loaded msg. *) *)
+  (* An atomic acquire load. *)
+  | MStepLoadAcquire σ V P B t ℓ (v : val) MV MP _MP h p :
+     σ !! ℓ = Some h →
+     (h !! t) = Some (Msg v MV MP _MP) →
+     (V !!0 ℓ) ≤ t →
+     mem_step (σ, p) (V, P, B)
+              (MEvLoadAcquire ℓ v)
+              (σ, p) (V ⊔ MV, P, B ⊔ MP) (* An acquire incorporates both the store view and the persistent view. *)
   (* A normal non-atomic write. *)
   | MStepStore σ V P B t ℓ (v : val) h V' p :
      σ !! ℓ = Some h →
@@ -130,15 +139,7 @@ Section memory.
      V' = <[ℓ := MaxNat t]>V → (* V' incorporates the new event in the threads view. *)
      mem_step (σ, p) (V, P, B)
              (MEvStore ℓ v)
-             (<[ℓ := <[t := Msg v ∅ P]>h]>σ, p) (V', P, B)
-  (* An atomic acquire load. *)
-  | MStepLoadAcquire σ V P B t ℓ (v : val) MV MP h p :
-     σ !! ℓ = Some h →
-     (h !! t) = Some (Msg v MV MP) →
-     (V !!0 ℓ) ≤ t →
-     mem_step (σ, p) (V, P, B)
-              (MEvLoadAcquire ℓ v)
-              (σ, p) (V ⊔ MV, P ⊔ MP, B) (* An acquire incorporates both the store view and the persistent view. *)
+             (<[ℓ := <[t := Msg v ∅ ∅ P]>h]>σ, p) (V', P, B)
   (* An atomic release write. *)
   | MStepStoreRelease σ V P B t ℓ (v : val) h V' p :
      σ !! ℓ = Some h →
@@ -147,22 +148,32 @@ Section memory.
      V' = <[ℓ := MaxNat t]>V → (* V' incorporates the new event in the threads view. *)
      mem_step (σ, p) (V, P, B)
               (MEvStoreRelease ℓ v)
-              (<[ℓ := <[t := Msg v V' P]>h]>σ, p) (V', P, B) (* A release releases both V' and P. *)
+              (<[ℓ := <[t := Msg v V' P P]>h]>σ, p) (V', P, B) (* A release releases both V' and P. *)
   (* Read-modify-write instructions. *)
-  | MStepRMW σ ℓ h v MV MP V t V' P P' B p v' :
+  | MStepRMW σ ℓ h v MV MP S t S' P P' B p v' _MP :
      σ !! ℓ = Some h →
-     (h !! t) = Some (Msg v MV MP) → (* We read an event at time [t]. *)
-     (V !!0 ℓ) ≤ t →
+     (S !!0 ℓ) ≤ t →
+     (h !! t) = Some (Msg v MV MP _MP) → (* We read an event at time [t]. *)
+     (* All values that we could have reads are comparable to [v]. *)
+     (∀ t' msg, S !!0 ℓ ≤ t' → h !! t' = Some msg → vals_compare_safe msg.(msg_val) v) →
      (h !! (t + 1)) = None → (* The next timestamp is available, ensures that no other RMW read this event. *)
-     V' = (<[ ℓ := MaxNat (t + 1) ]>(V ⊔ MV)) → (* V' incorporates the new event in the threads view. *)
+     S' = (<[ ℓ := MaxNat (t + 1) ]>(S ⊔ MV)) → (* S' incorporates the new event in the threads view. *)
      P' = P ⊔ MP →
-     mem_step (σ, p) (V, P, B)
+     mem_step (σ, p) (S, P, B)
               (MEvRMW ℓ v v')
-              (<[ℓ := <[t := Msg v V' P']>h]>σ, p) (V', P', B)
-  (* Write-back instruction. *)
-  | MStepWB σ V P B ℓ t h p :
+              (<[ℓ := <[t := Msg v S' P' P']>h]>σ, p) (S', P, B ⊔ MP)
+  | MStepRMWFail σ S P B t ℓ (v : val) MV MP _MP h p :
      σ !! ℓ = Some h →
-     (V !!0 ℓ) = t → (* An equality here _should_ be fine, the timestamps are only lower bounds anyway? *)
+     (h !! t) = Some (Msg v MV MP _MP) →
+     (S !!0 ℓ) ≤ t →
+     (∀ t' msg, S !!0 ℓ ≤ t' → h !! t' = Some msg → vals_compare_safe msg.(msg_val) v) →
+     mem_step (σ, p) (S, P, B)
+              (MEvLoadEx ℓ v)
+              (σ, p) (S ⊔ MV, P, B ⊔ MP) (* An acquire incorporates both the store view and the persistent view. *)
+  (* Write-back instruction. *)
+  | MStepWB σ V P B ℓ t p :
+     (* σ !! ℓ = Some h → *)
+     (V !!0 ℓ) = t → (* An equality here is fine, the timestamps are only lower bounds anyway. *)
      mem_step (σ, p) (V, P, B)
               (MEvWB ℓ)
               (σ, p) (V, P, <[ℓ := MaxNat t]>B)
@@ -181,46 +192,25 @@ Section memory.
   Definition cut_history t (hist : history) : history :=
     filter (λ '(t', ev), t' ≤ t) hist.
 
-  Definition discard_store_view (msg : message) : message :=
-    Msg msg.(msg_val) ∅ msg.(msg_persist_view).
-
-  (* Definition discard_store_views (hist : history) : history := *)
-  (*   discard_store_view <$> hist. *)
-
-  (* Removes all events from histories after the view. *)
-  (* Definition cut_store p σ : store := *)
-  (*   map_imap (λ ℓ hist, let t := p !!0 ℓ in Some (discard_store_views $ cut_history t hist)) σ. *)
-
-  (* Definition consistent_cut p σ : Prop := *)
-  (*   map_Forall (λ ℓ h, map_Forall (λ _ ev, (msg_persist_view ev) ⊑ p) h) (cut_store p σ). *)
-
-  (* The crash step is different from the other steps in that it does not depend
-  on any current thread. We therefore define it as a separate type. *)
-  (* Inductive crash_step : mem_config → mem_config → Prop := *)
-  (* | MCrashStep σ p p' : *)
-  (*    p ⊑ p' → *)
-  (*    consistent_cut p' σ → *)
-  (*    crash_step (σ, p) (cut_store p' σ, p'). *)
+  Definition discard_msg_views (msg : message) : message :=
+    Msg msg.(msg_val) ∅ ∅ ∅.
 
   (* For each location in [p] pick the message in the store that it specifies. *)
   Definition slice_of_store (p : view) (σ : store) : store :=
     map_zip_with
       (λ '(MaxNat t) hist,
        match hist !! t with
-         Some msg => {[ 0 := discard_store_view msg]}
+         Some msg => {[ 0 := discard_msg_views msg]}
        | None => ∅ (* The None branch here should never be taken. *)
        end)
       p σ.
 
-  (* Definition consistent_cut' (p : view) (σ : store) : Prop := *)
-  (*   map_Forall (λ ℓ h, ∃ t, p !! ℓ = Some (MaxNat t) → map_Forall (λ _ msg, (msg_persist_view msg) ⊑ p) (cut_history t h)) σ. *)
-
-  Definition consistent_cut' (p : view) (σ : store) : Prop :=
+  Definition consistent_cut (p : view) (σ : store) : Prop :=
     map_Forall
       (λ ℓ '(MaxNat t),
        ∃ hist msg, σ !! ℓ = Some hist ∧
                    hist !! t = Some msg ∧
-                   map_Forall (λ _ msg', msg'.(msg_persist_view) ⊑ p)
+                   map_Forall (λ _ msg', msg'.(msg_persisted_after_view) ⊑ p)
                               (cut_history t hist))
       p.
 
@@ -229,8 +219,8 @@ Section memory.
   Inductive crash_step : mem_config → mem_config → Prop :=
   | MCrashStep σ p p' :
      p ⊑ p' →
-     consistent_cut' p' σ →
-     crash_step (σ, p) (slice_of_store p' σ, p').
+     consistent_cut p' σ →
+     crash_step (σ, p) (slice_of_store p' σ, ∅).
 
   (* It is always possible to allocate a section of memory. *)
   Lemma alloc_fresh v (len : nat) σ p V P B :

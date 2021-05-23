@@ -284,40 +284,15 @@ Section lifting.
     iPureIntro. by trans W.
   Qed.
 
-  Lemma hist_inv_insert_msg (heap : store) v p ℓ t hist :
-    heap !! ℓ = Some hist →
-    hist !! t = None →
-    ([∗ map] h ∈ heap, hist_inv (lub_view heap) h) -∗
-    ([∗ map] h ∈ <[ℓ:=<[t:={| msg_val := v;
-                              msg_store_view := ∅;
-                              msg_persist_view := p |}]> hist]> heap,
-         hist_inv
-           (lub_view
-              (<[ℓ:=<[t:={| msg_val := v;
-                            msg_store_view := ∅;
-                            msg_persist_view := p |}]> hist]> heap)) h).
-  Proof.
-    iIntros (look histLook) "#M".
-    iApply big_sepM_insert_override_2; simpl; first done.
-    - iApply (hist_inv_grow with "M").
-      by apply lub_view_insert_incl.
-    - iIntros "[% map]". iSplit.
-      * iPureIntro. apply lookup_insert_is_Some'. by right.
-      * iApply big_sepM_insert; first apply histLook.
-        iSplit.
-        + simpl. iPureIntro. rewrite subseteq_view_incl.
-          apply (ucmra_unit_least (lub_view _)).
-        + done.
-  Qed.
-
-  Lemma hist_inv_insert_msg' (heap : store) v p ℓ t hist V :
+  (* Insert a new message into [hist_inv]. *)
+  Lemma hist_inv_insert_msg (heap : store) v p ℓ t hist V PV :
     heap !! ℓ = Some hist →
     hist !! t = None →
     V ≼ (lub_view
-              (<[ℓ:=<[t:= Msg v V p]> hist]> heap)) →
+              (<[ℓ:=<[t:= Msg v V PV p]> hist]> heap)) →
     ([∗ map] h ∈ heap, hist_inv (lub_view heap) h) -∗
-    ([∗ map] h ∈ <[ℓ:=<[t := Msg v V p]> hist]> heap,
-         hist_inv (lub_view (<[ℓ:=<[t:=Msg v V p]> hist]> heap)) h).
+    ([∗ map] h ∈ <[ℓ:=<[t := Msg v V PV p]> hist]> heap,
+         hist_inv (lub_view (<[ℓ:=<[t:=Msg v V PV p]> hist]> heap)) h).
   Proof.
     iIntros (look histLook Vincl) "#M".
     iApply big_sepM_insert_override_2; simpl; first done.
@@ -339,9 +314,9 @@ Section lifting.
   Proof.
   Admitted.
 
-  Lemma message_included_in_lub_view ℓ (hist : history) heap t v MV MP :
+  Lemma message_included_in_lub_view ℓ (hist : history) heap t v MV MP MPP :
     heap !! ℓ = Some hist →
-    hist !! t = Some {| msg_val := v; msg_store_view := MV; msg_persist_view := MP |} →
+    hist !! t = Some (Msg v MV MP MPP) →
     ([∗ map] h ∈ heap, hist_inv (lub_view heap) h) -∗
     ⌜MV ⊑ lub_view heap⌝.
   Proof.
@@ -483,11 +458,11 @@ Section lifting.
       split_and!; done.
   Qed.
 
-  Lemma wp_load_acquire V p B ℓ q (hist : history) s E :
+  Lemma wp_load_acquire V PV B ℓ q (hist : history) s E :
     {{{ ℓ ↦h{q} hist ∗ validV V }}}
-      (ThreadState (!{acq} #ℓ) (V, p, B)) @ s; E
-    {{{ t v V' P', RET (ThreadVal v (V ⊔ V', p ⊔ P', B));
-        ⌜ (hist !! t) = Some (Msg v V' P') ⌝ ∗
+      (ThreadState (!{acq} #ℓ) (V, PV, B)) @ s; E
+    {{{ t v V' P' _P, RET (ThreadVal v (V ⊔ V', PV, B ⊔ P'));
+        ⌜ (hist !! t) = Some (Msg v V' P' _P) ⌝ ∗
         ⌜ (V !!0 ℓ) ≤ t ⌝ ∗
         validV (V ⊔ V') ∗
         ℓ ↦h{q} hist }}}.
@@ -534,7 +509,7 @@ Section lifting.
           ⌜msg_val <$> (hist !! t) = None⌝ ∗
           ⌜(V !!0 ℓ) < t⌝ ∗
           validV (<[ℓ := MaxNat t]>V) ∗
-          ℓ ↦h (<[t := Msg v ∅ p]>hist) }}}.
+          ℓ ↦h (<[t := Msg v ∅ ∅ p]>hist) }}}.
   Proof.
     iIntros (Φ) "[ℓPts Hval] HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
@@ -572,7 +547,7 @@ Section lifting.
       iMod (auth_lub_view_insert with "lubauth") as "[lubauth viewT]"; [done|done|].
       iFrame "lubauth Ht".
       (* We now update the big op. *)
-      iSplitR. { iApply hist_inv_insert_msg; done. }
+      iSplitR. { iApply hist_inv_insert_msg; try done. apply view_empty_least. }
       iApply "HΦ".
       iModIntro.
       iFrame "%∗".
@@ -589,7 +564,7 @@ Section lifting.
           ⌜msg_val <$> (hist !! t) = None⌝ ∗
           ⌜(V !!0 ℓ) < t⌝ ∗
           validV (<[ℓ := MaxNat t]>V) ∗
-          ℓ ↦h (<[t := Msg v (<[ℓ := MaxNat t]>V) p]>hist) }}}.
+          ℓ ↦h (<[t := Msg v (<[ℓ := MaxNat t]>V) p p]>hist) }}}.
   Proof.
     iIntros (Φ) "[ℓPts Hval] HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
@@ -628,7 +603,7 @@ Section lifting.
       iFrame "lubauth Ht".
       (* We now update the big op. *)
       iSplitR.
-      { iApply hist_inv_insert_msg'; try done. apply lub_view_incl_insert; done. }
+      { iApply hist_inv_insert_msg; try done. apply lub_view_incl_insert; done. }
       iApply "HΦ".
       iModIntro.
       iFrame "%∗".

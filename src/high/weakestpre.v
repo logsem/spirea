@@ -175,9 +175,10 @@ Section wp.
       monPred_in (∅, {[ ℓ := MaxNat t ]}, ∅) ∗
       ⎡know_frag_history_loc ℓ {[ t := s ]}⎤.
 
-  Definition know_store_lower_bound `{Countable ST} (ℓ : loc) (t : time) (s : ST) : dProp Σ :=
-    monPred_in ({[ ℓ := MaxNat t ]}, ∅, ∅) ∗
-    ⎡know_frag_history_loc ℓ {[ t := s ]}⎤.
+  Definition know_store_lower_bound `{Countable ST} (ℓ : loc) (s : ST) : dProp Σ :=
+    ∃ t,
+      monPred_in ({[ ℓ := MaxNat t ]}, ∅, ∅) ∗
+      ⎡know_frag_history_loc ℓ {[ t := s ]}⎤.
 
   (*
   Definition mapsto_read `{!SqSubsetEq abs_state, !PreOrder (⊑@{abs_state})}
@@ -583,7 +584,7 @@ Section wp_rules.
   Lemma wp_load_shared ℓ s1 s2 s3 Q ϕ positive E :
     {{{ ℓ ↦ (s1, s2, s3) | ϕ ∗ <obj> (∀ s v, ⌜ s3 ⊑ s ⌝ ∗ ϕ s v -∗ Q s v ∗ ϕ s v) }}}
       LoadAcquire (Val $ LitV $ LitLoc ℓ) @ positive; E
-    {{{ s v, RET v; ℓ ↦ (s1, s2, s) | ϕ ∗ Q s v }}}.
+    {{{ s v, RET v; ℓ ↦ (s1, s2, s) | ϕ ∗ post_fence (Q s v) }}}.
   Proof.
     intros Φ.
     iStartProof (iProp _). iIntros (TV).
@@ -619,7 +620,7 @@ r   end, we combine our fragment of the history with the authorative element. *)
     iDestruct (big_sepM_lookup_acc with "ptsMap") as "[pts ptsMap]"; first done.
     iApply wp_fupd.
     iApply (wp_load_acquire with "[$pts $val]").
-    iNext. iIntros (t' v' SV' PV') "(%look & %gt & #val' & pts)".
+    iNext. iIntros (t' v' SV' PV' _PV') "(%look & %gt & #val' & pts)".
 
     apply lookup_fmap_Some in look.
     destruct look as [[? s'] [msgEq histLook]].
@@ -779,10 +780,7 @@ r   end, we combine our fragment of the history with the authorative element. *)
     iApply "Φpost".
     { iPureIntro.
       etrans. eassumption.
-      repeat split.
-      - apply view_le_l.
-      - apply view_le_l.
-      - done. }
+      repeat split; try done; try apply view_le_l. }
     iSplitR "Q".
     - iExists tGP, tP, t'.
       iFrame "knowOrder histS1".
@@ -801,12 +799,15 @@ r   end, we combine our fragment of the history with the authorative element. *)
         apply incl.
         etrans.
         apply incl2.
-        apply view_le_l.
+        done.
       * apply view_empty_least.
-    - iApply monPred_mono; last iApply "Q".
+    - simpl.
+      (* rewrite /post_fence. simpl. rewrite /monPred_at. *)
+      rewrite /store_view /persist_view /=.
+      iApply monPred_mono; last iApply "Q".
       repeat split.
       * apply view_le_r.
-      * apply view_le_r.
+      * rewrite assoc. apply view_le_r.
       * apply view_empty_least.
   Admitted.
 

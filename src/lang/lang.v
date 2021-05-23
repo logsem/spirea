@@ -264,22 +264,15 @@ Module nvm_lang.
                (Val $ LitV LitUnit)
                []
   | CmpXchgSuccS ℓ v1 v2 vl :
-    (* FIXME: We probably need to check that _all_ the possible things we
-    could've read here are safe to compare with. Let's see when that becomes a
-    problem :). Note: Do this in the memory transition probably. Also, figure
-    out why that neccessary. Update: It is definitely necessary!! *)
-     vals_compare_safe vl v1 →
-     (vl = v1) →
      head_step (CmpXchg (Val $ LitV $ LitLoc ℓ) (Val v1) (Val v2))
-               (Some $ MEvRMW ℓ vl v2)
+               (Some $ MEvRMW ℓ v1 v2)
                []
                (Val $ PairV vl (LitV $ LitBool true))
                []
   | CmpXchgFailS ℓ v1 v2 vl :
-     vals_compare_safe vl v1 →
-     (vl ≠ v1) →
+     vl ≠ v1 →
      head_step (CmpXchg (Val $ LitV $ LitLoc ℓ) (Val v1) (Val v2))
-               (Some $ MEvLoadAcquire ℓ vl) (* FIXME: This is not enough per the above comment, probably need separate event. *)
+               (Some $ MEvLoadEx ℓ vl)
                []
                (Val $ PairV vl (LitV $ LitBool false))
                []

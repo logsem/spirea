@@ -421,8 +421,7 @@ Section wpc.
         ([∗ map] t ↦ p ∈ hist,
            (∃ (P : dProp Σ),
              ⌜(pred) (snd p) (fst p).(msg_val) = Some P⌝ ∗ (* Should this be ≡ *)
-             P (msg_to_tv (fst p))))) ∗
-      (* Ownership over the full knowledge of the abstract history of _all_
+             P (msg_to_tv (fst p))))) ∗ (* Ownership over the full knowledge of the abstract history of _all_
       locations. *)
       own_full_history ((λ (h : (gmap _ _)), snd <$> h) <$> hists) ∗
       (* Knowledge of all the predicates. *)

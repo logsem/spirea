@@ -114,16 +114,18 @@ Qed.
 
 Definition wpr_def {Σ} (s : stuckness) k := fixpoint (wpr_pre Σ s k).
 Definition wpr_aux {Σ} : seal (@wpr_def Σ). by eexists. Qed.
-Definition wpr {Σ} := (@wpr_aux Σ).(unseal).
-Lemma wpr_eq {Σ} : @wpr Σ = @wpr_def Σ.
-Proof. rewrite /wpr. rewrite wpr_aux.(seal_eq). done. Qed.
+Definition wpr' {Σ} := (@wpr_aux Σ).(unseal).
+Lemma wpr_eq {Σ} : @wpr' Σ = @wpr_def Σ.
+Proof. rewrite /wpr'. rewrite wpr_aux.(seal_eq). done. Qed.
 
 Lemma wpr_unfold `{hG : nvmG Σ} st k E e rec Φ Φc :
-  wpr st k hG E e rec Φ Φc ⊣⊢ wpr_pre Σ st k (wpr st k) hG E e rec Φ Φc.
+  wpr' st k hG E e rec Φ Φc ⊣⊢ wpr_pre Σ st k (wpr' st k) hG E e rec Φ Φc.
 Proof.
   rewrite wpr_eq. rewrite /wpr_def.
   apply (fixpoint_unfold (wpr_pre Σ st k)).
 Qed.
+
+Definition wpr `{nvmG Σ} s k := wpr' s k _.
 
 Section wpr.
   Context `{hG : nvmG Σ}.
@@ -133,7 +135,7 @@ Section wpr.
     map_zip_with
       (λ '(MaxNat t) hist,
        match hist !! t with
-         Some (msg, s) => {[ 0 := (discard_store_view msg, s) ]}
+         Some (msg, s) => {[ 0 := (discard_msg_views msg, s) ]}
        | None => ∅ (* The None branch here should never be taken. *)
        end)
       p σ.
@@ -222,7 +224,7 @@ Section wpr.
     ⊢ WPC e @ s ; k ; E1 {{ Φ }} {{ Φc hG }} -∗
       (<obj> □ ∀ (hG' : nvmG Σ),
             Φc hG' -∗ ▷ post_crash (λ hG', (WPC rec @ s ; k; E1 {{ Φr hG' }} {{ Φc hG' }}))) -∗
-      wpr s k hG E1 e rec Φ Φr.
+      wpr s k E1 e rec Φ Φr.
   Proof.
     iStartProof (iProp _).
     iLöb as "IH" forall (e Φ hG).
@@ -231,6 +233,7 @@ Section wpr.
     iIntros "wpc".
     iIntros (? ?).
     iIntros "#Hidemp".
+    rewrite /wpr.
     rewrite wpr_unfold.
     rewrite /wpr_pre.
     iApply (wpc_strong_mono' with  "wpc"); try reflexivity.

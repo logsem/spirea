@@ -76,14 +76,14 @@ Section simple_increment.
     then #() #()
     else #().
 
-  Definition init_hist : history := {[ 0 := Msg #0 ∅ ∅ ]}.
+  Definition init_hist : history := {[ 0 := Msg #0 ∅ ∅ ∅ ]}.
 
   Lemma wpc_incr ℓ1 ℓ2 k E1 :
     {{{ validV ∅ ∗ ℓ1 ↦h init_hist ∗ ℓ2 ↦h init_hist }}}
       ThreadState (incr_both ℓ1 ℓ2) (∅, ∅, ∅) @ k; E1
     {{{ v t1 t2 TV, RET ThreadVal v TV;
-      ℓ1 ↦h {[ t1 := Msg #1 ∅ ∅; 0 := Msg #0 ∅ ∅ ]} ∗
-      ℓ2 ↦h {[ t2 := Msg #1 ∅ {[ ℓ1 := MaxNat t1 ]}; 0 := Msg #0 ∅ ∅ ]}
+      ℓ1 ↦h {[ t1 := Msg #1 ∅ ∅ ∅; 0 := Msg #0 ∅ ∅ ∅ ]} ∗
+      ℓ2 ↦h {[ t2 := Msg #1 ∅ ∅ {[ ℓ1 := MaxNat t1 ]}; 0 := Msg #0 ∅ ∅ ∅ ]}
     }}}
     {{{ True }}}.
   Proof.

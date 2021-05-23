@@ -181,7 +181,7 @@ Section wpr.
     { apply auth_update_auth_persist. }
     iDestruct "pers" as "#oldPers".
     (* Allocate a new persist view. *)
-    iMod (own_alloc (● p' ⋅ ◯ p')) as (persistG) "[pers #persFrag]".
+    iMod (own_alloc (● ∅ ⋅ ◯ ∅)) as (persistG) "[pers #persFrag]".
     { apply auth_both_valid_2; [apply view_valid|done]. }
     (* Allocate the store view at a _new_ ghost name. *)
     iMod (own_alloc (● lub_view (slice_of_store p' store))) as (storeG) "store".
@@ -236,7 +236,7 @@ Section wpr.
         (* iRight. *)
         admit. }
     iSplit.
-    * iDestruct (store_inv_cut with "invs") as "$".
+    * iDestruct (store_inv_cut with "invs") as "$". simpl.
       iExists p'. iFrame "recovered".
     * iModIntro.
       iIntros (V) "pers".
