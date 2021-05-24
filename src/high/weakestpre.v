@@ -6,10 +6,11 @@ From iris.program_logic Require weakestpre.
 
 From stdpp Require Import countable numbers gmap.
 From iris Require Import invariants.
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import tactics monpred.
 From iris.algebra Require Import gmap excl auth.
 From iris.program_logic Require weakestpre.
 From iris.heap_lang Require Import locations.
+From iris_named_props Require Import named_props.
 
 From self Require Export extra.
 From self.high Require Export dprop.
@@ -112,40 +113,29 @@ Section wp.
   last events at [ℓ] corresponds to the *)
   Definition mapsto_ex `{AbstractState ST}
              ℓ (ss1 ss2 : list ST)
-             (* (v : val) *)
              (ϕ : ST → val → dProp Σ) : dProp Σ :=
-    (∃ (tGlobalPers tPers tStore : time) (abs_hist : abs_history ST) (* hist *),
+    (∃ (tGlobalPers tPers tStore : time) (abs_hist : abs_history ST),
 
-      (* The location ℓ points to the physical history expressed using the base logic. *)
-      (* ⎡ℓ ↦h{#1/2} hist⎤ ∗ (* The other half of the points-to predicate is in [interp]. *) *)
+      "%incrList" ∷ ⌜ increasing_list (ss1 ++ ss2) ⌝ ∗
+      "#knowOrder" ∷ ⎡ own_preorder_loc ℓ ((⊑@{ST})) ⎤ ∗
+      (* ⎡ own_preorder_loc ℓ ((⊑@{ST})) ⎤ ∗ *)
 
-      (* The abstract history and physical history satisfy the invariant
-      predicate. This pair-wise map over two lists also implies that their
-      domains are equal. *)
-      (* ⎡([∗ map] t ↦ msg; abs ∈ hist; abs_hist, *)
-      (*     ϕ abs msg.(msg_val) (msg.(msg_store_view), msg.(msg_persist_view), ∅))⎤ ∗ *)
-
-      ⌜ increasing_list (ss1 ++ ss2) ⌝ ∗
-      ⎡ own_preorder_loc ℓ ((⊑@{ST})) ⎤ ∗
-
-      ⌜abs_hist !! tPers = head ss2⌝ ∗ (* Note: This also ensures that [ss2] is non-empty :) *)
+      "%lookupP" ∷ ⌜abs_hist !! tPers = head ss2⌝ ∗ (* Note: This also ensures that [ss2] is non-empty :) *)
       (* [tStore] is the last message and it agrees with the last state in ss2 and the value. *)
-      ⌜abs_hist !! tStore = last ss2⌝ ∗
-      ⌜(∀ t', tStore < t' → abs_hist !! t' = None)⌝ ∗
+      "%lookupV" ∷ ⌜abs_hist !! tStore = last ss2⌝ ∗
+      "%nolater" ∷ ⌜(∀ t', tStore < t' → abs_hist !! t' = None)⌝ ∗
       (* ⌜msg_val <$> (hist !! tStore) = Some v⌝ ∗ *)
 
       (* Ownership over the abstract history. *)
-      ⎡know_full_history_loc ℓ abs_hist⎤ ∗
+      "hist" ∷ ⎡know_full_history_loc ℓ abs_hist⎤ ∗
       (* Knowledge of the predicate. *)
-      ⎡know_pred ℓ ϕ⎤ ∗
+      "knowPred" ∷ ⎡know_pred ℓ ϕ⎤ ∗
 
-      (* ⌜max_member abs_hist tStore⌝ ∗ *)
-      ⌜map_slice abs_hist tGlobalPers tStore (ss1 ++ ss2)⌝ ∗
-      (* ⌜map_slice abs_hist tGlobalPers tPers ss1⌝ ∗ *)
+      "%slice" ∷ ⌜map_slice abs_hist tGlobalPers tStore (ss1 ++ ss2)⌝ ∗
 
       (* We "have"/"know" of the three timestamps. *)
-      monPred_in ({[ ℓ := MaxNat tStore ]}, {[ ℓ := MaxNat tPers ]}, ∅) ∗
-      ⎡persisted ({[ ℓ := MaxNat tGlobalPers ]} : view)⎤
+      "%know" ∷ monPred_in ({[ ℓ := MaxNat tStore ]}, {[ ℓ := MaxNat tPers ]}, ∅) ∗
+      "per" ∷ ⎡persisted ({[ ℓ := MaxNat tGlobalPers ]} : view)⎤
     ).
 
   Global Instance mapsto_ex_discretizable `{AbstractState ST} ℓ ss1 ss2 ϕ :
@@ -300,6 +290,14 @@ Section wp_rules.
     by erewrite <- app_comm_cons, last_cons.
   Qed.
 
+  (* FIXME: This has been committed upstream, delete later when dependencies are updated. *)
+  Lemma make_monPred_at_embed2 {I : biIndex} {PROP : bi} name (i : I) P (𝓟 : PROP) :
+    MakeMonPredAt i P 𝓟 →
+    MakeMonPredAt i (named name P) (named name 𝓟).
+  Proof. done. Qed.
+
+  Hint Extern 0 (MakeMonPredAt _ (named _ _) _) => apply make_monPred_at_embed2 : typeclass_instances.
+
   Lemma wp_load_ex ℓ ss ss' s Q ϕ positive E :
     last ss' = Some s →
     {{{ ℓ ↦ ss; ss' | ϕ ∗ <obj> (∀ v, ϕ s v -∗ Q v ∗ ϕ s v) }}}
@@ -307,10 +305,11 @@ Section wp_rules.
     {{{ v, RET v; ℓ ↦ ss; ss' | ϕ ∗ Q v }}}.
   Proof.
     intros sLast Φ.
+    rewrite /mapsto_ex.
     iStartProof (iProp _). iIntros (TV).
     (* We destruct the exclusive points-to predicate. *)
     iIntros "[pts pToQ]".
-    iDestruct "pts" as (?tGP ?tP ?tS absHist) "(%incrL & #knowOrder & %lookupP & %lookupV & %nolater & hist & knowPred & %slice & %know & per)".
+    iDestruct "pts" as (?tGP ?tP ?tS absHist) "pts". iNamed "pts".
     rewrite monPred_at_wand. simpl.
     iIntros (TV' incl) "Φpost".
     rewrite monPred_at_later.
