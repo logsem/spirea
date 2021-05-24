@@ -25,7 +25,7 @@ into a version valid after the crash. *)
 Definition post_crash_map {Σ} (hh : gmap loc (gmap time positive)) (hG hG' : nvmG Σ) : iProp Σ :=
   (* Used to conclude that the locations owned are included in the heap in question. *)
   (∀ ℓ hist, (know_full_encoded_history_loc (hG := hG) ℓ hist) -∗ ⌜hh !! ℓ = Some hist⌝) ∗
-  (* The map used to the the exchange. *)
+  (* The map used to perform the the exchange. *)
   [∗ map] ℓ ↦ hist ∈ hh,
     (know_full_encoded_history_loc (hG := hG) ℓ hist) ∨ (know_history_post_crash hG' ℓ hist).
 

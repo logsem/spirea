@@ -316,14 +316,27 @@ Section preorders.
     reflexivity.
   Qed.
 
+  Definition own_all_preorders_gname γ (preorders : gmap loc (relation2 positive)) :=
+    own γ (● ((to_agree <$> preorders) : gmapUR _ (agreeR relationO))).
+
   Definition own_all_preorders (preorders : gmap loc (relation2 positive)) :=
-    own preorders_name (● ((to_agree <$> preorders) : gmapUR _ (agreeR relationO))).
+    own_all_preorders_gname preorders_name preorders.
 
   Definition own_preorder_loc ℓ (preorder : relation2 A) : iProp Σ :=
     own preorders_name (◯ ({[ ℓ := to_agree (encode_relation preorder) ]})).
 
   Global Instance persistent_own_preorder_loc ℓ preorder : Persistent (own_preorder_loc ℓ preorder).
   Proof. apply _. Qed.
+
+  Lemma own_all_preorders_gname_alloc (preorders : gmap loc (relation2 positive)) :
+    ⊢ |==> ∃ γ, own_all_preorders_gname γ preorders.
+  Proof.
+    iMod (own_alloc _) as "$"; last done.
+    apply auth_auth_valid.
+    intros ℓ.
+    rewrite lookup_fmap.
+    by case (preorders !! ℓ).
+  Qed.
 
   (* Global Instance discretizable_know_full_history_loc ℓ ord : *)
   (*   own_discrete.Discretizable (own_preorder_loc ℓ ord). *)

@@ -1,4 +1,5 @@
 (* Implementation of the recovery weakest precondition for NvmLang. *)
+From stdpp Require Import sets.
 From iris.proofmode Require Import tactics.
 From iris.base_logic Require Import ghost_map.
 From Perennial.program_logic Require Import crash_weakestpre.
@@ -9,6 +10,51 @@ From self Require Import view.
 From self.base Require Import primitive_laws wpr_lifting.
 From self.high Require Import dprop.
 From self.high Require Import resources weakestpre crash_weakestpre post_crash_modality.
+
+Definition restrict `{FinMap K M, ElemOf K D, !RelDecision (∈@{D})} {A} (s : D) (m : M A) :=
+  filter (λ '(k, _), k ∈ s) m.
+
+Section restrict.
+  Context `{FinMapDom K M D}.
+  Context `{!RelDecision (∈@{D})}.
+  Context {A : Type}.
+
+  Lemma restrict_lookup_Some (s : D) (m : M A) (k : K) (x : A) :
+    restrict s m !! k = Some x → (m !! k = Some x) ∧ k ∈ s.
+  Proof. by rewrite map_filter_lookup_Some. Qed.
+
+  Lemma restrict_superset_id (s : D) (m : M A) :
+    dom _ m ⊆ s → restrict s m = m.
+  Proof.
+    intros Hsub.
+  Admitted.
+
+  Lemma restrict_dom_subset (s : D) (m : M A) :
+    s ⊆ dom _ m → dom _ (restrict s m) ≡ s.
+  Proof.
+    intros Hsub.
+    rewrite /restrict.
+    eapply dom_filter.
+    intros i.
+    split; [|by intros [_ [_ ?]]].
+    intros.
+    assert (is_Some (m !! i)) as [x ?] by (apply elem_of_dom; set_solver).
+    by exists x.
+  Qed.
+
+End restrict.
+
+Section restrict_leibniz.
+  Context `{FinMapDom K M D}.
+  Context `{!RelDecision (∈@{D})}.
+  Context {A : Type}.
+  Context `{!LeibnizEquiv D}.
+
+  Lemma restrict_dom_subset_L (s : D) (m : M A) :
+    s ⊆ dom _ m → dom _ (restrict s m) = s.
+  Proof. unfold_leibniz. apply restrict_dom_subset. Qed.
+
+End restrict_leibniz.
 
 Set Default Proof Using "Type".
 
@@ -140,6 +186,18 @@ Section wpr.
        end)
       p σ.
 
+  Lemma slice_of_hist_dom_subset p hists :
+    dom (gset loc) (slice_of_hist p hists) ⊆ dom (gset loc) hists.
+  Proof.
+    rewrite /slice_of_hist.
+    intros l.
+    rewrite !elem_of_dom.
+    intros [??].
+    apply map_lookup_zip_with_Some in H.
+    destruct H as (? & ? & ? & ? & ?).
+    eexists _. done.
+  Qed.
+
   (* Given the state interpretations _before_ a crash we reestablish the
   interpretations _after_ a crash. *)
   Lemma nvm_reinit (hG' : nvmG Σ) n Pg tv σ σ' (Hinv : invG Σ) (Hcrash : crashG Σ) :
@@ -160,12 +218,21 @@ Section wpr.
     (* We need to first re-create the ghost state for the base interpretation. *)
     iMod (nvm_heap_reinit _ _ _ _ Hcrash step with "heap inv pers") as (baseNames) "(map & interp' & #persImpl)".
 
+    iDestruct (big_sepM2_dom with "incr") as %domHistsEqOrders.
+
     destruct step as [store p p' pIncl].
 
     (* Allocate new ghost state for the logical histories. *)
     rewrite /interp.
     set newHists := slice_of_hist p' hists.
     iMod (own_full_history_gname_alloc ((λ h : abs_history (message * positive), snd <$> h) <$> newHists)) as (new_abs_history_name new_know_abs_history_name) "[hists' needThis]".
+
+    (* Some locations may be lost after a crash. For these we need to
+    forget/throw away the predicate and preorder that was choosen for the
+    location. *)
+    set newOrders := restrict (dom (gset _) newHists) orders.
+    iMod (own_all_preorders_gname_alloc newOrders) as (new_orders_name) "newOrders".
+
     (* iMod (own_alloc ()) *)
     (* own_full_history ((λ h : abs_history (message * positive), snd <$> h) <$> hists) *)
 
@@ -175,7 +242,7 @@ Section wpr.
           name_high_names := {| name_abs_history := new_abs_history_name;
                                 name_know_abs_history := new_know_abs_history_name;
                                 name_predicates := _;
-                                name_preorders := _ |} |}).
+                                name_preorders := new_orders_name |} |}).
     iFrame "interp'".
     rewrite /nvm_heap_ctx.
     (* iFrame. *)
@@ -183,14 +250,18 @@ Section wpr.
     rewrite /interp.
     iExists _, _, _.
     rewrite /own_full_history.
-    iFrame "orders".
+    iFrame "newOrders".
     iFrame "preds".
     iFrame "hists'".
     iSplitL "".
     { admit. } (* We need the points-to predicates. *)
     iSplitL "".
     { iApply big_sepM2_intuitionistically_forall.
-      - admit.
+      - setoid_rewrite <- elem_of_dom.
+        apply set_eq. (* elem_of_equiv_L *)
+        rewrite restrict_dom_subset_L; first done.
+        rewrite -domHistsEqOrders.
+        apply slice_of_hist_dom_subset.
       - iModIntro.
         rewrite /newHists.
         iIntros (??? slice ?).
@@ -203,7 +274,8 @@ Section wpr.
     }
     admit.
   Admitted.
-   
+
+
   Lemma nvm_reinit' (hG' : nvmG Σ) n σ σ' (Hinv : invG Σ) (Hcrash : crashG Σ) Pg :
     crash_step σ σ' →
     ⊢ ⎡interp⎤ -∗
@@ -254,7 +326,7 @@ Section wpr.
     (* Allocate the new ghost state. *)
     iMod (nvm_reinit _ _ _ _ _ _ _ _ with "interp state idemp'") as (names) "(interp & stateInterp & idemp)".
     { apply step. }
- 
+
     iModIntro (|={E1}=> _)%I.
     iExists names.
     iFrame.
@@ -264,5 +336,5 @@ Section wpr.
     { monPred_simpl. done. }
     iApply "IH".
   Qed.
-   
+
 End wpr.
