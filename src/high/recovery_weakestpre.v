@@ -1,6 +1,7 @@
 (* Implementation of the recovery weakest precondition for NvmLang. *)
 From stdpp Require Import sets.
 From iris.proofmode Require Import tactics.
+From iris.algebra Require Import auth.
 From iris.base_logic Require Import ghost_map.
 From Perennial.program_logic Require Import crash_weakestpre.
 From Perennial.program_logic Require Import recovery_weakestpre.
@@ -23,11 +24,13 @@ Section restrict.
     restrict s m !! k = Some x → (m !! k = Some x) ∧ k ∈ s.
   Proof. by rewrite map_filter_lookup_Some. Qed.
 
+  (*
   Lemma restrict_superset_id (s : D) (m : M A) :
     dom _ m ⊆ s → restrict s m = m.
   Proof.
     intros Hsub.
   Admitted.
+  *)
 
   Lemma restrict_dom_subset (s : D) (m : M A) :
     s ⊆ dom _ m → dom _ (restrict s m) ≡ s.
@@ -232,16 +235,16 @@ Section wpr.
     location. *)
     set newOrders := restrict (dom (gset _) newHists) orders.
     iMod (own_all_preorders_gname_alloc newOrders) as (new_orders_name) "newOrders".
+    set newPreds := restrict (dom (gset _) newHists) preds.
 
-    (* iMod (own_alloc ()) *)
-    (* own_full_history ((λ h : abs_history (message * positive), snd <$> h) <$> hists) *)
+    iMod (know_predicates_alloc newPreds) as (new_predicates_name) "newPreds".
 
     iModIntro.
     iExists
       ({| name_base_names := baseNames;
           name_high_names := {| name_abs_history := new_abs_history_name;
                                 name_know_abs_history := new_know_abs_history_name;
-                                name_predicates := _;
+                                name_predicates := new_predicates_name;
                                 name_preorders := new_orders_name |} |}).
     iFrame "interp'".
     rewrite /nvm_heap_ctx.
@@ -251,11 +254,11 @@ Section wpr.
     iExists _, _, _.
     rewrite /own_full_history.
     iFrame "newOrders".
-    iFrame "preds".
+    iFrame "newPreds".
     iFrame "hists'".
     iSplitL "".
     { admit. } (* We need the points-to predicates. *)
-    iSplitL "".
+    iSplitR.
     { iApply big_sepM2_intuitionistically_forall.
       - setoid_rewrite <- elem_of_dom.
         apply set_eq. (* elem_of_equiv_L *)
@@ -270,8 +273,8 @@ Section wpr.
         destruct slice as ([t] & hist & -> & more).
         destruct (hist !! t) as [[??]|]; simpl.
         { rewrite map_fmap_singleton. simpl. apply increasing_map_singleton. }
-        { rewrite fmap_empty. apply increasing_map_empty. }
-    }
+        { rewrite fmap_empty. apply increasing_map_empty. } }
+
     admit.
   Admitted.
 

@@ -168,3 +168,30 @@ Proof.
     setoid_rewrite incl.
     done.
 Qed.
+
+(* Lemma big_sepL_impl_2 {PROP : bi} `{Countable K} {A B} (Φ : K → A → PROP) (Ψ : K → B → PROP) (l1 : list A) (l2 : B) : *)
+(*   ([∗ map] k↦x ∈ m1, Φ k x) -∗ *)
+(*   □ (∀ (k : K) (x : A) (y : B), *)
+(*         ⌜m2 !! k = Some y⌝ -∗ *)
+(*         (⌜m1 !! k = Some x⌝ ∗ Φ k x ∨ ⌜m1 !! k = None⌝) -∗ *)
+(*         Ψ k y) -∗ *)
+(*   [∗ map] k↦y ∈ m2, Ψ k y. *)
+(* Proof. Admitted. *)
+
+Lemma big_sepM_impl_2 {PROP : bi} `{Countable K} {A B} (Φ : K → A → PROP) (Ψ : K → B → PROP) (m1 : gmap K A) (m2 : gmap K B) :
+  ([∗ map] k↦x ∈ m1, Φ k x) -∗
+  □ (∀ (k : K) (x : A) (y : B),
+        ⌜m2 !! k = Some y⌝ -∗
+        (⌜m1 !! k = Some x⌝ ∗ Φ k x ∨ ⌜m1 !! k = None⌝) -∗
+        Ψ k y) -∗
+  [∗ map] k↦y ∈ m2, Ψ k y.
+Proof. Admitted.
+
+Section map_zip_with.
+  Context `{FinMap K M}.
+
+  Lemma map_lookup_zip_with_None {A B C} (f : A → B → C) (m1 : M A) (m2 : M B) i :
+    map_zip_with f m1 m2 !! i = None ↔ m1 !! i = None ∨ m2 !! i = None.
+  Proof. rewrite map_lookup_zip_with. destruct (m1 !! i), (m2 !! i); naive_solver. Qed.
+
+End map_zip_with.

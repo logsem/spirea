@@ -225,6 +225,16 @@ Section predicates.
       (ℓ : loc) (ϕ : s → val → dProp Σ) : iProp Σ :=
     own predicates_name (◯ {[ ℓ := pred_to_ra (λ s' v, (λ s, ϕ s v) <$> decode s') ]} : predicatesR).
 
+  Lemma know_predicates_alloc preds :
+    ⊢ |==> ∃ γ, own γ ((● (pred_to_ra <$> preds)) : predicatesR).
+  Proof.
+    iMod (own_alloc _) as "$"; last done.
+    apply auth_auth_valid.
+    intros ℓ.
+    rewrite lookup_fmap.
+    by case (preds !! ℓ).
+  Qed.
+
   Lemma know_pred_agree `{Countable s} ℓ (ϕ : s → val → dProp Σ) (preds : gmap loc predO) :
     know_all_preds preds -∗
     know_pred ℓ ϕ -∗
