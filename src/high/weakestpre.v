@@ -28,80 +28,9 @@ Section wp.
   Definition abs_hist_to_ra_old (abs_hist : gmap time (message * positive)) : encoded_abs_historyR :=
     (to_agree ∘ snd) <$> abs_hist.
 
-  (* Definition loc_to_hist_ra (l : (@loc_info Σ)) `{Countable l} : encoded_abs_historyR := *)
-  (*   (to_agree ∘ encode) <$> l_abstract_history l. *)
-
-  (* Record foo := { foo_car : Type; foo_rel : relation foo_car; }. *)
-  (* Definition bar := gmap nat foo. *)
-
-  (* Definition test : Prop := ∃ (S : Set) (_ : relation S), True. *)
-  (* Definition test : iProp Σ := ∃ (S : Set) (_ : relation S), True. *)
-
-  (* Definition test (m : gmap nat nat) : iProp Σ := *)
-  (*   ([∗ map] ℓ ↦ enc ∈ m, *)
-  (*     ∃ (S : Type) _ : EqDecision S) (_ : Countable S) (_ : relation S), *)
-  (*       ⌜encode s = enc⌝). *)
-
-  (* Test the use of countable encoding. *)
-  (* Lemma test_encoding {S : Set} `{Countable S} *)
-  (*     (ϕ : S → iProp Σ) (ϕenc : positive → iProp Σ) s p : *)
-  (*   ϕ = ϕenc ∘ encode → *)
-  (*   encode s = p →  *)
-  (*   ϕenc p -∗ ϕ s. *)
-  (* Proof. *)
-  (*   iIntros (eq eq') "H". rewrite eq. simpl. rewrite eq'. iApply "H". *)
-  (* Qed. *)
-
-  (* Lemma test_encoding {S : Set} `{Countable S} *)
-  (*   (ϕ : S → iProp Σ) (ϕenc : positive -d> optionO (iPropO Σ)) s p (P : iProp Σ) : *)
-  (*   ϕenc ≡ (λ s, ϕ <$> (decode s)) → *)
-  (*   p ≡ encode s → *)
-  (*   ϕenc p ≡ Some P → *)
-  (*   P ⊣⊢ ϕ s. *)
-  (* Proof. *)
-  (*   iIntros (eq eq'). rewrite eq'. *)
-  (*   pose proof (eq (encode s)) as HI. *)
-  (*   rewrite HI. *)
-  (*   rewrite decode_encode. *)
-  (*   simpl. *)
-  (*   intros HO. *)
-  (*   apply Some_equiv_inj in HO. *)
-  (*   rewrite HO. *)
-  (*   done. *)
-  (* Qed. *)
-
-  (*
-  Definition old_interp : iProp Σ :=
-    (∃ (hists : gmap loc (gmap time (message * positive)))
-       (preds : gmap loc (positive → val → option (dProp Σ))),
-      (* We have the points-to predicates. *)
-      ([∗ map] ℓ ↦ hist ∈ hists, ℓ ↦h (fst <$> hist)) ∗
-      (* The predicates hold. *)
-      ([∗ map] ℓ ↦ hist; pred ∈ hists; preds,
-        ([∗ map] t ↦ p ∈ hist,
-           (∃ (P : dProp Σ),
-             ⌜(pred) (snd p) (fst p).(msg_val) = Some P⌝ ∗
-             P (msg_to_tv (fst p))))) ∗
-      (* Authorative ghost states. *)
-      (* own abs_history_name (● (abs_hist_to_ra_old <$> hists) : encoded_historiesR) ∗ *)
-      own predicates_name (● (pred_to_ra <$> preds) : predicatesR)).
-  *)
-
-  (* Definition own_abstract_history `{Countable ST} ℓ q (abs_hist : abs_history ST) : dProp Σ := *)
-  (*   ⎡own abs_history_name (●{#q} {[ ℓ := (abs_hist_to_ra abs_hist)]})⎤. *)
-
-  (* Definition know_abstract_history `{Countable ST} ℓ (abs_hist : abs_history ST) : dProp Σ := *)
-  (*   ⎡own abs_history_name (◯ {[ ℓ := (abs_hist_to_ra abs_hist)]})⎤. *)
-
-  (* Definition know_state `{Countable s} ℓ (t : time) (s' : s) : iProp Σ := *)
-  (*   own (◯ {[ ℓ := {[ t := to_agree (encode s') ]} ]} : encoded_historiesR). *)
-
-  (* A few lemmas about [interp], [know_pred], [know_state]. *)
-
   Lemma singleton_included_l' `{Countable K} `{CmraTotal A} (m : gmap K A) (i : K) x :
     {[i := x]} ≼ m ↔ (∃ y : A, m !! i ≡ Some y ∧ x ≼ y).
   Proof.
-    (* Use [setoid_rewrite] to rewrite under the binder. *)
     setoid_rewrite <-(Some_included_total x).
     apply singleton_included_l.
   Qed.
@@ -169,36 +98,6 @@ Section wp.
     ∃ t,
       monPred_in ({[ ℓ := MaxNat t ]}, ∅, ∅) ∗
       ⎡know_frag_history_loc ℓ {[ t := s ]}⎤.
-
-  (*
-  Definition mapsto_read `{!SqSubsetEq abs_state, !PreOrder (⊑@{abs_state})}
-             ι γabs γlast ℓ (s1 s2 s3 : abs_state) ϕ : dProp Σ :=
-    (∃ (tGlobalPers tPers tStore : time),
-      (* We know that the global persist view has [tGlobalPers]. *)
-      ⎡persisted {[ ℓ := MaxNat tGlobalPers ]}⎤ ∗
-      (* We know that our lobal views have [tPers] and [tStore]. *)
-      monPred_in ({[ ℓ := MaxNat tStore]}, {[ ℓ := MaxNat tPers ]}, ∅) ∗
-      ⎡inv ι (mapsto_ex_inv ℓ ϕ γabs γlast)⎤ ∗
-      ⎡own γabs ({[ tGlobalPers := to_agree s1 ]} : encoded_abs_historyR abs_state)⎤ ∗
-      ⎡own γabs ({[ tPers := to_agree s2 ]} : encoded_abs_historyR abs_state)⎤ ∗
-      ⎡own γabs ({[ tStore := to_agree s3 ]} : encoded_abs_historyR abs_state)⎤).
-  *)
-
-  (*
-  Definition mapsto_ex_inv ℓ ϕ (γabs γlast : gname) : iProp Σ :=
-    (∃ (hist_misc : (gmap time (message * abs_state))) (s : abs_state) v, (* (es es' : list abs_state), *)
-      (* ℓ points to the messages in [hist_misc]. *)
-      ℓ ↦h (fst <$> hist_misc) ∗
-      (* ghost state for all the abstract states. *)
-      (* ⌜hi = (snd <$> hist_misc)⌝ ∗ *)
-      own γabs ((to_agree <$> (snd <$> hist_misc)) : encoded_abs_historyR abs_state) ∗
-      (* [s] and [v] is the state and value of the last write *)
-      own γlast (((1/2)%Qp, to_agree (s, v)) : lastR abs_state) ∗
-      (* FIXME *)
-      ([∗ map] ℓ ↦ misc ∈ hist_misc,
-        ϕ (snd misc) (msg_val $ fst $ misc) (msg_store_view $ fst $ misc, msg_persist_view $ fst $ misc, ∅))
-    ).
-  *)
 
   (* We prove a few basic facts about our weakest precondition. *)
   Global Instance wp_ne s E e n :
@@ -609,7 +508,7 @@ Section wp_rules.
 
     (* We need to get the points-to predicate for [ℓ] which is is inside
     [interp].  We want to look up the points-to predicate in [ptsMap]. To this
-r   end, we combine our fragment of the history with the authorative element. *)
+    end, we combine our fragment of the history with the authorative element. *)
     iDestruct (own_frag_history_agree_singleton with "history histS3") as %look.
     destruct look as (absHist & enc & histAbsHist & lookTS & decodeEnc).
     apply lookup_fmap_Some in histAbsHist.

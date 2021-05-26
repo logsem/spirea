@@ -221,9 +221,13 @@ Section predicates.
   Definition know_all_preds preds :=
       own predicates_name (● (pred_to_ra <$> preds) : predicatesR).
 
+  Definition encode_predicate `{Countable s}
+             (ϕ : s → val → dProp Σ) : positive → val → option (dProp Σ) :=
+    λ encS v, (λ s, ϕ s v) <$> decode encS.
+
   Definition know_pred `{Countable s}
       (ℓ : loc) (ϕ : s → val → dProp Σ) : iProp Σ :=
-    own predicates_name (◯ {[ ℓ := pred_to_ra (λ s' v, (λ s, ϕ s v) <$> decode s') ]} : predicatesR).
+    own predicates_name (◯ {[ ℓ := pred_to_ra (encode_predicate ϕ) ]} : predicatesR).
 
   Lemma know_predicates_alloc preds :
     ⊢ |==> ∃ γ, own γ ((● (pred_to_ra <$> preds)) : predicatesR).
@@ -239,37 +243,48 @@ Section predicates.
     know_all_preds preds -∗
     know_pred ℓ ϕ -∗
     (∃ (o : predO),
-       ⌜ preds !! ℓ = Some o ⌝ ∗
-       ▷ (o ≡ λ s' v, (λ s, ϕ s v) <$> decode s')).
+       ⌜preds !! ℓ = Some o⌝ ∗ (* Some encoded predicate exists. *)
+       ▷ (o ≡ encode_predicate ϕ)).
   Proof.
     iIntros "O K".
-    rewrite /know_all_preds.
-    rewrite /know_pred.
+    rewrite /know_all_preds /know_pred.
     iDestruct (own_valid_2 with "O K") as "H".
-    iDestruct (auth_both_validI with "H") as "[H A]".
-    iDestruct "H" as (c) "eq".
+    iDestruct (auth_both_validI with "H") as "[tmp val]".
+    iDestruct "tmp" as (c) "#eq".
     rewrite gmap_equivI.
-    iDestruct ("eq" $! ℓ) as "HI".
+    iSpecialize ("eq" $! ℓ).
     rewrite lookup_fmap.
     rewrite lookup_op.
     rewrite lookup_singleton.
+    destruct (preds !! ℓ) as [o|] eqn:eq; rewrite eq /=.
+    2: { simpl. case (c !! ℓ); intros; iDestruct "eq" as %eq'; inversion eq'. }
+    iExists o.
+    iSplit; first done.
     case (c !! ℓ).
-    - admit.
+    - intros ?.
+      rewrite /pred_to_ra.
+      rewrite -Some_op.
+      rewrite !option_equivI.
+      rewrite wsat.agree_equiv_inclI.
+      rewrite !discrete_fun_equivI. iIntros (state).
+      iSpecialize ("eq" $! state).
+      rewrite !discrete_fun_equivI. iIntros (v).
+      iSpecialize ("eq" $! v).
+      rewrite later_equivI_1.
+      iNext.
+      iRewrite "eq".
+      done.
     - rewrite right_id.
-      destruct (preds !! ℓ) as [o|] eqn:eq; rewrite eq.
-      2: { simpl. iDestruct "HI" as %HI. inversion HI. }
-      iExists o.
-      iSplit; first done.
       simpl.
       rewrite !option_equivI.
       rewrite agree_equivI.
       rewrite !discrete_fun_equivI. iIntros (state).
-      iDestruct ("HI" $! state) as "HI".
+      iSpecialize ("eq" $! state).
       rewrite !discrete_fun_equivI. iIntros (v).
-      iDestruct ("HI" $! v) as "HI".
+      iSpecialize ("eq" $! v).
       rewrite later_equivI_1.
       done.
-    Admitted.
+    Qed.
 
 End predicates.
 
@@ -347,11 +362,6 @@ Section preorders.
     rewrite lookup_fmap.
     by case (preorders !! ℓ).
   Qed.
-
-  (* Global Instance discretizable_know_full_history_loc ℓ ord : *)
-  (*   own_discrete.Discretizable (own_preorder_loc ℓ ord). *)
-  (* Proof. *)
-  (*   apply _.  *)
 
   Lemma orders_lookup ℓ order1 order2 (orders : gmap loc (relation2 positive)) :
     orders !! ℓ = Some order1 →
@@ -436,14 +446,12 @@ Section wpc.
       (* Agreement on the preorders and the ordered/sorted property. *)
       own_all_preorders orders ∗
       ([∗ map] ℓ ↦ hist; order ∈ hists; orders, ⌜increasing_map (snd <$> hist) order⌝) ∗
-
+      (* The predicates hold. *)
       ([∗ map] ℓ ↦ hist; pred ∈ hists; preds,
-        (* ⌜ ∃ (T : loc_info), True ⌝ ∗ *)
-        (* ⌜ increasing_map (snd <$> hist) ⌝ ∗ (* FIXME *) *)
         (* The predicate hold. *)
         ([∗ map] t ↦ p ∈ hist,
            (∃ (P : dProp Σ),
-             ⌜(pred) (snd p) (fst p).(msg_val) = Some P⌝ ∗ (* Should this be ≡ *)
+             ⌜(pred) (snd p) (fst p).(msg_val) = Some P⌝ ∗
              P (msg_to_tv (fst p))))) ∗ (* Ownership over the full knowledge of the abstract history of _all_
       locations. *)
       own_full_history ((λ (h : (gmap _ _)), snd <$> h) <$> hists) ∗
@@ -606,13 +614,34 @@ Section wpc.
       iIntros "HΦc C". iApply "H". iAssumption.
   Qed.
 
-  Lemma ncfupd_wpc s k E1 e Φ Φc :
+  Lemma ncfupd_wpc s k E1 e Φ Φc `{!Objective Φc} :
     <disc> (cfupd k E1 Φc) ∧ (|NC={E1}=> WPC e @ s; k; E1 {{ Φ }} {{ Φc }}) ⊢
     WPC e @ s; k; E1 {{ Φ }} {{ Φc }}.
   Proof.
-  Admitted.
+    rewrite wpc_eq.
+    iStartProof (iProp _). iIntros (TV).
+    iIntros "H".
+    simpl.
+    iIntros (?) "%incl val interp".
+    iApply ncfupd_wpc.
+    iSplit.
+    - iDestruct "H" as "[H _]".
+      rewrite disc_unfold_at.
+      iModIntro.
+      rewrite cfupd_unfold_at.
+      iDestruct "H" as ">H".
+      iModIntro.
+      iApply objective_at.
+      iApply "H".
+    - iDestruct "H" as "[_ H]".
+      rewrite ncfupd_unfold_at.
+      iDestruct "H" as ">H".
+      iModIntro.
+      iApply ("H" with "[//] val interp").
+  Qed.
 
-  Lemma wpc_atomic_crash_modality s k E1 e Φ Φc `{!Atomic StronglyAtomic e} :
+  Lemma wpc_atomic_crash_modality s k E1 e Φ Φc
+        `{!AtomicBase StronglyAtomic e, !Objective Φc} :
     <disc> (cfupd k E1 (Φc)) ∧
     (WP e @ s; E1 {{ v, |={E1}=> (|={E1}=>Φ v) ∧ <disc> cfupd k E1 (Φc) }}) ⊢
     WPC e @ s; k; E1 {{ Φ }} {{ Φc }}.
@@ -620,10 +649,47 @@ Section wpc.
     rewrite wpc_eq.
     iStartProof (iProp _). iIntros (TV).
     iIntros "H".
-  Admitted.
+    simpl.
+    iIntros (?) "%incl val interp".
+    iApply wpc_atomic_crash_modality.
+    iSplit; [iDestruct "H" as "[H _]"|iDestruct "H" as "[_ H]"].
+    - rewrite disc_unfold_at. iModIntro.
+      rewrite cfupd_unfold_at.
+      iMod "H".
+      iModIntro.
+      iApply objective_at.
+      iApply "H".
+    - rewrite wp_eq. rewrite /wp_def.
+      rewrite wpc_eq. rewrite /wpc_def.
+      simpl.
+      rewrite crash_weakestpre.wp_eq /crash_weakestpre.wp_def.
+      iSpecialize ("H" with "[//] val interp").
+      monPred_simpl.
+      iApply (wpc_mono with "H"); last done.
+      simpl.
+      iIntros ([??]) "(? & ? & H & interp)".
+      rewrite monPred_at_fupd.
+      monPred_simpl.
+      iDestruct "H" as ">H".
+      (* rewrite monPred_at_and. *)
+      iModIntro.
+      iSplit; [iDestruct "H" as "[H _]"|iDestruct "H" as "[_ H]"].
+      * rewrite monPred_at_fupd.
+        iMod "H".
+        iModIntro. iSplit; first done. iFrame.
+      * rewrite disc_unfold_at.
+        iModIntro.
+        rewrite cfupd_unfold_at.
+        iMod "H".
+        iModIntro.
+        iApply objective_at.
+        iApply "H".
+  Qed.
 
-  Lemma wpc_value s k E1 (Φ : val → dProp Σ) (Φc : dProp Σ) `{!Objective Φc} (v : val) :
-    ((|NC={E1}=> Φ v) : dProp _) ∧ (<disc> |C={E1}_k=> Φc) ⊢ WPC of_val v @ s; k; E1 {{ Φ }} {{ Φc }}.
+  Lemma wpc_value s k E1 (Φ : val → dProp Σ) (Φc : dProp Σ)
+        `{!Objective Φc} (v : val) :
+    ((|NC={E1}=> Φ v) : dProp _) ∧
+    (<disc> |C={E1}_k=> Φc) ⊢ WPC of_val v @ s; k; E1 {{ Φ }} {{ Φc }}.
   Proof.
     rewrite wpc_eq.
     iStartProof (iProp _). iIntros (TV).
@@ -657,24 +723,23 @@ Section wpc.
 
   (** * Derived rules *)
 
-  Lemma wpc_mono s k E1 e Φ Ψ Φc Ψc :
+  Lemma wpc_mono s k E1 e Φ Ψ Φc Ψc `{!Objective Φc, !Objective Ψc} :
     (∀ v, Φ v ⊢ Ψ v) → (Φc ⊢ Ψc) → WPC e @ s; k; E1 {{ Φ }} {{ Φc }} ⊢ WPC e @ s; k; E1 {{ Ψ }} {{ Ψc }}.
   Proof.
-  Admitted.
-  (*   iIntros (HΦ HΦc) "H"; iApply (wpc_strong_mono' with "H"); auto. *)
-  (*   iSplit. *)
-  (*   - iIntros (v) "?". by iApply HΦ. *)
-  (*   - iIntros "!> ? !>". by iApply HΦc. *)
-  (* Qed. *)
+    iIntros (HΦ HΦc) "H"; iApply (wpc_strong_mono' with "H"); auto.
+    iSplit.
+    - iIntros (v) "?". by iApply HΦ.
+    - iIntros "!> ? !>". by iApply HΦc.
+  Qed.
 
   Lemma wp_mono s E e Φ Ψ : (∀ v, Φ v ⊢ Ψ v) → WP e @ s; E {{ Φ }} ⊢ WP e @ s; E {{ Ψ }}.
-  Proof. intros Hpost. rewrite wp_eq. apply wpc_mono; done. Qed.
+  Proof. intros Hpost. rewrite wp_eq. apply: wpc_mono; done. Qed.
 
-  Lemma wpc_atomic s k E1 e Φ Φc `{!Atomic StronglyAtomic e} :
+  Lemma wpc_atomic s k E1 e Φ Φc `{!AtomicBase StronglyAtomic e, !Objective Φc} :
     <disc> (|k={E1}=> Φc) ∧ WP e @ s; E1 {{ v, (|={E1}=> Φ v) ∧ <disc> |k={E1}=> Φc }} ⊢
     WPC e @ s; k; E1 {{ Φ }} {{ Φc }}.
   Proof.
-    iIntros "H". iApply (wpc_atomic_crash_modality); iApply (bi.and_mono with "H").
+    iIntros "H". iApply (wpc_atomic_crash_modality). iApply (bi.and_mono with "H").
     {
       f_equiv.
       iIntros "H HC".
@@ -688,25 +753,22 @@ Section wpc.
 
   (* note that this also reverses the postcondition and crash condition, so we
   prove the crash condition first *)
-  Lemma wpc_atomic_no_mask s k E1 e Φ Φc `{!AtomicBase StronglyAtomic e} :
+  Lemma wpc_atomic_no_mask s k E1 e Φ Φc
+        `{!AtomicBase StronglyAtomic e, !Objective Φc} :
     <disc> Φc ∧ WP e @ s; E1 {{ v, <disc> (|k={E1}=> Φc) ∧ (|={E1}=> Φ v) }} ⊢
     WPC e @ s; k; E1 {{ Φ }} {{ Φc }}.
-  Proof.
-  Admitted.
-  (*   iIntros "Hc_wp". *)
-  (*   iApply wpc_atomic. *)
-  (*   iSplit. *)
-  (*   - iDestruct "Hc_wp" as "(?&_)". iModIntro. *)
-  (*     iApply fupd_level_mask_intro_discard; [ set_solver+ | ]. *)
-  (*     eauto. *)
-  (*   - iDestruct "Hc_wp" as "[_ Hwp]". *)
-  (*     iApply (wp_mono with "Hwp"). *)
-  (*     iIntros (x) "HΦ". *)
-  (*     iSplit. *)
-  (*     + iDestruct "HΦ" as "[_  >HΦc]". eauto. *)
-  (*     + iDestruct "HΦ" as "[HΦ _]". iModIntro. *)
-  (*       iMod "HΦ" as "HΦ". *)
-  (*       iApply fupd_level_mask_intro_discard; [ set_solver+ | ]; iFrame. *)
-  (* Qed. *)
+   Proof.
+    iIntros "Hc_wp".
+    iApply wpc_atomic.
+    iSplit.
+    - iDestruct "Hc_wp" as "(?&_)". by do 2 iModIntro.
+    - iDestruct "Hc_wp" as "[_ Hwp]".
+      iApply (wp_mono with "Hwp").
+      iIntros (x) "HΦ".
+      iSplit.
+      + iDestruct "HΦ" as "[_  >HΦc]". eauto.
+      + iDestruct "HΦ" as "[HΦ _]". iModIntro. iMod "HΦ". by iModIntro.
+  Qed.
+
 End wpc.
 
