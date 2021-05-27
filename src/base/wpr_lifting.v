@@ -173,7 +173,7 @@ Section wpr.
         nvm_heap_ctx (hG := nvm_base_update Σ hG' Hinv Hcrash names) σ' ∗
         persisted_impl hG' (nvm_base_update Σ hG' Hinv Hcrash names).
   Proof using hG Σ.
-    iIntros ([store p p' pIncl]) "heapIntrp invs pers".
+    iIntros ([store p p' pIncl cut]) "heapIntrp invs pers".
     rewrite /nvm_heap_ctx. simpl.
     (* Allocate a new heap at a _new_ ghost name. *)
     iMod (gen_heap_init_names (slice_of_store p' store)) as (γh γm) "(heapNew & ptsMap & _)".
@@ -205,12 +205,9 @@ Section wpr.
       iApply (big_sepM_impl_2 with "ptsMap").
       iModIntro.
       iIntros (ℓ hist hist' look) "disj".
-      iExists 0%Qc, 1%Qc. rewrite if_non_zero_1. simpl.
-      (* assert (mk_Qp 1 *)
-      (*   (numbers.Qc_lt_dec_obligation_1 *)
-      (*       (Qcanon.Q2Qc {| QArith_base.Qnum := 0; QArith_base.Qden := 1 |}) 1 eq_refl) = 1%Qp). *)
-      (* { admit. } *)
-      (* rewrite -> H0. *)
+      (* Note: The first value below is just a fancy way of writing [0]. *)
+      iExists (Qcanon.Q2Qc (QArith_base.Qmake Z0 xH)), 1%Qc.
+      rewrite if_non_zero_1. simpl. rewrite if_non_zero_0. simpl.
       iSplit; first done. iSplit; last done.
       iDestruct "disj" as "[[%look' pts]|%look']"; last first.
       * iRight.
@@ -223,70 +220,33 @@ Section wpr.
         rewrite /slice_of_store in look'.
         apply map_lookup_zip_with_None in look'.
         destruct look' as [?|?]; simplify_eq.
-        rewrite map in H0. done.
+        rewrite /gmapO /ofe_car in map.
+        unfold ofe_car in map.
+        simpl in map.
+        simplify_eq.
       * iLeft.
         simpl.
         rewrite /slice_of_store in look'.
         apply map_lookup_zip_with_Some in look'.
-        destruct look' as ([t] & ? & ? & ? & ?).
-        simpl in *.
-        rewrite /consistent_cut in H.
-        pose proof (map_Forall_lookup_1 _ _ _ _ H H1) as (? & ? & ? & ? & ?).
+        destruct look' as ([t] & ? & ? & p'Look & ?).
+        rewrite /consistent_cut in cut.
+        pose proof (map_Forall_lookup_1 _ _ _ _ cut p'Look) as (? & ? & ? & ? & ?).
         simplify_eq.
         iExists _, _.
         iSplit; first done.
-        rewrite H4.
-        (* rewrite /discard_msg_views. *)
-        (* assert (mk_Qp 1 *)
-        (*   (numbers.Qc_lt_dec_obligation_1 *)
-        (*      (Qcanon.Q2Qc {| QArith_base.Qnum := 0; QArith_base.Qden := 1 |}) 1 eq_refl) = 1%Qp). *)
-        (* { admit. } *)
-        (* rewrite <- H0. *)
-        (* replace (mk_Qp 1 *)
-          (* (numbers.Qc_lt_dec_obligation_1 *)
-             (* (Qcanon.Q2Qc {| QArith_base.Qnum := 0; QArith_base.Qden := 1 |}) 1 eq_refl)) with 1%Qp. *)
+        rewrite H1.
         iFrame "pts".
-
-      
-      rewrite /slice_of_store. simpl.
-      rewrite /mapsto_post_crash. rewrite /recovered.
-
-      iEval (rewrite -(map_union_filter (λ '(ℓ, _), is_Some(p' !! ℓ)) store)).
-      rewrite big_sepM_union.
-      2: { apply map_disjoint_filter. }
-      iSplitR "recovered"; last first.
-      { rewrite big_sepM_filter.
-        iApply big_sepM_intuitionistically_forall.
-        iModIntro. iIntros (ℓ hist look not).
-        iExists 0, 1. rewrite /if_non_zero. simpl.
-        iSplit; first done.
-        iSplit; last done.
-        iRight.
-        iIntros (t) "HI".
-        iDestruct "HI" as (?) "[%H1 H2]".
-        rewrite <- map_Forall_singleton in H1.
-        (* iDestruct (own_valid_2 with "recovered H2") as "lol". *)
-        iClear "oldPers persFrag".
-        iDestruct (own_valid_2 with "recovered H2") as %eq%to_agree_op_inv.
-        iPureIntro. apply not.
-        rewrite eq.
-        eexists _. done. }
-      (* FIXME: This seems a bit difficult due to a lack of suitable lemmas. *)
-      iApply (big_sepM_impl' with "ptsMap").
-      * admit.
-      * iModIntro. iIntros (ℓ hist hist').
-        (* rewrite map_lookup_zip_with. *)
-        (* rewrite lookup_map_zip_with. *)
-        simpl.
-        iIntros (look1 look2) "pts".
-        iExists 0, 1.
-        rewrite /if_non_zero. simpl.
-        iSplit; first done.
-        iSplit; last done.
-        iLeft.
-
-        (* iRight. *)
-        admit. }
+        rewrite /recovered.
+        iSplit.
+        - iExists _. iFrame "recovered". rewrite <- map_Forall_singleton. done.
+        - iExists p'. 
+          iSplit.
+          2: { iExists _. iFrame "recovered". rewrite map_Forall_lookup. done. } 
+          iPureIntro.
+          eapply (map_Forall_lookup_1 _ _ _ _ H2).
+          rewrite /cut_history.
+          apply map_filter_lookup_Some_2; last reflexivity.
+          done. }
     iSplit.
     * iDestruct (store_inv_cut with "invs") as "$". simpl.
       iExists p'. iFrame "recovered".
@@ -299,12 +259,11 @@ Section wpr.
         apply incl. }
       iAssert (⌜V ⊑ p'⌝)%I as %incl'.
       { iPureIntro. etrans; done. }
-      (* iDestrut (auth_both_valid_1). *)
       iExists p'. iFrame "%". iExists p'. iFrame "#".
       iPureIntro.
       apply map_Forall_lookup_2.
       done.
-  Admitted.
+  Qed.
 
   Lemma nvm_heap_reinit_alt (hG' : nvmBaseG Σ) σ σ' (Hinv : invG Σ) (Hcrash : crashG Σ) Pg :
     crash_step σ σ' →

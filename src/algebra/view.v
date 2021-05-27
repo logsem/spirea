@@ -15,7 +15,7 @@ Notation time := nat (only parsing).
   things greatly. *)
 Notation view := (gmap loc max_nat).
 
-Canonical Structure viewO := leibnizO view.
+Notation viewO := (gmapO loc max_natO).
 
 Notation viewUR := (gmapUR loc max_natUR).
 

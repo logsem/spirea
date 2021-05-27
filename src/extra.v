@@ -83,9 +83,7 @@ Section nat_map.
   
 End nat_map.
 
-Global Instance max_list_perm_proper : Proper ((≡ₚ) ==> (=)) max_list.
-Proof. apply _. Qed.
-
+(* This section has been upstreamed. *)
 Section max_list.
   (* Context {A : Type}. *)
 
@@ -128,6 +126,15 @@ Lemma big_sepM_impl' {PROP : bi} `{Countable K} {A B} (Φ : K → A → PROP) (�
 Proof. Admitted.
 
 Lemma map_Forall_singleton `{FinMap K M} {A} (j : K) (y : A) (P : K → A → Prop) :
+  P j y ↔
+  map_Forall P ({[j := y]} : M A).
+Proof.
+  split; intros HP.
+  - by intros i x [-> ->]%lookup_singleton_Some.
+  - apply HP, lookup_singleton.
+Qed.
+
+Lemma map_Forall_singleton' `{FinMap K M} {A} (j : K) (y : A) (P : K → A → Prop) :
   P j y ↔
   map_Forall (λ (i : K) (x : A), P i x) ({[j := y]} : M A).
 Proof.
@@ -195,3 +202,54 @@ Section map_zip_with.
   Proof. rewrite map_lookup_zip_with. destruct (m1 !! i), (m2 !! i); naive_solver. Qed.
 
 End map_zip_with.
+
+Definition restrict `{FinMap K M, ElemOf K D, !RelDecision (∈@{D})} {A} (s : D) (m : M A) :=
+  filter (λ '(k, _), k ∈ s) m.
+
+Section restrict.
+  Context `{FinMapDom K M D}.
+  Context `{!RelDecision (∈@{D})}.
+  Context {A : Type}.
+
+  Lemma restrict_lookup_Some (s : D) (m : M A) (k : K) (x : A) :
+    restrict s m !! k = Some x ↔ (m !! k = Some x) ∧ k ∈ s.
+  Proof. by rewrite map_filter_lookup_Some. Qed.
+
+  Lemma restrict_lookup_Some_2 (s : D) (m : M A) (k : K) (x : A) :
+    m !! k = Some x → k ∈ s → restrict s m !! k = Some x.
+  Proof. by rewrite restrict_lookup_Some. Qed.
+
+  (*
+  Lemma restrict_superset_id (s : D) (m : M A) :
+    dom _ m ⊆ s → restrict s m = m.
+  Proof.
+    intros Hsub.
+  Admitted.
+  *)
+
+  Lemma restrict_dom_subset (s : D) (m : M A) :
+    s ⊆ dom _ m → dom _ (restrict s m) ≡ s.
+  Proof.
+    intros Hsub.
+    rewrite /restrict.
+    eapply dom_filter.
+    intros i.
+    split; [|by intros [_ [_ ?]]].
+    intros.
+    assert (is_Some (m !! i)) as [x ?] by (apply elem_of_dom; set_solver).
+    by exists x.
+  Qed.
+
+End restrict.
+
+Section restrict_leibniz.
+  Context `{FinMapDom K M D}.
+  Context `{!RelDecision (∈@{D})}.
+  Context {A : Type}.
+  Context `{!LeibnizEquiv D}.
+
+  Lemma restrict_dom_subset_L (s : D) (m : M A) :
+    s ⊆ dom _ m → dom _ (restrict s m) = s.
+  Proof. unfold_leibniz. apply restrict_dom_subset. Qed.
+
+End restrict_leibniz.

@@ -13,11 +13,11 @@ From self.base Require Import primitive_laws.
 
 Set Default Proof Using "Type".
 
-Lemma foo qp prf : (* Upstream *)
+Lemma foo qp prf : (* Upstreamed *)
   mk_Qp (Qp_to_Qc qp) prf = qp.
 Proof. by apply Qp_to_Qc_inj_iff. Qed.
 
-(* upstream *)
+(* upstreamed *)
 Lemma Qp_to_Qc_add p q : (Qp_to_Qc p + Qp_to_Qc q = Qp_to_Qc (p + q))%Qc.
 Proof. by destruct p, q. Qed.
 
@@ -43,6 +43,12 @@ Admitted.
 Section if_non_zero.
   Context {Σ : gFunctors}.
   Implicit Types (P : Qp → iProp Σ).
+
+  (* Definition Qc_to_Qp qc := *)
+  (*   match (decide (0 < q)%Qc) with *)
+  (*     left prf => P (mk_Qp q prf) *)
+  (*   | right prf => ⌜q = 0%Qc⌝ *)
+  (*   end. *)
 
   Definition if_non_zero (q : Qc) P : iProp Σ :=
     match (decide (0 < q)%Qc) with
@@ -124,6 +130,13 @@ Section if_non_zero.
 
   Lemma mk_Qp_1 prf : mk_Qp 1 prf = 1%Qp.
   Proof. apply Qp_to_Qc_inj_iff. simpl. by rewrite Z2Qc_inj_1. Qed.
+
+  (* Lemma mk_Qp_0 prf : mk_Qp 0 prf = 0%Qp. *)
+  (* Proof. apply Qp_to_Qc_inj_iff. simpl. by rewrite Z2Qc_inj_1. Qed. *)
+
+  Lemma if_non_zero_0 (P : Qp → iProp Σ) :
+    if_non_zero 0%Qc P = (⌜0 = 0⌝)%Qc%I.
+  Proof. done. Qed.
 
   Lemma if_non_zero_1 (P : Qp → iProp Σ) :
     if_non_zero 1%Qc P = P 1%Qp.

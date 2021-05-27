@@ -12,53 +12,6 @@ From self.base Require Import primitive_laws wpr_lifting.
 From self.high Require Import dprop.
 From self.high Require Import resources weakestpre crash_weakestpre post_crash_modality.
 
-Definition restrict `{FinMap K M, ElemOf K D, !RelDecision (∈@{D})} {A} (s : D) (m : M A) :=
-  filter (λ '(k, _), k ∈ s) m.
-
-Section restrict.
-  Context `{FinMapDom K M D}.
-  Context `{!RelDecision (∈@{D})}.
-  Context {A : Type}.
-
-  Lemma restrict_lookup_Some (s : D) (m : M A) (k : K) (x : A) :
-    restrict s m !! k = Some x → (m !! k = Some x) ∧ k ∈ s.
-  Proof. by rewrite map_filter_lookup_Some. Qed.
-
-  (*
-  Lemma restrict_superset_id (s : D) (m : M A) :
-    dom _ m ⊆ s → restrict s m = m.
-  Proof.
-    intros Hsub.
-  Admitted.
-  *)
-
-  Lemma restrict_dom_subset (s : D) (m : M A) :
-    s ⊆ dom _ m → dom _ (restrict s m) ≡ s.
-  Proof.
-    intros Hsub.
-    rewrite /restrict.
-    eapply dom_filter.
-    intros i.
-    split; [|by intros [_ [_ ?]]].
-    intros.
-    assert (is_Some (m !! i)) as [x ?] by (apply elem_of_dom; set_solver).
-    by exists x.
-  Qed.
-
-End restrict.
-
-Section restrict_leibniz.
-  Context `{FinMapDom K M D}.
-  Context `{!RelDecision (∈@{D})}.
-  Context {A : Type}.
-  Context `{!LeibnizEquiv D}.
-
-  Lemma restrict_dom_subset_L (s : D) (m : M A) :
-    s ⊆ dom _ m → dom _ (restrict s m) = s.
-  Proof. unfold_leibniz. apply restrict_dom_subset. Qed.
-
-End restrict_leibniz.
-
 Set Default Proof Using "Type".
 
 Notation pbundleG := recovery_weakestpre.pbundleG.

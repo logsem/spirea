@@ -1,5 +1,5 @@
 From iris.proofmode Require Import base tactics classes.
-From iris.algebra Require Import agree auth.
+From iris.algebra Require Import agree auth gset.
 From iris.base_logic Require Import ghost_map.
 From Perennial.base_logic.lib Require Export ncfupd.
 From Perennial.program_logic Require crash_weakestpre.
@@ -42,7 +42,6 @@ Section abs_history_lemmas.
     ∃ enc,
       ⌜(decode <$> enc = Some <$> abs_hist)⌝ ∗
       own know_abs_history_name (◯ {[ ℓ := to_agree <$> enc ]}).
-      (* own abs_history_name ((◯ {[ ℓ := ◯ (abs_hist_to_ra abs_hist) ]}) : abs_historiesR). *)
 
   Lemma own_full_history_gname_alloc h :
     ⊢ |==> ∃ γ1 γ2, own_full_history_gname γ1 γ2 h ∗
@@ -63,15 +62,9 @@ Section abs_history_lemmas.
   Qed.
 
   Lemma know_full_equiv ℓ abs_hist :
-    know_full_history_loc ℓ abs_hist ⊣⊢ know_full_encoded_history_loc ℓ (encode <$> abs_hist).
-  Proof.
-    done.
-    (* apply equivI_elim_own. *)
-    (* do 3 f_equiv. *)
-    (* rewrite /abs_hist_to_ra. *)
-    (* rewrite map_fmap_compose. *)
-    (* done. *)
-  Qed.
+    know_full_history_loc ℓ abs_hist ⊣⊢
+      know_full_encoded_history_loc ℓ (encode <$> abs_hist).
+  Proof. done. Qed.
 
   Lemma abs_hist_to_ra_inj hist hist' :
     abs_hist_to_ra hist' ≡ abs_hist_to_ra hist →
@@ -81,7 +74,8 @@ Section abs_history_lemmas.
     apply: map_eq. intros t.
     pose proof (eq t) as eq'.
     rewrite !lookup_fmap in eq'.
-    destruct (hist' !! t) as [h|] eqn:leq, (hist !! t) as [h'|] eqn:leq'; try inversion eq'; auto.
+    destruct (hist' !! t) as [h|] eqn:leq, (hist !! t) as [h'|] eqn:leq';
+      try inversion eq'; auto.
     simpl in eq'.
     apply Some_equiv_inj in eq'.
     apply to_agree_inj in eq'.
@@ -99,7 +93,8 @@ Section abs_history_lemmas.
     pose proof (eq t) as eq'.
     rewrite !lookup_fmap in eq'.
     rewrite lookup_fmap.
-    destruct (hist' !! t) as [h|] eqn:leq, (hist !! t) as [h'|] eqn:leq'; try inversion eq'; auto.
+    destruct (hist' !! t) as [h|] eqn:leq, (hist !! t) as [h'|] eqn:leq';
+      try inversion eq'; auto.
     simpl in eq'. simpl.
     apply Some_equiv_inj in eq'.
     apply to_agree_inj in eq'.
@@ -147,13 +142,12 @@ Section abs_history_lemmas.
   Lemma own_frag_history_agree_singleton ℓ t (s : ST) hists :
     own_full_history hists -∗
     know_frag_history_loc ℓ {[ t := s ]} -∗
-    ⌜∃ hist enc, hists !! ℓ = Some hist ∧ hist !! t = Some enc ∧ decode enc = Some s⌝.
+    ⌜∃ hist enc,
+      hists !! ℓ = Some hist ∧ hist !! t = Some enc ∧ decode enc = Some s⌝.
   Proof.
     iIntros "H1 H2".
     iDestruct (own_frag_history_agree with "H1 H2") as %[hist [look H1]].
     iExists hist. iPureIntro.
-    (* repeat split; [done| |]. *)
-    (* elem_of *)
     rewrite map_fmap_singleton in H1.
     rewrite -> map_subseteq_spec in H1.
     specialize H1 with t (Some s).
@@ -350,7 +344,8 @@ Section preorders.
   Definition own_preorder_loc ℓ (preorder : relation2 A) : iProp Σ :=
     own preorders_name (◯ ({[ ℓ := to_agree (encode_relation preorder) ]})).
 
-  Global Instance persistent_own_preorder_loc ℓ preorder : Persistent (own_preorder_loc ℓ preorder).
+  Global Instance persistent_own_preorder_loc ℓ preorder :
+    Persistent (own_preorder_loc ℓ preorder).
   Proof. apply _. Qed.
 
   Lemma own_all_preorders_gname_alloc (preorders : gmap loc (relation2 positive)) :
@@ -371,9 +366,6 @@ Section preorders.
   Proof.
     iIntros (look) "auth frag".
     iDestruct (own_valid_2 with "auth frag") as %[incl _]%auth_both_valid_discrete.
-    (* move: incl. *)
-    (* rewrite -> singleton_included_l. *)
-    (* rewrite singleton_included_l in incl. *)
     iPureIntro.
     move: incl.
     rewrite singleton_included_l.
@@ -431,32 +423,51 @@ Section wpc.
   Lemma increasing_map_empty  R : increasing_map ∅ R.
   Proof. intros ????? [=]. Qed.
 
+  (* Convert a message to a thread_view corresponding to what is stored in the
+  message. *)
+  Definition msg_to_tv (m : message) : thread_view :=
+    (* NOTE: We use the [msg_persisted_after_view] and _not_ the
+    [msg_persist_view]. This is because the [msg_persisted_after] can be
+    transfered to the recovery program after a crash and the predicate then
+    still holds. *)
+    (m.(msg_store_view), m.(msg_persisted_after_view), ∅).
+
   (** This is our analog to the state interpretation in the Iris weakest
   precondition. We keep this in our crash weakest precondition ensuring that it
   holds before and after each step. **)
   Definition interp : iProp Σ :=
     (∃ (hists : gmap loc (gmap time (message * positive)))
        (preds : gmap loc (positive → val → option (dProp Σ)))
-       (orders : gmap loc (relation2 positive)),
+       (orders : gmap loc (relation2 positive))
+       (shared_locs : gset loc),
       (* We keep the points-to predicates to ensure that we know that the keys
       in the abstract history correspond to the physical history. This ensures
-      that on a crash we know that the value recoreved after a crash has a
+      that at a crash we know that the value recoreved after a crash has a
       corresponding abstract value. *)
       ([∗ map] ℓ ↦ hist ∈ hists, ℓ ↦h (fst <$> hist)) ∗
       (* Agreement on the preorders and the ordered/sorted property. *)
       own_all_preorders orders ∗
-      ([∗ map] ℓ ↦ hist; order ∈ hists; orders, ⌜increasing_map (snd <$> hist) order⌝) ∗
+      ([∗ map] ℓ ↦ hist; order ∈ hists; orders,
+        ⌜increasing_map (snd <$> hist) order⌝) ∗
       (* The predicates hold. *)
       ([∗ map] ℓ ↦ hist; pred ∈ hists; preds,
-        (* The predicate hold. *)
-        ([∗ map] t ↦ p ∈ hist,
+        (* The predicate holds for each message in the history. *)
+        ([∗ map] t ↦ p ∈ hist, let '(msg, encState) := p in
            (∃ (P : dProp Σ),
-             ⌜(pred) (snd p) (fst p).(msg_val) = Some P⌝ ∗
-             P (msg_to_tv (fst p))))) ∗ (* Ownership over the full knowledge of the abstract history of _all_
+             ⌜pred encState msg.(msg_val) = Some P⌝ ∗ P (msg_to_tv msg)))) ∗
+      (* Ownership over the full knowledge of the abstract history of _all_
       locations. *)
       own_full_history ((λ (h : (gmap _ _)), snd <$> h) <$> hists) ∗
       (* Knowledge of all the predicates. *)
-      own predicates_name (● (pred_to_ra <$> preds) : predicatesR)).
+      own predicates_name (● (pred_to_ra <$> preds) : predicatesR) ∗
+      (* Shared locations. *)
+      own shared_locs_name (● (shared_locs : gsetUR _)) ∗
+      ⌜map_Forall (λ _, map_Forall
+        (* For shared locations the two persist views are equal. This enforces
+        that shared locations can only be written to using release load and RMW
+        operations. *)
+        (λ _ '(msg, _), msg.(msg_persist_view) = msg.(msg_persisted_after_view)))
+        (restrict shared_locs hists)⌝).
 
   Program Definition wpc_def s k E e (Φ : val → dProp Σ) (Φc : dProp Σ) : dProp Σ :=
     (* monPred_objectively Φc ∗ *)
@@ -751,7 +762,7 @@ Section wpc.
     { f_equiv. iIntros "H HC". eauto. }
   Qed.
 
-  (* note that this also reverses the postcondition and crash condition, so we
+  (* Note that this also reverses the postcondition and crash condition, so we
   prove the crash condition first *)
   Lemma wpc_atomic_no_mask s k E1 e Φ Φc
         `{!AtomicBase StronglyAtomic e, !Objective Φc} :
