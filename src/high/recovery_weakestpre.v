@@ -1,8 +1,9 @@
 (* Implementation of the recovery weakest precondition for NvmLang. *)
 From stdpp Require Import sets.
 From iris.proofmode Require Import tactics.
-From iris.algebra Require Import auth.
+From iris.algebra Require Import auth gset.
 From iris.base_logic Require Import ghost_map.
+From iris_named_props Require Import named_props.
 From Perennial.program_logic Require Import crash_weakestpre.
 From Perennial.program_logic Require Import recovery_weakestpre.
 From Perennial.program_logic Require Import recovery_adequacy.
@@ -42,6 +43,7 @@ Record nvm_high_names := {
   name_know_abs_history : gname;
   name_predicates : gname;
   name_preorders : gname;
+  name_shared_locs : gname;
 }.
 
 Definition nvm_high_get_names Σ (hG : nvmHighG Σ) : nvm_high_names :=
@@ -49,6 +51,7 @@ Definition nvm_high_get_names Σ (hG : nvmHighG Σ) : nvm_high_names :=
      name_know_abs_history := know_abs_history_name;
      name_predicates := predicates_name;
      name_preorders := preorders_name;
+     name_shared_locs := shared_locs_name;
   |}.
 
 Canonical Structure nvm_high_namesO := leibnizO nvm_high_names.
@@ -62,11 +65,13 @@ Definition nvm_high_update Σ (hG : nvmHighG Σ) (names : nvm_high_names) :=
      know_abs_history_name := names.(name_know_abs_history);
      predicates_name := names.(name_predicates);
      preorders_name := names.(name_preorders);
+     shared_locs_name := names.(name_shared_locs);
      (* Functors *)
      ra_inG := hG.(@ra_inG _);
      ra_inG' := hG.(@ra_inG' _);
      abs_histories := hG.(@abs_histories _);
      preordersG := hG.(@preordersG _);
+     shared_locsG := hG.(@shared_locsG _);
   |}.
 
 Record nvm_names := {
@@ -168,29 +173,34 @@ Section wpr.
           Pg hG (∅, ∅, ∅).
   Proof.
     iIntros (step).
-    iDestruct 1 as (hists preds orders) "(psts & orders & incr & ? & ? & preds)".
+    iNamed 1.
+    (* iDestruct 1 as (hists preds orders) "(psts & orders & incr & ? & ? & preds)". *)
     iIntros "(heap & authStor & inv & pers & recov) Pg".
 
     (* We need to first re-create the ghost state for the base interpretation. *)
-    iMod (nvm_heap_reinit _ _ _ _ Hcrash step with "heap inv pers") as (baseNames) "(map & interp' & #persImpl)".
+    iMod (nvm_heap_reinit _ _ _ _ Hcrash step with "heap inv pers") as (baseNames) "(map' & interp' & #persImpl)".
 
-    iDestruct (big_sepM2_dom with "incr") as %domHistsEqOrders.
+    iDestruct (big_sepM2_dom with "ordered") as %domHistsEqOrders.
 
     destruct step as [store p p' pIncl].
 
     (* Allocate new ghost state for the logical histories. *)
     rewrite /interp.
     set newHists := slice_of_hist p' hists.
-    iMod (own_full_history_gname_alloc ((λ h : abs_history (message * positive), snd <$> h) <$> newHists)) as (new_abs_history_name new_know_abs_history_name) "[hists' needThis]".
+    iMod (own_full_history_gname_alloc ((λ h : abs_history (message * positive), snd <$> h) <$> newHists)) as (new_abs_history_name new_know_abs_history_name) "[hists' knowHistories]".
 
     (* Some locations may be lost after a crash. For these we need to
     forget/throw away the predicate and preorder that was choosen for the
     location. *)
     set newOrders := restrict (dom (gset _) newHists) orders.
     iMod (own_all_preorders_gname_alloc newOrders) as (new_orders_name) "newOrders".
-    set newPreds := restrict (dom (gset _) newHists) preds.
 
+    set newPreds := restrict (dom (gset _) newHists) preds.
     iMod (know_predicates_alloc newPreds) as (new_predicates_name) "newPreds".
+
+    set newSharedLocs := (dom (gset _) newHists) ∩ shared_locs.
+    iMod (own_alloc (● (newSharedLocs : gsetUR _))) as (new_shared_locs_name) "newSharedLocs".
+    { apply auth_auth_valid. done. }
 
     iModIntro.
     iExists
@@ -198,13 +208,35 @@ Section wpr.
           name_high_names := {| name_abs_history := new_abs_history_name;
                                 name_know_abs_history := new_know_abs_history_name;
                                 name_predicates := new_predicates_name;
-                                name_preorders := new_orders_name |} |}).
+                                name_preorders := new_orders_name;
+                                name_shared_locs := new_shared_locs_name;
+                             |} |}).
     iFrame "interp'".
     rewrite /nvm_heap_ctx.
     (* iFrame. *)
-    iSplitR ""; last first. { admit. }
+    rewrite /post_crash. simpl.
+    rewrite /base_post_crash. simpl.
+    (* iDestruct ("Pg" $! _ _ (store, _) _ _ with "persImpl map'") as "(map' & Pg)". *)
+    iDestruct ("Pg" $! _ (((λ h : abs_history (message * positive), snd <$> h) <$> hists)) (store, _) _ _ with "persImpl map'") as "(map' & Pg)".
+    simpl.
+    rewrite /post_crash_map.
+    iDestruct ("Pg" with "[history knowHistories]") as "[$ WHAT]".
+    (* ((λ h : abs_history (message * positive), snd <$> h) <$> hists) *)
+    { simpl. iSplitL "history".
+      (* rewrite /know_full_encoded_history_loc. *)
+      (* rewrite /own_full_history /own_full_history_gname. *)
+      (* iDestruct "history" as "[left right]". *)
+      (* iDestruct (ghost_map_lookup with "left [$]") as "HY". *)
+      - iIntros.
+        rewrite /know_full_encoded_history_loc.
+        rewrite /own_full_history /own_full_history_gname.
+        iDestruct "history" as "[left right]".
+        iDestruct (ghost_map_lookup with "left [$]") as "HY".
+        iApply "HY".
+      - admit.
+    }
     rewrite /interp.
-    iExists _, _, _.
+    iExists _, _, _, _.
     rewrite /own_full_history.
     iFrame "newOrders".
     iFrame "newPreds".
@@ -230,7 +262,6 @@ Section wpr.
 
     admit.
   Admitted.
-
 
   Lemma nvm_reinit' (hG' : nvmG Σ) n σ σ' (Hinv : invG Σ) (Hcrash : crashG Σ) Pg :
     crash_step σ σ' →

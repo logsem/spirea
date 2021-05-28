@@ -172,6 +172,7 @@ Section wpr.
         post_crash_map σ.1 hG' (nvm_base_update Σ hG' Hinv Hcrash names) ∗
         nvm_heap_ctx (hG := nvm_base_update Σ hG' Hinv Hcrash names) σ' ∗
         persisted_impl hG' (nvm_base_update Σ hG' Hinv Hcrash names).
+        (* own recovered_view_name (to_agree rv : agreeR viewO). *)
   Proof using hG Σ.
     iIntros ([store p p' pIncl cut]) "heapIntrp invs pers".
     rewrite /nvm_heap_ctx. simpl.
@@ -234,7 +235,7 @@ Section wpr.
         simplify_eq.
         iExists _, _.
         iSplit; first done.
-        rewrite H1.
+        rewrite H2.
         iFrame "pts".
         rewrite /recovered.
         iSplit.
@@ -243,7 +244,7 @@ Section wpr.
           iSplit.
           2: { iExists _. iFrame "recovered". rewrite map_Forall_lookup. done. } 
           iPureIntro.
-          eapply (map_Forall_lookup_1 _ _ _ _ H2).
+          eapply (map_Forall_lookup_1 _ _ _ _ H3).
           rewrite /cut_history.
           apply map_filter_lookup_Some_2; last reflexivity.
           done. }
@@ -304,6 +305,7 @@ Section wpr.
       iExists {| pbundleT := hnames |}, (reflexivity _), (reflexivity _).
       iModIntro.
       rewrite /state_interp //=.
+      rewrite /nvm_heap_ctx.
       iFrame. }
   Qed.
 

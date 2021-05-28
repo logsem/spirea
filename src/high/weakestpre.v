@@ -25,7 +25,8 @@ Section wp.
 
   Implicit Types (Φ : val → dProp Σ) (e : expr).
 
-  Definition abs_hist_to_ra_old (abs_hist : gmap time (message * positive)) : encoded_abs_historyR :=
+  Definition abs_hist_to_ra_old
+             (abs_hist : gmap time (message * positive)) : encoded_abs_historyR :=
     (to_agree ∘ snd) <$> abs_hist.
 
   Lemma singleton_included_l' `{Countable K} `{CmraTotal A} (m : gmap K A) (i : K) x :
@@ -49,10 +50,9 @@ Section wp.
       "#knowOrder" ∷ ⎡ own_preorder_loc ℓ ((⊑@{ST})) ⎤ ∗
 
       "%lookupP" ∷ ⌜abs_hist !! tPers = head ss2⌝ ∗ (* Note: This also ensures that [ss2] is non-empty :) *)
-      (* [tStore] is the last message and it agrees with the last state in ss2 and the value. *)
+      (* [tStore] is the last message and it agrees with the last state in ss2. *)
       "%lookupV" ∷ ⌜abs_hist !! tStore = last ss2⌝ ∗
       "%nolater" ∷ ⌜(∀ t', tStore < t' → abs_hist !! t' = None)⌝ ∗
-      (* ⌜msg_val <$> (hist !! tStore) = Some v⌝ ∗ *)
 
       (* Ownership over the abstract history. *)
       "hist" ∷ ⎡know_full_history_loc ℓ abs_hist⎤ ∗
@@ -61,7 +61,7 @@ Section wp.
 
       "%slice" ∷ ⌜map_slice abs_hist tGlobalPers tStore (ss1 ++ ss2)⌝ ∗
 
-      (* We "have"/"know" of the three timestamps. *)
+      (* We "have"/"know of" the three timestamps. *)
       "%know" ∷ monPred_in ({[ ℓ := MaxNat tStore ]}, {[ ℓ := MaxNat tPers ]}, ∅) ∗
       "per" ∷ ⎡persisted ({[ ℓ := MaxNat tGlobalPers ]} : view)⎤
     ).
@@ -79,7 +79,7 @@ Section wp.
       "histS3" ∷ ⎡ know_frag_history_loc ℓ {[ tStore := s3 ]} ⎤ ∗
       "knowPred" ∷ ⎡ know_pred ℓ ϕ ⎤ ∗
       "isSharedLoc" ∷ ⎡ own shared_locs_name (◯ {[ ℓ ]}) ⎤ ∗
-      (* We "have"/"know" of the three timestamps. *)
+      (* We "have"/"know of" the three timestamps. *)
       "%know" ∷ monPred_in ({[ ℓ := MaxNat tStore ]}, {[ ℓ := MaxNat tPers ]}, ∅) ∗
       "per" ∷ ⎡ persisted ({[ ℓ := MaxNat tGlobalPers ]}) ⎤
     ).
@@ -108,27 +108,24 @@ Section wp.
   Proof. rewrite wp_eq. solve_proper. Qed.
 
   (* For the WP in Iris the other direction also holds, but not for this WP *)
-  Lemma wp_value_fupd' s E Φ v : WP of_val v @ s; E {{ Φ }} ⊣⊢ |NC={E}=> Φ v.
+  Lemma wp_value_fupd' s E Φ v : (|NC={E}=> Φ v) ⊢ WP of_val v @ s; E {{ Φ }}.
   Proof.
-    rewrite wp_eq /wp_def. iStartProof (iProp _). iIntros (TV). iSplit.
-    - rewrite ncfupd_unfold_at.
-      iIntros "Hwp".
-      (* iApply wpc_value_inv'. done. *)
-      admit.
-    - iIntros "HΦ". iApply ncfupd_wpc. iSplit.
-      { rewrite disc_unfold_at. iModIntro. iModIntro. done. }
-      rewrite ncfupd_eq. rewrite /ncfupd_def. simpl.
-      iMod "HΦ". iApply wpc_value'. rewrite monPred_at_and. eauto.
-  Admitted.
+    rewrite wp_eq /wp_def.
+    iIntros "H".
+    iApply wpc_value.
+    iSplit.
+    - iMod "H". iModIntro. done.
+    - iModIntro. iModIntro. done.
+  Qed.
 
   (* Lemma wp_value_fupd s E Φ e v : IntoVal e v → (|={E}=> Φ v) ⊢ WP e @ s; E {{ Φ }}. *)
-  Lemma wp_value_fupd s E Φ e v : IntoVal e v → WP e @ s; E {{ Φ }} ⊣⊢ |NC={E}=> Φ v.
+  Lemma wp_value_fupd s E Φ e v : IntoVal e v → (|NC={E}=> Φ v) ⊢ WP e @ s; E {{ Φ }}.
   Proof. intros <-. apply wp_value_fupd'. Qed.
 
   (* If the expression is a value then showing the postcondition for the value
   suffices. *)
   Lemma wp_value s E Φ v : Φ v ⊢ WP (of_val v) @ s; E {{ Φ }}.
-  Proof. rewrite wp_value_fupd'. iIntros "H". iModIntro. iFrame. Qed.
+  Proof. iIntros "H". iApply wp_value_fupd'. iModIntro. iFrame. Qed.
 
   (* Lemma wp_fupd s E e Φ : WP e @ s; E {{ v, fupd E E (Φ v) }} ⊢ WP e @ s; E {{ Φ }}. *)
   (* Proof. Admitted. *)
@@ -137,19 +134,48 @@ Section wp.
   Notation PureExecBase P nsteps e1 e2 :=
     (∀ TV, PureExec P nsteps (ThreadState e1 TV) (ThreadState e2 TV)).
 
+  (* Upstream this to Iris. *)
+  Lemma monPred_at_step_fupd i Eo Ei (P : dProp Σ) :
+    (|={Eo}[Ei]▷=> P) i ⊣⊢ |={Eo}[Ei]▷=> P i.
+  Proof. by rewrite monPred_at_fupd monPred_at_later monPred_at_fupd. Qed.
+
+  Lemma monPred_at_step_fupdN E E' n (P : dProp Σ) j :
+    ((|={E}[E']▷=>^n P) j ⊣⊢ (|={E}[E']▷=>^n (P j)))%I.
+  Proof.
+    induction n as [|n IH]; [done|]. by rewrite monPred_at_step_fupd IH.
+  Qed.
+
+  Global Instance make_monPred_at_step_fupd `{BiFUpd PROP} i E1 E2 (P : dProp Σ) 𝓟 :
+    MakeMonPredAt i P 𝓟 → MakeMonPredAt i (|={E1}[E2]▷=> P)%I (|={E1}[E2]▷=> 𝓟)%I.
+  Proof. by rewrite /MakeMonPredAt monPred_at_step_fupd=> <-. Qed.
+
+  Global Instance make_monPred_at_step_fupdN `{BiFUpd PROP} i E1 E2 n (P : dProp Σ) 𝓟 :
+    MakeMonPredAt i P 𝓟 → MakeMonPredAt i (|={E1}[E2]▷=>^n P)%I (|={E1}[E2]▷=>^n 𝓟)%I.
+  Proof. rewrite /MakeMonPredAt. rewrite monPred_at_step_fupdN => h.
+         Abort.
+         (* rewrite h. <-. Qed. *)
+
   Lemma wp_pure_step_fupd `{!Inhabited (state Λ)} s E E' e1 e2 φ n Φ :
     PureExecBase φ n e1 e2 →
     φ →
     (|={E}[E']▷=>^n WP e2 @ s; E {{ Φ }}) ⊢ WP e1 @ s; E {{ Φ }}.
   Proof.
-    rewrite wp_eq=>Hexec Hφ. iStartProof (iProp _).
-  Admitted.
-  (*   iIntros "% Hwp" (V ->) "Hseen Hinterp". iApply (lifting.wp_pure_step_fupd _ E E')=>//. *)
-  (*   clear Hexec. iInduction n as [|n] "IH"=>/=. *)
-  (*   - iApply ("Hwp" with "[% //] Hseen Hinterp"). *)
-  (*   - iMod "Hwp". iModIntro. iModIntro. iMod "Hwp". iModIntro. *)
-  (*     iApply ("IH" with "Hwp [$] [$]"). *)
-  (* Qed. *)
+    rewrite wp_eq /wp_def wpc_eq /wpc_def => Hexec Hφ. iStartProof (iProp _).
+    simpl.
+    iIntros "% Hwp" (?) "A V C".
+    monPred_simpl.
+    iApply program_logic.crash_weakestpre.wp_wpc.
+    iApply wp_pure_step_fupd; first apply Hφ.
+    simpl.
+    monPred_simpl.
+    rewrite monPred_at_step_fupdN.
+    simpl.
+    iApply (step_fupdN_wand with "Hwp").
+    iIntros "H".
+    iSpecialize ("H" $! TV with "A V C").
+    iApply wpc_wp.
+    iFrame.
+  Qed.
 
   (* This lemma is like the [wp_pure_step_later] in Iris except its premise uses
   [PureExecBase] instead of [PureExec]. *)
@@ -168,7 +194,7 @@ End wp.
 Notation "l ↦ xs ; ys | P" := (mapsto_ex l xs ys P) (at level 20).
 
 (** Notation for the shared points-to predicate. *)
-Notation "l ↦ ( s1 , s2 , s3 ) | P" := (mapsto_shared l s1 s2 s3 P) (at level 20).
+Notation "l ↦ ( s1 , s2 , s3 )  | P" := (mapsto_shared l s1 s2 s3 P) (at level 20).
 
 (* Definition lastR (abs_state : Type) : cmra := *)
 (*   prodR fracR (agreeR (prodO (leibnizO abs_state) valO)). *)
@@ -204,7 +230,6 @@ Section wp_rules.
     {{{ v, RET v; ℓ ↦ ss; ss' | ϕ ∗ Q v }}}.
   Proof.
     intros sLast Φ.
-    rewrite /mapsto_ex.
     iStartProof (iProp _). iIntros (TV).
     (* We destruct the exclusive points-to predicate. *)
     iIntros "[pts pToQ]".
@@ -219,9 +244,7 @@ Section wp_rules.
     iApply program_logic.crash_weakestpre.wp_wpc.
 
     (* We need to get the points-to predicate for [ℓ]. This is inside [interp]. *)
-    iDestruct "interp" as
-       (hists preds orders sharedLocs)
-      "(ptsMap & allOrders & ordered & map & history & preds & sharedLocs & %mapShared)".
+    iNamed "interp".
     iDestruct (know_pred_agree with "preds knowPred") as (pred predsLook) "#predsEquiv".
     iDestruct (own_full_history_agree with "[$] [$]") as %look.
     apply lookup_fmap_Some in look.
@@ -500,13 +523,12 @@ Section wp_rules.
     iDestruct (own_valid_2 with "A B") as %[V%gset_included _]%auth_both_valid_discrete.
     setoid_rewrite <- elem_of_subseteq_singleton in V.
     iPureIntro.
-    (* rewrite lookup_fmap in look'. *)
     assert (restrict sharedLocs hists !! ℓ = Some hist) as look2.
-    { by apply restrict_lookup_Some. }.
-    setoid_rewrite map_Forall_lookup in m.
+    - apply restrict_lookup_Some. done.
+    (* { apply restrict_lookup_Some. done. }. *)
+    - setoid_rewrite map_Forall_lookup in m.
     specialize (m ℓ hist look2).
     setoid_rewrite map_Forall_lookup in m.
-    (* Admitted. *)
     specialize (m t (msg, s') look').
     simpl in m.
     done.
@@ -532,9 +554,7 @@ Section wp_rules.
     iApply program_logic.crash_weakestpre.wp_wpc.
 
     (* We open [interp]. *)
-    iDestruct "interp" as
-       (hists preds orders sharedLocs)
-      "(ptsMap & allOrders & #ordered & map & history & preds & sharedLocs & %mapShared)".
+    iNamed "interp".
 
     (* _Before_ we load the points-to predicate we deal with the predicate ϕ. We
     do this before such that the later that arrises is stripped off when we take

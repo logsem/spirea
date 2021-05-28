@@ -1,6 +1,7 @@
 From iris.proofmode Require Import base tactics classes.
 From iris.algebra Require Import agree auth gset.
 From iris.base_logic Require Import ghost_map.
+From iris_named_props Require Import named_props.
 From Perennial.base_logic.lib Require Export ncfupd.
 From Perennial.program_logic Require crash_weakestpre.
 
@@ -444,30 +445,32 @@ Section wpc.
       in the abstract history correspond to the physical history. This ensures
       that at a crash we know that the value recoreved after a crash has a
       corresponding abstract value. *)
-      ([∗ map] ℓ ↦ hist ∈ hists, ℓ ↦h (fst <$> hist)) ∗
+      "ptsMap" ∷ ([∗ map] ℓ ↦ hist ∈ hists, ℓ ↦h (fst <$> hist)) ∗
       (* Agreement on the preorders and the ordered/sorted property. *)
-      own_all_preorders orders ∗
-      ([∗ map] ℓ ↦ hist; order ∈ hists; orders,
-        ⌜increasing_map (snd <$> hist) order⌝) ∗
+      "allOrders" ∷ own_all_preorders orders ∗
+      "ordered" ∷ ([∗ map] ℓ ↦ hist; order ∈ hists; orders,
+                    ⌜increasing_map (snd <$> hist) order⌝) ∗
       (* The predicates hold. *)
-      ([∗ map] ℓ ↦ hist; pred ∈ hists; preds,
-        (* The predicate holds for each message in the history. *)
-        ([∗ map] t ↦ p ∈ hist, let '(msg, encState) := p in
-           (∃ (P : dProp Σ),
-             ⌜pred encState msg.(msg_val) = Some P⌝ ∗ P (msg_to_tv msg)))) ∗
+      "map" ∷
+        ([∗ map] ℓ ↦ hist; pred ∈ hists; preds,
+          (* The predicate holds for each message in the history. *)
+          ([∗ map] t ↦ p ∈ hist, let '(msg, encState) := p in
+            (∃ (P : dProp Σ),
+              ⌜pred encState msg.(msg_val) = Some P⌝ ∗ P (msg_to_tv msg)))) ∗
       (* Ownership over the full knowledge of the abstract history of _all_
       locations. *)
-      own_full_history ((λ (h : (gmap _ _)), snd <$> h) <$> hists) ∗
+      "history" ∷ own_full_history ((λ (h : (gmap _ _)), snd <$> h) <$> hists) ∗
       (* Knowledge of all the predicates. *)
-      own predicates_name (● (pred_to_ra <$> preds) : predicatesR) ∗
+      "preds" ∷ own predicates_name (● (pred_to_ra <$> preds) : predicatesR) ∗
       (* Shared locations. *)
-      own shared_locs_name (● (shared_locs : gsetUR _)) ∗
-      ⌜map_Forall (λ _, map_Forall
-        (* For shared locations the two persist views are equal. This enforces
-        that shared locations can only be written to using release load and RMW
-        operations. *)
-        (λ _ '(msg, _), msg.(msg_persist_view) = msg.(msg_persisted_after_view)))
-        (restrict shared_locs hists)⌝).
+      "sharedLocs" ∷ own shared_locs_name (● (shared_locs : gsetUR _)) ∗
+      "%mapShared" ∷
+        ⌜map_Forall (λ _, map_Forall
+          (* For shared locations the two persist views are equal. This enforces
+          that shared locations can only be written to using release load and RMW
+          operations. *)
+          (λ _ '(msg, _), msg.(msg_persist_view) = msg.(msg_persisted_after_view)))
+          (restrict shared_locs hists)⌝).
 
   Program Definition wpc_def s k E e (Φ : val → dProp Σ) (Φc : dProp Σ) : dProp Σ :=
     (* monPred_objectively Φc ∗ *)
