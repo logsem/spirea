@@ -185,6 +185,18 @@ Qed.
 (*   [∗ map] k↦y ∈ m2, Ψ k y. *)
 (* Proof. Admitted. *)
 
+Lemma big_sepM_impl_sub {PROP : bi} `{Countable K} {A B} (Φ : K → A → PROP) (Ψ : K → B → PROP) (m1 : gmap K A) (m2 : gmap K B) :
+  dom (gset _) m2 ⊆ dom _ m1 →
+  ([∗ map] k↦x ∈ m1, Φ k x) -∗
+  □ (∀ (k : K) (x : A) (y : B),
+        ⌜m1 !! k = Some x⌝ -∗
+        ⌜m2 !! k = Some y⌝ -∗
+        Φ k x -∗
+        Ψ k y) -∗
+  [∗ map] k↦y ∈ m2, Ψ k y.
+Proof.
+Admitted.
+
 Lemma big_sepM_impl_2 {PROP : bi} `{Countable K} {A B} (Φ : K → A → PROP) (Ψ : K → B → PROP) (m1 : gmap K A) (m2 : gmap K B) :
   ([∗ map] k↦x ∈ m1, Φ k x) -∗
   □ (∀ (k : K) (x : A) (y : B),

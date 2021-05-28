@@ -28,8 +28,8 @@ Definition nvm_heap_update {Σ} (h : gen_heapG loc history Σ) (names : nvm_heap
      gen_heap_name := names.(name_gen_heap);
      gen_meta_name := names.(name_gen_meta) |}.
 
-(** A record of all the ghost names useb by [nvmBaseG] that needs to change after a
-crash. *)
+(** A record of all the ghost names useb by [nvmBaseG] that needs to change
+after a crash. *)
 Record nvm_base_names := {
   name_heap_names : nvm_heap_names; (* Names used by [gen_heap]. *)
   name_store_view : gname;          (* Name used by the store view. *)
@@ -45,13 +45,15 @@ Definition nvm_base_get_names Σ (hG : nvmBaseG Σ) : nvm_base_names :=
 
 Canonical Structure nvm_base_namesO := leibnizO nvm_base_names.
 
-(** Given an [hG : nvmBaseG Σ], update the fields per the information in the rest of
-the arguments. In particular, all the gnames in [names] replaces the
+(** Given an [hG : nvmBaseG Σ], update the fields per the information in the
+rest of the arguments. In particular, all the gnames in [names] replaces the
 corresponding gnames in [hG]. *)
-Definition nvm_base_update Σ (hG : nvmBaseG Σ) (Hinv : invG Σ) (Hcrash : crashG Σ) (names : nvm_base_names) :=
+Definition nvm_base_update Σ (hG : nvmBaseG Σ) (Hinv : invG Σ)
+           (Hcrash : crashG Σ) (names : nvm_base_names) :=
   {| nvmBaseG_invG := Hinv;
      nvmBaseG_crashG := Hcrash;
-     nvmBaseG_gen_heapG := nvm_heap_update hG.(@nvmBaseG_gen_heapG _) names.(name_heap_names);
+     nvmBaseG_gen_heapG :=
+       nvm_heap_update hG.(@nvmBaseG_gen_heapG _) names.(name_heap_names);
      view_inG := hG.(@view_inG _);
      store_view_name := names.(name_store_view);
      persist_view_name := names.(name_persist_view);
@@ -125,36 +127,45 @@ Section wpr.
       * iIntros. by iApply "H".
   Qed.
 
+  (* Upstream this. *)
+  Lemma map_zip_with_dom_fst `{FinMapDom K M D} {A B C}
+        (f : A → B → C) (ma : M A) (mb : M B) : dom D (map_zip_with f ma mb) ⊆ dom D ma.
+  Proof.
+    intros ?. rewrite 2!elem_of_dom. intros [? ?%map_lookup_zip_with_Some].
+    naive_solver.
+  Qed.
+
+  Lemma map_zip_with_dom_snd `{FinMapDom K M D} {A B C}
+        (f : A → B → C) (ma : M A) (mb : M B) : dom D (map_zip_with f ma mb) ⊆ dom D mb.
+  Proof. rewrite map_zip_with_flip. apply map_zip_with_dom_fst. Qed.
+
   Lemma store_inv_cut store p :
+    consistent_cut p store →
     store_inv store -∗ store_inv (slice_of_store p store).
   Proof.
-  Admitted.
-
-  (* Lemma store_inv_cut store p : *)
-  (*   store_inv store -∗ store_inv (cut_store p store). *)
-  (* Proof. *)
-  (*   rewrite /store_inv. *)
-  (*   (* rewrite /cut_store. *) *)
-  (*   rewrite big_sepM_imap. *)
-  (*   iIntros "m". *)
-  (*   iApply (big_sepM_impl with "m"). *)
-  (*   iModIntro. iIntros (ℓ hist eq) "[%iss m]". *)
-  (*   destruct iss as [x eq']. *)
-  (*   rewrite /discard_store_views. *)
-  (*   iSplit. *)
-  (*   { iPureIntro. eexists (Msg _ _ _). *)
-  (*     rewrite /cut_history. *)
-  (*     apply lookup_fmap_Some. *)
-  (*     exists x. *)
-  (*     split; first done. *)
-  (*     apply map_filter_lookup_Some_2; [done|lia]. } *)
-  (*   rewrite big_sepM_fmap. *)
-  (*   rewrite big_sepM_filter. *)
-  (*   iApply (big_sepM_impl with "m"). *)
-  (*   iModIntro. iPureIntro. intros t msg eq2 incl le. *)
-  (*   simpl. *)
-  (*   apply view_empty_least. *)
-  (* Qed. *)
+    rewrite /store_inv.
+    iIntros (cut) "H".
+    iApply (big_sepM_impl_sub with "H").
+    { rewrite /slice_of_store. apply map_zip_with_dom_snd. }
+    rewrite /hist_inv.
+    iIntros "!>" (ℓ h h' look look') "[%some H]".
+    rewrite /slice_of_store in look'.
+    apply map_lookup_zip_with_Some in look'.
+    destruct look' as ([t] & ? & ? & pLook & ?).
+    iSplit.
+    - iPureIntro.
+      (* Extract info from consistent cut. *)
+      rewrite /consistent_cut in cut.
+      setoid_rewrite map_Forall_lookup in cut.
+      pose proof (cut ℓ (MaxNat t) pLook) as (? & ? & ? & eq & ?).
+      simplify_eq.
+      rewrite eq.
+      naive_solver.
+    - destruct (x !! t); last naive_solver.
+      simplify_eq.
+      rewrite big_sepM_singleton.
+      iPureIntro. apply view_empty_least.
+  Qed.
 
   Definition persist_auth {hG : nvmBaseG Σ} (σ : mem_config) := own persist_view_name (● σ.2).
 
@@ -249,7 +260,7 @@ Section wpr.
           apply map_filter_lookup_Some_2; last reflexivity.
           done. }
     iSplit.
-    * iDestruct (store_inv_cut with "invs") as "$". simpl.
+    * iDestruct (store_inv_cut with "invs") as "$"; first done. simpl.
       iExists p'. iFrame "recovered".
     * iModIntro.
       iIntros (V) "pers".
