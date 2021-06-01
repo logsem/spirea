@@ -5,6 +5,8 @@ From stdpp Require Import countable numbers gmap fin_maps list.
 From iris Require Import cmra.
 From iris.bi Require Import big_op.
 From iris.algebra Require Import gmap agree.
+From iris.proofmode Require Import tactics.
+Import interface.bi derived_laws.bi derived_laws_later.bi.
 
 From iris.bi Require Import derived_laws_later.
 
@@ -176,35 +178,93 @@ Proof.
     done.
 Qed.
 
-(* Lemma big_sepL_impl_2 {PROP : bi} `{Countable K} {A B} (Φ : K → A → PROP) (Ψ : K → B → PROP) (l1 : list A) (l2 : B) : *)
-(*   ([∗ map] k↦x ∈ m1, Φ k x) -∗ *)
-(*   □ (∀ (k : K) (x : A) (y : B), *)
-(*         ⌜m2 !! k = Some y⌝ -∗ *)
-(*         (⌜m1 !! k = Some x⌝ ∗ Φ k x ∨ ⌜m1 !! k = None⌝) -∗ *)
-(*         Ψ k y) -∗ *)
-(*   [∗ map] k↦y ∈ m2, Ψ k y. *)
-(* Proof. Admitted. *)
+Section big_sepM.
+  Context {PROP : bi}.
+  Context `{BiAffine PROP}.
+  Context `{Countable K} {A : Type}.
+  Implicit Types m : gmap K A.
+  Implicit Types Φ Ψ : K → A → PROP.
 
-Lemma big_sepM_impl_sub {PROP : bi} `{Countable K} {A B} (Φ : K → A → PROP) (Ψ : K → B → PROP) (m1 : gmap K A) (m2 : gmap K B) :
-  dom (gset _) m2 ⊆ dom _ m1 →
-  ([∗ map] k↦x ∈ m1, Φ k x) -∗
-  □ (∀ (k : K) (x : A) (y : B),
-        ⌜m1 !! k = Some x⌝ -∗
-        ⌜m2 !! k = Some y⌝ -∗
-        Φ k x -∗
-        Ψ k y) -∗
-  [∗ map] k↦y ∈ m2, Ψ k y.
-Proof.
-Admitted.
+  From iris.algebra Require Export big_op.
 
-Lemma big_sepM_impl_2 {PROP : bi} `{Countable K} {A B} (Φ : K → A → PROP) (Ψ : K → B → PROP) (m1 : gmap K A) (m2 : gmap K B) :
-  ([∗ map] k↦x ∈ m1, Φ k x) -∗
-  □ (∀ (k : K) (x : A) (y : B),
-        ⌜m2 !! k = Some y⌝ -∗
-        (⌜m1 !! k = Some x⌝ ∗ Φ k x ∨ ⌜m1 !! k = None⌝) -∗
-        Ψ k y) -∗
-  [∗ map] k↦y ∈ m2, Ψ k y.
-Proof. Admitted.
+  Lemma big_sepM_impl Φ Ψ m :
+    ([∗ map] k↦x ∈ m, Φ k x) -∗
+    □ (∀ k x, ⌜m !! k = Some x⌝ → Φ k x -∗ Ψ k x) -∗
+    [∗ map] k↦x ∈ m, Ψ k x.
+  Proof.
+    apply wand_intro_l. rewrite big_sepM_intuitionistically_forall -big_sepM_sep.
+    by setoid_rewrite wand_elim_l.
+  Qed.
+
+  Lemma big_sepM_impl_2 {B}
+        (Φ : K → A → PROP) (Ψ : K → B → PROP) (m1 : gmap K A) (m2 : gmap K B) :
+    ([∗ map] k↦x ∈ m1, Φ k x) -∗
+    □ (∀ (k : K) (y : B),
+          ⌜m2 !! k = Some y⌝ -∗
+          ((∃ (x : A), ⌜m1 !! k = Some x⌝ ∗ Φ k x) ∨ ⌜m1 !! k = None⌝) -∗
+          Ψ k y) -∗
+    [∗ map] k↦y ∈ m2, Ψ k y.
+  Proof.
+    revert Φ m1. induction m2 as [|i y m ? IH] using map_ind=> Φ.
+    - iIntros (m1) "_ _". done.
+    - iIntros (m1) "A #H".
+      rewrite big_sepM_insert; last done.
+      destruct (m1 !! i) as [x|] eqn:look.
+      * iDestruct (big_sepM_delete with "A") as "[phi A]"; first apply look.
+        iDestruct ("H" $! i y with "[%] [phi]") as "HΨ".
+        { by rewrite lookup_insert. }
+        { iLeft. iExists x. iFrame. done. }
+        iFrame.
+        iApply (IH with "[A] [H]").
+        { iFrame "A". }
+        { iModIntro.
+          iIntros (i' y' look1) "disj".
+          iSpecialize ("H" $! i' y').
+          destruct (decide (i = i')) as [?|neq]; first simplify_eq.
+          rewrite lookup_insert_ne; last done.
+          rewrite lookup_delete_ne; last done.
+          iSpecialize ("H" $! look1 with "disj").
+          done.
+        }
+      * iDestruct ("H" $! i y with "[%] []") as "HΨ".
+        { by rewrite lookup_insert. }
+        { iRight. iFrame. done. }
+        iFrame "HΨ".
+        iApply (IH with "[A] [H]").
+        { iFrame "A". }
+        { iModIntro.
+          iIntros (i' y' look1) "disj".
+          iSpecialize ("H" $! i' y').
+          destruct (decide (i = i')) as [?|neq]; first simplify_eq.
+          rewrite lookup_insert_ne; last done.
+          iSpecialize ("H" $! look1 with "disj").
+          done. }
+  Qed.
+
+  Lemma big_sepM_impl_sub {B}
+        (Φ : K → A → PROP) (Ψ : K → B → PROP) (m1 : gmap K A) (m2 : gmap K B) :
+    dom (gset _) m2 ⊆ dom _ m1 →
+    ([∗ map] k↦x ∈ m1, Φ k x) -∗
+    □ (∀ (k : K) (x : A) (y : B),
+          ⌜m1 !! k = Some x⌝ -∗
+          ⌜m2 !! k = Some y⌝ -∗
+          Φ k x -∗
+          Ψ k y) -∗
+    [∗ map] k↦y ∈ m2, Ψ k y.
+  Proof.
+    intros sub.
+    iIntros "M #impl".
+    iApply (big_sepM_impl_2 with "M [impl]").
+    iIntros "!>" (?? look1) "H".
+    iDestruct "H" as "[H|%]".
+    2: { setoid_rewrite <- not_elem_of_dom in H1.
+         apply elem_of_dom_2 in look1.
+         set_solver. }
+    iDestruct "H" as (x look) "ϕ".
+    iApply ("impl" with "[//] [//] ϕ").
+  Qed.
+
+End big_sepM.
 
 Section map_zip_with.
   Context `{FinMap K M}.
