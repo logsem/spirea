@@ -216,12 +216,12 @@ Section wpr.
         iApply (gen_heap_valid with "heapIntrp pts"). }
       iApply (big_sepM_impl_2 with "ptsMap").
       iModIntro.
-      iIntros (ℓ hist hist' look) "disj".
+      iIntros (ℓ hist look) "disj".
       (* Note: The first value below is just a fancy way of writing [0]. *)
       iExists (Qcanon.Q2Qc (QArith_base.Qmake Z0 xH)), 1%Qc.
       rewrite if_non_zero_1. simpl. rewrite if_non_zero_0. simpl.
       iSplit; first done. iSplit; last done.
-      iDestruct "disj" as "[[%look' pts]|%look']"; last first.
+      iDestruct "disj" as "[(%look2 & %look' & pts)|%look']"; last first.
       * iRight.
         iIntros (t) "HI".
         iDestruct "HI" as (?) "[%map H2]".
@@ -238,6 +238,7 @@ Section wpr.
         simplify_eq.
       * iLeft.
         simpl.
+        (* iIntros (hist'). *)
         rewrite /slice_of_store in look'.
         apply map_lookup_zip_with_Some in look'.
         destruct look' as ([t] & ? & ? & p'Look & ?).

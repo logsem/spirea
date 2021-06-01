@@ -223,7 +223,7 @@ Definition persisted_impl {Σ} hG hG' : iProp Σ :=
   □ ∀ V, persisted (hG := hG) V -∗ persisted (hG := hG') ∅ ∗
                                    ∃ RV, ⌜V ⊑ RV⌝ ∗ recovered (hG := hG') RV.
 
-Definition post_crash {Σ} (P: nvmBaseG Σ → iProp Σ) `{hG: !nvmBaseG Σ} : iProp Σ :=
+Definition post_crash {Σ} (P : nvmBaseG Σ → iProp Σ) `{hG: !nvmBaseG Σ} : iProp Σ :=
   (∀ (σ σ' : mem_config) hG',
     persisted_impl hG hG' -∗
     post_crash_map σ.1 hG hG' -∗

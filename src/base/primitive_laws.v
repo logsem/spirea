@@ -113,6 +113,17 @@ Notation "l ↦h{# q } v" := (mapsto (L:=loc) (V:=history) l (DfracOwn q) (v%V))
 Notation "l ↦h v" := (mapsto (L:=loc) (V:=history) l (DfracOwn 1) (v%V))
   (at level 20, format "l  ↦h  v") : bi_scope.
 
+Lemma auth_auth_grow {A : ucmra} `{!CmraDiscrete A} (a a' : A) : ✓a' → a ≼ a' → ● a ~~> ● a'.
+Proof.
+  intros val [a'' eq]. rewrite eq.
+  apply (auth_update_auth _ _ a'').
+  rewrite comm.
+  rewrite -{2}(right_id _ _ a'').
+  apply op_local_update_discrete.
+  rewrite comm -eq.
+  done.
+Qed.
+
 Section view_ra_rules.
   (** Rules for view RA. ***)
   Context `{inG Σ (authR viewUR)}.
@@ -134,8 +145,9 @@ Section view_ra_rules.
 
   Lemma auth_auth_view_grow_incl γ V V' : V ⊑ V' → own γ (● V) ==∗ own γ (● V').
   Proof.
-    iIntros ([x ->]) "H".
-    by iMod (auth_auth_view_grow_op with "H") as "[$ _]".
+    iIntros (incl) "H".
+    iMod (own_update with "H") as "$"; last done.
+    apply auth_auth_grow. - apply view_valid. - done.
   Qed.
 End view_ra_rules.
 
@@ -151,38 +163,11 @@ Definition persisted {Σ} `{hG : nvmBaseG Σ} (V : view) : iProp Σ := own persi
 Definition recovered {Σ} `{hG : nvmBaseG Σ} (rv : view) : iProp Σ :=
   ∃ fullRv, ⌜map_Forall (λ ℓ t, fullRv !! ℓ = Some t) rv⌝ ∗ own recovered_view_name (to_agree fullRv).
 
-Section lifting.
-
+(** * Lemmas about [lub_view] *)
+Section lub_view.
   Context `{!nvmBaseG Σ}.
-
-  Implicit Types Q : iProp Σ.
-  Implicit Types Φ Ψ : val → iProp Σ.
-  Implicit Types efs : list expr.
-  (* Implicit Types σ : state. *)
-  Implicit Types v : val.
-  Implicit Types ℓ : loc.
-  Implicit Types V W : view.
   Implicit Types hist : history.
-
-
-  Global Instance valid_persistent V : Persistent (validV V).
-  Proof. apply _. Qed.
-
-  Global Instance recovered_persistent rv : Persistent (validV rv).
-  Proof. apply _. Qed.
-
-  Global Instance persisted_persistent V : Persistent (persisted V).
-  Proof. apply _. Qed.
-
-  Lemma auth_frag_leq V W γ : ⊢ own γ (◯ V) -∗ own γ (● W) -∗ ⌜V ⊑ W⌝.
-  Proof.
-    iIntros "H1 H2".
-    rewrite /validV.
-    iDestruct (own_valid_2 with "H2 H1") as %[Hincl _]%auth_both_valid_discrete.
-    done.
-  Qed.
-
-  (**** Lemmas about [lub_view] *)
+  Implicit Types ℓ : loc.
 
   (* If a location has history [hist] then looking up a message from the
   lub_view will result in some message. *)
@@ -224,11 +209,37 @@ Section lifting.
       rewrite !lookup_fmap. done.
   Qed.
 
-  Lemma lub_view_insert V (ℓ : loc) (t : time) (msg : message) (hist : history) (heap : store) :
-    (V !!0 ℓ) < t →
-    heap !! ℓ = Some hist →
-    lub_view (<[ℓ := (<[t := msg]> hist)]> heap) = <[ℓ := MaxNat t]>(lub_view heap).
-  Proof. Admitted.
+  Lemma lub_view_union σ σ' :
+    σ ##ₘ σ' → lub_view σ ⊔ lub_view σ' = lub_view (σ ∪ σ').
+  Proof.
+    intros disj.
+    rewrite /lub_view.
+    apply map_eq. intros ℓ.
+    rewrite view_join.
+    rewrite lookup_op.
+    rewrite !lookup_fmap.
+    destruct (σ !! ℓ) eqn:look; simpl.
+    - erewrite lookup_union_Some_l; last apply look.
+      erewrite map_disjoint_Some_r; done.
+    - rewrite left_id.
+      destruct (σ' !! ℓ) eqn:look'; simpl.
+      * erewrite lookup_union_Some_r; done.
+      * assert ((σ ∪ σ') !! ℓ = None) as ->. { by apply lookup_union_None. }
+        done.
+  Qed.
+
+  Lemma lub_view_included_union σ σ' : σ ##ₘ σ' → lub_view σ ⊑ lub_view (σ ∪ σ').
+  Proof.
+    intros disj.
+    rewrite -lub_view_union; last done.
+    apply view_le_l.
+  Qed.
+
+  (* Lemma lub_view_insert V (ℓ : loc) (t : time) (msg : message) (hist : history) (heap : store) : *)
+  (*   (V !!0 ℓ) < t → *)
+  (*   heap !! ℓ = Some hist → *)
+  (*   lub_view (<[ℓ := (<[t := msg]> hist)]> heap) = <[ℓ := MaxNat t]>(lub_view heap). *)
+  (* Proof. Abort. *)
 
   (* If a new message is inserted into the heap the lub_view can only grow. *)
   Lemma lub_view_insert_incl (ℓ : loc) (t : time) (msg : message) hist (heap : store) :
@@ -249,21 +260,76 @@ Section lifting.
 
   (***** Lemmas about ownership over [lub_view]. *)
 
-  Lemma auth_lub_view_insert V ℓ t (heap : store) (hist : history) msg :
+  Lemma lub_view_lookup_insert ℓ t msg hist (heap : store) :
+    ∃ t', lub_view (<[ℓ := <[t := msg]> hist]> heap) !! ℓ = Some (MaxNat t') ∧ t ≤ t'.
+  Proof.
+    rewrite /lub_view.
+    rewrite fmap_insert.
+    rewrite lookup_fmap.
+    rewrite lookup_insert.
+    eexists _.
+    simpl.
+    split; first reflexivity.
+    rewrite /max_msg.
+    rewrite dom_insert.
+    apply max_list_elem_of_le.
+    apply elem_of_elements.
+    set_solver.
+  Qed.
+
+  Lemma auth_lub_view_insert ℓ t (heap : store) (hist : history) msg :
     heap !! ℓ = Some hist →
-    (V !!0 ℓ) < t →
+    (* (V !!0 ℓ) < t → *)
     own store_view_name (● lub_view heap) ==∗
     own store_view_name (● lub_view (<[ℓ := <[t := msg]> hist]> heap)) ∗
     own store_view_name (◯ {[ ℓ := MaxNat t ]}).
   Proof.
-    iIntros (look lt) "Olub".
+    iIntros (look) "Olub".
     pose proof (lub_view_insert_incl ℓ t msg hist heap look) as incl.
     iMod (auth_auth_view_grow_incl _ _ _ incl with "Olub") as "Olub".
     iMod (own_update with "Olub") as "[$ $]".
     { apply: auth_update_dfrac_alloc.
-      erewrite lub_view_insert; [|apply lt|done].
-      apply singleton_included_insert.
-      reflexivity. }
+      apply singleton_included_l.
+      epose proof (lub_view_lookup_insert _ _ _ _ _) as (y & look' & le).
+      exists (MaxNat y). 
+      erewrite look'.
+      split; first done.
+      apply Some_included_2.
+      apply max_nat_included. simpl.
+      apply le. }
+    done.
+  Qed.
+
+End lub_view.
+
+Section lifting.
+
+  Context `{!nvmBaseG Σ}.
+
+  Implicit Types Q : iProp Σ.
+  Implicit Types Φ Ψ : val → iProp Σ.
+  Implicit Types efs : list expr.
+  (* Implicit Types σ : state. *)
+  Implicit Types v : val.
+  Implicit Types ℓ : loc.
+  Implicit Types V W : view.
+  Implicit Types hist : history.
+
+
+  Global Instance valid_persistent V : Persistent (validV V).
+  Proof. apply _. Qed.
+
+  Global Instance recovered_persistent rv : Persistent (validV rv).
+  Proof. apply _. Qed.
+
+  Global Instance persisted_persistent V : Persistent (persisted V).
+  Proof. apply _. Qed.
+
+  Lemma auth_frag_leq V W γ : ⊢ own γ (◯ V) -∗ own γ (● W) -∗ ⌜V ⊑ W⌝.
+  Proof.
+    iIntros "H1 H2".
+    rewrite /validV.
+    iDestruct (own_valid_2 with "H2 H1") as %[Hincl _]%auth_both_valid_discrete.
     done.
   Qed.
 
@@ -312,7 +378,11 @@ Section lifting.
     own store_view_name (● (lub_view (σ))) ==∗
     own store_view_name (● (lub_view (σ' ∪ σ))).
   Proof.
-  Admitted.
+    iIntros (disj) "H".
+    iMod (auth_auth_view_grow_incl with "H") as "$"; last done.
+    rewrite map_union_comm; last done.
+    apply lub_view_included_union. done.
+  Qed.
 
   Lemma message_included_in_lub_view ℓ (hist : history) heap t v MV MP MPP :
     heap !! ℓ = Some hist →
@@ -502,14 +572,14 @@ Section lifting.
       done.
   Qed.
 
-  Lemma wp_store V v p B ℓ (hist : history) s E :
-    {{{ ℓ ↦h hist ∗ validV V }}}
-      (ThreadState (#ℓ <- v) (V, p, B)) @ s; E
-    {{{ t, RET ThreadVal #() (<[ℓ := MaxNat t]>V, p, B);
+  Lemma wp_store v SV PV B ℓ (hist : history) s E :
+    {{{ ℓ ↦h hist ∗ validV SV }}}
+      (ThreadState (#ℓ <- v) (SV, PV, B)) @ s; E
+    {{{ t, RET ThreadVal #() (<[ℓ := MaxNat t]>SV, PV, B);
           ⌜msg_val <$> (hist !! t) = None⌝ ∗
-          ⌜(V !!0 ℓ) < t⌝ ∗
-          validV (<[ℓ := MaxNat t]>V) ∗
-          ℓ ↦h (<[t := Msg v ∅ ∅ p]>hist) }}}.
+          ⌜(SV !!0 ℓ) < t⌝ ∗
+          validV (<[ℓ := MaxNat t]>SV) ∗
+          ℓ ↦h (<[t := Msg v ∅ ∅ PV]>hist) }}}.
   Proof.
     iIntros (Φ) "[ℓPts Hval] HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
@@ -539,12 +609,12 @@ Section lifting.
     - iNext. iIntros (e2 σ2 [] efs Hstep).
       simpl in *. inv_impure_thread_step. iSplitR=>//.
       (* The persist view didn't change. *)
-      iFrame "persist".
+      iFrame "persist". simpl.
       (* We update the heap with the new history at ℓ. *)
       iMod (gen_heap_update with "Hheap ℓPts") as "[Hheap ℓPts]".
       iFrame "Hheap".
       (* We must now update the authorative element for the lub_view. *)
-      iMod (auth_lub_view_insert with "lubauth") as "[lubauth viewT]"; [done|done|].
+      iMod (auth_lub_view_insert with "lubauth") as "[lubauth viewT]"; [done|].
       iFrame "lubauth Ht".
       (* We now update the big op. *)
       iSplitR. { iApply hist_inv_insert_msg; try done. apply view_empty_least. }
@@ -599,7 +669,7 @@ Section lifting.
       iMod (gen_heap_update with "Hheap ℓPts") as "[Hheap ℓPts]".
       iFrame "Hheap".
       (* We must now update the authorative element for the lub_view. *)
-      iMod (auth_lub_view_insert with "lubauth") as "[lubauth viewT]"; [done|done|].
+      iMod (auth_lub_view_insert with "lubauth") as "[lubauth viewT]"; [done|].
       iFrame "lubauth Ht".
       (* We now update the big op. *)
       iSplitR.
