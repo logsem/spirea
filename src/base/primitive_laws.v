@@ -84,7 +84,7 @@ Definition hist_inv lub hist `{!nvmBaseG Σ} : iProp Σ :=
     ([∗ map] t ↦ msg ∈ hist, ⌜msg.(msg_store_view) ⊑ lub⌝))%I.
 
 Definition store_inv `{hG : !nvmBaseG Σ} store : iProp Σ :=
-  ([∗ map] ℓ ↦ hist ∈ store, hist_inv (lub_view store) hist).
+  ([∗ map] hist ∈ store, hist_inv (lub_view store) hist).
 
 Definition nvm_heap_ctx `{hG : !nvmBaseG Σ} σ : iProp Σ :=
   gen_heap_interp σ.1 ∗ (* The interpretation of the heap. This is standard, except the heap store historie and not plain values. *)
@@ -398,24 +398,29 @@ Section lifting.
 
   Lemma hist_inv_alloc ℓ P v0 n heap :
     heap_array ℓ P (replicate (Z.to_nat n) v0) ##ₘ heap →
-    ([∗ map] hist ∈ heap, hist_inv (lub_view heap) hist) -∗
-    ([∗ map] hist ∈ (heap_array ℓ P (replicate (Z.to_nat n) v0) ∪ heap),
-      hist_inv (lub_view (heap_array ℓ P (replicate (Z.to_nat n) v0) ∪ heap)) hist).
+    store_inv heap -∗
+    store_inv (heap_array ℓ P (replicate (Z.to_nat n) v0) ∪ heap).
   Proof.
-    iIntros (disj) "H".
+    iIntros (disj) "H". rewrite /store_inv.
     rewrite big_sepM_union; last apply disj.
     iSplitR "H".
     - iApply big_sepM_intuitionistically_forall.
-      iIntros (ℓ' hist) "!> %".
-      admit.
+      iIntros "!>" (ℓ' hist (j & w & ? & Hjl & eq & mo)%heap_array_lookup).
+      rewrite /hist_inv.
+      rewrite eq.
+      iSplit.
+      { iPureIntro. rewrite lookup_singleton. naive_solver. }
+      iApply big_sepM_singleton.
+      iPureIntro. simpl. apply view_empty_least.
     - iApply (big_sepM_impl with "H").
-    (* - iApply (big_sepM_wand with "H"). *)
-      (* iApply big_sepM_intuitionistically_forall. *)
       iIntros (ℓ' hist) "!> % [% H]".
       iSplit; first done.
       iApply (big_sepM_impl with "H").
-      iIntros (t msg) "!> % %".
-  Admitted.
+      iIntros "!>" (t msg ? ?) "!%".
+      rewrite -lub_view_union; last done.
+      etrans; first done.
+      apply view_le_r.
+  Qed.
 
   (* Create a message from a [value] and a [thread_view]. *)
   Definition mk_message (v : val) (T : thread_view) := Msg v (store_view T) (persist_view T).

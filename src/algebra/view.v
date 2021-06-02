@@ -207,7 +207,6 @@ Qed.
 (* Proof. *)
 (*   Check pointwise_relation. *)
 (*   intros [??] [??] ? ? ? ?. *)
-(* Admitted. *)
   (* solve_proper.
 Qed. *)
 

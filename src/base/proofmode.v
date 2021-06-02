@@ -169,9 +169,10 @@ Lemma tac_wp_bind `{!nvmBaseG Σ} K Δ s E Φ e TV f :
   f = (λ (e : thread_state), fill K e) → (* as an eta expanded hypothesis so that we can `simpl` it *)
   envs_entails Δ (WP ThreadState e TV @ s; E {{ tv, WP (f (ThreadState (Val tv.(val_val)) tv.(val_view))) @ s; E {{ Φ }} }})%I →
   envs_entails Δ (WP (fill K (ThreadState e TV)) @ s; E {{ Φ }}).
-Proof. rewrite envs_entails_eq=> -> ->. apply: wp_bind.
-       Admitted.
-(* Qed. *)
+Proof.
+  rewrite envs_entails_eq=> -> ->. apply: wp_bind.
+  apply (@ectx_lang_ctx nvm_ectxi_lang _). (* Why do we have to apply this instance manually? *)
+Qed.
 
 Ltac wp_bind_core K :=
   lazymatch eval hnf in K with
