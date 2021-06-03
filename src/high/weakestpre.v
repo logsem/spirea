@@ -84,10 +84,20 @@ Section wp.
       "per" ∷ ⎡ persisted ({[ ℓ := MaxNat tGlobalPers ]}) ⎤
     ).
 
-  Definition know_global_per_lower_bound `{Countable ST} (ℓ : loc) (s : ST) : dProp Σ :=
-    ∃ t,
-      ⎡ persisted ({[ ℓ := MaxNat t ]} : view) ⎤ ∗
-      ⎡ know_frag_history_loc ℓ {[ t := s ]} ⎤.
+  (* This definition uses an existentially quantified [s']. We do this such that
+  owning [know_global_per_lower_bound ℓ s] before a crash also results in owning
+  exactly the same, [know_global_per_lower_bound ℓ s], after a crash. Had the
+  definition said that _exactly_ [s] was persisted at [t] then we would have a
+  different state after a crash, since after a crash there is only a single
+  entry in the history for [ℓ] and that entry may refer to any abstract state
+  greater than [s]. Said in another way, this definition allows for weakening
+  (lowering the state) which we do after a crash to get a simpler (but just as
+  useful) interaction with the post crash modality. *)
+  Definition know_global_per_lower_bound `{AbstractState ST} (ℓ : loc) (s : ST) : dProp Σ :=
+    ∃ t s', ⌜ s ⊑ s' ⌝ ∗
+            ⎡ own_preorder_loc ℓ abs_state_relation ∗
+              persisted {[ ℓ := MaxNat t ]} ∗
+              know_frag_history_loc ℓ {[ t := s' ]} ⎤.
 
   Definition know_persist_lower_bound `{Countable ST} (ℓ : loc) (s : ST) : dProp Σ :=
     ∃ t,

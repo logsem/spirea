@@ -318,9 +318,6 @@ Definition mapply {A B} `{MBind M, FMap M} (mf : M (A → B)) (a : M A) :=
 (* Notation "<*>" := mapply (at level 61, left associativity). *)
 Notation "mf <*> a" := (mapply mf a) (at level 61, left associativity).
 
-(* Workaround for universe issues in stdpp. *)
-Definition relation2 A := A -> A -> Prop.
-
 Section preorders.
   Context `{hG : nvmG Σ}.
   Context `{Countable A}.

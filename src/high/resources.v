@@ -3,6 +3,7 @@ high-level logic. *)
 From iris.base_logic.lib Require Import own ghost_map.
 From iris.algebra Require Import gset gmap excl auth.
 
+From self Require Import extra.
 From self.lang Require Import lang.
 From self.base Require Import primitive_laws.
 From self.high Require Import dprop.
@@ -51,6 +52,9 @@ Class nvmG Σ := NvmG {
 Class AbstractState T := {
   abs_state_eqdecision :> EqDecision T;
   abs_state_countable :> Countable T;
-  abs_state_subseteq :> SqSubsetEq T;
-  abs_state_preorder :> PreOrder (⊑@{T});
+  abs_state_relation :> relation2 T;
+  abs_state_preorder :> PreOrder abs_state_relation;
 }.
+
+Instance abstract_state_sqsubseteq `{AbstractState T} : SqSubsetEq T :=
+  abs_state_relation.

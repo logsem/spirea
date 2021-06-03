@@ -1,4 +1,4 @@
-(* Implementation of the recovery weakest precondition for NvmLang. *)
+(* Implementation of the recovery weakest precondition for NVMLang. *)
 From stdpp Require Import sets.
 From iris.proofmode Require Import tactics.
 From iris.algebra Require Import auth gset.

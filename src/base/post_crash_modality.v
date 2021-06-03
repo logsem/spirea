@@ -220,8 +220,9 @@ Proof.
 Qed.
 
 Definition persisted_impl {Σ} hG hG' : iProp Σ :=
-  □ ∀ V, persisted (hG := hG) V -∗ persisted (hG := hG') ∅ ∗
-                                   ∃ RV, ⌜V ⊑ RV⌝ ∗ recovered (hG := hG') RV.
+  □ ∀ V, persisted (hG := hG) V -∗
+    persisted (hG := hG') ((λ _, MaxNat 0) <$> V) ∗
+     ∃ RV, ⌜V ⊑ RV⌝ ∗ recovered (hG := hG') RV.
 
 Definition post_crash {Σ} (P : nvmBaseG Σ → iProp Σ) `{hG: !nvmBaseG Σ} : iProp Σ :=
   (∀ (σ σ' : mem_config) hG',
@@ -298,6 +299,8 @@ Section post_crash_prop.
     intros HP. iIntrosPostCrash. iFrame "%∗".
   Qed.
 
+  (* Any resource [P] is available after a crash. This lemmas is intended for
+  cases where [P] does not refer to the global resources/gname. *)
   Lemma post_crash_nodep P :
     P -∗ post_crash (λ _, P).
   Proof. iIntros "?". iIntrosPostCrash. iFrame "∗". Qed.
@@ -353,7 +356,7 @@ Section post_crash_prop.
 
   Lemma post_crash_persisted V :
     persisted V -∗
-      post_crash (λ hG', persisted ∅ ∗ ∃ RV, ⌜V ⊑ RV⌝ ∗ recovered RV).
+      post_crash (λ hG', persisted ((λ _, MaxNat 0) <$> V) ∗ ∃ RV, ⌜V ⊑ RV⌝ ∗ recovered RV).
   Proof.
     iIntros "pers".
     iIntrosPostCrash.
@@ -361,8 +364,23 @@ Section post_crash_prop.
     iDestruct ("perToRec" with "pers") as "[$ $]".
   Qed.
 
+  Lemma post_crash_persisted_singleton ℓ t :
+    (persisted {[ ℓ := MaxNat t ]}) -∗
+    post_crash (λ hG', persisted ({[ ℓ := MaxNat 0 ]}) ∗
+                        ∃ RV t', ⌜RV !! ℓ = Some (MaxNat t') ∧ t ≤ t'⌝ ∗ recovered RV)%I.
+  Proof.
+    iIntros "pers".
+    iDestruct (post_crash_persisted with "pers") as "H".
+    iApply (post_crash_mono with "H").
+    rewrite map_fmap_singleton.
+    setoid_rewrite view_le_singleton.
+    setoid_rewrite bi.pure_exist.
+    setoid_rewrite bi.sep_exist_r.
+    done.
+  Qed.
+
   Lemma post_crash_persisted_persisted V :
-    persisted V -∗ post_crash (λ hG', persisted ∅).
+    persisted V -∗ post_crash (λ hG', persisted ((λ _, MaxNat 0) <$> V)).
   Proof.
     iIntros "pers".
     iDestruct (post_crash_persisted with "pers") as "p".
@@ -581,6 +599,19 @@ Section IntoCrash.
 (*     post_crash Q -∗ P  -∗ post_crash (λ hG', Q hG' ∗ P' hG'). *)
 (*   Proof. iIntros "HP HQ". rewrite (@into_crash _ _ P). iApply post_crash_sep. iFrame. Qed. *)
 
+  Global Instance persisted_into_crash PV :
+    IntoCrash (persisted PV)
+              (λ hG', persisted ((λ _, MaxNat 0) <$> PV) ∗
+                      ∃ RV, ⌜PV ⊑ RV⌝ ∗ recovered RV)%I.
+  Proof. rewrite /IntoCrash. iApply post_crash_persisted. Qed.
+
+  Global Instance persisted_singleton_into_crash ℓ t :
+    IntoCrash
+      (persisted {[ ℓ := MaxNat t ]})
+      (λ hG', persisted ({[ ℓ := MaxNat 0 ]}) ∗
+              ∃ RV t', ⌜RV !! ℓ = Some (MaxNat t') ∧ t ≤ t'⌝ ∗ recovered RV)%I.
+  Proof. rewrite /IntoCrash. iApply post_crash_persisted_singleton. Qed.
+
 End IntoCrash.
 
 Lemma modus_ponens {Σ} (P Q: iProp Σ)  : P -∗ (P -∗ Q) -∗ Q.
@@ -615,8 +646,8 @@ Section post_crash_modality_test.
   Context `{Hi1: !IntoCrash P P'}.
   Context `{Hi2: !IntoCrash Q Q'}.
 
-  Lemma test R :
-    P -∗ Q -∗ ⌜ R ⌝ -∗ post_crash (λ hG', P' hG' ∗ Q' hG').
+  Lemma test R ℓ t :
+    P -∗ persisted {[ ℓ := MaxNat t ]} -∗ ⌜ R ⌝ -∗ post_crash (λ hG', P' hG').
   Proof using All.
     iIntros "HP HQ HR".
     iCrash. iFrame.

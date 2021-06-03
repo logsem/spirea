@@ -166,6 +166,11 @@ Proof.
     rewrite lookup_insert_ne; done.
 Qed.
 
+Lemma view_le_singleton ℓ t V :
+  {[ ℓ := MaxNat t ]} ⊑ V ↔ ∃ t', V !! ℓ = Some (MaxNat t') ∧ t ≤ t'.
+Proof.
+Admitted.
+
 (* Instances of the lattice type classes for products. *)
 
 Global Instance join_prod `{!Join A, !Join B} : Join (A * B) :=
