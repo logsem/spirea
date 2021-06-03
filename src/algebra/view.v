@@ -5,6 +5,8 @@ From stdpp Require Import tactics countable numbers gmap.
 From iris.heap_lang Require Export locations.
 From iris.algebra Require Export gmap numbers.
 
+From self Require Import extra.
+
 Notation time := nat (only parsing).
 
 (* A view is a finite map from locations to natural numbers. A view is a monoid
@@ -166,10 +168,25 @@ Proof.
     rewrite lookup_insert_ne; done.
 Qed.
 
+Lemma Some_MaxNat_included t t' : Some (MaxNat t) ≼ Some (MaxNat t') ↔ t ≤ t'.
+Proof. by rewrite Some_included_total max_nat_included. Qed.
+
 Lemma view_le_singleton ℓ t V :
   {[ ℓ := MaxNat t ]} ⊑ V ↔ ∃ t', V !! ℓ = Some (MaxNat t') ∧ t ≤ t'.
 Proof.
-Admitted.
+  rewrite subseteq_view_incl lookup_included.
+  split.
+  - intros H. specialize H with ℓ.
+    move: H. rewrite lookup_singleton.
+    destruct (V !! ℓ) as [[t']|] eqn:eq; rewrite eq; intros H.
+    + exists t'. split; first done. by apply Some_MaxNat_included.
+    + by apply option_not_included_None in H.
+  - intros (t' & look & ?) ℓ'.
+    destruct (decide (ℓ' = ℓ)) as [->|].
+    + rewrite lookup_singleton look. apply Some_MaxNat_included. done.
+    + rewrite lookup_singleton_ne; last done.
+      apply option_included_total. naive_solver.
+Qed.
 
 (* Instances of the lattice type classes for products. *)
 

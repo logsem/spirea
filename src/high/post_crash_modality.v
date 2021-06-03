@@ -136,7 +136,7 @@ Section post_crash_prop.
   Proof. rewrite //=. Qed.
 
   (** ** The rules for the "special" assertions *)
-  
+
   Lemma post_crash_know_full_history_loc `{Countable ST} ℓ (abs_hist : abs_history ST) :
     ⎡know_full_history_loc ℓ abs_hist⎤ -∗
     post_crash (λ hG',
