@@ -153,15 +153,18 @@ End view_ra_rules.
 
 (* Expresses that the view [V] is valid. This means that it is included in the
 lub view. *)
-Definition validV {Σ} `{hG : nvmBaseG Σ} (V : view) : iProp Σ := own store_view_name (◯ V).
+Definition validV {Σ} `{hG : nvmBaseG Σ} (V : view) : iProp Σ :=
+  own store_view_name (◯ V).
 
 (* Expresses that the view [P] is persisted. This means that it is included in
 the global persisted view. *)
-Definition persisted {Σ} `{hG : nvmBaseG Σ} (V : view) : iProp Σ := own persist_view_name (◯ V).
+Definition persisted {Σ} `{hG : nvmBaseG Σ} (V : view) : iProp Σ :=
+  own persist_view_name (◯ V).
 
 (* Expresses that the view [rv] was recovered after the last crash. *)
 Definition recovered {Σ} `{hG : nvmBaseG Σ} (rv : view) : iProp Σ :=
-  ∃ fullRv, ⌜map_Forall (λ ℓ t, fullRv !! ℓ = Some t) rv⌝ ∗ own recovered_view_name (to_agree fullRv).
+  ∃ fullRv, ⌜map_Forall (λ ℓ t, fullRv !! ℓ = Some t) rv⌝ ∗
+            own recovered_view_name (to_agree fullRv).
 
 (** * Lemmas about [lub_view] *)
 Section lub_view.
@@ -301,6 +304,14 @@ Section lub_view.
   Qed.
 
 End lub_view.
+
+Section persisted.
+  Context `{!nvmBaseG Σ}.
+
+  Lemma persisted_weak PV PV' : PV' ≼ PV → persisted PV -∗ persisted PV'.
+  Proof. rewrite /persisted. iIntros ([x ->]) "[$ _]". Qed.
+
+End persisted.
 
 Section lifting.
 

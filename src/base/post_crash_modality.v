@@ -158,6 +158,17 @@ Definition post_crash_map {Σ} (σ__old : store) (hG hG' : nvmBaseG Σ) : iProp 
       (if_non_zero pc (λ p, mapsto_post_crash hG' ℓ p hist)) ∗
       ⌜(qc + pc = 1)%Qc⌝.
 
+Definition persisted_impl {Σ} hG hG' : iProp Σ :=
+  □ ∀ V, persisted (hG := hG) V -∗
+    persisted (hG := hG') ((λ _, MaxNat 0) <$> V) ∗
+     ∃ RV, ⌜V ⊑ RV⌝ ∗ recovered (hG := hG') RV.
+
+Definition post_crash {Σ} (P : nvmBaseG Σ → iProp Σ) `{hG: !nvmBaseG Σ} : iProp Σ :=
+  (∀ (σ : mem_config) hG',
+    persisted_impl hG hG' -∗
+    post_crash_map σ.1 hG hG' -∗
+    (post_crash_map σ.1 hG hG' ∗ P hG')).
+
 Lemma post_crash_map_exchange {Σ} σ__old (hG hG' : nvmBaseG Σ) ℓ q hist :
   post_crash_map σ__old hG hG' -∗
   (let hG := hG in ℓ ↦h{#q} hist) -∗
@@ -219,17 +230,6 @@ Proof.
   done.
 Qed.
 
-Definition persisted_impl {Σ} hG hG' : iProp Σ :=
-  □ ∀ V, persisted (hG := hG) V -∗
-    persisted (hG := hG') ((λ _, MaxNat 0) <$> V) ∗
-     ∃ RV, ⌜V ⊑ RV⌝ ∗ recovered (hG := hG') RV.
-
-Definition post_crash {Σ} (P : nvmBaseG Σ → iProp Σ) `{hG: !nvmBaseG Σ} : iProp Σ :=
-  (∀ (σ σ' : mem_config) hG',
-    persisted_impl hG hG' -∗
-    post_crash_map σ.1 hG hG' -∗
-    (post_crash_map σ.1 hG hG' ∗ P hG')).
-
 Section post_crash_prop.
   Context `{hG: !nvmBaseG Σ}.
   Implicit Types Φ : thread_val → iProp Σ.
@@ -238,7 +238,7 @@ Section post_crash_prop.
   Implicit Types v : thread_val.
 
   (** Tiny shortcut for introducing the assumption for a [post_crash]. *)
-  Ltac iIntrosPostCrash := iIntros (σ σ' hG') "#perToRec map".
+  Ltac iIntrosPostCrash := iIntros (σ hG') "#perToRec map".
 
   Lemma post_crash_intro Q:
     (⊢ Q) →
@@ -251,7 +251,7 @@ Section post_crash_prop.
   Proof.
     iIntros (Hmono) "HP".
     iIntrosPostCrash.
-    iDestruct ("HP" $! σ σ' hG' with "[$] [$]") as "($ & P)".
+    iDestruct ("HP" $! σ hG' with "[$] [$]") as "($ & P)".
     by iApply Hmono.
   Qed.
 
@@ -272,8 +272,8 @@ Section post_crash_prop.
   Proof.
     iIntros "(HP & HQ)".
     iIntrosPostCrash.
-    iDestruct ("HP" $! σ σ' hG' with "[$] [$]") as "(map & $)".
-    iDestruct ("HQ" $! σ σ' hG' with "[$] [$]") as "$".
+    iDestruct ("HP" $! σ hG' with "[$] [$]") as "(map & $)".
+    iDestruct ("HQ" $! σ hG' with "[$] [$]") as "$".
   Qed.
 
   (* Lemma post_crash_or P Q: *)
@@ -344,7 +344,7 @@ Section post_crash_prop.
   (*   hnf; iIntros "H". *)
   (*   iDestruct "H" as (x) "H". *)
   (*   rewrite /post_crash. *)
-  (*   iIntros (σ σ' hG') "Hrel". *)
+  (*   iIntros (σ hG') "Hrel". *)
   (*   iSpecialize ("H" with "Hrel"). *)
   (*   iExists x; iFrame. *)
   (* Qed. *)

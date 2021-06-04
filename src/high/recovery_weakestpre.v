@@ -1,4 +1,7 @@
 (* Implementation of the recovery weakest precondition for NVMLang. *)
+
+From Coq Require Import QArith Qcanon.
+
 From stdpp Require Import sets.
 From iris.proofmode Require Import tactics.
 From iris.algebra Require Import auth gset.
@@ -18,25 +21,6 @@ Set Default Proof Using "Type".
 Notation pbundleG := recovery_weakestpre.pbundleG.
 
 Notation perennialG := recovery_weakestpre.perennialG.
-
-(* This approach does not seem to work.
-Definition wpr `{hG : !nvmG Σ} `{hC : !crashG Σ} (s : stuckness) (k : nat) E
-           (e : expr) (rec : expr) (Φ : val → dProp Σ) (Φinv : nvmG Σ → dProp Σ) (Φc : nvmG Σ -> val -> dPropO Σ) :=
-  MonPred (λ V,
-    ⌜ ∀ Hc t, Objective (Hc t Φc) ⌝ ∗
-    ∀ TV,
-      ⌜ V ⊑ TV ⌝ -∗
-      validV (store_view TV) -∗
-      interp -∗
-      wpr s k (* hC ({| recovery_weakestpre.pbundleT := nvm_get_names Σ _ |}) *) E
-        (ThreadState e TV)
-        (ThreadState rec (∅, ∅, ∅))
-        (λ res,
-          let '(ThreadVal v TV') := res in Φ v TV')
-        (λ _, True%I)
-        (λ hG res,
-          let '(ThreadVal v TV') := res in Φc (hG) v TV')
-  )%I. *)
 
 Record nvm_high_names := {
   name_abs_history : gname;
@@ -132,20 +116,86 @@ Proof.
   apply (fixpoint_unfold (wpr_pre Σ st k)).
 Qed.
 
+(* For each location in [p] pick the message in the store that it specifies. *)
+Definition slice_of_hist (p : view) (σ : gmap loc (gmap time (message * positive))) : gmap loc (gmap time (message * positive)) :=
+  map_zip_with
+    (λ '(MaxNat t) hist,
+      match hist !! t with
+        Some (msg, s) => {[ 0 := (discard_msg_views msg, s) ]}
+      | None => ∅ (* The None branch here should never be taken. *)
+      end)
+    p σ.
+
+Lemma map_points_to_to_new {Σ} hists store p' (hG hG' : nvmBaseG Σ) :
+  consistent_cut p' store →
+  own (@recovered_view_name _ hG') (to_agree p') -∗
+  base.post_crash_modality.post_crash_map store hG hG' -∗
+  ([∗ map] ℓ ↦ hist ∈ hists, let hG := hG in ℓ ↦h (fst <$> hist)) -∗
+  ([∗ map] ℓ ↦ hist ∈ (slice_of_hist p' hists), let hG := hG' in ℓ ↦h (fst <$> hist)).
+Proof.
+  iIntros (cut) "#rec [impl map] pts".
+  iAssert (⌜((λ (hist : gmap _ _), fst <$> hist) <$> hists) ⊆ store⌝)%I as %foo.
+  {
+    (* We need to prove this. *)
+    admit. }
+  iAssert (⌜dom (gset _) hists ⊆ dom _ store⌝)%I as %histSubStore.
+  { rewrite elem_of_subseteq. iIntros (ℓ).
+    rewrite !elem_of_dom. iIntros ([hist look]).
+    iDestruct (big_sepM_lookup with "pts") as "pts"; first apply look.
+    iExists _. iApply "impl"; done. }
+  (* Throw away the points-to predicates that did not survive the crash. *)
+  iDestruct (big_sepM_subseteq with "pts") as "pts".
+  { apply (restrict_subseteq (dom _ p')). }
+  iDestruct (big_sepM_subseteq with "map") as "map".
+  { apply (restrict_subseteq (dom _ (restrict (dom (gset _) p') hists))). }
+  iDestruct (big_sepM_sepM2_2 with "pts map") as "map".
+  { setoid_rewrite <- elem_of_dom.
+    setoid_rewrite restrict_dom_subset at 2; first done.
+    etrans; last apply histSubStore.
+    apply subseteq_dom.
+    apply restrict_subseteq. }
+  iDestruct (big_sepM2_alt with "map") as "[%fall map]".
+  iApply (big_sepM_impl_sub with "map").
+  { (* apply map_zip_with_dom_fst *)
+    (* rewrite /map_zip. *)
+    admit. (* We need lemmas about dom of map_zip *) }
+    (* etrans. last eapply map_zip_with_dom last eapply map_zip_with_dom_fst. } *)
+  iIntros "!>" (ℓ [? msg] hy look look') "[pts disj]".
+  iDestruct "disj" as (qc pc) "(left & right & %sum)".
+  simpl.
+  rewrite /post_crash_modality.if_non_zero.
+  destruct (decide (0 < qc)%Qc).
+  { iDestruct (mapsto_ne with "pts left") as %H. exfalso. by apply H. }
+  iDestruct "left" as %->.
+  rewrite Qcplus_0_l in sum.
+  rewrite sum.
+  simpl.
+  rewrite /post_crash_modality.mapsto_post_crash.
+  iDestruct "right" as "[right | left]".
+  2: {
+    iExFalso.
+    rewrite /slice_of_hist in look'.
+    apply elem_of_dom_2 in look'.
+    apply map_zip_with_dom_fst in look'.
+    apply elem_of_dom in look'.
+    destruct look' as [[t] ?].
+    iApply "left". iExists _. iFrame "rec".
+    rewrite -map_Forall_singleton.
+    done. }
+  iDestruct "right" as (t msg' look'') "H".
+  apply map_lookup_zip_with_Some in look'.
+  destruct look' as ([?t] & hist & eq & ?look & ?look).
+  (* FIXME: Use consistent_cut and the foo hypothesis that relates store to hists. *)
+Admitted.
+
+(* Lemma slice_of_hist_lookup_Some *)
+(*   consistent_cut p' store *)
+(*   slice_of_hist p hists !! ℓ = Some hist *)
+
 Definition wpr `{nvmG Σ} s k := wpr' s k _.
 
 Section wpr.
   Context `{hG : nvmG Σ}.
-
-  (* For each location in [p] pick the message in the store that it specifies. *)
-  Definition slice_of_hist (p : view) (σ : gmap loc (gmap time (message * positive))) : gmap loc (gmap time (message * positive)) :=
-    map_zip_with
-      (λ '(MaxNat t) hist,
-       match hist !! t with
-         Some (msg, s) => {[ 0 := (discard_msg_views msg, s) ]}
-       | None => ∅ (* The None branch here should never be taken. *)
-       end)
-      p σ.
 
   Lemma slice_of_hist_dom_subset p hists :
     dom (gset loc) (slice_of_hist p hists) ⊆ dom (gset loc) hists.
@@ -172,17 +222,18 @@ Section wpr.
           nvm_heap_ctx (hG := _) σ' ∗
           Pg hG (∅, ∅, ∅).
   Proof.
-    iIntros (step).
-    iNamed 1.
-    (* iDestruct 1 as (hists preds orders) "(psts & orders & incr & ? & ? & preds)". *)
+    (* iIntros (step). *)
+    iIntros ([store p p' pIncl cut]).
+    (* iNamed 1. *)
+    iIntros "H".
+    iNamed "H".
     iIntros "(heap & authStor & inv & pers & recov) Pg".
 
     (* We need to first re-create the ghost state for the base interpretation. *)
-    iMod (nvm_heap_reinit _ _ _ _ Hcrash step with "heap inv pers") as (baseNames) "(map' & interp' & #persImpl)".
+    iMod (nvm_heap_reinit _ _ _ _ _ Hcrash with "heap inv pers")
+      as (baseNames) "(map' & interp' & #persImpl & #rec)"; try done.
 
     iDestruct (big_sepM2_dom with "ordered") as %domHistsEqOrders.
-
-    destruct step as [store p p' pIncl].
 
     (* Allocate new ghost state for the logical histories. *)
     rewrite /interp.
@@ -202,6 +253,8 @@ Section wpr.
     iMod (own_alloc (● (newSharedLocs : gsetUR _))) as (new_shared_locs_name) "newSharedLocs".
     { apply auth_auth_valid. done. }
 
+    (* We are done allocating ghost state and can now present a new bundle of
+    ghost names. *)
     iModIntro.
     iExists
       ({| name_base_names := baseNames;
@@ -216,33 +269,37 @@ Section wpr.
     (* iFrame. *)
     rewrite /post_crash. simpl.
     rewrite /base_post_crash. simpl.
-    (* iDestruct ("Pg" $! _ _ (store, _) _ _ with "persImpl map'") as "(map' & Pg)". *)
-    iDestruct ("Pg" $! _ (((λ h : abs_history (message * positive), snd <$> h) <$> hists)) (store, _) _ _ with "persImpl map'") as "(map' & Pg)".
+    iDestruct ("Pg" $! _ (((λ h : abs_history (message * positive), snd <$> h) <$> hists)) (store, _) _ with "persImpl map'") as "(map' & Pg)".
     simpl.
+    iDestruct
+      (map_points_to_to_new hists _ _ _ (nvm_base_update Σ nvmG_baseG Hinv Hcrash baseNames)
+         with "rec map' ptsMap") as "ptsMap"; first done.
     rewrite /post_crash_map.
     iDestruct ("Pg" with "[history knowHistories]") as "[$ WHAT]".
-    (* ((λ h : abs_history (message * positive), snd <$> h) <$> hists) *)
-    { simpl. iSplitL "history".
+    { simpl.
+      iSplit.
+      { admit. }
+      iSplitL "history".
       (* rewrite /know_full_encoded_history_loc. *)
       (* rewrite /own_full_history /own_full_history_gname. *)
       (* iDestruct "history" as "[left right]". *)
       (* iDestruct (ghost_map_lookup with "left [$]") as "HY". *)
-      - iIntros.
+      { iIntros.
         rewrite /know_full_encoded_history_loc.
         rewrite /own_full_history /own_full_history_gname.
         iDestruct "history" as "[left right]".
         iDestruct (ghost_map_lookup with "left [$]") as "HY".
-        iApply "HY".
-      - admit.
+        iApply "HY". }
+      admit.
     }
-    rewrite /interp.
+    (* We show the state interpretation for the high-level logic. *)
     iExists _, _, _, _.
     rewrite /own_full_history.
     iFrame "newOrders".
     iFrame "newPreds".
     iFrame "hists'".
-    iSplitL "".
-    { admit. } (* We need the points-to predicates. *)
+    iSplitL "ptsMap".
+    { rewrite /newHists. iFrame. }
     iSplitR.
     { iApply big_sepM2_intuitionistically_forall.
       - setoid_rewrite <- elem_of_dom.
@@ -263,6 +320,7 @@ Section wpr.
     admit.
   Admitted.
 
+  (*
   Lemma nvm_reinit' (hG' : nvmG Σ) n σ σ' (Hinv : invG Σ) (Hcrash : crashG Σ) Pg :
     crash_step σ σ' →
     ⊢ ⎡interp⎤ -∗
@@ -277,6 +335,7 @@ Section wpr.
     iIntros (step) "interp baseInterp".
     iMod (nvm_heap_reinit_alt _ _ _ _ Hcrash _ step with "baseInterp []") as (hnames) "(map & baseInterp & idemp)".
   Admitted.
+  *)
 
   (* _The_ lemma for showing a recovery weakest precondition. *)
   Lemma idempotence_wpr s k E1 e rec Φ Φr Φc `{∀ hG, Objective (Φc hG)} :

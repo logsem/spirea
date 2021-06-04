@@ -285,6 +285,7 @@ Section restrict.
   Context `{FinMapDom K M D}.
   Context `{!RelDecision (∈@{D})}.
   Context {A : Type}.
+  Implicit Types (s : D) (m : M A) (k : K).
 
   Lemma restrict_lookup_Some (s : D) (m : M A) (k : K) (x : A) :
     restrict s m !! k = Some x ↔ (m !! k = Some x) ∧ k ∈ s.
@@ -293,6 +294,16 @@ Section restrict.
   Lemma restrict_lookup_Some_2 (s : D) (m : M A) (k : K) (x : A) :
     m !! k = Some x → k ∈ s → restrict s m !! k = Some x.
   Proof. by rewrite restrict_lookup_Some. Qed.
+
+  (* Upstream. *)
+  Lemma map_filter_subseteq f `{∀ (x : (K *A)), Decision (f x)} m : filter f m ⊆ m.
+  Proof. apply map_subseteq_spec, map_filter_lookup_Some_1_1. Qed.
+
+  Lemma restrict_subseteq s m : restrict s m ⊆ m.
+  Proof. rewrite /restrict. apply map_filter_subseteq. Qed.
+
+  Lemma restrict_intersection s m : dom _ (restrict s m) = s ∩ (dom _ m).
+  Proof. Abort. (* This is true, but we haven't needed it yet. *)
 
   (*
   Lemma restrict_superset_id (s : D) (m : M A) :

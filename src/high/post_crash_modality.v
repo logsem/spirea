@@ -292,7 +292,7 @@ Section post_crash_derived.
   Context `{Hi1: !IntoCrash P P'}.
   Context `{Hi2: !IntoCrash Q Q'}.
 
-  Lemma post_crash_mapsto_ex `{AbstractState ST} ℓ ss1 ss2 ϕ :
+  Lemma post_crash_mapsto_ex `{AbstractState ST} ℓ ss1 ss2 ϕ ψ :
     (* FIXME: ψ *)
     ℓ ↦ ss1; ss2 | ϕ -∗
     post_crash (λ hG',
@@ -302,7 +302,7 @@ Section post_crash_derived.
    Proof.
      iDestruct 1 as (?????)
        "(pts & preds & ? & ? & ? & ? & ? & ? & ?)".
-     iCrash.
+     (* iCrash. *)
    Abort.
 
 End post_crash_derived.

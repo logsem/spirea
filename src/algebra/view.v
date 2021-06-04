@@ -69,6 +69,24 @@ Proof.
   apply: ucmra_unit_least.
 Qed.
 
+(* A convenient condition for showing that one view is included in another. *)
+Lemma view_le_lookup V W :
+  (∀ ℓ t, V !! ℓ = Some (MaxNat t) → ∃ t', W !! ℓ = Some (MaxNat t') ∧ t ≤ t') →
+  V ⊑ W.
+Proof.
+  intros H.
+  rewrite subseteq_view_incl lookup_included => ℓ.
+  case (V !! ℓ) as [[t]|] eqn:look.
+  - destruct (H ℓ t) as [t' [eq le]]; first done.
+    rewrite look eq.
+    apply Some_included_total.
+    apply max_nat_included.
+    done.
+  - rewrite look.
+    replace (None) with (ε); last done.
+    apply ucmra_unit_least.
+Qed.
+
 Lemma view_lt_lt V W ℓ : V ⊑ W → (V !!0 ℓ) ≤ (W !!0 ℓ).
 Proof.
   rewrite subseteq_view_incl lookup_included.
@@ -174,18 +192,31 @@ Proof. by rewrite Some_included_total max_nat_included. Qed.
 Lemma view_le_singleton ℓ t V :
   {[ ℓ := MaxNat t ]} ⊑ V ↔ ∃ t', V !! ℓ = Some (MaxNat t') ∧ t ≤ t'.
 Proof.
-  rewrite subseteq_view_incl lookup_included.
   split.
-  - intros H. specialize H with ℓ.
+  - rewrite subseteq_view_incl lookup_included.
+    intros H. specialize H with ℓ.
     move: H. rewrite lookup_singleton.
     destruct (V !! ℓ) as [[t']|] eqn:eq; rewrite eq; intros H.
     + exists t'. split; first done. by apply Some_MaxNat_included.
     + by apply option_not_included_None in H.
-  - intros (t' & look & ?) ℓ'.
-    destruct (decide (ℓ' = ℓ)) as [->|].
-    + rewrite lookup_singleton look. apply Some_MaxNat_included. done.
-    + rewrite lookup_singleton_ne; last done.
-      apply option_included_total. naive_solver.
+  - intros H.
+    apply view_le_lookup=> i t' look.
+    apply lookup_singleton_Some in look.
+    naive_solver.
+Qed.
+
+Definition view_to_zero V := (const (MaxNat 0)) <$> V.
+
+Lemma view_to_zero_mono V V' : V ⊑ V' → view_to_zero V ⊑ view_to_zero V'.
+Proof.
+  rewrite /view_to_zero.
+  intros le.
+  apply view_le_lookup.
+  intros ℓ t look.
+  apply lookup_fmap_Some in look.
+  destruct look as ([t2] & [= eq] & look).
+  edestruct view_le_look as (t'' & look' & lt); [apply look|apply le|].
+  exists 0. rewrite lookup_fmap look' -eq. done.
 Qed.
 
 (* Instances of the lattice type classes for products. *)

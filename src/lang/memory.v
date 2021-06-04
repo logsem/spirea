@@ -220,7 +220,7 @@ Section memory.
   | MCrashStep σ p p' :
      p ⊑ p' →
      consistent_cut p' σ →
-     crash_step (σ, p) (slice_of_store p' σ, ∅).
+     crash_step (σ, p) (slice_of_store p' σ, view_to_zero p').
 
   (* It is always possible to allocate a section of memory. *)
   Lemma alloc_fresh v (len : nat) σ p V P B :

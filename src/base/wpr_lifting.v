@@ -172,32 +172,35 @@ Section wpr.
   Instance tt (p : view) : CoreId (●□ p).
   Proof. do 2 constructor; simpl; auto. apply: core_id_core. Qed.
 
-  Lemma nvm_heap_reinit (hG' : nvmBaseG Σ) σ σ' (Hinv : invG Σ) (Hcrash : crashG Σ) :
-    crash_step σ σ' →
-    ⊢ gen_heap_interp (hG := @nvmBaseG_gen_heapG _ hG') σ.1 -∗
-      store_inv (hG := hG') σ.1 -∗
-      persist_auth (hG := hG') σ
+  Lemma nvm_heap_reinit (hG' : nvmBaseG Σ) σ p p' (Hinv : invG Σ) (Hcrash : crashG Σ) :
+    (* The first two assumptions are the content of [crash_step σ σ'] *)
+    p ⊑ p' →
+    consistent_cut p' σ →
+    ⊢ gen_heap_interp (hG := @nvmBaseG_gen_heapG _ hG') σ -∗
+      store_inv (hG := hG') σ -∗
+      persist_auth (hG := hG') (σ, p)
       ==∗
       ∃ names : nvm_base_names,
         (* ghost_crash_rel σ hG' σ' (nvm_base_update Σ hG' Hinv Hcrash names) ∗ *)
-        post_crash_map σ.1 hG' (nvm_base_update Σ hG' Hinv Hcrash names) ∗
-        nvm_heap_ctx (hG := nvm_base_update Σ hG' Hinv Hcrash names) σ' ∗
-        persisted_impl hG' (nvm_base_update Σ hG' Hinv Hcrash names).
-        (* own recovered_view_name (to_agree rv : agreeR viewO). *)
+        post_crash_map σ hG' (nvm_base_update Σ hG' Hinv Hcrash names) ∗
+        nvm_heap_ctx (hG := nvm_base_update Σ hG' Hinv Hcrash names) (slice_of_store p' σ, view_to_zero p') ∗
+        persisted_impl hG' (nvm_base_update Σ hG' Hinv Hcrash names) ∗
+        own (@recovered_view_name _ (nvm_base_update Σ hG' Hinv Hcrash names)) (to_agree p' : agreeR viewO).
   Proof using hG Σ.
-    iIntros ([store p p' pIncl cut]) "heapIntrp invs pers".
+    iIntros (pIncl cut). iIntros  "heapIntrp invs pers".
     rewrite /nvm_heap_ctx. simpl.
     (* Allocate a new heap at a _new_ ghost name. *)
-    iMod (gen_heap_init_names (slice_of_store p' store)) as (γh γm) "(heapNew & ptsMap & _)".
+    iMod (gen_heap_init_names (slice_of_store p' σ)) as (γh γm) "(heapNew & ptsMap & _)".
     (* We persist/freeze the old persist view. *)
     iMod (own_update with "pers") as "pers".
     { apply auth_update_auth_persist. }
     iDestruct "pers" as "#oldPers".
     (* Allocate a new persist view. *)
-    iMod (own_alloc (● ∅ ⋅ ◯ ∅)) as (persistG) "[pers #persFrag]".
+    (* set newPersisted := ((λ _, MaxNat 0) <$> p). *)
+    iMod (own_alloc (● (view_to_zero p') ⋅ ◯ (view_to_zero p'))) as (persistG) "[pers #persFrag]".
     { apply auth_both_valid_2; [apply view_valid|done]. }
     (* Allocate the store view at a _new_ ghost name. *)
-    iMod (own_alloc (● lub_view (slice_of_store p' store))) as (storeG) "store".
+    iMod (own_alloc (● lub_view (slice_of_store p' σ))) as (storeG) "store".
     { apply auth_auth_valid. apply view_valid. }
     (* Allocate the recovered view at a _new_ ghost name. *)
     iMod (own_alloc (to_agree p' : agreeR viewO)) as (recoveredG) "#recovered".
@@ -207,7 +210,9 @@ Section wpr.
                name_store_view := storeG;
                name_persist_view := persistG;
                name_recovered_view := recoveredG |}.
+    rewrite /name_recovered_view. simpl.
     iFrame.
+    iFrame "recovered".
     (* We show the ghost crash relation. *)
     iSplitL "ptsMap heapIntrp".
     { rewrite /post_crash_map.
@@ -261,17 +266,19 @@ Section wpr.
           apply map_filter_lookup_Some_2; last reflexivity.
           done. }
     iSplit.
-    * iDestruct (store_inv_cut with "invs") as "$"; first done. simpl.
+    * simpl. iDestruct (store_inv_cut with "invs") as "$"; first done. simpl.
       iExists p'. iFrame "recovered".
     * iModIntro.
       iIntros (V) "pers".
-      iFrame "persFrag".
       iAssert (⌜V ⊑ p⌝)%I as %incl.
       { iDestruct (own_valid_2 with "oldPers pers") as %[_ [incl _]]%auth_both_dfrac_valid_discrete.
         iPureIntro.
         apply incl. }
       iAssert (⌜V ⊑ p'⌝)%I as %incl'.
       { iPureIntro. etrans; done. }
+      iSplit.
+      { edestruct (view_to_zero_mono) as [? ->]; first apply incl'.
+        iDestruct "persFrag" as "[$ _]". }
       iExists p'. iFrame "%". iExists p'. iFrame "#".
       iPureIntro.
       apply map_Forall_lookup_2.
@@ -287,11 +294,11 @@ Section wpr.
         nvm_heap_ctx (hG := nvm_base_update Σ hG' Hinv Hcrash names) σ' ∗
         Pg (nvm_base_update Σ hG' Hinv Hcrash names).
   Proof using hG.
-    iIntros (step).
+    iIntros ([store p p' pIncl cut]).
     iIntros "(heap & authStor & inv & pers & recov) Pg".
-    iMod (nvm_heap_reinit _ _ _ _ Hcrash step with "heap inv pers") as (hnames) "(map & interp' & #persImpl)".
+    iMod (nvm_heap_reinit _ _ _ _ _ Hcrash with "heap inv pers") as (hnames) "(map & interp' & #persImpl & rec)"; try done.
     rewrite /post_crash.
-    iDestruct ("Pg" $! σ σ' with "persImpl map") as "(map & Pg)".
+    iDestruct ("Pg" with "persImpl map") as "(map & Pg)".
     iExists _. iFrame.
     done.
   Qed.
