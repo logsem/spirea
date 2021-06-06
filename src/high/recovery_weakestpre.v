@@ -126,19 +126,39 @@ Definition slice_of_hist (p : view) (σ : gmap loc (gmap time (message * positiv
       end)
     p σ.
 
-Lemma map_points_to_to_new {Σ} hists store p' (hG hG' : nvmBaseG Σ) :
+Lemma slice_of_hist_lookup_Some (p : view) store (hist : gmap time message)
+      (logHists : gmap loc (abs_history (message * positive)))
+      msg t (absHist : abs_history (message * positive)) (ℓ : loc) :
+  (λ hist : gmap _ _, fst <$> hist) <$> logHists ⊆ store →
+  store !! ℓ = Some hist →
+  hist !! t = Some msg →
+  p !! ℓ = Some (MaxNat t) →
+  logHists !! ℓ = Some absHist →
+  ∃ s, absHist !! t = Some (msg, s).
+Proof.
+  intros sub lookHist lookMsg lookT lookAbsHist.
+  eapply lookup_weaken in sub.
+  2: { rewrite lookup_fmap_Some. eexists _. split; [reflexivity|done]. }
+  simplify_eq.
+  setoid_rewrite lookup_fmap_Some in lookMsg.
+  destruct lookMsg as [[? s] [eq lookMsg]].
+  exists s. naive_solver.
+Qed.
+
+Lemma map_points_to_to_new {Σ} logHists store p' (hG hG' : nvmBaseG Σ) :
   consistent_cut p' store →
   own (@recovered_view_name _ hG') (to_agree p') -∗
   base.post_crash_modality.post_crash_map store hG hG' -∗
-  ([∗ map] ℓ ↦ hist ∈ hists, let hG := hG in ℓ ↦h (fst <$> hist)) -∗
-  ([∗ map] ℓ ↦ hist ∈ (slice_of_hist p' hists), let hG := hG' in ℓ ↦h (fst <$> hist)).
+  ([∗ map] ℓ ↦ hist ∈ logHists, let hG := hG in ℓ ↦h (fst <$> hist)) -∗
+  ([∗ map] ℓ ↦ hist ∈ (slice_of_hist p' logHists), let hG := hG' in ℓ ↦h (fst <$> hist)).
 Proof.
   iIntros (cut) "#rec [impl map] pts".
-  iAssert (⌜((λ (hist : gmap _ _), fst <$> hist) <$> hists) ⊆ store⌝)%I as %foo.
-  {
-    (* We need to prove this. *)
-    admit. }
-  iAssert (⌜dom (gset _) hists ⊆ dom _ store⌝)%I as %histSubStore.
+  iAssert (⌜((λ (hist : gmap _ _), fst <$> hist) <$> logHists) ⊆ store⌝)%I as %foo.
+  { rewrite map_subseteq_spec.
+    iIntros (ℓ msg (absHist & <- & ?)%lookup_fmap_Some).
+    iApply "impl".
+    iApply (big_sepM_lookup with "pts"); first done. }
+  iAssert (⌜dom (gset _) logHists ⊆ dom _ store⌝)%I as %histSubStore.
   { rewrite elem_of_subseteq. iIntros (ℓ).
     rewrite !elem_of_dom. iIntros ([hist look]).
     iDestruct (big_sepM_lookup with "pts") as "pts"; first apply look.
@@ -147,7 +167,7 @@ Proof.
   iDestruct (big_sepM_subseteq with "pts") as "pts".
   { apply (restrict_subseteq (dom _ p')). }
   iDestruct (big_sepM_subseteq with "map") as "map".
-  { apply (restrict_subseteq (dom _ (restrict (dom (gset _) p') hists))). }
+  { apply (restrict_subseteq (dom _ (restrict (dom (gset _) p') logHists))). }
   iDestruct (big_sepM_sepM2_2 with "pts map") as "map".
   { setoid_rewrite <- elem_of_dom.
     setoid_rewrite restrict_dom_subset at 2; first done.
@@ -156,11 +176,13 @@ Proof.
     apply restrict_subseteq. }
   iDestruct (big_sepM2_alt with "map") as "[%fall map]".
   iApply (big_sepM_impl_sub with "map").
-  { (* apply map_zip_with_dom_fst *)
-    (* rewrite /map_zip. *)
-    admit. (* We need lemmas about dom of map_zip *) }
-    (* etrans. last eapply map_zip_with_dom last eapply map_zip_with_dom_fst. } *)
-  iIntros "!>" (ℓ [? msg] hy look look') "[pts disj]".
+  { rewrite /slice_of_hist.
+    rewrite !map_zip_with_dom.
+    rewrite (restrict_dom_subset _ store).
+    2: { rewrite restrict_dom. set_solver. }
+    rewrite restrict_dom.
+    set_solver. }
+  iIntros "!>" (ℓ [? hist] hy look look') "[pts disj]".
   iDestruct "disj" as (qc pc) "(left & right & %sum)".
   simpl.
   rewrite /post_crash_modality.if_non_zero.
@@ -182,15 +204,30 @@ Proof.
     iApply "left". iExists _. iFrame "rec".
     rewrite -map_Forall_singleton.
     done. }
-  iDestruct "right" as (t msg' look'') "H".
-  apply map_lookup_zip_with_Some in look'.
-  destruct look' as ([?t] & hist & eq & ?look & ?look).
-  (* FIXME: Use consistent_cut and the foo hypothesis that relates store to hists. *)
-Admitted.
+  iDestruct "right" as (t msg look'') "(newPts & recov & H)".
 
-(* Lemma slice_of_hist_lookup_Some *)
-(*   consistent_cut p' store *)
-(*   slice_of_hist p hists !! ℓ = Some hist *)
+  rewrite post_crash_modality.mk_Qp_1.
+  apply map_lookup_zip_with_Some in look.
+  destruct look as (? & ? & [= <- <-] & ? & lookStore).
+  apply restrict_lookup_Some in lookStore.
+  destruct lookStore as [lookStore ?].
+  apply map_lookup_zip_with_Some in look'.
+  destruct look' as ([t'] & absHist & eq & ?look & ?look).
+
+  (* [t] is equal to [t']. *)
+  iAssert (⌜t = t'⌝)%I as %<-.
+  { iDestruct "recov" as (? map%map_Forall_singleton) "rec'".
+    iDestruct (own_valid_2 with "rec rec'") as %<-%to_agree_op_inv_L.
+    rewrite look in map.
+    by simplify_eq. }
+
+  edestruct slice_of_hist_lookup_Some as [hi lookT]; try done.
+  rewrite lookT in eq.
+  rewrite eq.
+  rewrite map_fmap_singleton.
+  (* NOTE: We throw some resources away here that we will probably need later on. *)
+  iFrame "newPts".
+Qed.
 
 Definition wpr `{nvmG Σ} s k := wpr' s k _.
 

@@ -139,6 +139,29 @@ Section wpr.
         (f : A → B → C) (ma : M A) (mb : M B) : dom D (map_zip_with f ma mb) ⊆ dom D mb.
   Proof. rewrite map_zip_with_flip. apply map_zip_with_dom_fst. Qed.
 
+  Lemma map_zip_with_dom `{FinMapDom K M D} {A B C}
+        (f : A → B → C) (ma : M A) (mb : M B) :
+    dom D (map_zip_with f ma mb) ≡ dom D ma ∩ dom D mb.
+  Proof.
+    rewrite set_equiv=> x.
+    rewrite elem_of_intersection.
+    rewrite !elem_of_dom.
+    rewrite map_lookup_zip_with.
+    destruct (ma !! x), (mb !! x); rewrite !is_Some_alt; naive_solver.
+  Qed.
+
+  Lemma map_zip_with_dom_eq_l `{FinMapDom K M D} {A B C}
+        (f : A → B → C) (ma : M A) (mb : M B) :
+    dom D ma ⊆ dom D mb →
+    dom D (map_zip_with f ma mb) ≡ dom D ma.
+  Proof. rewrite map_zip_with_dom. set_solver. Qed.
+
+  Lemma map_zip_with_dom_eq_r `{FinMapDom K M D} {A B C}
+        (f : A → B → C) (ma : M A) (mb : M B) :
+    dom D mb ⊆ dom D ma →
+    dom D (map_zip_with f ma mb) ≡ dom D mb.
+  Proof. rewrite map_zip_with_dom. set_solver. Qed.
+
   Lemma store_inv_cut store p :
     consistent_cut p store →
     store_inv store -∗ store_inv (slice_of_store p store).

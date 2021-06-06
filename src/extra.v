@@ -276,6 +276,11 @@ Section map_zip_with.
     map_zip_with f m1 m2 !! i = None ↔ m1 !! i = None ∨ m2 !! i = None.
   Proof. rewrite map_lookup_zip_with. destruct (m1 !! i), (m2 !! i); naive_solver. Qed.
 
+  (* Upstream. *)
+  Lemma map_lookup_zip_Some {A B} (m1 : M A) (m2 : M B) l p :
+    (map_zip m1 m2) !! l = Some p ↔ m1 !! l = Some p.1 ∧ m2 !! l = Some p.2.
+  Proof. rewrite map_lookup_zip_with_Some. destruct p. naive_solver. Qed.
+
 End map_zip_with.
 
 Definition restrict `{FinMap K M, ElemOf K D, !RelDecision (∈@{D})} {A} (s : D) (m : M A) :=
@@ -313,18 +318,18 @@ Section restrict.
   Admitted.
   *)
 
+  Lemma restrict_dom s m : dom _ (restrict s m) ≡ s ∩ dom _ m.
+  Proof.
+    apply dom_filter => i.
+    rewrite elem_of_intersection.
+    rewrite elem_of_dom.
+    rewrite /is_Some.
+    naive_solver.
+  Qed.
+
   Lemma restrict_dom_subset (s : D) (m : M A) :
     s ⊆ dom _ m → dom _ (restrict s m) ≡ s.
-  Proof.
-    intros Hsub.
-    rewrite /restrict.
-    eapply dom_filter.
-    intros i.
-    split; [|by intros [_ [_ ?]]].
-    intros.
-    assert (is_Some (m !! i)) as [x ?] by (apply elem_of_dom; set_solver).
-    by exists x.
-  Qed.
+  Proof. rewrite restrict_dom. set_solver. Qed.
 
 End restrict.
 

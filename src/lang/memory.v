@@ -235,6 +235,18 @@ Section memory.
     by apply fresh_locs_fresh.
   Qed.
 
+  (* if [p] is a consistent cut of [σ] then the domain of [p] is included in
+  [σ]. Intuitively, the recovered locations where all in the heap. *)
+  Lemma consistent_cut_subseteq_dom p σ :
+    consistent_cut p σ → dom (gset _) p ⊆ dom _ σ.
+  Proof.
+    rewrite /consistent_cut.
+    intros map.
+    intros ?. rewrite !elem_of_dom. intros [[t] ?].
+    eapply map_Forall_lookup_1 in map; last done.
+    naive_solver.
+  Qed.
+
 End memory.
 
 (* A few lattice rules for thread_view. *)
