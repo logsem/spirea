@@ -225,7 +225,7 @@ Section wpr.
     (* Allocate the store view at a _new_ ghost name. *)
     iMod (own_alloc (● lub_view (slice_of_store p' σ))) as (storeG) "store".
     { apply auth_auth_valid. apply view_valid. }
-    (* Allocate the recovered view at a _new_ ghost name. *)
+    (* Allocate the crashed at view at a _new_ ghost name. *)
     iMod (own_alloc (to_agree p' : agreeR viewO)) as (recoveredG) "#recovered".
     { done. }
     iModIntro.

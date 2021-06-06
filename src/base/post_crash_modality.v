@@ -24,11 +24,13 @@ Proof. by destruct p, q. Qed.
 (** This definition captures the resources and knowledge you gain _after_ a
 crash if you own a points-to predicate _prior to_ a crash. *)
 Definition mapsto_post_crash {Σ} (hG : nvmBaseG Σ) ℓ q (hist : history) : iProp Σ :=
-  (∃ t msg, ⌜hist !! t = Some msg⌝ ∗
-            ℓ ↦h{#q} ({[ 0 := Msg msg.(msg_val) ∅ ∅ ∅ ]}) ∗
-            recovered {[ ℓ := MaxNat t ]} ∗
-            ∃ RV, ⌜msg.(msg_persisted_after_view) ⊑ RV⌝ ∗ recovered RV) ∨
-  (∀ t, ¬ (recovered {[ ℓ := MaxNat t ]})).
+  (∃ t msg,
+      ⌜hist !! t = Some msg⌝ ∗
+      ℓ ↦h{#q} ({[ 0 := Msg msg.(msg_val) ∅ ∅ ∅ ]}) ∗
+      ∃ CV, ⌜msg.(msg_persisted_after_view) ⊑ CV⌝ ∗
+            ⌜CV !! ℓ = Some (MaxNat t)⌝ ∗
+            crashed_at CV) ∨
+  (∀ CV, crashed_at CV -∗ ⌜CV !! ℓ = None⌝).
 
 Instance fractional_mapsto_post_crash {Σ : gFunctors} hG' ℓ hist : Fractional (λ p : Qp, mapsto_post_crash (Σ := Σ) hG' ℓ p hist).
 Proof.
@@ -161,7 +163,7 @@ Definition post_crash_map {Σ} (σ__old : store) (hG hG' : nvmBaseG Σ) : iProp 
 Definition persisted_impl {Σ} hG hG' : iProp Σ :=
   □ ∀ V, persisted (hG := hG) V -∗
     persisted (hG := hG') ((λ _, MaxNat 0) <$> V) ∗
-     ∃ RV, ⌜V ⊑ RV⌝ ∗ recovered (hG := hG') RV.
+     ∃ CV, ⌜V ⊑ CV⌝ ∗ crashed_at (hG := hG') CV.
 
 Definition post_crash {Σ} (P : nvmBaseG Σ → iProp Σ) `{hG: !nvmBaseG Σ} : iProp Σ :=
   (∀ (σ : mem_config) hG',
@@ -356,7 +358,7 @@ Section post_crash_prop.
 
   Lemma post_crash_persisted V :
     persisted V -∗
-      post_crash (λ hG', persisted ((λ _, MaxNat 0) <$> V) ∗ ∃ RV, ⌜V ⊑ RV⌝ ∗ recovered RV).
+      post_crash (λ hG', persisted ((λ _, MaxNat 0) <$> V) ∗ ∃ CV, ⌜V ⊑ CV⌝ ∗ crashed_at CV).
   Proof.
     iIntros "pers".
     iIntrosPostCrash.
@@ -367,7 +369,7 @@ Section post_crash_prop.
   Lemma post_crash_persisted_singleton ℓ t :
     (persisted {[ ℓ := MaxNat t ]}) -∗
     post_crash (λ hG', persisted ({[ ℓ := MaxNat 0 ]}) ∗
-                        ∃ RV t', ⌜RV !! ℓ = Some (MaxNat t') ∧ t ≤ t'⌝ ∗ recovered RV)%I.
+                        ∃ CV t', ⌜CV !! ℓ = Some (MaxNat t') ∧ t ≤ t'⌝ ∗ crashed_at CV)%I.
   Proof.
     iIntros "pers".
     iDestruct (post_crash_persisted with "pers") as "H".
@@ -389,7 +391,7 @@ Section post_crash_prop.
   Qed.
 
   Lemma post_crash_persisted_recovered V :
-    persisted V -∗ post_crash (λ hG', ∃ RV, ⌜V ⊑ RV⌝ ∗ recovered RV).
+    persisted V -∗ post_crash (λ hG', ∃ CV, ⌜V ⊑ CV⌝ ∗ crashed_at CV).
   Proof.
     iIntros "pers".
     iDestruct (post_crash_persisted with "pers") as "p".
@@ -405,6 +407,7 @@ Section post_crash_prop.
     iApply (post_crash_map_exchange with "map pts").
   Qed.
 
+  (*
   Lemma recovered_look_eq V W ℓ t t' :
     V !! ℓ = Some (MaxNat t) →
     W !! ℓ = Some (MaxNat t') →
@@ -436,10 +439,14 @@ Section post_crash_prop.
     apply all.
     done.
   Qed.
+  *)
 
+  (* This lemma is no longer up to date after the change to
+  recovered/crashed_at, but if (or when) we need it we can tweak it. *)
+  (*
   Lemma mapsto_post_crash_recovered V t__low ℓ q hist :
     V !! ℓ = Some (MaxNat t__low) →
-    (∃ RV, ⌜V ⊑ RV⌝ ∗ recovered RV) -∗  (* What persisted gives us after crash. *)
+    (∃ CV, ⌜V ⊑ CV⌝ ∗ recovered CV) -∗  (* What persisted gives us after crash. *)
     mapsto_post_crash hG ℓ q hist -∗      (* What mapsto gives us after crash *)
     (∃ t msg, ⌜hist !! t = Some msg⌝ ∗
               ⌜t__low ≤ t⌝ ∗
@@ -457,6 +464,7 @@ Section post_crash_prop.
       iExFalso. iApply "B".
       iApply recovered_lookup_extract_singleton; done.
   Qed.
+  *)
 
 End post_crash_prop.
 
@@ -602,14 +610,14 @@ Section IntoCrash.
   Global Instance persisted_into_crash PV :
     IntoCrash (persisted PV)
               (λ hG', persisted ((λ _, MaxNat 0) <$> PV) ∗
-                      ∃ RV, ⌜PV ⊑ RV⌝ ∗ recovered RV)%I.
+                      ∃ CV, ⌜PV ⊑ CV⌝ ∗ crashed_at CV)%I.
   Proof. rewrite /IntoCrash. iApply post_crash_persisted. Qed.
 
   Global Instance persisted_singleton_into_crash ℓ t :
     IntoCrash
       (persisted {[ ℓ := MaxNat t ]})
       (λ hG', persisted ({[ ℓ := MaxNat 0 ]}) ∗
-              ∃ RV t', ⌜RV !! ℓ = Some (MaxNat t') ∧ t ≤ t'⌝ ∗ recovered RV)%I.
+              ∃ CV t', ⌜CV !! ℓ = Some (MaxNat t') ∧ t ≤ t'⌝ ∗ crashed_at CV)%I.
   Proof. rewrite /IntoCrash. iApply post_crash_persisted_singleton. Qed.
 
 End IntoCrash.

@@ -18,7 +18,7 @@ Class nvmBaseG Σ := NvmG {
   nvmBaseG_crashG : crashG Σ;                    (* Stuff for Perennial. *)
   nvmBaseG_gen_heapG :> gen_heapG loc history Σ; (* For the heap. *)
   view_inG :> inG Σ (authR viewUR);          (* For views. *)
-  recovered_inG :> inG Σ (agreeR viewO);     (* For recovered knowledge. *)
+  crashed_at_inG :> inG Σ (agreeR viewO);     (* For crashed at knowledge. *)
   store_view_name : gname;                   (* For validity of store views. *)
   persist_view_name : gname;                 (* For knowledge about the persisted view. *)
   recovered_view_name : gname;               (* For knowledge about the view recovered after the last crash. *)
@@ -162,9 +162,10 @@ Definition persisted {Σ} `{hG : nvmBaseG Σ} (V : view) : iProp Σ :=
   own persist_view_name (◯ V).
 
 (* Expresses that the view [rv] was recovered after the last crash. *)
-Definition recovered {Σ} `{hG : nvmBaseG Σ} (rv : view) : iProp Σ :=
-  ∃ fullRv, ⌜map_Forall (λ ℓ t, fullRv !! ℓ = Some t) rv⌝ ∗
-            own recovered_view_name (to_agree fullRv).
+Definition crashed_at {Σ} `{hG : nvmBaseG Σ} (CV : view) : iProp Σ :=
+  own recovered_view_name (to_agree CV).
+  (* ∃ fullRv, ⌜map_Forall (λ ℓ t, fullRv !! ℓ = Some t) rv⌝ ∗ *)
+  (*           own recovered_view_name (to_agree fullRv). *)
 
 (** * Lemmas about [lub_view] *)
 Section lub_view.
@@ -328,9 +329,6 @@ Section lifting.
 
 
   Global Instance valid_persistent V : Persistent (validV V).
-  Proof. apply _. Qed.
-
-  Global Instance recovered_persistent rv : Persistent (validV rv).
   Proof. apply _. Qed.
 
   Global Instance persisted_persistent V : Persistent (persisted V).

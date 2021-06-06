@@ -14,11 +14,12 @@ Notation base_post_crash := post_crash_modality.post_crash.
 
 Definition know_history_post_crash {Σ}
             (hG : nvmG Σ) ℓ (hist : gmap time positive) : iProp Σ :=
-  (∃ t state,
+  (∃ t state CV,
     ⌜hist !! t = Some state⌝ ∗
     know_full_encoded_history_loc ℓ ({[ 0 := state ]}) ∗
-    recovered {[ ℓ := MaxNat t ]}) ∨
-  (∀ t, ¬ (recovered {[ ℓ := MaxNat t ]})).
+    crashed_at CV ∗
+    ⌜CV !! ℓ = Some (MaxNat t)⌝) ∨
+  (∀ CV, crashed_at CV -∗ ⌜CV !! ℓ = None⌝).
 
 Definition post_crash_impl {Σ} (hG hG' : nvmG Σ) : iProp Σ :=
   □ ∀ ST `{AbstractState ST} ℓ (t : nat) (s : ST),
@@ -140,11 +141,12 @@ Section post_crash_prop.
   Lemma post_crash_know_full_history_loc `{Countable ST} ℓ (abs_hist : abs_history ST) :
     ⎡know_full_history_loc ℓ abs_hist⎤ -∗
     post_crash (λ hG',
-      (∃ (t : time) (state : ST),
+      (∃ (t : time) (state : ST) CV,
         ⌜abs_hist !! t = Some state⌝ ∗
-        ⎡recovered {[ ℓ := MaxNat t ]}⎤ ∗
+        ⌜CV !! ℓ = Some (MaxNat t)⌝ ∗
+        ⎡crashed_at CV⎤ ∗
         ⎡know_full_history_loc ℓ {[ 0 := state ]}⎤) ∨
-      (∀ t, ⎡¬ (recovered {[ ℓ := MaxNat t ]})⎤)).
+      (∀ CV, ⎡crashed_at CV⎤ -∗ ⌜CV !! ℓ = None⌝)).
   Proof.
     iStartProof (iProp _). iIntros (TV') "HP".
     iIntrosPostCrash.
@@ -172,12 +174,13 @@ Section post_crash_prop.
       (* done. } *)
     iDestruct ("reIns" with "[$HP]") as "$".
     iFrame "in".
-    iDestruct "H" as "[H|H]"; [iLeft|iRight; iFrame].
-    iDestruct "H" as (t estate) "(%look & hist & rec)".
+    rewrite /know_history_post_crash.
+    iDestruct "H" as "[H|H]"; [iLeft|iRight].
+    2: { iIntros (?? _). monPred_simpl. iApply "H". }
+    iDestruct "H" as (t estate CV) "(%look & hist & crash & %cvLook)".
     apply lookup_fmap_Some in look as [st [eq yo]].
-    iExists t, st.
-    iFrame "rec".
-    iSplit; first done.
+    iExists t, st, CV.
+    iFrame "crash %".
     rewrite know_full_equiv.
     rewrite -eq.
     rewrite map_fmap_singleton.
@@ -189,10 +192,14 @@ Section post_crash_prop.
       know_frag_history_loc ℓ {[ t := s ]} ∗
       persisted {[ ℓ := MaxNat t]} ⎤ -∗
     post_crash (λ hG',
-      ∃ s',
+      ∃ s' t' CV,
         ⌜ s ⊑ s' ⌝ ∗
+        ⌜ t ≤ t' ⌝ ∗
+        ⌜ CV !! ℓ = Some (MaxNat t') ⌝ ∗
         ⎡ own_preorder_loc (hG := hG') ℓ abs_state_relation ∗
-          know_frag_history_loc ℓ {[ 0 := s' ]} ∗ persisted {[ ℓ := MaxNat 0 ]} ⎤
+          know_frag_history_loc ℓ {[ 0 := s' ]} ∗
+          crashed_at CV ∗
+          persisted {[ ℓ := MaxNat 0 ]} ⎤
     ).
   Proof.
     iStartProof (iProp _). iIntros (TV').
@@ -203,12 +210,13 @@ Section post_crash_prop.
     iDestruct (post_crash_modality.post_crash_nodep with "order") as "order".
     iDestruct (post_crash_modality.post_crash_nodep with "hist") as "hist".
     post_crash_modality.iCrash.
-    iDestruct "pers'" as "[pers' _]".
+    iDestruct "pers'" as "[pers' cv]".
+    iDestruct "cv" as (CV t') "([% %] & crashedAt)".
     iNamed 1.
     rewrite /sqsubseteq /abstract_state_sqsubseteq.
-    iDestruct ("post_crash_impl" with "order hist pers") as (s') "(%rel & ho & hist)".
+    iDestruct ("post_crash_impl" with "order hist pers") as (s') "(%rel & ord & hist)".
     iFrame "∗#".
-    iExists s'.
+    iExists s', t', CV.
     iFrame "∗%".
   Qed.
 
@@ -231,12 +239,11 @@ Section post_crash_prop.
     (* iDestruct (post_crash_modality.post_crash_nodep with "HP") as "HP". *)
     (* iDestruct (post_crash_modality.post_crash_nodep with "hist") as "hist". *)
     (* post_crash_modality.iCrash. *)
-    iIntros (hG'). iDestruct 1 as (s'') "(%incl' & #order & #hist & #pers)".
+    iIntros (hG'). iDestruct 1 as (s'' t' CV) "(%incl' & %le & %cvLook & #hist & #pers)".
     rewrite /know_global_per_lower_bound.
     iSplit.
     { iExists 0, s''. iFrame "#". admit. }
   Abort.
-
 
 End post_crash_prop.
 
@@ -297,7 +304,7 @@ Section post_crash_derived.
     ℓ ↦ ss1; ss2 | ϕ -∗
     post_crash (λ hG',
       (∃ s, ⌜s ∈ (ss1 ++ ss2)⌝ ∗ ℓ ↦ []; [s] | ψ) ∨
-      (∀ t, ⎡¬ (recovered {[ ℓ := MaxNat t ]})⎤)
+      (∀ t, ⎡¬ (crashed_at {[ ℓ := MaxNat t ]})⎤)
     ).
    Proof.
      iDestruct 1 as (?????)

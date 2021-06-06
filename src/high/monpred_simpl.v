@@ -11,4 +11,5 @@ Hint Rewrite (@monPred_at_later thread_view_bi_index) : monpred_simpl.
 Hint Rewrite (@monPred_at_sep thread_view_bi_index) : monpred_simpl.
 Hint Rewrite (@monPred_at_objectively thread_view_bi_index) : monpred_simpl.
 Hint Rewrite (@monPred_at_pure thread_view_bi_index) : monpred_simpl.
+Hint Rewrite (@monPred_at_embed thread_view_bi_index) : monpred_simpl.
 Ltac monPred_simpl := autorewrite with monpred_simpl.
