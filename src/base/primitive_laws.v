@@ -194,7 +194,7 @@ Section lub_view.
     is_Some (hist !! ((lub_view heap) !!0 ℓ)).
   Proof.
     intros Ha Hb.
-    rewrite /lub_view. rewrite !lookup_fmap. rewrite Ha.
+    rewrite /lub_view. rewrite /lookup_zero !lookup_fmap. rewrite Ha.
     simpl. apply lookup_max_msg. done.
   Qed.
 
@@ -203,7 +203,7 @@ Section lub_view.
     hist !! ((lub_view heap !!0 ℓ) + 1) = None.
   Proof.
     intros look.
-    rewrite /lub_view. rewrite !lookup_fmap. rewrite look.
+    rewrite /lub_view. rewrite /lookup_zero !lookup_fmap. rewrite look.
     simpl. apply lookup_max_msg_succ.
   Qed.
 
@@ -641,7 +641,7 @@ Section lifting.
       * econstructor.
         + done.
         + apply lookNone.
-        + pose proof (view_lt_lt _ _ ℓ Vincl). lia.
+        + pose proof (view_lt_lt _ _ Vincl ℓ ℓ eq_refl). lia.
         + done.
     - iNext. iIntros (e2 σ2 [] efs Hstep).
       simpl in *. inv_impure_thread_step. iSplitR=>//.
@@ -696,7 +696,7 @@ Section lifting.
       * econstructor.
         + done.
         + apply lookNone.
-        + pose proof (view_lt_lt _ _ ℓ Vincl). lia.
+        + pose proof (view_lt_lt _ _ Vincl ℓ _ eq_refl). lia.
         + done.
     - iNext. iIntros (e2 σ2 [] efs Hstep).
       simpl in *. inv_impure_thread_step. iSplitR=>//.

@@ -12,6 +12,8 @@ Set Default Proof Using "Type".
 
 Notation base_post_crash := post_crash_modality.post_crash.
 
+(** We defined the post crash modality. *)
+
 Definition know_history_post_crash {Σ}
             (hG : nvmG Σ) ℓ (hist : gmap time positive) : iProp Σ :=
   (∃ t state CV,
@@ -52,6 +54,27 @@ Program Definition post_crash {Σ} (P : nvmG Σ → dProp Σ) `{hG : !nvmG Σ} :
     _.
 (* Next Obligation. solve_proper. Qed. *)
 
+Notation "'<PC>' P" := (post_crash P) (at level 20, right associativity) : bi_scope.
+
+(* We next define the post crash consistent cut modality. *)
+
+(* FIXME: This may not be monotone.
+Program Definition post_crash_persisted `{hG : !nvmG Σ} (P : nvmG Σ → dProp Σ) :=
+  MonPred (λ TV,
+    post_crash (λ hG', ∃ CV, ⌜persist_view TV ⊑ CV⌝ ∗ ⎡crashed_at CV⎤ -∗ P hG')
+  )%I _.
+Next Obligation.
+Abort.
+*)
+
+(*
+Definition persist_view_crashed_at `{hG : !nvmG Σ} :=
+  MonPred (λ (TV : thread_view), ∃ (CV : view), ⌜persist_view TV ⊑ CV⌝ ∗ crashed_at CV)%I _.
+
+Definition post_crash_persisted `{hG : !nvmG Σ} P :=
+  persist_view_crashed_at -∗ <PC> P.
+*)
+
 Section post_crash_prop.
   Context `{hG: !nvmG Σ}.
 
@@ -59,7 +82,7 @@ Section post_crash_prop.
   Implicit Types efs : list thread_state.
   Implicit Types σ : mem_config.
 
-  Global Instance post_crash_objective P : Objective (post_crash P).
+  Global Instance post_crash_objective P : Objective (<PC> P).
   Proof. done. Qed.
 
   (** Tiny shortcut for introducing the assumption for a [post_crash]. *)
@@ -79,8 +102,7 @@ Section post_crash_prop.
   (** ** Structural rules *)
 
   Lemma post_crash_mono P Q:
-    (∀ hG, P hG -∗ Q hG) →
-    post_crash P -∗ post_crash Q.
+    (∀ hG, P hG -∗ Q hG) → <PC> P -∗ <PC> Q.
   Proof.
     iStartProof (iProp _). iIntros (Hmono TV') "HP".
     iIntrosPostCrash.
@@ -95,7 +117,7 @@ Section post_crash_prop.
   Qed.
 
   Lemma post_crash_sep P Q:
-    post_crash P ∗ post_crash Q -∗ post_crash (λ hG, P hG ∗ Q hG).
+    <PC> P ∗ <PC> Q -∗ <PC> (λ hG, P hG ∗ Q hG).
   Proof.
     iStartProof (iProp _). iIntros (TV).
     iIntros "(HP & HQ)".
@@ -109,7 +131,7 @@ Section post_crash_prop.
   Qed.
 
   Lemma post_crash_pure (P: Prop) :
-    P → ⊢ post_crash (λ _, ⌜ P ⌝).
+    P → ⊢ <PC> (λ _, ⌜ P ⌝).
   Proof.
     iIntros (HP).
     iStartProof (iProp _). iIntros (TV').
@@ -121,7 +143,7 @@ Section post_crash_prop.
   Qed.
 
   Lemma post_crash_embed_nodep P :
-    ⎡ P ⎤ -∗ post_crash (λ _, ⎡ P ⎤).
+    ⎡ P ⎤ -∗ <PC> (λ _, ⎡ P ⎤).
   Proof.
     iStartProof (iProp _). iIntros (TV') "P".
     iIntrosPostCrash.
@@ -228,22 +250,24 @@ Section post_crash_prop.
       know_persist_lower_bound ℓ s ∗
       know_store_lower_bound ℓ s).
   Proof.
-    iStartProof (dProp _).
-    (* iIntros (TV') "H". *)
-    iIntros "H".
+    iStartProof (iProp _).
+    iIntros (TV') "H".
     iDestruct "H" as (t s') "(%incl & #order & pers & hist)".
-    (* iIntrosPostCrash. *)
     iDestruct (post_crash_know_frag_history_loc with "[$pers $hist $order]") as "HI".
-    (* iApply post_crash_mono. *)
     iApply (post_crash_mono with "HI").
-    (* iDestruct (post_crash_modality.post_crash_nodep with "HP") as "HP". *)
-    (* iDestruct (post_crash_modality.post_crash_nodep with "hist") as "hist". *)
-    (* post_crash_modality.iCrash. *)
-    iIntros (hG'). iDestruct 1 as (s'' t' CV) "(%incl' & %le & %cvLook & #hist & #pers)".
+    iIntros (hG').
+    iDestruct 1 as
+        (s'' t' CV) "(%incl' & %le & %cvLook & #ord & #hist & #crash & #pers)".
     rewrite /know_global_per_lower_bound.
+    assert (s ⊑ s'') by (etrans; done).
+    (* We show the global persist lower bound. *)
     iSplit.
-    { iExists 0, s''. iFrame "#". admit. }
-  Abort.
+    { iExists 0, s''. iFrame "#%". }
+    (* We show the local persist lower bound. *)
+    iSplit.
+    { iApply know_persist_lower_bound_at_zero; done. }
+    iApply know_store_lower_bound_at_zero; done.
+  Qed.
 
 End post_crash_prop.
 

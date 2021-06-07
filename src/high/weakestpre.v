@@ -99,15 +99,53 @@ Section wp.
               persisted {[ ℓ := MaxNat t ]} ∗
               know_frag_history_loc ℓ {[ t := s' ]} ⎤.
 
-  Definition know_persist_lower_bound `{Countable ST} (ℓ : loc) (s : ST) : dProp Σ :=
-    ∃ t,
-      monPred_in (∅, {[ ℓ := MaxNat t ]}, ∅) ∗
-      ⎡know_frag_history_loc ℓ {[ t := s ]}⎤.
+  Program Definition know_persist_lower_bound `{AbstractState ST} (ℓ : loc) (s : ST) : dProp Σ :=
+    MonPred (λ TV,
+      ∃ (t : nat) s',
+        ⌜ s ⊑ s' ⌝ ∗
+        ⌜t ≤ (persist_view TV) !!0 ℓ⌝ ∗
+        own_preorder_loc ℓ abs_state_relation ∗
+        know_frag_history_loc ℓ {[ t := s' ]}
+    )%I _.
+  Next Obligation. solve_proper. Qed.
 
-  Definition know_store_lower_bound `{Countable ST} (ℓ : loc) (s : ST) : dProp Σ :=
-    ∃ t,
-      monPred_in ({[ ℓ := MaxNat t ]}, ∅, ∅) ∗
-      ⎡know_frag_history_loc ℓ {[ t := s ]}⎤.
+  Program Definition know_store_lower_bound `{AbstractState ST} (ℓ : loc) (s : ST) : dProp Σ :=
+    MonPred (λ TV,
+      ∃ (t : nat) s',
+        ⌜ s ⊑ s' ⌝ ∗
+        ⌜t ≤ (store_view TV) !!0 ℓ⌝ ∗
+        own_preorder_loc ℓ abs_state_relation ∗
+        know_frag_history_loc ℓ {[ t := s' ]}
+    )%I _.
+  Next Obligation. solve_proper. Qed.
+
+  Global Instance know_persist_lower_bound_persistent `{AbstractState ST}
+         ℓ (s : ST) : Persistent (know_persist_lower_bound ℓ s).
+  Proof. apply monPred_persistent=> j. apply _. Qed.
+
+  Global Instance know_store_lower_bound_persistent `{AbstractState ST}
+         ℓ (s : ST) : Persistent (know_store_lower_bound ℓ s).
+  Proof. apply monPred_persistent=> j. apply _. Qed.
+
+  Lemma know_persist_lower_bound_at_zero `{AbstractState ST} ℓ (s s' : ST) :
+    s ⊑ s' →
+    ⎡ know_frag_history_loc ℓ {[0 := s']} ⎤ -∗
+    ⎡ own_preorder_loc ℓ abs_state_relation ⎤ -∗
+    know_persist_lower_bound ℓ s.
+  Proof.
+    iStartProof (iProp _). iIntros (incl ?) "?".
+    iIntros (? ?) "?". iExists 0, s'. iFrame "%∗". iPureIntro. lia.
+  Qed.
+
+  Lemma know_store_lower_bound_at_zero `{AbstractState ST} ℓ (s s' : ST) :
+    s ⊑ s' →
+    ⎡ know_frag_history_loc ℓ {[0 := s']} ⎤ -∗
+    ⎡ own_preorder_loc ℓ abs_state_relation ⎤ -∗
+    know_store_lower_bound ℓ s.
+  Proof.
+    iStartProof (iProp _). iIntros (incl ?) "?".
+    iIntros (? ?) "?". iExists 0, s'. iFrame "%∗". iPureIntro. lia.
+  Qed.
 
   (* We prove a few basic facts about our weakest precondition. *)
   Global Instance wp_ne s E e n :
@@ -280,11 +318,10 @@ Section wp_rules.
       apply incl.
       apply incl2. }
     assert (tS ≤ t') as lte.
-    { pose proof (view_lt_lt _ _ ℓ inclSingl) as HIP.
-      rewrite lookup_singleton in HIP.
-      pose proof (transitivity HIP gt) as leq.
-      simpl in leq.
-      apply leq. }
+    { eapply (view_lt_lookup ℓ).
+      - apply inclSingl.
+      - rewrite /lookup_zero. rewrite lookup_singleton. done.
+      - apply gt. }
     assert (is_Some (absHist !! t')) as HI.
     { eapply fmap_is_Some.
       rewrite -lookup_fmap.
@@ -606,11 +643,10 @@ Section wp_rules.
       apply incl.
       apply incl2. }
     assert (tS ≤ t') as lte.
-    { pose proof (view_lt_lt _ _ ℓ inclSingl) as HIP.
-      rewrite lookup_singleton in HIP.
-      pose proof (transitivity HIP gt) as leq.
-      simpl in leq.
-      apply leq. }
+    { eapply (view_lt_lookup ℓ).
+      - apply inclSingl.
+      - rewrite /lookup_zero. rewrite lookup_singleton. done.
+      - apply gt. }
 
     iDestruct (big_sepM2_lookup_acc with "map") as "[predMap map]"; [done|done|].
     iDestruct (big_sepM_lookup_acc with "predMap") as "[predHolds predMap]"; first done.

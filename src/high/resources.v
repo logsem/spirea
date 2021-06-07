@@ -52,7 +52,7 @@ Class nvmG Σ := NvmG {
 Class AbstractState T := {
   abs_state_eqdecision :> EqDecision T;
   abs_state_countable :> Countable T;
-  abs_state_relation :> relation2 T;
+  abs_state_relation : relation2 T;
   abs_state_preorder :> PreOrder abs_state_relation;
 }.
 

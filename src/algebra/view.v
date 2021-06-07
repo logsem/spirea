@@ -57,12 +57,14 @@ Qed.
 Instance list_join_bot_r : RightId (=) (∅ : view) (⊔).
 Proof. intros ?. rewrite (comm (⊔)). by rewrite left_id. Qed.
 
-Notation "m !!0 l" := (default 0 (max_nat_car <$> (m !! l))) (at level 50).
+Definition lookup_zero (V : view) l := default 0 (max_nat_car <$> (V !! l)).
+
+Notation "m !!0 l" := (lookup_zero m l) (at level 50).
 
 Lemma view_lookup_zero_empty ℓ : ((∅ : view) !!0 ℓ) = 0.
-Proof. by rewrite lookup_empty. Qed.
+Proof. rewrite /lookup_zero. by rewrite lookup_empty. Qed.
 
-Lemma view_empty_least V : ∅ ⊑ V. 
+Lemma view_empty_least V : ∅ ⊑ V.
 Proof.
   rewrite subseteq_view_incl.
   replace ∅ with ε by done.
@@ -87,18 +89,20 @@ Proof.
     apply ucmra_unit_least.
 Qed.
 
-Lemma view_lt_lt V W ℓ : V ⊑ W → (V !!0 ℓ) ≤ (W !!0 ℓ).
+Global Instance view_lt_lt : Proper ((⊑) ==> (=) ==> (≤)) (lookup_zero).
 Proof.
-  rewrite subseteq_view_incl lookup_included.
-  intros le. move: (le ℓ).
-  destruct (V !! ℓ) as [[t]|] eqn:eq, (W !! ℓ) as [[t'']|] eqn:eq'; simpl; try lia.
+  intros V V' le ℓ ? <-.
+  rewrite subseteq_view_incl in le. setoid_rewrite lookup_included in le.
+  specialize (le ℓ).
+  move: le.
+  rewrite /lookup_zero.
+  destruct (V !! ℓ) as [[t]|] eqn:eq, (V' !! ℓ) as [[t'']|] eqn:eq'; simpl; try lia.
   - rewrite eq. rewrite eq'.
     rewrite Some_included_total.
     rewrite max_nat_included.
     done.
   - rewrite eq. rewrite eq'.
-    rewrite option_included.
-    intros [?|[? [? (_ & ? & _)]]]; done.
+    by intros ?%option_not_included_None.
 Qed.
 
 Lemma view_le_look ℓ V W t :
@@ -107,11 +111,11 @@ Proof.
   intros look incl.
   destruct (W !! ℓ) as [[t']|] eqn:eq.
   - exists t'. split; first done.
-    pose proof (view_lt_lt V W ℓ incl) as le.
+    pose proof (view_lt_lt V W incl ℓ ℓ) as le.
+    rewrite /lookup_zero in le.
     rewrite eq in le.
     rewrite look in le.
-    simpl in le.
-    done.
+    by apply le.
   - move: incl.
     rewrite subseteq_view_incl.
     rewrite lookup_included.
@@ -120,6 +124,9 @@ Proof.
     rewrite option_included.
     intros [?|[? [? (_ & ? & _)]]]; done.
 Qed.
+
+Lemma view_lt_lookup ℓ V V' t t' : V ⊑ V' → V !!0 ℓ = t → V' !!0 ℓ ≤ t' → t ≤ t'.
+Proof. Admitted.
 
 Lemma option_max_nat_included (on on' om : option max_nat) : on ≼ om → on' ≼ om → on ⋅ on' ≼ om.
 Proof.
@@ -155,6 +162,7 @@ Qed.
 Lemma view_insert_le V ℓ t :
   (V !!0 ℓ) ≤ t → V ⊑ <[ℓ := MaxNat t]>V.
 Proof.
+  rewrite /lookup_zero.
   intros le.
   rewrite subseteq_view_incl.
   rewrite lookup_included.
@@ -172,6 +180,7 @@ Qed.
 Lemma view_insert_op V ℓ t :
   (V !!0 ℓ) ≤ t → (V ⊔ {[ℓ := MaxNat t]}) = (<[ℓ := MaxNat t]> V).
 Proof.
+  rewrite /lookup_zero.
   intros le. rewrite view_join.
   apply map_eq. intros ℓ'.
   rewrite lookup_op.
