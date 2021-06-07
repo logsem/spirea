@@ -281,6 +281,41 @@ Section map_zip_with.
     (map_zip m1 m2) !! l = Some p ↔ m1 !! l = Some p.1 ∧ m2 !! l = Some p.2.
   Proof. rewrite map_lookup_zip_with_Some. destruct p. naive_solver. Qed.
 
+  (* Upstream this. *)
+  Lemma map_zip_with_dom_fst `{FinMapDom K M D} {A B C}
+        (f : A → B → C) (ma : M A) (mb : M B) : dom D (map_zip_with f ma mb) ⊆ dom D ma.
+  Proof.
+    intros ?. rewrite 2!elem_of_dom. intros [? ?%map_lookup_zip_with_Some].
+    naive_solver.
+  Qed.
+
+  Lemma map_zip_with_dom_snd `{FinMapDom K M D} {A B C}
+        (f : A → B → C) (ma : M A) (mb : M B) : dom D (map_zip_with f ma mb) ⊆ dom D mb.
+  Proof. rewrite map_zip_with_flip. apply map_zip_with_dom_fst. Qed.
+
+  Lemma map_zip_with_dom `{FinMapDom K M D} {A B C}
+        (f : A → B → C) (ma : M A) (mb : M B) :
+    dom D (map_zip_with f ma mb) ≡ dom D ma ∩ dom D mb.
+  Proof.
+    rewrite set_equiv=> x.
+    rewrite elem_of_intersection.
+    rewrite !elem_of_dom.
+    rewrite map_lookup_zip_with.
+    destruct (ma !! x), (mb !! x); rewrite !is_Some_alt; naive_solver.
+  Qed.
+
+  Lemma map_zip_with_dom_eq_l `{FinMapDom K M D} {A B C}
+        (f : A → B → C) (ma : M A) (mb : M B) :
+    dom D ma ⊆ dom D mb →
+    dom D (map_zip_with f ma mb) ≡ dom D ma.
+  Proof. rewrite map_zip_with_dom. set_solver. Qed.
+
+  Lemma map_zip_with_dom_eq_r `{FinMapDom K M D} {A B C}
+        (f : A → B → C) (ma : M A) (mb : M B) :
+    dom D mb ⊆ dom D ma →
+    dom D (map_zip_with f ma mb) ≡ dom D mb.
+  Proof. rewrite map_zip_with_dom. set_solver. Qed.
+
 End map_zip_with.
 
 Definition restrict `{FinMap K M, ElemOf K D, !RelDecision (∈@{D})} {A} (s : D) (m : M A) :=

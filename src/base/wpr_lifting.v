@@ -34,14 +34,14 @@ Record nvm_base_names := {
   name_heap_names : nvm_heap_names; (* Names used by [gen_heap]. *)
   name_store_view : gname;          (* Name used by the store view. *)
   name_persist_view : gname;        (* Name used by the persist view. *)
-  name_recovered_view : gname;      (* Name used by the recover view. *)
+  name_crashed_at_view : gname;      (* Name used by the crashed at view. *)
 }.
 
 Definition nvm_base_get_names Σ (hG : nvmBaseG Σ) : nvm_base_names :=
   {| name_heap_names := nvm_get_heap_names nvmBaseG_gen_heapG;
      name_store_view := store_view_name;
      name_persist_view := persist_view_name;
-     name_recovered_view := recovered_view_name |}.
+     name_crashed_at_view := crashed_at_view_name |}.
 
 Canonical Structure nvm_base_namesO := leibnizO nvm_base_names.
 
@@ -57,7 +57,7 @@ Definition nvm_base_update Σ (hG : nvmBaseG Σ) (Hinv : invG Σ)
      view_inG := hG.(@view_inG _);
      store_view_name := names.(name_store_view);
      persist_view_name := names.(name_persist_view);
-     recovered_view_name := names.(name_recovered_view) |}.
+     crashed_at_view_name := names.(name_crashed_at_view) |}.
 
 (* Lemma heap_update_eq {Σ} heapG' (heapG : gen_heapG loc history Σ) : *)
 (*   (@nvm_heap_update Σ heapG' (@nvm_get_heap_names (@gmap nat nat_eq_dec nat_countable message) Σ heapG)) *)
@@ -127,41 +127,6 @@ Section wpr.
       * iIntros. by iApply "H".
   Qed.
 
-  (* Upstream this. *)
-  Lemma map_zip_with_dom_fst `{FinMapDom K M D} {A B C}
-        (f : A → B → C) (ma : M A) (mb : M B) : dom D (map_zip_with f ma mb) ⊆ dom D ma.
-  Proof.
-    intros ?. rewrite 2!elem_of_dom. intros [? ?%map_lookup_zip_with_Some].
-    naive_solver.
-  Qed.
-
-  Lemma map_zip_with_dom_snd `{FinMapDom K M D} {A B C}
-        (f : A → B → C) (ma : M A) (mb : M B) : dom D (map_zip_with f ma mb) ⊆ dom D mb.
-  Proof. rewrite map_zip_with_flip. apply map_zip_with_dom_fst. Qed.
-
-  Lemma map_zip_with_dom `{FinMapDom K M D} {A B C}
-        (f : A → B → C) (ma : M A) (mb : M B) :
-    dom D (map_zip_with f ma mb) ≡ dom D ma ∩ dom D mb.
-  Proof.
-    rewrite set_equiv=> x.
-    rewrite elem_of_intersection.
-    rewrite !elem_of_dom.
-    rewrite map_lookup_zip_with.
-    destruct (ma !! x), (mb !! x); rewrite !is_Some_alt; naive_solver.
-  Qed.
-
-  Lemma map_zip_with_dom_eq_l `{FinMapDom K M D} {A B C}
-        (f : A → B → C) (ma : M A) (mb : M B) :
-    dom D ma ⊆ dom D mb →
-    dom D (map_zip_with f ma mb) ≡ dom D ma.
-  Proof. rewrite map_zip_with_dom. set_solver. Qed.
-
-  Lemma map_zip_with_dom_eq_r `{FinMapDom K M D} {A B C}
-        (f : A → B → C) (ma : M A) (mb : M B) :
-    dom D mb ⊆ dom D ma →
-    dom D (map_zip_with f ma mb) ≡ dom D mb.
-  Proof. rewrite map_zip_with_dom. set_solver. Qed.
-
   Lemma store_inv_cut store p :
     consistent_cut p store →
     store_inv store -∗ store_inv (slice_of_store p store).
@@ -208,7 +173,7 @@ Section wpr.
         post_crash_map σ hG' (nvm_base_update Σ hG' Hinv Hcrash names) ∗
         nvm_heap_ctx (hG := nvm_base_update Σ hG' Hinv Hcrash names) (slice_of_store p' σ, view_to_zero p') ∗
         persisted_impl hG' (nvm_base_update Σ hG' Hinv Hcrash names) ∗
-        own (@recovered_view_name _ (nvm_base_update Σ hG' Hinv Hcrash names)) (to_agree p' : agreeR viewO).
+        own (@crashed_at_view_name _ (nvm_base_update Σ hG' Hinv Hcrash names)) (to_agree p' : agreeR viewO).
   Proof using hG Σ.
     iIntros (pIncl cut). iIntros  "heapIntrp invs pers".
     rewrite /nvm_heap_ctx. simpl.
@@ -226,16 +191,16 @@ Section wpr.
     iMod (own_alloc (● lub_view (slice_of_store p' σ))) as (storeG) "store".
     { apply auth_auth_valid. apply view_valid. }
     (* Allocate the crashed at view at a _new_ ghost name. *)
-    iMod (own_alloc (to_agree p' : agreeR viewO)) as (recoveredG) "#recovered".
+    iMod (own_alloc (to_agree p' : agreeR viewO)) as (crashedAtG) "#crashed".
     { done. }
     iModIntro.
     iExists {| name_heap_names := Build_nvm_heap_names γh γm;
                name_store_view := storeG;
                name_persist_view := persistG;
-               name_recovered_view := recoveredG |}.
-    rewrite /name_recovered_view. simpl.
+               name_crashed_at_view := crashedAtG |}.
+    rewrite /name_crashed_at_view. simpl.
     iFrame.
-    iFrame "recovered".
+    iFrame "crashed".
     (* We show the ghost crash relation. *)
     iSplitL "ptsMap heapIntrp".
     { rewrite /post_crash_map.
@@ -249,63 +214,40 @@ Section wpr.
       iExists (Qcanon.Q2Qc (QArith_base.Qmake Z0 xH)), 1%Qc.
       rewrite if_non_zero_1. simpl. rewrite if_non_zero_0. simpl.
       iSplit; first done. iSplit; last done.
-      iDestruct "disj" as "[(%look2 & %look' & pts)|%look']"; last first.
+      iDestruct "disj" as "[(%hist' & %look' & pts)|%look']"; last first.
       * iRight.
-        iIntros (t) "HI".
-        iDestruct "HI" as (?) "[%map H2]".
-        rewrite <- map_Forall_singleton in map.
-        iClear "oldPers persFrag".
-        iDestruct (own_valid_2 with "recovered H2") as %eq%to_agree_op_inv.
+        iIntros (CV') "crashed'".
+        iDestruct (crashed_at_agree with "crashed' crashed") as %->.
         iPureIntro.
-        rewrite /slice_of_store in look'.
-        apply map_lookup_zip_with_None in look'.
-        destruct look' as [?|?]; simplify_eq.
-        rewrite /gmapO /ofe_car in map.
-        unfold ofe_car in map.
-        simpl in map.
-        simplify_eq.
+        eapply consistent_cut_lookup_slice; done.
       * iLeft.
-        simpl.
-        (* iIntros (hist'). *)
         rewrite /slice_of_store in look'.
         apply map_lookup_zip_with_Some in look'.
         destruct look' as ([t] & ? & ? & p'Look & ?).
         rewrite /consistent_cut in cut.
-        pose proof (map_Forall_lookup_1 _ _ _ _ cut p'Look) as (? & ? & ? & ? & ?).
+        pose proof (map_Forall_lookup_1 _ _ _ _ cut p'Look) as (? & ? & ? & ? & map).
         simplify_eq.
         iExists _, _.
         iSplit; first done.
         rewrite H2.
         iFrame "pts".
-        rewrite /recovered.
-        iSplit.
-        - iExists _. iFrame "recovered". rewrite <- map_Forall_singleton. done.
-        - iExists p'. 
-          iSplit.
-          2: { iExists _. iFrame "recovered". rewrite map_Forall_lookup. done. } 
-          iPureIntro.
-          eapply (map_Forall_lookup_1 _ _ _ _ H3).
-          rewrite /cut_history.
-          apply map_filter_lookup_Some_2; last reflexivity.
-          done. }
+
+        iExists _. iFrame "crashed %".
+        iPureIntro.
+        eapply (map_Forall_lookup_1 _ _ _ _ map).
+        rewrite /cut_history.
+        apply map_filter_lookup_Some_2; [done| reflexivity]. }
     iSplit.
     * simpl. iDestruct (store_inv_cut with "invs") as "$"; first done. simpl.
-      iExists p'. iFrame "recovered".
+      iExists p'. iFrame "crashed".
     * iModIntro.
       iIntros (V) "pers".
-      iAssert (⌜V ⊑ p⌝)%I as %incl.
-      { iDestruct (own_valid_2 with "oldPers pers") as %[_ [incl _]]%auth_both_dfrac_valid_discrete.
-        iPureIntro.
-        apply incl. }
-      iAssert (⌜V ⊑ p'⌝)%I as %incl'.
-      { iPureIntro. etrans; done. }
+      iDestruct (persisted_auth_included with "oldPers pers") as %incl.
+      assert (V ⊑ p') as incl'. { etrans; done. }
       iSplit.
       { edestruct (view_to_zero_mono) as [? ->]; first apply incl'.
         iDestruct "persFrag" as "[$ _]". }
-      iExists p'. iFrame "%". iExists p'. iFrame "#".
-      iPureIntro.
-      apply map_Forall_lookup_2.
-      done.
+      iExists p'. iFrame "#%".
   Qed.
 
   Lemma nvm_heap_reinit_alt (hG' : nvmBaseG Σ) σ σ' (Hinv : invG Σ) (Hcrash : crashG Σ) Pg :

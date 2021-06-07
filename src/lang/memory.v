@@ -4,6 +4,7 @@ From stdpp Require Import countable numbers gmap.
 From iris.heap_lang Require Export locations.
 From iris.algebra Require Export gmap numbers.
 
+From self Require Import extra.
 From self.algebra Require Export view.
 From self.lang Require Export syntax.
 
@@ -245,6 +246,13 @@ Section memory.
     intros ?. rewrite !elem_of_dom. intros [[t] ?].
     eapply map_Forall_lookup_1 in map; last done.
     naive_solver.
+  Qed.
+
+  Lemma consistent_cut_lookup_slice CV σ ℓ :
+    consistent_cut CV σ → slice_of_store CV σ !! ℓ = None → CV !! ℓ = None.
+  Proof.
+    rewrite -!not_elem_of_dom. rewrite map_zip_with_dom.
+    intros ?%consistent_cut_subseteq_dom. set_solver.
   Qed.
 
 End memory.

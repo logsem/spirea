@@ -147,7 +147,7 @@ Qed.
 
 Lemma map_points_to_to_new {Σ} logHists store p' (hG hG' : nvmBaseG Σ) :
   consistent_cut p' store →
-  own (@recovered_view_name _ hG') (to_agree p') -∗
+  own (@crashed_at_view_name _ hG') (to_agree p') -∗
   base.post_crash_modality.post_crash_map store hG hG' -∗
   ([∗ map] ℓ ↦ hist ∈ logHists, let hG := hG in ℓ ↦h (fst <$> hist)) -∗
   ([∗ map] ℓ ↦ hist ∈ (slice_of_hist p' logHists), let hG := hG' in ℓ ↦h (fst <$> hist)).
@@ -201,10 +201,11 @@ Proof.
     apply map_zip_with_dom_fst in look'.
     apply elem_of_dom in look'.
     destruct look' as [[t] ?].
-    iApply "left". iExists _. iFrame "rec".
-    rewrite -map_Forall_singleton.
-    done. }
-  iDestruct "right" as (t msg look'') "(newPts & recov & H)".
+    iDestruct ("left" $! p' with "rec") as %hv.
+    simplify_eq. }
+  iDestruct "right" as (t msg look'') "(newPts & crash)".
+  iDestruct "crash" as (? incl p'Look) "crash'".
+  iDestruct (crashed_at_agree with "crash' rec") as %->.
 
   rewrite post_crash_modality.mk_Qp_1.
   apply map_lookup_zip_with_Some in look.
@@ -216,10 +217,7 @@ Proof.
 
   (* [t] is equal to [t']. *)
   iAssert (⌜t = t'⌝)%I as %<-.
-  { iDestruct "recov" as (? map%map_Forall_singleton) "rec'".
-    iDestruct (own_valid_2 with "rec rec'") as %<-%to_agree_op_inv_L.
-    rewrite look in map.
-    by simplify_eq. }
+  { by simplify_eq. }
 
   edestruct slice_of_hist_lookup_Some as [hi lookT]; try done.
   rewrite lookT in eq.

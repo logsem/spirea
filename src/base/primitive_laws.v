@@ -21,7 +21,7 @@ Class nvmBaseG Σ := NvmG {
   crashed_at_inG :> inG Σ (agreeR viewO);     (* For crashed at knowledge. *)
   store_view_name : gname;                   (* For validity of store views. *)
   persist_view_name : gname;                 (* For knowledge about the persisted view. *)
-  recovered_view_name : gname;               (* For knowledge about the view recovered after the last crash. *)
+  crashed_at_view_name : gname;               (* For knowledge about the view recovered after the last crash. *)
 }.
 
 (** Get the largest time of any message in a given history. *)
@@ -91,7 +91,7 @@ Definition nvm_heap_ctx `{hG : !nvmBaseG Σ} σ : iProp Σ :=
   own store_view_name (● (lub_view σ.1)) ∗
   store_inv σ.1 ∗
   own persist_view_name (● σ.2) ∗
-  (∃ (rv : view), own recovered_view_name (to_agree rv : agreeR viewO)).
+  (∃ (rv : view), own crashed_at_view_name (to_agree rv : agreeR viewO)).
 
 Global Program Instance nvmBaseG_irisG `{!nvmBaseG Σ} : irisG nvm_lang Σ := {
   iris_invG := nvmBaseG_invG;
@@ -163,9 +163,22 @@ Definition persisted {Σ} `{hG : nvmBaseG Σ} (V : view) : iProp Σ :=
 
 (* Expresses that the view [rv] was recovered after the last crash. *)
 Definition crashed_at {Σ} `{hG : nvmBaseG Σ} (CV : view) : iProp Σ :=
-  own recovered_view_name (to_agree CV).
+  own crashed_at_view_name (to_agree CV).
   (* ∃ fullRv, ⌜map_Forall (λ ℓ t, fullRv !! ℓ = Some t) rv⌝ ∗ *)
-  (*           own recovered_view_name (to_agree fullRv). *)
+  (*           own crashed_at_view_name (to_agree fullRv). *)
+
+Section crashed_at.
+  Context `{!nvmBaseG Σ}.
+
+  Lemma crashed_at_agree CV CV' :
+    crashed_at CV -∗ crashed_at CV' -∗ ⌜CV = CV'⌝.
+  Proof.
+    iIntros "A B".
+    by iDestruct (own_valid_2 with "A B") as %HV%to_agree_op_inv_L.
+  Qed.
+
+End crashed_at.
+
 
 (** * Lemmas about [lub_view] *)
 Section lub_view.
@@ -176,7 +189,9 @@ Section lub_view.
   (* If a location has history [hist] then looking up a message from the
   lub_view will result in some message. *)
   Lemma history_lookup_lub heap ℓ hist :
-    heap !! ℓ = Some hist → is_Some (hist !! 0) → is_Some (hist !! ((lub_view heap) !!0 ℓ)).
+    heap !! ℓ = Some hist →
+    is_Some (hist !! 0) →
+    is_Some (hist !! ((lub_view heap) !!0 ℓ)).
   Proof.
     intros Ha Hb.
     rewrite /lub_view. rewrite !lookup_fmap. rewrite Ha.
@@ -308,6 +323,14 @@ End lub_view.
 
 Section persisted.
   Context `{!nvmBaseG Σ}.
+
+  Lemma persisted_auth_included dq PV PV' :
+    own persist_view_name (●{dq} PV) -∗ persisted PV' -∗ ⌜PV' ⊑ PV⌝.
+  Proof.
+    iIntros "A B".
+    by iDestruct (own_valid_2 with "A B")
+      as %[_ [incl _]]%auth_both_dfrac_valid_discrete.
+  Qed.
 
   Lemma persisted_weak PV PV' : PV' ≼ PV → persisted PV -∗ persisted PV'.
   Proof. rewrite /persisted. iIntros ([x ->]) "[$ _]". Qed.
