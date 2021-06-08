@@ -70,20 +70,6 @@ Section wp.
     Discretizable (mapsto_ex ℓ ss1 ss2 ϕ).
   Proof. apply _. Qed.
 
-  Definition mapsto_shared `{AbstractState ST}
-             ℓ (s1 s2 s3 : ST) (ϕ : ST → val → dProp Σ) : dProp Σ :=
-    (∃ (tGlobalPers tPers tStore : time),
-      "knowOrder" ∷ ⎡ own_preorder_loc ℓ ((⊑@{ST})) ⎤ ∗
-      "histS1" ∷ ⎡ know_frag_history_loc ℓ {[ tGlobalPers := s1 ]} ⎤ ∗
-      "histS2" ∷ ⎡ know_frag_history_loc ℓ {[ tPers := s2 ]} ⎤ ∗
-      "histS3" ∷ ⎡ know_frag_history_loc ℓ {[ tStore := s3 ]} ⎤ ∗
-      "knowPred" ∷ ⎡ know_pred ℓ ϕ ⎤ ∗
-      "isSharedLoc" ∷ ⎡ own shared_locs_name (◯ {[ ℓ ]}) ⎤ ∗
-      (* We "have"/"know of" the three timestamps. *)
-      "%know" ∷ monPred_in ({[ ℓ := MaxNat tStore ]}, {[ ℓ := MaxNat tPers ]}, ∅) ∗
-      "per" ∷ ⎡ persisted ({[ ℓ := MaxNat tGlobalPers ]}) ⎤
-    ).
-
   (* This definition uses an existentially quantified [s']. We do this such that
   owning [know_global_per_lower_bound ℓ s] before a crash also results in owning
   exactly the same, [know_global_per_lower_bound ℓ s], after a crash. Had the
@@ -118,6 +104,14 @@ Section wp.
         know_frag_history_loc ℓ {[ t := s' ]}
     )%I _.
   Next Obligation. solve_proper. Qed.
+
+  Definition mapsto_shared `{AbstractState ST}
+             ℓ (s1 s2 s3 : ST) (ϕ : ST → val → dProp Σ) : dProp Σ :=
+    "knowPred" ∷ ⎡ know_pred ℓ ϕ ⎤ ∗
+    "isSharedLoc" ∷ ⎡ own shared_locs_name (◯ {[ ℓ ]}) ⎤ ∗
+    "globalPerLB" ∷ know_global_per_lower_bound ℓ s1 ∗
+    "persistLB" ∷ know_persist_lower_bound ℓ s2 ∗
+    "storeLB" ∷ know_store_lower_bound ℓ s3.
 
   Global Instance know_persist_lower_bound_persistent `{AbstractState ST}
          ℓ (s : ST) : Persistent (know_persist_lower_bound ℓ s).
@@ -591,7 +585,10 @@ Section wp_rules.
     (* We destruct the exclusive points-to predicate. *)
     iIntros "[pts pToQ]".
     (* We destruct the points-to predicate. *)
-    iDestruct "pts" as (?tGP ?tP ?tS) "tmp". iNamed "tmp".
+    iNamed "pts".
+    (* We only need the information related to the store view. *)
+    iDestruct "storeLB" as (tS s3' s3Incl ?lt) "[knowOrder histS3]".
+    (* iDestruct "pts" as (?tGP ?tP ?tS) "tmp". iNamed "tmp". *)
     (* We unfold the WP. *)
     iIntros (TV' incl) "Φpost".
     rewrite wp_eq /wp_def.
@@ -606,7 +603,8 @@ Section wp_rules.
     (* _Before_ we load the points-to predicate we deal with the predicate ϕ. We
     do this before such that the later that arrises is stripped off when we take
     the step. *)
-    iDestruct (know_pred_agree with "preds knowPred") as (pred predsLook) "#predsEquiv".
+    iDestruct (know_pred_agree with "preds knowPred")
+      as (pred predsLook) "#predsEquiv".
 
     (* We need to get the points-to predicate for [ℓ] which is is inside
     [interp].  We want to look up the points-to predicate in [ptsMap]. To this
@@ -625,7 +623,7 @@ Section wp_rules.
     apply lookup_fmap_Some in look.
     destruct look as [[? s'] [msgEq histLook]].
     simpl in msgEq.
-    rewrite /store_view. simpl.
+    rewrite /store_view.
     iDestruct ("ptsMap" with "pts") as "ptsMap".
     iFrame "val'".
 
@@ -634,19 +632,14 @@ Section wp_rules.
     rewrite msgEq in pvEq.
     simpl in pvEq. rewrite <- pvEq in msgEq. clear pvEq _PV'.
 
-    assert ({[ℓ := MaxNat tS]} ⊑ SV) as inclSingl.
+    assert (tS ≤ t') as lte.
     { destruct TV as [[??]?].
       destruct TV' as [[??]?].
-      etrans.
-      apply know.
-      etrans.
-      apply incl.
-      apply incl2. }
-    assert (tS ≤ t') as lte.
-    { eapply (view_lt_lookup ℓ).
-      - apply inclSingl.
-      - rewrite /lookup_zero. rewrite lookup_singleton. done.
-      - apply gt. }
+      etrans; first done.
+      etrans; last done.
+      rewrite /store_view /=.
+      f_equiv.
+      etrans. apply incl. apply incl2. }
 
     iDestruct (big_sepM2_lookup_acc with "map") as "[predMap map]"; [done|done|].
     iDestruct (big_sepM_lookup_acc with "predMap") as "[predHolds predMap]"; first done.
@@ -663,11 +656,9 @@ Section wp_rules.
     iDestruct (big_sepM2_lookup_1 with "ordered") as (order) "[%ordersLook %increasingMap]".
     { apply histsLook. }
     iDestruct (orders_lookup with "allOrders knowOrder") as %orderEq; first apply ordersLook.
-    (* epose proof (increasingMap tS t' (encode s3) s') as hihi. *)
     epose proof (increasingMap tS t' (encode s3) s') as hihi.
     assert (order enc s') as orderRelated.
     { destruct (le_lt_or_eq _ _ lte) as [le|tSEq].
-      (* destruct (lte) as [hi|ho]. *)
       - eapply increasingMap.
         * apply le.
         * subst. done.
@@ -684,7 +675,7 @@ Section wp_rules.
         by intros [=]. }
     rewrite orderEq in orderRelated.
     epose proof (encode_relation_related _ _ _ orderRelated) as (? & s & eqX & decodeS' & s3InclS').
-    assert (x = s3) as -> by congruence.
+    assert (x = s3') as -> by congruence.
     rewrite /encode_predicate.
     rewrite decodeS'.
     simpl.
@@ -695,7 +686,8 @@ Section wp_rules.
     monPred_simpl.
     iEval (setoid_rewrite monPred_at_sep) in "pToQ".
     iSpecialize ("pToQ" $! (SV', PV', ∅)).
-    iDestruct ("pToQ" with "[//] [$PH //]") as "[Q phi]".
+    iDestruct ("pToQ" with "[//] [$PH]") as "[Q phi]".
+    { iPureIntro. etrans; done. }
     (* Reinsert into the predicate map. *)
     iDestruct ("predMap" with "[phi]") as "predMap".
     { iExists _. iSplit; first done.
@@ -724,26 +716,21 @@ Section wp_rules.
     { iPureIntro.
       etrans. eassumption.
       repeat split; try done; try apply view_le_l. }
+    (* The thread view we started with [TV] is smaller than the view we ended
+    with. *)
+    assert (TV ⊑ (SV ⊔ SV', PV, BV ⊔ PV')).
+    { do 2 (etrans; first done). repeat split; auto using view_le_l. }
     iSplitR "Q".
-    - iExists tGP, tP, t'.
-      iFrame "knowOrder histS1".
-      iFrame "∗#%".
-      iPureIntro.
-      repeat split.
-      * (* FIXME: Intuitively the lhs. should be included in because we read
-        [t'] and a write includes its own timestamp. We don't remember this
-        fact, however. *)
-        admit.
-      * destruct TV as [[??]?].
-        destruct TV' as [[??]?].
-        etrans.
-        apply know.
-        etrans.
-        apply incl.
-        etrans.
-        apply incl2.
-        done.
-      * apply view_empty_least.
+    - iFrame "knowPred isSharedLoc globalPerLB".
+      iSplitL "persistLB".
+      { iApply monPred_mono; done. }
+      iExists t', s.
+      iFrame.
+      iSplit; first done.
+      (* FIXME: Intuitively the lhs. should be included in because we read [t']
+      and a write includes its own timestamp. But, we don't remember this fact,
+      yet. *)
+      admit.
     - simpl.
       (* rewrite /post_fence. simpl. rewrite /monPred_at. *)
       rewrite /store_view /persist_view /=.
