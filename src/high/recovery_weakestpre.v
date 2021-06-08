@@ -273,7 +273,7 @@ Section wpr.
     (* Allocate new ghost state for the logical histories. *)
     rewrite /interp.
     set newHists := slice_of_hist p' hists.
-    iMod (own_full_history_gname_alloc ((λ h : abs_history (message * positive), snd <$> h) <$> newHists)) as (new_abs_history_name new_know_abs_history_name) "[hists' knowHistories]".
+    iMod (own_full_history_gname_alloc ((λ h : abs_history (message * positive), snd <$> h) <$> newHists)) as (new_abs_history_name new_know_abs_history_name) "(hists' & #histFrags & knowHistories)".
 
     (* Some locations may be lost after a crash. For these we need to
     forget/throw away the predicate and preorder that was choosen for the
@@ -312,19 +312,29 @@ Section wpr.
     rewrite /post_crash_map.
     iDestruct ("Pg" with "[history knowHistories]") as "[$ WHAT]".
     { simpl.
+      (* We show that fragments of the histories may survive a crash. *)
+      iSplit.
+      { iModIntro.
+        iIntros (? ? ℓ t s) "frag".
+        iExists p'.
+        iFrame "rec".
+        (* Was [ℓ] recovered or not? *)
+        destruct (p' !! ℓ) eqn:lookP'.
+        - iLeft. admit.
+        - iRight. done. }
+      (* We show that the preorders may survive a crash. *)
       iSplit.
       { admit. }
-      iSplitL "history".
       (* rewrite /know_full_encoded_history_loc. *)
       (* rewrite /own_full_history /own_full_history_gname. *)
       (* iDestruct "history" as "[left right]". *)
       (* iDestruct (ghost_map_lookup with "left [$]") as "HY". *)
-      { iIntros.
-        rewrite /know_full_encoded_history_loc.
-        rewrite /own_full_history /own_full_history_gname.
-        iDestruct "history" as "[left right]".
-        iDestruct (ghost_map_lookup with "left [$]") as "HY".
-        iApply "HY". }
+      iIntros.
+      rewrite /know_full_encoded_history_loc.
+      rewrite /own_full_history /own_full_history_gname.
+      iDestruct "history" as "[left right]".
+      (* iDestruct (ghost_map_lookup with "left [$]") as "HY". *)
+      (* iApply "HY". *)
       admit.
     }
     (* We show the state interpretation for the high-level logic. *)
@@ -333,6 +343,7 @@ Section wpr.
     iFrame "newOrders".
     iFrame "newPreds".
     iFrame "hists'".
+    iFrame "newSharedLocs".
     iSplitL "ptsMap".
     { rewrite /newHists. iFrame. }
     iSplitR.
@@ -351,7 +362,6 @@ Section wpr.
         destruct (hist !! t) as [[??]|]; simpl.
         { rewrite map_fmap_singleton. simpl. apply increasing_map_singleton. }
         { rewrite fmap_empty. apply increasing_map_empty. } }
-
     admit.
   Admitted.
 

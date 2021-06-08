@@ -335,6 +335,10 @@ Section persisted.
   Lemma persisted_weak PV PV' : PV' ≼ PV → persisted PV -∗ persisted PV'.
   Proof. rewrite /persisted. iIntros ([x ->]) "[$ _]". Qed.
 
+  (* [persisted] is anti-monotone. *)
+  Global Instance persisted_anti_mono : Proper ((⊑@{view}) ==> flip (⊢)) (persisted).
+  Proof. intros ??. apply persisted_weak. Qed.
+
 End persisted.
 
 Section lifting.

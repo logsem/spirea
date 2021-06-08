@@ -45,13 +45,16 @@ Section abs_history_lemmas.
       own know_abs_history_name (◯ {[ ℓ := to_agree <$> enc ]}).
 
   Lemma own_full_history_gname_alloc h :
-    ⊢ |==> ∃ γ1 γ2, own_full_history_gname γ1 γ2 h ∗
-                    [∗ map] k↦v ∈ h, k ↪[γ1] v.
+    ⊢ |==> ∃ γ1 γ2,
+        own_full_history_gname γ1 γ2 h ∗
+        own γ2 (◯ ((λ m : gmap _ _, to_agree <$> m) <$> h) : know_abs_historiesR) ∗
+        [∗ map] k↦v ∈ h, k ↪[γ1] v.
   Proof.
     iMod (ghost_map_alloc h) as (new_abs_history_name) "[A B]".
     iExists _. iFrame "A B".
+    setoid_rewrite <- own_op.
     iMod (own_alloc _) as "$".
-    { apply auth_auth_valid.
+    { apply auth_both_valid_2; last reflexivity.
       intros k.
       rewrite lookup_fmap.
       destruct (h !! k); simpl; last done.
