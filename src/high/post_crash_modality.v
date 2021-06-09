@@ -6,7 +6,7 @@ From Perennial.Helpers Require Import ipm NamedProps.
 
 From self.base Require Import primitive_laws.
 From self.base Require post_crash_modality.
-From self.high Require Import dprop resources crash_weakestpre weakestpre.
+From self.high Require Import dprop resources monpred_simpl.
 
 Set Default Proof Using "Type".
 
@@ -400,7 +400,6 @@ Section post_crash_derived.
     { iApply know_persist_lower_bound_at_zero; done. }
     iApply know_store_lower_bound_at_zero; done.
   Qed.
-
 
   Lemma post_crash_mapsto_ex `{AbstractState ST} ℓ ss1 ss2 ϕ ψ :
     (* FIXME: ψ *)
