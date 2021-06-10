@@ -15,6 +15,10 @@ associated with which locations. *)
 Definition predicateR {Σ} := agreeR (positive -d> val -d> laterO (optionO (dPropO Σ))).
 Definition predicatesR {Σ} := authR (gmapUR loc (@predicateR Σ)).
 
+(* Definition recPredicateR {Σ} := *)
+(*   agreeR (positive -d> val -d> laterO (nvmG Σ -d> optionO (dPropO Σ))). *)
+(* Definition recPredicatesR {Σ} := authR (gmapUR loc (@predicateR Σ)). *)
+
 Notation abs_history := (gmap time).
 
 (* Resource algebras that for each location stores the encoded abstract states
@@ -36,8 +40,10 @@ Class nvmHighG Σ := NvmHighG {
   abs_history_name : gname;
   know_abs_history_name : gname;
   predicates_name : gname;
+  recovery_predicates_name : gname;
   preorders_name : gname;
   shared_locs_name : gname;
+  exclusive_locs_name : gname;
   (* Functors *)
   ra_inG :> inG Σ (@predicatesR Σ);
   ra_inG' :> inG Σ know_abs_historiesR;
@@ -340,6 +346,43 @@ Section predicates.
     Qed.
 
 End predicates.
+
+(*
+Section recovery_predicates.
+  Context `{!nvmG Σ}.
+
+  Definition recPredO := positive -d> val -d> optionO (nvmG Σ -d> dPropO Σ).
+
+  Definition pred_to_ra (pred : positive → val → option (nvmG Σ → dProp Σ)) :
+    (@predicateR Σ) :=
+    to_agree ((λ a b, Next (pred a b))).
+
+  Definition preds_to_ra (preds : gmap loc (positive → val → option (dProp Σ)))
+    : gmapUR loc (@predicateR Σ) := pred_to_ra <$> preds.
+
+  Definition know_all_preds preds :=
+      own predicates_name (● (pred_to_ra <$> preds) : predicatesR).
+
+  Definition encode_predicate `{Countable s}
+             (ϕ : s → val → dProp Σ) : positive → val → option (dProp Σ) :=
+    λ encS v, (λ s, ϕ s v) <$> decode encS.
+
+  Definition know_pred `{Countable s}
+      (ℓ : loc) (ϕ : s → val → dProp Σ) : iProp Σ :=
+    own predicates_name (◯ {[ ℓ := pred_to_ra (encode_predicate ϕ) ]} : predicatesR).
+
+  Lemma know_predicates_alloc preds :
+    ⊢ |==> ∃ γ, own γ ((● (pred_to_ra <$> preds)) : predicatesR).
+  Proof.
+    iMod (own_alloc _) as "$"; last done.
+    apply auth_auth_valid.
+    intros ℓ.
+    rewrite lookup_fmap.
+    by case (preds !! ℓ).
+  Qed.
+
+End recovery_predicates.
+*)
 
 (* (* For each location in the heap we maintain the following "meta data". *)
 (* For every location we want to store: A type/set of abstract events, its full *)

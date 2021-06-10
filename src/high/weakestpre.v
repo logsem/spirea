@@ -20,6 +20,11 @@ From self.base Require Import primitive_laws.
 From self.lang Require Import syntax.
 From self.high Require Import resources crash_weakestpre lifted_modalities monpred_simpl modalities.
 
+Section wp.
+  Context `{!nvmG Σ}.
+
+  Implicit Types (Φ : val → dProp Σ) (e : expr).
+
   (* We prove a few basic facts about our weakest precondition. *)
   Global Instance wp_ne s E e n :
     Proper (pointwise_relation _ (dist n) ==> dist n) (wp s E e).
@@ -159,6 +164,7 @@ Section wp_rules.
     iApply program_logic.crash_weakestpre.wp_wpc.
 
     (* We need to get the points-to predicate for [ℓ]. This is inside [interp]. *)
+    (* rewrite /interp. *)
     iNamed "interp".
     iDestruct (know_pred_agree with "preds knowPred") as (pred predsLook) "#predsEquiv".
     iDestruct (own_full_history_agree with "[$] [$]") as %look.
@@ -270,8 +276,9 @@ Section wp_rules.
     (* { done. } *)
 
     iSplit; first done.
-    iSplitR "ptsMap allOrders ordered map history preds sharedLocs".
-    2: { iExists _, _, _, _. iFrame. done. }
+    iSplitR "ptsMap allOrders ordered map history preds sharedLocs crashedAt
+             recPreds mapRecPredsImpl".
+    2: { iExists _, _, _, _, _, _, _. iFrame "∗#". done. }
     iApply "Φpost".
     iSplitR "Q".
     2: {
@@ -581,8 +588,9 @@ Section wp_rules.
     iModIntro.
     (* We re-establish [interp]. *)
     iSplit. { iPureIntro. repeat split; try done; apply view_le_l. }
-    iSplitR "ptsMap allOrders ordered map history preds sharedLocs".
-    2: { iExists _, _, _, _. iFrame. iFrame "#". done. }
+    iSplitR "ptsMap allOrders ordered map history preds sharedLocs crashedAt
+             recPreds mapRecPredsImpl".
+    2: { iExists _, _, _, _, _, _, _. iFrame. iFrame "#". done. }
     iSpecialize ("Φpost" $! s v').
     monPred_simpl.
     iApply "Φpost".

@@ -4,7 +4,7 @@ words, our own little (std++)++. *)
 From stdpp Require Import countable numbers gmap fin_maps list.
 From iris Require Import cmra.
 From iris.bi Require Import big_op.
-From iris.algebra Require Import gmap agree.
+From iris.algebra Require Import gmap agree big_op.
 From iris.proofmode Require Import tactics.
 Import interface.bi derived_laws.bi derived_laws_later.bi.
 
@@ -187,8 +187,6 @@ Section big_sepM.
   Context `{Countable K} {A : Type}.
   Implicit Types m : gmap K A.
   Implicit Types Φ Ψ : K → A → PROP.
-
-  From iris.algebra Require Export big_op.
 
   Lemma big_sepM_impl Φ Ψ m :
     ([∗ map] k↦x ∈ m, Φ k x) -∗

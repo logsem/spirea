@@ -43,36 +43,67 @@ Section wpc.
   Definition interp : iProp Σ :=
     (∃ (hists : gmap loc (gmap time (message * positive)))
        (preds : gmap loc (positive → val → option (dProp Σ)))
+       (rec_preds : gmap loc (positive → val → option (dProp Σ)))
+       (CV : view)
        (orders : gmap loc (relation2 positive))
+       (exclusive_locs : gset loc)
        (shared_locs : gset loc),
       (* We keep the points-to predicates to ensure that we know that the keys
       in the abstract history correspond to the physical history. This ensures
       that at a crash we know that the value recoreved after a crash has a
       corresponding abstract value. *)
       "ptsMap" ∷ ([∗ map] ℓ ↦ hist ∈ hists, ℓ ↦h (fst <$> hist)) ∗
+      "#crashedAt" ∷ crashed_at CV ∗
       (* Agreement on the preorders and the ordered/sorted property. *)
       "allOrders" ∷ own_all_preorders orders ∗
       "ordered" ∷ ([∗ map] ℓ ↦ hist; order ∈ hists; orders,
                     ⌜increasing_map (snd <$> hist) order⌝) ∗
-      (* The predicates hold. *)
+      (* The predicates hold for all the locations. *)
       "map" ∷
         ([∗ map] ℓ ↦ hist; pred ∈ hists; preds,
           (* The predicate holds for each message in the history. *)
           ([∗ map] t ↦ p ∈ hist, let '(msg, encState) := p in
             (∃ (P : dProp Σ),
               ⌜pred encState msg.(msg_val) = Some P⌝ ∗ P (msg_to_tv msg)))) ∗
+      (* The predicates hold for the shared locations. *)
+      (*
+      "mapShared" ∷
+        ([∗ map] ℓ ↦ hist ∈ (restrict shared_locs hists), ∃ pred recPred,
+          ⌜preds !! ℓ = Some pred⌝ ∗
+          ⌜rec_preds !! ℓ = Some recPred⌝ ∗
+          (* The predicate holds for each message in the history. *)
+          ([∗ map] t ↦ p ∈ hist, let '(msg, encState) := p in
+            (* The recovery predicate holds or the normal perdicate holds. *)
+            (⌜t = 0⌝ ∗ ⌜ℓ ∈ dom (gset _) CV⌝ ∗ ∃ (P : dProp Σ),
+               ⌜recPred encState msg.(msg_val) = Some P⌝ ∗ P (∅, ∅, ∅)) ∨
+            ((⌜t ≠ 0⌝ ∨ ⌜ℓ ∉ dom (gset _) CV⌝) ∗ ∃ (P : dProp Σ),
+              ⌜pred encState msg.(msg_val) = Some P⌝ ∗ P (msg_to_tv msg)))) ∗
+      *)
       (* Ownership over the full knowledge of the abstract history of _all_
       locations. *)
       "history" ∷ own_full_history ((λ (h : (gmap _ _)), snd <$> h) <$> hists) ∗
       (* Knowledge of all the predicates. *)
-      "preds" ∷ own predicates_name (● (pred_to_ra <$> preds) : predicatesR) ∗
+      "preds" ∷ own predicates_name (● (preds_to_ra preds)) ∗
+      (* Knowledge of all the recovery predicates. *)
+      "recPreds" ∷ own recovery_predicates_name (● (preds_to_ra rec_preds)) ∗
+      (* We have a recovery predicate for exactly the shared locations. *)
+      "%recPredsDom" ∷ ⌜dom _ rec_preds = shared_locs⌝ ∗
+      "mapRecPredsImpl" ∷
+        ([∗ map] ℓ ↦ recPred ∈ rec_preds, ∃ pred,
+          ⌜ preds !! ℓ = Some pred ⌝ ∗
+          ∀ encS v, ∃ (P : dProp Σ),
+            ⌜pred encS v = Some P⌝ -∗
+            ∃ PR, ∀ TV, ⌜recPred encS v = Some PR⌝ ∗ (P -∗ (<PCCC> (λ _, PR))) TV
+        ) ∗
       (* Shared locations. *)
-      "sharedLocs" ∷ own shared_locs_name (● (shared_locs : gsetUR _)) ∗
+      "sharedLocs" ∷ own shared_locs_name (● shared_locs) ∗
+      (* Exclusive locations. *)
+      (* "exclusiveLocs" ∷ own exclusive_locs_name (● exclusive_locs) ∗ *)
       "%mapShared" ∷
         ⌜map_Forall (λ _, map_Forall
           (* For shared locations the two persist views are equal. This enforces
-          that shared locations can only be written to using release load and RMW
-          operations. *)
+          that shared locations can only be written to using release load and
+          RMW operations. *)
           (λ _ '(msg, _), msg.(msg_persist_view) = msg.(msg_persisted_after_view)))
           (restrict shared_locs hists)⌝).
 

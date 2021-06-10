@@ -26,8 +26,10 @@ Record nvm_high_names := {
   name_abs_history : gname;
   name_know_abs_history : gname;
   name_predicates : gname;
+  name_recovery_predicates : gname;
   name_preorders : gname;
   name_shared_locs : gname;
+  name_exclusive_locs : gname;
 }.
 
 Definition nvm_high_get_names Σ (hG : nvmHighG Σ) : nvm_high_names :=
@@ -35,7 +37,9 @@ Definition nvm_high_get_names Σ (hG : nvmHighG Σ) : nvm_high_names :=
      name_know_abs_history := know_abs_history_name;
      name_predicates := predicates_name;
      name_preorders := preorders_name;
+     name_recovery_predicates := preorders_name;
      name_shared_locs := shared_locs_name;
+     name_exclusive_locs := exclusive_locs_name;
   |}.
 
 Canonical Structure nvm_high_namesO := leibnizO nvm_high_names.
@@ -48,8 +52,10 @@ Definition nvm_high_update Σ (hG : nvmHighG Σ) (names : nvm_high_names) :=
      abs_history_name := names.(name_abs_history);
      know_abs_history_name := names.(name_know_abs_history);
      predicates_name := names.(name_predicates);
+     recovery_predicates_name := names.(name_recovery_predicates);
      preorders_name := names.(name_preorders);
      shared_locs_name := names.(name_shared_locs);
+     exclusive_locs_name := names.(name_exclusive_locs);
      (* Functors *)
      ra_inG := hG.(@ra_inG _);
      ra_inG' := hG.(@ra_inG' _);
@@ -266,7 +272,7 @@ Section wpr.
 
     (* We need to first re-create the ghost state for the base interpretation. *)
     iMod (nvm_heap_reinit _ _ _ _ _ Hcrash with "heap inv pers")
-      as (baseNames) "(map' & interp' & #persImpl & #rec)"; try done.
+      as (baseNames) "(map' & interp' & #persImpl & #newCrashedAt)"; try done.
 
     iDestruct (big_sepM2_dom with "ordered") as %domHistsEqOrders.
 
@@ -308,7 +314,7 @@ Section wpr.
     simpl.
     iDestruct
       (map_points_to_to_new hists _ _ _ (nvm_base_update Σ nvmG_baseG Hinv Hcrash baseNames)
-         with "rec map' ptsMap") as "ptsMap"; first done.
+         with "newCrashedAt map' ptsMap") as "ptsMap"; first done.
     rewrite /post_crash_map.
     iDestruct ("Pg" with "[history knowHistories]") as "[$ WHAT]".
     { simpl.
@@ -317,7 +323,7 @@ Section wpr.
       { iModIntro.
         iIntros (? ? ℓ t s) "frag".
         iExists p'.
-        iFrame "rec".
+        iFrame "newCrashedAt".
         (* Was [ℓ] recovered or not? *)
         destruct (p' !! ℓ) eqn:lookP'.
         - iLeft. admit.
@@ -338,12 +344,13 @@ Section wpr.
       admit.
     }
     (* We show the state interpretation for the high-level logic. *)
-    iExists _, _, _, _.
+    iExists _, _, _, _, _, _, _.
     rewrite /own_full_history.
     iFrame "newOrders".
     iFrame "newPreds".
     iFrame "hists'".
     iFrame "newSharedLocs".
+    iFrame "newCrashedAt".
     iSplitL "ptsMap".
     { rewrite /newHists. iFrame. }
     iSplitR.
