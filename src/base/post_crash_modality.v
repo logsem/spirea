@@ -146,12 +146,14 @@ Section if_non_zero.
 
 End if_non_zero.
 
-(* Note: The odd [let]s below are to manipulate the type class instance search. *)
+(* Note: The odd [let]s below are to manipulate the type class instance
+search. *)
 
 (** This map is used to exchange points-to predicates valid prior to a crash
 into points-to predicates valid after the crash. *)
 Definition post_crash_map {Σ} (σ__old : store) (hG hG' : nvmBaseG Σ) : iProp Σ :=
-  (* Used to conclude that the locations owned are included in the heap in question. *)
+  (* Used to conclude that the locations owned are included in the heap in
+  question. *)
   (∀ ℓ dq (hist : history), (let hG := hG in ℓ ↦h{dq} hist) -∗ ⌜σ__old !! ℓ = Some hist⌝) ∗
   (* The map used to the the exchange. *)
   [∗ map] ℓ ↦ hist ∈ σ__old,
@@ -162,14 +164,15 @@ Definition post_crash_map {Σ} (σ__old : store) (hG hG' : nvmBaseG Σ) : iProp 
 
 Definition persisted_impl {Σ} hG hG' : iProp Σ :=
   □ ∀ V, persisted (hG := hG) V -∗
-    persisted (hG := hG') ((λ _, MaxNat 0) <$> V) ∗
+    persisted (hG := hG') (view_to_zero V) ∗
      ∃ CV, ⌜V ⊑ CV⌝ ∗ crashed_at (hG := hG') CV.
 
-Definition post_crash {Σ} (P : nvmBaseG Σ → iProp Σ) `{hG: !nvmBaseG Σ} : iProp Σ :=
-  (∀ (σ : mem_config) hG',
-    persisted_impl hG hG' -∗
-    post_crash_map σ.1 hG hG' -∗
-    (post_crash_map σ.1 hG hG' ∗ P hG')).
+Definition post_crash {Σ} (P : nvmBaseDeltaG Σ → iProp Σ)
+           `{hG : !nvmBaseFixedG Σ, hDG : nvmBaseDeltaG Σ} : iProp Σ :=
+  (∀ (σ : mem_config) hDG',
+    persisted_impl (NvmG _ hG hDG) (NvmG _ hG hDG') -∗
+    post_crash_map σ.1 (NvmG _ hG hDG) (NvmG _ hG hDG') -∗
+    (post_crash_map σ.1 (NvmG _ hG hDG) (NvmG _ hG hDG') ∗ P hDG')).
 
 Lemma post_crash_map_exchange {Σ} σ__old (hG hG' : nvmBaseG Σ) ℓ q hist :
   post_crash_map σ__old hG hG' -∗
@@ -233,7 +236,7 @@ Proof.
 Qed.
 
 Section post_crash_prop.
-  Context `{hG: !nvmBaseG Σ}.
+  Context `{hG : !nvmBaseFixedG Σ, hDG : nvmBaseDeltaG Σ}.
   Implicit Types Φ : thread_val → iProp Σ.
   Implicit Types efs : list thread_state.
   Implicit Types σ : mem_config.
@@ -358,7 +361,8 @@ Section post_crash_prop.
 
   Lemma post_crash_persisted V :
     persisted V -∗
-      post_crash (λ hG', persisted ((λ _, MaxNat 0) <$> V) ∗ ∃ CV, ⌜V ⊑ CV⌝ ∗ crashed_at CV).
+    post_crash (λ hG', persisted (view_to_zero V) ∗
+                       ∃ CV, ⌜V ⊑ CV⌝ ∗ crashed_at CV).
   Proof.
     iIntros "pers".
     iIntrosPostCrash.
@@ -369,12 +373,12 @@ Section post_crash_prop.
   Lemma post_crash_persisted_singleton ℓ t :
     (persisted {[ ℓ := MaxNat t ]}) -∗
     post_crash (λ hG', persisted ({[ ℓ := MaxNat 0 ]}) ∗
-                        ∃ CV t', ⌜CV !! ℓ = Some (MaxNat t') ∧ t ≤ t'⌝ ∗ crashed_at CV)%I.
+                       ∃ CV t', ⌜CV !! ℓ = Some (MaxNat t') ∧ t ≤ t'⌝ ∗ crashed_at CV)%I.
   Proof.
     iIntros "pers".
     iDestruct (post_crash_persisted with "pers") as "H".
     iApply (post_crash_mono with "H").
-    rewrite map_fmap_singleton.
+    rewrite view_to_zero_singleton.
     setoid_rewrite view_le_singleton.
     setoid_rewrite bi.pure_exist.
     setoid_rewrite bi.sep_exist_r.
@@ -382,7 +386,7 @@ Section post_crash_prop.
   Qed.
 
   Lemma post_crash_persisted_persisted V :
-    persisted V -∗ post_crash (λ hG', persisted ((λ _, MaxNat 0) <$> V)).
+    persisted V -∗ post_crash (λ hG', persisted (view_to_zero V)).
   Proof.
     iIntros "pers".
     iDestruct (post_crash_persisted with "pers") as "p".
@@ -400,7 +404,7 @@ Section post_crash_prop.
   Qed.
 
   Lemma post_crash_mapsto ℓ q hist :
-    ℓ ↦h{#q} hist -∗ post_crash (λ hG', mapsto_post_crash hG' ℓ q hist).
+    ℓ ↦h{#q} hist -∗ post_crash (λ hG', mapsto_post_crash _ ℓ q hist).
   Proof.
     iIntros "pts".
     iIntrosPostCrash.
@@ -468,12 +472,11 @@ Section post_crash_prop.
 
 End post_crash_prop.
 
-Class IntoCrash {Σ} `{!nvmBaseG Σ} (P: iProp Σ) (Q: nvmBaseG Σ → iProp Σ) :=
+Class IntoCrash {Σ} `{!nvmBaseG Σ} (P: iProp Σ) (Q: nvmBaseDeltaG Σ → iProp Σ) :=
   into_crash : P -∗ post_crash (Σ := Σ) (λ hG', Q hG').
 
 Section IntoCrash.
-
-  Context `{hG: !nvmBaseG Σ}.
+  Context `{hG : !nvmBaseFixedG Σ, hDG : nvmBaseDeltaG Σ}.
 (*   Global Instance sep_into_crash P P' Q Q': *)
 (*     IntoCrash P P' → *)
 (*     IntoCrash Q Q' → *)

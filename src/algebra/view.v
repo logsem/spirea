@@ -216,6 +216,10 @@ Qed.
 
 Definition view_to_zero V := (const (MaxNat 0)) <$> V.
 
+Lemma view_to_zero_singleton ℓ t :
+  view_to_zero {[ ℓ := t ]} = {[ ℓ := MaxNat 0 ]}.
+Proof. rewrite /view_to_zero. rewrite map_fmap_singleton. done. Qed.
+
 Lemma view_to_zero_mono V V' : V ⊑ V' → view_to_zero V ⊑ view_to_zero V'.
 Proof.
   rewrite /view_to_zero.

@@ -13,51 +13,49 @@ From self.base Require Import primitive_laws post_crash_modality.
 
 Set Default Proof Using "Type".
 
-(** Names for the heap that needs to change after a crash. *)
-Record nvm_heap_names := {
-  name_gen_heap : gname;
-  name_gen_meta : gname;
-}.
-
 Definition nvm_get_heap_names {V Σ} (hG : gen_heapG loc V Σ) : nvm_heap_names :=
   {| name_gen_heap := gen_heap_name hG ;
      name_gen_meta := gen_meta_name hG |}.
 
-Definition nvm_heap_update {Σ} (h : gen_heapG loc history Σ) (names : nvm_heap_names) :=
-  {| gen_heap_inG := gen_heap_inG;
-     gen_heap_name := names.(name_gen_heap);
-     gen_meta_name := names.(name_gen_meta) |}.
-
-(** A record of all the ghost names useb by [nvmBaseG] that needs to change
-after a crash. *)
-Record nvm_base_names := {
-  name_heap_names : nvm_heap_names; (* Names used by [gen_heap]. *)
-  name_store_view : gname;          (* Name used by the store view. *)
-  name_persist_view : gname;        (* Name used by the persist view. *)
-  name_crashed_at_view : gname;      (* Name used by the crashed at view. *)
-}.
+(* Definition nvm_heap_update {Σ} (h : gen_heapG loc history Σ) (names : nvm_heap_names) := *)
+(*   {| gen_heap_inG := gen_heap_inG; *)
+(*      gen_heap_name := names.(name_gen_heap); *)
+(*      gen_meta_name := names.(name_gen_meta) |}. *)
 
 Definition nvm_base_get_names Σ (hG : nvmBaseG Σ) : nvm_base_names :=
-  {| name_heap_names := nvm_get_heap_names nvmBaseG_gen_heapG;
-     name_store_view := store_view_name;
-     name_persist_view := persist_view_name;
-     name_crashed_at_view := crashed_at_view_name |}.
+  nvm_base_names'.
 
 Canonical Structure nvm_base_namesO := leibnizO nvm_base_names.
 
 (** Given an [hG : nvmBaseG Σ], update the fields per the information in the
 rest of the arguments. In particular, all the gnames in [names] replaces the
-corresponding gnames in [hG]. *)
+corresponding gnames in [hG].
+TOOD: See if we can get rid of the [invG] and [crashG] argument.
+ *)
+
+Definition nvm_base_update Σ (hG : nvmBaseFixedG Σ) (Hcrash : crashG Σ)
+           (names : nvm_base_names) : nvmBaseG Σ :=
+  {| nvm_base_inG := hG;
+     nvmBaseDeltaG' :=
+       {|
+         nvm_base_crashG := Hcrash;
+         nvm_base_names' := names;
+       |}
+  |}.
+
+(*
 Definition nvm_base_update Σ (hG : nvmBaseG Σ) (Hinv : invG Σ)
-           (Hcrash : crashG Σ) (names : nvm_base_names) :=
-  {| nvmBaseG_invG := Hinv;
-     nvmBaseG_crashG := Hcrash;
-     nvmBaseG_gen_heapG :=
-       nvm_heap_update hG.(@nvmBaseG_gen_heapG _) names.(name_heap_names);
-     view_inG := hG.(@view_inG _);
-     store_view_name := names.(name_store_view);
-     persist_view_name := names.(name_persist_view);
-     crashed_at_view_name := names.(name_crashed_at_view) |}.
+           (Hcrash : crashG Σ) (names : nvm_base_names) : nvmBaseG Σ :=
+  {|
+     nvm_base_inG := {|
+       nvmBaseG_invG := Hinv;
+       nvmBaseG_crashG := Hcrash;
+       nvmBaseG_gen_heapG := hG.(@nvm_base_inG _).(@nvmBaseG_gen_heapG _);
+      view_inG := hG.(@nvm_base_inG _).(@view_inG _);
+     |};
+     nvm_base_names' := names;
+  |}.
+*)
 
 (* Lemma heap_update_eq {Σ} heapG' (heapG : gen_heapG loc history Σ) : *)
 (*   (@nvm_heap_update Σ heapG' (@nvm_get_heap_names (@gmap nat nat_eq_dec nat_countable message) Σ heapG)) *)
@@ -74,34 +72,48 @@ Definition nvm_base_update Σ (hG : nvmBaseG Σ) (Hinv : invG Σ)
 (* (*   auto. *) *)
 (* (* Qed. *) *)
 
+(*
 Lemma nvm_base_update_id Σ hG :
   nvm_base_update Σ hG (iris_invG) (iris_crashG) (nvm_base_get_names _ hG) = hG.
-Proof. destruct hG as [? ? []]. auto. Qed.
+Proof. destruct hG as [[? ? [?]] ?]. auto. Qed.
+*)
 
-Program Global Instance nvmBaseG_perennialG `{!nvmBaseG Σ} : perennialG nvm_lang nvm_crash_lang nvm_base_namesO Σ := {
+Lemma nvm_update_id {Σ} (hGD : nvmBaseDeltaG Σ) (hG : nvmBaseFixedG Σ) :
+  hGD = {| nvm_base_crashG := nvm_base_crashG;
+           nvm_base_names' :=
+             nvm_base_get_names Σ {| nvm_base_inG := hG; nvmBaseDeltaG' := hGD |}
+        |}.
+Proof. destruct hGD. done. Qed.
+
+
+Program Global Instance nvmBaseG_perennialG `{!nvmBaseFixedG Σ} :
+  perennialG nvm_lang nvm_crash_lang nvm_base_namesO Σ := {
   perennial_irisG := λ Hcrash hnames,
-                     @nvmBaseG_irisG _ (nvm_base_update _ _ _ Hcrash (@pbundleT _ _ hnames));
+                     @nvmBaseG_irisG _ (nvm_base_update _ _ Hcrash (@pbundleT _ _ hnames));
   perennial_crashG := λ _ _, eq_refl;
   perennial_num_laters_per_step := λ n, n
 }.
 Next Obligation. eauto. Qed.
 Next Obligation. eauto. Qed.
 
-Lemma nvm_base_update_update Σ hG Hinv Hcrash names Hinv' Hcrash' names' :
-  nvm_base_update Σ (nvm_base_update Σ hG Hinv' Hcrash' names') Hinv Hcrash names =
-    nvm_base_update Σ hG Hinv Hcrash names.
-Proof. auto. Qed.
+(* Lemma nvm_base_update_update Σ hG Hinv Hcrash names Hinv' Hcrash' names' : *)
+(*   nvm_base_update Σ (nvm_base_update Σ hG Hcrash' names') Hinv Hcrash names = *)
+(*     nvm_base_update Σ hG Hinv Hcrash names. *)
+(* Proof. auto. Qed. *)
 
-Definition wpr `{hG : !nvmBaseG Σ} `{hC : !crashG Σ} (s : stuckness) (k : nat) (E : coPset)
-  (e : thread_state) (recv : thread_state) (Φ : thread_val → iProp Σ) (Φinv : nvmBaseG Σ → iProp Σ) (Φr : nvmBaseG Σ → thread_val → iProp Σ) :=
+Definition wpr `{hG : !nvmBaseG Σ} `{hC : !crashG Σ}
+           (s : stuckness) (k : nat) (E : coPset)
+           (e : thread_state) (recv : thread_state) (Φ : thread_val → iProp Σ)
+           (Φinv : nvmBaseDeltaG Σ → iProp Σ)
+           (Φr : nvmBaseDeltaG Σ → thread_val → iProp Σ) :=
   wpr s k hC ({| pbundleT := nvm_base_get_names Σ _ |}) E e recv
               Φ
-              (λ Hc names, Φinv (nvm_base_update _ _ _ Hc (@pbundleT _ _ names)))
-              (λ Hc names v, Φr (nvm_base_update _ _ _ Hc (@pbundleT _ _ names)) v).
+              (λ Hc names, Φinv (Build_nvmBaseDeltaG _ Hc (@pbundleT _ _ names)))
+              (λ Hc names v, Φr (Build_nvmBaseDeltaG _ Hc (@pbundleT _ _ names)) v).
 
 Section wpr.
-  Context `{hG : !nvmBaseG Σ}.
-  (* Context {Σ : functorG}. *)
+  (* Context `{hG : !nvmBaseG Σ}. *)
+  Context {Σ : gFunctor}.
   Implicit Types s : stuckness.
   Implicit Types k : nat.
   Implicit Types P : iProp Σ.
@@ -110,7 +122,7 @@ Section wpr.
   Implicit Types v : thread_val.
   Implicit Types e : thread_state.
 
-  Lemma wpr_strong_mono s k E e rec Φ Ψ Φinv Ψinv Φr Ψr :
+  Lemma wpr_strong_mono `{hG : !nvmBaseG Σ} s k E e rec Φ Ψ Φinv Ψinv Φr Ψr :
     wpr s k E e rec Φ Φinv Φr -∗
     (∀ v, Φ v ==∗ Ψ v) ∧ <bdisc> ((∀ hG, Φinv hG -∗ Ψinv hG) ∧ (∀ hG v, Φr hG v ==∗ Ψr hG v)) -∗
     wpr s k E e rec Ψ Ψinv Ψr.
@@ -127,7 +139,7 @@ Section wpr.
       * iIntros. by iApply "H".
   Qed.
 
-  Lemma store_inv_cut store p :
+  Lemma store_inv_cut `{hG : !nvmBaseG Σ} store p :
     consistent_cut p store →
     store_inv store -∗ store_inv (slice_of_store p store).
   Proof.
@@ -160,21 +172,23 @@ Section wpr.
   Instance tt (p : view) : CoreId (●□ p).
   Proof. do 2 constructor; simpl; auto. apply: core_id_core. Qed.
 
-  Lemma nvm_heap_reinit (hG' : nvmBaseG Σ) σ p p' (Hinv : invG Σ) (Hcrash : crashG Σ) :
+  Lemma nvm_heap_reinit (hG : nvmBaseFixedG Σ) (hGD : nvmBaseDeltaG Σ) σ p p'
+        (Hcrash : crashG Σ) :
     (* The first two assumptions are the content of [crash_step σ σ'] *)
     p ⊑ p' →
     consistent_cut p' σ →
-    ⊢ gen_heap_interp (hG := @nvmBaseG_gen_heapG _ hG') σ -∗
-      store_inv (hG := hG') σ -∗
-      persist_auth (hG := hG') (σ, p)
+    ⊢ gen_heap_interp (hG := _) σ -∗
+      store_inv (hG := _) σ -∗
+      persist_auth (hG := _) (σ, p)
       ==∗
       ∃ names : nvm_base_names,
         (* ghost_crash_rel σ hG' σ' (nvm_base_update Σ hG' Hinv Hcrash names) ∗ *)
-        post_crash_map σ hG' (nvm_base_update Σ hG' Hinv Hcrash names) ∗
-        nvm_heap_ctx (hG := nvm_base_update Σ hG' Hinv Hcrash names) (slice_of_store p' σ, view_to_zero p') ∗
-        persisted_impl hG' (nvm_base_update Σ hG' Hinv Hcrash names) ∗
-        own (@crashed_at_view_name _ (nvm_base_update Σ hG' Hinv Hcrash names)) (to_agree p' : agreeR viewO).
-  Proof using hG Σ.
+        post_crash_map σ _ (nvm_base_update Σ hG Hcrash names) ∗
+        nvm_heap_ctx (hG := nvm_base_update Σ hG Hcrash names)
+                     (slice_of_store p' σ, view_to_zero p') ∗
+        persisted_impl _ (nvm_base_update Σ hG Hcrash names) ∗
+        own (@crashed_at_view_name (names)) (to_agree p' : agreeR viewO).
+  Proof using Σ.
     iIntros (pIncl cut). iIntros  "heapIntrp invs pers".
     rewrite /nvm_heap_ctx. simpl.
     (* Allocate a new heap at a _new_ ghost name. *)
@@ -194,11 +208,11 @@ Section wpr.
     iMod (own_alloc (to_agree p' : agreeR viewO)) as (crashedAtG) "#crashed".
     { done. }
     iModIntro.
-    iExists {| name_heap_names := Build_nvm_heap_names γh γm;
-               name_store_view := storeG;
-               name_persist_view := persistG;
-               name_crashed_at_view := crashedAtG |}.
-    rewrite /name_crashed_at_view. simpl.
+    iExists {| heap_names_name := Build_nvm_heap_names γh γm;
+               store_view_name := storeG;
+               persist_view_name := persistG;
+               crashed_at_view_name := crashedAtG |}.
+    rewrite /crashed_at_view_name. simpl.
     iFrame.
     iFrame "crashed".
     (* We show the ghost crash relation. *)
@@ -231,7 +245,6 @@ Section wpr.
         iSplit; first done.
         rewrite H2.
         iFrame "pts".
-
         iExists _. iFrame "crashed %".
         iPureIntro.
         eapply (map_Forall_lookup_1 _ _ _ _ map).
@@ -242,7 +255,8 @@ Section wpr.
       iExists p'. iFrame "crashed".
     * iModIntro.
       iIntros (V) "pers".
-      iDestruct (persisted_auth_included with "oldPers pers") as %incl.
+      rewrite /persisted.
+      iDestruct (@persisted_auth_included _ (NvmG _ _ _) with "oldPers pers") as %incl.
       assert (V ⊑ p') as incl'. { etrans; done. }
       iSplit.
       { edestruct (view_to_zero_mono) as [? ->]; first apply incl'.
@@ -250,42 +264,51 @@ Section wpr.
       iExists p'. iFrame "#%".
   Qed.
 
-  Lemma nvm_heap_reinit_alt (hG' : nvmBaseG Σ) σ σ' (Hinv : invG Σ) (Hcrash : crashG Σ) Pg :
+  Lemma nvm_heap_reinit_alt (hG : nvmBaseFixedG Σ) (hGD : nvmBaseDeltaG Σ) σ σ'
+        (Hcrash : crashG Σ) Pg :
     crash_step σ σ' →
     ⊢ nvm_heap_ctx σ -∗
       post_crash Pg ==∗
       ∃ names : nvm_base_names,
-        post_crash_map σ.1 hG' (nvm_base_update Σ hG' Hinv Hcrash names) ∗
-        nvm_heap_ctx (hG := nvm_base_update Σ hG' Hinv Hcrash names) σ' ∗
-        Pg (nvm_base_update Σ hG' Hinv Hcrash names).
-  Proof using hG.
+        post_crash_map σ.1 _ (nvm_base_update Σ hG Hcrash names) ∗
+        nvm_heap_ctx (hG := nvm_base_update Σ hG Hcrash names) σ' ∗
+        Pg (Build_nvmBaseDeltaG Σ Hcrash names).
+  Proof.
     iIntros ([store p p' pIncl cut]).
     iIntros "(heap & authStor & inv & pers & recov) Pg".
-    iMod (nvm_heap_reinit _ _ _ _ _ Hcrash with "heap inv pers") as (hnames) "(map & interp' & #persImpl & rec)"; try done.
+    iMod (nvm_heap_reinit _ _ _ _ _ Hcrash with "heap inv pers")
+      as (hnames) "(map & interp' & #persImpl & rec)"; try done.
     rewrite /post_crash.
+    set newBundle : nvmBaseDeltaG Σ :=
+      {| nvm_base_crashG := Hcrash; nvm_base_names' := hnames |}.
+    iSpecialize ("Pg" $! (store, p') newBundle).
+    rewrite /newBundle.
+    rewrite /nvm_base_update.
     iDestruct ("Pg" with "persImpl map") as "(map & Pg)".
     iExists _. iFrame.
     done.
   Qed.
 
-  Lemma idempotence_wpr `{!ffi_interp_adequacy} s k E1 e rec Φx Φinv Φrx Φcx :
-    ⊢ WPC e @ s ; k ; E1 {{ Φx }} {{ Φcx hG }} -∗
-    (□ ∀ (hG1 : nvmBaseG Σ) (Hpf : @nvmBaseG_invG Σ hG = @nvmBaseG_invG Σ hG1) σ σ'
-          (HC : crash_prim_step (nvm_crash_lang) σ σ'),
-          Φcx hG1 -∗ ▷ post_crash (λ hG2, (Φinv hG2 ∧ WPC rec @ s ; k; E1 {{ Φrx hG2 }} {{ Φcx hG2 }}))) -∗
+  Lemma idempotence_wpr `{!ffi_interp_adequacy}
+        `{hG : nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ} s k E1 e rec Φx Φinv Φrx Φcx :
+    ⊢ WPC e @ s ; k ; E1 {{ Φx }} {{ Φcx hGD }} -∗
+    (□ ∀ (hG1 : nvmBaseDeltaG Σ)
+         (* (Hpf : @nvmBaseG_invG Σ (@nvm_base_inG _ hG) = *)
+         (*          @nvmBaseG_invG Σ (@nvm_base_inG _ hG1)) *) σ σ'
+         (HC : crash_prim_step (nvm_crash_lang) σ σ'),
+         Φcx hG1 -∗ ▷ post_crash (λ hG2, (Φinv hG2 ∧ WPC rec @ s ; k; E1 {{ Φrx hG2 }} {{ Φcx hG2 }}))) -∗
       wpr s k E1 e rec Φx Φinv Φrx.
   Proof.
     iIntros "Hwpc #Hidemp".
     iApply (idempotence_wpr s k E1 e rec _ _ _
-                            (λ Hc names, Φcx (nvm_base_update _ _ _ Hc (@pbundleT _ _ names)))
+                            (λ Hc names, Φcx (Build_nvmBaseDeltaG _ Hc (@pbundleT _ _ names)))
                                                       with "[Hwpc] [Hidemp]"); first auto.
-    { simpl. rewrite nvm_base_update_id. iAssumption. }
-    { iModIntro. iIntros (? t σ_pre_crash g σ_post_crash Hcrash ns κs ?) "H".
-      iSpecialize ("Hidemp" $! (nvm_base_update _ _ _ _ _) with "[//] [//] H").
+    { destruct hGD. iFrame. }
+    { iModIntro. iIntros (? [names] σ_pre_crash g σ_post_crash Hcrash ns κs ?) "H".
+      iSpecialize ("Hidemp" $! (Build_nvmBaseDeltaG _ _ names) with "[//] H").
       iIntros "interp _ !> !>".
       iIntros (Hc' ?) "HNC".
       iMod (nvm_heap_reinit_alt _ _ _ _ Hc' _ Hcrash with "interp Hidemp") as (hnames) "(map & interp' & idemp)".
-      rewrite nvm_base_update_update.
       iExists {| pbundleT := hnames |}, (reflexivity _), (reflexivity _).
       iModIntro.
       rewrite /state_interp //=.

@@ -13,16 +13,56 @@ From self.algebra Require Import view.
 From self.lang Require Export notation.
 From self.base Require Import tactics.
 
-Class nvmBaseG Σ := NvmG {
-  nvmBaseG_invG : invG Σ;                        (* For invariants. *)
-  nvmBaseG_crashG : crashG Σ;                    (* Stuff for Perennial. *)
-  nvmBaseG_gen_heapG :> gen_heapG loc history Σ; (* For the heap. *)
-  view_inG :> inG Σ (authR viewUR);          (* For views. *)
-  crashed_at_inG :> inG Σ (agreeR viewO);     (* For crashed at knowledge. *)
-  store_view_name : gname;                   (* For validity of store views. *)
-  persist_view_name : gname;                 (* For knowledge about the persisted view. *)
-  crashed_at_view_name : gname;               (* For knowledge about the view recovered after the last crash. *)
+(* The functors that are unchanged after a crash. *)
+Class nvmBaseFixedG Σ := {
+  nvmBaseG_invG : invG Σ;                           (* For invariants. *)
+  (* nvmBaseG_crashG : crashG Σ;                       (* Stuff for Perennial. *) *)
+  nvmBaseG_gen_heapG :> gen_heapPreG loc history Σ; (* For the heap. *)
+  view_inG :> inG Σ (authR viewUR);                 (* For views. *)
+  crashed_at_inG :> inG Σ (agreeR viewO);        (* For crashed at knowledge. *)
 }.
+
+(** Names for the heap that needs to change after a crash. *)
+Record nvm_heap_names := {
+  name_gen_heap : gname;
+  name_gen_meta : gname;
+}.
+
+(** A record of all the ghost names useb by [nvmBaseG] that needs to change
+after a crash. *)
+Class nvm_base_names := {
+  heap_names_name : nvm_heap_names;  (* Names used by [gen_heap]. *)
+  store_view_name : gname;           (* Name used by the store view. *)
+  persist_view_name : gname;         (* Name used by the persist view. *)
+  crashed_at_view_name : gname;      (* Name used by the crashed at view. *)
+}.
+
+(* Things that change upon a crash. We would have like to _only_ have ghost
+names in this record, but due to how Perennial is implemented we need to keep
+the entire [crashG] in it. *)
+Class nvmBaseDeltaG Σ := {
+  nvm_base_crashG :> crashG Σ;
+  nvm_base_names' :> nvm_base_names;
+}.
+
+Class nvmBaseG Σ := NvmG {
+  nvm_base_inG :> nvmBaseFixedG Σ;
+  nvmBaseDeltaG' :> nvmBaseDeltaG Σ;
+}.
+
+(* If you have an [nvmBaseFixedG] and an [nvmBaseDeltaG] then you can get an
+[NvmG]. *)
+Existing Instance NvmG.
+
+(* When we have an [nvmBaseG] instance we can stich together a [gen_heapG]
+instance. We need this instance b.c. we store functors and the ghost names in
+separate records (for the post crash modality) and this means that we need this
+to construct the [gen_heapG] record that mixes these things together. *)
+Instance nvm_baseG_to_heapG `{nvmBaseG Σ} : gen_heapG loc _ Σ := {|
+  gen_heap_inG := _;
+  gen_heap_name := name_gen_heap (heap_names_name);
+  gen_meta_name := name_gen_meta (heap_names_name);
+|}.
 
 (** Get the largest time of any message in a given history. *)
 Definition max_msg (h : history) : time :=
@@ -95,7 +135,7 @@ Definition nvm_heap_ctx `{hG : !nvmBaseG Σ} σ : iProp Σ :=
 
 Global Program Instance nvmBaseG_irisG `{!nvmBaseG Σ} : irisG nvm_lang Σ := {
   iris_invG := nvmBaseG_invG;
-  iris_crashG := nvmBaseG_crashG;
+  iris_crashG := nvm_base_crashG;
   num_laters_per_step := λ n, n; (* This is the choice GooseLang takes. *)
   state_interp σ _nt := nvm_heap_ctx σ;
   global_state_interp _g _ns _κs := True%I;

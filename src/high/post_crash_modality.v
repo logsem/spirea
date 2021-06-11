@@ -3,14 +3,118 @@ From iris.base_logic Require Import ghost_map.
 From iris.proofmode Require Import reduction monpred tactics.
 
 From Perennial.Helpers Require Import ipm NamedProps.
+From Perennial.program_logic Require Import recovery_weakestpre.
 
-From self.base Require Import primitive_laws.
+From self.base Require Import primitive_laws wpr_lifting.
 From self.base Require post_crash_modality.
 From self.high Require Import dprop resources monpred_simpl.
 
 Set Default Proof Using "Type".
 
 Notation base_post_crash := post_crash_modality.post_crash.
+
+Record nvm_high_names := {
+  name_abs_history : gname;
+  name_know_abs_history : gname;
+  name_predicates : gname;
+  name_recovery_predicates : gname;
+  name_preorders : gname;
+  name_shared_locs : gname;
+  name_exclusive_locs : gname;
+}.
+
+Definition nvm_high_get_names Σ (hG : nvmHighG Σ) : nvm_high_names := {|
+  name_abs_history := abs_history_name;
+  name_know_abs_history := know_abs_history_name;
+  name_predicates := predicates_name;
+  name_preorders := preorders_name;
+  name_recovery_predicates := preorders_name;
+  name_shared_locs := shared_locs_name;
+  name_exclusive_locs := exclusive_locs_name;
+|}.
+
+Record nvm_names := {
+  name_base_names : nvm_base_names; (* Names used by the base logic. *)
+  name_high_names : nvm_high_names; (* Names used by the high-level logic. *)
+}.
+
+Canonical Structure nvm_namesO := leibnizO nvm_names.
+
+Class nvm_functors Σ := {
+  nvm_functors_base : nvmBaseFixedG Σ;
+  nvm_functors_high : nvmHighPreG Σ;
+}.
+
+Definition nvm_base_insert_names {Σ} (hPG : nvmBaseFixedG Σ)
+           (names : nvm_base_names) : nvmBaseG Σ :=
+  {|
+    nvm_base_inG := hPG;
+    store_view_name := names.(name_store_view);
+    persist_view_name := names.(name_persist_view);
+    crashed_at_view_name := names.(name_crashed_at_view);
+  |}.
+
+Definition nvm_high_update_names {Σ} (hG : nvmHighG Σ)
+           (names : nvm_high_names) :=
+  {|
+     nvm_high_inG := hG.(@nvm_high_inG _);
+     (* Ghost names *)
+     abs_history_name := names.(name_abs_history);
+     know_abs_history_name := names.(name_know_abs_history);
+     predicates_name := names.(name_predicates);
+     recovery_predicates_name := names.(name_recovery_predicates);
+     preorders_name := names.(name_preorders);
+     shared_locs_name := names.(name_shared_locs);
+     exclusive_locs_name := names.(name_exclusive_locs);
+  |}.
+
+Instance mk_nmvG {Σ}
+         (f : nvm_functors Σ) (b : pbundleG nvm_namesO Σ) : nvmG Σ :=
+  let bundle := b.(@pbundleT _ _) in
+  let base := bundle.(name_base_names) in
+  let high := bundle.(name_high_names) in {|
+    nvmG_baseG := {|
+      nvm_base_inG := f.(@nvm_functors_base _);
+      store_view_name := base.(name_store_view);
+      persist_view_name := base.(name_persist_view);
+      crashed_at_view_name := base.(name_crashed_at_view)
+    |};
+    nvmG_highG := {|
+      nvm_high_inG := f.(@nvm_functors_high _);
+      (* "Global" ghost names *)
+      abs_history_name := high.(name_abs_history);
+      know_abs_history_name := high.(name_know_abs_history);
+      predicates_name := high.(name_predicates);
+      recovery_predicates_name := high.(name_recovery_predicates);
+      preorders_name := high.(name_preorders);
+      shared_locs_name := high.(name_shared_locs);
+      exclusive_locs_name := high.(name_exclusive_locs);
+    |}
+  |}.
+
+(*
+Instance mk_nvmG {Σ} (hG : nvmG Σ) (b : pbundleG nvm_namesO Σ) : nvmG Σ | 0 := {|
+  (* nvmG_baseG := nvm_base_update_names (@nvmG_baseG _ hG) b.(name_base_names); *)
+  (* nvmG_highG := nvm_high_update_names (hG.(@nvmG_highG _)) b.(name_high_names); *)
+  nvmG_baseG := nvm_base_update_names (hG.(@nvmG_baseG _))
+                                      base;
+  nvmG_highG := nvm_high_update_names (hG.(@nvmG_highG _))
+                                      high;
+|}.
+*)
+
+Section test.
+  Context `{hG : nvm_functors Σ}.
+  Context `{b : pbundleG nvm_namesO Σ}.
+
+  (* Definition foo := crashed_at (∅). *)
+  Definition foo := λ (b' : pbundleG nvm_namesO Σ), crashed_at (∅).
+  (* Definition foo := let hG' := (@mk_nvmG _ _ _) in crashed_at (∅). *)
+
+  Set Printing All.
+  Print foo.
+  Unset Printing All.
+End test.
 
 (** We defined the post crash modality. *)
 
@@ -423,12 +527,20 @@ Program Definition post_crash_consistent_cut `{hG : !nvmG Σ} (P : nvmG Σ → d
   )%I _.
 Next Obligation. intros ??????. solve_proper. Qed.
 *)
+Program Definition post_crash_consistent_cut `{hG : !nvmG Σ}
+        (P : nvmG Σ → dProp Σ) : dProp Σ :=
+  (∀ TV, monPred_in TV -∗
+    <PC> (λ hG', ∃ CV, ⌜persist_view TV ⊑ CV⌝ ∗ ⎡crashed_at CV⎤ -∗ P hG'))%I.
+(* Next Obligation. intros ??????. apply post_crash_mono. solve_proper. Qed. *)
 
-Program Definition post_crash_consistent_cut `{hG : !nvmG Σ} (P : nvmG Σ → dProp Σ) :=
+(*
+Program Definition post_crash_consistent_cut `{hG : !nvmG Σ}
+        (P : nvmG Σ → dProp Σ) : dProp Σ :=
   MonPred (λ TV,
-    post_crash (λ hG', ∃ CV, ⌜persist_view TV ⊑ CV⌝ ∗ ⎡crashed_at CV⎤ -∗ P hG')
+    (post_crash (λ hG', ∃ CV, ⌜persist_view TV ⊑ CV⌝ ∗ ⎡crashed_at CV⎤ -∗ P hG')) TV
   )%I _.
 Next Obligation. intros ??????. apply post_crash_mono. solve_proper. Qed.
+*)
 
 Notation "'<PCCC>' P" :=
   (post_crash_consistent_cut P) (at level 20, right associativity) : bi_scope.
@@ -464,6 +576,6 @@ Section post_crash_persisted.
   (*   iApply know_store_lower_bound_at_zero; done. *)
   (*   iStartProof (iProp _). *)
   (* Qed. *)
-  
+
 
 End post_crash_persisted.

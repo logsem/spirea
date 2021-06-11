@@ -35,7 +35,16 @@ Definition preordersR := authR (gmapUR loc (agreeR relationO)).
 (* Resource algebra that contains all the locations that are _shared_. *)
 Definition shared_locsR := authR (gsetUR loc).
 
+Class nvmHighPreG Σ := {
+  ra_inG :> inG Σ (@predicatesR Σ);
+  ra_inG' :> inG Σ know_abs_historiesR;
+  abs_histories :> ghost_mapG Σ loc (gmap time positive);
+  preordersG :> inG Σ preordersR;
+  shared_locsG :> inG Σ shared_locsR
+}.
+
 Class nvmHighG Σ := NvmHighG {
+  nvm_high_inG :> nvmHighPreG Σ;
   (* "Global" ghost names *)
   abs_history_name : gname;
   know_abs_history_name : gname;
@@ -44,12 +53,6 @@ Class nvmHighG Σ := NvmHighG {
   preorders_name : gname;
   shared_locs_name : gname;
   exclusive_locs_name : gname;
-  (* Functors *)
-  ra_inG :> inG Σ (@predicatesR Σ);
-  ra_inG' :> inG Σ know_abs_historiesR;
-  abs_histories :> ghost_mapG Σ loc (gmap time positive);
-  preordersG :> inG Σ preordersR;
-  shared_locsG :> inG Σ shared_locsR
 }.
 
 Class nvmG Σ := NvmG {
