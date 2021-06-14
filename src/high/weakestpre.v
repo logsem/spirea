@@ -21,7 +21,7 @@ From self.lang Require Import syntax.
 From self.high Require Import resources crash_weakestpre lifted_modalities monpred_simpl modalities.
 
 Section wp.
-  Context `{!nvmG Σ}.
+  Context `{!nvmFixedG Σ, nvmDeltaG Σ}.
 
   Implicit Types (Φ : val → dProp Σ) (e : expr).
 
@@ -121,7 +121,7 @@ End wp.
 
 Section wp_rules.
   Context `{AbstractState abs_state}.
-  Context `{!nvmG Σ}.
+  Context `{!nvmFixedG Σ, nvmDeltaG Σ}.
 
   Implicit Types (ℓ : loc) (s : abs_state) (ϕ : abs_state → val → dProp Σ).
 

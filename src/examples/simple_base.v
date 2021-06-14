@@ -6,7 +6,7 @@ From self.base Require Import proofmode wpc_proofmode.
 From self.lang Require Import lang.
 
 Section simple_increment.
-  Context `{!nvmBaseG Σ}.
+  Context `{!nvmBaseFixedG Σ, nvmBaseDeltaG Σ}.
 
   Definition pure : expr :=
     let: "a" := #1 in
@@ -148,6 +148,7 @@ Section simple_increment.
     simpl.
     autorewrite with view_simpl in gt.
     autorewrite with view_simpl.
+    rewrite lookup_zero_singleton.
     iFrame "ℓ2pts".
   Qed.
   

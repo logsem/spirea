@@ -26,7 +26,7 @@ Definition pure : expr :=
   "a" + "b".
 
 Section specs.
-  Context `{!nvmG Σ}.
+  Context `{!nvmFixedG Σ, nvmDeltaG Σ}.
 
   Lemma wp_bin_op : ⊢ WP (#1 + #2) {{ v, ⌜1 = 1⌝ }}.
   Proof.
@@ -68,7 +68,7 @@ Section specs.
 End specs.
 
 Section simple_increment.
-  Context `{!nvmG Σ}.
+  Context `{!nvmFixedG Σ, nvmDeltaG Σ}.
 
   Definition incr (ℓa ℓb : loc) : expr :=
     #ℓa <- #1 ;;
@@ -83,6 +83,10 @@ Section simple_increment.
     then #() #() (* Get stuck. *)
     else #().
 
+  (* NOTE: This example is currently broken since the crash condition used is
+  not objective. We should use the post crash modality in the crash condition
+  (maybe built in to WPC). *)
+  (*
   Lemma wp_incr ℓa ℓb n E (Φ : val → dProp Σ) :
     ⊢ ℓa ↦ []; [0] | (λ s v, ⌜v = #s⌝) -∗
       ℓb ↦ []; [0] | (λ s v, ⌜v = #s⌝ ∗ know_persist_lower_bound ℓa s) -∗
@@ -149,6 +153,7 @@ Section simple_increment.
     iModIntro.
     iFrame "aPts bPts".
   Qed.
+  *)
 
   (* FIXME: Hoare triples don't work as Perennial's Hoare triples are tied to iProp. *)
   (* Lemma wpc_incr' (ℓa ℓb : loc) : *)

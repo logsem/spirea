@@ -23,7 +23,8 @@ Proof. by destruct p, q. Qed.
 
 (** This definition captures the resources and knowledge you gain _after_ a
 crash if you own a points-to predicate _prior to_ a crash. *)
-Definition mapsto_post_crash {Σ} (hG : nvmBaseG Σ) ℓ q (hist : history) : iProp Σ :=
+Definition mapsto_post_crash `{nvmBaseFixedG Σ}
+           (hG : nvmBaseDeltaG Σ) ℓ q (hist : history) : iProp Σ :=
   (∃ t msg,
       ⌜hist !! t = Some msg⌝ ∗
       ℓ ↦h{#q} ({[ 0 := Msg msg.(msg_val) ∅ ∅ ∅ ]}) ∗
@@ -32,7 +33,8 @@ Definition mapsto_post_crash {Σ} (hG : nvmBaseG Σ) ℓ q (hist : history) : iP
             crashed_at CV) ∨
   (∀ CV, crashed_at CV -∗ ⌜CV !! ℓ = None⌝).
 
-Instance fractional_mapsto_post_crash {Σ : gFunctors} hG' ℓ hist : Fractional (λ p : Qp, mapsto_post_crash (Σ := Σ) hG' ℓ p hist).
+Instance fractional_mapsto_post_crash `{nvmBaseFixedG Σ} hG' ℓ hist :
+  Fractional (λ p : Qp, mapsto_post_crash (Σ := Σ) hG' ℓ p hist).
 Proof.
   rewrite /Fractional.
   iIntros (p q).
@@ -59,7 +61,8 @@ Section if_non_zero.
     end.
 
   Lemma if_non_zero_cases q P :
-    if_non_zero q P ⊣⊢ ⌜q = 0%Qc⌝ ∨ ∃ qp, ⌜(0 < q)%Qc⌝ ∗ ⌜q = Qp_to_Qc qp⌝ ∗ P qp.
+    if_non_zero q P
+      ⊣⊢ ⌜q = 0%Qc⌝ ∨ ∃ qp, ⌜(0 < q)%Qc⌝ ∗ ⌜q = Qp_to_Qc qp⌝ ∗ P qp.
   Proof.
     rewrite /if_non_zero.
     iSplit.
@@ -120,7 +123,8 @@ Section if_non_zero.
       * admit.
   Admitted.
 
-  Lemma if_non_zero_exchange_1 (q1 q2 : Qc) p (P Q : Qp → iProp Σ) `{!Fractional P, !Fractional Q}:
+  Lemma if_non_zero_exchange_1 (q1 q2 : Qc) p (P Q : Qp → iProp Σ)
+        `{!Fractional P, !Fractional Q}:
     (Qp_to_Qc p ≤ q2)%Qc →
     P p ∗ if_non_zero q1 P ∗ if_non_zero q2 Q ⊢
     if_non_zero (q1 + Qp_to_Qc p)  P ∗ if_non_zero (q2 - Qp_to_Qc p) Q ∗ Q p.
@@ -151,10 +155,12 @@ search. *)
 
 (** This map is used to exchange points-to predicates valid prior to a crash
 into points-to predicates valid after the crash. *)
-Definition post_crash_map {Σ} (σ__old : store) (hG hG' : nvmBaseG Σ) : iProp Σ :=
+Definition post_crash_map `{nvmBaseFixedG Σ} (σ__old : store)
+           (hG hG' : nvmBaseDeltaG Σ) : iProp Σ :=
   (* Used to conclude that the locations owned are included in the heap in
   question. *)
-  (∀ ℓ dq (hist : history), (let hG := hG in ℓ ↦h{dq} hist) -∗ ⌜σ__old !! ℓ = Some hist⌝) ∗
+  (∀ ℓ dq (hist : history),
+      (let hG := hG in ℓ ↦h{dq} hist) -∗ ⌜σ__old !! ℓ = Some hist⌝) ∗
   (* The map used to the the exchange. *)
   [∗ map] ℓ ↦ hist ∈ σ__old,
     ∃ (qc pc : Qc),
@@ -162,19 +168,20 @@ Definition post_crash_map {Σ} (σ__old : store) (hG hG' : nvmBaseG Σ) : iProp 
       (if_non_zero pc (λ p, mapsto_post_crash hG' ℓ p hist)) ∗
       ⌜(qc + pc = 1)%Qc⌝.
 
-Definition persisted_impl {Σ} hG hG' : iProp Σ :=
-  □ ∀ V, persisted (hG := hG) V -∗
-    persisted (hG := hG') (view_to_zero V) ∗
-     ∃ CV, ⌜V ⊑ CV⌝ ∗ crashed_at (hG := hG') CV.
+Definition persisted_impl `{nvmBaseFixedG Σ} hGD hGD' : iProp Σ :=
+  □ ∀ V, persisted (hGD := hGD) V -∗
+    persisted (hGD := hGD') (view_to_zero V) ∗
+     ∃ CV, ⌜V ⊑ CV⌝ ∗ crashed_at (hGD := hGD') CV.
 
-Definition post_crash {Σ} (P : nvmBaseDeltaG Σ → iProp Σ)
-           `{hG : !nvmBaseFixedG Σ, hDG : nvmBaseDeltaG Σ} : iProp Σ :=
+Definition post_crash `{nvmBaseFixedG Σ, hDG : nvmBaseDeltaG Σ}
+           (P : nvmBaseDeltaG Σ → iProp Σ) : iProp Σ :=
   (∀ (σ : mem_config) hDG',
-    persisted_impl (NvmG _ hG hDG) (NvmG _ hG hDG') -∗
-    post_crash_map σ.1 (NvmG _ hG hDG) (NvmG _ hG hDG') -∗
-    (post_crash_map σ.1 (NvmG _ hG hDG) (NvmG _ hG hDG') ∗ P hDG')).
+    persisted_impl hDG hDG' -∗
+    post_crash_map σ.1 hDG hDG' -∗
+    (post_crash_map σ.1 hDG hDG' ∗ P hDG')).
 
-Lemma post_crash_map_exchange {Σ} σ__old (hG hG' : nvmBaseG Σ) ℓ q hist :
+Lemma post_crash_map_exchange `{nvmBaseFixedG Σ} σ__old
+      (hG hG' : nvmBaseDeltaG Σ) ℓ q hist :
   post_crash_map σ__old hG hG' -∗
   (let hG := hG in ℓ ↦h{#q} hist) -∗
     post_crash_map σ__old hG hG' ∗
@@ -342,7 +349,7 @@ Section post_crash_prop.
   (*   iExists x. iApply ("Hall" with "[$] [$]"). *)
   (* Qed. *)
 
-  (* Global Instance from_exist_post_crash {A} (Φ: nvmBaseG Σ → iProp Σ) (Ψ: nvmBaseG Σ → A → iProp Σ) *)
+  (* Global Instance from_exist_post_crash {A} (Φ: nvmBaseFixedG Σ, nvmBaseDeltaG Σ → iProp Σ) (Ψ: nvmBaseFixedG Σ, nvmBaseDeltaG Σ → A → iProp Σ) *)
   (*   {Himpl: ∀ hG, FromExist (Φ hG) (λ x, Ψ hG x)} : *)
   (*   FromExist (post_crash (λ hG, Φ hG)) (λ x, post_crash (λ hG, Ψ hG x)). *)
   (* Proof. *)
@@ -472,7 +479,8 @@ Section post_crash_prop.
 
 End post_crash_prop.
 
-Class IntoCrash {Σ} `{!nvmBaseG Σ} (P: iProp Σ) (Q: nvmBaseDeltaG Σ → iProp Σ) :=
+Class IntoCrash {Σ} `{nvmBaseFixedG Σ, nvmBaseDeltaG Σ}
+      (P: iProp Σ) (Q: nvmBaseDeltaG Σ → iProp Σ) :=
   into_crash : P -∗ post_crash (Σ := Σ) (λ hG', Q hG').
 
 Section IntoCrash.
@@ -511,7 +519,7 @@ Section IntoCrash.
 (*   Qed. *)
 
   (* XXX: probably should rephrase in terms of IntoPure *)
-  Global Instance pure_into_crash (P: Prop) :
+  Global Instance pure_into_crash (P : Prop) :
     IntoCrash (⌜ P ⌝%I) (λ _, ⌜ P ⌝%I).
   Proof. rewrite /IntoCrash. iIntros "%". by iApply post_crash_pure. Qed.
 
@@ -552,7 +560,7 @@ Section IntoCrash.
 (*   Qed. *)
 
 (*   Global Instance big_sepL_into_crash: *)
-(*     ∀ (A : Type) Φ (Ψ : nvmBaseG Σ → nat → A → iProp Σ) (l : list A), *)
+(*     ∀ (A : Type) Φ (Ψ : nvmBaseFixedG Σ, nvmBaseDeltaG Σ → nat → A → iProp Σ) (l : list A), *)
 (*     (∀ (k : nat) (x : A), IntoCrash (Φ k x) (λ hG, Ψ hG k x)) → *)
 (*     IntoCrash ([∗ list] k↦x ∈ l, Φ k x)%I (λ hG, [∗ list] k↦x ∈ l, Ψ hG k x)%I. *)
 (*   Proof. *)
@@ -569,7 +577,7 @@ Section IntoCrash.
 (*   Qed. *)
 
 (*   Global Instance big_sepM_into_crash `{Countable K} : *)
-(*     ∀ (A : Type) Φ (Ψ : nvmBaseG Σ → K → A → iProp Σ) (m : gmap K A), *)
+(*     ∀ (A : Type) Φ (Ψ : nvmBaseFixedG Σ, nvmBaseDeltaG Σ → K → A → iProp Σ) (m : gmap K A), *)
 (*     (∀ (k : K) (x : A), IntoCrash (Φ k x) (λ hG, Ψ hG k x)) → *)
 (*     IntoCrash ([∗ map] k↦x ∈ m, Φ k x)%I (λ hG, [∗ map] k↦x ∈ m, Ψ hG k x)%I. *)
 (*   Proof. *)
@@ -586,7 +594,7 @@ Section IntoCrash.
 (*   Qed. *)
 
 (*   Global Instance big_sepS_into_crash `{Countable K} : *)
-(*     ∀ Φ (Ψ : nvmBaseG Σ → K → iProp Σ) (m : gset K), *)
+(*     ∀ Φ (Ψ : nvmBaseFixedG Σ, nvmBaseDeltaG Σ → K → iProp Σ) (m : gset K), *)
 (*     (∀ (k : K), IntoCrash (Φ k) (λ hG, Ψ hG k)) → *)
 (*     IntoCrash ([∗ set] k ∈ m, Φ k)%I (λ hG, [∗ set] k ∈ m, Ψ hG k)%I. *)
 (*   Proof. *)
@@ -632,7 +640,7 @@ Ltac crash_env Γ :=
   match Γ with
     | environments.Enil => idtac
     | environments.Esnoc ?Γ' ?id (post_crash _) => crash_env Γ'
-    | environments.Esnoc ?Γ' ?id ?A => first [ iEval (rewrite (@into_crash _ _ A) ) in id || iClear id ] ; crash_env Γ'
+    | environments.Esnoc ?Γ' ?id ?A => first [ iEval (rewrite (@into_crash _ _ _ A) ) in id || iClear id ] ; crash_env Γ'
   end.
 
 Ltac crash_ctx :=
@@ -652,7 +660,7 @@ Ltac iCrash :=
 
 Section post_crash_modality_test.
   Context {Σ: gFunctors}.
-  Context `{hG: !nvmBaseG Σ}.
+  Context `{nvmBaseFixedG Σ, nvmBaseDeltaG Σ}.
   Context `{Q : iProp Σ}.
   Context `{Hi1: !IntoCrash P P'}.
   Context `{Hi2: !IntoCrash Q Q'}.
@@ -661,7 +669,8 @@ Section post_crash_modality_test.
     P -∗ persisted {[ ℓ := MaxNat t ]} -∗ ⌜ R ⌝ -∗ post_crash (λ hG', P' hG').
   Proof using All.
     iIntros "HP HQ HR".
-    iCrash. iFrame.
+    iCrash.
+    iFrame.
   Qed.
 
 End post_crash_modality_test.

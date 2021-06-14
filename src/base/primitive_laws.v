@@ -40,29 +40,34 @@ Class nvm_base_names := {
 (* Things that change upon a crash. We would have like to _only_ have ghost
 names in this record, but due to how Perennial is implemented we need to keep
 the entire [crashG] in it. *)
-Class nvmBaseDeltaG Σ := {
+Class nvmBaseDeltaG Σ := MkNvmBaseDeltaG {
   nvm_base_crashG :> crashG Σ;
   nvm_base_names' :> nvm_base_names;
 }.
 
-Class nvmBaseG Σ := NvmG {
-  nvm_base_inG :> nvmBaseFixedG Σ;
-  nvmBaseDeltaG' :> nvmBaseDeltaG Σ;
-}.
+(* Class nvmBaseFixedG Σ, nvmBaseDeltaG Σ := NvmBaseG { *)
+(*   nvm_base_inG :> nvmBaseFixedG Σ; *)
+(*   nvmBaseDeltaG' :> nvmBaseDeltaG Σ; *)
+(* }. *)
 
 (* If you have an [nvmBaseFixedG] and an [nvmBaseDeltaG] then you can get an
-[NvmG]. *)
-Existing Instance NvmG.
+[nvmBaseG]. *)
+(* Existing Instance NvmBaseG. *)
 
 (* When we have an [nvmBaseG] instance we can stich together a [gen_heapG]
 instance. We need this instance b.c. we store functors and the ghost names in
 separate records (for the post crash modality) and this means that we need this
 to construct the [gen_heapG] record that mixes these things together. *)
-Instance nvm_baseG_to_heapG `{nvmBaseG Σ} : gen_heapG loc _ Σ := {|
+Instance nvm_baseG_to_heapG `{nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ} : gen_heapG loc _ Σ := {|
   gen_heap_inG := _;
   gen_heap_name := name_gen_heap (heap_names_name);
   gen_meta_name := name_gen_meta (heap_names_name);
 |}.
+(* Instance nvm_baseG_to_heapG `{nvmBaseFixedG Σ, nvmBaseDeltaG Σ} : gen_heapG loc _ Σ := {| *)
+(*   gen_heap_inG := _; *)
+(*   gen_heap_name := name_gen_heap (heap_names_name); *)
+(*   gen_meta_name := name_gen_meta (heap_names_name); *)
+(* |}. *)
 
 (** Get the largest time of any message in a given history. *)
 Definition max_msg (h : history) : time :=
@@ -117,23 +122,25 @@ for each location. We call this the "lub view" b.c., in an actual execution this
 view will be the l.u.b. of all the threads views. *)
 Definition lub_view (heap : store) : view := MaxNat <$> (max_msg <$> heap).
 
-Definition hist_inv lub hist `{!nvmBaseG Σ} : iProp Σ :=
+Definition hist_inv lub hist `{!nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ} : iProp Σ :=
   ( (* Every history has an initial message. *)
     ⌜is_Some (hist !! 0)⌝ ∗ (* FIXME: Move this into the points-to predicate. *)
     (* Every view in every message is included in the lub view. *)
     ([∗ map] t ↦ msg ∈ hist, ⌜msg.(msg_store_view) ⊑ lub⌝))%I.
 
-Definition store_inv `{hG : !nvmBaseG Σ} store : iProp Σ :=
+Definition store_inv `{hG : !nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ} store : iProp Σ :=
   ([∗ map] hist ∈ store, hist_inv (lub_view store) hist).
 
-Definition nvm_heap_ctx `{hG : !nvmBaseG Σ} σ : iProp Σ :=
-  gen_heap_interp σ.1 ∗ (* The interpretation of the heap. This is standard, except the heap store historie and not plain values. *)
+Definition nvm_heap_ctx `{hG : !nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ} σ : iProp Σ :=
+  gen_heap_interp σ.1 ∗ (* The interpretation of the heap. This is standard,
+  except the heap store historie and not plain values. *)
   own store_view_name (● (lub_view σ.1)) ∗
   store_inv σ.1 ∗
   own persist_view_name (● σ.2) ∗
   (∃ (rv : view), own crashed_at_view_name (to_agree rv : agreeR viewO)).
 
-Global Program Instance nvmBaseG_irisG `{!nvmBaseG Σ} : irisG nvm_lang Σ := {
+Global Program Instance nvmBaseG_irisG `{!nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ} :
+  irisG nvm_lang Σ := {
   iris_invG := nvmBaseG_invG;
   iris_crashG := nvm_base_crashG;
   num_laters_per_step := λ n, n; (* This is the choice GooseLang takes. *)
@@ -153,7 +160,8 @@ Notation "l ↦h{# q } v" := (mapsto (L:=loc) (V:=history) l (DfracOwn q) (v%V))
 Notation "l ↦h v" := (mapsto (L:=loc) (V:=history) l (DfracOwn 1) (v%V))
   (at level 20, format "l  ↦h  v") : bi_scope.
 
-Lemma auth_auth_grow {A : ucmra} `{!CmraDiscrete A} (a a' : A) : ✓a' → a ≼ a' → ● a ~~> ● a'.
+Lemma auth_auth_grow {A : ucmra} `{!CmraDiscrete A} (a a' : A) :
+  ✓a' → a ≼ a' → ● a ~~> ● a'.
 Proof.
   intros val [a'' eq]. rewrite eq.
   apply (auth_update_auth _ _ a'').
@@ -171,7 +179,8 @@ Section view_ra_rules.
   Lemma view_valid (V : view) : ✓ V.
   Proof. intros ?. case (_ !! _); done. Qed.
 
-  Lemma auth_auth_view_grow_op γ V V' : ⊢ own γ (● V) ==∗ own γ (● (V ⋅ V')) ∗ own γ (◯ V').
+  Lemma auth_auth_view_grow_op γ V V' :
+    ⊢ own γ (● V) ==∗ own γ (● (V ⋅ V')) ∗ own γ (◯ V').
   Proof.
     iIntros "H".
     iMod (own_update with "H") as "[Ho Hf]".
@@ -193,22 +202,21 @@ End view_ra_rules.
 
 (* Expresses that the view [V] is valid. This means that it is included in the
 lub view. *)
-Definition validV {Σ} `{hG : nvmBaseG Σ} (V : view) : iProp Σ :=
+Definition validV {Σ} `{nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ} (V : view) : iProp Σ :=
   own store_view_name (◯ V).
 
 (* Expresses that the view [P] is persisted. This means that it is included in
 the global persisted view. *)
-Definition persisted {Σ} `{hG : nvmBaseG Σ} (V : view) : iProp Σ :=
+Definition persisted {Σ} `{nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ} (V : view) : iProp Σ :=
   own persist_view_name (◯ V).
 
 (* Expresses that the view [rv] was recovered after the last crash. *)
-Definition crashed_at {Σ} `{hG : nvmBaseG Σ} (CV : view) : iProp Σ :=
+Definition crashed_at {Σ} `{nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ}
+           (CV : view) : iProp Σ :=
   own crashed_at_view_name (to_agree CV).
-  (* ∃ fullRv, ⌜map_Forall (λ ℓ t, fullRv !! ℓ = Some t) rv⌝ ∗ *)
-  (*           own crashed_at_view_name (to_agree fullRv). *)
 
 Section crashed_at.
-  Context `{!nvmBaseG Σ}.
+  Context `{nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ}.
 
   Lemma crashed_at_agree CV CV' :
     crashed_at CV -∗ crashed_at CV' -∗ ⌜CV = CV'⌝.
@@ -222,7 +230,7 @@ End crashed_at.
 
 (** * Lemmas about [lub_view] *)
 Section lub_view.
-  Context `{!nvmBaseG Σ}.
+  Context `{!nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ}.
   Implicit Types hist : history.
   Implicit Types ℓ : loc.
 
@@ -263,8 +271,8 @@ Section lub_view.
       lia.
     * rewrite !lookup_insert_ne; [|done|done].
       move: incl. rewrite lookup_included.
-      intros H. pose proof (H ℓ') as H.
-      etrans; first apply H.
+      intros le. pose proof (le ℓ') as le.
+      etrans; first apply le.
       rewrite !lookup_fmap. done.
   Qed.
 
@@ -362,7 +370,7 @@ Section lub_view.
 End lub_view.
 
 Section persisted.
-  Context `{!nvmBaseG Σ}.
+  Context `{!nvmBaseFixedG Σ, nvmBaseDeltaG Σ}.
 
   Lemma persisted_auth_included dq PV PV' :
     own persist_view_name (●{dq} PV) -∗ persisted PV' -∗ ⌜PV' ⊑ PV⌝.
@@ -383,7 +391,7 @@ End persisted.
 
 Section lifting.
 
-  Context `{!nvmBaseG Σ}.
+  Context `{!nvmBaseFixedG Σ, nvmBaseDeltaG Σ}.
 
   Implicit Types Q : iProp Σ.
   Implicit Types Φ Ψ : val → iProp Σ.
@@ -601,9 +609,9 @@ Section lifting.
       inv_impure_thread_step.
       iSplitR=>//.
       iFrame "Hheap lubauth persist Hincl Ht".
-      rewrite -lookup_fmap in H10.
-      apply lookup_fmap_Some in H10.
-      destruct H10 as [x [??]].
+      rewrite -lookup_fmap in H11.
+      apply lookup_fmap_Some in H11.
+      destruct H11 as [x [??]].
       iApply "HΦ". iFrame.
       iPureIntro.
       split_and!; done.
@@ -702,7 +710,7 @@ Section lifting.
       iApply "HΦ".
       iModIntro.
       iFrame "%∗".
-      iSplit. { rewrite H10. done. }
+      iSplit. { rewrite H11. done. }
       iCombine "Hval viewT" as "v".
       rewrite -view_insert_op; last lia.
       iFrame "v".
@@ -758,7 +766,7 @@ Section lifting.
       iApply "HΦ".
       iModIntro.
       iFrame "%∗".
-      iSplit. { rewrite H10. done. }
+      iSplit. { rewrite H11. done. }
       iCombine "Hval viewT" as "v".
       rewrite -view_insert_op; last lia.
       iFrame "v".

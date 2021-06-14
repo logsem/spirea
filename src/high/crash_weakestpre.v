@@ -11,7 +11,7 @@ From self.high Require Export dprop resources lifted_modalities monpred_simpl
      post_crash_modality.
 
 Section wpc.
-  Context `{hG : !nvmG Σ}.
+  Context `{nvmFixedG Σ, hGD : nvmDeltaG Σ}.
 
   (* NOTE: The definition uses [i < j] and not [i ≤ j] in order to make the
   lemma [increasing_map_singleton] provable. When we use [increating_map] the

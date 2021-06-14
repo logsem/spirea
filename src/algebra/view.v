@@ -64,6 +64,10 @@ Notation "m !!0 l" := (lookup_zero m l) (at level 50).
 Lemma view_lookup_zero_empty ℓ : ((∅ : view) !!0 ℓ) = 0.
 Proof. rewrite /lookup_zero. by rewrite lookup_empty. Qed.
 
+Lemma lookup_zero_singleton ℓ t : ({[ ℓ := MaxNat t ]} : view) !!0 ℓ = t.
+Proof. rewrite /lookup_zero. rewrite lookup_singleton. done. Qed.
+  
+
 Lemma view_empty_least V : ∅ ⊑ V.
 Proof.
   rewrite subseteq_view_incl.

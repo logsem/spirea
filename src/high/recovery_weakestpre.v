@@ -22,31 +22,32 @@ Notation pbundleG := recovery_weakestpre.pbundleG.
 
 Notation perennialG := recovery_weakestpre.perennialG.
 
-Record nvm_high_names := {
-  name_abs_history : gname;
-  name_know_abs_history : gname;
-  name_predicates : gname;
-  name_recovery_predicates : gname;
-  name_preorders : gname;
-  name_shared_locs : gname;
-  name_exclusive_locs : gname;
-}.
+(* Record nvm_high_names := { *)
+(*   name_abs_history : gname; *)
+(*   name_know_abs_history : gname; *)
+(*   name_predicates : gname; *)
+(*   name_recovery_predicates : gname; *)
+(*   name_preorders : gname; *)
+(*   name_shared_locs : gname; *)
+(*   name_exclusive_locs : gname; *)
+(* }. *)
 
-Definition nvm_high_get_names Σ (hG : nvmHighG Σ) : nvm_high_names :=
-  {| name_abs_history := abs_history_name;
-     name_know_abs_history := know_abs_history_name;
-     name_predicates := predicates_name;
-     name_preorders := preorders_name;
-     name_recovery_predicates := preorders_name;
-     name_shared_locs := shared_locs_name;
-     name_exclusive_locs := exclusive_locs_name;
-  |}.
+(* Definition nvm_high_get_names Σ (hG : nvmHighG Σ) : nvm_high_names := *)
+(*   {| name_abs_history := abs_history_name; *)
+(*      name_know_abs_history := know_abs_history_name; *)
+(*      name_predicates := predicates_name; *)
+(*      name_preorders := preorders_name; *)
+(*      name_recovery_predicates := preorders_name; *)
+(*      name_shared_locs := shared_locs_name; *)
+(*      name_exclusive_locs := exclusive_locs_name; *)
+(*   |}. *)
 
-Canonical Structure nvm_high_namesO := leibnizO nvm_high_names.
+(* Canonical Structure nvm_high_namesO := leibnizO nvm_high_names. *)
 
-(** Given an [hG : nvmG Σ], update the fields per the information in the rest of
+(** Given an [hG : nvmFixedG Σ, nvmDeltaG Σ], update the fields per the information in the rest of
 the arguments. In particular, all the gnames in [names] replaces the
 corresponding gnames in [hG]. *)
+(*
 Definition nvm_high_update Σ (hG : nvmHighG Σ) (names : nvm_high_names) :=
   {| (* Ghost names *)
      abs_history_name := names.(name_abs_history);
@@ -63,63 +64,67 @@ Definition nvm_high_update Σ (hG : nvmHighG Σ) (names : nvm_high_names) :=
      preordersG := hG.(@preordersG _);
      shared_locsG := hG.(@shared_locsG _);
   |}.
+*)
 
+(*
 Record nvm_names := {
   name_base_names : nvm_base_names; (* Names used by the base logic. *)
   name_high_names : nvm_high_names; (* Names used by the high-level logic. *)
 }.
+*)
 
-Definition nvm_get_names Σ (hG : nvmG Σ) : nvm_names :=
-  {| name_base_names := nvm_base_get_names _ nvmG_baseG;
-     name_high_names := nvm_high_get_names _ nvmG_highG |}.
+(* Definition nvm_get_names Σ (hG : nvmFixedG Σ, nvmDeltaG Σ) : nvm_names := *)
+(*   {| name_base_names := nvm_base_get_names _ nvmG_baseG; *)
+(*      name_high_names := nvm_high_get_names _ nvmG_highG |}. *)
 
-Canonical Structure nvm_namesO := leibnizO nvm_names.
+(* Canonical Structure nvm_namesO := leibnizO nvm_names. *)
 
-(** Given an [hG : nvmG Σ], update the fields per the information in the rest of
-the arguments. In particular, all the gnames in [names] replaces the
-corresponding gnames in [hG]. *)
-Definition nvm_update Σ (hG : nvmG Σ) (Hinv : invG Σ) (Hcrash : crashG Σ) (names : nvm_names) :=
-  {| nvmG_baseG := nvm_base_update _ hG.(@nvmG_baseG _) Hinv Hcrash names.(name_base_names);
-     nvmG_highG := nvm_high_update _ hG.(@nvmG_highG _) names.(name_high_names) |}.
+(* (** Given an [hG : nvmFixedG Σ, nvmDeltaG Σ], update the fields per the information in the rest of *)
+(* the arguments. In particular, all the gnames in [names] replaces the *)
+(* corresponding gnames in [hG]. *) *)
+(* Definition nvm_update Σ (hG : nvmFixedG Σ, nvmDeltaG Σ) (Hinv : invG Σ) (Hcrash : crashG Σ) (names : nvm_names) := *)
+(*   {| nvmG_baseG := nvm_base_update _ hG.(@nvmG_baseG _) Hinv Hcrash names.(name_base_names); *)
+(*      nvmG_highG := nvm_high_update _ hG.(@nvmG_highG _) names.(name_high_names) |}. *)
 
 (* The recovery WP is parameterized by two predicates: [Φ] is the postcondition
    for normal non-crashing execution and [Φr] is the postcondition satisfied in
    case of a crash. *)
-Definition wpr_pre Σ (s : stuckness) (k : nat)
-    (wpr : nvmG Σ -d> coPset -d> expr -d> expr -d> (val -d> dPropO Σ) -d>
-                     (nvmG Σ -d> val -d> dPropO Σ) -d> dPropO Σ) :
-  nvmG Σ -d> coPset -d> expr -d> expr -d> (val -d> dPropO Σ) -d>
-  (nvmG Σ -d> val -d> dPropO Σ) -d> dPropO Σ :=
-  λ hG E e e_rec Φ Φr,
+Definition wpr_pre `{nvmFixedG Σ} (s : stuckness) (k : nat)
+    (wpr : nvmDeltaG Σ -d> coPset -d> expr -d> expr -d> (val -d> dPropO Σ) -d>
+                     (nvmDeltaG Σ -d> val -d> dPropO Σ) -d> dPropO Σ) :
+  nvmDeltaG Σ -d> coPset -d> expr -d> expr -d> (val -d> dPropO Σ) -d>
+  (nvmDeltaG Σ -d> val -d> dPropO Σ) -d> dPropO Σ :=
+  λ hGD E e e_rec Φ Φr,
   (WPC e @ s ; k; E
      {{ Φ }}
      {{ ∀ σ σ' (HC : crash_prim_step nvm_crash_lang σ σ') n,
         ⎡ interp -∗ state_interp σ n ={E}=∗ ▷ ∀ (Hc1 : crashG Σ) q, NC q ={E}=∗
-          ∃ (names : nvm_names),
-            let hG := (nvm_update Σ hG _ Hc1 names) in
+          ∃ (hGD' : nvmDeltaG Σ), (* Maybe state that [hGD'] contains [Hc1] *)
+            (* let hG := (nvm_update Σ hG _ Hc1 names) in *)
               state_interp σ' 0 ∗
-              (monPred_at (wpr hG E e_rec e_rec (λ v, Φr hG v) Φr) (∅, ∅, ∅)) ∗
+              (monPred_at (wpr hGD' E e_rec e_rec (λ v, Φr hGD' v) Φr) (∅, ∅, ∅)) ∗
               NC q ⎤
      }})%I.
 
-Local Instance wpr_pre_contractive {Σ} s k: Contractive (wpr_pre Σ s k).
+Local Instance wpr_pre_contractive `{nvmFixedG Σ} s k: Contractive (wpr_pre s k).
 Proof.
   rewrite /wpr_pre. intros ??? Hwp ??????.
   apply wpc_ne; eauto;
   repeat (f_contractive || f_equiv). apply Hwp.
 Qed.
 
-Definition wpr_def {Σ} (s : stuckness) k := fixpoint (wpr_pre Σ s k).
-Definition wpr_aux {Σ} : seal (@wpr_def Σ). by eexists. Qed.
-Definition wpr' {Σ} := (@wpr_aux Σ).(unseal).
-Lemma wpr_eq {Σ} : @wpr' Σ = @wpr_def Σ.
-Proof. rewrite /wpr'. rewrite wpr_aux.(seal_eq). done. Qed.
+Definition wpr_def `{nvmFixedG Σ} (s : stuckness) k := fixpoint (wpr_pre s k).
+Definition wpr_aux `{nvmFixedG Σ} : seal (@wpr_def Σ). by eexists. Qed.
+Definition wpr' `{nvmFixedG Σ} := (wpr_aux).(unseal).
+Definition wpr_eq `{nvmFixedG Σ} : wpr' = @wpr_def _ := wpr_aux.(seal_eq).
+(* Lemma wpr_eq `{nvmFixedG Σ} : @wpr' Σ = @wpr_def Σ. *)
+(* Proof. rewrite /wpr'. rewrite wpr_aux.(seal_eq). done. Qed. *)
 
-Lemma wpr_unfold `{hG : nvmG Σ} st k E e rec Φ Φc :
-  wpr' st k hG E e rec Φ Φc ⊣⊢ wpr_pre Σ st k (wpr' st k) hG E e rec Φ Φc.
+Lemma wpr_unfold `{nvmFixedG Σ, hGD : nvmDeltaG Σ} st k E e rec Φ Φc :
+  wpr' _ st k hGD E e rec Φ Φc ⊣⊢ wpr_pre st k (wpr' _ st k) hGD E e rec Φ Φc.
 Proof.
   rewrite wpr_eq. rewrite /wpr_def.
-  apply (fixpoint_unfold (wpr_pre Σ st k)).
+  apply (fixpoint_unfold (wpr_pre st k)).
 Qed.
 
 (* For each location in [p] pick the message in the store that it specifies. *)
@@ -151,9 +156,12 @@ Proof.
   exists s. naive_solver.
 Qed.
 
-Lemma map_points_to_to_new {Σ} logHists store p' (hG hG' : nvmBaseG Σ) :
+(** If we have a map of points-to predicates prior to a crash and know what we
+we crashed at, then we can get a map of points-to predicates for the new
+heap. *)
+Lemma map_points_to_to_new `{nvmBaseFixedG Σ} logHists store p' (hG hG' : nvmBaseDeltaG Σ) :
   consistent_cut p' store →
-  own (@crashed_at_view_name _ hG') (to_agree p') -∗
+  own (@crashed_at_view_name (@nvm_base_names' _ hG')) (to_agree p') -∗
   base.post_crash_modality.post_crash_map store hG hG' -∗
   ([∗ map] ℓ ↦ hist ∈ logHists, let hG := hG in ℓ ↦h (fst <$> hist)) -∗
   ([∗ map] ℓ ↦ hist ∈ (slice_of_hist p' logHists), let hG := hG' in ℓ ↦h (fst <$> hist)).
@@ -181,7 +189,7 @@ Proof.
     apply subseteq_dom.
     apply restrict_subseteq. }
   iDestruct (big_sepM2_alt with "map") as "[%fall map]".
-  iApply (big_sepM_impl_sub with "map").
+  iDestruct (big_sepM_impl_sub _ _ _ (slice_of_hist _ _) with "map []") as "[$ _]".
   { rewrite /slice_of_hist.
     rewrite !map_zip_with_dom.
     rewrite (restrict_dom_subset _ store).
@@ -193,7 +201,7 @@ Proof.
   simpl.
   rewrite /post_crash_modality.if_non_zero.
   destruct (decide (0 < qc)%Qc).
-  { iDestruct (mapsto_ne with "pts left") as %H. exfalso. by apply H. }
+  { by iDestruct (mapsto_ne with "pts left") as %Hi. }
   iDestruct "left" as %->.
   rewrite Qcplus_0_l in sum.
   rewrite sum.
@@ -233,10 +241,10 @@ Proof.
   iFrame "newPts".
 Qed.
 
-Definition wpr `{nvmG Σ} s k := wpr' s k _.
+Definition wpr `{nvmFixedG Σ, nvmDeltaG Σ} s k := wpr' _ s k _.
 
 Section wpr.
-  Context `{hG : nvmG Σ}.
+  Context `{nvmFixedG Σ}.
 
   Lemma slice_of_hist_dom_subset p hists :
     dom (gset loc) (slice_of_hist p hists) ⊆ dom (gset loc) hists.
@@ -244,24 +252,24 @@ Section wpr.
     rewrite /slice_of_hist.
     intros l.
     rewrite !elem_of_dom.
-    intros [??].
-    apply map_lookup_zip_with_Some in H.
-    destruct H as (? & ? & ? & ? & ?).
+    intros [? look].
+    apply map_lookup_zip_with_Some in look.
+    destruct look as (? & ? & ? & ? & ?).
     eexists _. done.
   Qed.
 
   (* Given the state interpretations _before_ a crash we reestablish the
   interpretations _after_ a crash. *)
-  Lemma nvm_reinit (hG' : nvmG Σ) n Pg tv σ σ' (Hinv : invG Σ) (Hcrash : crashG Σ) :
+  Lemma nvm_reinit (hGD : nvmDeltaG Σ) n Pg tv σ σ' (Hinv : invG Σ) (Hcrash : crashG Σ) :
     crash_step σ σ' →
     ⊢ interp -∗
       state_interp σ n -∗
       (post_crash Pg) tv ==∗
-      ∃ names : nvm_names,
-        let hG := nvm_update Σ hG' Hinv Hcrash names in
-          interp (hG := hG) ∗
+      ∃ (hGD' : nvmDeltaG Σ),
+        (* let hG := nvm_update Σ hG' Hinv Hcrash names in *)
+          interp (hGD := hGD') ∗
           nvm_heap_ctx (hG := _) σ' ∗
-          Pg hG (∅, ∅, ∅).
+          Pg hGD' (∅, ∅, ∅).
   Proof.
     (* iIntros (step). *)
     iIntros ([store p p' pIncl cut]).
@@ -297,14 +305,18 @@ Section wpr.
     (* We are done allocating ghost state and can now present a new bundle of
     ghost names. *)
     iModIntro.
-    iExists
-      ({| name_base_names := baseNames;
-          name_high_names := {| name_abs_history := new_abs_history_name;
-                                name_know_abs_history := new_know_abs_history_name;
-                                name_predicates := new_predicates_name;
-                                name_preorders := new_orders_name;
-                                name_shared_locs := new_shared_locs_name;
-                             |} |}).
+    iExists (
+        NvmDeltaG _
+                  (MkNvmBaseDeltaG _ Hcrash baseNames)
+                  ({| abs_history_name := new_abs_history_name;
+                      know_abs_history_name := new_know_abs_history_name;
+                      predicates_name := new_predicates_name;
+                      recovery_predicates_name := _;
+                      preorders_name := new_orders_name;
+                      shared_locs_name := new_shared_locs_name;
+                      exclusive_locs_name := _;
+                   |})
+      ).
     iFrame "interp'".
     rewrite /nvm_heap_ctx.
     (* iFrame. *)
@@ -313,7 +325,7 @@ Section wpr.
     iDestruct ("Pg" $! _ (((λ h : abs_history (message * positive), snd <$> h) <$> hists)) (store, _) _ with "persImpl map'") as "(map' & Pg)".
     simpl.
     iDestruct
-      (map_points_to_to_new hists _ _ _ (nvm_base_update Σ nvmG_baseG Hinv Hcrash baseNames)
+      (map_points_to_to_new hists _ _ _ (MkNvmBaseDeltaG Σ Hcrash baseNames)
          with "newCrashedAt map' ptsMap") as "ptsMap"; first done.
     rewrite /post_crash_map.
     iDestruct ("Pg" with "[history knowHistories]") as "[$ WHAT]".
@@ -373,7 +385,7 @@ Section wpr.
   Admitted.
 
   (*
-  Lemma nvm_reinit' (hG' : nvmG Σ) n σ σ' (Hinv : invG Σ) (Hcrash : crashG Σ) Pg :
+  Lemma nvm_reinit' (hG' : nvmFixedG Σ, nvmDeltaG Σ) n σ σ' (Hinv : invG Σ) (Hcrash : crashG Σ) Pg :
     crash_step σ σ' →
     ⊢ ⎡interp⎤ -∗
       ⎡state_interp σ n⎤ -∗
@@ -390,14 +402,14 @@ Section wpr.
   *)
 
   (* _The_ lemma for showing a recovery weakest precondition. *)
-  Lemma idempotence_wpr s k E1 e rec Φ Φr Φc `{∀ hG, Objective (Φc hG)} :
-    ⊢ WPC e @ s ; k ; E1 {{ Φ }} {{ Φc hG }} -∗
-      (<obj> □ ∀ (hG' : nvmG Σ),
+  Lemma idempotence_wpr `{hGD : nvmDeltaG Σ} s k E1 e rec Φ Φr Φc `{∀ hG, Objective (Φc hG)} :
+    ⊢ WPC e @ s ; k ; E1 {{ Φ }} {{ Φc _ }} -∗
+      (<obj> □ ∀ (hG' : nvmDeltaG Σ),
             Φc hG' -∗ ▷ post_crash (λ hG', (WPC rec @ s ; k; E1 {{ Φr hG' }} {{ Φc hG' }}))) -∗
       wpr s k E1 e rec Φ Φr.
   Proof.
     iStartProof (iProp _).
-    iLöb as "IH" forall (e Φ hG).
+    iLöb as "IH" forall (e Φ hGD).
 
     iIntros (?). monPred_simpl.
     iIntros "wpc".
@@ -429,7 +441,7 @@ Section wpr.
     iExists names.
     iFrame.
     monPred_simpl.
-    iSpecialize ("IH" $! _ _ (nvm_update Σ hG iris_invG Hc1 names) (∅, ∅, ∅) with "[idemp] [Hidemp]").
+    iSpecialize ("IH" $! _ _ names (∅, ∅, ∅) with "[idemp] [Hidemp]").
     { done. }
     { monPred_simpl. done. }
     iApply "IH".

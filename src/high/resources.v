@@ -16,7 +16,7 @@ Definition predicateR {Σ} := agreeR (positive -d> val -d> laterO (optionO (dPro
 Definition predicatesR {Σ} := authR (gmapUR loc (@predicateR Σ)).
 
 (* Definition recPredicateR {Σ} := *)
-(*   agreeR (positive -d> val -d> laterO (nvmG Σ -d> optionO (dPropO Σ))). *)
+(*   agreeR (positive -d> val -d> laterO (nvmFixedG Σ, nvmDeltaG Σ -d> optionO (dPropO Σ))). *)
 (* Definition recPredicatesR {Σ} := authR (gmapUR loc (@predicateR Σ)). *)
 
 Notation abs_history := (gmap time).
@@ -35,7 +35,7 @@ Definition preordersR := authR (gmapUR loc (agreeR relationO)).
 (* Resource algebra that contains all the locations that are _shared_. *)
 Definition shared_locsR := authR (gsetUR loc).
 
-Class nvmHighPreG Σ := {
+Class nvmHighFixedG Σ := {
   ra_inG :> inG Σ (@predicatesR Σ);
   ra_inG' :> inG Σ know_abs_historiesR;
   abs_histories :> ghost_mapG Σ loc (gmap time positive);
@@ -43,8 +43,7 @@ Class nvmHighPreG Σ := {
   shared_locsG :> inG Σ shared_locsR
 }.
 
-Class nvmHighG Σ := NvmHighG {
-  nvm_high_inG :> nvmHighPreG Σ;
+Class nvmHighDeltaG := MkNvmHighDeltaG {
   (* "Global" ghost names *)
   abs_history_name : gname;
   know_abs_history_name : gname;
@@ -55,9 +54,19 @@ Class nvmHighG Σ := NvmHighG {
   exclusive_locs_name : gname;
 }.
 
-Class nvmG Σ := NvmG {
-  nvmG_baseG :> nvmBaseG Σ;
-  nvmG_highG :> nvmHighG Σ;
+Class nvmHighG Σ := NvmHighG {
+  nvm_high_inG :> nvmHighFixedG Σ;
+  nvm_high_deltaG :> nvmHighDeltaG;
+}.
+
+Class nvmFixedG Σ := NvmFixedG {
+  nvmG_baseG :> nvmBaseFixedG Σ;
+  nvmG_highG :> nvmHighFixedG Σ;
+}.
+
+Class nvmDeltaG Σ := NvmDeltaG {
+  nvm_delta_base :> nvmBaseDeltaG Σ;
+  nvm_delta_high :> nvmHighDeltaG
 }.
 
 Class AbstractState T := {
@@ -77,7 +86,7 @@ Proof. rewrite ghost_map_elem_eq /ghost_map_elem_def. apply _. Qed.
 (** We define a few things about the resource algebra that that we use to encode
 abstract histories. *)
 Section abs_history_lemmas.
-  Context `{hG : nvmG Σ}.
+  Context `{nvmFixedG Σ, hGD : nvmDeltaG Σ}.
   Context `{Countable ST}.
 
   Implicit Types (abs_hist : gmap time ST) (ℓ : loc).
@@ -270,7 +279,7 @@ Section abs_history_lemmas.
 End abs_history_lemmas.
 
 Section predicates.
-  Context `{!nvmG Σ}.
+  Context `{nvmFixedG Σ, nvmDeltaG Σ}.
 
   Definition predO := positive -d> val -d> optionO (dPropO Σ).
 
@@ -352,11 +361,11 @@ End predicates.
 
 (*
 Section recovery_predicates.
-  Context `{!nvmG Σ}.
+  Context `{!nvmFixedG Σ, nvmDeltaG Σ}.
 
-  Definition recPredO := positive -d> val -d> optionO (nvmG Σ -d> dPropO Σ).
+  Definition recPredO := positive -d> val -d> optionO (nvmFixedG Σ, nvmDeltaG Σ -d> dPropO Σ).
 
-  Definition pred_to_ra (pred : positive → val → option (nvmG Σ → dProp Σ)) :
+  Definition pred_to_ra (pred : positive → val → option (nvmFixedG Σ, nvmDeltaG Σ → dProp Σ)) :
     (@predicateR Σ) :=
     to_agree ((λ a b, Next (pred a b))).
 
@@ -423,7 +432,7 @@ Definition mapply {A B} `{MBind M, FMap M} (mf : M (A → B)) (a : M A) :=
 Notation "mf <*> a" := (mapply mf a) (at level 61, left associativity).
 
 Section preorders.
-  Context `{hG : nvmG Σ}.
+  Context `{nvmFixedG Σ, hGD : nvmDeltaG Σ}.
   Context `{Countable A}.
 
   Definition encode_relation (R : relation2 A) : relation2 positive :=
@@ -508,7 +517,7 @@ Section preorders.
 End preorders.
 
 Section points_to_shared.
-  Context `{!nvmG Σ}.
+  Context `{nvmFixedG Σ, nvmDeltaG Σ}.
 
   Implicit Types (Φ : val → dProp Σ) (e : expr).
 
