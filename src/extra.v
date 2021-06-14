@@ -197,17 +197,30 @@ Section big_sepM.
     by setoid_rewrite wand_elim_l.
   Qed.
 
-  Lemma big_sepM_impl_2 {B}
+  (* upstream *)
+  Lemma map_filter_id (P : (K * A → Prop)) `{∀ (x : (K * A)), Decision (P x)} m
+    : (∀ k x, m !! k = Some x → P (k, x)) → filter P m = m.
+  Proof.
+    intros Hi. induction m as [|i y m ? IH] using map_ind; [done|].
+    rewrite map_filter_insert.
+    - rewrite IH; [done|].
+      intros j ??. apply Hi. destruct (decide (i = j)); [naive_solver|].
+      apply lookup_insert_Some. naive_solver.
+    - apply Hi. by rewrite lookup_insert.
+  Qed.
+
+  Lemma big_sepM_impl_strong {B}
         (Φ : K → A → PROP) (Ψ : K → B → PROP) (m1 : gmap K A) (m2 : gmap K B) :
     ([∗ map] k↦x ∈ m1, Φ k x) -∗
     □ (∀ (k : K) (y : B),
           ⌜m2 !! k = Some y⌝ -∗
           ((∃ (x : A), ⌜m1 !! k = Some x⌝ ∗ Φ k x) ∨ ⌜m1 !! k = None⌝) -∗
           Ψ k y) -∗
-    [∗ map] k↦y ∈ m2, Ψ k y.
+    ([∗ map] k↦y ∈ m2, Ψ k y) ∗
+    ([∗ map] k↦x ∈ (filter (λ '(k, _), m2 !! k = None) m1), Φ k x).
   Proof.
     revert Φ m1. induction m2 as [|i y m ? IH] using map_ind=> Φ.
-    - iIntros (m1) "_ _". done.
+    - iIntros (m1) "H _". rewrite map_filter_id; [by iFrame| naive_solver].
     - iIntros (m1) "A #H".
       rewrite big_sepM_insert; last done.
       destruct (m1 !! i) as [x|] eqn:look.
@@ -216,7 +229,7 @@ Section big_sepM.
         { by rewrite lookup_insert. }
         { iLeft. iExists x. iFrame. done. }
         iFrame.
-        iApply (IH with "[A] [H]").
+        iDestruct (IH with "[A] [H]") as "[$ Hi]".
         { iFrame "A". }
         { iModIntro.
           iIntros (i' y' look1) "disj".
@@ -227,11 +240,18 @@ Section big_sepM.
           iSpecialize ("H" $! look1 with "disj").
           done.
         }
-      * iDestruct ("H" $! i y with "[%] []") as "HΨ".
+        erewrite map_filter_strong_ext.
+        { iFrame "Hi". }
+        simpl.
+        intros j x'.
+        destruct (decide (i = j)).
+        { simplify_eq. rewrite lookup_delete. rewrite lookup_insert. naive_solver. }
+        rewrite lookup_delete_ne // lookup_insert_ne //.
+      * iDestruct ("H" $! i y with "[%] []") as "$".
         { by rewrite lookup_insert. }
         { iRight. iFrame. done. }
-        iFrame "HΨ".
-        iApply (IH with "[A] [H]").
+        (* iFrame "HΨ". *)
+        iDestruct (IH with "[A] [H]") as "Hi".
         { iFrame "A". }
         { iModIntro.
           iIntros (i' y' look1) "disj".
@@ -240,6 +260,12 @@ Section big_sepM.
           rewrite lookup_insert_ne; last done.
           iSpecialize ("H" $! look1 with "disj").
           done. }
+        iDestruct "Hi" as "[$ Hi]".
+        erewrite map_filter_strong_ext.
+        { iFrame "Hi". }
+        intros i' x'. simpl.
+        destruct (decide (i = i')) as [?|neq]; first naive_solver.
+        by rewrite lookup_insert_ne.
   Qed.
 
   Lemma big_sepM_impl_sub {B}
@@ -251,11 +277,12 @@ Section big_sepM.
           ⌜m2 !! k = Some y⌝ -∗
           Φ k x -∗
           Ψ k y) -∗
-    [∗ map] k↦y ∈ m2, Ψ k y.
+    ([∗ map] k↦y ∈ m2, Ψ k y) ∗
+    ([∗ map] k↦x ∈ (filter (λ '(k, _), m2 !! k = None) m1), Φ k x).
   Proof.
     intros sub.
     iIntros "M #impl".
-    iApply (big_sepM_impl_2 with "M [impl]").
+    iApply (big_sepM_impl_strong with "M [impl]").
     iIntros "!>" (?? look1) "H".
     iDestruct "H" as "[H|%]".
     2: { setoid_rewrite <- not_elem_of_dom in H1.

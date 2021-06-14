@@ -145,7 +145,7 @@ Section wpr.
   Proof.
     rewrite /store_inv.
     iIntros (cut) "H".
-    iApply (big_sepM_impl_sub with "H").
+    iDestruct (big_sepM_impl_sub _ _ _ (slice_of_store p store) with "H []") as "[$ _]".
     { rewrite /slice_of_store. apply map_zip_with_dom_snd. }
     rewrite /hist_inv.
     iIntros "!>" (ℓ h h' look look') "[%some H]".
@@ -221,7 +221,7 @@ Section wpr.
       iSplitL "heapIntrp".
       { iIntros (???) "pts".
         iApply (gen_heap_valid with "heapIntrp pts"). }
-      iApply (big_sepM_impl_2 with "ptsMap").
+      iDestruct (big_sepM_impl_strong _ _ _ σ with "ptsMap []") as "[$ _]".
       iModIntro.
       iIntros (ℓ hist look) "disj".
       (* Note: The first value below is just a fancy way of writing [0]. *)
