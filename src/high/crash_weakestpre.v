@@ -14,13 +14,15 @@ Section wpc.
   Context `{nvmFixedG Σ, hGD : nvmDeltaG Σ}.
 
   (* NOTE: The definition uses [i < j] and not [i ≤ j] in order to make the
-  lemma [increasing_map_singleton] provable. When we use [increating_map] the
+  lemma [increasing_map_singleton] provable. When we use [increasing_map] the
   relation [R] will always be reflexive, and hence this does not matter. The
   _knowledge_ that [R] is reflexive may not always be available however (since
   we may not know that [R] is in fact the encoding of some preorder, and hence
   this definition works best. *)
   Definition increasing_map (ss : gmap nat positive) (R : relation2 positive) :=
-    ∀ i j (s s' : positive), i < j → (ss !! i = Some s) → (ss !! j = Some s') → R s s'.
+    ∀ i j (s s' : positive),
+      i < j → (ss !! i = Some s) → (ss !! j = Some s') → R s s'.
+    (* NB: Add s ≠ s' in the conclusion to make the map strictly increasing. *)
 
   Lemma increasing_map_singleton t s R : increasing_map {[ t := s ]} R.
   Proof. intros ????? ?%lookup_singleton_Some ?%lookup_singleton_Some. lia. Qed.
@@ -36,6 +38,13 @@ Section wpc.
     transfered to the recovery program after a crash and the predicate then
     still holds. *)
     (m.(msg_store_view), m.(msg_persisted_after_view), ∅).
+
+  Definition encoded_predicate_holds
+             (enc_pred : positive → val → option (dProp Σ))
+             (enc_state : positive)
+             (v : val)
+             (TV : thread_view) : iProp Σ :=
+    (∃ (P : dProp Σ), ⌜enc_pred enc_state v = Some P⌝ ∗ P TV).
 
   (** This is our analog to the state interpretation in the Iris weakest
   precondition. We keep this in our crash weakest precondition ensuring that it
@@ -62,9 +71,8 @@ Section wpc.
       "map" ∷
         ([∗ map] ℓ ↦ hist; pred ∈ hists; preds,
           (* The predicate holds for each message in the history. *)
-          ([∗ map] t ↦ p ∈ hist, let '(msg, encState) := p in
-            (∃ (P : dProp Σ),
-              ⌜pred encState msg.(msg_val) = Some P⌝ ∗ P (msg_to_tv msg)))) ∗
+          ([∗ map] t ↦ p ∈ hist, let '(msg, encS) := p in
+            encoded_predicate_holds pred encS msg.(msg_val) (msg_to_tv msg))) ∗
       (* The predicates hold for the shared locations. *)
       (*
       "mapShared" ∷
@@ -116,7 +124,8 @@ Section wpc.
         interp -∗
         WPC (ThreadState e TV) @ s; k; E {{ λ res,
           let '(ThreadVal v TV') := res return _ in
-            ⌜TV ⊑ TV'⌝ ∗ (* The operational semantics always grow the thread view, encoding this in the WPC is convenient. *)
+            ⌜TV ⊑ TV'⌝ ∗ (* The operational semantics always grow the thread
+            view, encoding this in the WPC is convenient. *)
             validV (store_view TV') ∗ (Φ v TV') ∗ interp
           }}{{ Φc (∅, ∅, ∅) }}
     )%I _.
@@ -125,7 +134,8 @@ Section wpc.
   (* This sealing follows the same ritual as the [wp] in Iris. *)
   Definition wpc_aux : seal (@wpc_def). by eexists. Qed.
 
-  Global Instance expr_wpc : Wpc expr_lang (dProp Σ) stuckness nat := wpc_aux.(unseal).
+  Global Instance expr_wpc : Wpc expr_lang (dProp Σ) stuckness nat :=
+    wpc_aux.(unseal).
 
   Lemma wpc_eq : wpc = wpc_def.
   Proof. rewrite -wpc_aux.(seal_eq). done. Qed.
@@ -142,7 +152,8 @@ Section wpc.
     rewrite wpc_eq. constructor => V. solve_proper.
   Qed.
 
-  (** The weakest precondition is defined in terms of the crash weakest precondition. *)
+  (** The weakest precondition is defined in terms of the crash weakest
+  precondition. *)
   Definition wp_def : Wp expr_lang (dProp Σ) stuckness :=
     λ s E e Φ, (WPC e @ s ; 0 ; E {{ Φ }} {{ True }})%I.
   Definition wp_aux : seal (@wp_def). Proof. by eexists. Qed.
@@ -155,7 +166,7 @@ Section wpc.
 
   Lemma wpc_bind K s k E1 (e : expr) Φ Φc :
     WPC e @ s; k; E1 {{ v, WPC fill K (of_val v) @ s; k; E1 {{ Φ }} {{ Φc }} }} {{ Φc }}
-                      ⊢ WPC fill K e @ s; k; E1 {{ Φ }} {{ Φc }}.
+    ⊢ WPC fill K e @ s; k; E1 {{ Φ }} {{ Φc }}.
   Proof.
     rewrite wpc_eq.
     iStartProof (iProp _). iIntros (V).
@@ -201,7 +212,8 @@ Section wpc.
   Qed.
   *)
 
-  Lemma wpc_strong_mono s1 s2 k1 k2 E1 E2 e Φ Ψ Φc Ψc `{!Objective Φc, !Objective Ψc} :
+  Lemma wpc_strong_mono s1 s2 k1 k2 E1 E2 e Φ Ψ Φc Ψc
+        `{!Objective Φc, !Objective Ψc} :
     s1 ⊑ s2 → k1 ≤ k2 → E1 ⊆ E2 →
     WPC e @ s1; k1; E1 {{ Φ }} {{ Φc }} -∗
     (∀ v, Φ v -∗ |NC={E2}=> Ψ v) ∧ <disc> (Φc -∗ |C={E2}_k2=> Ψc) -∗
@@ -249,7 +261,8 @@ Section wpc.
       iApply objective_at.
   Qed.
 
-  Lemma wpc_strong_mono' s1 s2 k1 k2 E1 E2 e Φ Ψ Φc Ψc `{!Objective Φc, !Objective Ψc} :
+  Lemma wpc_strong_mono' s1 s2 k1 k2 E1 E2 e Φ Ψ Φc Ψc
+        `{!Objective Φc, !Objective Ψc} :
     s1 ⊑ s2 → k1 ≤ k2 → E1 ⊆ E2 →
     WPC e @ s1; k1; E1 {{ Φ }} {{ Φc }} -∗
     (∀ v, Φ v ={E2}=∗ Ψ v) ∧ <disc> (Φc -∗ |k2={E2}=> Ψc) -∗
@@ -373,7 +386,10 @@ Section wpc.
   (** * Derived rules *)
 
   Lemma wpc_mono s k E1 e Φ Ψ Φc Ψc `{!Objective Φc, !Objective Ψc} :
-    (∀ v, Φ v ⊢ Ψ v) → (Φc ⊢ Ψc) → WPC e @ s; k; E1 {{ Φ }} {{ Φc }} ⊢ WPC e @ s; k; E1 {{ Ψ }} {{ Ψc }}.
+    (∀ v, Φ v ⊢ Ψ v) →
+    (Φc ⊢ Ψc) →
+    WPC e @ s; k; E1 {{ Φ }} {{ Φc }} ⊢
+    WPC e @ s; k; E1 {{ Ψ }} {{ Ψc }}.
   Proof.
     iIntros (HΦ HΦc) "H"; iApply (wpc_strong_mono' with "H"); auto.
     iSplit.
@@ -381,7 +397,8 @@ Section wpc.
     - iIntros "!> ? !>". by iApply HΦc.
   Qed.
 
-  Lemma wp_mono s E e Φ Ψ : (∀ v, Φ v ⊢ Ψ v) → WP e @ s; E {{ Φ }} ⊢ WP e @ s; E {{ Ψ }}.
+  Lemma wp_mono s E e Φ Ψ :
+    (∀ v, Φ v ⊢ Ψ v) → WP e @ s; E {{ Φ }} ⊢ WP e @ s; E {{ Ψ }}.
   Proof. intros Hpost. rewrite wp_eq. apply: wpc_mono; done. Qed.
 
   Lemma wpc_atomic s k E1 e Φ Φc `{!AtomicBase StronglyAtomic e, !Objective Φc} :

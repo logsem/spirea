@@ -13,112 +13,7 @@ Set Default Proof Using "Type".
 
 Notation base_post_crash := post_crash_modality.post_crash.
 
-(* Record nvm_high_names := { *)
-(*   name_abs_history : gname; *)
-(*   name_know_abs_history : gname; *)
-(*   name_predicates : gname; *)
-(*   name_recovery_predicates : gname; *)
-(*   name_preorders : gname; *)
-(*   name_shared_locs : gname; *)
-(*   name_exclusive_locs : gname; *)
-(* }. *)
-
-(* Definition nvm_high_get_names Σ (hG : nvmHighG Σ) : nvm_high_names := {| *)
-(*   name_abs_history := abs_history_name; *)
-(*   name_know_abs_history := know_abs_history_name; *)
-(*   name_predicates := predicates_name; *)
-(*   name_preorders := preorders_name; *)
-(*   name_recovery_predicates := preorders_name; *)
-(*   name_shared_locs := shared_locs_name; *)
-(*   name_exclusive_locs := exclusive_locs_name; *)
-(* |}. *)
-
-(* Record nvm_names := { *)
-(*   name_base_names : nvm_base_names; (* Names used by the base logic. *) *)
-(*   name_high_names : nvm_high_names; (* Names used by the high-level logic. *) *)
-(* }. *)
-
-(* Canonical Structure nvm_namesO := leibnizO nvm_names. *)
-
-(* Class nvm_functors Σ := { *)
-(*   nvm_functors_base : nvmBaseFixedG Σ; *)
-(*   nvm_functors_high : nvmHighFixedG Σ; *)
-(* }. *)
-
-(* Definition nvm_base_insert_names {Σ} (hPG : nvmBaseFixedG Σ) *)
-(*            (names : nvm_base_names) : nvmBaseFixedG Σ, nvmBaseDeltaG Σ := *)
-(*   {| *)
-(*     nvm_base_inG := hPG; *)
-(*     store_view_name := names.(name_store_view); *)
-(*     persist_view_name := names.(name_persist_view); *)
-(*     crashed_at_view_name := names.(name_crashed_at_view); *)
-(*   |}. *)
-
-(* Definition nvm_high_update_names {Σ} (hG : nvmHighG Σ) *)
-(*            (names : nvm_high_names) := *)
-(*   {| *)
-(*      nvm_high_inG := hG.(@nvm_high_inG _); *)
-(*      (* Ghost names *) *)
-(*      abs_history_name := names.(name_abs_history); *)
-(*      know_abs_history_name := names.(name_know_abs_history); *)
-(*      predicates_name := names.(name_predicates); *)
-(*      recovery_predicates_name := names.(name_recovery_predicates); *)
-(*      preorders_name := names.(name_preorders); *)
-(*      shared_locs_name := names.(name_shared_locs); *)
-(*      exclusive_locs_name := names.(name_exclusive_locs); *)
-(*   |}. *)
-
-(* Instance mk_nmvG {Σ} *)
-(*          (f : nvm_functors Σ) (b : pbundleG nvm_namesO Σ) : nvmFixedG Σ, nvmDeltaG Σ := *)
-(*   let bundle := b.(@pbundleT _ _) in *)
-(*   let base := bundle.(name_base_names) in *)
-(*   let high := bundle.(name_high_names) in {| *)
-(*     nvmG_baseG := {| *)
-(*       nvm_base_inG := f.(@nvm_functors_base _); *)
-(*       store_view_name := base.(name_store_view); *)
-(*       persist_view_name := base.(name_persist_view); *)
-(*       crashed_at_view_name := base.(name_crashed_at_view) *)
-(*     |}; *)
-(*     nvmG_highG := {| *)
-(*       nvm_high_inG := f.(@nvm_functors_high _); *)
-(*       (* "Global" ghost names *) *)
-(*       abs_history_name := high.(name_abs_history); *)
-(*       know_abs_history_name := high.(name_know_abs_history); *)
-(*       predicates_name := high.(name_predicates); *)
-(*       recovery_predicates_name := high.(name_recovery_predicates); *)
-(*       preorders_name := high.(name_preorders); *)
-(*       shared_locs_name := high.(name_shared_locs); *)
-(*       exclusive_locs_name := high.(name_exclusive_locs); *)
-(*     |} *)
-(*   |}. *)
-
-(*
-Instance mk_nvmFixedG Σ, nvmDeltaG Σ{Σ} (hG : nvmFixedG Σ, nvmDeltaG Σ) (b : pbundleG nvm_namesO Σ) : nvmFixedG Σ, nvmDeltaG Σ | 0 := {|
-  (* nvmG_baseG := nvm_base_update_names (@nvmG_baseG _ hG) b.(name_base_names); *)
-  (* nvmG_highG := nvm_high_update_names (hG.(@nvmG_highG _)) b.(name_high_names); *)
-  nvmG_baseG := nvm_base_update_names (hG.(@nvmG_baseG _))
-                                      base;
-  nvmG_highG := nvm_high_update_names (hG.(@nvmG_highG _))
-                                      high;
-|}.
-*)
-
-(*
-Section test.
-  Context `{hG : nvm_functors Σ}.
-  Context `{b : pbundleG nvm_namesO Σ}.
-
-  (* Definition foo := crashed_at (∅). *)
-  Definition foo := λ (b' : pbundleG nvm_namesO Σ), crashed_at (∅).
-  (* Definition foo := let hG' := (@mk_nvmFixedG Σ, nvmDeltaG Σ_ _ _) in crashed_at (∅). *)
-
-  Set Printing All.
-  Print foo.
-  Unset Printing All.
-End test.
-*)
-
-(** We defined the post crash modality. *)
+(** We define the post crash modality. *)
 
 Definition know_history_post_crash `{nvmFixedG Σ}
             (hG : nvmDeltaG Σ) ℓ (hist : gmap time positive) : iProp Σ :=
@@ -143,7 +38,7 @@ Definition post_crash_history_impl {Σ} `{hG : nvmFixedG Σ}
 
 Definition post_crash_preorder_impl {Σ} `{nvmFixedG Σ}
            (hGD hGD' : nvmDeltaG Σ) : iProp Σ :=
-  □ ∀ ST `{AbstractState ST} ℓ,
+  □ ∀ ST (_ : AbstractState ST) ℓ,
     own_preorder_loc (hGD := hGD) ℓ abs_state_relation -∗
     (∃ CV,
       crashed_at (hGD := @nvm_delta_base _ hGD') CV ∗

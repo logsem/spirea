@@ -1,6 +1,6 @@
 # Cannot use non-canonical projections as it causes massive unification failures
 # (https://github.com/coq/coq/issues/6294).
--arg -w -arg -redundant-canonical-projection
+-arg -w -arg -notation-overridden,-redundant-canonical-projection
 
 -Q src self
 -Q external/perennial/external/stdpp/theories stdpp

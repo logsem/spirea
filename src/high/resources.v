@@ -10,39 +10,6 @@ From self.lang Require Import lang.
 From self.base Require Import primitive_laws.
 From self.high Require Import dprop lifted_modalities.
 
-(* Resource algebra used to represent agreement on which predicates are
-associated with which locations. *)
-Definition predicateR {Σ} := agreeR (positive -d> val -d> laterO (optionO (dPropO Σ))).
-Definition predicatesR {Σ} := authR (gmapUR loc (@predicateR Σ)).
-
-(* Definition recPredicateR {Σ} := *)
-(*   agreeR (positive -d> val -d> laterO (nvmFixedG Σ, nvmDeltaG Σ -d> optionO (dPropO Σ))). *)
-(* Definition recPredicatesR {Σ} := authR (gmapUR loc (@predicateR Σ)). *)
-
-Notation abs_history := (gmap time).
-
-(* Resource algebras that for each location stores the encoded abstract states
-associated with each message/store. *)
-Definition encoded_abs_historyR := gmapUR time (agreeR positiveO).
-Definition enc_abs_histories := gmap loc (gmap time positive).
-
-Definition know_abs_historiesR := authR (gmapUR loc (gmapUR time (agreeR positiveO))).
-
-(* Resourcce algebra that stores the encoded preorder for each location. *)
-Definition relationO := leibnizO (positive → positive → Prop).
-Definition preordersR := authR (gmapUR loc (agreeR relationO)).
-
-(* Resource algebra that contains all the locations that are _shared_. *)
-Definition shared_locsR := authR (gsetUR loc).
-
-Class nvmHighFixedG Σ := {
-  ra_inG :> inG Σ (@predicatesR Σ);
-  ra_inG' :> inG Σ know_abs_historiesR;
-  abs_histories :> ghost_mapG Σ loc (gmap time positive);
-  preordersG :> inG Σ preordersR;
-  shared_locsG :> inG Σ shared_locsR
-}.
-
 Class nvmHighDeltaG := MkNvmHighDeltaG {
   (* "Global" ghost names *)
   abs_history_name : gname;
@@ -54,6 +21,49 @@ Class nvmHighDeltaG := MkNvmHighDeltaG {
   exclusive_locs_name : gname;
 }.
 
+Class nvmDeltaG Σ := NvmDeltaG {
+  nvm_delta_base :> nvmBaseDeltaG Σ;
+  nvm_delta_high :> nvmHighDeltaG
+}.
+
+(* Resource algebra used to represent agreement on which predicates are
+associated with which locations. *)
+Definition predicateR {Σ} :=
+  agreeR (positive -d> val -d> laterO (optionO (dPropO Σ))).
+Definition predicatesR {Σ} := authR (gmapUR loc (@predicateR Σ)).
+
+(* Resource algebra used to represent the recovery predicates (i.e., the
+predicate that holds after a crash for a recovered message). *)
+Definition recPredicateR {Σ} :=
+  agreeR (positive -d> val -d> laterO (nvmDeltaG Σ -d> optionO (dPropO Σ))).
+Definition recPredicatesR {Σ} := authR (gmapUR loc (@recPredicateR Σ)).
+
+Notation abs_history := (gmap time).
+
+(* Resource algebras that for each location stores the encoded abstract states
+associated with each message/store. *)
+Definition encoded_abs_historyR := gmapUR time (agreeR positiveO).
+Definition enc_abs_histories := gmap loc (gmap time positive).
+
+Definition know_abs_historiesR :=
+  authR (gmapUR loc (gmapUR time (agreeR positiveO))).
+
+(* Resourcce algebra that stores the encoded preorder for each location. *)
+Definition relationO := leibnizO (positive → positive → Prop).
+Definition preordersR := authR (gmapUR loc (agreeR relationO)).
+
+(* Resource algebra that contains all the locations that are _shared_. *)
+Definition shared_locsR := authR (gsetUR loc).
+
+Class nvmHighFixedG Σ := {
+  ra_inG :> inG Σ (@predicatesR Σ);
+  recovery_predicates_inG :> inG Σ (@recPredicatesR Σ);
+  ra_inG' :> inG Σ know_abs_historiesR;
+  abs_histories :> ghost_mapG Σ loc (gmap time positive);
+  preordersG :> inG Σ preordersR;
+  shared_locsG :> inG Σ shared_locsR
+}.
+
 Class nvmHighG Σ := NvmHighG {
   nvm_high_inG :> nvmHighFixedG Σ;
   nvm_high_deltaG :> nvmHighDeltaG;
@@ -62,11 +72,6 @@ Class nvmHighG Σ := NvmHighG {
 Class nvmFixedG Σ := NvmFixedG {
   nvmG_baseG :> nvmBaseFixedG Σ;
   nvmG_highG :> nvmHighFixedG Σ;
-}.
-
-Class nvmDeltaG Σ := NvmDeltaG {
-  nvm_delta_base :> nvmBaseDeltaG Σ;
-  nvm_delta_high :> nvmHighDeltaG
 }.
 
 Class AbstractState T := {
@@ -97,8 +102,9 @@ Section abs_history_lemmas.
 
   Definition own_full_history_gname γ1 γ2 abs_hists : iProp Σ :=
     ghost_map_auth γ1 1 abs_hists ∗
-    own γ2
-        (● ((λ m : gmap _ _, to_agree <$> m) <$> abs_hists) : know_abs_historiesR).
+    own γ2 (
+      ● ((λ m : gmap _ _, to_agree <$> m) <$> abs_hists) : know_abs_historiesR
+    ).
 
   Definition own_full_history abs_hists : iProp Σ :=
     own_full_history_gname abs_history_name know_abs_history_name abs_hists.
@@ -106,7 +112,8 @@ Section abs_history_lemmas.
   Definition know_full_history_loc ℓ abs_hist : iProp Σ :=
     ℓ ↪[ abs_history_name ] (encode <$> abs_hist).
 
-  Definition know_full_encoded_history_loc ℓ (abs_hist : gmap time positive) : iProp Σ :=
+  Definition know_full_encoded_history_loc
+             ℓ (abs_hist : gmap time positive) : iProp Σ :=
     ℓ ↪[ abs_history_name ] abs_hist.
 
   Definition know_frag_history_loc ℓ (abs_hist : abs_history ST) : iProp Σ :=
@@ -190,7 +197,8 @@ Section abs_history_lemmas.
   Lemma own_frag_history_agree ℓ (part_hist : gmap time ST) hists :
     own_full_history hists -∗
     know_frag_history_loc ℓ part_hist -∗
-    ⌜∃ hist, hists !! ℓ = Some (hist) ∧ (Some <$> part_hist) ⊆ (decode <$> hist)⌝.
+    ⌜∃ hist, hists !! ℓ = Some (hist) ∧
+            (Some <$> part_hist) ⊆ (decode <$> hist)⌝.
   Proof.
     rewrite /own_full_history.
     iIntros "[O A]".
@@ -252,8 +260,6 @@ Section abs_history_lemmas.
       split; first reflexivity.
       rewrite /abs_hist_to_ra.
       apply Some_included_total.
-      (* rewrite map_fmap_compose. *)
-      (* rewrite !map_fmap_singleton. *)
       apply singleton_included_l.
       eexists _.
       rewrite lookup_fmap.
@@ -503,7 +509,7 @@ Section preorders.
     ∃ a b, decode ea = Some a ∧ decode eb = Some b ∧ R a b.
   Proof.
     rewrite /encode_relation.
-    destruct (decode ea) as [|a], (decode eb) as [|b]; try done.
+    destruct (decode ea) as [|], (decode eb) as [|]; try done.
     intros ?. eexists _, _. done.
   Qed.
 
