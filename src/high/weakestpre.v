@@ -18,7 +18,8 @@ From self Require Export view.
 From self Require Export lang.
 From self.base Require Import primitive_laws.
 From self.lang Require Import syntax.
-From self.high Require Import resources crash_weakestpre lifted_modalities monpred_simpl modalities.
+From self.high Require Import resources crash_weakestpre lifted_modalities
+     monpred_simpl modalities.
 
 Section wp.
   Context `{!nvmFixedG Σ, nvmDeltaG Σ}.
@@ -44,8 +45,8 @@ Section wp.
     - iModIntro. iModIntro. done.
   Qed.
 
-  (* Lemma wp_value_fupd s E Φ e v : IntoVal e v → (|={E}=> Φ v) ⊢ WP e @ s; E {{ Φ }}. *)
-  Lemma wp_value_fupd s E Φ e v : IntoVal e v → (|NC={E}=> Φ v) ⊢ WP e @ s; E {{ Φ }}.
+  Lemma wp_value_fupd s E Φ e v :
+    IntoVal e v → (|NC={E}=> Φ v) ⊢ WP e @ s; E {{ Φ }}.
   Proof. intros <-. apply wp_value_fupd'. Qed.
 
   (* If the expression is a value then showing the postcondition for the value
@@ -143,6 +144,64 @@ Section wp_rules.
 
   Hint Extern 0 (MakeMonPredAt _ (named _ _) _) => apply make_monPred_at_embed2 : typeclass_instances.
 
+  Lemma predicate_holds_phi ϕ s encS (encϕ : predO) v TV :
+    encS = encode s →
+    (encϕ ≡ encode_predicate ϕ)%I -∗
+    (encoded_predicate_holds encϕ encS v TV ∗-∗ ϕ s v TV).
+  Proof.
+    iIntros (eqEncS) "predsEquiv".
+    iSplit.
+    - iDestruct 1 as (P) "[%eqP PH]".
+      do 2 iEval (setoid_rewrite discrete_fun_equivI) in "predsEquiv".
+      iSpecialize ("predsEquiv" $! encS v).
+      rewrite /encode_predicate.
+      rewrite {2}eqEncS.
+      rewrite decode_encode.
+      simpl.
+      rewrite eqP.
+      rewrite option_equivI.
+      by iRewrite -"predsEquiv".
+    - iIntros "phi".
+      rewrite /encoded_predicate_holds.
+      do 2 iEval (setoid_rewrite discrete_fun_equivI) in "predsEquiv".
+      iSpecialize ("predsEquiv" $! encS v).
+      rewrite /encode_predicate. rewrite eqEncS. rewrite decode_encode.
+      simpl.
+      destruct (encϕ (encode s) v); rewrite option_equivI; last done.
+      iExists _. iSplit; first done.
+      by iRewrite "predsEquiv".
+  Qed.
+
+  Lemma predicate_holds_phi_decode ϕ s encS (encϕ : predO) v TV :
+    decode encS = Some s →
+    (encϕ ≡ encode_predicate ϕ)%I -∗
+    (encoded_predicate_holds encϕ encS v TV ∗-∗ ϕ s v TV).
+  Proof.
+    iIntros (eq') "predsEquiv".
+    iSplit.
+    - iDestruct 1 as (P') "[%eq PH]".
+      iDestruct (discrete_fun_equivI with "predsEquiv") as "HI".
+      iDestruct ("HI" $! encS) as "HIP". (* iClear "HI". *)
+      iEval (rewrite discrete_fun_equivI) in "HIP".
+      iDestruct ("HIP" $! v) as "HI". (* iClear "HIP". *)
+      rewrite /encode_predicate.
+      rewrite eq'.
+      simpl.
+      rewrite option_equivI.
+      rewrite eq.
+      iRewrite "HI" in "PH".
+      done.
+    - iIntros "phi".
+      rewrite /encoded_predicate_holds.
+      do 2 iEval (setoid_rewrite discrete_fun_equivI) in "predsEquiv".
+      iSpecialize ("predsEquiv" $! encS v).
+      rewrite /encode_predicate. rewrite eq'.
+      simpl.
+      destruct (encϕ encS v); rewrite option_equivI; last done.
+      iExists _. iSplit; first done.
+      by iRewrite "predsEquiv".
+  Qed.
+
   Lemma wp_load_ex ℓ ss ss' s Q ϕ positive E :
     last ss' = Some s →
     {{{ ℓ ↦ ss; ss' | ϕ ∗ <obj> (∀ v, ϕ s v -∗ Q v ∗ ϕ s v) }}}
@@ -166,7 +225,8 @@ Section wp_rules.
     (* We need to get the points-to predicate for [ℓ]. This is inside [interp]. *)
     (* rewrite /interp. *)
     iNamed "interp".
-    iDestruct (know_pred_agree with "preds knowPred") as (pred predsLook) "#predsEquiv".
+    iDestruct (know_pred_agree with "preds knowPred") as
+      (pred predsLook) "#predsEquiv".
     iDestruct (own_full_history_agree with "[$] [$]") as %look.
     apply lookup_fmap_Some in look.
     destruct look as [ℓhist [histAbsHist l]].
@@ -186,7 +246,7 @@ Section wp_rules.
     { destruct TV as [[??]?].
       destruct TV' as [[??]?].
       etrans.
-      apply know.
+      apply tvIn.
       etrans.
       apply incl.
       apply incl2. }
@@ -202,26 +262,10 @@ Section wp_rules.
       rewrite lookup_fmap.
       rewrite histLook.
       eauto. }
-      (* ∘rewrite fmap_comp in histAbsHist. *)
-      (* apply (elem_of_dom (M:=gmap time)). rewrite -domEq. apply elem_of_dom. *)
-      (* rewrite -lookup_fmap in look. *)
-      (* apply lookup_fmap_Some in look. *)
-      (* destruct look as [msg look']. *)
-      (* exists msg. apply look'. } *)
     assert (t' = tS) as ->.
     { apply Nat.lt_eq_cases in lte. destruct lte as [lt|]; last done.
       pose proof (nolater t' lt) as eq.
       rewrite eq in HI. inversion HI as [? [=]]. }
-    (* assert (v' = v) as ->. *)
-    (* { apply (inj Some). *)
-    (*   rewrite -lastVal -look. *)
-    (*   done. } *)
-    (* iAssert (⌜v' = v⌝)%I as %->. *)
-    (* { rewrite -lookup_fmap in look. *)
-    (*   apply lookup_fmap_Some in look. *)
-    (*   destruct look as [msg [msgEq look']]. *)
-    (*   iDestruct (big_sepM2_lookup with "map") as "%eq"; [done|done|]. *)
-    (*   iPureIntro. simpl in eq. congruence. } *)
     assert (absHist !! tS = Some s) as lookS.
     { rewrite -sLast.
       apply map_slice_lookup_hi in slice.
@@ -229,10 +273,9 @@ Section wp_rules.
       erewrite last_app; done. }
     clear lte HI.
 
-    iPoseProof (big_sepM2_dom with "map") as "%domEq".
-    (* We need to get the predicate for [s] and [v']. *)
-    (* iDestruct (big_sepM2_lookup_acc with "map") as "[HI HO]"; [done|done|]. *)
-    iDestruct (big_sepM2_lookup_acc with "map") as "[predMap map]"; [done|done|].
+    iDestruct (
+        location_sets_singleton_included with "exclusiveLocs isExclusiveLoc"
+      ) as %ℓEx.
     (* We now know exactly what the value in [ℓhist] at [tS] is. *)
     assert (s' = encode s) as sEq.
     { setoid_rewrite map_eq_iff in histAbsHist.
@@ -243,42 +286,30 @@ Section wp_rules.
       rewrite sLast.
       simpl.
       congruence. }
-    (* assert (ℓhist !! tS = Some (msg, encode s)). *)
-    (* { setoid_rewrite map_eq_iff in histAbsHist. *)
-    (*   pose proof (histAbsHist tS) as eq. *)
-    (* } *)
-    iDestruct (big_sepM_lookup_acc with "predMap") as "[predHolds predMap]"; first done.
+    iDestruct (big_sepM_lookup_acc with "map") as "[predMap map]".
+    { apply restrict_lookup_Some_2; done. }
+    iDestruct "predMap" as (pred' predsLook') "predMap".
+    assert (pred = pred') as <-. { apply (inj Some). rewrite -predsLook. done. }
+    clear predsLook'.
+    iDestruct (big_sepM_lookup_acc with "predMap") as "[predHolds predMap]";
+      first done.
     simpl.
-    iDestruct "predHolds" as (P') "[%eq PH]".
-    iDestruct (discrete_fun_equivI with "predsEquiv") as "HI".
-    iDestruct ("HI" $! s') as "HIP". iClear "HI".
-    iEval (rewrite discrete_fun_equivI) in "HIP".
-    iDestruct ("HIP" $! (msg_val msg)) as "HI". iClear "HIP".
-    rewrite /encode_predicate.
-    rewrite sEq.
-    rewrite decode_encode.
-    simpl.
-    iEval (rewrite -sEq) in "HI".
-    rewrite eq.
-    rewrite option_equivI.
-    iRewrite "HI" in "PH".
+    iDestruct (predicate_holds_phi with "predsEquiv predHolds") as "phi";
+      first done.
     rewrite monPred_at_objectively.
     iSpecialize ("pToQ" $! (msg_to_tv msg) (msg_val msg)).
     rewrite monPred_at_wand.
-    iSpecialize ("pToQ" $! (msg_to_tv msg)).
-    iDestruct ("pToQ" with "[//] PH") as "[Q phi]".
+    iDestruct ("pToQ" with "[//] phi") as "[Q phi]".
     (* Reinsert into the predicate map. *)
     iDestruct ("predMap" with "[phi]") as "predMap".
-    { iExists _. rewrite -sEq. iSplit; first done.
-      iRewrite "HI". done. }
+    { iApply (predicate_holds_phi with "predsEquiv phi"). done. }
     (* Reinsert into the map. *)
-    iDestruct ("map" with "[$predMap]") as "map".
-    (* { done. } *)
+    iDestruct ("map" with "[predMap]") as "map". { naive_solver. }
 
     iSplit; first done.
-    iSplitR "ptsMap allOrders ordered map history preds sharedLocs crashedAt
-             recPreds mapRecPredsImpl".
-    2: { iExists _, _, _, _, _, _, _. iFrame "∗#". done. }
+    iSplitR "ptsMap allOrders ordered map mapShared history preds exclusiveLocs
+             sharedLocs crashedAt recPreds mapRecPredsImpl".
+    2: { iExists _, _, _, _, _, _, _. iFrameNamed. }
     iApply "Φpost".
     iSplitR "Q".
     2: {
@@ -428,11 +459,12 @@ Section wp_rules.
 
   Lemma msg_persisted_views_eq
         (ℓ : loc) (hists : gmap loc (abs_history (message * positive)))
-        (hist : gmap time (message * positive)) (msg : message) (sharedLocs : gset loc) (t : time) (s' : positive) :
+        (hist : gmap time (message * positive)) (msg : message)
+        (sharedLocs : gset loc) (t : time) (s' : positive) :
     map_Forall
       (λ _ : loc,
-          map_Forall
-            (λ (_ : nat) '(msg, _), msg_persist_view msg = msg_persisted_after_view msg))
+        map_Forall
+          (λ _ '(msg, _), msg_persist_view msg = msg_persisted_after_view msg))
       (restrict sharedLocs hists) →
     hists !! ℓ = Some hist →
     hist !! t = Some (msg, s') →
@@ -441,22 +473,21 @@ Section wp_rules.
     ⌜msg.(msg_persist_view) = msg.(msg_persisted_after_view)⌝.
   Proof.
     iIntros (m look look') "A B".
-    iDestruct (own_valid_2 with "A B") as %[V%gset_included _]%auth_both_valid_discrete.
-    setoid_rewrite <- elem_of_subseteq_singleton in V.
+    iDestruct (location_sets_singleton_included with "A B") as %V.
     iPureIntro.
     assert (restrict sharedLocs hists !! ℓ = Some hist) as look2.
     - apply restrict_lookup_Some. done.
-    (* { apply restrict_lookup_Some. done. }. *)
     - setoid_rewrite map_Forall_lookup in m.
-    specialize (m ℓ hist look2).
-    setoid_rewrite map_Forall_lookup in m.
-    specialize (m t (msg, s') look').
-    simpl in m.
-    done.
+      specialize (m ℓ hist look2).
+      setoid_rewrite map_Forall_lookup in m.
+      specialize (m t (msg, s') look').
+      simpl in m.
+      done.
   Qed.
 
   Lemma wp_load_shared ℓ s1 s2 s3 Q ϕ positive E :
-    {{{ ℓ ↦ (s1, s2, s3) | ϕ ∗ <obj> (∀ s v, ⌜ s3 ⊑ s ⌝ ∗ ϕ s v -∗ Q s v ∗ ϕ s v) }}}
+    {{{ ℓ ↦ (s1, s2, s3) | ϕ ∗
+        <obj> (∀ s v, ⌜ s3 ⊑ s ⌝ ∗ ϕ s v -∗ Q s v ∗ ϕ s v) }}}
       LoadAcquire (Val $ LitV $ LitLoc ℓ) @ positive; E
     {{{ s v, RET v; ℓ ↦ (s1, s2, s) | ϕ ∗ post_fence (Q s v) }}}.
   Proof.
@@ -467,8 +498,7 @@ Section wp_rules.
     (* We destruct the points-to predicate. *)
     iNamed "pts".
     (* We only need the information related to the store view. *)
-    iDestruct "storeLB" as (tS s3' s3Incl ?lt) "[knowOrder histS3]".
-    (* iDestruct "pts" as (?tGP ?tP ?tS) "tmp". iNamed "tmp". *)
+    iNamed "storeLB".
     (* We unfold the WP. *)
     iIntros (TV' incl) "Φpost".
     rewrite wp_eq /wp_def.
@@ -479,6 +509,8 @@ Section wp_rules.
 
     (* We open [interp]. *)
     iNamed "interp".
+    iDestruct (crashed_at_agree with "crashed crashedAt") as %<-.
+    iClear "crashed".
 
     (* _Before_ we load the points-to predicate we deal with the predicate ϕ. We
     do this before such that the later that arrises is stripped off when we take
@@ -489,7 +521,8 @@ Section wp_rules.
     (* We need to get the points-to predicate for [ℓ] which is is inside
     [interp].  We want to look up the points-to predicate in [ptsMap]. To this
     end, we combine our fragment of the history with the authorative element. *)
-    iDestruct (own_frag_history_agree_singleton with "history histS3") as %look.
+    iDestruct (
+        own_frag_history_agree_singleton with "history knowFragHist") as %look.
     destruct look as (absHist & enc & histAbsHist & lookTS & decodeEnc).
     apply lookup_fmap_Some in histAbsHist.
     destruct histAbsHist as [hist [histAbsHist histsLook]].
@@ -501,7 +534,7 @@ Section wp_rules.
     iNext. iIntros (t' v' SV' PV' _PV') "(%look & %gt & #val' & pts)".
 
     apply lookup_fmap_Some in look.
-    destruct look as [[? s'] [msgEq histLook]].
+    destruct look as [[? s''] [msgEq histLook]].
     simpl in msgEq.
     rewrite /store_view.
     iDestruct ("ptsMap" with "pts") as "ptsMap".
@@ -521,31 +554,35 @@ Section wp_rules.
       f_equiv.
       etrans. apply incl. apply incl2. }
 
-    iDestruct (big_sepM2_lookup_acc with "map") as "[predMap map]"; [done|done|].
-    iDestruct (big_sepM_lookup_acc with "predMap") as "[predHolds predMap]"; first done.
+    iDestruct (
+        location_sets_singleton_included with "sharedLocs isSharedLoc"
+      ) as %ℓSh.
+    iDestruct (big_sepM_lookup_acc with "mapShared") as "[predMap mapShared]".
+    { apply restrict_lookup_Some_2; done. }
+    iDestruct "predMap" as (pred' recPred predsLook' recPredsLook) "predMap".
+    assert (pred = pred') as <-. { apply (inj Some). rewrite -predsLook. done. }
+    clear predsLook'.
+    iDestruct (big_sepM_lookup_acc with "predMap") as "[predHolds predMap]";
+      first done.
     simpl.
-    iDestruct "predHolds" as (P') "[%eq PH]".
-    iDestruct (discrete_fun_equivI with "predsEquiv") as "HI".
-    iDestruct ("HI" $! s') as "HIP". iClear "HI".
-    iEval (rewrite discrete_fun_equivI) in "HIP".
-    iDestruct ("HIP" $! v') as "HI". iClear "HIP".
-    rewrite msgEq. simpl.
-    rewrite msgEq in eq. simpl in eq.
-    rewrite eq.
+    iDestruct "predHolds" as "[(%t'Eq & %in & hi)|[%t'Disj predHolds]]".
+    { exfalso. destruct storeDisj; [lia | done]. }
+
     (* The loaded state must be greater than [s3]. *)
     iDestruct (big_sepM2_lookup_1 with "ordered") as (order) "[%ordersLook %increasingMap]".
     { apply histsLook. }
     iDestruct (orders_lookup with "allOrders knowOrder") as %orderEq; first apply ordersLook.
-    epose proof (increasingMap tS t' (encode s3) s') as hihi.
-    assert (order enc s') as orderRelated.
+    epose proof (increasingMap tS t' (encode s3) s'') as hihi.
+    assert (order enc s'') as orderRelated.
     { destruct (le_lt_or_eq _ _ lte) as [le|tSEq].
       - eapply increasingMap.
         * apply le.
         * subst. done.
         * rewrite lookup_fmap. rewrite histLook. done.
       - (* We can conclude that [enc] is equal to [t']. *)
-        assert (enc = s') as ->.
-        2: { rewrite orderEq. rewrite /encode_relation. rewrite decodeEnc. simpl. done. }
+        assert (enc = s'') as ->.
+        2: { rewrite orderEq. rewrite /encode_relation.
+             rewrite decodeEnc. simpl. done. }
         move: lookTS.
         rewrite -histAbsHist.
         rewrite lookup_fmap.
@@ -554,14 +591,13 @@ Section wp_rules.
         simpl.
         by intros [=]. }
     rewrite orderEq in orderRelated.
-    epose proof (encode_relation_related _ _ _ orderRelated) as (? & s & eqX & decodeS' & s3InclS').
-    assert (x = s3') as -> by congruence.
-    rewrite /encode_predicate.
-    rewrite decodeS'.
-    simpl.
-    rewrite option_equivI.
-    iRewrite "HI" in "PH".
-    rewrite /msg_to_tv. simpl.
+    epose proof (encode_relation_related _ _ _ orderRelated)
+      as (? & s & eqX & decodeS' & s3InclS').
+    assert (x = s') as -> by congruence.
+
+    iDestruct (predicate_holds_phi_decode with "predsEquiv predHolds") as "PH";
+      first done.
+    rewrite msgEq. simpl.
     iSpecialize ("pToQ" $! (SV', PV', ∅) s v').
     monPred_simpl.
     iEval (setoid_rewrite monPred_at_sep) in "pToQ".
@@ -570,10 +606,12 @@ Section wp_rules.
     { iPureIntro. etrans; done. }
     (* Reinsert into the predicate map. *)
     iDestruct ("predMap" with "[phi]") as "predMap".
-    { iExists _. iSplit; first done.
-      iRewrite "HI". done. }
+    { iRight. iFrame "%".
+      iApply (predicate_holds_phi_decode with "predsEquiv phi").
+      done. }
     (* Reinsert into the map. *)
-    iDestruct ("map" with "[$predMap]") as "map".
+    iDestruct ("mapShared" with "[predMap]") as "mapShared".
+    { naive_solver. }
 
     iMod (own_full_history_alloc with "history") as "[history histS]".
     { rewrite lookup_fmap.
@@ -588,9 +626,9 @@ Section wp_rules.
     iModIntro.
     (* We re-establish [interp]. *)
     iSplit. { iPureIntro. repeat split; try done; apply view_le_l. }
-    iSplitR "ptsMap allOrders ordered map history preds sharedLocs crashedAt
-             recPreds mapRecPredsImpl".
-    2: { iExists _, _, _, _, _, _, _. iFrame. iFrame "#". done. }
+    iSplitR "ptsMap allOrders ordered map mapShared history preds exclusiveLocs
+             sharedLocs crashedAt recPreds mapRecPredsImpl".
+    2: { iExists _, _, _, _, _, _, _. iFrameNamed. }
     iSpecialize ("Φpost" $! s v').
     monPred_simpl.
     iApply "Φpost".
@@ -605,9 +643,10 @@ Section wp_rules.
     - iFrame "knowPred isSharedLoc globalPerLB".
       iSplitL "persistLB".
       { iApply monPred_mono; done. }
-      iExists t', s.
-      iFrame.
+      iExists t', s, _.
+      iFrame "∗#".
       iSplit; first done.
+      iSplit. 2: { destruct storeDisj; naive_solver. }
       (* FIXME: Intuitively the lhs. should be included in because we read [t']
       and a write includes its own timestamp. But, we don't remember this fact,
       yet. *)

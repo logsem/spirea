@@ -387,8 +387,7 @@ Section post_crash_derived.
     know_global_per_lower_bound ℓ s -∗
     post_crash (λ hG,
       know_global_per_lower_bound ℓ s ∗
-      know_persist_lower_bound ℓ s ∗
-      know_store_lower_bound ℓ s).
+      know_persist_lower_bound ℓ s). (* ∗ know_store_lower_bound ℓ s). *)
   Proof.
     iStartProof (dProp _).
     iIntros "H".
@@ -404,9 +403,10 @@ Section post_crash_derived.
     iSplit.
     { iExists 0, s''. iFrame "#%". }
     (* We show the local persist lower bound. *)
-    iSplit.
-    { iApply know_persist_lower_bound_at_zero; done. }
-    iApply know_store_lower_bound_at_zero; done.
+    iApply know_persist_lower_bound_at_zero; done.
+    (* iSplit. *)
+    (* { iApply know_persist_lower_bound_at_zero; done. } *)
+    (* iApply know_store_lower_bound_at_zero; done. *)
   Qed.
 
   Lemma post_crash_mapsto_ex `{AbstractState ST} ℓ ss1 ss2 ϕ ψ :
@@ -417,8 +417,8 @@ Section post_crash_derived.
       (∀ t, ⎡¬ (crashed_at {[ ℓ := MaxNat t ]})⎤)
     ).
    Proof.
-     iDestruct 1 as (?????)
-       "(pts & preds & ? & ? & ? & ? & ? & ? & ?)".
+     rewrite /mapsto_ex.
+     iNamed 1.
      (* iCrash. *)
    Abort.
 

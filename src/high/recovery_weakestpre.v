@@ -358,13 +358,8 @@ Section wpr.
     (* We show the state interpretation for the high-level logic. *)
     iExists _, _, _, _, _, _, _.
     rewrite /own_full_history.
-    iFrame "newOrders".
-    iFrame "newPreds".
-    iFrame "hists'".
-    iFrame "newSharedLocs".
-    iFrame "newCrashedAt".
-    iSplitL "ptsMap".
-    { rewrite /newHists. iFrame. }
+    iFrame "newOrders newPreds hists' newSharedLocs newCrashedAt recPreds".
+    iFrameNamed.
     iSplitR.
     { iApply big_sepM2_intuitionistically_forall.
       - setoid_rewrite <- elem_of_dom.

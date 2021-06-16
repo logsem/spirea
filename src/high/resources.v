@@ -35,7 +35,7 @@ Definition predicatesR {Σ} := authR (gmapUR loc (@predicateR Σ)).
 (* Resource algebra used to represent the recovery predicates (i.e., the
 predicate that holds after a crash for a recovered message). *)
 Definition recPredicateR {Σ} :=
-  agreeR (positive -d> val -d> laterO (nvmDeltaG Σ -d> optionO (dPropO Σ))).
+  agreeR (positive -d> val -d> laterO (optionO (nvmDeltaG Σ -d> (dPropO Σ)))).
 Definition recPredicatesR {Σ} := authR (gmapUR loc (@recPredicateR Σ)).
 
 Notation abs_history := (gmap time).
@@ -284,6 +284,21 @@ Section abs_history_lemmas.
 
 End abs_history_lemmas.
 
+Section location_sets.
+  Context `{nvmFixedG Σ}.
+
+  Lemma location_sets_singleton_included γ locs ℓ :
+    own γ (● locs) -∗ own γ (◯ {[ ℓ ]}) -∗ ⌜ℓ ∈ locs⌝.
+  Proof.
+    iIntros "A B".
+    iDestruct (own_valid_2 with "A B")
+      as %[V%gset_included _]%auth_both_valid_discrete.
+    rewrite elem_of_subseteq_singleton.
+    done.
+  Qed.
+
+End location_sets.
+
 Section predicates.
   Context `{nvmFixedG Σ, nvmDeltaG Σ}.
 
@@ -303,7 +318,7 @@ Section predicates.
     λ encS v, (λ s, ϕ s v) <$> decode encS.
 
   Definition know_pred `{Countable s}
-      (ℓ : loc) (ϕ : s → val → dProp Σ) : iProp Σ :=
+      ℓ (ϕ : s → val → dProp Σ) : iProp Σ :=
     own predicates_name (◯ {[ ℓ := pred_to_ra (encode_predicate ϕ) ]} : predicatesR).
 
   Lemma know_predicates_alloc preds :
@@ -365,42 +380,95 @@ Section predicates.
 
 End predicates.
 
-(*
 Section recovery_predicates.
   Context `{!nvmFixedG Σ, nvmDeltaG Σ}.
 
-  Definition recPredO := positive -d> val -d> optionO (nvmFixedG Σ, nvmDeltaG Σ -d> dPropO Σ).
+  Definition recPredO := positive -d> val -d> optionO (nvmDeltaG Σ -d> dPropO Σ).
 
-  Definition pred_to_ra (pred : positive → val → option (nvmFixedG Σ, nvmDeltaG Σ → dProp Σ)) :
-    (@predicateR Σ) :=
-    to_agree ((λ a b, Next (pred a b))).
+  (* Compute (cmra_car (@recPredicateR Σ)). *)
 
-  Definition preds_to_ra (preds : gmap loc (positive → val → option (dProp Σ)))
-    : gmapUR loc (@predicateR Σ) := pred_to_ra <$> preds.
+  Definition rec_pred_to_ra
+             (rec_pred : positive → val → option (nvmDeltaG Σ → dProp Σ)) :
+    (@recPredicateR Σ) :=
+    to_agree ((λ a b, Next (rec_pred a b))).
 
-  Definition know_all_preds preds :=
-      own predicates_name (● (pred_to_ra <$> preds) : predicatesR).
+  Definition rec_preds_to_ra
+             (rec_preds : gmap loc
+                               (positive → val → option (nvmDeltaG Σ → dProp Σ)))
+    : gmapUR loc (@recPredicateR Σ) := rec_pred_to_ra <$> rec_preds.
 
-  Definition encode_predicate `{Countable s}
-             (ϕ : s → val → dProp Σ) : positive → val → option (dProp Σ) :=
+  Definition know_all_rec_preds preds :=
+    own recovery_predicates_name (● (rec_pred_to_ra <$> preds) : recPredicatesR).
+
+  Definition encode_rec_predicate `{Countable s}
+             (ϕ : s → val → nvmDeltaG Σ → dProp Σ)
+    : positive → val → option (nvmDeltaG Σ → dProp Σ) :=
     λ encS v, (λ s, ϕ s v) <$> decode encS.
 
-  Definition know_pred `{Countable s}
-      (ℓ : loc) (ϕ : s → val → dProp Σ) : iProp Σ :=
-    own predicates_name (◯ {[ ℓ := pred_to_ra (encode_predicate ϕ) ]} : predicatesR).
+  Definition know_rec_pred `{Countable s}
+      ℓ (ϕ : s → val → nvmDeltaG Σ → dProp Σ) : iProp Σ :=
+    own recovery_predicates_name
+        (◯ {[ ℓ := rec_pred_to_ra (encode_rec_predicate ϕ) ]}).
 
-  Lemma know_predicates_alloc preds :
-    ⊢ |==> ∃ γ, own γ ((● (pred_to_ra <$> preds)) : predicatesR).
+  Lemma know_rec_predicates_alloc rec_preds :
+    ⊢ |==> ∃ γ, own γ ((● (rec_pred_to_ra <$> rec_preds)) : recPredicatesR).
   Proof.
     iMod (own_alloc _) as "$"; last done.
     apply auth_auth_valid.
     intros ℓ.
     rewrite lookup_fmap.
-    by case (preds !! ℓ).
+    by case (rec_preds !! ℓ).
   Qed.
 
+  Lemma know_recpred_agree `{Countable s}
+        ℓ (ϕ : s → val → nvmDeltaG Σ → dProp Σ) (preds : gmap loc recPredO) :
+    know_all_rec_preds preds -∗
+    know_rec_pred ℓ ϕ -∗
+    (∃ (o : recPredO),
+       ⌜preds !! ℓ = Some o⌝ ∗ (* Some encoded predicate exists. *)
+       ▷ (o ≡ encode_rec_predicate ϕ)).
+  Proof.
+    iIntros "O K".
+    rewrite /know_all_preds /know_pred.
+    iDestruct (own_valid_2 with "O K") as "H".
+    iDestruct (auth_both_validI with "H") as "[tmp val]".
+    iDestruct "tmp" as (c) "#eq".
+    rewrite gmap_equivI.
+    iSpecialize ("eq" $! ℓ).
+    rewrite lookup_fmap.
+    rewrite lookup_op.
+    rewrite lookup_singleton.
+    destruct (preds !! ℓ) as [o|] eqn:eq; rewrite eq /=.
+    2: { simpl. case (c !! ℓ); intros; iDestruct "eq" as %eq'; inversion eq'. }
+    iExists o.
+    iSplit; first done.
+    case (c !! ℓ).
+    - intros ?.
+      rewrite /pred_to_ra.
+      rewrite -Some_op.
+      rewrite !option_equivI.
+      rewrite wsat.agree_equiv_inclI.
+      rewrite !discrete_fun_equivI. iIntros (state).
+      iSpecialize ("eq" $! state).
+      rewrite !discrete_fun_equivI. iIntros (v).
+      iSpecialize ("eq" $! v).
+      rewrite later_equivI_1.
+      iNext.
+      iRewrite "eq".
+      done.
+    - rewrite right_id.
+      simpl.
+      rewrite !option_equivI.
+      rewrite agree_equivI.
+      rewrite !discrete_fun_equivI. iIntros (state).
+      iSpecialize ("eq" $! state).
+      rewrite !discrete_fun_equivI. iIntros (v).
+      iSpecialize ("eq" $! v).
+      rewrite later_equivI_1.
+      done.
+    Qed.
+
 End recovery_predicates.
-*)
 
 (* (* For each location in the heap we maintain the following "meta data". *)
 (* For every location we want to store: A type/set of abstract events, its full *)
@@ -523,31 +591,32 @@ Section preorders.
 End preorders.
 
 Section points_to_shared.
-  Context `{nvmFixedG Σ, nvmDeltaG Σ}.
+  Context `{nvmFixedG Σ, nvmDeltaG Σ, AbstractState ST}.
 
-  Implicit Types (Φ : val → dProp Σ) (e : expr).
+  Implicit Types (e : expr) (ℓ : loc) (s : ST)
+           (ss : list ST) (ϕ : ST → val → dProp Σ).
 
   Definition abs_hist_to_ra_old
-             (abs_hist : gmap time (message * positive)) : encoded_abs_historyR :=
+          (abs_hist : gmap time (message * positive)) : encoded_abs_historyR :=
     (to_agree ∘ snd) <$> abs_hist.
 
-  Lemma singleton_included_l' `{Countable K} `{CmraTotal A} (m : gmap K A) (i : K) x :
+  Lemma singleton_included_l' `{Countable K, CmraTotal A}
+        (m : gmap K A) (i : K) x :
     {[i := x]} ≼ m ↔ (∃ y : A, m !! i ≡ Some y ∧ x ≼ y).
   Proof.
     setoid_rewrite <-(Some_included_total x).
     apply singleton_included_l.
   Qed.
 
-  Definition increasing_list `{AbstractState ST} (ss : list ST) :=
-    ∀ i j (s s' : ST), i ≤ j → (ss !! i = Some s) → (ss !! j = Some s') → s ⊑ s'.
+  Definition increasing_list ss :=
+    ∀ i j s s', i ≤ j → (ss !! i = Some s) → (ss !! j = Some s') → s ⊑ s'.
 
   (* _Exclusive_ points-to predicate. This predcate says that we know that the
   last events at [ℓ] corresponds to the *)
-  Definition mapsto_ex `{AbstractState ST}
-             ℓ (ss1 ss2 : list ST)
-             (ϕ : ST → val → dProp Σ) : dProp Σ :=
+  Definition mapsto_ex ℓ ss1 ss2 ϕ : dProp Σ :=
     (∃ (tGlobalPers tPers tStore : time) (abs_hist : abs_history ST),
 
+      "isExclusiveLoc" ∷ ⎡ own exclusive_locs_name (◯ {[ ℓ ]}) ⎤ ∗
       "%incrList" ∷ ⌜ increasing_list (ss1 ++ ss2) ⌝ ∗
       "#knowOrder" ∷ ⎡ own_preorder_loc ℓ ((⊑@{ST})) ⎤ ∗
 
@@ -564,11 +633,11 @@ Section points_to_shared.
       "%slice" ∷ ⌜map_slice abs_hist tGlobalPers tStore (ss1 ++ ss2)⌝ ∗
 
       (* We "have"/"know of" the three timestamps. *)
-      "%know" ∷ monPred_in ({[ ℓ := MaxNat tStore ]}, {[ ℓ := MaxNat tPers ]}, ∅) ∗
-      "per" ∷ ⎡persisted ({[ ℓ := MaxNat tGlobalPers ]} : view)⎤
+      "%tvIn" ∷ monPred_in ({[ ℓ := MaxNat tStore ]}, {[ ℓ := MaxNat tPers ]}, ∅) ∗
+      "pers" ∷ ⎡persisted ({[ ℓ := MaxNat tGlobalPers ]} : view)⎤
     ).
 
-  Global Instance mapsto_ex_discretizable `{AbstractState ST} ℓ ss1 ss2 ϕ :
+  Global Instance mapsto_ex_discretizable ℓ ss1 ss2 ϕ :
     Discretizable (mapsto_ex ℓ ss1 ss2 ϕ).
   Proof. apply _. Qed.
 
@@ -581,13 +650,13 @@ Section points_to_shared.
   greater than [s]. Said in another way, this definition allows for weakening
   (lowering the state) which we do after a crash to get a simpler (but just as
   useful) interaction with the post crash modality. *)
-  Definition know_global_per_lower_bound `{AbstractState ST} (ℓ : loc) (s : ST) : dProp Σ :=
+  Definition know_global_per_lower_bound ℓ (s : ST) : dProp Σ :=
     ∃ t s', ⌜ s ⊑ s' ⌝ ∗
             ⎡ own_preorder_loc ℓ abs_state_relation ∗
               persisted {[ ℓ := MaxNat t ]} ∗
               know_frag_history_loc ℓ {[ t := s' ]} ⎤.
 
-  Program Definition know_persist_lower_bound `{AbstractState ST} (ℓ : loc) (s : ST) : dProp Σ :=
+  Program Definition know_persist_lower_bound ℓ (s : ST) : dProp Σ :=
     MonPred (λ TV,
       ∃ (t : nat) s',
         ⌜ s ⊑ s' ⌝ ∗
@@ -597,33 +666,34 @@ Section points_to_shared.
     )%I _.
   Next Obligation. solve_proper. Qed.
 
-  Program Definition know_store_lower_bound `{AbstractState ST} (ℓ : loc) (s : ST) : dProp Σ :=
+  Program Definition know_store_lower_bound ℓ (s : ST) : dProp Σ :=
     MonPred (λ TV,
-      ∃ (t : nat) s',
-        ⌜ s ⊑ s' ⌝ ∗
-        ⌜t ≤ (store_view TV) !!0 ℓ⌝ ∗
-        own_preorder_loc ℓ abs_state_relation ∗
-        know_frag_history_loc ℓ {[ t := s' ]}
+      ∃ (tS : nat) s' CV,
+        "%sInclS'" ∷ ⌜s ⊑ s'⌝ ∗
+        "%tLe" ∷ ⌜tS ≤ (store_view TV) !!0 ℓ⌝ ∗
+        "#crashed" ∷ crashed_at CV ∗
+        "knowOrder" ∷ own_preorder_loc ℓ abs_state_relation ∗
+        "knowFragHist" ∷ know_frag_history_loc ℓ {[ tS := s' ]} ∗
+        "%storeDisj" ∷ ⌜0 ≠ tS ∨ ℓ ∉ dom (gset _) CV⌝ (* entails that ϕ holds for the write *)
     )%I _.
   Next Obligation. solve_proper. Qed.
 
-  Definition mapsto_shared `{AbstractState ST}
-             ℓ (s1 s2 s3 : ST) (ϕ : ST → val → dProp Σ) : dProp Σ :=
+  Definition mapsto_shared ℓ s1 s2 s3 ϕ : dProp Σ :=
     "knowPred" ∷ ⎡ know_pred ℓ ϕ ⎤ ∗
     "isSharedLoc" ∷ ⎡ own shared_locs_name (◯ {[ ℓ ]}) ⎤ ∗
     "globalPerLB" ∷ know_global_per_lower_bound ℓ s1 ∗
     "persistLB" ∷ know_persist_lower_bound ℓ s2 ∗
     "storeLB" ∷ know_store_lower_bound ℓ s3.
 
-  Global Instance know_persist_lower_bound_persistent `{AbstractState ST}
+  Global Instance know_persist_lower_bound_persistent
          ℓ (s : ST) : Persistent (know_persist_lower_bound ℓ s).
   Proof. apply monPred_persistent=> j. apply _. Qed.
 
-  Global Instance know_store_lower_bound_persistent `{AbstractState ST}
+  Global Instance know_store_lower_bound_persistent
          ℓ (s : ST) : Persistent (know_store_lower_bound ℓ s).
   Proof. apply monPred_persistent=> j. apply _. Qed.
 
-  Lemma know_persist_lower_bound_at_zero `{AbstractState ST} ℓ (s s' : ST) :
+  Lemma know_persist_lower_bound_at_zero ℓ (s s' : ST) :
     s ⊑ s' →
     ⎡ know_frag_history_loc ℓ {[0 := s']} ⎤ -∗
     ⎡ own_preorder_loc ℓ abs_state_relation ⎤ -∗
@@ -633,15 +703,16 @@ Section points_to_shared.
     iIntros (? ?) "?". iExists 0, s'. iFrame "%∗". iPureIntro. lia.
   Qed.
 
-  Lemma know_store_lower_bound_at_zero `{AbstractState ST} ℓ (s s' : ST) :
-    s ⊑ s' →
-    ⎡ know_frag_history_loc ℓ {[0 := s']} ⎤ -∗
-    ⎡ own_preorder_loc ℓ abs_state_relation ⎤ -∗
-    know_store_lower_bound ℓ s.
-  Proof.
-    iStartProof (iProp _). iIntros (incl ?) "?".
-    iIntros (? ?) "?". iExists 0, s'. iFrame "%∗". iPureIntro. lia.
-  Qed.
+  (* Note: This lemma does not hold anymore. *)
+  (* Lemma know_store_lower_bound_at_zero ℓ (s s' : ST) : *)
+  (*   s ⊑ s' → *)
+  (*   ⎡ know_frag_history_loc ℓ {[0 := s']} ⎤ -∗ *)
+  (*   ⎡ own_preorder_loc ℓ abs_state_relation ⎤ -∗ *)
+  (*   know_store_lower_bound ℓ s. *)
+  (* Proof. *)
+  (*   iStartProof (iProp _). iIntros (incl ?) "?". *)
+  (*   iIntros (? ?) "?". iExists 0, s', _. iFrame "%∗". iPureIntro. lia. *)
+  (* Qed. *)
 
 End points_to_shared.
 
