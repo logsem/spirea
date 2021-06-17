@@ -223,7 +223,6 @@ Section wp_rules.
     iApply program_logic.crash_weakestpre.wp_wpc.
 
     (* We need to get the points-to predicate for [ℓ]. This is inside [interp]. *)
-    (* rewrite /interp. *)
     iNamed "interp".
     iDestruct (know_pred_agree with "preds knowPred") as
       (pred predsLook) "#predsEquiv".

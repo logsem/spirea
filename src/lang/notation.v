@@ -1,10 +1,13 @@
+(* This file adds notation for writing NVMLang programs in Coq.
+
+The notation in here matches the notation for HeapLang included in Iris. We've
+only extended it with the additional operations related to weak and persistent
+memory. *)
+
 From iris.program_logic Require Import language.
 From iris.prelude Require Import options.
 
 From self.lang Require Export lang.
-
-(* The notation in this file matches HeapLang. We've only extended it with the
-additional operations related to weak and persistent memory. *)
 
 Coercion LitInt : Z >-> literal.
 Coercion LitBool : bool >-> literal.
