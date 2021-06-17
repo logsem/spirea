@@ -236,7 +236,7 @@ Proof.
   specialize (HΔ l).
   destruct (envs_app _ _ _) as [Δ''|] eqn:HΔ'; [ | contradiction ].
   rewrite envs_app_sound //; simpl.
-  iIntros "H pts". iApply HΔ. iApply "H". iFrame.
+  iIntros "H" (?) "(_ & _ & pts)". iApply HΔ. iApply "H". iFrame.
 Qed.
 
 (*

@@ -220,6 +220,9 @@ Section wpr.
     iSplit.
     * simpl. iDestruct (store_inv_cut with "invs") as "$"; first done. simpl.
       iExists p'. iFrame "crashed".
+      apply consistent_cut_subseteq_dom in cut.
+      rewrite /slice_of_store.
+      rewrite map_zip_with_dom_eq_l; try done.
     * iModIntro.
       iIntros (V) "pers".
       rewrite /persisted.

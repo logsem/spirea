@@ -341,6 +341,11 @@ Section map_zip_with.
     dom D (map_zip_with f ma mb) ≡ dom D mb.
   Proof. rewrite map_zip_with_dom. set_solver. Qed.
 
+  (* Upstream *)
+  Lemma not_elem_of_weaken `{Countable A} l (m1 m2 : gset A) :
+    l ∉ m2 → m1 ⊆ m2 → l ∉ m1.
+  Proof. set_solver. Qed.
+
 End map_zip_with.
 
 Definition restrict `{FinMap K M, ElemOf K D, !RelDecision (∈@{D})} {A} (s : D) (m : M A) :=
