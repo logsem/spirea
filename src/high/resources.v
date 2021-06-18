@@ -300,7 +300,7 @@ Section location_sets.
 End location_sets.
 
 Section predicates.
-  Context `{nvmFixedG Σ, nvmDeltaG Σ}.
+  Context `{nvmFixedG Σ, hGD : nvmDeltaG Σ}.
 
   Definition predO := positive -d> val -d> optionO (dPropO Σ).
 

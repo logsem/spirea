@@ -170,7 +170,8 @@ Section wpc.
   Proof. rewrite -wp_aux.(seal_eq) //. Qed.
 
   Lemma wpc_bind K s k E1 (e : expr) Φ Φc :
-    WPC e @ s; k; E1 {{ v, WPC fill K (of_val v) @ s; k; E1 {{ Φ }} {{ Φc }} }} {{ Φc }}
+    WPC e @ s; k; E1 {{ v, WPC fill K (of_val v) @ s; k; E1 {{ Φ }} {{ Φc }} }}
+                     {{ Φc }}
     ⊢ WPC fill K e @ s; k; E1 {{ Φ }} {{ Φc }}.
   Proof.
     rewrite wpc_eq.

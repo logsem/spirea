@@ -17,14 +17,14 @@ Notation base_post_crash := post_crash_modality.post_crash.
 
 Definition know_history_post_crash `{nvmFixedG Σ}
             (hG : nvmDeltaG Σ) ℓ (hist : gmap time positive) : iProp Σ :=
-  (∃ t state CV,
-    ⌜hist !! t = Some state⌝ ∗
-    know_full_encoded_history_loc ℓ ({[ 0 := state ]}) ∗
-    crashed_at CV ∗
-    ⌜CV !! ℓ = Some (MaxNat t)⌝) ∨
-  (∀ CV, crashed_at CV -∗ ⌜CV !! ℓ = None⌝).
+  (∃ CV, crashed_at CV ∗
+    ((∃ t s,
+      ⌜hist !! t = Some s⌝ ∗
+      ⌜CV !! ℓ = Some (MaxNat t)⌝ ∗
+      know_full_encoded_history_loc ℓ ({[ 0 := s ]}))
+    ∨ ⌜CV !! ℓ = None⌝)).
 
-Definition post_crash_history_impl {Σ} `{hG : nvmFixedG Σ}
+Definition post_crash_history_impl `{hG : nvmFixedG Σ}
            (hGD hGD' : nvmDeltaG Σ) : iProp Σ :=
   □ ∀ ST (_ : AbstractState ST) ℓ (t : nat) (s : ST),
     know_frag_history_loc (hGD := hGD) ℓ {[ t := s ]} -∗
@@ -36,7 +36,7 @@ Definition post_crash_history_impl {Σ} `{hG : nvmFixedG Σ}
       ∨
       (⌜CV !! ℓ = None⌝))).
 
-Definition post_crash_preorder_impl {Σ} `{nvmFixedG Σ}
+Definition post_crash_preorder_impl `{nvmFixedG Σ}
            (hGD hGD' : nvmDeltaG Σ) : iProp Σ :=
   □ ∀ ST (_ : AbstractState ST) ℓ,
     own_preorder_loc (hGD := hGD) ℓ abs_state_relation -∗
@@ -44,6 +44,15 @@ Definition post_crash_preorder_impl {Σ} `{nvmFixedG Σ}
       crashed_at (hGD := @nvm_delta_base _ hGD') CV ∗
       (own_preorder_loc (hGD := hGD') ℓ abs_state_relation ∨
        ⌜CV !! ℓ = None⌝)).
+
+Definition post_crash_pred_impl `{nvmFixedG Σ}
+           (hGD hGD' : nvmDeltaG Σ) : iProp Σ :=
+  □ ∀ ST (_ : AbstractState ST) ℓ (ϕ : ST → val → dProp Σ),
+    know_pred (hGD := hGD) ℓ ϕ -∗
+    (∃ CV,
+      crashed_at (hGD := @nvm_delta_base _ hGD') CV ∗
+      ((⌜ℓ ∈ dom (gset _) CV⌝ ∗ (know_pred (hGD := hGD') ℓ ϕ))
+      ∨ ⌜CV !! ℓ = None⌝)).
 
 (** This map is used to exchange [know_full_history_loc] valid prior to a crash
 into a version valid after the crash. *)
@@ -60,6 +69,7 @@ Definition post_crash_resource `{nvmFixedG Σ}
            (h : gmap loc (gmap time positive)) (hGD hGD' : nvmDeltaG Σ) : iProp Σ :=
   "#post_crash_history_impl" ∷ post_crash_history_impl hGD hGD' ∗
   "#post_crash_preorder_impl" ∷ post_crash_preorder_impl hGD hGD' ∗
+  "#post_crash_pred_impl" ∷ post_crash_pred_impl hGD hGD' ∗
   "post_crash_map" ∷ post_crash_map h hGD hGD'.
 
 Program Definition post_crash `{nvmFixedG Σ, hGD : nvmDeltaG Σ}
@@ -73,29 +83,20 @@ Program Definition post_crash `{nvmFixedG Σ, hGD : nvmDeltaG Σ}
     _.
 (* Next Obligation. solve_proper. Qed. *)
 
-Notation "'<PC>' P" := (post_crash P) (at level 20, right associativity) : bi_scope.
-
-(* We next define the post crash consistent cut modality. *)
-
-(*
-Definition persist_view_crashed_at `{hG : !nvmFixedG Σ, nvmDeltaG Σ} :=
-  MonPred (λ (TV : thread_view), ∃ (CV : view), ⌜persist_view TV ⊑ CV⌝ ∗ crashed_at CV)%I _.
-
-Definition post_crash_persisted `{hG : !nvmFixedG Σ, nvmDeltaG Σ} P :=
-  persist_view_crashed_at -∗ <PC> P.
-*)
+Notation "'<PC>' g , P" := (post_crash (λ g, P))
+  (at level 200, g binder, right associativity) : bi_scope.
 
 (** Tiny shortcut for introducing the assumption for a [post_crash]. *)
 Ltac iIntrosPostCrash := iIntros (hG' hh).
 
 Section post_crash_prop.
-  Context `{nvmFixedG Σ, hGD: !nvmDeltaG Σ}.
+  Context `{nvmFixedG Σ, hGD: nvmDeltaG Σ}.
 
   Implicit Types Φ : thread_val → iProp Σ.
   Implicit Types efs : list thread_state.
   Implicit Types σ : mem_config.
 
-  Global Instance post_crash_objective P : Objective (<PC> P).
+  Global Instance post_crash_objective P : Objective (post_crash P).
   Proof. done. Qed.
 
   (* Lemma post_crash_intro Q: *)
@@ -111,8 +112,8 @@ Section post_crash_prop.
 
   (** ** Structural rules *)
 
-  Lemma post_crash_mono P Q:
-    (∀ hG, P hG -∗ Q hG) → <PC> P -∗ <PC> Q.
+  Lemma post_crash_mono P Q :
+    (∀ hG, P hG -∗ Q hG) → post_crash P -∗ post_crash Q.
   Proof.
     iStartProof (iProp _). iIntros (Hmono TV') "HP".
     iIntrosPostCrash.
@@ -126,8 +127,8 @@ Section post_crash_prop.
     done.
   Qed.
 
-  Lemma post_crash_sep P Q:
-    <PC> P ∗ <PC> Q -∗ <PC> (λ hG, P hG ∗ Q hG).
+  Lemma post_crash_sep P Q :
+    post_crash P ∗ post_crash Q -∗ <PC> hG, P hG ∗ Q hG.
   Proof.
     iStartProof (iProp _). iIntros (TV).
     iIntros "(HP & HQ)".
@@ -140,8 +141,7 @@ Section post_crash_prop.
     iDestruct ("HQ" with "M") as "[$ $]".
   Qed.
 
-  Lemma post_crash_pure (P: Prop) :
-    P → ⊢ <PC> (λ _, ⌜ P ⌝).
+  Lemma post_crash_pure (P : Prop) : P → ⊢ <PC> _, ⌜P⌝.
   Proof.
     iIntros (HP).
     iStartProof (iProp _). iIntros (TV').
@@ -153,7 +153,7 @@ Section post_crash_prop.
   Qed.
 
   Lemma post_crash_embed_nodep P :
-    ⎡ P ⎤ -∗ <PC> (λ _, ⎡ P ⎤).
+    ⎡ P ⎤ -∗ <PC> _, ⎡ P ⎤.
   Proof.
     iStartProof (iProp _). iIntros (TV') "P".
     iIntrosPostCrash.
@@ -163,22 +163,35 @@ Section post_crash_prop.
     iFrame.
   Qed.
 
-  Lemma post_crash_named P name:
+  Lemma post_crash_named P name :
     named name (post_crash (λ hG, P hG)) -∗
     post_crash (λ hG, named name (P hG)).
   Proof. rewrite //=. Qed.
 
-  (** ** The rules for the "special" assertions *)
+End post_crash_prop.
 
-  Lemma post_crash_know_full_history_loc `{Countable ST} ℓ (abs_hist : abs_history ST) :
+Section post_crash_interact.
+  Context `{nvmFixedG Σ, hGD: nvmDeltaG Σ}.
+
+  Context `{AbstractState ST}.
+
+  (** ** The rules for the "special" assertions
+
+  How the post crash modality interacts with the assertions in the logic. *)
+
+  (* The predicate [P] holds for [ℓ] or [ℓ] has been lost. *)
+  Definition or_lost {hGD' : nvmDeltaG Σ} ℓ (P : dProp Σ) : dProp Σ :=
+    ∃ CV, ⎡crashed_at CV⎤ ∗ (P ∨ (⌜CV !! ℓ = None⌝)).
+
+  Definition or_lost_with_t {hGD' : nvmDeltaG Σ} ℓ (P : time → dProp Σ) : dProp Σ :=
+    ∃ CV, ⎡crashed_at CV⎤ ∗ ((∃ t, ⌜CV !! ℓ = Some (MaxNat t)⌝ ∗ P t)
+                          ∨ (⌜CV !! ℓ = None⌝)).
+
+  Lemma post_crash_know_full_history_loc ℓ (abs_hist : abs_history ST) :
     ⎡know_full_history_loc ℓ abs_hist⎤ -∗
-    post_crash (λ hG',
-      (∃ (t : time) (state : ST) CV,
+    <PC> _, or_lost_with_t ℓ (λ t, ∃ (state : ST),
         ⌜abs_hist !! t = Some state⌝ ∗
-        ⌜CV !! ℓ = Some (MaxNat t)⌝ ∗
-        ⎡crashed_at CV⎤ ∗
-        ⎡know_full_history_loc ℓ {[ 0 := state ]}⎤) ∨
-      (∀ CV, ⎡crashed_at CV⎤ -∗ ⌜CV !! ℓ = None⌝)).
+        ⎡know_full_history_loc ℓ {[ 0 := state ]}⎤).
   Proof.
     iStartProof (iProp _). iIntros (TV') "HP".
     iIntrosPostCrash.
@@ -197,35 +210,22 @@ Section post_crash_prop.
       iDestruct (ghost_map_elem_valid_2 with "H HP") as %[v _].
       iPureIntro.
       by apply v. }
-      (* iDestruct (own_valid_2 with "HP H") as %V. *)
-      (* rewrite -auth_frag_op in V. *)
-      (* apply auth_frag_valid_1 in V. *)
-      (* rewrite singleton_op in V. *)
-      (* apply singleton_valid in V. *)
-      (* apply auth_auth_op_valid in V. *)
-      (* done. } *)
     iDestruct ("reIns" with "[$HP]") as "$".
     iFrame "in".
-    iFrame "post_crash_history_impl".
-    rewrite /know_history_post_crash.
-    iDestruct "H" as "[H|H]"; [iLeft|iRight].
-    2: { iIntros (?? _). monPred_simpl. iApply "H". }
-    iDestruct "H" as (t estate CV) "(%look & hist & crash & %cvLook)".
-    apply lookup_fmap_Some in look as [st [eq yo]].
-    iExists t, st, CV.
-    iFrame "crash %".
-    rewrite know_full_equiv.
-    rewrite -eq.
-    rewrite map_fmap_singleton.
-    iFrame.
+    iFrameNamed.
+    rewrite /know_history_post_crash /or_lost_with_t.
+    iDestruct "H" as (CV) "[crashedAt [H|H]]"; iExists (CV);
+      iFrame "crashedAt"; [iLeft|iRight; done].
+    iDestruct "H" as (t estate) "(%look & %cvLook & hist)".
+    apply lookup_fmap_Some in look as [st [eq ?]].
+    iExists t. iFrame (cvLook). iExists st.
+    rewrite know_full_equiv. rewrite -eq. rewrite map_fmap_singleton.
+    iFrame "%∗".
   Qed.
 
-  Lemma post_crash_preorder `{AbstractState ST} ℓ :
+  Lemma post_crash_preorder ℓ :
     ⎡ own_preorder_loc ℓ abs_state_relation ⎤ -∗
-    post_crash (λ hG',
-      (∃ CV, ⎡crashed_at CV⎤ ∗
-        (⎡own_preorder_loc ℓ abs_state_relation⎤ ∨
-        ⌜CV !! ℓ = None⌝))).
+    post_crash (λ hG', or_lost ℓ ⎡own_preorder_loc ℓ abs_state_relation⎤)%I.
   Proof.
     iStartProof (iProp _). iIntros (TV') "HP".
     iIntrosPostCrash.
@@ -237,7 +237,7 @@ Section post_crash_prop.
     iExists CV. iFrame.
   Qed.
 
-  Lemma post_crash_frag_history `{AbstractState ST} ℓ t (s : ST) :
+  Lemma post_crash_frag_history ℓ t (s : ST) :
     ⎡ know_frag_history_loc ℓ {[ t := s ]} ⎤ -∗
     post_crash (λ hG',
       (∃ CV, ⎡crashed_at CV⎤ ∗
@@ -265,7 +265,24 @@ Section post_crash_prop.
     (* - iRight. iIntros (???). iApply "HI". *)
   Qed.
 
-End post_crash_prop.
+  Lemma post_crash_know_pred ℓ (ϕ : ST → val → dProp Σ) :
+    ⎡know_pred ℓ ϕ⎤ -∗ <PC> _, or_lost_with_t ℓ (λ _, ⎡know_pred ℓ ϕ⎤).
+  Proof.
+    iStartProof (iProp _). iIntros (TV') "HP".
+    iIntrosPostCrash.
+    iDestruct (post_crash_modality.post_crash_nodep with "HP") as "HP".
+    post_crash_modality.iCrash.
+    iNamed 1.
+    rewrite /post_crash_resource. iFrameNamed.
+    iDestruct ("post_crash_pred_impl" with "HP") as (CV) "[crash disj]".
+    iExists CV. iFrame.
+    setoid_rewrite elem_of_dom.
+    iDestruct "disj" as "[((%t & %elem) & HP) | %look]"; last naive_solver.
+    destruct t as [t].
+    naive_solver.
+  Qed.
+
+End post_crash_interact.
 
 Class IntoCrash {Σ} `{nvmFixedG Σ, nvmDeltaG Σ}
       (P : dProp Σ) (Q : nvmDeltaG Σ → dProp Σ) :=
@@ -297,12 +314,8 @@ Section IntoCrash.
   Global Instance into_crash_preorder `{AbstractState ST} ℓ :
     IntoCrash
     (⎡ own_preorder_loc ℓ abs_state_relation ⎤)
-    (λ hG',
-      (∃ CV, ⎡crashed_at CV⎤ ∗
-        (⎡own_preorder_loc ℓ abs_state_relation⎤ ∨
-        ⌜CV !! ℓ = None⌝)))%I.
+    (λ hG', or_lost ℓ (⎡own_preorder_loc ℓ abs_state_relation⎤))%I.
   Proof. rewrite /IntoCrash. iIntros "P". by iApply post_crash_preorder. Qed.
-
 
   Global Instance frag_history_into_crash `{AbstractState ST} ℓ t s :
     IntoCrash
@@ -347,10 +360,9 @@ Ltac iCrash :=
 Section post_crash_derived.
   Context `{nvmFixedG Σ, nvmDeltaG Σ}.
 
-  Context `{Hi1: !IntoCrash P P'}.
-  Context `{Hi2: !IntoCrash Q Q'}.
+  Context `{AbstractState ST}.
 
-  Lemma post_crash_know_frag_history_loc `{AbstractState ST} ℓ t (s : ST) :
+  Lemma post_crash_know_frag_history_loc ℓ t (s : ST) :
     ⎡ own_preorder_loc ℓ (⊑@{ST}) ∗
       know_frag_history_loc ℓ {[ t := s ]} ∗
       persisted {[ ℓ := MaxNat t]} ⎤ -∗
@@ -382,8 +394,7 @@ Section post_crash_derived.
     naive_solver.
   Qed.
 
-  Lemma post_crash_know_global_per_lower_bound `{AbstractState ST}
-        (ℓ : loc) (s : ST) :
+  Lemma post_crash_know_global_per_lower_bound (ℓ : loc) (s : ST) :
     know_global_per_lower_bound ℓ s -∗
     post_crash (λ hG,
       know_global_per_lower_bound ℓ s ∗
@@ -437,11 +448,11 @@ Next Obligation. intros ??????. solve_proper. Qed.
 Definition post_crash_consistent_cut `{nvmFixedG Σ, nvmDeltaG Σ}
         (P : nvmDeltaG Σ → dProp Σ) : dProp Σ :=
   (∀ TV, monPred_in TV -∗
-    <PC> (λ (hGD' : nvmDeltaG Σ),
+    <PC> (hGD' : nvmDeltaG Σ),
       ∃ (CV : view),
         ⌜persist_view TV ⊑ CV⌝ -∗
         ⎡crashed_at CV⎤ -∗
-        P hGD'))%I.
+        P hGD')%I.
 (* Next Obligation. intros ??????. apply post_crash_mono. solve_proper. Qed. *)
 
 (*
