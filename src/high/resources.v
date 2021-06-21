@@ -317,8 +317,7 @@ Section predicates.
              (ϕ : s → val → dProp Σ) : positive → val → option (dProp Σ) :=
     λ encS v, (λ s, ϕ s v) <$> decode encS.
 
-  Definition know_pred `{Countable s}
-      ℓ (ϕ : s → val → dProp Σ) : iProp Σ :=
+  Definition know_pred `{Countable s} ℓ (ϕ : s → val → dProp Σ) : iProp Σ :=
     own predicates_name (◯ {[ ℓ := pred_to_ra (encode_predicate ϕ) ]} : predicatesR).
 
   Lemma know_predicates_alloc preds :
@@ -381,11 +380,9 @@ Section predicates.
 End predicates.
 
 Section recovery_predicates.
-  Context `{!nvmFixedG Σ, nvmDeltaG Σ}.
+  Context `{!nvmFixedG Σ, hGD : nvmDeltaG Σ}.
 
   Definition recPredO := positive -d> val -d> optionO (nvmDeltaG Σ -d> dPropO Σ).
-
-  (* Compute (cmra_car (@recPredicateR Σ)). *)
 
   Definition rec_pred_to_ra
              (rec_pred : positive → val → option (nvmDeltaG Σ → dProp Σ)) :

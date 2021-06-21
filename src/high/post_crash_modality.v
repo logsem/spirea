@@ -54,6 +54,15 @@ Definition post_crash_pred_impl `{nvmFixedG Σ}
       ((⌜ℓ ∈ dom (gset _) CV⌝ ∗ (know_pred (hGD := hGD') ℓ ϕ))
       ∨ ⌜CV !! ℓ = None⌝)).
 
+Definition post_crash_rec_pred_impl `{nvmFixedG Σ}
+           (hGD hGD' : nvmDeltaG Σ) : iProp Σ :=
+  □ ∀ ST (_ : AbstractState ST) ℓ (ϕ : ST → val → nvmDeltaG Σ → dProp Σ),
+    know_rec_pred (hGD := hGD) ℓ ϕ -∗
+    (∃ CV,
+      crashed_at (hGD := @nvm_delta_base _ hGD') CV ∗
+      ((⌜ℓ ∈ dom (gset _) CV⌝ ∗ (know_rec_pred (hGD := hGD') ℓ ϕ))
+      ∨ ⌜CV !! ℓ = None⌝)).
+
 (** This map is used to exchange [know_full_history_loc] valid prior to a crash
 into a version valid after the crash. *)
 Definition post_crash_map `{nvmFixedG Σ}
@@ -70,6 +79,7 @@ Definition post_crash_resource `{nvmFixedG Σ}
   "#post_crash_history_impl" ∷ post_crash_history_impl hGD hGD' ∗
   "#post_crash_preorder_impl" ∷ post_crash_preorder_impl hGD hGD' ∗
   "#post_crash_pred_impl" ∷ post_crash_pred_impl hGD hGD' ∗
+  "#post_crash_rec_pred_impl" ∷ post_crash_rec_pred_impl hGD hGD' ∗
   "post_crash_map" ∷ post_crash_map h hGD hGD'.
 
 Program Definition post_crash `{nvmFixedG Σ, hGD : nvmDeltaG Σ}
@@ -275,6 +285,23 @@ Section post_crash_interact.
     iNamed 1.
     rewrite /post_crash_resource. iFrameNamed.
     iDestruct ("post_crash_pred_impl" with "HP") as (CV) "[crash disj]".
+    iExists CV. iFrame.
+    setoid_rewrite elem_of_dom.
+    iDestruct "disj" as "[((%t & %elem) & HP) | %look]"; last naive_solver.
+    destruct t as [t].
+    naive_solver.
+  Qed.
+
+  Lemma post_crash_know_rec_pred ℓ (ϕ : ST → val → nvmDeltaG Σ → dProp Σ) :
+    ⎡know_rec_pred ℓ ϕ⎤ -∗ <PC> _, or_lost_with_t ℓ (λ _, ⎡know_rec_pred ℓ ϕ⎤).
+  Proof.
+    iStartProof (iProp _). iIntros (TV') "HP".
+    iIntrosPostCrash.
+    iDestruct (post_crash_modality.post_crash_nodep with "HP") as "HP".
+    post_crash_modality.iCrash.
+    iNamed 1.
+    rewrite /post_crash_resource. iFrameNamed.
+    iDestruct ("post_crash_rec_pred_impl" with "HP") as (CV) "[crash disj]".
     iExists CV. iFrame.
     setoid_rewrite elem_of_dom.
     iDestruct "disj" as "[((%t & %elem) & HP) | %look]"; last naive_solver.
