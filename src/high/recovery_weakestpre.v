@@ -22,70 +22,6 @@ Notation pbundleG := recovery_weakestpre.pbundleG.
 
 Notation perennialG := recovery_weakestpre.perennialG.
 
-(* Record nvm_high_names := { *)
-(*   name_abs_history : gname; *)
-(*   name_know_abs_history : gname; *)
-(*   name_predicates : gname; *)
-(*   name_recovery_predicates : gname; *)
-(*   name_preorders : gname; *)
-(*   name_shared_locs : gname; *)
-(*   name_exclusive_locs : gname; *)
-(* }. *)
-
-(* Definition nvm_high_get_names Σ (hG : nvmHighG Σ) : nvm_high_names := *)
-(*   {| name_abs_history := abs_history_name; *)
-(*      name_know_abs_history := know_abs_history_name; *)
-(*      name_predicates := predicates_name; *)
-(*      name_preorders := preorders_name; *)
-(*      name_recovery_predicates := preorders_name; *)
-(*      name_shared_locs := shared_locs_name; *)
-(*      name_exclusive_locs := exclusive_locs_name; *)
-(*   |}. *)
-
-(* Canonical Structure nvm_high_namesO := leibnizO nvm_high_names. *)
-
-(** Given an [hG : nvmFixedG Σ, nvmDeltaG Σ], update the fields per the information in the rest of
-the arguments. In particular, all the gnames in [names] replaces the
-corresponding gnames in [hG]. *)
-(*
-Definition nvm_high_update Σ (hG : nvmHighG Σ) (names : nvm_high_names) :=
-  {| (* Ghost names *)
-     abs_history_name := names.(name_abs_history);
-     know_abs_history_name := names.(name_know_abs_history);
-     predicates_name := names.(name_predicates);
-     recovery_predicates_name := names.(name_recovery_predicates);
-     preorders_name := names.(name_preorders);
-     shared_locs_name := names.(name_shared_locs);
-     exclusive_locs_name := names.(name_exclusive_locs);
-     (* Functors *)
-     ra_inG := hG.(@ra_inG _);
-     ra_inG' := hG.(@ra_inG' _);
-     abs_histories := hG.(@abs_histories _);
-     preordersG := hG.(@preordersG _);
-     shared_locsG := hG.(@shared_locsG _);
-  |}.
-*)
-
-(*
-Record nvm_names := {
-  name_base_names : nvm_base_names; (* Names used by the base logic. *)
-  name_high_names : nvm_high_names; (* Names used by the high-level logic. *)
-}.
-*)
-
-(* Definition nvm_get_names Σ (hG : nvmFixedG Σ, nvmDeltaG Σ) : nvm_names := *)
-(*   {| name_base_names := nvm_base_get_names _ nvmG_baseG; *)
-(*      name_high_names := nvm_high_get_names _ nvmG_highG |}. *)
-
-(* Canonical Structure nvm_namesO := leibnizO nvm_names. *)
-
-(* (** Given an [hG : nvmFixedG Σ, nvmDeltaG Σ], update the fields per the information in the rest of *)
-(* the arguments. In particular, all the gnames in [names] replaces the *)
-(* corresponding gnames in [hG]. *) *)
-(* Definition nvm_update Σ (hG : nvmFixedG Σ, nvmDeltaG Σ) (Hinv : invG Σ) (Hcrash : crashG Σ) (names : nvm_names) := *)
-(*   {| nvmG_baseG := nvm_base_update _ hG.(@nvmG_baseG _) Hinv Hcrash names.(name_base_names); *)
-(*      nvmG_highG := nvm_high_update _ hG.(@nvmG_highG _) names.(name_high_names) |}. *)
-
 (* The recovery WP is parameterized by two predicates: [Φ] is the postcondition
    for normal non-crashing execution and [Φr] is the postcondition satisfied in
    case of a crash. *)
@@ -136,6 +72,33 @@ Definition slice_of_hist (p : view) (σ : gmap loc (gmap time (message * positiv
       | None => ∅ (* The None branch here should never be taken. *)
       end)
     p σ.
+
+Section slice_of_hist_props.
+  Lemma slice_of_hist_dom_subset p hists :
+    dom (gset loc) (slice_of_hist p hists) ⊆ dom (gset loc) hists.
+  Proof.
+    rewrite /slice_of_hist.
+    intros l.
+    rewrite !elem_of_dom.
+    intros [? look].
+    apply map_lookup_zip_with_Some in look.
+    destruct look as (? & ? & ? & ? & ?).
+    eexists _. done.
+  Qed.
+
+  (* Lemma slice_of_hist_dom_eq p store hists : *)
+  (*   consistent_cut p store → *)
+  (*   dom (gset loc) (slice_of_hist p hists) = dom _ p. *)
+  (* Proof. *)
+  (*   rewrite set_eq. *)
+  (*   (* rewrite /consistent_cut /slice_of_hist. *) *)
+  (*   intros ?%consistent_cut_subseteq_dom ℓ. *)
+  (*   rewrite map_zip_with_dom. *)
+  (*   set_solver. *)
+  (*   apply consistent_cut_subseteq_dom. *)
+
+End slice_of_hist_props.
+
 
 Lemma slice_of_hist_lookup_Some (p : view) store (hist : gmap time message)
       (logHists : gmap loc (abs_history (message * positive)))
@@ -212,7 +175,9 @@ Proof.
     iExFalso.
     rewrite /slice_of_hist in look'.
     apply elem_of_dom_2 in look'.
-    apply map_zip_with_dom_fst in look'.
+    setoid_rewrite map_zip_with_dom in look'.
+    setoid_rewrite elem_of_intersection in look'.
+    destruct look' as [look' _].
     apply elem_of_dom in look'.
     destruct look' as [[t] ?].
     iDestruct ("left" $! p' with "rec") as %hv.
@@ -246,18 +211,6 @@ Definition wpr `{nvmFixedG Σ, nvmDeltaG Σ} s k := wpr' _ s k _.
 Section wpr.
   Context `{nvmFixedG Σ}.
 
-  Lemma slice_of_hist_dom_subset p hists :
-    dom (gset loc) (slice_of_hist p hists) ⊆ dom (gset loc) hists.
-  Proof.
-    rewrite /slice_of_hist.
-    intros l.
-    rewrite !elem_of_dom.
-    intros [? look].
-    apply map_lookup_zip_with_Some in look.
-    destruct look as (? & ? & ? & ? & ?).
-    eexists _. done.
-  Qed.
-
   (* Given the state interpretations _before_ a crash we reestablish the
   interpretations _after_ a crash. *)
   Lemma nvm_reinit (hGD : nvmDeltaG Σ) n Pg tv σ σ' (Hinv : invG Σ) (Hcrash : crashG Σ) :
@@ -287,13 +240,17 @@ Section wpr.
     (* Allocate new ghost state for the logical histories. *)
     rewrite /interp.
     set newHists := slice_of_hist p' hists.
-    iMod (own_full_history_gname_alloc ((λ h : abs_history (message * positive), snd <$> h) <$> newHists)) as (new_abs_history_name new_know_abs_history_name) "(hists' & #histFrags & knowHistories)".
+    iMod (own_full_history_gname_alloc ((λ h : gmap time _, snd <$> h) <$> newHists))
+      as (new_abs_history_name new_know_abs_history_name) "(hists' & #histFrags & knowHistories)".
 
+    iMod (own_all_preorders_discard with "allOrders") as "#allOrders".
     (* Some locations may be lost after a crash. For these we need to
     forget/throw away the predicate and preorder that was choosen for the
     location. *)
     set newOrders := restrict (dom (gset _) newHists) orders.
-    iMod (own_all_preorders_gname_alloc newOrders) as (new_orders_name) "newOrders".
+    iMod (own_all_preorders_gname_alloc newOrders)
+      as (new_orders_name) "[newOrders #fragOrders]".
+
 
     set newPreds := restrict (dom (gset _) newHists) preds.
     iMod (know_predicates_alloc newPreds) as (new_predicates_name) "newPreds".
@@ -319,7 +276,6 @@ Section wpr.
       ).
     iFrame "interp'".
     rewrite /nvm_heap_ctx.
-    (* iFrame. *)
     rewrite /post_crash. simpl.
     rewrite /base_post_crash. simpl.
     iDestruct ("Pg" $! _ (((λ h : abs_history (message * positive), snd <$> h) <$> hists)) (store, _) _ with "persImpl map'") as "(map' & Pg)".
@@ -328,25 +284,44 @@ Section wpr.
       (map_points_to_to_new hists _ _ _ (MkNvmBaseDeltaG Σ Hcrash baseNames)
          with "newCrashedAt map' ptsMap") as "ptsMap"; first done.
     rewrite /post_crash_map.
+    (* We show the assumption for the post crash modality. *)
     iDestruct ("Pg" with "[history knowHistories]") as "[$ WHAT]".
     { simpl.
       (* We show that fragments of the histories may survive a crash. *)
+      rewrite /post_crash_resource.
+      (* History implication. *)
       iSplit.
       { iModIntro.
         iIntros (? ? ℓ t s) "frag".
         iExists p'.
         iFrame "newCrashedAt".
         (* Was [ℓ] recovered or not? *)
-        destruct (p' !! ℓ) eqn:lookP'.
+        destruct (p' !! ℓ) eqn:lookP'; last naive_solver.
         - iLeft. admit.
-        - iRight. done. }
-      (* We show that the preorders may survive a crash. *)
-      iSplit.
-      { admit. }
-      (* rewrite /know_full_encoded_history_loc. *)
-      (* rewrite /own_full_history /own_full_history_gname. *)
-      (* iDestruct "history" as "[left right]". *)
-      (* iDestruct (ghost_map_lookup with "left [$]") as "HY". *)
+          }
+      (* The preorder implication. We show that the preorders may survive a
+      crash. *)
+      iSplit. {
+        iModIntro.
+        iIntros (? ? ?) "order".
+        iExists _. iFrame "newCrashedAt".
+        destruct (p' !! ℓ) eqn:lookP'; last naive_solver.
+        iLeft.
+        rewrite /own_preorder_loc /preorders_name. simpl.
+        iDestruct (own_all_preorders_singleton_frag with "allOrders order")
+          as %(? & ? & ?).
+        iApply (orders_frag_lookup with "fragOrders").
+        (* simplify_eq. *)
+        rewrite /newOrders.
+        apply restrict_lookup_Some.
+        split; first (simplify_eq; done).
+        rewrite /newHists.
+        rewrite /slice_of_hist.
+        rewrite map_zip_with_dom.
+        apply elem_of_intersection.
+        split.
+        - rewrite elem_of_dom. naive_solver.
+        - rewrite domHistsEqOrders. rewrite elem_of_dom. naive_solver. }
       iIntros.
       rewrite /know_full_encoded_history_loc.
       rewrite /own_full_history /own_full_history_gname.

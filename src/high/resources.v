@@ -509,6 +509,8 @@ Section preorders.
   Context `{nvmFixedG Σ, hGD : nvmDeltaG Σ}.
   Context `{Countable A}.
 
+  Implicit Type (preorders : gmap loc (relation2 positive)).
+
   Definition encode_relation (R : relation2 A) : relation2 positive :=
     λ (a b : positive), default False (R <$> decode a <*> decode b).
 
@@ -520,10 +522,13 @@ Section preorders.
     reflexivity.
   Qed.
 
-  Definition own_all_preorders_gname γ (preorders : gmap loc (relation2 positive)) :=
-    own γ (● ((to_agree <$> preorders) : gmapUR _ (agreeR relationO))).
+  Definition map_to_agree preorders : gmapUR _ (agreeR relationO) :=
+    to_agree <$> preorders.
 
-  Definition own_all_preorders (preorders : gmap loc (relation2 positive)) :=
+  Definition own_all_preorders_gname γ preorders :=
+    own γ (● (map_to_agree preorders)).
+
+  Definition own_all_preorders preorders :=
     own_all_preorders_gname preorders_name preorders.
 
   Definition own_preorder_loc ℓ (preorder : relation2 A) : iProp Σ :=
@@ -534,39 +539,75 @@ Section preorders.
   Proof. apply _. Qed.
 
   Lemma own_all_preorders_gname_alloc (preorders : gmap loc (relation2 positive)) :
-    ⊢ |==> ∃ γ, own_all_preorders_gname γ preorders.
+    ⊢ |==> ∃ γ, own_all_preorders_gname γ preorders ∗
+                own γ (◯ ((to_agree <$> preorders) : gmapUR _ (agreeR relationO))).
   Proof.
-    iMod (own_alloc _) as "$"; last done.
-    apply auth_auth_valid.
+    setoid_rewrite <- own_op.
+    iApply own_alloc.
+    apply auth_both_valid_discrete. split; first done.
     intros ℓ.
     rewrite lookup_fmap.
     by case (preorders !! ℓ).
   Qed.
 
-  Lemma orders_lookup ℓ order1 order2 (orders : gmap loc (relation2 positive)) :
-    orders !! ℓ = Some order1 →
-    own_all_preorders orders -∗
-    own_preorder_loc ℓ order2 -∗
-    ⌜ order1 = encode_relation order2 ⌝.
+  Lemma own_all_preorders_discard γ preorders :
+    own_all_preorders_gname γ preorders ==∗
+    own γ (●□ ((to_agree <$> preorders) : gmapUR _ (agreeR relationO))).
+  Proof. iApply own_update. apply auth_update_auth_persist. Qed.
+
+  Lemma own_all_preorders_singleton_frag dq γ ℓ preorders preorder :
+    own γ (●{dq} (map_to_agree preorders)) -∗
+    own γ (◯ ({[ ℓ := to_agree (encode_relation preorder)]})) -∗
+    ∃ (encOrder : relation2 positive),
+      ⌜encOrder = encode_relation preorder ∧ preorders !! ℓ = Some encOrder⌝.
   Proof.
-    iIntros (look) "auth frag".
-    iDestruct (own_valid_2 with "auth frag") as %[incl _]%auth_both_valid_discrete.
+    iIntros "auth frag".
+    iDestruct (own_valid_2 with "auth frag")
+      as %[_ [incl _]]%auth_both_dfrac_valid_discrete.
     iPureIntro.
     move: incl.
     rewrite singleton_included_l.
     intros [y [eq incl]].
     move: incl.
     rewrite lookup_fmap in eq.
-    rewrite look in eq.
     apply equiv_Some_inv_r' in eq.
     destruct eq as [y' [look' eq]].
     rewrite eq.
     rewrite <- look'.
-    rewrite Some_included_total.
-    rewrite to_agree_included.
-    intros eq'.
-    rewrite eq'.
-    done.
+    rewrite option_included_total.
+    intros [|(? & ? & [= ?] & [= ?] & incl)]; first done.
+    destruct (preorders !! ℓ) as [encOrder look|]; last done.
+    exists encOrder.
+    split; last done.
+    simpl in *.
+    simplify_eq.
+    setoid_rewrite to_agree_included in incl.
+    by rewrite incl.
+  Qed.
+
+  Lemma orders_lookup ℓ order1 order2 (orders : gmap loc (relation2 positive)) :
+    orders !! ℓ = Some order1 →
+    own_all_preorders orders -∗
+    own_preorder_loc ℓ order2 -∗
+    ⌜order1 = encode_relation order2⌝.
+  Proof.
+    iIntros (look) "auth frag".
+    iDestruct (own_all_preorders_singleton_frag with "auth frag")
+      as %(encOrder & eq & eq').
+    simplify_eq. done.
+  Qed.
+
+  Lemma orders_frag_lookup γ preorders (ℓ : loc) order :
+    preorders !! ℓ = Some order →
+    own γ (◯ (map_to_agree preorders)) -∗
+    own γ (◯ ({[ ℓ := to_agree order ]} : gmapUR _ (agreeR relationO))).
+  Proof.
+    intros look. f_equiv. simpl.
+    apply auth_frag_mono.
+    rewrite singleton_included_l.
+    eexists _.
+    rewrite lookup_fmap look.
+    naive_solver.
   Qed.
 
   (* If we know that two encoded values are related by en encoded relation, then

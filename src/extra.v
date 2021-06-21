@@ -197,7 +197,7 @@ Section big_sepM.
     by setoid_rewrite wand_elim_l.
   Qed.
 
-  (* upstream *)
+  (* upstreamed *)
   Lemma map_filter_id (P : (K * A → Prop)) `{∀ (x : (K * A)), Decision (P x)} m
     : (∀ k x, m !! k = Some x → P (k, x)) → filter P m = m.
   Proof.
@@ -297,11 +297,12 @@ End big_sepM.
 Section map_zip_with.
   Context `{FinMap K M}.
 
+  (* upstreamed *)
   Lemma map_lookup_zip_with_None {A B C} (f : A → B → C) (m1 : M A) (m2 : M B) i :
     map_zip_with f m1 m2 !! i = None ↔ m1 !! i = None ∨ m2 !! i = None.
   Proof. rewrite map_lookup_zip_with. destruct (m1 !! i), (m2 !! i); naive_solver. Qed.
 
-  (* Upstream. *)
+  (* Upstreamed. *)
   Lemma map_lookup_zip_Some {A B} (m1 : M A) (m2 : M B) l p :
     (map_zip m1 m2) !! l = Some p ↔ m1 !! l = Some p.1 ∧ m2 !! l = Some p.2.
   Proof. rewrite map_lookup_zip_with_Some. destruct p. naive_solver. Qed.
@@ -318,6 +319,7 @@ Section map_zip_with.
         (f : A → B → C) (ma : M A) (mb : M B) : dom D (map_zip_with f ma mb) ⊆ dom D mb.
   Proof. rewrite map_zip_with_flip. apply map_zip_with_dom_fst. Qed.
 
+  (* upstreamed *)
   Lemma map_zip_with_dom `{FinMapDom K M D} {A B C}
         (f : A → B → C) (ma : M A) (mb : M B) :
     dom D (map_zip_with f ma mb) ≡ dom D ma ∩ dom D mb.
@@ -341,7 +343,7 @@ Section map_zip_with.
     dom D (map_zip_with f ma mb) ≡ dom D mb.
   Proof. rewrite map_zip_with_dom. set_solver. Qed.
 
-  (* Upstream *)
+  (* Upstreamed *)
   Lemma not_elem_of_weaken `{Countable A} l (m1 m2 : gset A) :
     l ∉ m2 → m1 ⊆ m2 → l ∉ m1.
   Proof. set_solver. Qed.
@@ -365,8 +367,9 @@ Section restrict.
     m !! k = Some x → k ∈ s → restrict s m !! k = Some x.
   Proof. by rewrite restrict_lookup_Some. Qed.
 
-  (* Upstream. *)
-  Lemma map_filter_subseteq f `{∀ (x : (K *A)), Decision (f x)} m : filter f m ⊆ m.
+  (* Upstreamed. *)
+  Lemma map_filter_subseteq f `{∀ (x : (K *A)), Decision (f x)} m :
+    filter f m ⊆ m.
   Proof. apply map_subseteq_spec, map_filter_lookup_Some_1_1. Qed.
 
   Lemma restrict_subseteq s m : restrict s m ⊆ m.
