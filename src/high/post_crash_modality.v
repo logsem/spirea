@@ -423,9 +423,9 @@ Section post_crash_derived.
 
   Lemma post_crash_know_global_per_lower_bound (ℓ : loc) (s : ST) :
     know_global_per_lower_bound ℓ s -∗
-    post_crash (λ hG,
-      know_global_per_lower_bound ℓ s ∗
-      know_persist_lower_bound ℓ s). (* ∗ know_store_lower_bound ℓ s). *)
+    post_crash (λ hG, ∃ s', ⌜s ⊑ s'⌝ ∗
+      know_global_per_lower_bound ℓ s' ∗
+      know_persist_lower_bound ℓ s'). (* ∗ know_store_lower_bound ℓ s). *)
   Proof.
     iStartProof (iProp _). iIntros (TV).
     iNamed 1.
@@ -436,9 +436,11 @@ Section post_crash_derived.
     iDestruct 1 as
         (s'' t' CV) "(%incl' & %le & %cvLook & #ord & #hist & #crash & #pers)".
     assert (s ⊑ s'') by (etrans; done).
+    iExists s''.
+    iSplit; first done.
     (* We show the global persist lower bound. *)
     iSplit.
-    { iExists 0, s''. iFrame "#%". iPureIntro. lia. }
+    { iExists 0. iFrame "#%". iPureIntro. lia. }
     (* We show the local persist lower bound. *)
     iApply know_persist_lower_bound_at_zero; done.
   Qed.

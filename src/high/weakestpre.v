@@ -673,11 +673,12 @@ Section wp_rules.
 
     iNamed "interp".
 
-    (* _Before_ we load the points-to predicate we deal with the predicate ϕ. We
-    do this before such that the later that arrises is stripped off when we take
-    the step. *)
+    (* _Before_ we load the points-to predicate we deal with the predicate ϕ
+    s.t. we can strip the lator off later. *)
     iDestruct (know_rec_pred_agree with "recPreds knowRecPred")
-      as (recPred predsLook) "#recPredsEquiv".
+      as (recPred recPredsLook) "#recPredsEquiv".
+    iDestruct (know_pred_agree with "preds knowPred")
+      as (pred predsLook) "#predsEquiv".
 
     (* We need to get the points-to predicate for [ℓ] which is is inside
     [interp].  We want to look up the points-to predicate in [ptsMap]. To this
@@ -691,20 +692,19 @@ Section wp_rules.
       ) as %ℓSh.
     iDestruct (big_sepM_lookup_acc with "mapShared") as "[predMap mapShared]".
     { apply restrict_lookup_Some_2; done. }
-    iDestruct "predMap" as (pred' recPred' physHist physHistLook predsLook' recPredsLook) "predMap".
-    assert (recPred = recPred') as <-. { apply (inj Some). rewrite -predsLook. done. }
-    clear predsLook'.
+    iDestruct "predMap" as (pred' recPred' physHist physHistLook predsLook'
+                            recPredsLook') "predMap".
+    assert (pred = pred') as <-. { apply (inj Some). by rewrite -predsLook. }
+    assert (recPred = recPred') as <-. { apply (inj Some). by rewrite -recPredsLook. }
+    clear predsLook' recPredsLook'.
 
     (* We can now get the points-to predicate and execute the load. *)
     iDestruct (big_sepM_lookup_acc with "ptsMap") as "[pts ptsMap]"; first done.
     iApply wp_fupd.
     iApply (wp_load_acquire with "[$pts $val]").
-    iIntros "!>" (t' v' SV' PV' _PV') "(%look & %gt & #val' & pts)".
+    iIntros "!>" (tL v' SV' PV' _PV') "(%look & %gt & #val' & pts)".
 
-    (* apply lookup_fmap_Some in look. *)
-    (* destruct look as [[? encSL] [msgEq histLook]]. *)
-    (* [encSL] is the encoded state corresponding to the message we _l_oaded. *)
-    rewrite /store_view.
+    rewrite /store_view. simpl.
     iDestruct ("ptsMap" with "pts") as "ptsMap".
     iFrame "val'".
 
@@ -712,7 +712,7 @@ Section wp_rules.
     assert (PV' = _PV') as <-.
     { eapply msg_persisted_views_eq' in mapShared; try done. done. }
  
-    assert (tP ≤ t') as lte.
+    assert (tP ≤ tL) as lte.
     { destruct TV as [[??]?].
       destruct TV' as [[??]?].
       etrans; first done.
@@ -721,101 +721,138 @@ Section wp_rules.
       f_equiv.
       etrans. apply incl. apply incl2. }
 
-    (* iDestruct ( *)
-    (*     location_sets_singleton_included with "sharedLocs isSharedLoc" *)
-    (*   ) as %ℓSh. *)
-    (* iDestruct (big_sepM_lookup_acc with "mapShared") as "[predMap mapShared]". *)
-    (* { apply restrict_lookup_Some_2; done. } *)
-    (* iDestruct "predMap" as (pred' recPred predsLook' recPredsLook) "predMap". *)
-    (* assert (pred = pred') as <-. { apply (inj Some). rewrite -predsLook. done. } *)
-    (* clear predsLook'. *)
+    (* We find the abstract state corresponding to the message that we
+    loaded. *)
     iDestruct (big_sepM2_dom with "predMap") as %domEq.
-    assert (is_Some (absHist !! t')) as (encSL & HI).
+    assert (is_Some (absHist !! tL)) as (encSL & HI).
     { apply elem_of_dom. rewrite <- domEq. apply elem_of_dom. naive_solver. }
     iDestruct (big_sepM2_lookup_acc with "predMap") as "[predHolds predMap]";
       [done|done| ].
     simpl.
-  Admitted.
-  (*
-    iDestruct "predHolds" as "[(%t'Eq & %in & hi)|[%t'Disj predHolds]]".
-    { exfalso. destruct storeDisj; [lia | done]. }
 
-    (* The loaded state must be greater than [s]. *)
     iDestruct (big_sepM2_lookup_1 with "ordered")
-      as (order) "[%ordersLook %increasingMap]".
-    { apply absHistLook. }
-    iDestruct (orders_lookup with "allOrders knowOrder") as %orderEq;
-      first apply ordersLook.
-    epose proof (increasingMap tS t' (encode s) encSL) as hihi.
-    assert (order enc encSL) as orderRelated.
-    { destruct (le_lt_or_eq _ _ lte) as [le|tSEq].
-      - eapply increasingMap.
-        * apply le.
-        * subst. done.
-        * done.
-      - (* We can conclude that [enc] is equal to [t']. *)
-        assert (enc = encSL) as ->.
-        2: { rewrite orderEq. rewrite /encode_relation.
-             rewrite decodeEnc. simpl. done. }
-        congruence. }
-    rewrite orderEq in orderRelated.
-    epose proof (encode_relation_related _ _ _ orderRelated)
-      as (? & sL & eqX & decodeS' & s3InclS').
-    assert (x = s') as -> by congruence.
+      as (order) "[%ordersLook %increasingMap]"; first done.
+    iDestruct (orders_lookup with "allOrders knowOrder") as %orderEq; first done.
 
-    iDestruct (predicate_holds_phi_decode with "predsEquiv predHolds") as "PH";
-      first done.
-    (* rewrite msgEq. simpl. *)
-    iSpecialize ("pToQ" $! (SV', PV', ∅) sL v').
-    monPred_simpl.
-    iEval (setoid_rewrite monPred_at_sep) in "pToQ".
-    iSpecialize ("pToQ" $! (SV', PV', ∅)).
-    iDestruct ("pToQ" with "[//] [$PH]") as "[Q phi]".
-    { iPureIntro. etrans; done. }
-    (* Reinsert into the predicate map. *)
-    iDestruct ("predMap" with "[phi]") as "predMap".
-    { iRight. iFrame "%".
-      iApply (predicate_holds_phi_decode with "predsEquiv phi").
-      done. }
-    (* Reinsert into the map. *)
-    iDestruct ("mapShared" with "[predMap]") as "mapShared".
-    { iExists _, _, _. naive_solver. }
+    (* iModIntro. *)
+    (* iSplit. *)
+    (* { iPureIntro. repeat split; auto using view_le_l. } *)
 
-    iMod (own_full_history_alloc with "history") as "[history histS]"; try done.
-    iModIntro.
-    (* We re-establish [interp]. *)
-    iSplit. { iPureIntro. repeat split; try done; apply view_le_l. }
-    iSplitR "ptsMap allOrders ordered map mapShared history preds exclusiveLocs
-             sharedLocs crashedAt recPreds mapRecPredsImpl".
-    2: { iExists _, _, _, _, _, _, _, _. iFrameNamed. }
-    iSpecialize ("Φpost" $! sL v').
-    monPred_simpl.
-    iApply "Φpost".
-    { iPureIntro.
-      etrans. eassumption.
-      repeat split; try done; try apply view_le_l. }
-    (* The thread view we started with [TV] is smaller than the view we ended
-    with. *)
-    assert (TV ⊑ (SV ⊔ SV', PV, BV ⊔ PV')).
-    { do 2 (etrans; first done). repeat split; auto using view_le_l. }
-    iSplitR "Q".
-    - iFrameNamed.
-      iExists t', sL, _.
-      iFrame "∗#".
-      iSplit; first done.
-      iSplit. 2: { destruct storeDisj; naive_solver. }
-      (* FIXME: Intuitively the lhs. should be included in because we read [t']
-      and a write includes its own timestamp. But, we don't remember this fact,
-      yet. *)
+    destruct (decide (tP = tL)) as [eq|neq].
+    - (* We show that the recovery predicate holds. *)
+      (* assert (encode s = encSL). *)
+      (* {  } *)
       admit.
-    - simpl.
-      rewrite /store_view /persist_view /=.
-      iApply monPred_mono; last iApply "Q".
-      repeat split.
-      * apply view_le_r.
-      * rewrite assoc. apply view_le_r.
-      * apply view_empty_least.
-  Admitted.
-  *)
+
+    (* destruct (decide (encode s = encSL)). *)
+    (* - (* We show that the recovery predicate holds. *) *)
+    (*   (* It must be the case that [tP = tL]. *) *)
+    (*   assert (tP = tL) as eq. *)
+    (*   { apply le_lt_or_eq in lte. *)
+    (*     destruct lte as [lt|]; last done. *)
+    (*     exfalso. *)
+    (*     rewrite /strictly_increasing_map in increasingMap. *)
+    (*     specialize (increasingMap tP tL (encode s) encSL lt). *)
+    (*     assert (enc = encode s). *)
+    (*     {  } *)
+    (*     specialize (increasingMap tP tL enc encSL lt). *)
+    (*   } *)
+
+    - (* We show that the normal non-recovery predicate holds. *)
+
+      iDestruct "predHolds" as "[(%t'Eq & %in & hi)|[%t'Disj predHolds]]".
+      { lia. }
+
+      (* epose proof (increasingMap tP tL (encode s) encSL) as hihi. *)
+      (* assert (order enc encSL) as orderRelated. *)
+      (* { destruct (le_lt_or_eq _ _ lte) as [le|tSEq]. *)
+      (*   - eapply increasingMap. *)
+      (*     * apply le. *)
+      (*     * subst. done. *)
+      (*     * done. *)
+      (*   - (* We can conclude that [enc] is equal to [t']. *) *)
+      (*     assert (enc = encSL) as ->. *)
+      (*     2: { rewrite orderEq. rewrite /encode_relation. *)
+      (*         rewrite decodeEnc. simpl. done. } *)
+      (*     congruence. } *)
+      (* rewrite orderEq in orderRelated. *)
+
+      (* The loaded state must be greater than [s]. *)
+      (* iDestruct (big_sepM2_lookup_1 with "ordered") *)
+      (*   as (order) "[%ordersLook %increasingMap]". *)
+      (* { apply absHistLook. } *)
+      (* iDestruct (orders_lookup with "allOrders knowOrder") as %orderEq; *)
+      (*   first apply ordersLook. *)
+      epose proof (increasingMap tP tL (encode s) encSL) as hihi.
+      assert (order enc encSL) as orderRelated.
+      { destruct (le_lt_or_eq _ _ lte) as [le|tSEq].
+        - eapply increasingMap.
+          * apply le.
+          * subst. done.
+          * done.
+        - (* We can conclude that [enc] is equal to [t']. *)
+          assert (enc = encSL) as ->.
+          2: { rewrite orderEq. rewrite /encode_relation.
+              rewrite decodeEnc. simpl. done. }
+          congruence. }
+      rewrite orderEq in orderRelated.
+      epose proof (encode_relation_related _ _ _ orderRelated)
+        as (? & sL & eqX & decodeS' & s3InclS').
+      assert (x = s) as -> by congruence.
+
+      iDestruct (predicate_holds_phi_decode with "predsEquiv predHolds") as "PH";
+        first done.
+      (* rewrite msgEq. simpl. *)
+      iSpecialize ("pToQ" $! (SV', PV', ∅) sL v').
+      monPred_simpl.
+      iEval (setoid_rewrite monPred_at_sep) in "pToQ".
+      iSpecialize ("pToQ" $! (SV', PV', ∅)).
+      iDestruct ("pToQ" with "[//] [$PH]") as "[Q phi]".
+      { iPureIntro. split; first done. admit. }
+      (* Reinsert into the predicate map. *)
+      iDestruct ("predMap" with "[phi]") as "predMap".
+      { iRight. iFrame "%".
+        iApply (predicate_holds_phi_decode with "predsEquiv phi").
+        done. }
+      (* Reinsert into the map. *)
+      iDestruct ("mapShared" with "[predMap]") as "mapShared".
+      { iExists _, _, _. naive_solver. }
+
+      iMod (own_full_history_alloc with "history") as "[history histS]"; try done.
+      iModIntro.
+      (* We re-establish [interp]. *)
+      iSplit. { iPureIntro. repeat split; try done; apply view_le_l. }
+      iSplitR "ptsMap allOrders ordered map mapShared history preds exclusiveLocs
+              sharedLocs crashedAt recPreds mapRecPredsImpl".
+      2: { iExists _, _, _, _, _, _, _, _. iFrameNamed. }
+      iSpecialize ("Φpost" $! sL v').
+      monPred_simpl.
+      iApply "Φpost".
+      { iPureIntro.
+        etrans. eassumption.
+        repeat split; try done; try apply view_le_l. }
+      (* The thread view we started with [TV] is smaller than the view we ended
+      with. *)
+      assert (TV ⊑ (SV ⊔ SV', PV, BV ⊔ PV')).
+      { do 2 (etrans; first done). repeat split; auto using view_le_l. }
+      admit.
+      (* iSplitR "Q". *)
+      (* - iFrameNamed. *)
+      (*   iExists t', sL, _. *)
+      (*   iFrame "∗#". *)
+      (*   iSplit; first done. *)
+      (*   iSplit. 2: { destruct storeDisj; naive_solver. } *)
+      (*   (* FIXME: Intuitively the lhs. should be included in because we read [t'] *)
+      (*   and a write includes its own timestamp. But, we don't remember this fact, *)
+      (*   yet. *) *)
+      (*   admit. *)
+      (* - simpl. *)
+      (*   rewrite /store_view /persist_view /=. *)
+      (*   iApply monPred_mono; last iApply "Q". *)
+      (*   repeat split. *)
+      (*   * apply view_le_r. *)
+      (*   * rewrite assoc. apply view_le_r. *)
+      (*   * apply view_empty_least. *)
+    Admitted.
 
 End wp_rules.

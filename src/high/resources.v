@@ -116,9 +116,18 @@ Section abs_history_lemmas.
              ℓ (abs_hist : gmap time positive) : iProp Σ :=
     ℓ ↪[ abs_history_name ] abs_hist.
 
+  (* In this definition we store that decoding the stored encoded histry is
+  equal to our abstract history. This is weaker than strong the other way
+  around, namely that encoding our history is equal to the stored encoded
+  history. Storing this weaker fact makes the definition easier to show. This is
+  important for the load lemma where, when we load some state and we want to
+  return [know_store_lower_bound] for the returned state. At that point we can
+  conclude that decoding the encoding gives a result but not that the encoding
+  is an encoding of some state. *)
   Definition know_frag_history_loc ℓ (abs_hist : abs_history ST) : iProp Σ :=
     ∃ enc,
-      ⌜(decode <$> enc = Some <$> abs_hist)⌝ ∗
+      ⌜decode <$> enc = Some <$> abs_hist⌝ ∗
+      (* ⌜enc = encode <$> abs_hist⌝ ∗ *)
       own know_abs_history_name (◯ {[ ℓ := to_agree <$> enc ]}).
 
   Lemma own_full_history_gname_alloc h :
@@ -689,15 +698,17 @@ Section points_to_shared.
   greater than [s]. Said in another way, this definition allows for weakening
   (lowering the state) which we do after a crash to get a simpler (but just as
   useful) interaction with the post crash modality. *)
+  (* This definition must satisfy that is we load a location in state [s] then
+  the recovery predicate holds for [s]. Hence we cannot store a lower bound on
+  [s] but must ensure that exactly [s] exists in the abstract history. *)
   Program Definition know_global_per_lower_bound ℓ (s : ST) : dProp Σ :=
     MonPred (λ TV,
-      ∃ tP s',
-        "%sInclS'" ∷ ⌜s ⊑ s'⌝ ∗
+      ∃ tP,
         (* We have the persisted state in our store view. *)
         "%tPLe" ∷ ⌜tP ≤ (store_view TV) !!0 ℓ⌝ ∗
         "knowOrder" ∷ own_preorder_loc ℓ abs_state_relation ∗
         "persisted" ∷ persisted_loc ℓ tP ∗
-        "knowFragHist" ∷ know_frag_history_loc ℓ {[ tP := s' ]})%I _.
+        "knowFragHist" ∷ know_frag_history_loc ℓ {[ tP := s ]})%I _.
   Next Obligation. solve_proper. Qed.
 
   Program Definition know_persist_lower_bound ℓ (s : ST) : dProp Σ :=
