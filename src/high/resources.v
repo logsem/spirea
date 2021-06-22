@@ -74,14 +74,14 @@ Class nvmFixedG Σ := NvmFixedG {
   nvmG_highG :> nvmHighFixedG Σ;
 }.
 
-Class AbstractState T := {
-  abs_state_eqdecision :> EqDecision T;
-  abs_state_countable :> Countable T;
-  abs_state_relation : relation2 T;
+Class AbstractState ST := {
+  abs_state_eqdecision :> EqDecision ST;
+  abs_state_countable :> Countable ST;
+  abs_state_relation : relation2 ST;
   abs_state_preorder :> PreOrder abs_state_relation;
 }.
 
-Instance abstract_state_sqsubseteq `{AbstractState T} : SqSubsetEq T :=
+Instance abstract_state_sqsubseteq `{AbstractState ST} : SqSubsetEq ST :=
   abs_state_relation.
 
 Global Instance discretizable_ghost_map_elem `{ghost_mapG Σ K V} ℓ γ v :
@@ -417,7 +417,7 @@ Section recovery_predicates.
     by case (rec_preds !! ℓ).
   Qed.
 
-  Lemma know_recpred_agree `{Countable s}
+  Lemma know_rec_pred_agree `{Countable s}
         ℓ (ϕ : s → val → nvmDeltaG Σ → dProp Σ) (preds : gmap loc recPredO) :
     know_all_rec_preds preds -∗
     know_rec_pred ℓ ϕ -∗
@@ -672,13 +672,14 @@ Section points_to_shared.
 
       (* We "have"/"know of" the three timestamps. *)
       "%tvIn" ∷ monPred_in ({[ ℓ := MaxNat tStore ]}, {[ ℓ := MaxNat tPers ]}, ∅) ∗
-      "pers" ∷ ⎡persisted ({[ ℓ := MaxNat tGlobalPers ]} : view)⎤
+      "pers" ∷ ⎡persisted_loc ℓ tGlobalPers⎤
     ).
 
   Global Instance mapsto_ex_discretizable ℓ ss1 ss2 ϕ :
     Discretizable (mapsto_ex ℓ ss1 ss2 ϕ).
   Proof. apply _. Qed.
 
+  (* NOTE: This comment is out of date. *)
   (* This definition uses an existentially quantified [s']. We do this such that
   owning [know_global_per_lower_bound ℓ s] before a crash also results in owning
   exactly the same, [know_global_per_lower_bound ℓ s], after a crash. Had the
@@ -688,11 +689,16 @@ Section points_to_shared.
   greater than [s]. Said in another way, this definition allows for weakening
   (lowering the state) which we do after a crash to get a simpler (but just as
   useful) interaction with the post crash modality. *)
-  Definition know_global_per_lower_bound ℓ (s : ST) : dProp Σ :=
-    ∃ t s', ⌜ s ⊑ s' ⌝ ∗
-            ⎡ own_preorder_loc ℓ abs_state_relation ∗
-              persisted {[ ℓ := MaxNat t ]} ∗
-              know_frag_history_loc ℓ {[ t := s' ]} ⎤.
+  Program Definition know_global_per_lower_bound ℓ (s : ST) : dProp Σ :=
+    MonPred (λ TV,
+      ∃ tP s',
+        "%sInclS'" ∷ ⌜s ⊑ s'⌝ ∗
+        (* We have the persisted state in our store view. *)
+        "%tPLe" ∷ ⌜tP ≤ (store_view TV) !!0 ℓ⌝ ∗
+        "knowOrder" ∷ own_preorder_loc ℓ abs_state_relation ∗
+        "persisted" ∷ persisted_loc ℓ tP ∗
+        "knowFragHist" ∷ know_frag_history_loc ℓ {[ tP := s' ]})%I _.
+  Next Obligation. solve_proper. Qed.
 
   Program Definition know_persist_lower_bound ℓ (s : ST) : dProp Σ :=
     MonPred (λ TV,

@@ -193,13 +193,17 @@ End view_ra_rules.
 
 (* Expresses that the view [V] is valid. This means that it is included in the
 lub view. *)
-Definition validV {Σ} `{nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ} (V : view) : iProp Σ :=
+Definition validV `{nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ} (V : view) : iProp Σ :=
   own store_view_name (◯ V).
 
 (* Expresses that the view [P] is persisted. This means that it is included in
 the global persisted view. *)
-Definition persisted {Σ} `{nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ} (V : view) : iProp Σ :=
+Definition persisted `{nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ} (V : view) : iProp Σ :=
   own persist_view_name (◯ V).
+
+Definition persisted_loc `{nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ}
+           ℓ t : iProp Σ :=
+  persisted {[ ℓ := MaxNat t ]}.
 
 (* Expresses that the view [rv] was recovered after the last crash. *)
 Definition crashed_at {Σ} `{nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ}
@@ -816,7 +820,7 @@ Section lifting.
   Lemma wp_fence_sync V P B s E :
     {{{ True }}}
       (ThreadState FenceSync (V, P, B)) @ s; E
-    {{{ RET ThreadVal #() (V, P ⊔ B, B); persisted (B) }}}.
+    {{{ RET ThreadVal #() (V, P ⊔ B, B); persisted B }}}.
   Proof.
     iIntros (Φ) "_ HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.

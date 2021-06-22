@@ -13,21 +13,15 @@ From self.high Require Export dprop resources lifted_modalities monpred_simpl
 Section wpc.
   Context `{nvmFixedG Σ, hGD : nvmDeltaG Σ}.
 
-  (* NOTE: The definition uses [i < j] and not [i ≤ j] in order to make the
-  lemma [increasing_map_singleton] provable. When we use [increasing_map] the
-  relation [R] will always be reflexive, and hence this does not matter. The
-  _knowledge_ that [R] is reflexive may not always be available however (since
-  we may not know that [R] is in fact the encoding of some preorder, and hence
-  this definition works best. *)
-  Definition increasing_map (ss : gmap nat positive) (R : relation2 positive) :=
+  (* NOTE: [R] is reflexive and hence we add the [s ≠ s'] in the conclusion. *)
+  Definition strictly_increasing_map (ss : gmap nat positive) (R : relation2 positive) :=
     ∀ i j (s s' : positive),
-      i < j → (ss !! i = Some s) → (ss !! j = Some s') → R s s'.
-    (* NB: Add s ≠ s' in the conclusion to make the map strictly increasing. *)
+      i < j → (ss !! i = Some s) → (ss !! j = Some s') → R s s' ∧ s ≠ s'.
 
-  Lemma increasing_map_singleton t s R : increasing_map {[ t := s ]} R.
+  Lemma strictly_increasing_map_singleton t s R : strictly_increasing_map {[ t := s ]} R.
   Proof. intros ????? ?%lookup_singleton_Some ?%lookup_singleton_Some. lia. Qed.
 
-  Lemma increasing_map_empty  R : increasing_map ∅ R.
+  Lemma strictly_increasing_map_empty  R : strictly_increasing_map ∅ R.
   Proof. intros ????? [=]. Qed.
 
   (* Convert a message to a thread_view corresponding to what is stored in the
@@ -53,7 +47,8 @@ Section wpc.
   precondition. We keep this in our crash weakest precondition ensuring that it
   holds before and after each step. **)
   Definition interp : iProp Σ :=
-    (∃ (hists : gmap loc (gmap time (message * positive)))
+    (∃ (phys_hists : gmap loc (gmap time message))
+       (abs_hists : gmap loc (gmap time positive))
        (preds : gmap loc (positive → val → option (dProp Σ)))
        (rec_preds : gmap loc (positive → val → option (nvmDeltaG Σ → dProp Σ)))
        (CV : view)
@@ -64,14 +59,14 @@ Section wpc.
       in the abstract history correspond to the physical history. This ensures
       that at a crash we know that the value recoreved after a crash has a
       corresponding abstract value. *)
-      "ptsMap" ∷ ([∗ map] ℓ ↦ hist ∈ hists, ℓ ↦h (fst <$> hist)) ∗
+      "ptsMap" ∷ ([∗ map] ℓ ↦ hist ∈ phys_hists, ℓ ↦h hist) ∗
       "#crashedAt" ∷ crashed_at CV ∗
 
       (* Ownership over the full knowledge of the abstract history of _all_
       locations. *)
-      "history" ∷ own_full_history ((λ (h : (gmap _ _)), snd <$> h) <$> hists) ∗
+      "history" ∷ own_full_history abs_hists ∗
       (* Knowledge of all the predicates. *)
-      "preds" ∷ own predicates_name (● (preds_to_ra preds)) ∗
+      "preds" ∷ own predicates_name (● preds_to_ra preds) ∗
       (* Knowledge of all the recovery predicates. *)
       "recPreds" ∷ own recovery_predicates_name (● (rec_preds_to_ra rec_preds)) ∗
       "allOrders" ∷ own_all_preorders orders ∗
@@ -80,23 +75,25 @@ Section wpc.
       (* Exclusive locations. *)
       "exclusiveLocs" ∷ own exclusive_locs_name (● exclusive_locs) ∗
 
-      "ordered" ∷ ([∗ map] ℓ ↦ hist; order ∈ hists; orders,
-                    ⌜increasing_map (snd <$> hist) order⌝) ∗
+      "ordered" ∷ ([∗ map] ℓ ↦ hist; order ∈ abs_hists; orders,
+                    ⌜strictly_increasing_map hist order⌝) ∗
 
       (* The predicates hold for all the exclusive locations. *)
       "map" ∷
-        ([∗ map] ℓ ↦ hist ∈ (restrict exclusive_locs hists), ∃ pred,
+        ([∗ map] ℓ ↦ abs_hist ∈ (restrict exclusive_locs abs_hists), ∃ pred phys_hist,
+          ⌜phys_hists !! ℓ = Some phys_hist⌝ ∗
           ⌜preds !! ℓ = Some pred⌝ ∗
           (* The predicate holds for each message in the history. *)
-          ([∗ map] t ↦ p ∈ hist, let '(msg, encS) := p in
+          ([∗ map] t ↦ msg; encS ∈ phys_hist; abs_hist,
             encoded_predicate_holds pred encS msg.(msg_val) (msg_to_tv msg))) ∗
       (* The predicates hold for the shared locations. *)
       "mapShared" ∷
-        ([∗ map] ℓ ↦ hist ∈ (restrict shared_locs hists), ∃ pred recPred,
+        ([∗ map] ℓ ↦ abs_hist ∈ (restrict shared_locs abs_hists), ∃ pred recPred phys_hist,
+          ⌜phys_hists !! ℓ = Some phys_hist⌝ ∗
           ⌜preds !! ℓ = Some pred⌝ ∗
           ⌜rec_preds !! ℓ = Some recPred⌝ ∗
           (* The predicate holds for each message in the history. *)
-          ([∗ map] t ↦ p ∈ hist, let '(msg, encS) := p in
+          ([∗ map] t ↦ msg; encS ∈ phys_hist; abs_hist,
             (* The recovery predicate holds or the normal predicate holds. *)
             (⌜t = 0⌝ ∗ ⌜ℓ ∈ dom (gset _) CV⌝ ∗
                      (* True) ∨ *)
@@ -115,10 +112,10 @@ Section wpc.
       "%mapShared" ∷
         ⌜map_Forall (λ _, map_Forall
           (* For shared locations the two persist views are equal. This enforces
-          that shared locations can only be written to using release load and
+          that shared locations can only be written to using release store and
           RMW operations. *)
-          (λ _ '(msg, _), msg.(msg_persist_view) = msg.(msg_persisted_after_view)))
-          (restrict shared_locs hists)⌝).
+          (λ _ msg, msg.(msg_persist_view) = msg.(msg_persisted_after_view)))
+          (restrict shared_locs phys_hists)⌝).
 
   Program Definition wpc_def s k E e (Φ : val → dProp Σ) (Φc : dProp Σ) : dProp Σ :=
     (* monPred_objectively Φc ∗ *)

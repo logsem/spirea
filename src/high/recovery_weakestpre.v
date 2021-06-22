@@ -64,16 +64,20 @@ Proof.
 Qed.
 
 (* For each location in [p] pick the message in the store that it specifies. *)
-Definition slice_of_hist (p : view) (σ : gmap loc (gmap time (message * positive))) : gmap loc (gmap time (message * positive)) :=
+Definition slice_of_hist {A} (p : view) (σ : gmap loc (gmap time A)) :
+  gmap loc (gmap time A) :=
   map_zip_with
     (λ '(MaxNat t) hist,
       match hist !! t with
-        Some (msg, s) => {[ 0 := (discard_msg_views msg, s) ]}
-      | None => ∅ (* The None branch here should never be taken. *)
+        Some s => {[ 0 := s ]}
+      | None => ∅ (* The None branch here is never taken. *)
       end)
     p σ.
 
 Section slice_of_hist_props.
+  Context {A : Type}.
+  Implicit Types (hists : gmap loc (gmap time A)).
+
   Lemma slice_of_hist_dom_subset p hists :
     dom (gset loc) (slice_of_hist p hists) ⊆ dom (gset loc) hists.
   Proof.
@@ -99,26 +103,6 @@ Section slice_of_hist_props.
 
 End slice_of_hist_props.
 
-
-Lemma slice_of_hist_lookup_Some (p : view) store (hist : gmap time message)
-      (logHists : gmap loc (abs_history (message * positive)))
-      msg t (absHist : abs_history (message * positive)) (ℓ : loc) :
-  (λ hist : gmap _ _, fst <$> hist) <$> logHists ⊆ store →
-  store !! ℓ = Some hist →
-  hist !! t = Some msg →
-  p !! ℓ = Some (MaxNat t) →
-  logHists !! ℓ = Some absHist →
-  ∃ s, absHist !! t = Some (msg, s).
-Proof.
-  intros sub lookHist lookMsg lookT lookAbsHist.
-  eapply lookup_weaken in sub.
-  2: { rewrite lookup_fmap_Some. eexists _. split; [reflexivity|done]. }
-  simplify_eq.
-  setoid_rewrite lookup_fmap_Some in lookMsg.
-  destruct lookMsg as [[? s] [eq lookMsg]].
-  exists s. naive_solver.
-Qed.
-
 (** If we have a map of points-to predicates prior to a crash and know what we
 we crashed at, then we can get a map of points-to predicates for the new
 heap. *)
@@ -126,13 +110,13 @@ Lemma map_points_to_to_new `{nvmBaseFixedG Σ} logHists store p' (hG hG' : nvmBa
   consistent_cut p' store →
   own (@crashed_at_view_name (@nvm_base_names' _ hG')) (to_agree p') -∗
   base.post_crash_modality.post_crash_map store hG hG' -∗
-  ([∗ map] ℓ ↦ hist ∈ logHists, let hG := hG in ℓ ↦h (fst <$> hist)) -∗
-  ([∗ map] ℓ ↦ hist ∈ (slice_of_hist p' logHists), let hG := hG' in ℓ ↦h (fst <$> hist)).
+  ([∗ map] ℓ ↦ hist ∈ logHists, let hG := hG in ℓ ↦h hist) -∗
+  ([∗ map] ℓ ↦ hist ∈ (slice_of_store p' logHists), let hG := hG' in ℓ ↦h hist).
 Proof.
   iIntros (cut) "#rec [impl map] pts".
-  iAssert (⌜((λ (hist : gmap _ _), fst <$> hist) <$> logHists) ⊆ store⌝)%I as %foo.
+  iAssert (⌜logHists ⊆ store⌝)%I as %sub.
   { rewrite map_subseteq_spec.
-    iIntros (ℓ msg (absHist & <- & ?)%lookup_fmap_Some).
+    iIntros (ℓ msg look).
     iApply "impl".
     iApply (big_sepM_lookup with "pts"); first done. }
   iAssert (⌜dom (gset _) logHists ⊆ dom _ store⌝)%I as %histSubStore.
@@ -152,8 +136,8 @@ Proof.
     apply subseteq_dom.
     apply restrict_subseteq. }
   iDestruct (big_sepM2_alt with "map") as "[%fall map]".
-  iDestruct (big_sepM_impl_sub _ _ _ (slice_of_hist _ _) with "map []") as "[$ _]".
-  { rewrite /slice_of_hist.
+  iDestruct (big_sepM_impl_sub _ _ _ (slice_of_store _ _) with "map []") as "[$ _]".
+  { rewrite /slice_of_store.
     rewrite !map_zip_with_dom.
     rewrite (restrict_dom_subset _ store).
     2: { rewrite restrict_dom. set_solver. }
@@ -173,7 +157,7 @@ Proof.
   iDestruct "right" as "[right | left]".
   2: {
     iExFalso.
-    rewrite /slice_of_hist in look'.
+    rewrite /slice_of_store in look'.
     apply elem_of_dom_2 in look'.
     setoid_rewrite map_zip_with_dom in look'.
     setoid_rewrite elem_of_intersection in look'.
@@ -191,19 +175,15 @@ Proof.
   destruct look as (? & ? & [= <- <-] & ? & lookStore).
   apply restrict_lookup_Some in lookStore.
   destruct lookStore as [lookStore ?].
+  rewrite /slice_of_store in look'.
   apply map_lookup_zip_with_Some in look'.
-  destruct look' as ([t'] & absHist & eq & ?look & ?look).
+  destruct look' as ([t'] & physHist & eq & ?look & ?look).
 
-  (* [t] is equal to [t']. *)
-  iAssert (⌜t = t'⌝)%I as %<-.
-  { by simplify_eq. }
-
-  edestruct slice_of_hist_lookup_Some as [hi lookT]; try done.
-  rewrite lookT in eq.
-  rewrite eq.
-  rewrite map_fmap_singleton.
-  (* NOTE: We throw some resources away here that we will probably need later on. *)
-  iFrame "newPts".
+  setoid_rewrite map_subseteq_spec in sub.
+  specialize (sub _ _ look0).
+  simplify_eq.
+  rewrite look''.
+  iFrame"newPts".
 Qed.
 
 Definition wpr `{nvmFixedG Σ, nvmDeltaG Σ} s k := wpr' _ s k _.
@@ -224,9 +204,7 @@ Section wpr.
           nvm_heap_ctx (hG := _) σ' ∗
           Pg hGD' (∅, ∅, ∅).
   Proof.
-    (* iIntros (step). *)
     iIntros ([store p p' pIncl cut]).
-    (* iNamed 1. *)
     iIntros "H".
     iNamed "H".
     iIntros "(heap & authStor & inv & pers & recov) Pg".
@@ -239,23 +217,23 @@ Section wpr.
 
     (* Allocate new ghost state for the logical histories. *)
     rewrite /interp.
-    set newHists := slice_of_hist p' hists.
-    iMod (own_full_history_gname_alloc ((λ h : gmap time _, snd <$> h) <$> newHists))
+    set newAbsHists := slice_of_hist p' abs_hists.
+    iMod (own_full_history_gname_alloc newAbsHists)
       as (new_abs_history_name new_know_abs_history_name) "(hists' & #histFrags & knowHistories)".
 
     iMod (own_all_preorders_discard with "allOrders") as "#allOrders".
     (* Some locations may be lost after a crash. For these we need to
     forget/throw away the predicate and preorder that was choosen for the
     location. *)
-    set newOrders := restrict (dom (gset _) newHists) orders.
+    set newOrders := restrict (dom (gset _) newAbsHists) orders.
     iMod (own_all_preorders_gname_alloc newOrders)
       as (new_orders_name) "[newOrders #fragOrders]".
 
 
-    set newPreds := restrict (dom (gset _) newHists) preds.
+    set newPreds := restrict (dom (gset _) newAbsHists) preds.
     iMod (know_predicates_alloc newPreds) as (new_predicates_name) "newPreds".
 
-    set newSharedLocs := (dom (gset _) newHists) ∩ shared_locs.
+    set newSharedLocs := (dom (gset _) newAbsHists) ∩ shared_locs.
     iMod (own_alloc (● (newSharedLocs : gsetUR _))) as (new_shared_locs_name) "newSharedLocs".
     { apply auth_auth_valid. done. }
 
@@ -278,10 +256,10 @@ Section wpr.
     rewrite /nvm_heap_ctx.
     rewrite /post_crash. simpl.
     rewrite /base_post_crash. simpl.
-    iDestruct ("Pg" $! _ (((λ h : abs_history (message * positive), snd <$> h) <$> hists)) (store, _) _ with "persImpl map'") as "(map' & Pg)".
+    iDestruct ("Pg" $! _ (abs_hists) (store, _) _ with "persImpl map'") as "(map' & Pg)".
     simpl.
     iDestruct
-      (map_points_to_to_new hists _ _ _ (MkNvmBaseDeltaG Σ Hcrash baseNames)
+      (map_points_to_to_new _ _ _ _ (MkNvmBaseDeltaG Σ Hcrash baseNames)
          with "newCrashedAt map' ptsMap") as "ptsMap"; first done.
     rewrite /post_crash_map.
     (* We show the assumption for the post crash modality. *)
@@ -311,11 +289,10 @@ Section wpr.
         iDestruct (own_all_preorders_singleton_frag with "allOrders order")
           as %(? & ? & ?).
         iApply (orders_frag_lookup with "fragOrders").
-        (* simplify_eq. *)
         rewrite /newOrders.
         apply restrict_lookup_Some.
         split; first (simplify_eq; done).
-        rewrite /newHists.
+        rewrite /newAbsHists.
         rewrite /slice_of_hist.
         rewrite map_zip_with_dom.
         apply elem_of_intersection.
@@ -326,12 +303,10 @@ Section wpr.
       rewrite /know_full_encoded_history_loc.
       rewrite /own_full_history /own_full_history_gname.
       iDestruct "history" as "[left right]".
-      (* iDestruct (ghost_map_lookup with "left [$]") as "HY". *)
-      (* iApply "HY". *)
       admit.
     }
     (* We show the state interpretation for the high-level logic. *)
-    iExists _, _, _, _, _, _, _.
+    repeat iExists _.
     rewrite /own_full_history.
     iFrame "newOrders newPreds hists' newSharedLocs newCrashedAt recPreds".
     iFrameNamed.
@@ -343,14 +318,14 @@ Section wpr.
         rewrite -domHistsEqOrders.
         apply slice_of_hist_dom_subset.
       - iModIntro.
-        rewrite /newHists.
+        rewrite /newAbsHists.
         iIntros (??? slice ?).
         iPureIntro.
         apply map_lookup_zip_with_Some in slice.
         destruct slice as ([t] & hist & -> & more).
-        destruct (hist !! t) as [[??]|]; simpl.
-        { rewrite map_fmap_singleton. simpl. apply increasing_map_singleton. }
-        { rewrite fmap_empty. apply increasing_map_empty. } }
+        destruct (hist !! t) as [s|]; simpl.
+        { apply strictly_increasing_map_singleton. }
+        { apply strictly_increasing_map_empty. } }
     admit.
   Admitted.
 

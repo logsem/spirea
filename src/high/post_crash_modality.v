@@ -427,24 +427,20 @@ Section post_crash_derived.
       know_global_per_lower_bound ℓ s ∗
       know_persist_lower_bound ℓ s). (* ∗ know_store_lower_bound ℓ s). *)
   Proof.
-    iStartProof (dProp _).
-    iIntros "H".
-    iDestruct "H" as (t s') "(%incl & #order & pers & hist)".
-    iDestruct (post_crash_know_frag_history_loc with "[$pers $hist $order]") as "HI".
+    iStartProof (iProp _). iIntros (TV).
+    iNamed 1.
+    iDestruct (post_crash_know_frag_history_loc with "[$]") as "HI".
     iApply (post_crash_mono with "HI").
-    iIntros (hG').
+    iStartProof (iProp _).
+    iIntros (hG' TV').
     iDestruct 1 as
         (s'' t' CV) "(%incl' & %le & %cvLook & #ord & #hist & #crash & #pers)".
-    rewrite /know_global_per_lower_bound.
     assert (s ⊑ s'') by (etrans; done).
     (* We show the global persist lower bound. *)
     iSplit.
-    { iExists 0, s''. iFrame "#%". }
+    { iExists 0, s''. iFrame "#%". iPureIntro. lia. }
     (* We show the local persist lower bound. *)
     iApply know_persist_lower_bound_at_zero; done.
-    (* iSplit. *)
-    (* { iApply know_persist_lower_bound_at_zero; done. } *)
-    (* iApply know_store_lower_bound_at_zero; done. *)
   Qed.
 
   Lemma post_crash_mapsto_ex `{AbstractState ST} ℓ ss1 ss2 ϕ ψ :
