@@ -228,16 +228,20 @@ Section lifted_own_discrete.
   (*   IntoDiscrete (own_discrete P) P. *)
   (* Proof. rewrite /Discretizable/IntoDiscrete//=. Qed. *)
 
+  Global Instance monPred_discretizable (P : thread_view → iProp Σ) prf :
+    (∀ i, own_discrete.Discretizable (P i)) →
+    Discretizable ({| monPred_at := P; monPred_mono := prf |}).
+  Proof.
+    rewrite /Discretizable own_discrete_eq.
+    iStartProof (iProp _). iIntros (Hd ?).
+    simpl.
+    unfold own_discrete.Discretizable in Hd.
+    iApply Hd.
+  Qed.
+
   Global Instance embed_discretizable (P : iProp Σ) :
     own_discrete.Discretizable P → Discretizable ⎡P⎤.
-  Proof.
-    rewrite /Discretizable.
-    rewrite own_discrete_eq.
-    iStartProof (iProp _). iIntros (D tv) "P".
-    simpl.
-    rewrite monPred_at_embed.
-    by iModIntro.
-  Qed.
+  Proof. rewrite monPred_embed_eq. apply _. Qed.
 
   Global Instance persistent_discretizable (P : dProp Σ) :
     Persistent P → Discretizable P.

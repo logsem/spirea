@@ -252,12 +252,21 @@ Section post_crash_prop.
   (** Tiny shortcut for introducing the assumption for a [post_crash]. *)
   Ltac iIntrosPostCrash := iIntros (σ hG') "#perToRec map".
 
-  Lemma post_crash_intro Q:
+  Lemma post_crash_intro Q :
     (⊢ Q) →
     (⊢ post_crash (λ _, Q)).
   Proof. iIntros (Hmono). iIntrosPostCrash. iFrame "∗". iApply Hmono. Qed.
 
-  Lemma post_crash_mono P Q:
+  (* Lemma post_crash_idemp P : post_crash (λ hG, post_crash P) ⊢ post_crash P. *)
+  (* Proof. *)
+  (*   iIntros "P". *)
+  (*   rewrite /post_crash. *)
+  (*   iIntrosPostCrash. *)
+  (*   iDestruct ("P" $! σ _ with "[$] map") as "[map P]". *)
+  (*   iDestruct ("P" $! σ _ with "[] map") as "HIHI". *)
+  (* Qed. *)
+
+  Lemma post_crash_mono P Q :
     (∀ hG, P hG -∗ Q hG) →
     post_crash P -∗ post_crash Q.
   Proof.
@@ -267,8 +276,8 @@ Section post_crash_prop.
     by iApply Hmono.
   Qed.
 
-  (* This lemma seems to not hold. *)
-  (* Lemma post_crash_pers P Q: *)
+  (* This lemma seems to not hold for our post crash modality.. *)
+  (* Lemma post_crash_pers P Q : *)
   (*   (P -∗ post_crash Q) → *)
   (*   □ P -∗ post_crash (λ hG, □ Q hG). *)
   (* Proof. *)
@@ -279,7 +288,7 @@ Section post_crash_prop.
   (*   iModIntro. iFrame. *)
   (* Qed. *)
 
-  Lemma post_crash_sep P Q:
+  Lemma post_crash_sep P Q :
     post_crash P ∗ post_crash Q -∗ post_crash (λ hG, P hG ∗ Q hG).
   Proof.
     iIntros "(HP & HQ)".
@@ -288,7 +297,7 @@ Section post_crash_prop.
     iDestruct ("HQ" $! σ hG' with "[$] [$]") as "$".
   Qed.
 
-  (* Lemma post_crash_or P Q: *)
+  (* Lemma post_crash_or P Q : *)
   (*   post_crash P ∨ post_crash Q -∗ post_crash (λ hG, P hG ∨ Q hG). *)
   (* Proof. *)
   (*   iIntros "[HP|HQ]"; iIntros (???) "#Hrel". *)
@@ -296,7 +305,7 @@ Section post_crash_prop.
   (*   - iRight. by iApply "HQ". *)
   (* Qed. *)
 
-  (* Lemma post_crash_and P Q: *)
+  (* Lemma post_crash_and P Q : *)
   (*   post_crash P ∧ post_crash Q -∗ post_crash (λ hG, P hG ∧ Q hG). *)
   (* Proof. *)
   (*   iIntros "HPQ"; iIntros (???) "#Hrel". *)
@@ -324,7 +333,7 @@ Section post_crash_prop.
     iIntrosPostCrash. iFrame. iApply "HP".
   Qed.
 
-  (* Lemma post_crash_exists {A} P Q: *)
+  (* Lemma post_crash_exists {A} P Q : *)
   (*   (∀ (x: A), P hG x -∗ post_crash (λ hG, Q hG x)) -∗ *)
   (*   (∃ x, P hG x) -∗ post_crash (λ hG, ∃ x, Q hG x). *)
   (* Proof. *)
@@ -333,7 +342,7 @@ Section post_crash_prop.
   (*   iExists x. iApply ("Hall" with "[$] [$]"). *)
   (* Qed. *)
 
-  (* Lemma post_crash_forall {A} P Q: *)
+  (* Lemma post_crash_forall {A} P Q : *)
   (*   (∀ (x: A), P hG x -∗ post_crash (λ hG, Q hG x)) -∗ *)
   (*   (∀ x, P hG x) -∗ post_crash (λ hG, ∀ x, Q hG x). *)
   (* Proof. *)
@@ -480,7 +489,7 @@ Section post_crash_prop.
 End post_crash_prop.
 
 Class IntoCrash {Σ} `{nvmBaseFixedG Σ, nvmBaseDeltaG Σ}
-      (P: iProp Σ) (Q: nvmBaseDeltaG Σ → iProp Σ) :=
+      (P : iProp Σ) (Q : nvmBaseDeltaG Σ → iProp Σ) :=
   into_crash : P -∗ post_crash (Σ := Σ) (λ hG', Q hG').
 
 Section IntoCrash.
@@ -541,7 +550,7 @@ Section IntoCrash.
 (*   Qed. *)
 
 (*   (* *)
-(*   Global Instance post_crash_into_crash P: *)
+(*   Global Instance post_crash_into_crash P : *)
 (*     IntoCrash (post_crash P) P. *)
 (*   Proof. rewrite /IntoCrash. by iApply post_crash_mono. Qed. *)
 (*    *) *)
@@ -610,11 +619,11 @@ Section IntoCrash.
 (*       * intros. rewrite big_sepS_insert //=. *)
 (*   Qed. *)
 
-(*   Lemma into_crash_post_crash_frame_l P P' `{!IntoCrash P P'} Q: *)
+(*   Lemma into_crash_post_crash_frame_l P P' `{!IntoCrash P P'} Q : *)
 (*     P -∗ post_crash Q -∗ post_crash (λ hG', P' hG' ∗ Q hG'). *)
 (*   Proof. iIntros "HP HQ". rewrite (@into_crash _ _ P). iApply post_crash_sep. iFrame. Qed. *)
 
-(*   Lemma into_crash_post_crash_frame_r P P' `{!IntoCrash P P'} Q: *)
+(*   Lemma into_crash_post_crash_frame_r P P' `{!IntoCrash P P'} Q : *)
 (*     post_crash Q -∗ P  -∗ post_crash (λ hG', Q hG' ∗ P' hG'). *)
 (*   Proof. iIntros "HP HQ". rewrite (@into_crash _ _ P). iApply post_crash_sep. iFrame. Qed. *)
 
@@ -633,7 +642,7 @@ Section IntoCrash.
 
 End IntoCrash.
 
-Lemma modus_ponens {Σ} (P Q: iProp Σ)  : P -∗ (P -∗ Q) -∗ Q.
+Lemma modus_ponens {Σ} (P Q : iProp Σ)  : P -∗ (P -∗ Q) -∗ Q.
 Proof. iIntros "HP Hwand". by iApply "Hwand". Qed.
 
 Ltac crash_env Γ :=

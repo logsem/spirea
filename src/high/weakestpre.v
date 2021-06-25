@@ -202,17 +202,18 @@ Section wp_rules.
       by iRewrite "predsEquiv".
   Qed.
 
-  Lemma wp_load_ex ℓ ss ss' s Q ϕ positive E :
-    last ss' = Some s →
-    {{{ ℓ ↦ ss; ss' | ϕ ∗ <obj> (∀ v, ϕ s v -∗ Q v ∗ ϕ s v) }}}
+  Lemma wp_load_ex ℓ ss s Q ϕ positive E :
+    last ss = Some s →
+    {{{ ℓ ↦ ss ∗ ⎡ know_pred ℓ ϕ ⎤ ∗ (<obj> (∀ v, ϕ s v -∗ Q v ∗ ϕ s v)) }}}
       Load (Val $ LitV $ LitLoc ℓ) @ positive; E
-    {{{ v, RET v; ℓ ↦ ss; ss' | ϕ ∗ Q v }}}.
+    {{{ v, RET v; ℓ ↦ ss ∗ Q v }}}.
   Proof.
     intros sLast Φ.
     iStartProof (iProp _). iIntros (TV).
     (* We destruct the exclusive points-to predicate. *)
-    iIntros "[pts pToQ]".
-    iDestruct "pts" as (?tGP ?tP ?tS absHist) "pts". iNamed "pts".
+    iIntros "(pts & knowPred & pToQ)".
+    iDestruct "pts" as (?tP ?tS absHist) "pts". iNamed "pts".
+    iDestruct "haveTStore" as %haveTStore.
     rewrite monPred_at_wand. simpl.
     iIntros (TV' incl) "Φpost".
     rewrite monPred_at_later.
@@ -245,19 +246,14 @@ Section wp_rules.
 
     (* We need to conclude that the only write we could read is [tS]. I.e., that
     [t' = tS]. *)
-    assert ({[ℓ := MaxNat tS]} ⊑ SV) as inclSingl.
+    assert (tS ≤ SV !!0 ℓ) as tSle.
     { destruct TV as [[??]?].
       destruct TV' as [[??]?].
-      etrans.
-      apply tvIn.
-      etrans.
-      apply incl.
-      apply incl2. }
+      etrans; first done.
+      rewrite /store_view /=.
+      apply view_lt_lt. etrans; first apply incl; apply incl2. done. }
     assert (tS ≤ t') as lte.
-    { eapply (view_lt_lookup ℓ).
-      - apply inclSingl.
-      - rewrite /lookup_zero. rewrite lookup_singleton. done.
-      - apply gt. }
+    { etrans; first apply tSle. apply gt. }
     iDestruct (big_sepM2_dom with "predMap") as %domEq.
     assert (is_Some (absHist !! t')) as HI.
     { apply elem_of_dom.
@@ -273,7 +269,7 @@ Section wp_rules.
     { rewrite -sLast.
       apply map_slice_lookup_hi in slice.
       rewrite slice.
-      erewrite last_app; done. }
+      done. }
     clear lte HI.
 
     iDestruct (big_sepM2_lookup_acc with "predMap") as "[predHolds predMap]";
@@ -302,20 +298,20 @@ Section wp_rules.
       don't have that fact. *)
       admit.
     }
-    iExists _, _, _, _.
-    iFrame "∗#%".
+    iExists _, _, _.
+    iFrameNamed.
     iPureIntro.
     etrans. eassumption.
     etrans. eassumption.
     eassumption.
   Admitted.
 
-  Lemma wp_store_ex ℓ ss1 ss2 v s__last s ϕ st E :
-    last ss2 = Some s__last →
+  Lemma wp_store_ex ℓ ss v s__last s ϕ st E :
+    last ss = Some s__last →
     s__last ⊑ s →
-    {{{ ℓ ↦ ss1; ss2 | ϕ ∗ ϕ s v }}}
+    {{{ ℓ ↦ ss ∗ ⎡ know_pred ℓ ϕ ⎤ ∗ ϕ s v }}}
       #ℓ <- v @ st; E
-    {{{ RET #(); ℓ ↦ ss1; ss2 ++ [s] | ϕ }}}.
+    {{{ RET #(); ℓ ↦ (ss ++ [s]) }}}.
   Proof.
     intros last stateGt Φ.
     iStartProof (iProp _). iIntros (TV).
@@ -402,11 +398,10 @@ Section wp_rules.
   Proof.
   *)
 
-  Lemma wp_wb_ex ℓ ss1 ss2 s ϕ st E :
-    last ss2 = Some s →
-    {{{ ℓ ↦ ss1; ss2 | ϕ }}}
+  Lemma wp_wb_ex ℓ s st E :
+    {{{ know_store_lower_bound ℓ s }}}
       WB #ℓ @ st; E
-    {{{ RET #(); ℓ ↦ ss1; ss2 | ϕ ∗ <fence> know_persist_lower_bound ℓ s }}}.
+    {{{ RET #(); <fence> know_flush_lower_bound ℓ s }}}.
    Proof.
    Admitted.
 
@@ -459,7 +454,7 @@ Section wp_rules.
   Admitted.
 
   Lemma msg_persisted_views_eq
-        (ℓ : loc) (hists : gmap loc (abs_history (message * positive)))
+        (ℓ : loc) (hists : gmap loc (gmap time (message * positive)))
         (hist : gmap time (message * positive)) (msg : message)
         (sharedLocs : gset loc) (t : time) (s' : positive) :
     map_Forall
@@ -491,7 +486,8 @@ Section wp_rules.
         "knowPred" ∷ ⎡ know_pred ℓ ϕ ⎤ ∗
         "isSharedLoc" ∷ ⎡ own shared_locs_name (◯ {[ ℓ ]}) ⎤ ∗
         "storeLB" ∷ know_store_lower_bound ℓ s ∗
-        "pToQ" ∷ <obj> (∀ s' v, ⌜ s ⊑ s' ⌝ ∗ ϕ s' v -∗ Q s' v ∗ ϕ s' v) }}}
+        "pToQ" ∷ <obj> (∀ s' v, ⌜ s ⊑ s' ⌝ ∗ ϕ s' v -∗ Q s' v ∗ ϕ s' v) ∗
+        "live" ∷ live ℓ }}} 
       !{acq} #ℓ @ positive; E
     {{{ s' v, RET v;
         "storeLB" ∷ know_store_lower_bound ℓ s' ∗
@@ -501,6 +497,9 @@ Section wp_rules.
     iStartProof (iProp _). iIntros (TV).
     iNamed 1.
     iNamed "storeLB".
+    iDestruct "live" as (t''' CV') "(%storeDisj & %tvIn & crashed')".
+    iDestruct (crashed_at_agree with "crashed crashed'") as %<-.
+    iClear "crashed'".
     (* We unfold the WP. *)
     iIntros (TV' incl) "Φpost".
     rewrite wp_eq /wp_def wpc_eq.
@@ -565,7 +564,11 @@ Section wp_rules.
       [done|done| ].
     simpl.
     iDestruct "predHolds" as "[(%t'Eq & %in & hi)|[%t'Disj predHolds]]".
-    { exfalso. destruct storeDisj; [lia | done]. }
+    { exfalso.
+      destruct storeDisj; last done.
+      assert (t''' ≤ t') as eq.
+      { admit. (* Should be easy to show. *) }
+      lia. }
 
     (* The loaded state must be greater than [s]. *)
     iDestruct (big_sepM2_lookup_1 with "ordered")
@@ -629,7 +632,6 @@ Section wp_rules.
       iExists t', sL, _.
       iFrame "∗#".
       iSplit; first done.
-      iSplit. 2: { destruct storeDisj; naive_solver. }
       (* FIXME: Intuitively the lhs. should be included in because we read [t']
       and a write includes its own timestamp. But, we don't remember this fact,
       yet. *)
@@ -649,8 +651,8 @@ Section wp_rules.
       "knowPred" ∷ ⎡ know_pred ℓ ϕ ⎤ ∗
       "knowRecPred" ∷ ⎡ know_rec_pred ℓ ϕr ⎤ ∗
       "isSharedLoc" ∷ ⎡ own shared_locs_name (◯ {[ ℓ ]}) ⎤ ∗
-      "persistLB" ∷ know_global_per_lower_bound ℓ s ∗
-      "pToQr" ∷ <obj> (∀ v, ϕ s v -∗ Qr s v ∗ ϕ s v) ∗
+      "persistLB" ∷ know_persist_lower_bound ℓ s ∗
+      "pToQr" ∷ <obj> (∀ v, ϕr s v _ -∗ Qr s v ∗ ϕr s v _) ∗
       "pToQ" ∷ <obj> (∀ s' v, ⌜s ⊑ s' ∧ s ≠ s'⌝ ∗ ϕ s' v -∗ Q s' v ∗ ϕ s' v)
     }}}
       !{acq} #ℓ @ positive; E

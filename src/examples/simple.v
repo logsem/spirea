@@ -86,18 +86,17 @@ Section simple_increment.
   (* NOTE: This example is currently broken since the crash condition used is
   not objective. We should use the post crash modality in the crash condition
   (maybe built in to WPC). *)
-  (*
   Lemma wp_incr ℓa ℓb n E (Φ : val → dProp Σ) :
     ⊢ ℓa ↦ []; [0] | (λ s v, ⌜v = #s⌝) -∗
-      ℓb ↦ []; [0] | (λ s v, ⌜v = #s⌝ ∗ know_persist_lower_bound ℓa s) -∗
+      ℓb ↦ []; [0] | (λ s v, ⌜v = #s⌝ ∗ know_flush_lower_bound ℓa s) -∗
       WPC (incr ℓa ℓb) @ n; E
         {{ λ _,
            ℓa ↦ []; [0; 1] | (λ s v, ⌜v = #s⌝) ∗ (* FIXME: The [0] should be moved left. *)
-           ℓb ↦ []; [0; 1] | (λ s v, ⌜v = #s⌝ ∗ know_persist_lower_bound ℓa s)
+           ℓb ↦ []; [0; 1] | (λ s v, ⌜v = #s⌝ ∗ know_flush_lower_bound ℓa s)
         }}
         {{ ∃ (sa1 sa2 sb1 sb2 : list nat),
            ℓa ↦ sa1; sa2 | (λ s v, ⌜v = #s⌝) ∗
-           ℓb ↦ sb1; sb2 | (λ s v, ⌜v = #s⌝ ∗ know_persist_lower_bound ℓa s) }}.
+           ℓb ↦ sb1; sb2 | (λ s v, ⌜v = #s⌝ ∗ know_flush_lower_bound ℓa s) }}.
   Proof.
     iIntros "aPts bPts".
     rewrite /incr.
@@ -153,7 +152,6 @@ Section simple_increment.
     iModIntro.
     iFrame "aPts bPts".
   Qed.
-  *)
 
   (* FIXME: Hoare triples don't work as Perennial's Hoare triples are tied to iProp. *)
   (* Lemma wpc_incr' (ℓa ℓb : loc) : *)

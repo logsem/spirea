@@ -38,8 +38,6 @@ Definition recPredicateR {Σ} :=
   agreeR (positive -d> val -d> laterO (optionO (nvmDeltaG Σ -d> (dPropO Σ)))).
 Definition recPredicatesR {Σ} := authR (gmapUR loc (@recPredicateR Σ)).
 
-Notation abs_history := (gmap time).
-
 (* Resource algebras that for each location stores the encoded abstract states
 associated with each message/store. *)
 Definition encoded_abs_historyR := gmapUR time (agreeR positiveO).
@@ -94,8 +92,10 @@ Section abs_history_lemmas.
   Context `{nvmFixedG Σ, hGD : nvmDeltaG Σ}.
   Context `{Countable ST}.
 
-  Implicit Types (abs_hist : gmap time ST) (ℓ : loc).
-  Implicit Types (abs_hists : gmap loc (gmap time positive)).
+  Implicit Types
+    (abs_hist : gmap time ST) (ℓ : loc)
+    (enc_abs_hist : gmap time positive)
+    (abs_hists : gmap loc (gmap time positive)).
 
   Definition abs_hist_to_ra abs_hist : encoded_abs_historyR :=
     (to_agree ∘ encode) <$> abs_hist.
@@ -116,6 +116,9 @@ Section abs_history_lemmas.
              ℓ (abs_hist : gmap time positive) : iProp Σ :=
     ℓ ↪[ abs_history_name ] abs_hist.
 
+  Definition know_frag_encoded_history_loc ℓ enc_abs_hist : iProp Σ :=
+    own know_abs_history_name (◯ {[ ℓ := to_agree <$> enc_abs_hist ]}).
+
   (* In this definition we store that decoding the stored encoded histry is
   equal to our abstract history. This is weaker than strong the other way
   around, namely that encoding our history is equal to the stored encoded
@@ -124,11 +127,11 @@ Section abs_history_lemmas.
   return [know_store_lower_bound] for the returned state. At that point we can
   conclude that decoding the encoding gives a result but not that the encoding
   is an encoding of some state. *)
-  Definition know_frag_history_loc ℓ (abs_hist : abs_history ST) : iProp Σ :=
+  Definition know_frag_history_loc ℓ (abs_hist : gmap time ST) : iProp Σ :=
     ∃ enc,
       ⌜decode <$> enc = Some <$> abs_hist⌝ ∗
       (* ⌜enc = encode <$> abs_hist⌝ ∗ *)
-      own know_abs_history_name (◯ {[ ℓ := to_agree <$> enc ]}).
+      know_frag_encoded_history_loc ℓ enc.
 
   Lemma own_full_history_gname_alloc h :
     ⊢ |==> ∃ γ1 γ2,
@@ -155,6 +158,19 @@ Section abs_history_lemmas.
     know_full_history_loc ℓ abs_hist ⊣⊢
       know_full_encoded_history_loc ℓ (encode <$> abs_hist).
   Proof. done. Qed.
+
+  Lemma know_frag_equiv ℓ abs_hist :
+    know_frag_encoded_history_loc ℓ (encode <$> abs_hist) ⊢
+    know_frag_history_loc ℓ abs_hist.
+  Proof.
+    rewrite /know_frag_history_loc /know_frag_encoded_history_loc.
+    iIntros "H".
+    iExists _. iFrame. iPureIntro.
+    apply map_eq. intros t.
+    rewrite !lookup_fmap.
+    destruct (abs_hist !! t); last done.
+    simpl. by rewrite decode_encode.
+  Qed.
 
   Lemma abs_hist_to_ra_inj hist hist' :
     abs_hist_to_ra hist' ≡ abs_hist_to_ra hist →
@@ -276,6 +292,7 @@ Section abs_history_lemmas.
       simpl.
       split; f_equiv. }
     iExists {[ t := encS ]}.
+    rewrite /know_frag_encoded_history_loc.
     rewrite !map_fmap_singleton.
     rewrite decEq.
     iFrame.
@@ -537,11 +554,11 @@ Section preorders.
   Definition own_all_preorders preorders :=
     own_all_preorders_gname preorders_name preorders.
 
-  Definition own_preorder_loc ℓ (preorder : relation2 A) : iProp Σ :=
+  Definition know_preorder_loc ℓ (preorder : relation2 A) : iProp Σ :=
     own preorders_name (◯ ({[ ℓ := to_agree (encode_relation preorder) ]})).
 
-  Global Instance persistent_own_preorder_loc ℓ preorder :
-    Persistent (own_preorder_loc ℓ preorder).
+  Global Instance persistent_know_preorder_loc ℓ preorder :
+    Persistent (know_preorder_loc ℓ preorder).
   Proof. apply _. Qed.
 
   Lemma own_all_preorders_gname_alloc (preorders : gmap loc (relation2 positive)) :
@@ -582,7 +599,7 @@ Section preorders.
     rewrite <- look'.
     rewrite option_included_total.
     intros [|(? & ? & [= ?] & [= ?] & incl)]; first done.
-    destruct (preorders !! ℓ) as [encOrder look|]; last done.
+    destruct (preorders !! ℓ) as [encOrder|]; last done.
     exists encOrder.
     split; last done.
     simpl in *.
@@ -594,7 +611,7 @@ Section preorders.
   Lemma orders_lookup ℓ order1 order2 (orders : gmap loc (relation2 positive)) :
     orders !! ℓ = Some order1 →
     own_all_preorders orders -∗
-    own_preorder_loc ℓ order2 -∗
+    know_preorder_loc ℓ order2 -∗
     ⌜order1 = encode_relation order2⌝.
   Proof.
     iIntros (look) "auth frag".
@@ -637,8 +654,25 @@ Section preorders.
 
 End preorders.
 
+(* [m] is undefined all natural numbers greater than [t]. *)
+Definition map_no_later {A} (m : gmap nat A) t := ∀ t', t < t' → m !! t' = None.
+
+Lemma map_no_later_Some {A} (m : gmap nat A) t t' :
+  map_no_later m t → is_Some (m !! t') → t' ≤ t.
+Proof. intros ? ?%not_eq_None_Some. apply not_gt. naive_solver. Qed.
+
+Lemma map_no_later_singleton {A} t (s : A) :
+  map_no_later {[ t := s ]} t.
+Proof. intros ??. rewrite lookup_singleton_ne; [done | lia]. Qed.
+
+Definition increasing_list `{SqSubsetEq ST} (ss : list ST) :=
+  ∀ i j s s', i < j → (ss !! i = Some s) → (ss !! j = Some s') → s ≠ s' ∧ s ⊑ s'.
+
+Lemma increasing_list_singleton `{SqSubsetEq ST} (s : ST) : increasing_list [s].
+Proof. intros [|][|]?????; try naive_solver. simplify_eq. lia. Qed.
+
 Section points_to_shared.
-  Context `{nvmFixedG Σ, nvmDeltaG Σ, AbstractState ST}.
+  Context `{nvmFixedG Σ, hGD : nvmDeltaG Σ, AbstractState ST}.
 
   Implicit Types (e : expr) (ℓ : loc) (s : ST)
            (ss : list ST) (ϕ : ST → val → dProp Σ).
@@ -655,43 +689,47 @@ Section points_to_shared.
     apply singleton_included_l.
   Qed.
 
-  Definition increasing_list ss :=
-    ∀ i j s s', i ≤ j → (ss !! i = Some s) → (ss !! j = Some s') → s ⊑ s'.
+  Definition know_inv ℓ ϕ : dProp Σ :=
+    ⎡know_pred ℓ ϕ ∗ know_preorder_loc ℓ (⊑@{ST})⎤%I.
+
+  Program Definition have_store_view ℓ t : dProp Σ :=
+    MonPred (λ (TV : thread_view), ⌜t ≤ (store_view TV) !!0 ℓ⌝)%I _.
+  Next Obligation. solve_proper. Qed.
+
+  Definition is_exclusive_loc ℓ := own exclusive_locs_name (◯ {[ ℓ ]}).
+
+  Definition is_shared_loc ℓ := own shared_locs_name (◯ {[ ℓ ]}).
 
   (* _Exclusive_ points-to predicate. This predcate says that we know that the
   last events at [ℓ] corresponds to the *)
-  Definition mapsto_ex ℓ ss1 ss2 ϕ : dProp Σ :=
-    (∃ (tGlobalPers tPers tStore : time) (abs_hist : abs_history ST),
+  Program Definition mapsto_ex (persisted : bool) (ℓ : loc) (ss : list ST) : dProp Σ :=
+    (* MonPred (λ TV, *)
+      (∃ (tP tStore : time) (abs_hist : gmap time ST),
+        "%incrList" ∷ ⌜increasing_list ss⌝ ∗
+        "isExclusiveLoc" ∷ ⎡ own exclusive_locs_name (◯ {[ ℓ ]}) ⎤ ∗
+        "#knowOrder" ∷ ⎡ know_preorder_loc ℓ (abs_state_relation) ⎤ ∗
 
-      "isExclusiveLoc" ∷ ⎡ own exclusive_locs_name (◯ {[ ℓ ]}) ⎤ ∗
-      "%incrList" ∷ ⌜ increasing_list (ss1 ++ ss2) ⌝ ∗
-      "#knowOrder" ∷ ⎡ own_preorder_loc ℓ ((⊑@{ST})) ⎤ ∗
+        (* [tStore] is the last message and it agrees with the last state in ss. *)
+        "%lookupV" ∷ ⌜abs_hist !! tStore = last ss⌝ ∗
+        "%nolater" ∷ ⌜map_no_later abs_hist tStore⌝ ∗
 
-      "%lookupP" ∷ ⌜abs_hist !! tPers = head ss2⌝ ∗ (* Note: This also ensures that [ss2] is non-empty :) *)
-      (* [tStore] is the last message and it agrees with the last state in ss2. *)
-      "%lookupV" ∷ ⌜abs_hist !! tStore = last ss2⌝ ∗
-      "%nolater" ∷ ⌜(∀ t', tStore < t' → abs_hist !! t' = None)⌝ ∗
+        (* Ownership over the abstract history. *)
+        "hist" ∷ ⎡ know_full_history_loc ℓ abs_hist ⎤ ∗
 
-      (* Ownership over the abstract history. *)
-      "hist" ∷ ⎡know_full_history_loc ℓ abs_hist⎤ ∗
-      (* Knowledge of the predicate. *)
-      "knowPred" ∷ ⎡know_pred ℓ ϕ⎤ ∗
+        "%slice" ∷ ⌜map_slice abs_hist tP tStore ss⌝ ∗
 
-      "%slice" ∷ ⌜map_slice abs_hist tGlobalPers tStore (ss1 ++ ss2)⌝ ∗
+        (* We "have"/"know of" the three timestamps. *)
+        "haveTStore" ∷ have_store_view ℓ tStore ∗
+        "pers" ∷ if persisted then ⎡ persisted_loc ℓ tP ⎤ else ⌜tP = 0⌝)%I.
 
-      (* We "have"/"know of" the three timestamps. *)
-      "%tvIn" ∷ monPred_in ({[ ℓ := MaxNat tStore ]}, {[ ℓ := MaxNat tPers ]}, ∅) ∗
-      "pers" ∷ ⎡persisted_loc ℓ tGlobalPers⎤
-    ).
-
-  Global Instance mapsto_ex_discretizable ℓ ss1 ss2 ϕ :
-    Discretizable (mapsto_ex ℓ ss1 ss2 ϕ).
-  Proof. apply _. Qed.
+  Global Instance mapsto_ex_discretizable b ℓ ss :
+    Discretizable (mapsto_ex b ℓ ss).
+  Proof. destruct b; apply _. Qed.
 
   (* NOTE: This comment is out of date. *)
   (* This definition uses an existentially quantified [s']. We do this such that
-  owning [know_global_per_lower_bound ℓ s] before a crash also results in owning
-  exactly the same, [know_global_per_lower_bound ℓ s], after a crash. Had the
+  owning [know_persist_lower_bound ℓ s] before a crash also results in owning
+  exactly the same, [know_persist_lower_bound ℓ s], after a crash. Had the
   definition said that _exactly_ [s] was persisted at [t] then we would have a
   different state after a crash, since after a crash there is only a single
   entry in the history for [ℓ] and that entry may refer to any abstract state
@@ -701,22 +739,22 @@ Section points_to_shared.
   (* This definition must satisfy that is we load a location in state [s] then
   the recovery predicate holds for [s]. Hence we cannot store a lower bound on
   [s] but must ensure that exactly [s] exists in the abstract history. *)
-  Program Definition know_global_per_lower_bound ℓ (s : ST) : dProp Σ :=
+  Program Definition know_persist_lower_bound ℓ (s : ST) : dProp Σ :=
     MonPred (λ TV,
       ∃ tP,
         (* We have the persisted state in our store view. *)
         "%tPLe" ∷ ⌜tP ≤ (store_view TV) !!0 ℓ⌝ ∗
-        "knowOrder" ∷ own_preorder_loc ℓ abs_state_relation ∗
+        "knowOrder" ∷ know_preorder_loc ℓ abs_state_relation ∗
         "persisted" ∷ persisted_loc ℓ tP ∗
         "knowFragHist" ∷ know_frag_history_loc ℓ {[ tP := s ]})%I _.
   Next Obligation. solve_proper. Qed.
 
-  Program Definition know_persist_lower_bound ℓ (s : ST) : dProp Σ :=
+  Program Definition know_flush_lower_bound ℓ (s : ST) : dProp Σ :=
     MonPred (λ TV,
       ∃ (t : nat) s',
         ⌜ s ⊑ s' ⌝ ∗
         ⌜t ≤ (persist_view TV) !!0 ℓ⌝ ∗
-        own_preorder_loc ℓ abs_state_relation ∗
+        know_preorder_loc ℓ abs_state_relation ∗
         know_frag_history_loc ℓ {[ t := s' ]}
     )%I _.
   Next Obligation. solve_proper. Qed.
@@ -727,32 +765,59 @@ Section points_to_shared.
         "%sInclS'" ∷ ⌜s ⊑ s'⌝ ∗
         "%tLe" ∷ ⌜tS ≤ (store_view TV) !!0 ℓ⌝ ∗
         "#crashed" ∷ crashed_at CV ∗
-        "knowOrder" ∷ own_preorder_loc ℓ abs_state_relation ∗
-        "knowFragHist" ∷ know_frag_history_loc ℓ {[ tS := s' ]} ∗
-        "%storeDisj" ∷ ⌜0 ≠ tS ∨ ℓ ∉ dom (gset _) CV⌝ (* entails that ϕ holds for the write *)
+        "knowOrder" ∷ know_preorder_loc ℓ abs_state_relation ∗
+        "knowFragHist" ∷ know_frag_history_loc ℓ {[ tS := s' ]}
+        (* "%storeDisj" ∷ ⌜0 ≠ tS ∨ ℓ ∉ dom (gset _) CV⌝ (* entails that ϕ holds for the write *) *)
     )%I _.
   Next Obligation. solve_proper. Qed.
 
+  Definition recovered_at ℓ s : dProp Σ :=
+    ∃ CV,
+      "#knowFragHist" ∷ ⎡know_frag_history_loc ℓ {[ 0 := s ]}⎤ ∗
+      "#crashed" ∷ ⎡crashed_at CV⎤ ∗
+      "%inCV" ∷ ⌜ℓ ∈ dom (gset _) CV⌝.
+
+  (* [ℓ] was recovered at the last crash. *)
+  Definition recovered ℓ : dProp Σ := ∃ s, recovered_at ℓ s.
+
+  (* [ℓ] was not recovered at the last crash. *)
+  Definition lost ℓ : dProp Σ :=
+    ∃ CV,
+      "#crashed" ∷ ⎡crashed_at CV⎤ ∗
+      "%notInCV" ∷ ⌜ℓ ∉ dom (gset _) CV⌝.
+    
+  (* Live expresses that once we read from [ℓ] we are sure to get a message that
+  was written during this execution and not one that was recoverd. *)
+  Definition live ℓ : dProp Σ :=
+    ∃ (t : nat) CV,
+      (* This disjunction entails that ϕ holds for the write *)
+      "%storeDisj" ∷ ⌜0 ≠ t ∨ ℓ ∉ dom (gset _) CV⌝ ∗
+      "%tvIn" ∷ monPred_in (∅, ∅, {[ ℓ := MaxNat t ]}) ∗
+      "#crashed" ∷ ⎡crashed_at CV⎤.
+      (* ∗ "#knowFragHist" ∷ ⎡know_frag_history_loc ℓ {[ t := s ]}⎤. *)
+
+  (* Let's see if we want this.
   Definition mapsto_shared ℓ s1 s2 s3 ϕ : dProp Σ :=
     "knowPred" ∷ ⎡ know_pred ℓ ϕ ⎤ ∗
     "isSharedLoc" ∷ ⎡ own shared_locs_name (◯ {[ ℓ ]}) ⎤ ∗
-    "globalPerLB" ∷ know_global_per_lower_bound ℓ s1 ∗
-    "persistLB" ∷ know_persist_lower_bound ℓ s2 ∗
+    "globalPerLB" ∷ know_persist_lower_bound ℓ s1 ∗
+    "persistLB" ∷ know_flush_lower_bound ℓ s2 ∗
     "storeLB" ∷ know_store_lower_bound ℓ s3.
+  *)
 
-  Global Instance know_persist_lower_bound_persistent
-         ℓ (s : ST) : Persistent (know_persist_lower_bound ℓ s).
+  Global Instance know_flush_lower_bound_persistent
+         ℓ (s : ST) : Persistent (know_flush_lower_bound ℓ s).
   Proof. apply monPred_persistent=> j. apply _. Qed.
 
   Global Instance know_store_lower_bound_persistent
          ℓ (s : ST) : Persistent (know_store_lower_bound ℓ s).
   Proof. apply monPred_persistent=> j. apply _. Qed.
 
-  Lemma know_persist_lower_bound_at_zero ℓ (s s' : ST) :
+  Lemma know_flush_lower_bound_at_zero ℓ (s s' : ST) :
     s ⊑ s' →
     ⎡ know_frag_history_loc ℓ {[0 := s']} ⎤ -∗
-    ⎡ own_preorder_loc ℓ abs_state_relation ⎤ -∗
-    know_persist_lower_bound ℓ s.
+    ⎡ know_preorder_loc ℓ abs_state_relation ⎤ -∗
+    know_flush_lower_bound ℓ s.
   Proof.
     iStartProof (iProp _). iIntros (incl ?) "?".
     iIntros (? ?) "?". iExists 0, s'. iFrame "%∗". iPureIntro. lia.
@@ -762,17 +827,27 @@ Section points_to_shared.
   (* Lemma know_store_lower_bound_at_zero ℓ (s s' : ST) : *)
   (*   s ⊑ s' → *)
   (*   ⎡ know_frag_history_loc ℓ {[0 := s']} ⎤ -∗ *)
-  (*   ⎡ own_preorder_loc ℓ abs_state_relation ⎤ -∗ *)
+  (*   ⎡ know_preorder_loc ℓ abs_state_relation ⎤ -∗ *)
   (*   know_store_lower_bound ℓ s. *)
   (* Proof. *)
   (*   iStartProof (iProp _). iIntros (incl ?) "?". *)
   (*   iIntros (? ?) "?". iExists 0, s', _. iFrame "%∗". iPureIntro. lia. *)
   (* Qed. *)
 
+  (* A few utility lemmas. *)
+  Lemma recovered_at_not_lot ℓ s : recovered_at ℓ s -∗ lost ℓ -∗ False.
+  Proof.
+    iNamed 1. iIntros "(%CV' & crashed' & %notInCV)". 
+    iDestruct (crashed_at_agree with "[$] [$]") as %->.
+    set_solver.
+  Qed.
+
 End points_to_shared.
 
 (** Notation for the exclusive points-to predicate. *)
-Notation "l ↦ xs ; ys | P" := (mapsto_ex l xs ys P) (at level 20).
+Notation "l ↦ ss" := (mapsto_ex false l ss) (at level 20).
+Notation "l ↦ₚ ss" := (mapsto_ex true l ss) (at level 20).
+(* Notation "l ↦ xs ; ys | P" := (mapsto_ex l xs ys P) (at level 20). *)
 
 (** Notation for the shared points-to predicate. *)
-Notation "l ↦ ( s1 , s2 , s3 )  | P" := (mapsto_shared l s1 s2 s3 P) (at level 20).
+(* Notation "l ↦ ( s1 , s2 , s3 )  | P" := (mapsto_shared l s1 s2 s3 P) (at level 20). *)

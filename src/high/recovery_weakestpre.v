@@ -285,7 +285,7 @@ Section wpr.
         iExists _. iFrame "newCrashedAt".
         destruct (p' !! ℓ) eqn:lookP'; last naive_solver.
         iLeft.
-        rewrite /own_preorder_loc /preorders_name. simpl.
+        rewrite /know_preorder_loc /preorders_name. simpl.
         iDestruct (own_all_preorders_singleton_frag with "allOrders order")
           as %(? & ? & ?).
         iApply (orders_frag_lookup with "fragOrders").
