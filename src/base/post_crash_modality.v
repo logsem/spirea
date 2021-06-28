@@ -71,7 +71,7 @@ Section if_non_zero.
       * auto.
     - iIntros "[->|H]"; first done.
       iDestruct "H" as (qp) "(% & % & ?)".
-      rewrite decide_left. simplify_eq. rewrite foo. iFrame.
+      rewrite decide_True_pi. simplify_eq. rewrite foo. iFrame.
   Qed.
 
   Lemma if_non_zero_ge_0 q P : if_non_zero q P -∗ ⌜(0 ≤ q)%Qc⌝.

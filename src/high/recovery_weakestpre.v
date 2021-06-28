@@ -129,7 +129,7 @@ Proof.
   { apply (restrict_subseteq (dom _ p')). }
   iDestruct (big_sepM_subseteq with "map") as "map".
   { apply (restrict_subseteq (dom _ (restrict (dom (gset _) p') logHists))). }
-  iDestruct (big_sepM_sepM2_2 with "pts map") as "map".
+  iDestruct (big_sepM2_sepM_2 with "pts map") as "map".
   { setoid_rewrite <- elem_of_dom.
     setoid_rewrite restrict_dom_subset at 2; first done.
     etrans; last apply histSubStore.
@@ -193,7 +193,7 @@ Section wpr.
 
   (* Given the state interpretations _before_ a crash we reestablish the
   interpretations _after_ a crash. *)
-  Lemma nvm_reinit (hGD : nvmDeltaG Σ) n Pg tv σ σ' (Hinv : invG Σ) (Hcrash : crashG Σ) :
+  Lemma nvm_reinit (hGD : nvmDeltaG Σ) n Pg tv σ σ' (Hinv : invGS Σ) (Hcrash : crashG Σ) :
     crash_step σ σ' →
     ⊢ interp -∗
       state_interp σ n -∗
@@ -311,7 +311,7 @@ Section wpr.
     iFrame "newOrders newPreds hists' newSharedLocs newCrashedAt recPreds".
     iFrameNamed.
     iSplitR.
-    { iApply big_sepM2_intuitionistically_forall.
+    { iApply big_sepM2_intro.
       - setoid_rewrite <- elem_of_dom.
         apply set_eq. (* elem_of_equiv_L *)
         rewrite restrict_dom_subset_L; first done.
@@ -330,7 +330,7 @@ Section wpr.
   Admitted.
 
   (*
-  Lemma nvm_reinit' (hG' : nvmFixedG Σ, nvmDeltaG Σ) n σ σ' (Hinv : invG Σ) (Hcrash : crashG Σ) Pg :
+  Lemma nvm_reinit' (hG' : nvmFixedG Σ, nvmDeltaG Σ) n σ σ' (Hinv : invGS Σ) (Hcrash : crashG Σ) Pg :
     crash_step σ σ' →
     ⊢ ⎡interp⎤ -∗
       ⎡state_interp σ n⎤ -∗

@@ -10,24 +10,24 @@ From self.high Require Import dprop monpred_simpl.
 
 (* fupd_level *)
 
-Program Definition uPred_fupd_split_level_def `{!invG Σ}
+Program Definition uPred_fupd_split_level_def `{!invGS Σ}
            (E1 E2 : coPset) (k : nat) mj (P : dProp Σ) : dProp Σ :=
   MonPred (λ TV, uPred_fupd_split_level_def E1 E2 k mj (P TV))%I _.
 Next Obligation. solve_proper. Qed.
 
-Definition uPred_fupd_split_level_aux `{!invG Σ} : seal uPred_fupd_split_level_def.
+Definition uPred_fupd_split_level_aux `{!invGS Σ} : seal uPred_fupd_split_level_def.
 Proof. by eexists. Qed.
-Definition uPred_fupd_split_level `{!invG Σ} := uPred_fupd_split_level_aux.(unseal).
-Definition uPred_fupd_split_level_eq `{!invG Σ} :
+Definition uPred_fupd_split_level `{!invGS Σ} := uPred_fupd_split_level_aux.(unseal).
+Definition uPred_fupd_split_level_eq `{!invGS Σ} :
     uPred_fupd_split_level = uPred_fupd_split_level_def :=
   uPred_fupd_split_level_aux.(seal_eq).
 
-Definition uPred_fupd_level_def `{!invG Σ} (E1 E2 : coPset) (k : nat) (P : dProp Σ) : dProp Σ :=
+Definition uPred_fupd_level_def `{!invGS Σ} (E1 E2 : coPset) (k : nat) (P : dProp Σ) : dProp Σ :=
   uPred_fupd_split_level E1 E2 k None P.
-Definition uPred_fupd_level_aux `{!invG Σ} : seal uPred_fupd_level_def.
+Definition uPred_fupd_level_aux `{!invGS Σ} : seal uPred_fupd_level_def.
 Proof. by eexists. Qed.
-Definition uPred_fupd_level `{!invG Σ} := uPred_fupd_level_aux.(unseal).
-Definition uPred_fupd_level_eq `{!invG Σ} : uPred_fupd_level = uPred_fupd_level_def :=
+Definition uPred_fupd_level `{!invGS Σ} := uPred_fupd_level_aux.(unseal).
+Definition uPred_fupd_level_eq `{!invGS Σ} : uPred_fupd_level = uPred_fupd_level_def :=
   uPred_fupd_level_aux.(seal_eq).
 
 Notation "| k , j ={ E1 , E2 }=> Q" := (uPred_fupd_split_level E1 E2 k j Q) : bi_scope.
@@ -36,7 +36,7 @@ Notation "| k ={ E1 , E2 }=> Q" := (uPred_fupd_level E1 E2 k Q) : bi_scope.
 Notation "| k ={ E1 }=> Q" := (uPred_fupd_level E1 E1 k Q) : bi_scope.
 
 Section lifted_fupd_level.
-  Context `{!invG Σ}.
+  Context `{!invGS Σ}.
 
   (*** fupd_level*)
 
@@ -45,8 +45,8 @@ Section lifted_fupd_level.
   Proof. Admitted. (* by rewrite /IsExcept0 except_0_fupd_level. Qed. *)
 
   Global Instance from_modal_fupd_level E k P :
-    FromModal modality_id (|k={E}=> P) (|k={E}=> P) P.
-  Proof. Admitted. (* by rewrite /FromModal /= -fupd_level_intro. Qed. *)
+    FromModal True modality_id (|k={E}=> P) (|k={E}=> P) P.
+  Proof. Admitted. (* by rewrite /FromModal True /= -fupd_level_intro. Qed. *)
 
   Global Instance elim_modal_bupd_fupd_level p E1 E2 k P Q :
     ElimModal True p false (|==> P) P (|k={E1,E2}=> Q) (|k={E1,E2}=> Q) | 10.
@@ -80,12 +80,12 @@ Section lifted_fupd_level.
 
 End lifted_fupd_level.
 
-Program Definition ncfupd_def `{!invG Σ, !crashG Σ} (E1 E2 : coPset) (P : dProp Σ) : dProp Σ :=
+Program Definition ncfupd_def `{!invGS Σ, !crashG Σ} (E1 E2 : coPset) (P : dProp Σ) : dProp Σ :=
   MonPred (λ TV, ncfupd E1 E2 (P TV))%I _.
 Next Obligation. solve_proper. Qed.
-Definition ncfupd_aux `{!invG Σ, !crashG Σ} : seal (ncfupd_def). Proof. by eexists. Qed.
-Definition ncfupd `{!invG Σ, !crashG Σ} := ncfupd_aux.(unseal).
-Definition ncfupd_eq `{!invG Σ, !crashG Σ} : ncfupd = ncfupd_def := ncfupd_aux.(seal_eq).
+Definition ncfupd_aux `{!invGS Σ, !crashG Σ} : seal (ncfupd_def). Proof. by eexists. Qed.
+Definition ncfupd `{!invGS Σ, !crashG Σ} := ncfupd_aux.(unseal).
+Definition ncfupd_eq `{!invGS Σ, !crashG Σ} : ncfupd = ncfupd_def := ncfupd_aux.(seal_eq).
 
 Notation "|NC={ E1 }=> Q" := (ncfupd E1 E1 Q)
   (at level 99, E1 at level 50, Q at level 200,
@@ -100,7 +100,7 @@ Notation "|NC={ E1 } [ E2 ]▷=>^ n Q" := (Nat.iter n (λ P, |NC={E1}[E2]▷=> P
   (at level 99, E1, E2 at level 50, n at level 9, Q at level 200,
   format "|NC={ E1 } [ E2 ]▷=>^ n  Q").
 
-Program Definition cfupd `{!invG Σ, !crashG Σ} (k: nat) E1 (P : dProp Σ) :=
+Program Definition cfupd `{!invGS Σ, !crashG Σ} (k: nat) E1 (P : dProp Σ) :=
   (⎡C⎤ -∗ |k={E1}=> P)%I.
   (* MonPred (λ TV, cfupd k E1 (P TV))%I _. *)
 (* Next Obligation. solve_proper. Qed. *)
@@ -261,27 +261,27 @@ End lifted_own_discrete.
 
 Notation "'<bdisc>' P" := (own_discrete P) (at level 20, right associativity) : bi_scope.
 
-Program Definition own_discrete_fupd_def `{!invG Σ} (P : dProp Σ) : dProp Σ :=
+Program Definition own_discrete_fupd_def `{!invGS Σ} (P : dProp Σ) : dProp Σ :=
   MonPred (λ TV, own_discrete_fupd (P TV)) _.
 Next Obligation. solve_proper. Qed.
-Definition own_discrete_fupd_aux `{!invG Σ} : seal own_discrete_fupd_def.
+Definition own_discrete_fupd_aux `{!invGS Σ} : seal own_discrete_fupd_def.
 Proof. by eexists. Qed.
-Definition own_discrete_fupd `{!invG Σ} := own_discrete_fupd_aux.(unseal).
-Definition own_discrete_fupd_eq `{!invG Σ} : own_discrete_fupd = own_discrete_fupd_def :=
+Definition own_discrete_fupd `{!invGS Σ} := own_discrete_fupd_aux.(unseal).
+Definition own_discrete_fupd_eq `{!invGS Σ} : own_discrete_fupd = own_discrete_fupd_def :=
   own_discrete_fupd_aux.(seal_eq).
 Arguments own_discrete_fupd {_ _} _%I.
 
 Notation "'<disc>' P" := (own_discrete_fupd P) (at level 20, right associativity) : bi_scope.
 
 Section lifted_modalities.
-  Context `{crashG Σ, invG Σ}.
+  Context `{crashG Σ, invGS Σ}.
 
   (*** ncfupd *)
 
   Global Instance from_modal_ncfupd E P :
-    FromModal modality_id (|NC={E}=> P) (|NC={E}=> P) P.
+    FromModal True modality_id (|NC={E}=> P) (|NC={E}=> P) P.
   Proof.
-    rewrite /FromModal ncfupd_eq /=. iStartProof (iProp _). iIntros (TV).
+    rewrite /FromModal ncfupd_eq /=. iStartProof (iProp _). iIntros (_ TV).
     iIntros "$". rewrite ncfupd.ncfupd_eq. iIntros (q) "$". done.
   Qed.
 
@@ -331,22 +331,16 @@ Section lifted_modalities.
   Qed.
 
   Global Instance from_modal_cfupd k E1 P :
-    FromModal modality_id (cfupd k E1 P) (cfupd k E1 P) (P).
+    FromModal True modality_id (cfupd k E1 P) (cfupd k E1 P) (P).
   Proof.
     rewrite /FromModal /=.
-    iIntros "HP".
-    iIntros "_".
+    iIntros (_) "HP _".
     iModIntro. by iFrame.
-    (* rewrite /FromModal /=. *)
-    (* iStartProof (iProp _). iIntros (TV). *)
-    (* iIntros "P". *)
-    (* iIntros "_". *)
-    (* iModIntro. iFrame. *)
   Qed.
 
   (*** <disc> *)
 
-  Class IntoDiscreteFupd `{!invG Σ} (P Q : dProp Σ) :=
+  Class IntoDiscreteFupd `{!invGS Σ} (P Q : dProp Σ) :=
     into_discrete_fupd : P ⊢ own_discrete_fupd Q.
   Arguments IntoDiscreteFupd {_} _%I _%I.
   Arguments into_discrete_fupd {_} _%I _%I {_}.
@@ -382,8 +376,8 @@ Section lifted_modalities.
     Modality _ (modality_own_discrete_fupd_mixin).
 
   Global Instance from_modal_own_discrete_fupd (P : dProp Σ) :
-    FromModal modality_own_discrete_fupd (own_discrete_fupd P) (own_discrete_fupd P) P.
-  Proof. rewrite /FromModal//=. Qed.
+    FromModal True modality_own_discrete_fupd (own_discrete_fupd P) (own_discrete_fupd P) P.
+  Proof. rewrite /FromModal //=. Qed.
   Lemma disc_unfold_at P TV :
     (own_discrete_fupd P) TV = own_discrete.own_discrete_fupd (P TV).
   Proof.

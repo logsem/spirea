@@ -16,10 +16,10 @@ From self.base Require Import tactics.
 
 (* The functors that are unchanged after a crash. *)
 Class nvmBaseFixedG Σ := {
-  nvmBaseG_invG : invG Σ;                           (* For invariants. *)
-  nvmBaseG_gen_heapG :> gen_heapPreG loc history Σ; (* For the heap. *)
-  view_inG :> inG Σ (authR viewUR);                 (* For views. *)
-  crashed_at_inG :> inG Σ (agreeR viewO);           (* For crashed at knowledge. *)
+  nvmBaseG_invGS : invGS Σ;                          (* For invariants. *)
+  nvmBaseG_gen_heapGS :> gen_heapGpreS loc history Σ;  (* For the heap. *)
+  view_inG :> inG Σ (authR viewUR);                  (* For views. *)
+  crashed_at_inG :> inG Σ (agreeR viewO);            (* For crashed at knowledge. *)
 }.
 
 (** Names for the heap that needs to change after a crash. *)
@@ -45,12 +45,12 @@ Class nvmBaseDeltaG Σ := MkNvmBaseDeltaG {
   nvm_base_names' :> nvm_base_names;
 }.
 
-(* When we have an [nvmBaseG] instance we can stich together a [gen_heapG]
+(* When we have an [nvmBaseG] instance we can stich together a [gen_heapGS]
 instance. We need this instance b.c. we store functors and the ghost names in
 separate records (for the post crash modality) and this means that we need this
-to construct the [gen_heapG] record that mixes these things together. *)
+to construct the [gen_heapGS] record that mixes these things together. *)
 Instance nvm_baseG_to_heapG `{nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ} :
-    gen_heapG loc _ Σ := {|
+    gen_heapGS loc _ Σ := {|
   gen_heap_inG := _;
   gen_heap_name := name_gen_heap (heap_names_name);
   gen_meta_name := name_gen_meta (heap_names_name);
@@ -130,9 +130,9 @@ Definition nvm_heap_ctx `{hG : !nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ} σ : i
     "%cvSubset" ∷ ⌜dom (gset _) CV ⊆ dom _ σ.1⌝ ∗
     "#crashedAt" ∷ own crashed_at_view_name (to_agree CV : agreeR viewO)).
 
-Global Program Instance nvmBaseG_irisG `{!nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ} :
-  irisG nvm_lang Σ := {
-  iris_invG := nvmBaseG_invG;
+Global Program Instance nvmBaseG_irisGS `{!nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ} :
+  irisGS nvm_lang Σ := {
+  iris_invG := nvmBaseG_invGS;
   iris_crashG := nvm_base_crashG;
   num_laters_per_step := λ n, n; (* This is the choice GooseLang takes. *)
   state_interp σ _nt := nvm_heap_ctx σ;
@@ -417,12 +417,12 @@ Section lifting.
     ([∗ map] h ∈ heap, hist_inv W' h).
   Proof.
     iIntros (incl) "#M".
-    iApply big_sepM_intuitionistically_forall.
+    iApply big_sepM_intro.
     iModIntro.
     iIntros (ℓ h look).
     iDestruct (big_sepM_lookup with "M") as "[% #M']"; first done.
     iSplitL; first done.
-    iApply big_sepM_intuitionistically_forall. iModIntro.
+    iApply big_sepM_intro. iModIntro.
     iIntros (t msg look').
     iDestruct (big_sepM_lookup with "M'") as %incl'; first done.
     iPureIntro. by trans W.
@@ -482,7 +482,7 @@ Section lifting.
     iIntros (disj) "H". rewrite /store_inv.
     rewrite big_sepM_union; last apply disj.
     iSplitR "H".
-    - iApply big_sepM_intuitionistically_forall.
+    - iApply big_sepM_intro.
       iIntros "!>" (ℓ' hist (j & w & ? & Hjl & eq & mo)%heap_array_lookup).
       rewrite /hist_inv.
       rewrite eq.

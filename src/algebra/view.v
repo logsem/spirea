@@ -71,7 +71,6 @@ Proof. rewrite /lookup_zero. rewrite lookup_singleton. done. Qed.
 Lemma view_empty_least V : ∅ ⊑ V.
 Proof.
   rewrite subseteq_view_incl.
-  replace ∅ with ε by done.
   apply: ucmra_unit_least.
 Qed.
 
@@ -89,7 +88,7 @@ Proof.
     apply max_nat_included.
     done.
   - rewrite look.
-    replace (None) with (ε); last done.
+    replace (None) with (ε : option _); last done.
     apply ucmra_unit_least.
 Qed.
 
@@ -176,7 +175,7 @@ Proof.
     destruct (V !! ℓ') as [[m]|] eqn:eq; simpl.
     * rewrite eq. simpl in *. apply Some_included_2. apply max_nat_included. done.
     * rewrite eq.
-      replace (None) with (ε); last done.
+      replace (None) with (ε : option _); last done.
       apply ucmra_unit_least.
   - rewrite lookup_insert_ne; done.
 Qed.

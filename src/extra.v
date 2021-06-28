@@ -193,7 +193,7 @@ Section big_sepM.
     □ (∀ k x, ⌜m !! k = Some x⌝ → Φ k x -∗ Ψ k x) -∗
     [∗ map] k↦x ∈ m, Ψ k x.
   Proof.
-    apply wand_intro_l. rewrite big_sepM_intuitionistically_forall -big_sepM_sep.
+    apply wand_intro_l. rewrite big_sepM_intro -big_sepM_sep.
     by setoid_rewrite wand_elim_l.
   Qed.
 
@@ -240,7 +240,7 @@ Section big_sepM.
           iSpecialize ("H" $! look1 with "disj").
           done.
         }
-        erewrite map_filter_strong_ext.
+        erewrite map_filter_strong_ext_1.
         { iFrame "Hi". }
         simpl.
         intros j x'.
@@ -261,7 +261,7 @@ Section big_sepM.
           iSpecialize ("H" $! look1 with "disj").
           done. }
         iDestruct "Hi" as "[$ Hi]".
-        erewrite map_filter_strong_ext.
+        erewrite map_filter_strong_ext_1.
         { iFrame "Hi". }
         intros i' x'. simpl.
         destruct (decide (i = i')) as [?|neq]; first naive_solver.

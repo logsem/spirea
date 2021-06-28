@@ -593,9 +593,9 @@ Section preorders.
     intros [y [eq incl]].
     move: incl.
     rewrite lookup_fmap in eq.
-    apply equiv_Some_inv_r' in eq.
+    apply Some_equiv_eq in eq.
     destruct eq as [y' [look' eq]].
-    rewrite eq.
+    rewrite -eq.
     rewrite <- look'.
     rewrite option_included_total.
     intros [|(? & ? & [= ?] & [= ?] & incl)]; first done.

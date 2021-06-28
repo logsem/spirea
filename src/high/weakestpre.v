@@ -571,7 +571,7 @@ Section wp_rules.
       lia. }
 
     (* The loaded state must be greater than [s]. *)
-    iDestruct (big_sepM2_lookup_1 with "ordered")
+    iDestruct (big_sepM2_lookup_l with "ordered")
       as (order) "[%ordersLook %increasingMap]".
     { apply absHistLook. }
     iDestruct (orders_lookup with "allOrders knowOrder") as %orderEq;
@@ -732,7 +732,7 @@ Section wp_rules.
       [done|done| ].
     simpl.
 
-    iDestruct (big_sepM2_lookup_1 with "ordered")
+    iDestruct (big_sepM2_lookup_l with "ordered")
       as (order) "[%ordersLook %increasingMap]"; first done.
     iDestruct (orders_lookup with "allOrders knowOrder") as %orderEq; first done.
 
@@ -780,7 +780,7 @@ Section wp_rules.
       (* rewrite orderEq in orderRelated. *)
 
       (* The loaded state must be greater than [s]. *)
-      (* iDestruct (big_sepM2_lookup_1 with "ordered") *)
+      (* iDestruct (big_sepM2_lookup_l with "ordered") *)
       (*   as (order) "[%ordersLook %increasingMap]". *)
       (* { apply absHistLook. } *)
       (* iDestruct (orders_lookup with "allOrders knowOrder") as %orderEq; *)

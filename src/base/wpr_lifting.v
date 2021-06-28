@@ -13,11 +13,11 @@ From self.base Require Import primitive_laws post_crash_modality.
 
 Set Default Proof Using "Type".
 
-Definition nvm_get_heap_names {V Σ} (hG : gen_heapG loc V Σ) : nvm_heap_names :=
+Definition nvm_get_heap_names {V Σ} (hG : gen_heapGS loc V Σ) : nvm_heap_names :=
   {| name_gen_heap := gen_heap_name hG ;
      name_gen_meta := gen_meta_name hG |}.
 
-(* Definition nvm_heap_update {Σ} (h : gen_heapG loc history Σ) (names : nvm_heap_names) := *)
+(* Definition nvm_heap_update {Σ} (h : gen_heapGS loc history Σ) (names : nvm_heap_names) := *)
 (*   {| gen_heap_inG := gen_heap_inG; *)
 (*      gen_heap_name := names.(name_gen_heap); *)
 (*      gen_meta_name := names.(name_gen_meta) |}. *)
@@ -30,21 +30,21 @@ Canonical Structure nvm_base_namesO := leibnizO nvm_base_names.
 (** Given an [hG : nvmBaseFixedG Σ, nvmBaseDeltaG Σ], update the fields per the information in the
 rest of the arguments. In particular, all the gnames in [names] replaces the
 corresponding gnames in [hG].
-TOOD: See if we can get rid of the [invG] and [crashG] argument.
+TOOD: See if we can get rid of the [invGS] and [crashG] argument.
  *)
 
-(* Lemma heap_update_eq {Σ} heapG' (heapG : gen_heapG loc history Σ) : *)
-(*   (@nvm_heap_update Σ heapG' (@nvm_get_heap_names (@gmap nat nat_eq_dec nat_countable message) Σ heapG)) *)
+(* Lemma heap_update_eq {Σ} heapGS' (heapGS : gen_heapGS loc history Σ) : *)
+(*   (@nvm_heap_update Σ heapGS' (@nvm_get_heap_names (@gmap nat nat_eq_dec nat_countable message) Σ heapGS)) *)
 (*     = *)
-(*   heapG. *)
+(*   heapGS. *)
 (* Proof. *)
-(*   destruct heapG'. *)
-(*   destruct heapG. *)
+(*   destruct heapGS'. *)
+(*   destruct heapGS. *)
 (*   rewrite /nvm_get_heap_names. simpl. *)
 (*   rewrite /nvm_heap_update. simpl. *)
 (*   f_equal. *)
 (* Abort. *)
-(* (*   gen_heapPreG *) *)
+(* (*   gen_heapGpreS *) *)
 (* (*   auto. *) *)
 (* (* Qed. *) *)
 
@@ -55,12 +55,11 @@ TOOD: See if we can get rid of the [invG] and [crashG] argument.
 (*         |}. *)
 (* Proof. destruct hGD. done. Qed. *)
 
-
 Program Global Instance nvmBaseG_perennialG `{!nvmBaseFixedG Σ} :
   perennialG nvm_lang nvm_crash_lang nvm_base_namesO Σ := {
   perennial_irisG :=
     λ Hcrash hnames,
-      nvmBaseG_irisG (hGD := MkNvmBaseDeltaG _ Hcrash (@pbundleT _ _ hnames));
+      nvmBaseG_irisGS (hGD := MkNvmBaseDeltaG _ Hcrash (@pbundleT _ _ hnames));
   perennial_crashG := λ _ _, eq_refl;
   perennial_num_laters_per_step := λ n, n
 }.
@@ -262,8 +261,8 @@ Section wpr.
         `{hG : nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ} s k E1 e rec Φx Φinv Φrx Φcx :
     ⊢ WPC e @ s ; k ; E1 {{ Φx }} {{ Φcx hGD }} -∗
     (□ ∀ (hG1 : nvmBaseDeltaG Σ)
-         (* (Hpf : @nvmBaseG_invG Σ (@nvm_base_inG _ hG) = *)
-         (*          @nvmBaseG_invG Σ (@nvm_base_inG _ hG1)) *) σ σ'
+         (* (Hpf : @nvmBaseG_invGS Σ (@nvm_base_inG _ hG) = *)
+         (*          @nvmBaseG_invGS Σ (@nvm_base_inG _ hG1)) *) σ σ'
          (HC : crash_prim_step (nvm_crash_lang) σ σ'),
          Φcx hG1 -∗ ▷ post_crash (λ hG2, (Φinv hG2 ∧ WPC rec @ s ; k; E1 {{ Φrx hG2 }} {{ Φcx hG2 }}))) -∗
       wpr s k E1 e rec Φx Φinv Φrx.
