@@ -30,7 +30,7 @@ vok: $(QUICK_CHECK_FILES:.v=.vok)
 
 # do not try to build dependencies if cleaning or just building _CoqProject
 ifeq ($(filter clean,$(MAKECMDGOALS)),)
--include .coqdeps.d
+include .coqdeps.d
 endif
 
 ifneq (,$(TIMING))
