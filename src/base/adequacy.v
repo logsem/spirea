@@ -55,7 +55,7 @@ Proof.
             |}).
   iModIntro.
   iFrame.
-  rewrite /store_inv.
+  rewrite /valid_heap.
   rewrite /hist_inv.
 Admitted.
 (* Qed. *)

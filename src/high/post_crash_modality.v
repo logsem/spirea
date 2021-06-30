@@ -5,7 +5,7 @@ From iris.proofmode Require Import reduction monpred tactics.
 From Perennial.Helpers Require Import ipm NamedProps.
 From Perennial.program_logic Require Import recovery_weakestpre.
 
-From self Require Import extra.
+From self Require Import extra ipm_tactics.
 From self.base Require Import primitive_laws wpr_lifting.
 From self.base Require post_crash_modality.
 From self.high Require Import dprop resources monpred_simpl.
@@ -506,19 +506,6 @@ Section post_crash_derived.
     (* We show the local persist lower bound. *)
     iApply know_flush_lower_bound_at_zero; done.
   Qed.
-
-  Ltac iPureGoal :=
-    rewrite bi.pure_True;
-    first (rewrite (left_id (True)%I) || rewrite (right_id (True)%I));
-    last first.
-
-  Lemma pure_named_True {PROP} name (φ : Prop) : φ → (name ∷ ⌜φ⌝) ⊣⊢@{PROP} True.
-  Proof. apply bi.pure_True. Qed.
-
-  Ltac iPureGoalNamed name :=
-    rewrite (pure_named_True name);
-    first (rewrite (left_id (True)%I) || rewrite (right_id (True)%I));
-    last first.
 
   Lemma post_crash_mapsto_ex `{AbstractState ST} ℓ ss :
     ℓ ↦ ss -∗

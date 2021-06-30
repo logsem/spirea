@@ -207,10 +207,10 @@ Section wpr.
     iIntros ([store p p' pIncl cut]).
     iIntros "H".
     iNamed "H".
-    iIntros "(heap & authStor & inv & pers & recov) Pg".
+    iIntros "(heap & authStor & %inv & pers & recov) Pg".
 
     (* We need to first re-create the ghost state for the base interpretation. *)
-    iMod (nvm_heap_reinit _ _ _ _ _ Hcrash with "heap inv pers")
+    iMod (nvm_heap_reinit _ _ _ _ _ Hcrash with "heap pers")
       as (baseNames) "(map' & interp' & #persImpl & #newCrashedAt)"; try done.
 
     iDestruct (big_sepM2_dom with "ordered") as %domHistsEqOrders.

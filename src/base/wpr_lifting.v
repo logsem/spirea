@@ -105,30 +105,29 @@ Section wpr.
 
   Lemma store_inv_cut `{nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ} store p :
     consistent_cut p store →
-    store_inv store -∗ store_inv (slice_of_store p store).
+    valid_heap store → valid_heap (slice_of_store p store).
   Proof.
-    rewrite /store_inv.
-    iIntros (cut) "H".
-    iDestruct (big_sepM_impl_sub _ _ _ (slice_of_store p store) with "H []") as "[$ _]".
-    { rewrite /slice_of_store. apply map_zip_with_dom_snd. }
-    rewrite /hist_inv.
-    iIntros "!>" (ℓ h h' look look') "[%some H]".
+    rewrite /valid_heap /valid_heap_lub.
+    intros cut val.
+    intros ℓ h look'.
     rewrite /slice_of_store in look'.
     apply map_lookup_zip_with_Some in look'.
-    destruct look' as ([t] & ? & ? & pLook & ?).
-    iSplit.
-    - iPureIntro.
-      (* Extract info from consistent cut. *)
+    destruct look' as ([t] & hist & ? & pLook & ?).
+    eapply map_Forall_lookup_1 in val; last done.
+    destruct val as [hi ho].
+    split.
+    - (* Extract info from consistent cut. *)
       rewrite /consistent_cut in cut.
       setoid_rewrite map_Forall_lookup in cut.
       pose proof (cut ℓ (MaxNat t) pLook) as (? & ? & ? & eq & ?).
       simplify_eq.
       rewrite eq.
       naive_solver.
-    - destruct (x !! t); last naive_solver.
+    - rewrite H0.
+      destruct (hist !! t); simpl; last apply map_Forall_empty.
       simplify_eq.
-      rewrite big_sepM_singleton.
-      iPureIntro. apply view_empty_least.
+      apply map_Forall_singleton.
+      apply view_empty_least.
   Qed.
 
   Definition persist_auth `{nvmBaseFixedG, hGD : nvmBaseDeltaG Σ}
@@ -144,8 +143,8 @@ Section wpr.
     (* The first two assumptions are the content of [crash_step σ σ'] *)
     p ⊑ p' →
     consistent_cut p' σ →
+    valid_heap σ →
     ⊢ gen_heap_interp (hG := _) σ -∗
-      store_inv σ -∗
       persist_auth (σ, p)
       ==∗
       ∃ names : nvm_base_names,
@@ -155,7 +154,7 @@ Section wpr.
         persisted_impl _ (MkNvmBaseDeltaG _ Hcrash names) ∗
         own (@crashed_at_view_name (names)) (to_agree p' : agreeR viewO).
   Proof using Σ.
-    iIntros (pIncl cut). iIntros  "heapIntrp invs pers".
+    iIntros (pIncl cut invs) "heapIntrp pers".
     rewrite /nvm_heap_ctx. simpl.
     (* Allocate a new heap at a _new_ ghost name. *)
     iMod (gen_heap_init_names (slice_of_store p' σ)) as (γh γm) "(heapNew & ptsMap & _)".
@@ -217,7 +216,8 @@ Section wpr.
         rewrite /cut_history.
         apply map_filter_lookup_Some_2; [done| reflexivity]. }
     iSplit.
-    * simpl. iDestruct (store_inv_cut with "invs") as "$"; first done. simpl.
+    * simpl.
+      iSplit. { iPureIntro. apply store_inv_cut; done. }
       iExists p'. iFrame "crashed".
       apply consistent_cut_subseteq_dom in cut.
       rewrite /slice_of_store.
@@ -244,8 +244,8 @@ Section wpr.
         Pg (MkNvmBaseDeltaG Σ Hcrash names).
   Proof.
     iIntros ([store p p' pIncl cut]).
-    iIntros "(heap & authStor & inv & pers & recov) Pg".
-    iMod (nvm_heap_reinit _ _ _ _ _ Hcrash with "heap inv pers")
+    iIntros "(heap & authStor & %inv & pers & recov) Pg".
+    iMod (nvm_heap_reinit _ _ _ _ _ Hcrash with "heap pers")
       as (hnames) "(map & interp' & #persImpl & rec)"; try done.
     rewrite /post_crash.
     set newBundle : nvmBaseDeltaG Σ :=
