@@ -43,7 +43,7 @@ Lemma allocate_state_interp `{hPre : !nvmBaseGpreS Σ} Hinv Hc σ :
 Proof.
   intros val.
   iMod (gen_heap_init_names σ.1) as (γh γm) "(yo & lo & holo)".
-  iMod (own_alloc (● lub_view σ.1)) as (store_view_name) "HIP".
+  iMod (own_alloc (● max_view σ.1)) as (store_view_name) "HIP".
   { apply auth_auth_valid. apply view_valid. }
   iMod (own_alloc (● σ.2)) as (persist_view_name) "?".
   { apply auth_auth_valid. apply view_valid. }

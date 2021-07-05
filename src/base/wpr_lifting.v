@@ -167,7 +167,7 @@ Section wpr.
     iMod (own_alloc (● (view_to_zero p') ⋅ ◯ (view_to_zero p'))) as (persistG) "[pers #persFrag]".
     { apply auth_both_valid_2; [apply view_valid|done]. }
     (* Allocate the store view at a _new_ ghost name. *)
-    iMod (own_alloc (● lub_view (slice_of_store p' σ))) as (storeG) "store".
+    iMod (own_alloc (● max_view (slice_of_store p' σ))) as (storeG) "store".
     { apply auth_auth_valid. apply view_valid. }
     (* Allocate the crashed at view at a _new_ ghost name. *)
     iMod (own_alloc (to_agree p' : agreeR viewO)) as (crashedAtG) "#crashed".

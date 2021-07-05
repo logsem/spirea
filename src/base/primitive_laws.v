@@ -115,7 +115,7 @@ Qed.
 (** Convert a [store] to a [view] by taking the largest time for of any message
 for each location. We call this the "lub view" b.c., in an actual execution this
 view will be the l.u.b. of all the threads views. *)
-Definition lub_view (heap : store) : view := MaxNat <$> (max_msg <$> heap).
+Definition max_view (heap : store) : view := MaxNat <$> (max_msg <$> heap).
 
 Definition hist_inv lub (hist : history) : Prop :=
   (* Every history has an initial message. *)
@@ -127,13 +127,13 @@ Definition hist_inv lub (hist : history) : Prop :=
 Definition valid_heap_lub lub (s : store) : Prop :=
   map_Forall (λ _ hist, hist_inv lub hist) s.
 
-Definition valid_heap store : Prop := valid_heap_lub (lub_view store) store.
+Definition valid_heap store : Prop := valid_heap_lub (max_view store) store.
 
 (* The state interpretation for the base logic. *)
 Definition nvm_heap_ctx `{hG : !nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ} σ : iProp Σ :=
   "Hσ" ∷ gen_heap_interp σ.1 ∗ (* The interpretation of the heap. This is standard,
   except the heap store historie and not plain values. *)
-  "lubauth" ∷ own store_view_name (● (lub_view σ.1)) ∗
+  "lubauth" ∷ own store_view_name (● (max_view σ.1)) ∗
   "%Hop" ∷ ⌜valid_heap σ.1⌝ ∗
   "Hpers" ∷ own persist_view_name (● σ.2) ∗
   "crash" ∷ (∃ (CV : view),
@@ -232,8 +232,8 @@ Section crashed_at.
 
 End crashed_at.
 
-(** * Lemmas about [lub_view] *)
-Section lub_view.
+(** * Lemmas about [max_view] *)
+Section max_view.
   Context `{!nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ}.
   Implicit Types hist : history.
   Implicit Types ℓ : loc.
@@ -245,21 +245,21 @@ Section lub_view.
   Qed.
 
   (* If a location has history [hist] then looking up a message from the
-  lub_view will result in some message. *)
+  max_view will result in some message. *)
   Lemma history_lookup_lub heap ℓ hist :
     heap !! ℓ = Some hist →
     is_Some (hist !! 0) →
-    is_Some (hist !! ((lub_view heap) !!0 ℓ)).
+    is_Some (hist !! ((max_view heap) !!0 ℓ)).
   Proof.
     intros Ha Hb.
-    rewrite /lub_view. rewrite /lookup_zero !lookup_fmap. rewrite Ha.
+    rewrite /max_view. rewrite /lookup_zero !lookup_fmap. rewrite Ha.
     simpl. apply lookup_max_msg. done.
   Qed.
 
   Lemma history_lookup_lub_valid heap ℓ hist :
     heap !! ℓ = Some hist →
     valid_heap heap →
-    is_Some (hist !! ((lub_view heap) !!0 ℓ)).
+    is_Some (hist !! ((max_view heap) !!0 ℓ)).
   Proof.
     intros Ha Hb.
     apply history_lookup_lub; first done.
@@ -268,17 +268,17 @@ Section lub_view.
 
   Lemma history_lookup_lub_succ heap ℓ hist :
     heap !! ℓ = Some hist →
-    hist !! ((lub_view heap !!0 ℓ) + 1) = None.
+    hist !! ((max_view heap !!0 ℓ) + 1) = None.
   Proof.
     intros look.
-    rewrite /lub_view. rewrite /lookup_zero !lookup_fmap. rewrite look.
+    rewrite /max_view. rewrite /lookup_zero !lookup_fmap. rewrite look.
     simpl. apply lookup_max_msg_succ.
   Qed.
 
-  Lemma lub_view_incl_insert V heap ℓ t msg hist :
+  Lemma max_view_incl_insert V heap ℓ t msg hist :
     heap !! ℓ = Some hist →
-    V ≼ lub_view heap →
-    <[ℓ := MaxNat t]>V ≼ lub_view (<[ℓ := (<[t := msg]> hist)]> heap).
+    V ≼ max_view heap →
+    <[ℓ := MaxNat t]>V ≼ max_view (<[ℓ := (<[t := msg]> hist)]> heap).
   Proof.
     intros look incl.
     rewrite lookup_included. intros ℓ'.
@@ -296,11 +296,11 @@ Section lub_view.
       rewrite !lookup_fmap. done.
   Qed.
 
-  Lemma lub_view_union σ σ' :
-    σ ##ₘ σ' → lub_view σ ⊔ lub_view σ' = lub_view (σ ∪ σ').
+  Lemma max_view_union σ σ' :
+    σ ##ₘ σ' → max_view σ ⊔ max_view σ' = max_view (σ ∪ σ').
   Proof.
     intros disj.
-    rewrite /lub_view.
+    rewrite /max_view.
     apply map_eq. intros ℓ.
     rewrite view_join.
     rewrite lookup_op.
@@ -315,23 +315,23 @@ Section lub_view.
         done.
   Qed.
 
-  Lemma lub_view_included_union σ σ' : σ ##ₘ σ' → lub_view σ ⊑ lub_view (σ ∪ σ').
+  Lemma max_view_included_union σ σ' : σ ##ₘ σ' → max_view σ ⊑ max_view (σ ∪ σ').
   Proof.
     intros disj.
-    rewrite -lub_view_union; last done.
+    rewrite -max_view_union; last done.
     apply view_le_l.
   Qed.
 
-  (* Lemma lub_view_insert V (ℓ : loc) (t : time) (msg : message) (hist : history) (heap : store) : *)
+  (* Lemma max_view_insert V (ℓ : loc) (t : time) (msg : message) (hist : history) (heap : store) : *)
   (*   (V !!0 ℓ) < t → *)
   (*   heap !! ℓ = Some hist → *)
-  (*   lub_view (<[ℓ := (<[t := msg]> hist)]> heap) = <[ℓ := MaxNat t]>(lub_view heap). *)
+  (*   max_view (<[ℓ := (<[t := msg]> hist)]> heap) = <[ℓ := MaxNat t]>(max_view heap). *)
   (* Proof. Abort. *)
 
-  (* If a new message is inserted into the heap the lub_view can only grow. *)
-  Lemma lub_view_insert_incl (ℓ : loc) (t : time) (msg : message) hist (heap : store) :
+  (* If a new message is inserted into the heap the max_view can only grow. *)
+  Lemma max_view_insert_incl (ℓ : loc) (t : time) (msg : message) hist (heap : store) :
     heap !! ℓ = Some hist →
-    lub_view heap ⊑ lub_view (<[ℓ := (<[t := msg]> hist)]> heap).
+    max_view heap ⊑ max_view (<[ℓ := (<[t := msg]> hist)]> heap).
   Proof.
     rewrite subseteq_view_incl.
     rewrite lookup_included.
@@ -345,12 +345,12 @@ Section lub_view.
     * rewrite lookup_insert_ne; done.
   Qed.
 
-  (***** Lemmas about ownership over [lub_view]. *)
+  (***** Lemmas about ownership over [max_view]. *)
 
-  Lemma lub_view_lookup_insert ℓ t msg hist (heap : store) :
-    ∃ t', lub_view (<[ℓ := <[t := msg]> hist]> heap) !! ℓ = Some (MaxNat t') ∧ t ≤ t'.
+  Lemma max_view_lookup_insert ℓ t msg hist (heap : store) :
+    ∃ t', max_view (<[ℓ := <[t := msg]> hist]> heap) !! ℓ = Some (MaxNat t') ∧ t ≤ t'.
   Proof.
-    rewrite /lub_view.
+    rewrite /max_view.
     rewrite fmap_insert.
     rewrite lookup_fmap.
     rewrite lookup_insert.
@@ -364,20 +364,20 @@ Section lub_view.
     set_solver.
   Qed.
 
-  Lemma auth_lub_view_insert ℓ t (heap : store) (hist : history) msg :
+  Lemma auth_max_view_insert ℓ t (heap : store) (hist : history) msg :
     heap !! ℓ = Some hist →
     (* (V !!0 ℓ) < t → *)
-    own store_view_name (● lub_view heap) ==∗
-    own store_view_name (● lub_view (<[ℓ := <[t := msg]> hist]> heap)) ∗
+    own store_view_name (● max_view heap) ==∗
+    own store_view_name (● max_view (<[ℓ := <[t := msg]> hist]> heap)) ∗
     own store_view_name (◯ {[ ℓ := MaxNat t ]}).
   Proof.
     iIntros (look) "Olub".
-    pose proof (lub_view_insert_incl ℓ t msg hist heap look) as incl.
+    pose proof (max_view_insert_incl ℓ t msg hist heap look) as incl.
     iMod (auth_auth_view_grow_incl _ _ _ incl with "Olub") as "Olub".
     iMod (own_update with "Olub") as "[$ $]".
     { apply: auth_update_dfrac_alloc.
       apply singleton_included_l.
-      epose proof (lub_view_lookup_insert _ _ _ _ _) as (y & look' & le).
+      epose proof (max_view_lookup_insert _ _ _ _ _) as (y & look' & le).
       exists (MaxNat y). 
       erewrite look'.
       split; first done.
@@ -387,7 +387,7 @@ Section lub_view.
     done.
   Qed.
 
-End lub_view.
+End max_view.
 
 Section persisted.
   Context `{!nvmBaseFixedG Σ, nvmBaseDeltaG Σ}.
@@ -454,7 +454,7 @@ Section lifting.
   Lemma hist_inv_insert_msg (heap : store) v p ℓ t hist V PV :
     heap !! ℓ = Some hist →
     hist !! t = None →
-    V ≼ lub_view (<[ℓ:=<[t:= Msg v V PV p]> hist]> heap) →
+    V ≼ max_view (<[ℓ:=<[t:= Msg v V PV p]> hist]> heap) →
     valid_heap heap →
     valid_heap (<[ℓ:=<[t := Msg v V PV p]> hist]> heap).
   Proof.
@@ -471,27 +471,27 @@ Section lifting.
           simpl.
           intros ???.
           etrans; first done.
-          by apply lub_view_insert_incl.
+          by apply max_view_insert_incl.
     - eapply hist_inv_grow; last apply M.
-      by apply lub_view_insert_incl.
+      by apply max_view_insert_incl.
   Qed.
 
   Lemma store_view_alloc_big (σ σ' : (gmap loc history)) :
     σ' ##ₘ σ →
-    own store_view_name (● (lub_view (σ))) ==∗
-    own store_view_name (● (lub_view (σ' ∪ σ))).
+    own store_view_name (● (max_view (σ))) ==∗
+    own store_view_name (● (max_view (σ' ∪ σ))).
   Proof.
     iIntros (disj) "H".
     iMod (auth_auth_view_grow_incl with "H") as "$"; last done.
     rewrite map_union_comm; last done.
-    apply lub_view_included_union. done.
+    apply max_view_included_union. done.
   Qed.
 
-  Lemma message_included_in_lub_view ℓ (hist : history) heap t v MV MP MPP :
+  Lemma message_included_in_max_view ℓ (hist : history) heap t v MV MP MPP :
     heap !! ℓ = Some hist →
     hist !! t = Some (Msg v MV MP MPP) →
     valid_heap heap →
-    MV ⊑ lub_view heap.
+    MV ⊑ max_view heap.
   Proof.
     intros heapLook histLook M.
     pose proof (map_Forall_lookup_1 _ _ _ _ M heapLook) as [? M'].
@@ -516,7 +516,7 @@ Section lifting.
       split; first done.
       eapply map_Forall_impl; first done.
       simpl. intros ???.
-      rewrite -lub_view_union; last done.
+      rewrite -max_view_union; last done.
       etrans; first done.
       apply view_le_r.
   Qed.
@@ -686,7 +686,7 @@ Section lifting.
       { apply (auth_update_dfrac_alloc _ _ (V ⋅ MV)).
         rewrite -subseteq_view_incl.
         apply view_lub_le; first done.
-        eapply message_included_in_lub_view; done. }
+        eapply message_included_in_max_view; done. }
       iFrame. iModIntro.
       iDestruct ("HΦ" $! t v MV MP _ with "[$ℓPts $valid' //]") as "$".
       naive_solver.
@@ -731,8 +731,8 @@ Section lifting.
       (* We update the heap with the new history at ℓ. *)
       iMod (gen_heap_update with "Hσ ℓPts") as "[Hσ ℓPts]".
       iFrame "Hσ".
-      (* We must now update the authorative element for the lub_view. *)
-      iMod (auth_lub_view_insert with "lubauth") as "[lubauth viewT]"; [done|].
+      (* We must now update the authorative element for the max_view. *)
+      iMod (auth_max_view_insert with "lubauth") as "[lubauth viewT]"; [done|].
       iFrame "lubauth".
       (* We now update the big op. *)
       iModIntro.
@@ -782,12 +782,12 @@ Section lifting.
       (* We update the heap with the new history at ℓ. *)
       iMod (gen_heap_update with "Hσ ℓPts") as "[Hσ ℓPts]".
       iFrame "Hσ".
-      (* We must now update the authorative element for the lub_view. *)
-      iMod (auth_lub_view_insert with "lubauth") as "[lubauth viewT]"; [done|].
+      (* We must now update the authorative element for the max_view. *)
+      iMod (auth_max_view_insert with "lubauth") as "[lubauth viewT]"; [done|].
       iFrame "lubauth Ht".
       (* We now update the big op. *)
       iPureGoal.
-      { apply hist_inv_insert_msg; try done. apply lub_view_incl_insert; done. }
+      { apply hist_inv_insert_msg; try done. apply max_view_incl_insert; done. }
       iCombine "Hval viewT" as "v".
       iDestruct ("HΦ" with "[$ℓPts v]") as "$".
       { rewrite -view_insert_op; last lia. rewrite H11. naive_solver. }
