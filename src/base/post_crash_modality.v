@@ -139,8 +139,20 @@ Section if_non_zero.
         rewrite Qcplus_opp_r.
         rewrite Qcplus_0_r.
         done.
-      * admit.
-  Admitted.
+      * rewrite eq in n.
+        subst.
+        destruct (decide (qp = p)) as [eq|neq].
+        + subst.
+          erewrite <- Qcplus_opp_r.
+          naive_solver.
+        + exfalso.
+          apply n.
+          pose proof (Qp_prf p).
+          pose proof (Qp_prf qp).
+          apply (Qclt_minus_iff (Qp_to_Qc p)).
+          apply Qcle_lt_or_eq in le.
+          destruct le as [?|eq%Qp_to_Qc_inj_iff]; done.
+  Qed.
 
   Lemma if_non_zero_exchange_1 (q1 q2 : Qc) p (P Q : Qp → iProp Σ)
         `{!Fractional P, !Fractional Q}:
