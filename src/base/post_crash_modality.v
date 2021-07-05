@@ -25,13 +25,14 @@ Proof. by destruct p, q. Qed.
 crash if you own a points-to predicate _prior to_ a crash. *)
 Definition mapsto_post_crash `{nvmBaseFixedG Σ}
            (hG : nvmBaseDeltaG Σ) ℓ q (hist : history) : iProp Σ :=
-  (∃ t msg,
+  ∃ CV,
+    crashed_at CV ∗
+    ((∃ t msg,
+      ⌜CV !! ℓ = Some (MaxNat t)⌝ ∗
       ⌜hist !! t = Some msg⌝ ∗
-      ℓ ↦h{#q} ({[ 0 := Msg msg.(msg_val) ∅ ∅ ∅ ]}) ∗
-      ∃ CV, ⌜msg.(msg_persisted_after_view) ⊑ CV⌝ ∗
-            ⌜CV !! ℓ = Some (MaxNat t)⌝ ∗
-            crashed_at CV) ∨
-  (∀ CV, crashed_at CV -∗ ⌜CV !! ℓ = None⌝).
+      ⌜msg.(msg_persisted_after_view) ⊑ CV⌝ ∗
+      ℓ ↦h{#q} {[ 0 := Msg msg.(msg_val) ∅ ∅ ∅ ]}) ∨
+    ⌜CV !! ℓ = None⌝).
 
 Instance fractional_mapsto_post_crash `{nvmBaseFixedG Σ} hG' ℓ hist :
   Fractional (λ p : Qp, mapsto_post_crash (Σ := Σ) hG' ℓ p hist).
@@ -40,9 +41,22 @@ Proof.
   iIntros (p q).
   rewrite /mapsto_post_crash.
   iSplit.
-  - admit.
-  - admit.
-Admitted.
+  - iIntros "[%CV [#crashed [left|#right]]]"; last first.
+    * iSplitR; iExists (CV); iFrame "#"; iRight; iFrame "%".
+    * iDestruct "left" as (t msg) "(% & % & % & [ptsA ptsB])".
+      iSplitR "ptsB"; iExists (CV); iFrame "#"; iLeft;
+        iExists t, msg; iFrame "∗%".
+  - iIntros "[one two]".
+    iDestruct "one" as (CV) "[crashed [pts | ?]]"; last naive_solver.
+    iDestruct "two" as (CV') "[crashed' [pts' | ?]]"; last naive_solver.
+    iDestruct (crashed_at_agree with "crashed crashed'") as %<-.
+    iClear "crashed'".
+    iExists CV. iFrame "crashed".
+    iDestruct "pts" as (t msg) "(% & % & % & pts)".
+    iDestruct "pts'" as (t' msg') "(% & % & % & pts')".
+    simplify_eq.
+    iLeft. iExists _, _. iFrame "∗%".
+Qed.
 
 Section if_non_zero.
   Context {Σ : gFunctors}.
@@ -94,8 +108,13 @@ Section if_non_zero.
       iExists (p + qp)%Qp.
       rewrite (fractional p qp).
       iFrame.
-      (* The rest is just reasoning with Qp arithemitic. *)
-  Admitted.
+      iPureIntro.
+      subst.
+      rewrite -Qp_to_Qc_inj_add.
+      split.
+      * apply Qp_prf.
+      * rewrite (comm _ qp). done.
+  Qed.
 
   Lemma if_non_zero_subtract (P : Qp → iProp Σ) `{!Fractional P} p q :
     (Qp_to_Qc p ≤ q)%Qc →

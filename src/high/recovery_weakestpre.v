@@ -154,7 +154,8 @@ Proof.
   rewrite sum.
   simpl.
   rewrite /post_crash_modality.mapsto_post_crash.
-  iDestruct "right" as "[right | left]".
+  iDestruct "right" as (CV) "[crashed [right | %left]]";
+    iDestruct (crashed_at_agree with "crashed rec") as %->.
   2: {
     iExFalso.
     rewrite /slice_of_store in look'.
@@ -164,11 +165,8 @@ Proof.
     destruct look' as [look' _].
     apply elem_of_dom in look'.
     destruct look' as [[t] ?].
-    iDestruct ("left" $! p' with "rec") as %hv.
     simplify_eq. }
-  iDestruct "right" as (t msg look'') "(newPts & crash)".
-  iDestruct "crash" as (? incl p'Look) "crash'".
-  iDestruct (crashed_at_agree with "crash' rec") as %->.
+  iDestruct "right" as (t msg look'' lookm ?) "newPts".
 
   rewrite post_crash_modality.mk_Qp_1.
   apply map_lookup_zip_with_Some in look.
@@ -182,8 +180,8 @@ Proof.
   setoid_rewrite map_subseteq_spec in sub.
   specialize (sub _ _ look0).
   simplify_eq.
-  rewrite look''.
-  iFrame"newPts".
+  rewrite lookm.
+  iFrame "newPts".
 Qed.
 
 Definition wpr `{nvmFixedG Σ, nvmDeltaG Σ} s k := wpr' _ s k _.

@@ -7,7 +7,7 @@ From Perennial.algebra Require Import proph_map.
 From Perennial.program_logic Require Import recovery_weakestpre recovery_adequacy.
 (* From Perennial.goose_lang Require Import crash_modality typing adequacy lang. *)
 
-From self Require Import extra.
+From self Require Import extra ipm_tactics.
 From self.lang Require Import lang.
 From self.base Require Import primitive_laws post_crash_modality.
 
@@ -193,10 +193,9 @@ Section wpr.
       iExists (Qcanon.Q2Qc (QArith_base.Qmake Z0 xH)), 1%Qc.
       rewrite if_non_zero_1. simpl. rewrite if_non_zero_0. simpl.
       iSplit; first done. iSplit; last done.
+      iExists _. iFrame "crashed".
       iDestruct "disj" as "[(%hist' & %look' & pts)|%look']"; last first.
       * iRight.
-        iIntros (CV') "crashed'".
-        iDestruct (crashed_at_agree with "crashed' crashed") as %->.
         iPureIntro.
         eapply consistent_cut_lookup_slice; done.
       * iLeft.
@@ -210,7 +209,7 @@ Section wpr.
         iSplit; first done.
         rewrite H2.
         iFrame "pts".
-        iExists _. iFrame "crashed %".
+        iPureGoal; first done.
         iPureIntro.
         eapply (map_Forall_lookup_1 _ _ _ _ map).
         rewrite /cut_history.
