@@ -191,8 +191,7 @@ Section abs_history_lemmas.
   Qed.
 
   Lemma abs_hist_to_ra_agree hist hist' :
-    to_agree <$> hist' ≡ abs_hist_to_ra hist →
-    hist' = encode <$> hist.
+    to_agree <$> hist' ≡ abs_hist_to_ra hist → hist' = encode <$> hist.
   Proof.
     intros eq.
     apply: map_eq. intros t.
@@ -634,7 +633,7 @@ Section preorders.
   Qed.
 
   (* If we know that two encoded values are related by en encoded relation, then
-  we can "recover" rela unencoded values taht are related by the unencoded
+  we can "recover" related unencoded values taht are related by the unencoded
   relation. *)
   Lemma encode_relation_related (R : relation2 A) ea eb :
     (encode_relation R) ea eb →
@@ -654,7 +653,7 @@ Section preorders.
 
 End preorders.
 
-(* [m] is undefined all natural numbers greater than [t]. *)
+(* The map [m] is undefined for all natural numbers greater than [t]. *)
 Definition map_no_later {A} (m : gmap nat A) t := ∀ t', t < t' → m !! t' = None.
 
 Lemma map_no_later_Some {A} (m : gmap nat A) t t' :
@@ -706,7 +705,7 @@ Section points_to_shared.
     (* MonPred (λ TV, *)
       (∃ (tP tStore : time) (abs_hist : gmap time ST),
         "%incrList" ∷ ⌜increasing_list ss⌝ ∗
-        "isExclusiveLoc" ∷ ⎡ own exclusive_locs_name (◯ {[ ℓ ]}) ⎤ ∗
+        "isExclusiveLoc" ∷ ⎡ is_exclusive_loc ℓ ⎤ ∗
         "#knowOrder" ∷ ⎡ know_preorder_loc ℓ (abs_state_relation) ⎤ ∗
 
         (* [tStore] is the last message and it agrees with the last state in ss. *)
@@ -771,6 +770,7 @@ Section points_to_shared.
     )%I _.
   Next Obligation. solve_proper. Qed.
 
+  (* The location [ℓ] was recovered in the abstract state [s]. *)
   Definition recovered_at ℓ s : dProp Σ :=
     ∃ CV,
       "#knowFragHist" ∷ ⎡know_frag_history_loc ℓ {[ 0 := s ]}⎤ ∗
