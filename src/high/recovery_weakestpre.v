@@ -281,11 +281,12 @@ Section wpr.
         iModIntro.
         iIntros (? ? ?) "order".
         iExists _. iFrame "newCrashedAt".
-        destruct (p' !! ℓ) eqn:lookP'; last naive_solver.
+        destruct (p' !! ℓ) as [[m]|] eqn:lookP'; last naive_solver.
         iLeft.
         rewrite /know_preorder_loc /preorders_name. simpl.
         iDestruct (own_all_preorders_singleton_frag with "allOrders order")
           as %(? & ? & ?).
+        iExists _. iSplit; first done.
         iApply (orders_frag_lookup with "fragOrders").
         rewrite /newOrders.
         apply restrict_lookup_Some.

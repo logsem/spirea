@@ -742,7 +742,7 @@ Section points_to_shared.
     MonPred (λ TV,
       ∃ tP,
         (* We have the persisted state in our store view. *)
-        "%tPLe" ∷ ⌜tP ≤ (store_view TV) !!0 ℓ⌝ ∗
+        "%tPLe" ∷ ⌜ tP ≤ (store_view TV) !!0 ℓ ⌝ ∗
         "knowOrder" ∷ know_preorder_loc ℓ abs_state_relation ∗
         "persisted" ∷ persisted_loc ℓ tP ∗
         "knowFragHist" ∷ know_frag_history_loc ℓ {[ tP := s ]})%I _.
@@ -750,23 +750,21 @@ Section points_to_shared.
 
   Program Definition know_flush_lower_bound ℓ (s : ST) : dProp Σ :=
     MonPred (λ TV,
-      ∃ (t : nat) s',
-        ⌜ s ⊑ s' ⌝ ∗
-        ⌜t ≤ (persist_view TV) !!0 ℓ⌝ ∗
-        know_preorder_loc ℓ abs_state_relation ∗
-        know_frag_history_loc ℓ {[ t := s' ]}
+      ∃ (tF : nat) s',
+        "%sInclS'" ∷ ⌜ s ⊑ s' ⌝ ∗
+        "%tFLe" ∷ ⌜ tF ≤ (persist_view TV) !!0 ℓ ⌝ ∗
+        "knowOredr" ∷ know_preorder_loc ℓ abs_state_relation ∗
+        "knowFragHist" ∷ know_frag_history_loc ℓ {[ tF := s' ]}
     )%I _.
   Next Obligation. solve_proper. Qed.
 
   Program Definition know_store_lower_bound ℓ (s : ST) : dProp Σ :=
     MonPred (λ TV,
-      ∃ (tS : nat) s' CV,
-        "%sInclS'" ∷ ⌜s ⊑ s'⌝ ∗
-        "%tLe" ∷ ⌜tS ≤ (store_view TV) !!0 ℓ⌝ ∗
-        "#crashed" ∷ crashed_at CV ∗
+      ∃ (tS : nat) s',
+        "%sInclS'" ∷ ⌜ s ⊑ s' ⌝ ∗
+        "%tSLe" ∷ ⌜ tS ≤ (store_view TV) !!0 ℓ ⌝ ∗
         "knowOrder" ∷ know_preorder_loc ℓ abs_state_relation ∗
         "knowFragHist" ∷ know_frag_history_loc ℓ {[ tS := s' ]}
-        (* "%storeDisj" ∷ ⌜0 ≠ tS ∨ ℓ ∉ dom (gset _) CV⌝ (* entails that ϕ holds for the write *) *)
     )%I _.
   Next Obligation. solve_proper. Qed.
 
@@ -823,16 +821,15 @@ Section points_to_shared.
     iIntros (? ?) "?". iExists 0, s'. iFrame "%∗". iPureIntro. lia.
   Qed.
 
-  (* Note: This lemma does not hold anymore. *)
-  (* Lemma know_store_lower_bound_at_zero ℓ (s s' : ST) : *)
-  (*   s ⊑ s' → *)
-  (*   ⎡ know_frag_history_loc ℓ {[0 := s']} ⎤ -∗ *)
-  (*   ⎡ know_preorder_loc ℓ abs_state_relation ⎤ -∗ *)
-  (*   know_store_lower_bound ℓ s. *)
-  (* Proof. *)
-  (*   iStartProof (iProp _). iIntros (incl ?) "?". *)
-  (*   iIntros (? ?) "?". iExists 0, s', _. iFrame "%∗". iPureIntro. lia. *)
-  (* Qed. *)
+  Lemma know_store_lower_bound_at_zero ℓ (s s' : ST) :
+    s ⊑ s' →
+    ⎡ know_frag_history_loc ℓ {[0 := s']} ⎤ -∗
+    ⎡ know_preorder_loc ℓ abs_state_relation ⎤ -∗
+    know_store_lower_bound ℓ s.
+  Proof.
+    iStartProof (iProp _). iIntros (incl ?) "?".
+    iIntros (? ?) "?". iExists 0, s'. iFrame "%∗". iPureIntro. lia.
+  Qed.
 
   (* A few utility lemmas. *)
   Lemma recovered_at_not_lot ℓ s : recovered_at ℓ s -∗ lost ℓ -∗ False.

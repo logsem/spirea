@@ -497,9 +497,7 @@ Section wp_rules.
     iStartProof (iProp _). iIntros (TV).
     iNamed 1.
     iNamed "storeLB".
-    iDestruct "live" as (t''' CV') "(%storeDisj & %tvIn & crashed')".
-    iDestruct (crashed_at_agree with "crashed crashed'") as %<-.
-    iClear "crashed'".
+    iDestruct "live" as (t''' CV') "(%storeDisj & %tvIn & crashed)".
     (* We unfold the WP. *)
     iIntros (TV' incl) "Φpost".
     rewrite wp_eq /wp_def wpc_eq.
@@ -629,7 +627,7 @@ Section wp_rules.
     { do 2 (etrans; first done). repeat split; auto using view_le_l. }
     iSplitR "Q".
     - iFrameNamed.
-      iExists t', sL, _.
+      iExists t', sL.
       iFrame "∗#".
       iSplit; first done.
       (* FIXME: Intuitively the lhs. should be included in because we read [t']
