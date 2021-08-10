@@ -16,15 +16,41 @@ Notation base_post_crash := post_crash_modality.post_crash.
 
 (** We define the post crash modality. *)
 
-Definition or_lost_post_crash `{nvmFixedG Σ, hGD : nvmDeltaG Σ}
+Definition or_lost_post_crash `{nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ}
            ℓ (P : nat → iProp Σ) :=
   (∃ (CV : view),
     crashed_at CV ∗
     ((∃ t, ⌜CV !! ℓ = Some (MaxNat t)⌝ ∗ P t) ∨ ⌜CV !! ℓ = None⌝))%I.
 
-Definition or_lost_post_crash_no_t `{nvmFixedG Σ, hGD : nvmDeltaG Σ}
+Definition or_lost_post_crash_no_t `{nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ}
            ℓ (P : iProp Σ) :=
   or_lost_post_crash ℓ (λ _, P).
+
+Section or_lost_post_crash.
+  Context `{nvmBaseFixedG Σ, hGD: nvmBaseDeltaG Σ}.
+
+  Lemma or_lost_post_crash_lookup (CV : view) ℓ t P :
+    CV !! ℓ = Some (MaxNat t) →
+    crashed_at CV -∗
+    or_lost_post_crash ℓ P -∗
+    P t.
+  Proof.
+    iIntros (look) "crash".
+    iIntros "(% & crash' & [l|%])";
+      iDestruct (crashed_at_agree with "crash crash'") as %<-;
+      last congruence.
+    iDestruct "l" as (t' eq) "P".
+    by simplify_eq.
+  Qed.
+
+  (* Lemma or_lost_post_crash_no_t_lookup (CV : view) ℓ t P : *)
+  (*   CV !! ℓ = Some (MaxNat t) → *)
+  (*   crashed_at CV -∗ *)
+  (*   or_lost_post_crash_no_t ℓ P -∗ *)
+  (*   P. *)
+  (* Proof. apply or_lost_post_crash_lookup. Qed. *)
+
+End or_lost_post_crash.
 
 (* Lemma or_lost_post_crash_no_t_alt `{nvmFixedG Σ, hGD : nvmDeltaG Σ} *)
 (*            ℓ (P : iProp Σ) : *)
@@ -96,7 +122,7 @@ Definition post_crash_resource `{nvmFixedG Σ}
 
 Program Definition post_crash `{nvmFixedG Σ, hGD : nvmDeltaG Σ}
         (P : nvmDeltaG Σ → dProp Σ) : dProp Σ :=
-  MonPred (λ TV,
+  MonPred (λ _TV,
     ∀ (hhGD' : nvmHighDeltaG) hh,
       base_post_crash (λ hGD',
         (post_crash_resource hh hGD (NvmDeltaG _ hGD' hhGD')) -∗
@@ -545,15 +571,25 @@ Next Obligation. intros ??????. solve_proper. Qed.
 (* Definition post_crash_consistent_cut `{nvmFixedG Σ, nvmDeltaG Σ} *)
 (*         (P : nvmDeltaG Σ → dProp Σ) : dProp Σ := *)
 (*     <PC> (λ (hGD' : nvmDeltaG Σ), P hGD'). *)
-Definition post_crash_consistent_cut `{nvmFixedG Σ, nvmDeltaG Σ}
-        (P : nvmDeltaG Σ → dProp Σ) : dProp Σ :=
-  (∀ TV, monPred_in TV -∗
-    <PC> (hGD' : nvmDeltaG Σ),
-      ∃ (CV : view),
-        ⌜persist_view TV ⊑ CV⌝ -∗
-        ⎡crashed_at CV⎤ -∗
-        P hGD')%I.
+(* Definition post_crash_consistent_cut `{nvmFixedG Σ, nvmDeltaG Σ} *)
+(*         (P : nvmDeltaG Σ → dProp Σ) : dProp Σ := *)
+(*   (∀ TV, monPred_in TV -∗ *)
+(*     <PC> (hGD' : nvmDeltaG Σ), *)
+(*       ∀ (CV : view), *)
+(*         ⌜ persist_view TV ⊑ CV ⌝ -∗ *)
+(*         ⎡ crashed_at CV ⎤ -∗ *)
+(*         P hGD')%I. *)
 (* Next Obligation. intros ??????. apply post_crash_mono. solve_proper. Qed. *)
+
+Program Definition post_crash_consistent_cut `{nvmFixedG Σ, nvmDeltaG Σ}
+        (P : nvmDeltaG Σ → dProp Σ) : dProp Σ :=
+  MonPred (λ TV,
+    (<PC> (hGD' : nvmDeltaG Σ),
+      ∀ (CV : view),
+        ⌜ persist_view TV ⊑ CV ⌝ -∗
+        ⎡ crashed_at CV ⎤ -∗
+        P hGD') (∅, ∅, ∅))%I _.
+Next Obligation. intros ???????. apply post_crash_mono. solve_proper. Qed.
 
 (*
 Program Definition post_crash_consistent_cut `{hG : !nvmFixedG Σ, nvmDeltaG Σ}
@@ -573,15 +609,82 @@ Section post_crash_persisted.
   Lemma post_crash_persisted_know_flush_lower_bound `{AbstractState ST}
         (ℓ : loc) (s : ST) :
     know_flush_lower_bound ℓ s -∗
-    post_crash (λ hG,
+    <PCCC> (λ hG,
       know_persist_lower_bound ℓ s ∗
       know_flush_lower_bound ℓ s ∗
       know_store_lower_bound ℓ s).
   Proof.
+    (* iStartProof (dProp _). *)
+    (* rewrite /know_flush_lower_bound. *)
+    (* iNamed 1. *)
+    (* iIntros "#h" (TV) "#in". *)
+    (* iCrash. *)
+
     iStartProof (iProp _).
-    iIntros (TV) "H".
-    iDestruct "H" as (t s' incl le) "(pers & hist)".
-    iDestruct (post_crash_know_frag_history_loc with "[$pers $hist]") as "HI".
+    iIntros (TV).
+    iNamed 1.
+    (* iIntros (TV'). *)
+    monPred_simpl.
+    (* iIntros (???). *)
+    simpl.
+    (* rewrite /post_crash. *)
+    (* simpl. *)
+    iIntros (??).
+
+    (* iClear "knowOrder". *)
+    iDestruct (post_crash_modality.post_crash_nodep with "knowOrder") as "knowOrder".
+    iDestruct (post_crash_modality.post_crash_nodep with "knowFragHist") as "knowFragHist".
+
+    base.post_crash_modality.iCrash.
+    iNamed 1.
+    rewrite /post_crash_resource.
+    iFrameNamed.
+    iDestruct ("post_crash_history_impl" with "knowFragHist") as "HI".
+    iDestruct ("post_crash_preorder_impl" with "knowOrder") as "H".
+
+    monPred_simpl.
+    iIntros (CV).
+    monPred_simpl.
+    iIntros (???).
+    monPred_simpl.
+    iIntros (??).
+    monPred_simpl.
+    iIntros "#crash".
+    (* iDestruct (crashed_at_agree with "crash crash'") as %<-. *)
+    (* iClear "crash'". *)
+
+    rewrite /post_crash_resource. iFrameNamed.
+    simpl.
+    destruct (decide (tF = 0)).
+    { admit. (* We can't show the 0 case as of right now. *) }
+    destruct (persist_view TV !! ℓ) as [[tF']|] eqn:eq; last first.
+    { admit. (* contradiction. *) }
+    edestruct view_le_look as (t'' & lookCV & lt); [apply eq|apply H2|].
+    (* crashed_at *)
+    iDestruct (or_lost_post_crash_lookup CV with "crash H") as "#knowOrder";
+      first apply lookCV.
+    iDestruct (or_lost_post_crash_lookup CV with "crash HI") as "(%s'' & %imp & knowFragHist)";
+      first apply lookCV.
+    assert (s ⊑ s'') as sInclS''.
+    { etrans; first done. apply imp.
+      etrans; first done.
+      rewrite /lookup_zero.
+      rewrite eq.
+      simpl. done. }
+    iSplit.
+    { iExists 0.
+      iFrameNamed.
+      iPureGoal; first apply lookup_zero_gt_zero.
+      admit. (* We can't prove this. *) }
+    iSplit.
+    { iExists 0, s''.
+      iFrameNamed.
+      iPureGoal; first done.
+      iPureIntro. apply lookup_zero_gt_zero. }
+    iExists 0, s''.
+    iFrameNamed.
+    iPureGoal; first done.
+    iPureIntro. apply lookup_zero_gt_zero.
   Abort.
   (*   iApply (post_crash_mono with "HI"). *)
   (*   iIntros (hG'). *)

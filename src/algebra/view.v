@@ -74,6 +74,9 @@ Proof.
   apply: ucmra_unit_least.
 Qed.
 
+Lemma lookup_zero_gt_zero V ℓ : 0 ≤ V !!0 ℓ.
+Proof. rewrite /lookup_zero. destruct (V !! ℓ); lia. Qed.
+
 (* A convenient condition for showing that one view is included in another. *)
 Lemma view_le_lookup V W :
   (∀ ℓ t, V !! ℓ = Some (MaxNat t) → ∃ t', W !! ℓ = Some (MaxNat t') ∧ t ≤ t') →

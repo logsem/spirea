@@ -752,8 +752,13 @@ Section points_to_shared.
     MonPred (λ TV,
       ∃ (tF : nat) s',
         "%sInclS'" ∷ ⌜ s ⊑ s' ⌝ ∗
+        (* Either the location is persisted or we have something in the flush
+        view. The later case is for use after a crash where we *)
         "%tFLe" ∷ ⌜ tF ≤ (persist_view TV) !!0 ℓ ⌝ ∗
-        "knowOredr" ∷ know_preorder_loc ℓ abs_state_relation ∗
+        (* ("%tFLe" ∷ ⌜ tF ≤ (persist_view TV) !!0 ℓ ⌝ ∨ *)
+        (*            (⌜tF = 0⌝ ∗ persisted_loc ℓ 0)) ∗ *)
+        (* (⌜ tF ≤ (persist_view TV) !!0 ℓ ⌝ ∨ ⌜tF = 0⌝ ∗ ) ∗ *)
+        "knowOrder" ∷ know_preorder_loc ℓ abs_state_relation ∗
         "knowFragHist" ∷ know_frag_history_loc ℓ {[ tF := s' ]}
     )%I _.
   Next Obligation. solve_proper. Qed.
