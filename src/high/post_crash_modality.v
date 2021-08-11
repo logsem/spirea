@@ -496,10 +496,10 @@ Section post_crash_derived.
     naive_solver.
   Qed.
 
-  Lemma post_crash_know_persist_lower_bound (ℓ : loc) (s : ST) :
-    know_persist_lower_bound ℓ s -∗
+  Lemma post_crash_know_persist_lb (ℓ : loc) (s : ST) :
+    know_persist_lb ℓ s -∗
     post_crash (λ hG, ∃ s', ⌜s ⊑ s'⌝ ∗
-      know_persist_lower_bound ℓ s' ∗
+      know_persist_lb ℓ s' ∗
       know_flush_lower_bound ℓ s' ∗
       know_store_lower_bound ℓ s).
   Proof.
@@ -516,10 +516,13 @@ Section post_crash_derived.
     iSplit; first done.
     (* We show the global persist lower bound. *)
     iSplit.
-    { iExists 0. iFrame "#%". iPureIntro. lia. }
+    { iExists 0, s''. iFrame "#%". iPureIntro. split; first reflexivity. lia. }
     (* We show the local persist lower bound. *)
     iSplit.
-    - iApply know_flush_lower_bound_at_zero; done.
+    - iExists 0, s''.
+      iFrame "#%".
+      iPureGoal; first reflexivity.
+      iPureIntro. by right.
     - iApply know_store_lower_bound_at_zero; done.
   Qed.
 
@@ -531,7 +534,7 @@ Section post_crash_derived.
      (* iStartProof (iProp _). iIntros (TV). simpl. *)
      iNamed 1.
      iDestruct "pers" as %tPeq.
-     iDestruct "knowOrder" as "-#knowOrder".
+     iDestruct "order" as "-#order".
      iCrash.
      iDestruct "hist" as (CV) "[#crashed [left|%look]]".
      - iDestruct "left" as (t look) "(%s & %absHistLook & full & frag)".
@@ -550,7 +553,7 @@ Section post_crash_derived.
          iPureGoal. { by rewrite lookup_singleton. }
          iPureGoal. { done. }
          rewrite /or_lost.
-         iDestruct (or_lost_get with "[$] knowOrder") as "$"; first naive_solver.
+         iDestruct (or_lost_get with "[$] order") as "$"; first naive_solver.
          iDestruct (or_lost_get with "[$] isExclusiveLoc") as "$"; first naive_solver.
          iStopProof.
          iStartProof (iProp _). iIntros (?) "_".
@@ -564,7 +567,7 @@ End post_crash_derived.
 (*
 Program Definition post_crash_consistent_cut `{hG : !nvmFixedG Σ, nvmDeltaG Σ} (P : nvmFixedG Σ, nvmDeltaG Σ → dProp Σ) :=
   MonPred (λ TV,
-    ⎡ persisted (persist_view TV) ⎤ -∗ post_crash (λ hG', P hG')
+    ⎡ persisted (flush_view TV) ⎤ -∗ post_crash (λ hG', P hG')
   )%I _.
 Next Obligation. intros ??????. solve_proper. Qed.
 *)
@@ -576,7 +579,7 @@ Next Obligation. intros ??????. solve_proper. Qed.
 (*   (∀ TV, monPred_in TV -∗ *)
 (*     <PC> (hGD' : nvmDeltaG Σ), *)
 (*       ∀ (CV : view), *)
-(*         ⌜ persist_view TV ⊑ CV ⌝ -∗ *)
+(*         ⌜ flush_view TV ⊑ CV ⌝ -∗ *)
 (*         ⎡ crashed_at CV ⎤ -∗ *)
 (*         P hGD')%I. *)
 (* Next Obligation. intros ??????. apply post_crash_mono. solve_proper. Qed. *)
@@ -586,7 +589,9 @@ Program Definition post_crash_consistent_cut `{nvmFixedG Σ, nvmDeltaG Σ}
   MonPred (λ TV,
     (<PC> (hGD' : nvmDeltaG Σ),
       ∀ (CV : view),
-        ⌜ persist_view TV ⊑ CV ⌝ -∗
+        ⌜ flush_view TV ⊑ CV ⌝ ∗
+        (* ⎡ persisted (flush_view TV) ⎤ -∗ *)
+        ⎡ persisted (view_to_zero (flush_view TV)) ⎤ ∗
         ⎡ crashed_at CV ⎤ -∗
         P hGD') (∅, ∅, ∅))%I _.
 Next Obligation. intros ???????. apply post_crash_mono. solve_proper. Qed.
@@ -595,7 +600,7 @@ Next Obligation. intros ???????. apply post_crash_mono. solve_proper. Qed.
 Program Definition post_crash_consistent_cut `{hG : !nvmFixedG Σ, nvmDeltaG Σ}
         (P : nvmFixedG Σ, nvmDeltaG Σ → dProp Σ) : dProp Σ :=
   MonPred (λ TV,
-    (post_crash (λ hG', ∃ CV, ⌜persist_view TV ⊑ CV⌝ ∗ ⎡crashed_at CV⎤ -∗ P hG')) TV
+    (post_crash (λ hG', ∃ CV, ⌜flush_view TV ⊑ CV⌝ ∗ ⎡crashed_at CV⎤ -∗ P hG')) TV
   )%I _.
 Next Obligation. intros ??????. apply post_crash_mono. solve_proper. Qed.
 *)
@@ -610,96 +615,103 @@ Section post_crash_persisted.
         (ℓ : loc) (s : ST) :
     know_flush_lower_bound ℓ s -∗
     <PCCC> (λ hG,
-      know_persist_lower_bound ℓ s ∗
+      know_persist_lb ℓ s ∗
       know_flush_lower_bound ℓ s ∗
       know_store_lower_bound ℓ s).
   Proof.
-    (* iStartProof (dProp _). *)
-    (* rewrite /know_flush_lower_bound. *)
-    (* iNamed 1. *)
-    (* iIntros "#h" (TV) "#in". *)
-    (* iCrash. *)
-
     iStartProof (iProp _).
     iIntros (TV).
-    iNamed 1.
-    (* iIntros (TV'). *)
-    monPred_simpl.
-    (* iIntros (???). *)
+    rewrite /know_flush_lower_bound.
     simpl.
-    (* rewrite /post_crash. *)
-    (* simpl. *)
+    iNamed 1.
     iIntros (??).
-
-    (* iClear "knowOrder". *)
-    iDestruct (post_crash_modality.post_crash_nodep with "knowOrder") as "knowOrder".
+    iDestruct (post_crash_modality.post_crash_nodep with "order") as "order".
     iDestruct (post_crash_modality.post_crash_nodep with "knowFragHist") as "knowFragHist".
-
-    base.post_crash_modality.iCrash.
-    iNamed 1.
-    rewrite /post_crash_resource.
-    iFrameNamed.
-    iDestruct ("post_crash_history_impl" with "knowFragHist") as "HI".
-    iDestruct ("post_crash_preorder_impl" with "knowOrder") as "H".
-
-    monPred_simpl.
-    iIntros (CV).
-    monPred_simpl.
-    iIntros (???).
-    monPred_simpl.
-    iIntros (??).
-    monPred_simpl.
-    iIntros "#crash".
-    (* iDestruct (crashed_at_agree with "crash crash'") as %<-. *)
-    (* iClear "crash'". *)
-
-    rewrite /post_crash_resource. iFrameNamed.
-    simpl.
-    destruct (decide (tF = 0)).
-    { admit. (* We can't show the 0 case as of right now. *) }
-    destruct (persist_view TV !! ℓ) as [[tF']|] eqn:eq; last first.
-    { admit. (* contradiction. *) }
-    edestruct view_le_look as (t'' & lookCV & lt); [apply eq|apply H2|].
-    (* crashed_at *)
-    iDestruct (or_lost_post_crash_lookup CV with "crash H") as "#knowOrder";
-      first apply lookCV.
-    iDestruct (or_lost_post_crash_lookup CV with "crash HI") as "(%s'' & %imp & knowFragHist)";
-      first apply lookCV.
-    assert (s ⊑ s'') as sInclS''.
-    { etrans; first done. apply imp.
-      etrans; first done.
-      rewrite /lookup_zero.
-      rewrite eq.
-      simpl. done. }
-    iSplit.
-    { iExists 0.
+    iDestruct "viewFact" as "[[%neq %leq] | [%eq pers]]".
+    * base.post_crash_modality.iCrash.
+      iNamed 1.
+      rewrite /post_crash_resource.
       iFrameNamed.
-      iPureGoal; first apply lookup_zero_gt_zero.
-      admit. (* We can't prove this. *) }
-    iSplit.
-    { iExists 0, s''.
+      iDestruct ("post_crash_history_impl" with "knowFragHist") as "knowFragHist".
+      iDestruct ("post_crash_preorder_impl" with "order") as "order'".
+      iIntros (CV).
+      iIntros (??) "(% & #pers & #crash)".
+      simpl.
+      destruct (flush_view TV !! ℓ) as [[tF']|] eqn:eq; last first.
+      { exfalso.
+        rewrite /lookup_zero in leq.
+        rewrite eq in leq.
+        simpl in leq.
+        lia. }
+      edestruct view_le_look as (t'' & lookCV & lt); [apply eq|apply H2|].
+      iDestruct (or_lost_post_crash_lookup CV with "crash order'") as "#order";
+        first apply lookCV.
+      iDestruct (or_lost_post_crash_lookup CV with "crash knowFragHist")
+        as "(%s'' & %imp & knowFragHist)";
+        first apply lookCV.
+      assert (s ⊑ s'') as sInclS''.
+      { etrans; first done. apply imp.
+        etrans; first done.
+        rewrite /lookup_zero.
+        rewrite eq.
+        simpl. done. }
+      iAssert (persisted_loc ℓ 0) as "persisted".
+      { iApply (persisted_persisted_loc with "pers").
+        rewrite /view_to_zero.
+        rewrite lookup_fmap.
+        rewrite eq.
+        done. }
+      iSplit.
+      { iExists 0, s''.
+        iFrameNamed.
+        iPureGoal; first done.
+        iPureIntro. apply lookup_zero_gt_zero. }
+      iSplit.
+      { iExists 0, s''.
+        iFrameNamed.
+        iPureGoal; first done.
+        iRight. by iFrame "#". }
+      iExists 0, s''.
       iFrameNamed.
       iPureGoal; first done.
-      iPureIntro. apply lookup_zero_gt_zero. }
-    iExists 0, s''.
-    iFrameNamed.
-    iPureGoal; first done.
-    iPureIntro. apply lookup_zero_gt_zero.
-  Abort.
-  (*   iApply (post_crash_mono with "HI"). *)
-  (*   iIntros (hG'). *)
-  (*   iDestruct 1 as *)
-  (*       (s'' t' CV) "(%incl' & %le & %cvLook & #ord & #hist & #crash & #pers)". *)
-  (*   rewrite /know_persist_lower_bound. *)
-  (*   assert (s ⊑ s'') by (etrans; done). *)
-  (*   (* We show the global persist lower bound. *) *)
-  (*   iSplit. *)
-  (*   { iExists 0, s''. iFrame "#%". } *)
-  (*   (* We show the local persist lower bound. *) *)
-  (*   iSplit. *)
-  (*   { iApply know_flush_lower_bound_at_zero; done. } *)
-  (*   iApply know_store_lower_bound_at_zero; done. *)
-  (*   iStartProof (iProp _). *)
-  (* Qed. *)
+      iPureIntro. apply lookup_zero_gt_zero.
+    * base.post_crash_modality.iCrash.
+      iNamed 1.
+      rewrite /post_crash_resource.
+      iFrameNamed.
+      iDestruct ("post_crash_history_impl" with "knowFragHist") as "knowFragHist".
+      iDestruct ("post_crash_preorder_impl" with "order") as "order'".
+      iIntros (CV).
+      iIntros (??) "(% & #pers' & #crash)".
+      simpl.
+      iDestruct "pers" as "[#persisted (%CV' & %t & [%lookCV _] & crash')]".
+      iDestruct (crashed_at_agree with "crash crash'") as %<-.
+      iClear "crash'".
+      iDestruct (or_lost_post_crash_lookup CV with "crash order'") as "#order";
+        first apply lookCV.
+      iDestruct (or_lost_post_crash_lookup CV with "crash knowFragHist")
+        as "(%s'' & %imp & knowFragHist)";
+        first apply lookCV.
+      assert (s ⊑ s'') as sInclS''.
+      { etrans; first done. apply imp.
+        etrans; first done.
+        rewrite /lookup_zero.
+        rewrite eq.
+        lia. }
+      iSplit.
+      { iExists 0, s''.
+        iFrameNamed.
+        iPureIntro.
+        split; [done|lia]. }
+      iSplit.
+      { iExists 0, s''.
+        iFrameNamed.
+        iPureGoal; first done.
+        iRight. by iFrame "#". }
+      iExists 0, s''.
+      iFrameNamed.
+      iPureGoal; first done.
+      iPureIntro. apply lookup_zero_gt_zero.
+  Qed.
 
 End post_crash_persisted.

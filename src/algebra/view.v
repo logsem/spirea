@@ -222,14 +222,10 @@ Qed.
 
 Definition view_to_zero V := (const (MaxNat 0)) <$> V.
 
-Lemma view_to_zero_singleton ℓ t :
-  view_to_zero {[ ℓ := t ]} = {[ ℓ := MaxNat 0 ]}.
-Proof. rewrite /view_to_zero. rewrite map_fmap_singleton. done. Qed.
-
-Lemma view_to_zero_mono V V' : V ⊑ V' → view_to_zero V ⊑ view_to_zero V'.
+Global Instance view_to_zero_mono : Proper ((⊑) ==> (⊑)) view_to_zero.
 Proof.
   rewrite /view_to_zero.
-  intros le.
+  intros ?? le.
   apply view_le_lookup.
   intros ℓ t look.
   apply lookup_fmap_Some in look.
@@ -237,6 +233,10 @@ Proof.
   edestruct view_le_look as (t'' & look' & lt); [apply look|apply le|].
   exists 0. rewrite lookup_fmap look' -eq. done.
 Qed.
+
+Lemma view_to_zero_singleton ℓ t :
+  view_to_zero {[ ℓ := t ]} = {[ ℓ := MaxNat 0 ]}.
+Proof. rewrite /view_to_zero. rewrite map_fmap_singleton. done. Qed.
 
 (* Instances of the lattice type classes for products. *)
 

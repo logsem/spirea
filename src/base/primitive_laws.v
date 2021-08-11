@@ -392,6 +392,9 @@ End max_view.
 Section persisted.
   Context `{!nvmBaseFixedG Σ, nvmBaseDeltaG Σ}.
 
+  Global Instance persisted_persistent PV : Persistent (persisted PV).
+  Proof. apply _. Qed.
+
   Lemma persisted_auth_included dq PV PV' :
     own persist_view_name (●{dq} PV) -∗ persisted PV' -∗ ⌜PV' ⊑ PV⌝.
   Proof.
@@ -406,6 +409,19 @@ Section persisted.
   (* [persisted] is anti-monotone. *)
   Global Instance persisted_anti_mono : Proper ((⊑@{view}) ==> flip (⊢)) (persisted).
   Proof. intros ??. apply persisted_weak. Qed.
+
+  Lemma persisted_persisted_loc PV ℓ t :
+    PV !! ℓ = Some (MaxNat t) → persisted PV -∗ persisted_loc ℓ t.
+  Proof.
+    intros look.
+    rewrite /persisted_loc /persisted.
+    f_equiv.
+    apply auth_frag_mono.
+    apply singleton_included_l.
+    eexists (MaxNat t).
+    rewrite look.
+    auto.
+  Qed.
 
 End persisted.
 
@@ -423,9 +439,6 @@ Section lifting.
 
 
   Global Instance valid_persistent V : Persistent (validV V).
-  Proof. apply _. Qed.
-
-  Global Instance persisted_persistent V : Persistent (persisted V).
   Proof. apply _. Qed.
 
   Lemma auth_frag_leq V W γ : ⊢ own γ (◯ V) -∗ own γ (● W) -∗ ⌜V ⊑ W⌝.
@@ -522,7 +535,7 @@ Section lifting.
   Qed.
 
   (* Create a message from a [value] and a [thread_view]. *)
-  Definition mk_message (v : val) (T : thread_view) := Msg v (store_view T) (persist_view T).
+  Definition mk_message (v : val) (T : thread_view) := Msg v (store_view T) (flush_view T).
 
   (** Rules for memory operations. **)
 
@@ -549,7 +562,7 @@ Section lifting.
     {{{ ℓ CV, RET (ThreadVal #ℓ T);
       crashed_at CV ∗
       ([∗ list] i ∈ seq 0 (Z.to_nat n),
-        (ℓ +ₗ (i : nat)) ↦h initial_history (persist_view T) v) ∗
+        (ℓ +ₗ (i : nat)) ↦h initial_history (flush_view T) v) ∗
       ([∗ list] i ∈ seq 0 (Z.to_nat n), (⌜ℓ +ₗ (i : nat) ∉ dom (gset _) CV⌝))
     }}}.
   Proof.
@@ -599,7 +612,7 @@ Section lifting.
       ThreadState (Alloc (Val v)) TV @ s; E
     {{{ ℓ CV, RET (ThreadVal (LitV (LitLoc ℓ)) TV);
         crashed_at CV ∗ ⌜ℓ ∉ dom (gset _) CV⌝ ∗
-        ℓ ↦h initial_history (persist_view TV) v }}}.
+        ℓ ↦h initial_history (flush_view TV) v }}}.
   Proof.
     iIntros (Φ) "_ HΦ".
     iApply wp_allocN; [lia|auto|].

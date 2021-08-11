@@ -572,7 +572,7 @@ Section wp_rules.
     iDestruct (big_sepM2_lookup_l with "ordered")
       as (order) "[%ordersLook %increasingMap]".
     { apply absHistLook. }
-    iDestruct (orders_lookup with "allOrders knowOrder") as %orderEq;
+    iDestruct (orders_lookup with "allOrders order") as %orderEq;
       first apply ordersLook.
     epose proof (increasingMap tS t' (encode s) encSL) as hihi.
     assert (order enc encSL) as orderRelated.
@@ -635,7 +635,7 @@ Section wp_rules.
       yet. *)
       admit.
     - simpl.
-      rewrite /store_view /persist_view /=.
+      rewrite /store_view /flush_view /=.
       iApply monPred_mono; last iApply "Q".
       repeat split.
       * apply view_le_r.
@@ -649,7 +649,7 @@ Section wp_rules.
       "knowPred" ∷ ⎡ know_pred ℓ ϕ ⎤ ∗
       "knowRecPred" ∷ ⎡ know_rec_pred ℓ ϕr ⎤ ∗
       "isSharedLoc" ∷ ⎡ own shared_locs_name (◯ {[ ℓ ]}) ⎤ ∗
-      "persistLB" ∷ know_persist_lower_bound ℓ s ∗
+      "persistLB" ∷ know_persist_lb ℓ s ∗
       "pToQr" ∷ <obj> (∀ v, ϕr s v _ -∗ Qr s v ∗ ϕr s v _) ∗
       "pToQ" ∷ <obj> (∀ s' v, ⌜s ⊑ s' ∧ s ≠ s'⌝ ∗ ϕ s' v -∗ Q s' v ∗ ϕ s' v)
     }}}
@@ -732,7 +732,7 @@ Section wp_rules.
 
     iDestruct (big_sepM2_lookup_l with "ordered")
       as (order) "[%ordersLook %increasingMap]"; first done.
-    iDestruct (orders_lookup with "allOrders knowOrder") as %orderEq; first done.
+    iDestruct (orders_lookup with "allOrders order") as %orderEq; first done.
 
     (* iModIntro. *)
     (* iSplit. *)
@@ -781,7 +781,7 @@ Section wp_rules.
       (* iDestruct (big_sepM2_lookup_l with "ordered") *)
       (*   as (order) "[%ordersLook %increasingMap]". *)
       (* { apply absHistLook. } *)
-      (* iDestruct (orders_lookup with "allOrders knowOrder") as %orderEq; *)
+      (* iDestruct (orders_lookup with "allOrders order") as %orderEq; *)
       (*   first apply ordersLook. *)
       epose proof (increasingMap tP tL (encode s) encSL) as hihi.
       assert (order enc encSL) as orderRelated.
@@ -798,6 +798,8 @@ Section wp_rules.
       rewrite orderEq in orderRelated.
       epose proof (encode_relation_related _ _ _ orderRelated)
         as (? & sL & eqX & decodeS' & s3InclS').
+    Abort.
+      (*
       assert (x = s) as -> by congruence.
 
       iDestruct (predicate_holds_phi_decode with "predsEquiv predHolds") as "PH";
@@ -847,12 +849,13 @@ Section wp_rules.
       (*   yet. *) *)
       (*   admit. *)
       (* - simpl. *)
-      (*   rewrite /store_view /persist_view /=. *)
+      (*   rewrite /store_view /flush_view /=. *)
       (*   iApply monPred_mono; last iApply "Q". *)
       (*   repeat split. *)
       (*   * apply view_le_r. *)
       (*   * rewrite assoc. apply view_le_r. *)
       (*   * apply view_empty_least. *)
     Admitted.
+    *)
 
 End wp_rules.

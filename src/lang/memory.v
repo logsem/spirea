@@ -23,12 +23,12 @@ Definition msg_to_tv (m : message) : thread_view :=
   (m.(msg_store_view), m.(msg_persist_view), ∅).
 
 Definition store_view (tv : thread_view) : view := (tv.1).1.
-Definition persist_view (tv : thread_view) : view := (tv.1).2.
+Definition flush_view (tv : thread_view) : view := (tv.1).2.
 Definition wb_buffer_view (tv : thread_view) : view := (tv.2).
 
 Global Instance store_view_mono : Proper ((⊑) ==> (⊑)) store_view.
 Proof. solve_proper. Qed.
-Global Instance persist_view_mono : Proper ((⊑) ==> (⊑)) persist_view.
+Global Instance flush_view_mono : Proper ((⊑) ==> (⊑)) flush_view.
 Proof. solve_proper. Qed.
 Global Instance wb_buffer_view_mono : Proper ((⊑) ==> (⊑)) wb_buffer_view.
 Proof. solve_proper. Qed.

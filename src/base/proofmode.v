@@ -223,7 +223,7 @@ Qed.
 Lemma tac_wp_alloc Δ Δ' s E j K v TV Φ :
   MaybeIntoLaterNEnvs 1 Δ Δ' →
   (∀ l,
-    match envs_app false (Esnoc Enil j (l ↦h initial_history (persist_view TV) v)) Δ' with
+    match envs_app false (Esnoc Enil j (l ↦h initial_history (flush_view TV) v)) Δ' with
     | Some Δ'' =>
        envs_entails Δ'' (WP fill K (ThreadState (Val $ LitV l) TV) @ s; E {{ Φ }})
     | None => False

@@ -706,7 +706,7 @@ Section points_to_shared.
       (∃ (tP tStore : time) (abs_hist : gmap time ST),
         "%incrList" ∷ ⌜increasing_list ss⌝ ∗
         "isExclusiveLoc" ∷ ⎡ is_exclusive_loc ℓ ⎤ ∗
-        "#knowOrder" ∷ ⎡ know_preorder_loc ℓ (abs_state_relation) ⎤ ∗
+        "#order" ∷ ⎡ know_preorder_loc ℓ (abs_state_relation) ⎤ ∗
 
         (* [tStore] is the last message and it agrees with the last state in ss. *)
         "%lookupV" ∷ ⌜abs_hist !! tStore = last ss⌝ ∗
@@ -727,8 +727,8 @@ Section points_to_shared.
 
   (* NOTE: This comment is out of date. *)
   (* This definition uses an existentially quantified [s']. We do this such that
-  owning [know_persist_lower_bound ℓ s] before a crash also results in owning
-  exactly the same, [know_persist_lower_bound ℓ s], after a crash. Had the
+  owning [know_persist_lb ℓ s] before a crash also results in owning
+  exactly the same, [know_persist_lb ℓ s], after a crash. Had the
   definition said that _exactly_ [s] was persisted at [t] then we would have a
   different state after a crash, since after a crash there is only a single
   entry in the history for [ℓ] and that entry may refer to any abstract state
@@ -738,14 +738,15 @@ Section points_to_shared.
   (* This definition must satisfy that is we load a location in state [s] then
   the recovery predicate holds for [s]. Hence we cannot store a lower bound on
   [s] but must ensure that exactly [s] exists in the abstract history. *)
-  Program Definition know_persist_lower_bound ℓ (s : ST) : dProp Σ :=
+  Program Definition know_persist_lb ℓ (sP : ST) : dProp Σ :=
     MonPred (λ TV,
-      ∃ tP,
+      ∃ tP sP',
+        "%sPInclSP'" ∷ ⌜ sP ⊑ sP' ⌝ ∗
         (* We have the persisted state in our store view. *)
         "%tPLe" ∷ ⌜ tP ≤ (store_view TV) !!0 ℓ ⌝ ∗
-        "knowOrder" ∷ know_preorder_loc ℓ abs_state_relation ∗
         "persisted" ∷ persisted_loc ℓ tP ∗
-        "knowFragHist" ∷ know_frag_history_loc ℓ {[ tP := s ]})%I _.
+        "order" ∷ know_preorder_loc ℓ abs_state_relation ∗
+        "knowFragHist" ∷ know_frag_history_loc ℓ {[ tP := sP' ]})%I _.
   Next Obligation. solve_proper. Qed.
 
   Program Definition know_flush_lower_bound ℓ (s : ST) : dProp Σ :=
@@ -753,12 +754,14 @@ Section points_to_shared.
       ∃ (tF : nat) s',
         "%sInclS'" ∷ ⌜ s ⊑ s' ⌝ ∗
         (* Either the location is persisted or we have something in the flush
-        view. The later case is for use after a crash where we *)
-        "%tFLe" ∷ ⌜ tF ≤ (persist_view TV) !!0 ℓ ⌝ ∗
-        (* ("%tFLe" ∷ ⌜ tF ≤ (persist_view TV) !!0 ℓ ⌝ ∨ *)
+        view. The later case is for use after a crash where we don't have
+        anything in the flush view. *)
+        "viewFact" ∷ (⌜tF ≠ 0⌝ ∗ ⌜tF ≤ flush_view TV !!0 ℓ⌝  ∨
+                      ⌜tF = 0⌝ ∗ persisted_loc ℓ 0) ∗
+        (* ("%tFLe" ∷ ⌜ tF ≤ (flush_view TV) !!0 ℓ ⌝ ∨ *)
         (*            (⌜tF = 0⌝ ∗ persisted_loc ℓ 0)) ∗ *)
-        (* (⌜ tF ≤ (persist_view TV) !!0 ℓ ⌝ ∨ ⌜tF = 0⌝ ∗ ) ∗ *)
-        "knowOrder" ∷ know_preorder_loc ℓ abs_state_relation ∗
+        (* (⌜ tF ≤ (flush_view TV) !!0 ℓ ⌝ ∨ ⌜tF = 0⌝ ∗ ) ∗ *)
+        "order" ∷ know_preorder_loc ℓ abs_state_relation ∗
         "knowFragHist" ∷ know_frag_history_loc ℓ {[ tF := s' ]}
     )%I _.
   Next Obligation. solve_proper. Qed.
@@ -768,7 +771,7 @@ Section points_to_shared.
       ∃ (tS : nat) s',
         "%sInclS'" ∷ ⌜ s ⊑ s' ⌝ ∗
         "%tSLe" ∷ ⌜ tS ≤ (store_view TV) !!0 ℓ ⌝ ∗
-        "knowOrder" ∷ know_preorder_loc ℓ abs_state_relation ∗
+        "order" ∷ know_preorder_loc ℓ abs_state_relation ∗
         "knowFragHist" ∷ know_frag_history_loc ℓ {[ tS := s' ]}
     )%I _.
   Next Obligation. solve_proper. Qed.
@@ -803,7 +806,7 @@ Section points_to_shared.
   Definition mapsto_shared ℓ s1 s2 s3 ϕ : dProp Σ :=
     "knowPred" ∷ ⎡ know_pred ℓ ϕ ⎤ ∗
     "isSharedLoc" ∷ ⎡ own shared_locs_name (◯ {[ ℓ ]}) ⎤ ∗
-    "globalPerLB" ∷ know_persist_lower_bound ℓ s1 ∗
+    "globalPerLB" ∷ know_persist_lb ℓ s1 ∗
     "persistLB" ∷ know_flush_lower_bound ℓ s2 ∗
     "storeLB" ∷ know_store_lower_bound ℓ s3.
   *)
@@ -816,15 +819,15 @@ Section points_to_shared.
          ℓ (s : ST) : Persistent (know_store_lower_bound ℓ s).
   Proof. apply monPred_persistent=> j. apply _. Qed.
 
-  Lemma know_flush_lower_bound_at_zero ℓ (s s' : ST) :
-    s ⊑ s' →
-    ⎡ know_frag_history_loc ℓ {[0 := s']} ⎤ -∗
-    ⎡ know_preorder_loc ℓ abs_state_relation ⎤ -∗
-    know_flush_lower_bound ℓ s.
-  Proof.
-    iStartProof (iProp _). iIntros (incl ?) "?".
-    iIntros (? ?) "?". iExists 0, s'. iFrame "%∗". iPureIntro. lia.
-  Qed.
+  (* Lemma know_flush_lower_bound_at_zero ℓ (s s' : ST) : *)
+  (*   s ⊑ s' → *)
+  (*   ⎡ know_frag_history_loc ℓ {[0 := s']} ⎤ -∗ *)
+  (*   ⎡ know_preorder_loc ℓ abs_state_relation ⎤ -∗ *)
+  (*   know_flush_lower_bound ℓ s. *)
+  (* Proof. *)
+  (*   iStartProof (iProp _). iIntros (incl ?) "?". *)
+  (*   iIntros (? ?) "?". iExists 0, s'. iFrame "%∗". iPureIntro. lia. *)
+  (* Qed. *)
 
   Lemma know_store_lower_bound_at_zero ℓ (s s' : ST) :
     s ⊑ s' →

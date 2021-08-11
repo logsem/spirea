@@ -11,7 +11,7 @@ From self.high Require Import dprop resources.
 
 Program Definition post_fence {Σ} (P : dProp Σ) : dProp Σ :=
   MonPred (λ tv, P (store_view tv,
-                    (persist_view tv ⊔ wb_buffer_view tv),
+                    (flush_view tv ⊔ wb_buffer_view tv),
                     wb_buffer_view tv)) _.
   (* MonPred (λ '(s, p, b), P (s, (p ⊔ b), ∅)) _. *)
 Next Obligation.
@@ -35,7 +35,7 @@ Section post_fence.
   Implicit Types (P : dProp Σ).
 
   Lemma post_fence_at P tv :
-    ((<fence> P) tv = P (store_view tv, (persist_view tv ⊔ wb_buffer_view tv), wb_buffer_view tv))%I.
+    ((<fence> P) tv = P (store_view tv, (flush_view tv ⊔ wb_buffer_view tv), wb_buffer_view tv))%I.
   Proof. done. Qed.
 
   Lemma post_fence_at_alt P SV PV BV :
@@ -53,7 +53,7 @@ Section post_fence.
 End post_fence.
 
 Program Definition floor_buffer {Σ} (P : dProp Σ) : dProp Σ :=
-  MonPred (λ tv, P (store_view tv, persist_view tv, ∅)) _.
+  MonPred (λ tv, P (store_view tv, flush_view tv, ∅)) _.
 Next Obligation.
   (* FIXME: Figure out if there is a way to make [solve_proper] handle this,
   perhaps by using [pointwise_relation]. *)
