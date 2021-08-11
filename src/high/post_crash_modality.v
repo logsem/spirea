@@ -500,8 +500,8 @@ Section post_crash_derived.
     know_persist_lb ℓ s -∗
     post_crash (λ hG, ∃ s', ⌜s ⊑ s'⌝ ∗
       know_persist_lb ℓ s' ∗
-      know_flush_lower_bound ℓ s' ∗
-      know_store_lower_bound ℓ s).
+      know_flush_lb ℓ s' ∗
+      know_store_lb ℓ s).
   Proof.
     iStartProof (iProp _). iIntros (TV).
     iNamed 1.
@@ -523,7 +523,7 @@ Section post_crash_derived.
       iFrame "#%".
       iPureGoal; first reflexivity.
       iPureIntro. by right.
-    - iApply know_store_lower_bound_at_zero; done.
+    - iApply know_store_lb_at_zero; done.
   Qed.
 
   Lemma post_crash_mapsto_ex `{AbstractState ST} ℓ ss :
@@ -611,17 +611,17 @@ Notation "'<PCCC>' P" :=
 Section post_crash_persisted.
   Context `{hG: !nvmFixedG Σ, nvmDeltaG Σ}.
 
-  Lemma post_crash_persisted_know_flush_lower_bound `{AbstractState ST}
+  Lemma post_crash_persisted_know_flush_lb `{AbstractState ST}
         (ℓ : loc) (s : ST) :
-    know_flush_lower_bound ℓ s -∗
+    know_flush_lb ℓ s -∗
     <PCCC> (λ hG,
       know_persist_lb ℓ s ∗
-      know_flush_lower_bound ℓ s ∗
-      know_store_lower_bound ℓ s).
+      know_flush_lb ℓ s ∗
+      know_store_lb ℓ s).
   Proof.
     iStartProof (iProp _).
     iIntros (TV).
-    rewrite /know_flush_lower_bound.
+    rewrite /know_flush_lb.
     simpl.
     iNamed 1.
     iIntros (??).

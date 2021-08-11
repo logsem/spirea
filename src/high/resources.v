@@ -124,7 +124,7 @@ Section abs_history_lemmas.
   around, namely that encoding our history is equal to the stored encoded
   history. Storing this weaker fact makes the definition easier to show. This is
   important for the load lemma where, when we load some state and we want to
-  return [know_store_lower_bound] for the returned state. At that point we can
+  return [know_store_lb] for the returned state. At that point we can
   conclude that decoding the encoding gives a result but not that the encoding
   is an encoding of some state. *)
   Definition know_frag_history_loc ℓ (abs_hist : gmap time ST) : iProp Σ :=
@@ -749,7 +749,7 @@ Section points_to_shared.
         "knowFragHist" ∷ know_frag_history_loc ℓ {[ tP := sP' ]})%I _.
   Next Obligation. solve_proper. Qed.
 
-  Program Definition know_flush_lower_bound ℓ (s : ST) : dProp Σ :=
+  Program Definition know_flush_lb ℓ (s : ST) : dProp Σ :=
     MonPred (λ TV,
       ∃ (tF : nat) s',
         "%sInclS'" ∷ ⌜ s ⊑ s' ⌝ ∗
@@ -766,7 +766,7 @@ Section points_to_shared.
     )%I _.
   Next Obligation. solve_proper. Qed.
 
-  Program Definition know_store_lower_bound ℓ (s : ST) : dProp Σ :=
+  Program Definition know_store_lb ℓ (s : ST) : dProp Σ :=
     MonPred (λ TV,
       ∃ (tS : nat) s',
         "%sInclS'" ∷ ⌜ s ⊑ s' ⌝ ∗
@@ -807,33 +807,33 @@ Section points_to_shared.
     "knowPred" ∷ ⎡ know_pred ℓ ϕ ⎤ ∗
     "isSharedLoc" ∷ ⎡ own shared_locs_name (◯ {[ ℓ ]}) ⎤ ∗
     "globalPerLB" ∷ know_persist_lb ℓ s1 ∗
-    "persistLB" ∷ know_flush_lower_bound ℓ s2 ∗
-    "storeLB" ∷ know_store_lower_bound ℓ s3.
+    "persistLB" ∷ know_flush_lb ℓ s2 ∗
+    "storeLB" ∷ know_store_lb ℓ s3.
   *)
 
-  Global Instance know_flush_lower_bound_persistent
-         ℓ (s : ST) : Persistent (know_flush_lower_bound ℓ s).
+  Global Instance know_flush_lb_persistent
+         ℓ (s : ST) : Persistent (know_flush_lb ℓ s).
   Proof. apply monPred_persistent=> j. apply _. Qed.
 
-  Global Instance know_store_lower_bound_persistent
-         ℓ (s : ST) : Persistent (know_store_lower_bound ℓ s).
+  Global Instance know_store_lb_persistent
+         ℓ (s : ST) : Persistent (know_store_lb ℓ s).
   Proof. apply monPred_persistent=> j. apply _. Qed.
 
-  (* Lemma know_flush_lower_bound_at_zero ℓ (s s' : ST) : *)
+  (* Lemma know_flush_lb_at_zero ℓ (s s' : ST) : *)
   (*   s ⊑ s' → *)
   (*   ⎡ know_frag_history_loc ℓ {[0 := s']} ⎤ -∗ *)
   (*   ⎡ know_preorder_loc ℓ abs_state_relation ⎤ -∗ *)
-  (*   know_flush_lower_bound ℓ s. *)
+  (*   know_flush_lb ℓ s. *)
   (* Proof. *)
   (*   iStartProof (iProp _). iIntros (incl ?) "?". *)
   (*   iIntros (? ?) "?". iExists 0, s'. iFrame "%∗". iPureIntro. lia. *)
   (* Qed. *)
 
-  Lemma know_store_lower_bound_at_zero ℓ (s s' : ST) :
+  Lemma know_store_lb_at_zero ℓ (s s' : ST) :
     s ⊑ s' →
     ⎡ know_frag_history_loc ℓ {[0 := s']} ⎤ -∗
     ⎡ know_preorder_loc ℓ abs_state_relation ⎤ -∗
-    know_store_lower_bound ℓ s.
+    know_store_lb ℓ s.
   Proof.
     iStartProof (iProp _). iIntros (incl ?) "?".
     iIntros (? ?) "?". iExists 0, s'. iFrame "%∗". iPureIntro. lia.

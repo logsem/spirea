@@ -399,9 +399,9 @@ Section wp_rules.
   *)
 
   Lemma wp_wb_ex ℓ s st E :
-    {{{ know_store_lower_bound ℓ s }}}
+    {{{ know_store_lb ℓ s }}}
       WB #ℓ @ st; E
-    {{{ RET #(); <fence> know_flush_lower_bound ℓ s }}}.
+    {{{ RET #(); <fence> know_flush_lb ℓ s }}}.
    Proof.
    Admitted.
 
@@ -485,12 +485,12 @@ Section wp_rules.
     {{{
         "knowPred" ∷ ⎡ know_pred ℓ ϕ ⎤ ∗
         "isSharedLoc" ∷ ⎡ own shared_locs_name (◯ {[ ℓ ]}) ⎤ ∗
-        "storeLB" ∷ know_store_lower_bound ℓ s ∗
+        "storeLB" ∷ know_store_lb ℓ s ∗
         "pToQ" ∷ <obj> (∀ s' v, ⌜ s ⊑ s' ⌝ ∗ ϕ s' v -∗ Q s' v ∗ ϕ s' v) ∗
         "live" ∷ live ℓ }}} 
       !{acq} #ℓ @ positive; E
     {{{ s' v, RET v;
-        "storeLB" ∷ know_store_lower_bound ℓ s' ∗
+        "storeLB" ∷ know_store_lb ℓ s' ∗
         post_fence (Q s' v) }}}.
   Proof.
     intros Φ.
@@ -655,7 +655,7 @@ Section wp_rules.
     }}}
       !{acq} #ℓ @ positive; E
     {{{ s' v, RET v;
-      (* "storeLB" ∷ know_store_lower_bound ℓ s' ∗ *)
+      (* "storeLB" ∷ know_store_lb ℓ s' ∗ *)
       post_fence ((⌜s = s'⌝ ∗ Qr s v) ∨ (⌜s ≠ s' ∧ s ⊑ s'⌝ ∗ Q s' v))
     }}}.
   Proof.
