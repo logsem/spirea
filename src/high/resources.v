@@ -72,9 +72,7 @@ Class nvmFixedG Σ := NvmFixedG {
   nvmG_highG :> nvmHighFixedG Σ;
 }.
 
-Class AbstractState ST := {
-  abs_state_eqdecision :> EqDecision ST;
-  abs_state_countable :> Countable ST;
+Class AbstractState ST `{Countable ST} := {
   abs_state_relation : relation2 ST;
   abs_state_preorder :> PreOrder abs_state_relation;
 }.

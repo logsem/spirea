@@ -58,7 +58,7 @@ Section wpc.
        (shared_locs : gset loc),
       (* We keep the points-to predicates to ensure that we know that the keys
       in the abstract history correspond to the physical history. This ensures
-      that at a crash we know that the value recoreved after a crash has a
+      that at a crash we know that the value recovered after a crash has a
       corresponding abstract value. *)
       "ptsMap" ∷ ([∗ map] ℓ ↦ hist ∈ phys_hists, ℓ ↦h hist) ∗
       "#crashedAt" ∷ crashed_at CV ∗
@@ -70,6 +70,7 @@ Section wpc.
       "preds" ∷ own predicates_name (● preds_to_ra preds) ∗
       (* Knowledge of all the recovery predicates. *)
       "recPreds" ∷ own recovery_predicates_name (● (rec_preds_to_ra rec_preds)) ∗
+      (* All the encoded orders *)
       "allOrders" ∷ own_all_preorders orders ∗
       (* Shared locations. *)
       "sharedLocs" ∷ own shared_locs_name (● shared_locs) ∗
