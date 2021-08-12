@@ -72,7 +72,7 @@ Theorem heap_recv_adequacy Σ `{hPre : !nvmBaseGpreS Σ} s k e r σ g φ φr φi
   recv_adequate (CS := nvm_crash_lang) s e r σ g (λ v _ _, φ v) (λ v _ _, φr v) (λ σ _, φinv σ).
 Proof.
   intros val Hwp.
-  eapply (wp_recv_adequacy_inv _ _ _ nvm_base_namesO _ _ _ _ _ _ _ _ _ (λ n, n)).
+  eapply (wp_recv_adequacy_inv _ _ _ nvm_base_namesO _ _ _ _ _ _ _ _ _ _).
   iIntros (???) "".
   iMod (allocate_state_interp Hinv Hc σ) as (hnames) "[interp pts]"; first done.
 
@@ -90,8 +90,11 @@ Proof.
   iExists _.
   iExists _.
   iExists _.
-  iExists (λ names0 _Hinv Hc names, Φinv ({| nvm_base_crashG := Hc;
-                                             nvm_base_names' := (@pbundleT _ _ names) |} )).
+  iExists _.
+  iExists _.
+  iExists (λ names0 _Hinv Hc names,
+             Φinv ({| nvm_base_crashG := Hc;
+                      nvm_base_names' := (@pbundleT _ _ names) |} )).
   iDestruct (Hwp hG hGD with "pts") as "(#H1 & #H2 & Hwp)".
   iModIntro.
   iSplitR.
@@ -106,4 +109,6 @@ Proof.
   iFrame.
   Unshelve.
   - eauto.
+  - done.
+  - done.
 Qed.

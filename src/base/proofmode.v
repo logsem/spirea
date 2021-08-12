@@ -39,7 +39,8 @@ Proof.
   rewrite envs_entails_eq=> ??? HΔ'. rewrite into_laterN_env_sound /=.
   (* We want [pure_exec_fill] to be available to TC search locally. *)
   pose proof @pure_exec_fill.
-  rewrite HΔ' -lifting.wp_pure_step_later //.
+  rewrite HΔ'.
+  rewrite lifting.wp_pure_step_later //.
 Qed.
 
 Lemma tac_wp_value_noncfupd `{!nvmBaseFixedG Σ, nvmBaseDeltaG Σ} Δ s E Φ v TV :

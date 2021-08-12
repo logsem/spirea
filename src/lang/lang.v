@@ -317,6 +317,11 @@ Module nvm_lang.
     revert Ki2. induction Ki1; intros Ki2; induction Ki2; try naive_solver eauto with f_equal.
   Qed.
 
+  Lemma fill_item_val_inv Ki v1 v2 :
+    is_Some (to_val (fill_item Ki (of_val v1))) →
+    is_Some (to_val (fill_item Ki (of_val v2))).
+  Proof. intros. induction Ki; simplify_option_eq; eauto. Qed.
+
   (* Even though what we have so far does not qualify as a "language" that we
   can instantiate Iris with, we will instantiate Iris with a pseudo instance.
   This is because the WP notation is constructed using a type class called [Wp]
@@ -330,8 +335,9 @@ Module nvm_lang.
       of_val to_val fill_item
       (fun _ _ _ _ _ _ _ _ => False).
   Proof.
-    split; eauto using to_of_val, of_to_val, fill_item_val,
-      fill_item_no_val_inj, head_ctx_step_val with typeclass_instances=>//.
+    split; apply _ || eauto using to_of_val, of_to_val, val_head_stuck,
+            fill_item_val, fill_item_val_inv, fill_item_no_val_inj,
+            head_ctx_step_val =>//.
   Qed.
 
   (* Definition expr_ectxi_lang := EctxiLanguage expr_ectxi_lang_mixin.
@@ -430,11 +436,19 @@ Module nvm_lang.
     exact: fill_item_no_val_inj _ _ H3.
   Qed.
 
+  Lemma thread_fill_item_val_inv Ki (v1 v2 : thread_val) :
+    is_Some (thread_to_val (thread_fill_item Ki (thread_of_val v1))) →
+    is_Some (thread_to_val (thread_fill_item Ki (thread_of_val v2))).
+  Proof. intros. induction Ki; simplify_option_eq; eauto. Qed.
+
   Lemma nvm_lang_mixin :
     EctxiLanguageMixin thread_of_val thread_to_val thread_fill_item thread_step.
   Proof.
-    split; eauto using thread_to_of_val, thread_of_to_val, thread_val_stuck, thread_fill_item_val,
-      thread_fill_item_no_val_inj, thread_head_ctx_step_val with typeclass_instances.
+    split;
+      apply _ ||
+      eauto using thread_to_of_val, thread_of_to_val, thread_val_stuck,
+        thread_fill_item_val, thread_fill_item_val_inv,
+        thread_fill_item_no_val_inj, thread_head_ctx_step_val.
   Qed.
 End nvm_lang.
 

@@ -61,8 +61,10 @@ Program Global Instance nvmBaseG_perennialG `{!nvmBaseFixedG Σ} :
     λ Hcrash hnames,
       nvmBaseG_irisGS (hGD := MkNvmBaseDeltaG _ Hcrash (@pbundleT _ _ hnames));
   perennial_crashG := λ _ _, eq_refl;
-  perennial_num_laters_per_step := λ n, n
+  perennial_num_laters_per_step := (λ n, 3 ^ (n + 1))%nat;
+  perennial_step_count_next := (λ n, 10 * (n + 1))%nat;
 }.
+Next Obligation. eauto. Qed.
 Next Obligation. eauto. Qed.
 Next Obligation. eauto. Qed.
 
@@ -86,9 +88,11 @@ Section wpr.
   Implicit Types v : thread_val.
   Implicit Types e : thread_state.
 
-  Lemma wpr_strong_mono `{hG : !nvmBaseFixedG Σ, nvmBaseDeltaG Σ} s k E e rec Φ Ψ Φinv Ψinv Φr Ψr :
+  Lemma wpr_strong_mono `{hG : !nvmBaseFixedG Σ, nvmBaseDeltaG Σ}
+        s k E e rec Φ Ψ Φinv Ψinv Φr Ψr :
     wpr s k E e rec Φ Φinv Φr -∗
-    (∀ v, Φ v ==∗ Ψ v) ∧ <bdisc> ((∀ hG, Φinv hG -∗ Ψinv hG) ∧ (∀ hG v, Φr hG v ==∗ Ψr hG v)) -∗
+    (∀ v, Φ v ==∗ Ψ v) ∧
+    ((∀ hG, Φinv hG -∗ Ψinv hG) ∧ (∀ hG v, Φr hG v ==∗ Ψr hG v)) -∗
     wpr s k E e rec Ψ Ψinv Ψr.
   Proof.
     rewrite /wpr. iIntros "Hwpr Himpl".
@@ -97,10 +101,10 @@ Section wpr.
     - by iDestruct "Himpl" as "($&_)".
     - iIntros.
       iDestruct "Himpl" as "(_&H)".
-      iModIntro.
-      iSplit.
-      * iIntros. by iApply "H".
-      * iIntros. by iApply "H".
+      iIntros. by iApply "H".
+    - iIntros.
+      iDestruct "Himpl" as "(_&H)".
+      iIntros. by iApply "H".
   Qed.
 
   Lemma store_inv_cut `{nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ} store p :
@@ -188,15 +192,14 @@ Section wpr.
         iApply (gen_heap_valid with "heapIntrp pts"). }
       iDestruct (big_sepM_impl_strong _ _ _ σ with "ptsMap []") as "[$ _]".
       iModIntro.
-      iIntros (ℓ hist look) "disj".
+      iIntros (ℓ hist) "pts". iIntros (look).
       (* Note: The first value below is just a fancy way of writing [0]. *)
       iExists (Qcanon.Q2Qc (QArith_base.Qmake Z0 xH)), 1%Qc.
       rewrite if_non_zero_1. simpl. rewrite if_non_zero_0. simpl.
       iSplit; first done. iSplit; last done.
       iExists _. iFrame "crashed".
-      iDestruct "disj" as "[(%hist' & %look' & pts)|%look']"; last first.
-      * iRight.
-        iPureIntro.
+      destruct (slice_of_store p' σ !! ℓ) as [?|] eqn:look'; last first.
+      * iRight. iPureIntro.
         eapply consistent_cut_lookup_slice; done.
       * iLeft.
         rewrite /slice_of_store in look'.
@@ -271,7 +274,7 @@ Section wpr.
                             (λ Hc names, Φcx (MkNvmBaseDeltaG _ Hc (@pbundleT _ _ names)))
                                                       with "[Hwpc] [Hidemp]"); first auto.
     { destruct hGD. iFrame. }
-    { iModIntro. iIntros (? [names] σ_pre_crash g σ_post_crash Hcrash ns κs ?) "H".
+    { iModIntro. iIntros (? [names] σ_pre_crash g σ_post_crash Hcrash ns mj D κs ?) "H".
       iSpecialize ("Hidemp" $! (MkNvmBaseDeltaG _ _ names) with "[//] H").
       iIntros "interp _ !> !>".
       iIntros (Hc' ?) "HNC".

@@ -136,7 +136,7 @@ Proof.
     apply subseteq_dom.
     apply restrict_subseteq. }
   iDestruct (big_sepM2_alt with "map") as "[%fall map]".
-  iDestruct (big_sepM_impl_sub _ _ _ (slice_of_store _ _) with "map []") as "[$ _]".
+  iDestruct (big_sepM_impl_dom_subseteq _ _ _ (slice_of_store _ _) with "map []") as "[$ _]".
   { rewrite /slice_of_store.
     rewrite !map_zip_with_dom.
     rewrite (restrict_dom_subset _ store).
@@ -364,11 +364,9 @@ Section wpr.
     rewrite /wpr_pre.
     iApply (wpc_strong_mono' with  "wpc"); try reflexivity.
     iSplit. { iIntros (?). monPred_simpl. setoid_rewrite monPred_at_fupd. auto. }
-    rewrite disc_unfold_at. monPred_simpl.
-    iIntros "!>".
+    monPred_simpl.
     iIntros (??).
     iIntros "phiC".
-    rewrite fupd_level_unfold_at.
     iModIntro.
     iIntros (?? step ?).
     iDestruct ("Hidemp" with "phiC") as "idemp'".

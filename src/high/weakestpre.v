@@ -42,7 +42,7 @@ Section wp.
     iApply wpc_value.
     iSplit.
     - iMod "H". iModIntro. done.
-    - iModIntro. iModIntro. done.
+    - iModIntro. done.
   Qed.
 
   Lemma wp_value_fupd s E Φ e v :

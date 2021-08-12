@@ -144,12 +144,15 @@ Global Program Instance nvmBaseG_irisGS `{!nvmBaseFixedG Σ, hGD : nvmBaseDeltaG
   irisGS nvm_lang Σ := {
   iris_invG := nvmBaseG_invGS;
   iris_crashG := nvm_base_crashG;
-  num_laters_per_step := λ n, n; (* This is the choice GooseLang takes. *)
   state_interp σ _nt := nvm_heap_ctx σ;
-  global_state_interp _g _ns _κs := True%I;
+  global_state_interp _g _ns _κs _ _ := True%I;
   fork_post _ := True%I;
+
+  num_laters_per_step := (λ n, 3 ^ (n + 1))%nat; (* This is the choice GooseLang takes. *)
+  step_count_next := (λ n, 10 * (n + 1))%nat;
 }.
 Next Obligation. intros. eauto. Qed.
+Next Obligation. intros => //=. lia. Qed.
 
 (* NOTE: Uncomment as needed. *)
 Notation "l ↦h{ dq } v" := (mapsto (L:=loc) (V:=history) l dq (v%V))
@@ -568,7 +571,7 @@ Section lifting.
   Proof.
     iIntros (Hn Φ) "_ HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
-    iIntros ([??] [] ns κ κs k). iNamed 1. iIntros "_ !>". iNamed "crash".
+    iIntros ([??] [] ns mj D κ κs k). iNamed 1. iIntros "_ !>". iNamed "crash".
     iSplit.
     - (* We must show that [ref v] is can take some step. *)
        rewrite /head_reducible.
@@ -630,7 +633,7 @@ Section lifting.
   Proof.
     iIntros (Φ) "[ℓPts Hval] HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
-    iIntros ([??] [] ns κ κs k). iNamed 1. iIntros "_ /= !>". iNamed "crash".
+    iIntros ([??] [] ns mj D κ κs k). iNamed 1. iIntros "_ /= !>". iNamed "crash".
     (* From the points-to predicate we know that [hist] is in the heap at ℓ. *)
     iDestruct (gen_heap_valid with "Hσ ℓPts") as %Hlook.
     iSplit.
@@ -671,7 +674,7 @@ Section lifting.
   Proof.
     iIntros (Φ) "[ℓPts Hval] HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
-    iIntros ([??] [] ns κ κs k). iNamed 1. iIntros "_ /= !>". iNamed "crash".
+    iIntros ([??] [] ns mj D κ κs k). iNamed 1. iIntros "_ /= !>". iNamed "crash".
     (* The time at the view is smaller than the time in the lub view (which is
     the time of the most recent message *)
     iDestruct (auth_frag_leq with "Hval lubauth") as %Vincl.
@@ -716,7 +719,7 @@ Section lifting.
   Proof.
     iIntros (Φ) "[ℓPts Hval] HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
-    iIntros ([??] [] ns κ κs k). iNamed 1. iIntros "_ /= !>". iNamed "crash".
+    iIntros ([??] [] ns mj D κ κs k). iNamed 1. iIntros "_ /= !>". iNamed "crash".
     (* The time at the view is smaller than the time in the lub view (which is
     the time of the most recent message *)
     iDestruct (auth_frag_leq with "Hval lubauth") as %Vincl.
@@ -768,7 +771,7 @@ Section lifting.
   Proof.
     iIntros (Φ) "[ℓPts Hval] HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
-    iIntros ([??] [] ns κ κs k). iNamed 1. iIntros "Ht /= !>". iNamed "crash".
+    iIntros ([??] [] ns mj D κ κs k). iNamed 1. iIntros "Ht /= !>". iNamed "crash".
     (* The time at the view is smaller than the time in the lub view (which is the time of the most recent message *)
     iDestruct (auth_frag_leq with "Hval lubauth") as %Vincl.
     (* From the points-to predicate we know that [hist] is in the heap at ℓ. *)
@@ -818,7 +821,7 @@ Section lifting.
   Proof.
     iIntros (Φ) "pts HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
-    iIntros ([??] [] ns κ κs k). iNamed 1. iIntros "Ht /= !>".
+    iIntros ([??] [] ns mj D κ κs k). iNamed 1. iIntros "Ht /= !>".
     (* From the points-to predicate we know that [hist] is in the heap at ℓ. *)
     iDestruct (gen_heap_valid with "Hσ pts") as %Hlook.
     iSplit.
@@ -837,7 +840,7 @@ Section lifting.
   Proof.
     iIntros (Φ) "_ HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
-    iIntros ([??] [] ns κ κs k). iNamed 1. iIntros "Ht /= !>".
+    iIntros ([??] [] ns mj D κ κs k). iNamed 1. iIntros "Ht /= !>".
     iSplit.
     - rewrite /head_reducible.
        iExists [], _, _, _, _. simpl. iPureIntro.
@@ -854,7 +857,7 @@ Section lifting.
   Proof.
     iIntros (Φ) "_ HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
-    iIntros ([??] [] ns κ κs k). iNamed 1. iIntros "Ht /= !>".
+    iIntros ([??] [] ns mj D κ κs k). iNamed 1. iIntros "Ht /= !>".
     iSplit.
     - rewrite /head_reducible.
        iExists [], _, _, _, _. simpl. iPureIntro.

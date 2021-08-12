@@ -158,7 +158,7 @@ Section wpc.
 
   (** The weakest precondition is defined in terms of the crash weakest
   precondition. *)
-  Definition wp_def : Wp expr_lang (dProp Σ) stuckness :=
+  Definition wp_def : Wp (dProp Σ) expr val stuckness :=
     λ s E e Φ, (WPC e @ s ; 0 ; E {{ Φ }} {{ True }})%I.
   Definition wp_aux : seal (@wp_def). Proof. by eexists. Qed.
   Definition wp' := wp_aux.(unseal).
@@ -189,7 +189,7 @@ Section wpc.
     simpl. rewrite /thread_of_val.
     iApply (wpc_strong_mono' with "HI"); try auto.
     iSplit.
-    2: { iModIntro. iIntros "$". eauto. }
+    2: { iIntros "$". eauto. }
     iIntros ([??]) "[%incl' $]".
     iPureIntro. etrans; eassumption.
   Qed.
@@ -221,7 +221,7 @@ Section wpc.
         `{!Objective Φc, !Objective Ψc} :
     s1 ⊑ s2 → k1 ≤ k2 → E1 ⊆ E2 →
     WPC e @ s1; k1; E1 {{ Φ }} {{ Φc }} -∗
-    (∀ v, Φ v -∗ |NC={E2}=> Ψ v) ∧ <disc> (Φc -∗ |C={E2}_k2=> Ψc) -∗
+    (∀ v, Φ v -∗ |NC={E2}=> Ψ v) ∧ (Φc -∗ |C={E2}_k2=> Ψc) -∗
     WPC e @ s2; k2; E2 {{ Ψ }} {{ Ψc }}.
   Proof.
     intros ?? HE.
@@ -249,8 +249,6 @@ Section wpc.
       iFrame "∗%".
     - monPred_simpl.
       iDestruct ("conj") as "[_ conj]".
-      rewrite disc_unfold_at.
-      iModIntro.
       iIntros "phi".
       monPred_simpl.
       iSpecialize ("conj" $! tv' with "[% //]").
@@ -261,28 +259,27 @@ Section wpc.
       { iApply objective_at. iApply "phi". }
       iSpecialize ("conj" $! tv' with "[% //] [HC]").
       { iApply monPred_at_embed. done. }
-      rewrite fupd_level_unfold_at.
-      iApply fupd_level_mono; last iApply "conj".
       iApply objective_at.
+      done.
   Qed.
 
   Lemma wpc_strong_mono' s1 s2 k1 k2 E1 E2 e Φ Ψ Φc Ψc
         `{!Objective Φc, !Objective Ψc} :
     s1 ⊑ s2 → k1 ≤ k2 → E1 ⊆ E2 →
     WPC e @ s1; k1; E1 {{ Φ }} {{ Φc }} -∗
-    (∀ v, Φ v ={E2}=∗ Ψ v) ∧ <disc> (Φc -∗ |k2={E2}=> Ψc) -∗
+    (∀ v, Φ v ={E2}=∗ Ψ v) ∧ (Φc ={E2}=∗ Ψc) -∗
     WPC e @ s2; k2; E2 {{ Ψ }} {{ Ψc }}.
   Proof.
     iIntros (???) "? H".
     iApply (wpc_strong_mono with "[$] [-]"); auto.
     iSplit.
     - iDestruct "H" as "(H&_)". iIntros. iMod ("H" with "[$]"). auto.
-    - iDestruct "H" as "(_&H)". iModIntro.
+    - iDestruct "H" as "(_&H)".
       iIntros "HΦc C". iApply "H". iAssumption.
   Qed.
 
   Lemma ncfupd_wpc s k E1 e Φ Φc `{!Objective Φc} :
-    <disc> (cfupd k E1 Φc) ∧ (|NC={E1}=> WPC e @ s; k; E1 {{ Φ }} {{ Φc }}) ⊢
+    (cfupd k E1 Φc) ∧ (|NC={E1}=> WPC e @ s; k; E1 {{ Φ }} {{ Φc }}) ⊢
     WPC e @ s; k; E1 {{ Φ }} {{ Φc }}.
   Proof.
     rewrite wpc_eq.
@@ -293,8 +290,6 @@ Section wpc.
     iApply ncfupd_wpc.
     iSplit.
     - iDestruct "H" as "[H _]".
-      rewrite disc_unfold_at.
-      iModIntro.
       rewrite cfupd_unfold_at.
       iDestruct "H" as ">H".
       iModIntro.
@@ -309,8 +304,8 @@ Section wpc.
 
   Lemma wpc_atomic_crash_modality s k E1 e Φ Φc
         `{!AtomicBase StronglyAtomic e, !Objective Φc} :
-    <disc> (cfupd k E1 (Φc)) ∧
-    (WP e @ s; E1 {{ v, |={E1}=> (|={E1}=>Φ v) ∧ <disc> cfupd k E1 (Φc) }}) ⊢
+    (cfupd k E1 (Φc)) ∧
+    (WP e @ s; E1 {{ v, |={E1}=> (|={E1}=>Φ v) ∧ cfupd k E1 (Φc) }}) ⊢
     WPC e @ s; k; E1 {{ Φ }} {{ Φc }}.
   Proof.
     rewrite wpc_eq.
@@ -320,8 +315,7 @@ Section wpc.
     iIntros (?) "%incl val interp".
     iApply wpc_atomic_crash_modality.
     iSplit; [iDestruct "H" as "[H _]"|iDestruct "H" as "[_ H]"].
-    - rewrite disc_unfold_at. iModIntro.
-      rewrite cfupd_unfold_at.
+    - rewrite cfupd_unfold_at.
       iMod "H".
       iModIntro.
       iApply objective_at.
@@ -338,15 +332,12 @@ Section wpc.
       rewrite monPred_at_fupd.
       monPred_simpl.
       iDestruct "H" as ">H".
-      (* rewrite monPred_at_and. *)
       iModIntro.
       iSplit; [iDestruct "H" as "[H _]"|iDestruct "H" as "[_ H]"].
       * rewrite monPred_at_fupd.
         iMod "H".
         iModIntro. iSplit; first done. iFrame.
-      * rewrite disc_unfold_at.
-        iModIntro.
-        rewrite cfupd_unfold_at.
+      * rewrite cfupd_unfold_at.
         iMod "H".
         iModIntro.
         iApply objective_at.
@@ -356,7 +347,7 @@ Section wpc.
   Lemma wpc_value s k E1 (Φ : val → dProp Σ) (Φc : dProp Σ)
         `{!Objective Φc} (v : val) :
     ((|NC={E1}=> Φ v) : dProp _) ∧
-    (<disc> |C={E1}_k=> Φc) ⊢ WPC of_val v @ s; k; E1 {{ Φ }} {{ Φc }}.
+    (|C={E1}_k=> Φc) ⊢ WPC of_val v @ s; k; E1 {{ Φ }} {{ Φc }}.
   Proof.
     rewrite wpc_eq.
     iStartProof (iProp _). iIntros (TV).
@@ -372,20 +363,18 @@ Section wpc.
       iFrame.
       done.
     - iDestruct "H" as "(_ & HO)".
-      rewrite disc_unfold_at.
-      iModIntro.
       rewrite cfupd_unfold_at.
       rewrite objective_at.
       iFrame.
   Qed.
 
   Lemma wpc_value' s k E1 Φ Φc `{!Objective Φc} v :
-    Φ v ∧ <disc> Φc ⊢ WPC of_val v @ s; k; E1 {{ Φ }} {{ Φc }}.
+    Φ v ∧ Φc ⊢ WPC of_val v @ s; k; E1 {{ Φ }} {{ Φc }}.
   Proof.
     iIntros "H". iApply wpc_value.
     iSplit.
     - iModIntro. iDestruct "H" as "($&_)".
-    - iDestruct "H" as "(_&H)". iModIntro. iModIntro. iFrame.
+    - iDestruct "H" as "(_&H)". iModIntro. iFrame.
   Qed.
 
   (** * Derived rules *)
@@ -399,46 +388,43 @@ Section wpc.
     iIntros (HΦ HΦc) "H"; iApply (wpc_strong_mono' with "H"); auto.
     iSplit.
     - iIntros (v) "?". by iApply HΦ.
-    - iIntros "!> ? !>". by iApply HΦc.
+    - iIntros "? !>". by iApply HΦc.
   Qed.
 
   Lemma wp_mono s E e Φ Ψ :
     (∀ v, Φ v ⊢ Ψ v) → WP e @ s; E {{ Φ }} ⊢ WP e @ s; E {{ Ψ }}.
   Proof. intros Hpost. rewrite wp_eq. apply: wpc_mono; done. Qed.
 
-  Lemma wpc_atomic s k E1 e Φ Φc `{!AtomicBase StronglyAtomic e, !Objective Φc} :
-    <disc> (|k={E1}=> Φc) ∧ WP e @ s; E1 {{ v, (|={E1}=> Φ v) ∧ <disc> |k={E1}=> Φc }} ⊢
+  Lemma wpc_atomic s k E1 e (Φ : val → dProp Σ) Φc `{!AtomicBase StronglyAtomic e, !Objective Φc} :
+    (|={E1}=> Φc) ∧ WP e @ s; E1 {{ v, (|={E1}=> Φ v) ∧ |={E1}=> Φc }} ⊢
     WPC e @ s; k; E1 {{ Φ }} {{ Φc }}.
   Proof.
     iIntros "H". iApply (wpc_atomic_crash_modality). iApply (bi.and_mono with "H").
-    {
-      f_equiv.
-      iIntros "H HC".
-      iFrame "H". }
+    { iIntros "H HC". iFrame "H". }
     iIntros "H".
     iApply (wp_mono with "H"). iIntros (?).
     iIntros "H". iModIntro.
     iApply (bi.and_mono with "H"); auto.
-    { f_equiv. iIntros "H HC". eauto. }
+    { iIntros "H HC". eauto. }
   Qed.
 
   (* Note that this also reverses the postcondition and crash condition, so we
   prove the crash condition first *)
   Lemma wpc_atomic_no_mask s k E1 e Φ Φc
         `{!AtomicBase StronglyAtomic e, !Objective Φc} :
-    <disc> Φc ∧ WP e @ s; E1 {{ v, <disc> (|k={E1}=> Φc) ∧ (|={E1}=> Φ v) }} ⊢
+    Φc ∧ WP e @ s; E1 {{ v, (|={E1}=> Φc) ∧ (|={E1}=> Φ v) }} ⊢
     WPC e @ s; k; E1 {{ Φ }} {{ Φc }}.
    Proof.
     iIntros "Hc_wp".
     iApply wpc_atomic.
     iSplit.
-    - iDestruct "Hc_wp" as "(?&_)". by do 2 iModIntro.
+    - iDestruct "Hc_wp" as "(?&_)". by iModIntro.
     - iDestruct "Hc_wp" as "[_ Hwp]".
       iApply (wp_mono with "Hwp").
       iIntros (x) "HΦ".
       iSplit.
       + iDestruct "HΦ" as "[_  >HΦc]". eauto.
-      + iDestruct "HΦ" as "[HΦ _]". iModIntro. iMod "HΦ". by iModIntro.
+      + iDestruct "HΦ" as "[HΦ _]". iMod "HΦ". done.
   Qed.
 
 End wpc.

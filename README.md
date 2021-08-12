@@ -8,3 +8,13 @@
   Perennial program logic, the base post crash modality, etc.
 * [high](src/high) - The high-level logic. The definition of `dprop`, `wp`, etc.
 * [extra.v](src/extra.v) - Definitions and lemmas that are not specific to the logic.
+
+# Development
+
+The dependencies are included as git submodules.
+
+The following git command updates all the dependencies:
+```
+git submodule update --recursive --remote --merge
+```
+

@@ -29,13 +29,12 @@ Section simple_increment.
     iIntros (Φ Φc) "_ Post".
     rewrite /pure.
     iCache with "Post".
-    { iDestruct "Post" as "[Post _]". iModIntro. by iApply "Post". }
+    { iLeft in "Post". by iApply "Post". }
     wpc_pures.
     iCache with "Post".
-    { iDestruct "Post" as "[Post _]". iModIntro. by iApply "Post". }
+    { iLeft in "Post". by iApply "Post". }
     wpc_pures. rewrite /thread_fill_item. simpl.
     wpc_pures.
-    iModIntro.
     by iApply "Post".
   Qed.
 
@@ -102,7 +101,7 @@ Section simple_increment.
     { iDestruct "Φpost" as "[Φpost _]". iModIntro. by iApply "Φpost". }
     iModIntro.
     iCache with "Φpost".
-    { iDestruct "Φpost" as "[Φpost _]". iModIntro. by iApply "Φpost". }
+    { iDestruct "Φpost" as "[Φpost _]". by iApply "Φpost". }
     simpl.
     wpc_pures. rewrite /thread_fill_item. simpl.
     wpc_pures.

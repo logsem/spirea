@@ -102,7 +102,7 @@ Section simple_increment.
     wpc_bind (_ <- _)%E.
     iApply wpc_atomic_no_mask.
     iSplit. {
-      iModIntro. iCrash.
+      iCrash.
       (* iDestruct "pred1" as "-#pred1". iDestruct "pred2" as "-#pred2". *)
       iDestruct "aPts" as (? ?) "aPts".
       iDestruct "bPts" as (? ?) "bPts".
@@ -114,13 +114,13 @@ Section simple_increment.
     simpl.
     iNext. iIntros "aPts".
     iSplit. {
-      iModIntro. iModIntro. iCrash.
+      iModIntro. iCrash.
       iDestruct "aPts" as (? ?) "aPts".
       iDestruct "bPts" as (? ?) "bPts".
       iExists _, _. iFrame. }
     iModIntro.
     wpc_pures.
-    { iModIntro. iCrash.
+    { iCrash.
       iDestruct "aPts" as (? ?) "aPts".
       iDestruct "bPts" as (? ?) "bPts".
       iExists _, _. iFrame. }
@@ -129,7 +129,7 @@ Section simple_increment.
     wpc_bind (WB _)%E.
     iApply wpc_atomic_no_mask.
     iSplit. {
-      iModIntro. iCrash.
+      iCrash.
       iDestruct "aPts" as (? ?) "aPts".
       iDestruct "bPts" as (? ?) "bPts".
       iExists _, _. iFrame. }
@@ -138,14 +138,14 @@ Section simple_increment.
     iIntros "[aPts afterFence]".
     iSplit. {
       iClear "afterFence". (* FIXME: [iModIntro] spins in the absence of this. *)
-      iModIntro. iModIntro. iCrash.
+      iModIntro. iCrash.
       iDestruct "aPts" as (? ?) "aPts".
       iDestruct "bPts" as (? ?) "bPts".
       iExists _, _. iFrame. }
     iModIntro.
     wpc_pures.
     { iClear "afterFence". (* FIXME: [iModIntro] spins in the absence of this. *)
-      iModIntro. iCrash.
+      iCrash.
       iDestruct "aPts" as (? ?) "aPts".
       iDestruct "bPts" as (? ?) "bPts".
       iExists _, _. iFrame. }
@@ -155,7 +155,7 @@ Section simple_increment.
     iApply wpc_atomic_no_mask.
     iSplit. {
       iClear "afterFence". (* FIXME: [iModIntro] spins in the absence of this. *)
-      iModIntro. iCrash.
+      iCrash.
       iDestruct "aPts" as (? ?) "aPts".
       iDestruct "bPts" as (? ?) "bPts".
       iExists _, _. iFrame. }
@@ -163,13 +163,13 @@ Section simple_increment.
     iNext.
     iIntros "#pLowerBound".
     iSplit. {
-      iModIntro. iModIntro. iCrash.
+      iModIntro. iCrash.
       iDestruct "aPts" as (? ?) "aPts".
       iDestruct "bPts" as (? ?) "bPts".
       iExists _, _. iFrame. }
     iModIntro.
     wpc_pures.
-    { iModIntro. iCrash.
+    { iCrash.
       iDestruct "aPts" as (? ?) "aPts".
       iDestruct "bPts" as (? ?) "bPts".
       iExists _, _. iFrame. }
@@ -177,7 +177,7 @@ Section simple_increment.
     (* The last store *)
     iApply wpc_atomic_no_mask.
     iSplit.
-    { iModIntro. iCrash.
+    { iCrash.
       iDestruct "aPts" as (? ?) "aPts".
       iDestruct "bPts" as (? ?) "bPts".
       iExists _, _. iFrame. }
@@ -187,7 +187,7 @@ Section simple_increment.
     { iFrame "#". iFrame "pLowerBound". done. }
     iNext. iIntros "bPts".
     iSplit. {
-      iModIntro. iModIntro. iCrash.
+      iModIntro. iCrash.
       iDestruct "aPts" as (? ?) "aPts".
       iDestruct "bPts" as (? ?) "bPts".
       iExists _, _. iFrame. }

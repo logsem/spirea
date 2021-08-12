@@ -69,6 +69,7 @@ Section lifted_fupd_level.
     reflexivity.
   Qed.
 
+  (* NOTE: This lemma may not be needed anymore. *)
   Lemma fupd_level_unfold_at E1 E2 k P TV :
     (uPred_fupd_level E1 E2 k P) TV = fupd_level.uPred_fupd_level E1 E2 k (P TV).
   Proof.
@@ -89,25 +90,25 @@ Definition ncfupd_eq `{!invGS Σ, !crashG Σ} : ncfupd = ncfupd_def := ncfupd_au
 
 Notation "|NC={ E1 }=> Q" := (ncfupd E1 E1 Q)
   (at level 99, E1 at level 50, Q at level 200,
-  format "|NC={ E1 }=>  Q") : bi_scope.
+   format "'[  ' |NC={ E1 }=>  '/' Q ']'") : bi_scope.
 Notation "|NC={ E1 , E2 }=> P" := (ncfupd E1 E2 P)
       (at level 99, E1, E2 at level 50, P at level 200,
-      format "|NC={ E1 , E2 }=>  P") : bi_scope.
+       format "'[  ' |NC={ E1 , E2 }=>  '/' P ']'") : bi_scope.
 Notation "|NC={ Eo } [ Ei ]▷=> Q" := (∀ q, NC q -∗ |={Eo,Ei}=> ▷ |={Ei,Eo}=> Q ∗ NC q)%I
   (at level 99, Eo, Ei at level 50, Q at level 200,
-  format "|NC={ Eo } [ Ei ]▷=>  Q") : bi_scope.
+   format "'[  ' |NC={ Eo } [ Ei ]▷=>  '/' Q ']'") : bi_scope.
 Notation "|NC={ E1 } [ E2 ]▷=>^ n Q" := (Nat.iter n (λ P, |NC={E1}[E2]▷=> P) Q)%I
   (at level 99, E1, E2 at level 50, n at level 9, Q at level 200,
-  format "|NC={ E1 } [ E2 ]▷=>^ n  Q").
+   format "'[  ' |NC={ E1 } [ E2 ]▷=>^ n  '/' Q ']'").
 
-Program Definition cfupd `{!invGS Σ, !crashG Σ} (k: nat) E1 (P : dProp Σ) :=
-  (⎡C⎤ -∗ |k={E1}=> P)%I.
+Program Definition cfupd `{!invGS Σ, !crashG Σ} (k : nat) E1 (P : dProp Σ) :=
+  (⎡C⎤ -∗ |={E1}=> P)%I.
   (* MonPred (λ TV, cfupd k E1 (P TV))%I _. *)
 (* Next Obligation. solve_proper. Qed. *)
 
 Notation "|C={ E1 }_ k => P" := (cfupd k E1 P)
       (at level 99, E1 at level 50, P at level 200,
-      format "|C={ E1 }_ k =>  P").
+       format "'[  ' |C={ E1 }_ k =>  '/' P ']'").
 
 (*** own_discrete *)
 Section lifted_own_discrete.
@@ -319,9 +320,9 @@ Section lifted_modalities.
     (cfupd E1 E2 P) TV ⊣⊢ crash_weakestpre.cfupd E1 E2 (P TV).
   Proof.
     rewrite /cfupd. rewrite /crash_weakestpre.cfupd.
-    (* rewrite monPred_at_wand. *)
     monPred_simpl.
-    setoid_rewrite fupd_level_unfold_at.
+    setoid_rewrite monPred_at_fupd.
+    (* setoid_rewrite fupd_level_unfold_at. *)
     setoid_rewrite monPred_at_embed.
     iSplit.
     - iIntros "H". iApply "H". done.
