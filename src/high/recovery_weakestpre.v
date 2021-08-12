@@ -268,7 +268,7 @@ Section wpr.
       (* History implication. *)
       iSplit.
       { iModIntro.
-        iIntros (? ? ℓ t s) "frag".
+        iIntros (? ? ? ? ℓ t s) "frag".
         iExists p'.
         iFrame "newCrashedAt".
         (* Was [ℓ] recovered or not? *)
@@ -279,7 +279,7 @@ Section wpr.
       crash. *)
       iSplit. {
         iModIntro.
-        iIntros (? ? ?) "order".
+        iIntros (? ? ? ? ?) "order".
         iExists _. iFrame "newCrashedAt".
         destruct (p' !! ℓ) as [[m]|] eqn:lookP'; last naive_solver.
         iLeft.

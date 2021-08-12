@@ -845,6 +845,12 @@ Section points_to_shared.
     set_solver.
   Qed.
 
+  Lemma mapsto_ex_store_lb ℓ b ss s :
+    last ss = Some s →
+    mapsto_ex b ℓ ss -∗
+    know_store_lb ℓ s.
+  Proof. Admitted.
+
 End points_to_shared.
 
 (** Notation for the exclusive points-to predicate. *)

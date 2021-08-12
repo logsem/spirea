@@ -306,12 +306,12 @@ Section wp_rules.
     eassumption.
   Admitted.
 
-  Lemma wp_store_ex ℓ ss v s__last s ϕ st E :
+  Lemma wp_store_ex ℓ b ss v s__last s ϕ st E :
     last ss = Some s__last →
     s__last ⊑ s →
-    {{{ ℓ ↦ ss ∗ ⎡ know_pred ℓ ϕ ⎤ ∗ ϕ s v }}}
+    {{{ mapsto_ex b ℓ ss ∗ ⎡ know_pred ℓ ϕ ⎤ ∗ ϕ s v }}}
       #ℓ <- v @ st; E
-    {{{ RET #(); ℓ ↦ (ss ++ [s]) }}}.
+    {{{ RET #(); mapsto_ex b ℓ (ss ++ [s]) }}}.
   Proof.
     intros last stateGt Φ.
     iStartProof (iProp _). iIntros (TV).
@@ -398,12 +398,28 @@ Section wp_rules.
   Proof.
   *)
 
-  Lemma wp_wb_ex ℓ s st E :
+  Lemma wp_wb_lb ℓ s st E :
     {{{ know_store_lb ℓ s }}}
       WB #ℓ @ st; E
     {{{ RET #(); <fence> know_flush_lb ℓ s }}}.
-   Proof.
-   Admitted.
+  Proof.
+  Admitted.
+
+  Lemma wp_wb_ex ℓ b s ss st E :
+    last ss = Some s →
+    {{{ mapsto_ex b ℓ ss }}}
+      WB #ℓ @ st; E
+    {{{ RET #(); mapsto_ex b ℓ ss ∗ <fence> know_flush_lb ℓ s }}}.
+  Proof.
+    iIntros (eq Φ) "pts".
+    iDestruct (mapsto_ex_store_lb with "pts") as "#lb"; first done.
+    iIntros "HP".
+    iApply wp_wb_lb; first done.
+    iNext.
+    iIntros "lb'".
+    iApply "HP".
+    iFrame.
+  Qed.
 
   Lemma wp_fence P st E :
     {{{ <fence> P }}}

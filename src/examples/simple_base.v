@@ -69,7 +69,7 @@ Section simple_increment.
     Fence ;;
     #ℓ2 <- #1.
 
-  Definition recover ℓ1 ℓ2 : expr :=
+  Definition incr_both_recover ℓ1 ℓ2 : expr :=
     let: "x" := ! ℓ1 in
     let: "y" := ! ℓ2 in
     if: "y" ≤ "x"
@@ -79,7 +79,9 @@ Section simple_increment.
   Definition init_hist : history := {[ 0 := Msg #0 ∅ ∅ ∅ ]}.
 
   Lemma wpc_incr ℓ1 ℓ2 k E1 :
-    {{{ validV ∅ ∗ ℓ1 ↦h init_hist ∗ ℓ2 ↦h init_hist }}}
+    {{{ validV ∅ ∗
+        ℓ1 ↦h init_hist ∗
+        ℓ2 ↦h init_hist }}}
       ThreadState (incr_both ℓ1 ℓ2) (∅, ∅, ∅) @ k; E1
     {{{ v t1 t2 TV, RET ThreadVal v TV;
       ℓ1 ↦h {[ t1 := Msg #1 ∅ ∅ ∅; 0 := Msg #0 ∅ ∅ ∅ ]} ∗

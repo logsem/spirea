@@ -575,6 +575,19 @@ Section post_crash_derived.
       (λ hG', (∃ s, ⌜s ∈ ss⌝ ∗ ℓ ↦ [s] ∗ recovered_at ℓ s) ∨ lost ℓ)%I.
   Proof. rewrite /IntoCrash. iIntros "P". by iApply post_crash_mapsto_ex. Qed.
 
+  (* NOTE: This rule should hold as of right now — but not after the "bump-back
+  function" is implemented. *)
+  Lemma post_crash_mapsto_persisted_ex `{AbstractState ST} ℓ ss :
+    ℓ ↦ₚ ss -∗ <PC> hG', ∃ s, ⌜s ∈ ss⌝ ∗ ℓ ↦ₚ [s].
+  Proof.
+  Admitted.
+
+  Global Instance mapsto_ex_persisted_into_crash `{AbstractState ST} ℓ ss :
+    IntoCrash (ℓ ↦ₚ ss)%I (λ hG', ∃ s, ⌜s ∈ ss⌝ ∗ ℓ ↦ₚ [s])%I.
+  Proof.
+    rewrite /IntoCrash. iIntros "P". by iApply post_crash_mapsto_persisted_ex.
+  Qed.
+
 End post_crash_derived.
 
 (*
