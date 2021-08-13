@@ -537,6 +537,24 @@ Section lifting.
       apply view_le_r.
   Qed.
 
+  Lemma wp_fork s E (e : expr) TV (Φ : thread_val → iProp Σ) :
+    ▷ WP (ThreadState e TV) @ s; ⊤ {{ _, True }} -∗
+    ▷ Φ (ThreadVal (LitV LitUnit) TV) -∗
+    WP ThreadState (Fork e) TV @ s; E {{ Φ }}.
+  Proof.
+    iIntros "He HΦ".
+    iApply (wp_lift_atomic_head_step (Φ := Φ)); first done.
+
+    iIntros (σ1 [] mj D ns κ κs n) "Hσ Hg !>".
+    iPureGoal.
+    { rewrite /head_reducible.
+      destruct TV as [[SV FV] BV].
+      eexists [], _, _, _, _. simpl.
+      constructor. constructor. }
+    iNext. iIntros (v2 σ2 g2 efs Hstep).
+    inv_head_step. inv_thread_step. iFrame. done.
+  Qed.
+
   (* Create a message from a [value] and a [thread_view]. *)
   Definition mk_message (v : val) (T : thread_view) := Msg v (store_view T) (flush_view T).
 

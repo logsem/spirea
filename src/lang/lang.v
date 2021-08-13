@@ -377,19 +377,19 @@ Module nvm_lang.
   Inductive thread_step :
     thread_state → mem_config → unit → list observation →
     thread_state → mem_config → unit → list thread_state → Prop :=
-  | pure_step e V σ e' efs :
-      head_step e None [] e' (ts_expr <$> efs) →
-      (* Forall (eq V) (ts_view <$> efs) → *) (* FIXME: Is this really needed? *)
-      thread_step (ThreadState e V) σ () [] (ThreadState e' V) σ () efs
-  | impure_step e V σ evt e' V' σ' :
+  | pure_step e TV σ e' efs :
+      head_step e None [] e' efs →
+      thread_step (ThreadState e TV) σ () []
+                  (ThreadState e' TV) σ () ((λ e, ThreadState e TV) <$> efs)
+  | impure_step e TV σ evt e' V' σ' :
       head_step e (Some evt) [] e' [] →
-      mem_step σ V evt σ' V' →
-      thread_step (ThreadState e V) σ () [] (ThreadState e' V') σ' () [].
+      mem_step σ TV evt σ' V' →
+      thread_step (ThreadState e TV) σ () [] (ThreadState e' V') σ' () [].
   Arguments thread_step _%E _ _ _%E _ _%E.
 
-  (* Lemma head_step_view_sqsubseteq e V σ κs e' V' σ' ef P B P' B'
-    (step : head_step (ThreadState e (V, P, B)) σ κs (ThreadState e' (V', P', B')) σ' ef) :
-    V ⊑ V'.
+  (* Lemma head_step_view_sqsubseteq e TV σ κs e' V' σ' ef P B P' B'
+    (step : head_step (ThreadState e (TV, P, B)) σ κs (ThreadState e' (V', P', B')) σ' ef) :
+    TV ⊑ TV'.
   Proof.
     inversion step; first done. subst.
     match goal with H : mem_step _ _ _ _ _ |- _ => destruct H; try solve_lat end.
