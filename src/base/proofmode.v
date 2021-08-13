@@ -365,7 +365,6 @@ Qed.
 *)
 End heap.
 
-(*
 (** The tactic [wp_apply_core lem tac_suc tac_fail] evaluates [lem] to a
 hypothesis [H] that can be applied, and then runs [wp_bind_core K; tac_suc H]
 for every possible evaluation context [K].
@@ -381,12 +380,9 @@ TC resolution of [lem] premises happens *after* [tac_suc H] got executed. *)
 Ltac wp_apply_core lem tac_suc tac_fail := first
   [iPoseProofCore lem as false (fun H =>
      lazymatch goal with
-     | |- envs_entails _ (wp ?s ?E ?e ?Q) =>
+     | |- envs_entails _ (wp ?s ?E (ThreadState ?e ?TV) ?Q) =>
        reshape_expr e ltac:(fun K e' =>
          wp_bind_core K; tac_suc H)
-     | |- envs_entails _ (twp ?s ?E ?e ?Q) =>
-       reshape_expr e ltac:(fun K e' =>
-         twp_bind_core K; tac_suc H)
      | _ => fail 1 "wp_apply: not a 'wp'"
      end)
   |tac_fail ltac:(fun _ => wp_apply_core lem tac_suc tac_fail)
@@ -400,6 +396,7 @@ Tactic Notation "wp_smart_apply" open_constr(lem) :=
   wp_apply_core lem ltac:(fun H => iApplyHyp H; try iNext; try wp_expr_simpl)
                     ltac:(fun cont => wp_pure _; []; cont ()).
 
+(*
 (** Tactic tailored for atomic triples: the first, simple one just runs
 [iAuIntro] on the goal, as atomic triples always have an atomic update as their
 premise.  The second one additionaly does some framing: it gets rid of [Hs] from

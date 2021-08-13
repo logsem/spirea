@@ -126,3 +126,10 @@ Notation "'match:' e0 'with' 'SOME' x => e2 | 'NONE' => e1 'end'" :=
 
 Notation ResolveProph e1 e2 := (Resolve Skip e1 e2) (only parsing).
 Notation "'resolve_proph:' p 'to:' v" := (ResolveProph p v) (at level 100) : expr_scope.
+
+Definition assert : val :=
+  λ: "v", if: "v" #() then #() else #0 #0. (* #0 #0 is unsafe *)
+
+(* Assert is added just below ;; *)
+Notation "'assert:' e" := (assert (λ: <>, e)%E) (at level 99) : expr_scope.
+Notation "'assert:' e" := (assert (λ: <>, e)%V) (at level 99) : val_scope.
