@@ -63,12 +63,11 @@ Lemma tac_wpc_pure_ctx `{!nvmBaseFixedG Σ, nvmBaseDeltaG Σ, !crashG Σ}
   envs_entails Δ (WPC (ThreadState (fill K e1) TV) @ s; k; E1 {{ Φ }} {{ Φc }}).
 Proof.
   rewrite envs_entails_eq=> ??? Hcrash HΔ'.
-  pose proof @pure_exec_fill.
-Admitted.
-(*   rewrite -wpc_pure_step_later //. apply and_intro; auto. *)
-(*   rewrite into_laterN_env_sound /=. *)
-(*   rewrite HΔ' //. *)
-(* Qed. *)
+  pose proof (@pure_exec_base_fill).
+  rewrite -wpc_pure_step_later //. apply and_intro; auto.
+  rewrite into_laterN_env_sound /=.
+  rewrite HΔ' //.
+Qed.
 
 Lemma tac_wpc_pure_no_later_ctx `{!nvmBaseFixedG Σ, nvmBaseDeltaG Σ, !crashG Σ}
       Δ s k E1 K e1 e2 TV φ Φ Φc :
@@ -87,42 +86,46 @@ Proof.
     iApply HΔ'; iAssumption.
 Qed.
 
+Lemma thread_of_val_fold (v : val) TV :
+  ThreadState v TV = thread_of_val (ThreadVal v TV).
+Proof. done. Qed.
+
 Lemma tac_wpc_value `{!nvmBaseFixedG Σ, nvmBaseDeltaG Σ} Δ s k E1 Φ Φc v TV :
   envs_entails Δ (|NC={E1}=> Φ (ThreadVal v TV)) →
   envs_entails Δ Φc →
   envs_entails Δ (WPC (ThreadState (Val v) TV) @ s; k; E1 {{ Φ }} {{ Φc }}).
 Proof.
   rewrite envs_entails_eq.
-Admitted.
-(*   rewrite -wpc_value. => H1 H2. *)
-(*   apply and_intro. *)
-(*   - rewrite H1. eauto. *)
-(*   - rewrite H2. iIntros. do 2 iModIntro; auto. *)
-(* Qed. *)
+  rewrite thread_of_val_fold.
+  rewrite -wpc_value => H1 H2.
+  apply and_intro.
+  - rewrite H1. eauto.
+  - rewrite H2. iIntros. iModIntro; auto.
+Qed.
 
 Lemma tac_wpc_value_fupd `{!nvmBaseFixedG Σ, nvmBaseDeltaG Σ} Δ s k E1 Φ Φc v TV :
   envs_entails Δ (|NC={E1}=> Φ (ThreadVal v TV)) →
   envs_entails Δ Φc →
   envs_entails Δ (WPC (ThreadState (Val v) TV) @ s; k; E1 {{ v, |={E1}=> Φ v }} {{ Φc }})%I.
 Proof.
-Admitted.
-(*   rewrite envs_entails_eq -wpc_value => H1 H2. *)
-(*   apply and_intro. *)
-(*   - rewrite H1. iIntros ">?". eauto. *)
-(*   - rewrite H2. iIntros. do 2 iModIntro; auto. *)
-(* Qed. *)
+  rewrite thread_of_val_fold.
+  rewrite envs_entails_eq -wpc_value => H1 H2.
+  apply and_intro.
+  - rewrite H1. iIntros ">?". eauto.
+  - rewrite H2. iIntros. iModIntro; auto.
+Qed.
 
 Lemma tac_wpc_value_noncfupd `{!nvmBaseFixedG Σ, nvmBaseDeltaG Σ} Δ s k E1 Φ Φc v TV :
   envs_entails Δ (Φ (ThreadVal v TV)) →
   envs_entails Δ Φc →
   envs_entails Δ (WPC (ThreadState (Val v) TV) @ s; k; E1 {{ Φ }} {{ Φc }}).
 Proof.
-Admitted.
-(*   rewrite envs_entails_eq -wpc_value => H1 H2. *)
-(*   apply and_intro. *)
-(*   - rewrite H1. eauto. *)
-(*   - rewrite H2. iIntros. do 2 iModIntro; auto. *)
-(* Qed. *)
+  rewrite thread_of_val_fold.
+  rewrite envs_entails_eq -wpc_value => H1 H2.
+  apply and_intro.
+  - rewrite H1. eauto.
+  - rewrite H2. iIntros. iModIntro; auto.
+Qed.
 
 
 Ltac wpc_expr_simpl := wpc_expr_eval simpl.

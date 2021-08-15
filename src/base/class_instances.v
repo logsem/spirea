@@ -134,6 +134,17 @@ Global Notation PureExecBase P nsteps e1 e2 :=
   (∀ TV, PureExec P nsteps (ThreadState e1 TV) (ThreadState e2 TV)).
 
 Section pure_exec.
+  Lemma pure_exec_base_fill K φ n e1 e2 :
+    PureExecBase φ n e1 e2 →
+    PureExecBase φ n (fill K e1) (fill K e2).
+  Proof.
+    intros TV.
+    intros TV'.
+    setoid_rewrite nvm_fill_fill.
+    apply: pure_exec_ctx.
+    apply (ectx_lang_ctx (Λ := nvm_ectx_lang)).
+  Qed.
+
   Local Ltac solve_exec_safe :=
     intros ? []; eexists _, _, _, _; simpl; apply pure_step with (efs := []); econstructor; eauto.
     (* intros; eexists _, _, _, _; apply pure_step with (efs := []); econstructor; eauto. *)
