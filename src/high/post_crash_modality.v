@@ -317,7 +317,8 @@ Section post_crash_interact.
     iDestruct (post_crash_modality.post_crash_nodep with "HP") as "HP".
     post_crash_modality.iCrash.
     iNamed 1.
-    rewrite /post_crash_resource. iFrameNamed.
+    rewrite /post_crash_resource.
+    iFrameNamed.
     iDestruct ("post_crash_history_impl" with "HP") as (CV) "[crash HI]".
     iExists CV. iFrame.
   Qed.
@@ -591,16 +592,16 @@ Section post_crash_derived.
 End post_crash_derived.
 
 (*
-Program Definition post_crash_consistent_cut `{hG : !nvmFixedG Σ, nvmDeltaG Σ} (P : nvmFixedG Σ, nvmDeltaG Σ → dProp Σ) :=
+Program Definition post_crash_flushed `{hG : !nvmFixedG Σ, nvmDeltaG Σ} (P : nvmFixedG Σ, nvmDeltaG Σ → dProp Σ) :=
   MonPred (λ TV,
     ⎡ persisted (flush_view TV) ⎤ -∗ post_crash (λ hG', P hG')
   )%I _.
 Next Obligation. intros ??????. solve_proper. Qed.
 *)
-(* Definition post_crash_consistent_cut `{nvmFixedG Σ, nvmDeltaG Σ} *)
+(* Definition post_crash_flushed `{nvmFixedG Σ, nvmDeltaG Σ} *)
 (*         (P : nvmDeltaG Σ → dProp Σ) : dProp Σ := *)
 (*     <PC> (λ (hGD' : nvmDeltaG Σ), P hGD'). *)
-(* Definition post_crash_consistent_cut `{nvmFixedG Σ, nvmDeltaG Σ} *)
+(* Definition post_crash_flushed `{nvmFixedG Σ, nvmDeltaG Σ} *)
 (*         (P : nvmDeltaG Σ → dProp Σ) : dProp Σ := *)
 (*   (∀ TV, monPred_in TV -∗ *)
 (*     <PC> (hGD' : nvmDeltaG Σ), *)
@@ -610,7 +611,7 @@ Next Obligation. intros ??????. solve_proper. Qed.
 (*         P hGD')%I. *)
 (* Next Obligation. intros ??????. apply post_crash_mono. solve_proper. Qed. *)
 
-Program Definition post_crash_consistent_cut `{nvmFixedG Σ, nvmDeltaG Σ}
+Program Definition post_crash_flushed `{nvmFixedG Σ, nvmDeltaG Σ}
         (P : nvmDeltaG Σ → dProp Σ) : dProp Σ :=
   MonPred (λ TV,
     (<PC> (hGD' : nvmDeltaG Σ),
@@ -623,7 +624,7 @@ Program Definition post_crash_consistent_cut `{nvmFixedG Σ, nvmDeltaG Σ}
 Next Obligation. intros ???????. apply post_crash_mono. solve_proper. Qed.
 
 (*
-Program Definition post_crash_consistent_cut `{hG : !nvmFixedG Σ, nvmDeltaG Σ}
+Program Definition post_crash_flushed `{hG : !nvmFixedG Σ, nvmDeltaG Σ}
         (P : nvmFixedG Σ, nvmDeltaG Σ → dProp Σ) : dProp Σ :=
   MonPred (λ TV,
     (post_crash (λ hG', ∃ CV, ⌜flush_view TV ⊑ CV⌝ ∗ ⎡crashed_at CV⎤ -∗ P hG')) TV
@@ -631,8 +632,9 @@ Program Definition post_crash_consistent_cut `{hG : !nvmFixedG Σ, nvmDeltaG Σ}
 Next Obligation. intros ??????. apply post_crash_mono. solve_proper. Qed.
 *)
 
-Notation "'<PCCC>' P" :=
-  (post_crash_consistent_cut P) (at level 20, right associativity) : bi_scope.
+Notation "'<PCF>' g , P" :=
+  (post_crash_flushed (λ g, P))
+  (at level 200, g binder, right associativity) : bi_scope.
 
 Section post_crash_persisted.
   Context `{hG: !nvmFixedG Σ, nvmDeltaG Σ}.
@@ -640,10 +642,10 @@ Section post_crash_persisted.
   Lemma post_crash_persisted_know_flush_lb `{AbstractState ST}
         (ℓ : loc) (s : ST) :
     know_flush_lb ℓ s -∗
-    <PCCC> (λ hG,
+    <PCF> hG,
       know_persist_lb ℓ s ∗
       know_flush_lb ℓ s ∗
-      know_store_lb ℓ s).
+      know_store_lb ℓ s.
   Proof.
     iStartProof (iProp _).
     iIntros (TV).

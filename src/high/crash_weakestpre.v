@@ -42,7 +42,7 @@ Section wpc.
   Definition rec_encoded_predicate_holds
             (enc_rec_pred : positive → val → option (nvmDeltaG Σ → dProp Σ))
             (enc_state : positive) (v : val) : iProp Σ :=
-    (∃ P, ⌜enc_rec_pred enc_state v = Some P⌝ ∗ (<PCCC> P) (∅, ∅, ∅)).
+    (∃ P, ⌜enc_rec_pred enc_state v = Some P⌝ ∗ (<PCF> P) (∅, ∅, ∅)).
 
   (** This is our analog to the state interpretation in the Iris weakest
   precondition. We keep this in our crash weakest precondition ensuring that it
