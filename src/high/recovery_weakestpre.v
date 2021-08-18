@@ -227,13 +227,20 @@ Section wpr.
     iMod (own_all_preorders_gname_alloc newOrders)
       as (new_orders_name) "[newOrders #fragOrders]".
 
-
-    set newPreds := restrict (dom (gset _) newAbsHists) preds.
+    set newPreds := restrict (dom (gset _) newAbsHists) predicates.
     iMod (know_predicates_alloc newPreds) as (new_predicates_name) "newPreds".
 
     set newSharedLocs := (dom (gset _) newAbsHists) ∩ shared_locs.
     iMod (own_alloc (● (newSharedLocs : gsetUR _))) as (new_shared_locs_name) "newSharedLocs".
     { apply auth_auth_valid. done. }
+
+    (* Allocate the new map of bumpers. *)
+    set newBumpers := restrict (dom (gset _) newAbsHists) bump_fns.
+    iMod (own_alloc (● (to_agree <$> newBumpers) : bumpersR)) as (new_bumpers_name) "newBumpers".
+    { apply auth_auth_valid.
+      intros ℓ.
+      rewrite lookup_fmap.
+      case (newBumpers !! ℓ); done. }
 
     (* We are done allocating ghost state and can now present a new bundle of
     ghost names. *)
@@ -243,11 +250,11 @@ Section wpr.
                   (MkNvmBaseDeltaG _ Hcrash baseNames)
                   ({| abs_history_name := new_abs_history_name;
                       know_abs_history_name := new_know_abs_history_name;
-                      predicates_name := new_predicates_name;
-                      recovery_predicates_name := _;
+                      predicates_name := _;
                       preorders_name := new_orders_name;
                       shared_locs_name := new_shared_locs_name;
-                      exclusive_locs_name := _;
+                      (* exclusive_locs_name := _; *)
+                      bumpers_name := _;
                    |})
       ).
     iFrame "interp'".
@@ -307,8 +314,9 @@ Section wpr.
     (* We show the state interpretation for the high-level logic. *)
     repeat iExists _.
     rewrite /own_full_history.
-    iFrame "newOrders newPreds hists' newSharedLocs newCrashedAt recPreds".
-    iFrameNamed.
+    iFrame "newOrders newPreds hists' newSharedLocs newCrashedAt".
+    iFrame "ptsMap".
+    iFrame "newBumpers".
     iSplitR.
     { iApply big_sepM2_intro.
       - setoid_rewrite <- elem_of_dom.
@@ -325,6 +333,19 @@ Section wpr.
         destruct (hist !! t) as [s|]; simpl.
         { apply strictly_increasing_map_singleton. }
         { apply strictly_increasing_map_empty. } }
+    iSplitR "". { admit. }
+    (* Show that the bumpers are still monotone. *)
+    iSplitR "".
+    { do 2 rewrite big_sepM2_alt.
+      iDestruct "bumpMono" as (bunny) "bumpMono".
+      iSplit.
+      { iPureIntro. admit. }
+      iDestruct (big_sepM_impl_dom_subseteq _ _ _ _ with "bumpMono []") as "[$ _]".
+      { admit. }
+      iModIntro.
+      iIntros (**).
+      admit. }
+    iSplitR "". { admit. }
     admit.
   Admitted.
 

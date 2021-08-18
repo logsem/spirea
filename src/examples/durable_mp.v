@@ -44,12 +44,12 @@ Section proof.
 
   Context (x y z : loc).
 
-  Definition inv_x (n : nat) (v : val) : dProp Σ := ⌜v = #n⌝.
+  Definition inv_x (n : nat) (v : val) (hG : nvmDeltaG Σ) : dProp Σ := ⌜v = #n⌝.
 
-  Definition inv_y (n : nat) (v : val) : dProp Σ :=
+  Definition inv_y (n : nat) (v : val) (hG : nvmDeltaG Σ) : dProp Σ :=
     ⌜v = #n⌝ ∗ (⌜n = 1⌝ -∗ know_flush_lb x 1).
 
-  Definition inv_z (n : nat) (v : val) : dProp Σ :=
+  Definition inv_z (n : nat) (v : val) (hG : nvmDeltaG Σ) : dProp Σ :=
     ⌜v = #n⌝ ∗ (⌜n = 1⌝ -∗ know_flush_lb x 1).
 
   Lemma prog_spec k E :
@@ -66,6 +66,8 @@ Section proof.
     {{{ RET #(); True }}}
     {{{ <PC> _, ∃ (sx sz : list nat), x ↦ₚ sx ∗ z ↦ₚ sz }}}.
   Proof.
+    iIntros (Φ Φc).
+    iIntros "(a & b & c)".
   Abort.
 
 End proof.

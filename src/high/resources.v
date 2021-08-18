@@ -15,10 +15,10 @@ Class nvmHighDeltaG := MkNvmHighDeltaG {
   abs_history_name : gname;
   know_abs_history_name : gname;
   predicates_name : gname;
-  recovery_predicates_name : gname;
   preorders_name : gname;
   shared_locs_name : gname;
-  exclusive_locs_name : gname;
+  (* exclusive_locs_name : gname; *) (* NOTE: Keep this in case we need it again. *)
+  bumpers_name : gname;
 }.
 
 Class nvmDeltaG Σ := NvmDeltaG {
@@ -29,14 +29,8 @@ Class nvmDeltaG Σ := NvmDeltaG {
 (* Resource algebra used to represent agreement on which predicates are
 associated with which locations. *)
 Definition predicateR {Σ} :=
-  agreeR (positive -d> val -d> laterO (optionO (dPropO Σ))).
-Definition predicatesR {Σ} := authR (gmapUR loc (@predicateR Σ)).
-
-(* Resource algebra used to represent the recovery predicates (i.e., the
-predicate that holds after a crash for a recovered message). *)
-Definition recPredicateR {Σ} :=
   agreeR (positive -d> val -d> laterO (optionO (nvmDeltaG Σ -d> (dPropO Σ)))).
-Definition recPredicatesR {Σ} := authR (gmapUR loc (@recPredicateR Σ)).
+Definition predicatesR {Σ} := authR (gmapUR loc (@predicateR Σ)).
 
 (* Resource algebras that for each location stores the encoded abstract states
 associated with each message/store. *)
@@ -50,16 +44,19 @@ Definition know_abs_historiesR :=
 Definition relationO := leibnizO (positive → positive → Prop).
 Definition preordersR := authR (gmapUR loc (agreeR relationO)).
 
+Definition bumpersR :=
+  authR (gmapUR loc (agreeR (leibnizO (positive → option positive)))).
+
 (* Resource algebra that contains all the locations that are _shared_. *)
 Definition shared_locsR := authR (gsetUR loc).
 
 Class nvmHighFixedG Σ := {
-  ra_inG :> inG Σ (@predicatesR Σ);
-  recovery_predicates_inG :> inG Σ (@recPredicatesR Σ);
+  predicates_inG :> inG Σ (@predicatesR Σ);
   ra_inG' :> inG Σ know_abs_historiesR;
   abs_histories :> ghost_mapG Σ loc (gmap time positive);
   preordersG :> inG Σ preordersR;
-  shared_locsG :> inG Σ shared_locsR
+  shared_locsG :> inG Σ shared_locsR;
+  bumpersG :> inG Σ bumpersR
 }.
 
 Class nvmHighG Σ := NvmHighG {
@@ -323,25 +320,32 @@ Section location_sets.
 End location_sets.
 
 Section predicates.
-  Context `{nvmFixedG Σ, hGD : nvmDeltaG Σ}.
+  Context `{!nvmFixedG Σ, hGD : nvmDeltaG Σ}.
 
-  Definition predO := positive -d> val -d> optionO (dPropO Σ).
+  Definition predO := positive -d> val -d> optionO (nvmDeltaG Σ -d> dPropO Σ).
 
-  Definition pred_to_ra (pred : positive → val → option (dProp Σ)) : (@predicateR Σ) :=
+  Definition pred_to_ra
+             (pred : positive → val → option (nvmDeltaG Σ → dProp Σ)) :
+    (@predicateR Σ) :=
     to_agree ((λ a b, Next (pred a b))).
 
-  Definition preds_to_ra (preds : gmap loc (positive → val → option (dProp Σ)))
+  Definition preds_to_ra
+             (preds : gmap loc
+                               (positive → val → option (nvmDeltaG Σ → dProp Σ)))
     : gmapUR loc (@predicateR Σ) := pred_to_ra <$> preds.
 
   Definition know_all_preds preds :=
-      own predicates_name (● (pred_to_ra <$> preds) : predicatesR).
+    own predicates_name (● (pred_to_ra <$> preds) : predicatesR).
 
   Definition encode_predicate `{Countable s}
-             (ϕ : s → val → dProp Σ) : positive → val → option (dProp Σ) :=
+             (ϕ : s → val → nvmDeltaG Σ → dProp Σ)
+    : positive → val → option (nvmDeltaG Σ → dProp Σ) :=
     λ encS v, (λ s, ϕ s v) <$> decode encS.
 
-  Definition know_pred `{Countable s} ℓ (ϕ : s → val → dProp Σ) : iProp Σ :=
-    own predicates_name (◯ {[ ℓ := pred_to_ra (encode_predicate ϕ) ]} : predicatesR).
+  Definition know_pred `{Countable s}
+      ℓ (ϕ : s → val → nvmDeltaG Σ → dProp Σ) : iProp Σ :=
+    own predicates_name
+        (◯ {[ ℓ := pred_to_ra (encode_predicate ϕ) ]}).
 
   Lemma know_predicates_alloc preds :
     ⊢ |==> ∃ γ, own γ ((● (pred_to_ra <$> preds)) : predicatesR).
@@ -353,7 +357,8 @@ Section predicates.
     by case (preds !! ℓ).
   Qed.
 
-  Lemma know_pred_agree `{Countable s} ℓ (ϕ : s → val → dProp Σ) (preds : gmap loc predO) :
+  Lemma know_pred_agree `{Countable s}
+        ℓ (ϕ : s → val → nvmDeltaG Σ → dProp Σ) (preds : gmap loc predO) :
     know_all_preds preds -∗
     know_pred ℓ ϕ -∗
     (∃ (o : predO),
@@ -361,7 +366,6 @@ Section predicates.
        ▷ (o ≡ encode_predicate ϕ)).
   Proof.
     iIntros "O K".
-    rewrite /know_all_preds /know_pred.
     iDestruct (own_valid_2 with "O K") as "H".
     iDestruct (auth_both_validI with "H") as "[tmp val]".
     iDestruct "tmp" as (c) "#eq".
@@ -376,7 +380,6 @@ Section predicates.
     iSplit; first done.
     case (c !! ℓ).
     - intros ?.
-      rewrite /pred_to_ra.
       rewrite -Some_op.
       rewrite !option_equivI.
       rewrite wsat.agree_equiv_inclI.
@@ -401,94 +404,6 @@ Section predicates.
     Qed.
 
 End predicates.
-
-Section recovery_predicates.
-  Context `{!nvmFixedG Σ, hGD : nvmDeltaG Σ}.
-
-  Definition recPredO := positive -d> val -d> optionO (nvmDeltaG Σ -d> dPropO Σ).
-
-  Definition rec_pred_to_ra
-             (rec_pred : positive → val → option (nvmDeltaG Σ → dProp Σ)) :
-    (@recPredicateR Σ) :=
-    to_agree ((λ a b, Next (rec_pred a b))).
-
-  Definition rec_preds_to_ra
-             (rec_preds : gmap loc
-                               (positive → val → option (nvmDeltaG Σ → dProp Σ)))
-    : gmapUR loc (@recPredicateR Σ) := rec_pred_to_ra <$> rec_preds.
-
-  Definition know_all_rec_preds preds :=
-    own recovery_predicates_name (● (rec_pred_to_ra <$> preds) : recPredicatesR).
-
-  Definition encode_rec_predicate `{Countable s}
-             (ϕ : s → val → nvmDeltaG Σ → dProp Σ)
-    : positive → val → option (nvmDeltaG Σ → dProp Σ) :=
-    λ encS v, (λ s, ϕ s v) <$> decode encS.
-
-  Definition know_rec_pred `{Countable s}
-      ℓ (ϕ : s → val → nvmDeltaG Σ → dProp Σ) : iProp Σ :=
-    own recovery_predicates_name
-        (◯ {[ ℓ := rec_pred_to_ra (encode_rec_predicate ϕ) ]}).
-
-  Lemma know_rec_predicates_alloc rec_preds :
-    ⊢ |==> ∃ γ, own γ ((● (rec_pred_to_ra <$> rec_preds)) : recPredicatesR).
-  Proof.
-    iMod (own_alloc _) as "$"; last done.
-    apply auth_auth_valid.
-    intros ℓ.
-    rewrite lookup_fmap.
-    by case (rec_preds !! ℓ).
-  Qed.
-
-  Lemma know_rec_pred_agree `{Countable s}
-        ℓ (ϕ : s → val → nvmDeltaG Σ → dProp Σ) (preds : gmap loc recPredO) :
-    know_all_rec_preds preds -∗
-    know_rec_pred ℓ ϕ -∗
-    (∃ (o : recPredO),
-       ⌜preds !! ℓ = Some o⌝ ∗ (* Some encoded predicate exists. *)
-       ▷ (o ≡ encode_rec_predicate ϕ)).
-  Proof.
-    iIntros "O K".
-    rewrite /know_all_preds /know_pred.
-    iDestruct (own_valid_2 with "O K") as "H".
-    iDestruct (auth_both_validI with "H") as "[tmp val]".
-    iDestruct "tmp" as (c) "#eq".
-    rewrite gmap_equivI.
-    iSpecialize ("eq" $! ℓ).
-    rewrite lookup_fmap.
-    rewrite lookup_op.
-    rewrite lookup_singleton.
-    destruct (preds !! ℓ) as [o|] eqn:eq; rewrite eq /=.
-    2: { simpl. case (c !! ℓ); intros; iDestruct "eq" as %eq'; inversion eq'. }
-    iExists o.
-    iSplit; first done.
-    case (c !! ℓ).
-    - intros ?.
-      rewrite /pred_to_ra.
-      rewrite -Some_op.
-      rewrite !option_equivI.
-      rewrite wsat.agree_equiv_inclI.
-      rewrite !discrete_fun_equivI. iIntros (state).
-      iSpecialize ("eq" $! state).
-      rewrite !discrete_fun_equivI. iIntros (v).
-      iSpecialize ("eq" $! v).
-      rewrite later_equivI_1.
-      iNext.
-      iRewrite "eq".
-      done.
-    - rewrite right_id.
-      simpl.
-      rewrite !option_equivI.
-      rewrite agree_equivI.
-      rewrite !discrete_fun_equivI. iIntros (state).
-      iSpecialize ("eq" $! state).
-      rewrite !discrete_fun_equivI. iIntros (v).
-      iSpecialize ("eq" $! v).
-      rewrite later_equivI_1.
-      done.
-    Qed.
-
-End recovery_predicates.
 
 (* (* For each location in the heap we maintain the following "meta data". *)
 (* For every location we want to store: A type/set of abstract events, its full *)
@@ -651,6 +566,17 @@ Section preorders.
 
 End preorders.
 
+Section bumpers.
+  Context `{!nvmFixedG Σ, hGD : nvmDeltaG Σ}.
+  Context `{AbstractState ST}.
+
+  Definition know_bump (ℓ : loc) (bumper : ST → ST) : iProp Σ :=
+    let encodedBumper e := encode <$> (bumper <$> decode e)
+    in ⌜∀ s1 s2, s1 ⊑ s2 → bumper s1 ⊑ bumper s2⌝ ∗
+       own bumpers_name ((◯ {[ ℓ := to_agree encodedBumper ]}) : bumpersR).
+
+End bumpers.
+
 (* The map [m] is undefined for all natural numbers greater than [t]. *)
 Definition map_no_later {A} (m : gmap nat A) t := ∀ t', t < t' → m !! t' = None.
 
@@ -672,7 +598,7 @@ Section points_to_shared.
   Context `{nvmFixedG Σ, hGD : nvmDeltaG Σ, AbstractState ST}.
 
   Implicit Types (e : expr) (ℓ : loc) (s : ST)
-           (ss : list ST) (ϕ : ST → val → dProp Σ).
+           (ss : list ST) (ϕ : ST → val → nvmDeltaG Σ → dProp Σ).
 
   Definition abs_hist_to_ra_old
           (abs_hist : gmap time (message * positive)) : encoded_abs_historyR :=
@@ -693,7 +619,7 @@ Section points_to_shared.
     MonPred (λ (TV : thread_view), ⌜t ≤ (store_view TV) !!0 ℓ⌝)%I _.
   Next Obligation. solve_proper. Qed.
 
-  Definition is_exclusive_loc ℓ := own exclusive_locs_name (◯ {[ ℓ ]}).
+  (* Definition is_exclusive_loc ℓ := own exclusive_locs_name (◯ {[ ℓ ]}). *)
 
   Definition is_shared_loc ℓ := own shared_locs_name (◯ {[ ℓ ]}).
 
@@ -703,7 +629,7 @@ Section points_to_shared.
     (* MonPred (λ TV, *)
       (∃ (tP tStore : time) (abs_hist : gmap time ST),
         "%incrList" ∷ ⌜increasing_list ss⌝ ∗
-        "isExclusiveLoc" ∷ ⎡ is_exclusive_loc ℓ ⎤ ∗
+        (* "isExclusiveLoc" ∷ ⎡ is_exclusive_loc ℓ ⎤ ∗ *)
         "#order" ∷ ⎡ know_preorder_loc ℓ (abs_state_relation) ⎤ ∗
 
         (* [tStore] is the last message and it agrees with the last state in ss. *)

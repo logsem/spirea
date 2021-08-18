@@ -85,20 +85,16 @@ Definition post_crash_preorder_impl `{nvmFixedG Σ}
 
 Definition post_crash_pred_impl `{nvmFixedG Σ}
            (hGD hGD' : nvmDeltaG Σ) : iProp Σ :=
-  □ ∀ ST (_ : EqDecision ST) (_ : Countable ST) ℓ (ϕ : ST → val → dProp Σ),
+  □ ∀ ST (_ : EqDecision ST) (_ : Countable ST) ℓ (ϕ : ST → val → nvmDeltaG Σ → dProp Σ),
     know_pred (hGD := hGD) ℓ ϕ -∗
     or_lost_post_crash_no_t ℓ (know_pred (hGD := hGD') ℓ ϕ).
 
-Definition post_crash_rec_pred_impl `{nvmFixedG Σ}
-           (hGD hGD' : nvmDeltaG Σ) : iProp Σ :=
-  □ ∀ ST (_ : EqDecision ST) (_ : Countable ST) ℓ (ϕ : ST → val → nvmDeltaG Σ → dProp Σ),
-    know_rec_pred (hGD := hGD) ℓ ϕ -∗
-    or_lost_post_crash_no_t ℓ (know_rec_pred (hGD := hGD') ℓ ϕ).
-
+(*
 Definition post_crash_exclusive_loc_impl `{nvmFixedG Σ}
            (hGD hGD' : nvmDeltaG Σ) : iProp Σ :=
   □ ∀ ℓ, is_exclusive_loc (hGD := hGD) ℓ -∗
          or_lost_post_crash_no_t ℓ (is_exclusive_loc (hGD := hGD') ℓ).
+*)
 
 (** This map is used to exchange [know_full_history_loc] valid prior to a crash
 into a version valid after the crash. *)
@@ -116,8 +112,7 @@ Definition post_crash_resource `{nvmFixedG Σ}
   "#post_crash_history_impl" ∷ post_crash_history_impl hGD hGD' ∗
   "#post_crash_preorder_impl" ∷ post_crash_preorder_impl hGD hGD' ∗
   "#post_crash_pred_impl" ∷ post_crash_pred_impl hGD hGD' ∗
-  "#post_crash_rec_pred_impl" ∷ post_crash_rec_pred_impl hGD hGD' ∗
-  "#post_crash_exclusive_loc_impl" ∷ post_crash_exclusive_loc_impl hGD hGD' ∗
+  (* "#post_crash_exclusive_loc_impl" ∷ post_crash_exclusive_loc_impl hGD hGD' ∗ *)
   "post_crash_map" ∷ post_crash_map h hGD hGD'.
 
 Program Definition post_crash `{nvmFixedG Σ, hGD : nvmDeltaG Σ}
@@ -323,7 +318,7 @@ Section post_crash_interact.
     iExists CV. iFrame.
   Qed.
 
-  Lemma post_crash_know_pred ℓ (ϕ : ST → val → dProp Σ) :
+  Lemma post_crash_know_pred `{Countable ST'} ℓ (ϕ : ST' → val → nvmDeltaG Σ → dProp Σ) :
     ⎡ know_pred ℓ ϕ ⎤ -∗ <PC> _, or_lost ℓ (⎡ know_pred ℓ ϕ ⎤).
   Proof.
     iStartProof (iProp _). iIntros (TV') "HP".
@@ -332,25 +327,12 @@ Section post_crash_interact.
     post_crash_modality.iCrash.
     iNamed 1.
     rewrite /post_crash_resource. iFrameNamed.
-    iDestruct ("post_crash_pred_impl" with "HP") as "Pizza".
+    iDestruct ("post_crash_pred_impl" with "HP") as "H".
     rewrite -or_lost_embed.
     done.
   Qed.
 
-  Lemma post_crash_know_rec_pred `{Countable ST'} ℓ (ϕ : ST' → val → nvmDeltaG Σ → dProp Σ) :
-    ⎡ know_rec_pred ℓ ϕ ⎤ -∗ <PC> _, or_lost ℓ (⎡ know_rec_pred ℓ ϕ ⎤).
-  Proof.
-    iStartProof (iProp _). iIntros (TV') "HP".
-    iIntrosPostCrash.
-    iDestruct (post_crash_modality.post_crash_nodep with "HP") as "HP".
-    post_crash_modality.iCrash.
-    iNamed 1.
-    rewrite /post_crash_resource. iFrameNamed.
-    iDestruct ("post_crash_rec_pred_impl" with "HP") as "H".
-    rewrite -or_lost_embed.
-    done.
-  Qed.
-
+  (*
   Lemma post_crash_is_exclusive_loc ℓ :
     ⎡ is_exclusive_loc ℓ ⎤ -∗ <PC> _, or_lost ℓ (⎡ is_exclusive_loc ℓ ⎤).
   Proof.
@@ -364,6 +346,7 @@ Section post_crash_interact.
     rewrite -or_lost_embed.
     done.
   Qed.
+  *)
 
 End post_crash_interact.
 
@@ -426,12 +409,13 @@ Section IntoCrash.
   Proof. rewrite /IntoCrash. iIntros "P". by iApply post_crash_frag_history. Qed.
 
   Global Instance know_pred_into_crash `{AbstractState ST}
-         ℓ (ϕ : ST → val → dProp Σ) :
+         ℓ (ϕ : ST → val → _ → dProp Σ) :
     IntoCrash
       (⎡ know_pred ℓ ϕ ⎤)%I
       (λ hG', or_lost ℓ (⎡ know_pred ℓ ϕ ⎤))%I.
   Proof. rewrite /IntoCrash. iIntros "P". by iApply post_crash_know_pred. Qed.
 
+  (*
   Global Instance exclusive_loc_into_crash ℓ :
     IntoCrash
       (⎡ is_exclusive_loc ℓ ⎤)
@@ -439,6 +423,7 @@ Section IntoCrash.
   Proof.
     rewrite /IntoCrash. iIntros "P". by iApply post_crash_is_exclusive_loc.
   Qed.
+  *)
 
 End IntoCrash.
 
@@ -562,7 +547,7 @@ Section post_crash_derived.
          iPureGoal. { done. }
          rewrite /or_lost.
          iDestruct (or_lost_get with "[$] order") as "$"; first naive_solver.
-         iDestruct (or_lost_get with "[$] isExclusiveLoc") as "$"; first naive_solver.
+         (* iDestruct (or_lost_get with "[$] isExclusiveLoc") as "$"; first naive_solver. *)
          iStopProof.
          iStartProof (iProp _). iIntros (?) "_".
          simpl. iPureIntro. lia.

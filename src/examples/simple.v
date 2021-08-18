@@ -87,8 +87,8 @@ Section simple_increment.
   not objective. We should use the post crash modality in the crash condition
   (maybe built in to WPC). *)
   Lemma wp_incr ℓa ℓb n E (Φ : val → dProp Σ) :
-    ⊢ ⎡ know_pred ℓa (λ (n : nat) v, ⌜v = #n⌝) ⎤ -∗
-      ⎡ know_pred ℓb (λ (n : nat) v, ⌜v = #n⌝ ∗ know_flush_lb ℓa n) ⎤ -∗
+    ⊢ ⎡ know_pred ℓa (λ (n : nat) v _, ⌜v = #n⌝) ⎤ -∗
+      ⎡ know_pred ℓb (λ (n : nat) v hG, ⌜v = #n⌝ ∗ know_flush_lb ℓa n) ⎤ -∗
       ℓa ↦ₚ [0] -∗
       ℓb ↦ₚ [0] -∗
       WPC (incr_both ℓa ℓb) @ n; E
