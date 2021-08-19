@@ -604,13 +604,6 @@ Section post_crash_derived.
 
 End post_crash_derived.
 
-(*
-Program Definition post_crash_flushed `{hG : !nvmFixedG Σ, nvmDeltaG Σ} (P : nvmFixedG Σ, nvmDeltaG Σ → dProp Σ) :=
-  MonPred (λ TV,
-    ⎡ persisted (flush_view TV) ⎤ -∗ post_crash (λ hG', P hG')
-  )%I _.
-Next Obligation. intros ??????. solve_proper. Qed.
-*)
 (* Definition post_crash_flushed `{nvmFixedG Σ, nvmDeltaG Σ} *)
 (*         (P : nvmDeltaG Σ → dProp Σ) : dProp Σ := *)
 (*     <PC> (λ (hGD' : nvmDeltaG Σ), P hGD'). *)
@@ -651,6 +644,25 @@ Notation "'<PCF>' g , P" :=
 
 Section post_crash_persisted.
   Context `{hG: !nvmFixedG Σ, nvmDeltaG Σ}.
+
+  Lemma post_crash_flushed_impl_post_crash P :
+    post_crash P -∗
+    post_crash_flushed P.
+  Proof.
+    iStartProof (iProp _).
+    iIntros (TV) "P".
+    rewrite /post_crash_flushed.
+    rewrite /post_crash.
+    simpl.
+    iIntros (hGD CV).
+    iSpecialize ("P" $! hGD CV).
+    iApply (base.post_crash_modality.post_crash_mono with "P").
+    iIntros (?) "A R".
+    iDestruct ("A" with "R") as "[P $]".
+    monPred_simpl.
+    iIntros (???) "_".
+    iApply monPred_mono; done.
+  Qed.
 
   Lemma post_crash_persisted_know_flush_lb `{AbstractState ST}
         (ℓ : loc) (s : ST) :
