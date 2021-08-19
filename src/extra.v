@@ -412,3 +412,7 @@ Section restrict_leibniz.
   Proof. unfold_leibniz. apply restrict_dom_subset. Qed.
 
 End restrict_leibniz.
+
+Lemma valid_to_agree_fmap `{Countable K} {B : ofe} (m : gmap K B) :
+  ✓ (to_agree <$> m : gmapUR _ _).
+Proof. intros ℓ. rewrite lookup_fmap. by case (m !! ℓ). Qed.

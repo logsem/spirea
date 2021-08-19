@@ -212,6 +212,7 @@ Section wpr.
       as (baseNames) "(map' & interp' & #persImpl & #newCrashedAt)"; try done.
 
     iDestruct (big_sepM2_dom with "ordered") as %domHistsEqOrders.
+    iDestruct (big_sepM2_dom with "bumpMono") as %domOrdersEqBumpers.
 
     (* Allocate new ghost state for the logical histories. *)
     rewrite /interp.
@@ -219,7 +220,9 @@ Section wpr.
     iMod (own_full_history_gname_alloc newAbsHists)
       as (new_abs_history_name new_know_abs_history_name) "(hists' & #histFrags & knowHistories)".
 
-    iMod (own_all_preorders_discard with "allOrders") as "#allOrders".
+    iMod (own_all_preorders_persist with "allOrders") as "#allOrders".
+
+    iMod (own_all_bumpers_persist with "allBumpers") as "#allBumpers".
     (* Some locations may be lost after a crash. For these we need to
     forget/throw away the predicate and preorder that was choosen for the
     location. *)
@@ -235,12 +238,9 @@ Section wpr.
     { apply auth_auth_valid. done. }
 
     (* Allocate the new map of bumpers. *)
-    set newBumpers := restrict (dom (gset _) newAbsHists) bump_fns.
-    iMod (own_alloc (● (to_agree <$> newBumpers) : bumpersR)) as (new_bumpers_name) "newBumpers".
-    { apply auth_auth_valid.
-      intros ℓ.
-      rewrite lookup_fmap.
-      case (newBumpers !! ℓ); done. }
+    set newBumpers := restrict (dom (gset _) newAbsHists) bumpers.
+    iMod (own_all_bumpers_gname_alloc newBumpers)
+         as (new_bumpers_name) "[newBumpers #bumpersFrag]".
 
     (* We are done allocating ghost state and can now present a new bundle of
     ghost names. *)
@@ -254,7 +254,7 @@ Section wpr.
                       preorders_name := new_orders_name;
                       shared_locs_name := new_shared_locs_name;
                       (* exclusive_locs_name := _; *)
-                      bumpers_name := _;
+                      bumpers_name := new_bumpers_name;
                    |})
       ).
     iFrame "interp'".
@@ -292,7 +292,7 @@ Section wpr.
         iLeft.
         rewrite /know_preorder_loc /preorders_name. simpl.
         iDestruct (own_all_preorders_singleton_frag with "allOrders order")
-          as %(? & ? & ?).
+          as %?.
         iExists _. iSplit; first done.
         iApply (orders_frag_lookup with "fragOrders").
         rewrite /newOrders.
@@ -309,6 +309,35 @@ Section wpr.
       rewrite /know_full_encoded_history_loc.
       rewrite /own_full_history /own_full_history_gname.
       iDestruct "history" as "[left right]".
+      (* We show that the predicates survives a crash. *)
+      iSplit. {
+        admit.
+      }
+      (* We show that the bumpers survive a crash. *)
+      iSplit. {
+        rewrite /post_crash_bumper_impl.
+        iIntros "!>" (???? ℓ bumper) "knowBumper".
+        rewrite /or_lost_post_crash_no_t /or_lost_post_crash.
+        iExists p'. iFrame "newCrashedAt".
+        destruct (p' !! ℓ) as [[m]|] eqn:lookP'; last naive_solver.
+        iLeft.
+        iExists _. iSplit; first done.
+        rewrite /know_bumper.
+        iDestruct "knowBumper" as "[$ knowBumper]".
+
+        iDestruct (own_valid_2 with "allBumpers knowBumper") as %V.
+        eapply auth_valid_to_agree_singleton_l in V.
+
+        iApply (bumpers_frag_lookup with "bumpersFrag").
+        rewrite /newBumpers.
+        apply restrict_lookup_Some.
+        split; first (simplify_eq; done).
+        rewrite /newAbsHists.
+        rewrite /slice_of_hist.
+        rewrite map_zip_with_dom.
+        apply elem_of_intersection.
+        rewrite domHistsEqOrders domOrdersEqBumpers !elem_of_dom.
+        split; naive_solver. }
       admit.
     }
     (* We show the state interpretation for the high-level logic. *)

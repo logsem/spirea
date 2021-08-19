@@ -89,6 +89,13 @@ Definition post_crash_pred_impl `{nvmFixedG Σ}
     know_pred (hGD := hGD) ℓ ϕ -∗
     or_lost_post_crash_no_t ℓ (know_pred (hGD := hGD') ℓ ϕ).
 
+Definition post_crash_bumper_impl `{nvmFixedG Σ}
+           (hGD hGD' : nvmDeltaG Σ) : iProp Σ :=
+  □ ∀ ST (_ : EqDecision ST) (_ : Countable ST) (_ : AbstractState ST)
+      ℓ (bumper : ST → ST),
+    know_bumper (hGD := hGD) ℓ bumper -∗
+    or_lost_post_crash_no_t ℓ (know_bumper (hGD := hGD') ℓ bumper).
+
 (*
 Definition post_crash_exclusive_loc_impl `{nvmFixedG Σ}
            (hGD hGD' : nvmDeltaG Σ) : iProp Σ :=
@@ -112,6 +119,7 @@ Definition post_crash_resource `{nvmFixedG Σ}
   "#post_crash_history_impl" ∷ post_crash_history_impl hGD hGD' ∗
   "#post_crash_preorder_impl" ∷ post_crash_preorder_impl hGD hGD' ∗
   "#post_crash_pred_impl" ∷ post_crash_pred_impl hGD hGD' ∗
+  "#post_crash_bumper_impl" ∷ post_crash_bumper_impl hGD hGD' ∗
   (* "#post_crash_exclusive_loc_impl" ∷ post_crash_exclusive_loc_impl hGD hGD' ∗ *)
   "post_crash_map" ∷ post_crash_map h hGD hGD'.
 
@@ -332,6 +340,20 @@ Section post_crash_interact.
     done.
   Qed.
 
+  Lemma post_crash_know_bumper `{AbstractState ST} ℓ bumper :
+    ⎡ know_bumper ℓ bumper ⎤ -∗ <PC> _, or_lost ℓ (⎡ know_bumper ℓ bumper ⎤).
+  Proof.
+    iStartProof (iProp _). iIntros (TV') "HP".
+    iIntrosPostCrash.
+    iDestruct (post_crash_modality.post_crash_nodep with "HP") as "HP".
+    post_crash_modality.iCrash.
+    iNamed 1.
+    rewrite /post_crash_resource. iFrameNamed.
+    iDestruct ("post_crash_bumper_impl" with "HP") as "H".
+    rewrite -or_lost_embed.
+    done.
+  Qed.
+
   (*
   Lemma post_crash_is_exclusive_loc ℓ :
     ⎡ is_exclusive_loc ℓ ⎤ -∗ <PC> _, or_lost ℓ (⎡ is_exclusive_loc ℓ ⎤).
@@ -414,6 +436,12 @@ Section IntoCrash.
       (⎡ know_pred ℓ ϕ ⎤)%I
       (λ hG', or_lost ℓ (⎡ know_pred ℓ ϕ ⎤))%I.
   Proof. rewrite /IntoCrash. iIntros "P". by iApply post_crash_know_pred. Qed.
+
+  Global Instance know_bumper_into_crash `{AbstractState ST} ℓ bumper :
+    IntoCrash
+      (⎡ know_bumper ℓ bumper ⎤)%I
+      (λ hG', or_lost ℓ (⎡ know_bumper ℓ bumper ⎤))%I.
+  Proof. rewrite /IntoCrash. iIntros "P". by iApply post_crash_know_bumper. Qed.
 
   (*
   Global Instance exclusive_loc_into_crash ℓ :

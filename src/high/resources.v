@@ -352,6 +352,7 @@ Section predicates.
   Proof.
     iMod (own_alloc _) as "$"; last done.
     apply auth_auth_valid.
+    rewrite /pred_to_ra.
     intros ℓ.
     rewrite lookup_fmap.
     by case (preds !! ℓ).
@@ -480,26 +481,22 @@ Section preorders.
     setoid_rewrite <- own_op.
     iApply own_alloc.
     apply auth_both_valid_discrete. split; first done.
-    intros ℓ.
-    rewrite lookup_fmap.
-    by case (preorders !! ℓ).
+    rewrite /map_to_agree.
+    apply (valid_to_agree_fmap (B := relationO) preorders).
   Qed.
 
-  Lemma own_all_preorders_discard γ preorders :
+  Lemma own_all_preorders_persist γ preorders :
     own_all_preorders_gname γ preorders ==∗
     own γ (●□ ((to_agree <$> preorders) : gmapUR _ (agreeR relationO))).
   Proof. iApply own_update. apply auth_update_auth_persist. Qed.
 
-  Lemma own_all_preorders_singleton_frag dq γ ℓ preorders preorder :
-    own γ (●{dq} (map_to_agree preorders)) -∗
-    own γ (◯ ({[ ℓ := to_agree (encode_relation preorder)]})) -∗
-    ∃ (encOrder : relation2 positive),
-      ⌜encOrder = encode_relation preorder ∧ preorders !! ℓ = Some encOrder⌝.
+  Lemma auth_valid_to_agree_singleton_l {B}
+        dq (m : gmap loc (leibnizO B)) e (ℓ : loc) :
+    ✓ (●{dq} (to_agree <$> m : gmapUR _ (agreeR _)) ⋅
+       ◯ {[ℓ := to_agree e]}) →
+    m !! ℓ = Some e.
   Proof.
-    iIntros "auth frag".
-    iDestruct (own_valid_2 with "auth frag")
-      as %[_ [incl _]]%auth_both_dfrac_valid_discrete.
-    iPureIntro.
+    intros [_ [incl _]]%auth_both_dfrac_valid_discrete.
     move: incl.
     rewrite singleton_included_l.
     intros [y [eq incl]].
@@ -511,13 +508,25 @@ Section preorders.
     rewrite <- look'.
     rewrite option_included_total.
     intros [|(? & ? & [= ?] & [= ?] & incl)]; first done.
-    destruct (preorders !! ℓ) as [encOrder|]; last done.
-    exists encOrder.
-    split; last done.
+    destruct (m !! ℓ) as [encOrder|]; last done.
     simpl in *.
     simplify_eq.
     setoid_rewrite to_agree_included in incl.
-    by rewrite incl.
+    f_equiv.
+    apply leibniz_equiv.
+    done.
+  Qed.
+
+  Lemma own_all_preorders_singleton_frag dq γ ℓ preorders preorder :
+    own γ (●{dq} (map_to_agree preorders)) -∗
+    own γ (◯ ({[ ℓ := to_agree (encode_relation preorder)]})) -∗
+    ⌜preorders !! ℓ = Some (encode_relation preorder)⌝.
+  Proof.
+    iIntros "auth frag".
+    iDestruct (own_valid_2 with "auth frag") as %V.
+    iPureIntro.
+    eapply auth_valid_to_agree_singleton_l.
+    apply V.
   Qed.
 
   Lemma orders_lookup ℓ order1 order2 (orders : gmap loc (relation2 positive)) :
@@ -528,7 +537,7 @@ Section preorders.
   Proof.
     iIntros (look) "auth frag".
     iDestruct (own_all_preorders_singleton_frag with "auth frag")
-      as %(encOrder & eq & eq').
+      as %look'.
     simplify_eq. done.
   Qed.
 
@@ -570,10 +579,45 @@ Section bumpers.
   Context `{!nvmFixedG Σ, hGD : nvmDeltaG Σ}.
   Context `{AbstractState ST}.
 
-  Definition know_bump (ℓ : loc) (bumper : ST → ST) : iProp Σ :=
+  Definition know_bumper (ℓ : loc) (bumper : ST → ST) : iProp Σ :=
     let encodedBumper e := encode <$> (bumper <$> decode e)
     in ⌜∀ s1 s2, s1 ⊑ s2 → bumper s1 ⊑ bumper s2⌝ ∗
        own bumpers_name ((◯ {[ ℓ := to_agree encodedBumper ]}) : bumpersR).
+
+  Definition own_all_bumpers_gname γ encoded_bumpers :=
+    own γ (● (to_agree <$> encoded_bumpers) : bumpersR).
+
+  Definition own_all_bumpers encoded_bumpers :=
+    own_all_bumpers_gname bumpers_name encoded_bumpers.
+
+  Lemma own_all_bumpers_gname_alloc bumpers :
+    ⊢ |==> ∃ γ, own_all_bumpers_gname γ bumpers ∗
+                own γ (◯ ((to_agree <$> bumpers) : gmapUR _ (agreeR _))).
+  Proof.
+    setoid_rewrite <- own_op.
+    iApply own_alloc.
+    apply auth_both_valid_discrete. split; first done.
+    apply valid_to_agree_fmap.
+  Qed.
+
+  Lemma own_all_bumpers_persist γ encoded_bumpers :
+    own_all_bumpers_gname γ encoded_bumpers ==∗
+    own γ (●□ ((to_agree <$> encoded_bumpers) : gmapUR _ (agreeR _))).
+  Proof. iApply own_update. apply auth_update_auth_persist. Qed.
+
+  Lemma bumpers_frag_lookup γ (bumpers : gmap loc (positive → option positive))
+        (ℓ : loc) (bumper : positive → option positive) :
+    bumpers !! ℓ = Some bumper →
+    own γ (◯ (to_agree <$> bumpers) : bumpersR) -∗
+    own γ (◯ {[ ℓ := to_agree bumper ]}).
+  Proof.
+    intros look. f_equiv. simpl.
+    apply auth_frag_mono.
+    rewrite singleton_included_l.
+    eexists _.
+    rewrite lookup_fmap look.
+    naive_solver.
+  Qed.
 
 End bumpers.
 
@@ -715,7 +759,7 @@ Section points_to_shared.
     ∃ CV,
       "#crashed" ∷ ⎡crashed_at CV⎤ ∗
       "%notInCV" ∷ ⌜ℓ ∉ dom (gset _) CV⌝.
-    
+
   (* Live expresses that once we read from [ℓ] we are sure to get a message that
   was written during this execution and not one that was recoverd. *)
   Definition live ℓ : dProp Σ :=
@@ -766,7 +810,7 @@ Section points_to_shared.
   (* A few utility lemmas. *)
   Lemma recovered_at_not_lot ℓ s : recovered_at ℓ s -∗ lost ℓ -∗ False.
   Proof.
-    iNamed 1. iIntros "(%CV' & crashed' & %notInCV)". 
+    iNamed 1. iIntros "(%CV' & crashed' & %notInCV)".
     iDestruct (crashed_at_agree with "[$] [$]") as %->.
     set_solver.
   Qed.

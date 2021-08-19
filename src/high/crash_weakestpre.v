@@ -49,7 +49,7 @@ Section wpc.
        (CV : view)
        (orders : gmap loc (relation2 positive))
        (* (exclusive_locs : gset loc) *)
-       (bump_fns : gmap loc (positive → option positive))
+       (bumpers : gmap loc (positive → option positive))
        (shared_locs : gset loc),
       (* We keep the points-to predicates to ensure that we know that the keys
       in the abstract history correspond to the physical history. This ensures
@@ -84,12 +84,12 @@ Section wpc.
 
       (** * Bump-back function *)
       (* We know about all the bumpers. *)
-      "allBumpers" ∷ own bumpers_name (● (to_agree <$> bump_fns) : bumpersR) ∗
+      "allBumpers" ∷ own_all_bumpers bumpers ∗
       (* The bump functions are monotone. *)
-      "#bumpMono" ∷ ([∗ map] ℓ ↦ order; bump ∈ orders; bump_fns,
+      "#bumpMono" ∷ ([∗ map] ℓ ↦ order; bump ∈ orders; bumpers,
         ∀ e1 e2 e1' e2', ⌜bump e1 = Some e1'⌝ → ⌜bump e2 = Some e2'⌝ → ⌜order e1 e2⌝ → ⌜order e1' e2'⌝) ∗
       (* The predicate holds after a crash for the bumped state. *)
-      "predPostCrash" ∷ ([∗ map] ℓ ↦ pred; bump ∈ predicates; bump_fns,
+      "predPostCrash" ∷ ([∗ map] ℓ ↦ pred; bump ∈ predicates; bumpers,
         (∀ (e : positive) (v : val) (TV : thread_view) (P : nvmDeltaG Σ → dProp _) e',
           ⌜bump e = Some e'⌝ ∗ ⌜pred e v = Some P⌝ ∗ P _ TV -∗
           ∃ P', ⌜pred e' v = Some P'⌝ ∗ ((post_crash_flushed P') (∅, ∅, ∅)))) ∗
