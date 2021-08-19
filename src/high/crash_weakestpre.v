@@ -87,12 +87,20 @@ Section wpc.
       "allBumpers" ∷ own_all_bumpers bumpers ∗
       (* The bump functions are monotone. *)
       "#bumpMono" ∷ ([∗ map] ℓ ↦ order; bump ∈ orders; bumpers,
-        ∀ e1 e2 e1' e2', ⌜bump e1 = Some e1'⌝ → ⌜bump e2 = Some e2'⌝ → ⌜order e1 e2⌝ → ⌜order e1' e2'⌝) ∗
+        ∀ e1 e2 e1' e2', ⌜bump e1 = Some e1'⌝ → ⌜bump e2 = Some e2'⌝ →
+                         ⌜order e1 e2⌝ → ⌜order e1' e2'⌝) ∗
       (* The predicate holds after a crash for the bumped state. *)
       "predPostCrash" ∷ ([∗ map] ℓ ↦ pred; bump ∈ predicates; bumpers,
         (∀ (e : positive) (v : val) (TV : thread_view) (P : nvmDeltaG Σ → dProp _) e',
           ⌜bump e = Some e'⌝ ∗ ⌜pred e v = Some P⌝ ∗ P _ TV -∗
           ∃ P', ⌜pred e' v = Some P'⌝ ∗ ((post_crash_flushed P') (∅, ∅, ∅)))) ∗
+      (* Bumpers map valid input to valid output. *)
+      "%bumperBumpToValid" ∷
+        ⌜map_Forall (λ _ bumper, ∀ e, ∃ e', bumper e = Some e' →
+                                            is_Some (bumper e')) bumpers⌝ ∗
+      (* All the abstract state are "valid" inputs to the bumpers. *)
+      "#bumperSome" ∷ ([∗ map] ℓ ↦ abs_hist; bumper ∈ abs_hists; bumpers,
+        ⌜map_Forall (λ _ e, is_Some (bumper e)) abs_hist⌝) ∗
 
       "%mapShared" ∷
         ⌜map_Forall (λ _, map_Forall

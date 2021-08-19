@@ -11,10 +11,10 @@ From Perennial.program_logic Require Import crash_weakestpre.
 From Perennial.program_logic Require Import recovery_weakestpre.
 From Perennial.program_logic Require Import recovery_adequacy.
 
-From self Require Import view.
+From self Require Import view extra.
 From self.base Require Import primitive_laws wpr_lifting.
 From self.high Require Import dprop.
-From self.high Require Import resources weakestpre crash_weakestpre post_crash_modality.
+From self.high Require Import resources crash_weakestpre post_crash_modality.
 
 Set Default Proof Using "Type".
 
@@ -106,12 +106,12 @@ End slice_of_hist_props.
 (** If we have a map of points-to predicates prior to a crash and know what we
 we crashed at, then we can get a map of points-to predicates for the new
 heap. *)
-Lemma map_points_to_to_new `{nvmBaseFixedG Σ} logHists store p' (hG hG' : nvmBaseDeltaG Σ) :
-  consistent_cut p' store →
-  own (@crashed_at_view_name (@nvm_base_names' _ hG')) (to_agree p') -∗
+Lemma map_points_to_to_new `{nvmBaseFixedG Σ} logHists store CV (hG hG' : nvmBaseDeltaG Σ) :
+  consistent_cut CV store →
+  own (@crashed_at_view_name (@nvm_base_names' _ hG')) (to_agree CV) -∗
   base.post_crash_modality.post_crash_map store hG hG' -∗
   ([∗ map] ℓ ↦ hist ∈ logHists, let hG := hG in ℓ ↦h hist) -∗
-  ([∗ map] ℓ ↦ hist ∈ (slice_of_store p' logHists), let hG := hG' in ℓ ↦h hist).
+  ([∗ map] ℓ ↦ hist ∈ (slice_of_store CV logHists), let hG := hG' in ℓ ↦h hist).
 Proof.
   iIntros (cut) "#rec [impl map] pts".
   iAssert (⌜logHists ⊆ store⌝)%I as %sub.
@@ -126,9 +126,9 @@ Proof.
     iExists _. iApply "impl"; done. }
   (* Throw away the points-to predicates that did not survive the crash. *)
   iDestruct (big_sepM_subseteq with "pts") as "pts".
-  { apply (restrict_subseteq (dom _ p')). }
+  { apply (restrict_subseteq (dom _ CV)). }
   iDestruct (big_sepM_subseteq with "map") as "map".
-  { apply (restrict_subseteq (dom _ (restrict (dom (gset _) p') logHists))). }
+  { apply (restrict_subseteq (dom _ (restrict (dom (gset _) CV) logHists))). }
   iDestruct (big_sepM2_sepM_2 with "pts map") as "map".
   { setoid_rewrite <- elem_of_dom.
     setoid_rewrite restrict_dom_subset at 2; first done.
@@ -154,7 +154,7 @@ Proof.
   rewrite sum.
   simpl.
   rewrite /post_crash_modality.mapsto_post_crash.
-  iDestruct "right" as (CV) "[crashed [right | %left]]";
+  iDestruct "right" as (CV') "[crashed [right | %left]]";
     iDestruct (crashed_at_agree with "crashed rec") as %->.
   2: {
     iExFalso.
@@ -186,6 +186,19 @@ Qed.
 
 Definition wpr `{nvmFixedG Σ, nvmDeltaG Σ} s k := wpr' _ s k _.
 
+Lemma or_lost_post_crash_ts `{nvmBaseFixedG Σ, hG : nvmBaseDeltaG Σ} CV ℓ P :
+  crashed_at CV -∗
+  (∀ t, ⌜CV !! ℓ = Some (MaxNat t)⌝ -∗ P t) -∗
+  or_lost_post_crash ℓ P.
+Proof.
+  iIntros "crash impl".
+  iExists _. iFrame "crash".
+  destruct (CV !! ℓ) as [[m]|] eqn:lookP'; last naive_solver.
+  iLeft.
+  iExists _. iSplit; first done.
+  by iApply "impl".
+Qed.
+
 Section wpr.
   Context `{nvmFixedG Σ}.
 
@@ -202,7 +215,7 @@ Section wpr.
           nvm_heap_ctx (hG := _) σ' ∗
           Pg hGD' (∅, ∅, ∅).
   Proof.
-    iIntros ([store p p' pIncl cut]).
+    iIntros ([store p CV pIncl cut]).
     iIntros "H".
     iNamed "H".
     iIntros "(heap & authStor & %inv & pers & recov) Pg".
@@ -216,7 +229,7 @@ Section wpr.
 
     (* Allocate new ghost state for the logical histories. *)
     rewrite /interp.
-    set newAbsHists := slice_of_hist p' abs_hists.
+    set newAbsHists := slice_of_hist CV abs_hists.
     iMod (own_full_history_gname_alloc newAbsHists)
       as (new_abs_history_name new_know_abs_history_name) "(hists' & #histFrags & knowHistories)".
 
@@ -276,24 +289,21 @@ Section wpr.
       iSplit.
       { iModIntro.
         iIntros (? ? ? ? ℓ t s) "frag".
-        iExists p'.
-        iFrame "newCrashedAt".
-        (* Was [ℓ] recovered or not? *)
-        destruct (p' !! ℓ) eqn:lookP'; last naive_solver.
-        - iLeft. admit.
-          }
+        iApply (@or_lost_post_crash_ts with "[newCrashedAt] [frag]").
+        { iFrame "newCrashedAt". }
+        iIntros (? look).
+        admit. }
       (* The preorder implication. We show that the preorders may survive a
       crash. *)
       iSplit. {
         iModIntro.
         iIntros (? ? ? ? ?) "order".
-        iExists _. iFrame "newCrashedAt".
-        destruct (p' !! ℓ) as [[m]|] eqn:lookP'; last naive_solver.
-        iLeft.
+        iApply (@or_lost_post_crash_ts with "[newCrashedAt] [order]").
+        { iFrame "newCrashedAt". }
+        iIntros (? look).
         rewrite /know_preorder_loc /preorders_name. simpl.
         iDestruct (own_all_preorders_singleton_frag with "allOrders order")
           as %?.
-        iExists _. iSplit; first done.
         iApply (orders_frag_lookup with "fragOrders").
         rewrite /newOrders.
         apply restrict_lookup_Some.
@@ -317,11 +327,9 @@ Section wpr.
       iSplit. {
         rewrite /post_crash_bumper_impl.
         iIntros "!>" (???? ℓ bumper) "knowBumper".
-        rewrite /or_lost_post_crash_no_t /or_lost_post_crash.
-        iExists p'. iFrame "newCrashedAt".
-        destruct (p' !! ℓ) as [[m]|] eqn:lookP'; last naive_solver.
-        iLeft.
-        iExists _. iSplit; first done.
+        iApply (@or_lost_post_crash_ts with "[newCrashedAt] [knowBumper]").
+        { iFrame "newCrashedAt". }
+        iIntros (t look).
         rewrite /know_bumper.
         iDestruct "knowBumper" as "[$ knowBumper]".
 
@@ -333,6 +341,7 @@ Section wpr.
         apply restrict_lookup_Some.
         split; first (simplify_eq; done).
         rewrite /newAbsHists.
+        (* iExists _. iSplit; first done. *)
         rewrite /slice_of_hist.
         rewrite map_zip_with_dom.
         apply elem_of_intersection.
@@ -365,7 +374,10 @@ Section wpr.
     iSplitR "". { admit. }
     (* Show that the bumpers are still monotone. *)
     iSplitR "".
-    { do 2 rewrite big_sepM2_alt.
+    {
+      iEval (rewrite big_sepM2_alt) in "bumpMono".
+      iEval (rewrite big_sepM2_alt).
+      (* do 2 rewrite big_sepM2_alt. *)
       iDestruct "bumpMono" as (bunny) "bumpMono".
       iSplit.
       { iPureIntro. admit. }
@@ -374,6 +386,7 @@ Section wpr.
       iModIntro.
       iIntros (**).
       admit. }
+    iSplitR "". { admit. }
     iSplitR "". { admit. }
     admit.
   Admitted.
