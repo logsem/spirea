@@ -48,9 +48,20 @@ Tactic Notation "wpc_expr_eval" tactic(t) :=
       [let x := fresh in intros x; t; unfold x; notypeclasses refine eq_refl|]
   end.
 
+  Lemma pure_exec_base_fill K φ n e1 e2 :
+    PureExecBase φ n e1 e2 →
+    PureExecBase φ n (fill K e1) (fill K e2).
+  Proof.
+    intros TV.
+    intros TV'.
+    setoid_rewrite nvm_fill_fill.
+    apply: pure_exec_ctx.
+    apply (ectx_lang_ctx (Λ := nvm_ectx_lang)).
+  Qed.
+
 (* XXX: this caches the wrong thing as compared to the old version *)
 Lemma tac_wpc_pure_ctx
-      `{!nvmFixedG Σ, nvmDeltaG Σ} Δ Δ' s k E1 K e1 e2 φ Φ Φc :
+      `{!nvmFixedG Σ, nvmDeltaG Σ} Δ Δ' s k E1 K e1 e2 φ Φ Φc `{!Objective Φc} :
   PureExecBase φ 1 e1 e2 →
   φ →
   MaybeIntoLaterNEnvs 1 Δ Δ' →
@@ -58,31 +69,29 @@ Lemma tac_wpc_pure_ctx
   (envs_entails Δ Φc → envs_entails Δ' (WPC (fill K e2) @ s; k; E1 {{ Φ }} {{ Φc }})) →
   envs_entails Δ (WPC (fill K e1) @ s; k; E1 {{ Φ }} {{ Φc }}).
 Proof.
-Admitted.
-(*   rewrite envs_entails_eq=> ??? Hcrash HΔ'. *)
-(*   pose proof @pure_exec_fill. *)
-(*   rewrite -wpc_pure_step_later //. apply and_intro; auto. *)
-(*   rewrite into_laterN_env_sound /=. *)
-(*   rewrite HΔ' //. *)
-(* Qed. *)
+  rewrite envs_entails_eq=> ??? Hcrash HΔ'.
+  pose proof @pure_exec_base_fill.
+  rewrite -wpc_pure_step_later //. apply and_intro; auto.
+  rewrite into_laterN_env_sound /=.
+  rewrite HΔ' //.
+Qed.
 
 Lemma tac_wpc_pure_no_later_ctx `{!nvmFixedG Σ, nvmDeltaG Σ}
-      Δ s k E1 K e1 e2 φ Φ Φc :
+      Δ s k E1 K e1 e2 φ Φ Φc `{!Objective Φc} :
   PureExecBase φ 1 e1 e2 →
   φ →
   envs_entails Δ Φc →
   (envs_entails Δ Φc → envs_entails Δ (WPC (fill K e2) @ s; k; E1 {{ Φ }} {{ Φc }})) →
   envs_entails Δ (WPC (fill K e1) @ s; k; E1 {{ Φ }} {{ Φc }}).
 Proof.
-Admitted.
-(*   rewrite envs_entails_eq=> ?? Hcrash HΔ'. *)
-(*   pose proof @pure_exec_fill. *)
-(*   specialize (HΔ' Hcrash). *)
-(*   rewrite -wpc_pure_step_later //. apply and_intro; auto. *)
-(*   - iIntros "Henv". *)
-(*     iModIntro. *)
-(*     iApply HΔ'; iAssumption. *)
-(* Qed. *)
+  rewrite envs_entails_eq=> ?? Hcrash HΔ'.
+  pose proof @pure_exec_base_fill.
+  specialize (HΔ' Hcrash).
+  rewrite -wpc_pure_step_later //. apply and_intro; auto.
+  - iIntros "Henv".
+    iModIntro.
+    iApply HΔ'; iAssumption.
+Qed.
 
 Lemma tac_wpc_value `{!nvmFixedG Σ, nvmDeltaG Σ} Δ s k E1 Φ Φc `{!Objective Φc} v :
   envs_entails Δ (|NC={E1}=> Φ v) →
@@ -169,6 +178,7 @@ Tactic Notation "wpc_pure_later" tactic3(filter) "as" simple_intropattern(H) :=
       filter e';
       first [ eapply (tac_wpc_pure_ctx _ _ _ _ _ K e');
       [iSolveTC                       (* PureExec *)
+      |iSolveTC                       (* Objective Φc *)
       |try solve_vals_compare_safe    (* The pure condition for PureExec -- handles trivial goals, including [vals_compare_safe] *)
       |iSolveTC                       (* IntoLaters *)
       | try (apply H)                 (* crash condition, try to re-use existing proof *)
@@ -188,6 +198,7 @@ Tactic Notation "wpc_pure_no_later" tactic3(filter) "as" simple_intropattern(H) 
       filter e';
       first [ eapply (tac_wpc_pure_no_later_ctx _ _ _ _ K e');
       [iSolveTC                       (* PureExec *)
+      |iSolveTC                       (* Objective Φc *)
       |try solve_vals_compare_safe    (* The pure condition for PureExec -- handles trivial goals, including [vals_compare_safe] *)
       | try (apply H)                 (* crash condition, try to re-use existing proof *)
       | first [ intros H || intros _]; wpc_finish H (* new goal *)

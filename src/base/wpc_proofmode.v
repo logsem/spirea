@@ -63,7 +63,7 @@ Lemma tac_wpc_pure_ctx `{!nvmBaseFixedG Σ, nvmBaseDeltaG Σ, !crashG Σ}
   envs_entails Δ (WPC (ThreadState (fill K e1) TV) @ s; k; E1 {{ Φ }} {{ Φc }}).
 Proof.
   rewrite envs_entails_eq=> ??? Hcrash HΔ'.
-  pose proof (@pure_exec_base_fill).
+  pose proof @pure_exec_base_fill.
   rewrite -wpc_pure_step_later //. apply and_intro; auto.
   rewrite into_laterN_env_sound /=.
   rewrite HΔ' //.

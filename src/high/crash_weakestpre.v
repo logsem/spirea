@@ -185,6 +185,24 @@ Section wpc.
     iPureIntro. etrans; eassumption.
   Qed.
 
+  Lemma wpc_pure_step_later s k E1 e1 e2 φ Φ Φc `{!Objective Φc} :
+    PureExecBase φ 1 e1 e2 →
+    φ →
+    ▷ WPC e2 @ s; k ; E1 {{ Φ }} {{ Φc }} ∧ Φc
+    ⊢ WPC e1 @ s; k ; E1 {{ Φ }} {{ Φc }}.
+  Proof.
+    intros Hexec ?.
+    rewrite wpc_eq /wpc_def.
+    iStartProof (iProp _). iIntros (TV).
+    simpl.
+    iIntros "WP".
+    iIntros (TV') "%incl val interp".
+    rewrite -crash_weakestpre.wpc_pure_step_later; last done.
+    iSplit.
+    - iNext. iApply ("WP" with "[//] val interp").
+    - iApply objective_at. iDestruct "WP" as "[_ $]".
+  Qed.
+
   Lemma wp_wpc s k E1 e Φ:
     WP e @ s ; E1 {{ Φ }} ⊢ WPC e @ s ; k ; E1 {{ Φ }} {{ True }}.
   Proof.
