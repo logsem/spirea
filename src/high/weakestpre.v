@@ -160,10 +160,9 @@ Section wp_rules.
       simpl.
       rewrite eqP.
       rewrite option_equivI.
-      (* iSpecialize ("predsEquiv" $! hG). *)
-      admit.
-      (* iRewrite "predsEquiv" in "PH". *)
-      (* iRewrite -"predsEquiv". *)
+      iEval (setoid_rewrite discrete_fun_equivI) in "predsEquiv".
+      iSpecialize ("predsEquiv" $! hG).
+      by iRewrite -"predsEquiv".
     - iIntros "phi".
       rewrite /encoded_predicate_holds.
       do 2 iEval (setoid_rewrite discrete_fun_equivI) in "predsEquiv".
@@ -172,9 +171,10 @@ Section wp_rules.
       simpl.
       destruct (encϕ (encode s) v); rewrite option_equivI; last done.
       iExists _. iSplit; first done.
-      admit.
-      (* iRewrite "predsEquiv". *)
-  Admitted.
+      iEval (setoid_rewrite discrete_fun_equivI) in "predsEquiv".
+      iSpecialize ("predsEquiv" $! hG).
+      by iRewrite "predsEquiv".
+  Qed.
 
   Lemma predicate_holds_phi_decode ϕ s encS (encϕ : predO) v TV :
     decode encS = Some s →
@@ -193,9 +193,9 @@ Section wp_rules.
       simpl.
       rewrite option_equivI.
       rewrite eq.
-      admit.
-      (* iRewrite "HI" in "PH". *)
-      (* done. *)
+      iEval (setoid_rewrite discrete_fun_equivI) in "HI".
+      iSpecialize ("HI" $! hG).
+      by iRewrite "HI" in "PH".
     - iIntros "phi".
       rewrite /encoded_predicate_holds.
       do 2 iEval (setoid_rewrite discrete_fun_equivI) in "predsEquiv".
@@ -204,9 +204,10 @@ Section wp_rules.
       simpl.
       destruct (encϕ encS v); rewrite option_equivI; last done.
       iExists _. iSplit; first done.
-      admit.
-      (* by iRewrite "predsEquiv". *)
-   Admitted.
+      iEval (setoid_rewrite discrete_fun_equivI) in "predsEquiv".
+      iSpecialize ("predsEquiv" $! hG).
+      by iRewrite "predsEquiv".
+  Qed.
 
   Lemma wp_load_ex ℓ ss s Q ϕ positive E :
     last ss = Some s →
