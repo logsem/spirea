@@ -11,7 +11,7 @@ From Perennial.program_logic Require Import crash_weakestpre.
 From Perennial.program_logic Require Import recovery_weakestpre.
 From Perennial.program_logic Require Import recovery_adequacy.
 
-From self Require Import view extra.
+From self Require Import view extra ipm_tactics.
 From self.base Require Import primitive_laws wpr_lifting.
 From self.high Require Import dprop.
 From self.high Require Import resources crash_weakestpre post_crash_modality.
@@ -230,6 +230,29 @@ Section wpr.
     - left. apply fmap_empty.
   Qed.
 
+  Lemma holo (CV : view) ℓ t (σ : store) :
+    CV !! ℓ = Some $ MaxNat t →
+    consistent_cut CV σ →
+    ∃ (msg : message) (hist : history),
+      σ !! ℓ = Some hist ∧
+      hist !! t = Some msg ∧
+      slice_of_store CV σ !! ℓ = Some {[ 0 := discard_msg_views msg ]}.
+  Proof.
+  Admitted.
+
+  (* FIXME: This lemmas needs more assumptions. *)
+  Lemma new_abs_hist_lookup_inv abs_hists CV bumpers ℓ hist :
+    (new_abs_hist abs_hists CV bumpers) !! ℓ = Some hist →
+    ∃ t s s' bumper abs_hist,
+      CV !! ℓ = Some (MaxNat t) ∧
+      abs_hists !! ℓ = Some abs_hist ∧
+      abs_hist !! t = Some s ∧
+      bumpers !! ℓ = Some bumper ∧
+      bumper s = Some s' ∧
+      hist = {[ 0 := s' ]}.
+  Proof.
+  Admitted.
+
   (* Given the state interpretations _before_ a crash we reestablish the
   interpretations _after_ a crash. *)
   Lemma nvm_reinit (hGD : nvmDeltaG Σ) n Pg tv σ σ' (Hinv : invGS Σ) (Hcrash : crashG Σ) :
@@ -409,7 +432,45 @@ Section wpr.
         iIntros (ℓ hist order [->|[? ->]]%new_abs_hist_lookup slice) "!%".
         * apply increasing_map_empty.
         * apply increasing_map_singleton. }
-    iSplitR "". { admit. }
+    (* We show that the encoded predicates still hold for the new abstract
+    history. *)
+    iSplitR "". {
+      iDestruct (big_sepM_impl_dom_subseteq with "map []") as "[$ h']".
+      { rewrite new_abs_hist_dom. set_solver. }
+      iModIntro.
+      iIntros (ℓ encHist encHist' absHistLook newAbsHistLook).
+      pose proof (new_abs_hist_lookup_inv _ _ _ _ _ newAbsHistLook)
+        as (t & s & s' & bumper & hist & CVLook & absHistsLook & histLook &
+            bumpersLook & bumperAp & histEq).
+      iIntros "(%pred & %physHist & %physHistLook & %predsLook & encs)".
+      (* assert (is_Some (CV !! ℓ)) as [[t] CVLook]. *)
+      (* { apply elem_of_dom_2 in newAbsHistLook. *)
+      (*   rewrite /newAbsHists in newAbsHistLook. *)
+      (*   setoid_rewrite new_abs_hist_dom in newAbsHistLook. *)
+      (*   apply elem_of_dom. *)
+      (*   set_solver. } *)
+      epose proof (holo _ _ _ _ CVLook cut) as (msg & physHist' & storeLook & hi & ho).
+      iExists pred, {[ 0 := discard_msg_views msg]}.
+      iPureGoal. {
+        (* We need to establish relationship between [store] and
+        [phys_hist]. This depends on the points-to predicates that we had
+        earlier (where did they go?) *)
+        admit. }
+      iPureGoal. {
+        rewrite /newPreds.
+        apply restrict_lookup_Some_2; first done.
+        apply elem_of_dom. done. }
+      iEval (rewrite big_sepM2_alt).
+      iEval (rewrite big_sepM2_alt) in "encs". iDestruct "encs" as "[ned encs]".
+      iSplit.
+      { iPureIntro.
+        rewrite histEq.
+        rewrite /is_Some. setoid_rewrite lookup_singleton_Some.
+        naive_solver. }
+      iDestruct (big_sepM_impl_dom_subseteq with "encs []") as "[$ hi]".
+      { admit. }
+      iModIntro.
+      admit. }
     (* Show that the bumpers are still monotone. *)
     iSplitR "".
     {
