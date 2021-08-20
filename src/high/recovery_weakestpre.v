@@ -218,6 +218,18 @@ Section wpr.
     (dom _ abs_hists ∩ dom _ CV ∩ dom _ bumpers).
   Proof. rewrite 2!map_zip_with_dom. set_solver. Qed.
 
+  Lemma new_abs_hist_lookup abs_hists CV bumpers ℓ hist :
+    (new_abs_hist abs_hists CV bumpers) !! ℓ = Some hist →
+    hist = ∅ ∨ ∃ s, hist = {[ 0 := s ]}.
+  Proof.
+    rewrite /new_abs_hist /slice_of_hist.
+    do 2 setoid_rewrite map_lookup_zip_with_Some.
+    intros ([?] & ? & -> & ([t] & hist' & -> & ? & ?) & ?).
+    destruct (hist' !! t).
+    - right. eexists _. apply map_fmap_singleton.
+    - left. apply fmap_empty.
+  Qed.
+
   (* Given the state interpretations _before_ a crash we reestablish the
   interpretations _after_ a crash. *)
   Lemma nvm_reinit (hGD : nvmDeltaG Σ) n Pg tv σ σ' (Hinv : invGS Σ) (Hcrash : crashG Σ) :
@@ -394,15 +406,9 @@ Section wpr.
         rewrite new_abs_hist_dom.
         set_solver.
       - iModIntro.
-        (* rewrite /newAbsHists. *)
-        iIntros (ℓ hist order ? slice ?).
-        iPureIntro.
-        admit. }
-        (* apply map_lookup_zip_with_Some in slice. *)
-        (* destruct slice as ([t] & hist & -> & more). *)
-        (* destruct (hist !! t) as [s|]; simpl. *)
-        (* { apply strictly_increasing_map_singleton. } *)
-        (* { apply strictly_increasing_map_empty. } } *)
+        iIntros (ℓ hist order [->|[? ->]]%new_abs_hist_lookup slice) "!%".
+        * apply increasing_map_empty.
+        * apply increasing_map_singleton. }
     iSplitR "". { admit. }
     (* Show that the bumpers are still monotone. *)
     iSplitR "".

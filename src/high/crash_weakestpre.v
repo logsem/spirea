@@ -13,16 +13,21 @@ From self.high Require Export dprop resources lifted_modalities monpred_simpl
 Section wpc.
   Context `{nvmFixedG Σ, hGD : nvmDeltaG Σ}.
 
-  (* NOTE: [R] is reflexive and hence we add the [s ≠ s'] in the conclusion. *)
-  Definition strictly_increasing_map (R : relation2 positive) (ss : gmap nat positive) :=
+  (* NOTE: The definition uses [i < j] and not [i ≤ j] in order to make the
+  lemma [increasing_map_singleton] provable. When we use [increasing_map] the
+  relation [R] will always be reflexive, and hence this does not matter. The
+  _knowledge_ that [R] is reflexive may not always be available however (since
+  we may not know that [R] is in fact the encoding of some preorder, and hence
+  this definition works best. *)
+  Definition increasing_map (R : relation2 positive) (ss : gmap nat positive) :=
     ∀ i j (s s' : positive),
-      i < j → (ss !! i = Some s) → (ss !! j = Some s') → R s s' ∧ s ≠ s'.
+      i < j → (ss !! i = Some s) → (ss !! j = Some s') → R s s'.
 
-  Lemma strictly_increasing_map_singleton R t s :
-    strictly_increasing_map R {[ t := s ]}.
+  Lemma increasing_map_singleton R t s :
+    increasing_map R {[ t := s ]}.
   Proof. intros ????? ?%lookup_singleton_Some ?%lookup_singleton_Some. lia. Qed.
 
-  Lemma strictly_increasing_map_empty R : strictly_increasing_map R ∅.
+  Lemma increasing_map_empty R : increasing_map R ∅.
   Proof. intros ????? [=]. Qed.
 
   (* Convert a message to a thread_view corresponding to what is stored in the
@@ -71,7 +76,7 @@ Section wpc.
       (* "exclusiveLocs" ∷ own exclusive_locs_name (● exclusive_locs) ∗ *)
 
       "ordered" ∷ ([∗ map] ℓ ↦ hist; order ∈ abs_hists; orders,
-                    ⌜strictly_increasing_map order hist⌝) ∗
+                    ⌜increasing_map order hist⌝) ∗
 
       (* The predicates hold for all the exclusive locations. *)
       "map" ∷
