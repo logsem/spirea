@@ -64,7 +64,7 @@ Proof.
 Qed.
 
 (* For each location in [p] pick the message in the store that it specifies. *)
-Definition slice_of_hist {A} (p : view) (σ : gmap loc (gmap time A)) :
+Definition slice_of_hist {A} (V : view) (σ : gmap loc (gmap time A)) :
   gmap loc (gmap time A) :=
   map_zip_with
     (λ '(MaxNat t) hist,
@@ -72,7 +72,7 @@ Definition slice_of_hist {A} (p : view) (σ : gmap loc (gmap time A)) :
         Some s => {[ 0 := s ]}
       | None => ∅ (* The None branch here is never taken. *)
       end)
-    p σ.
+    V σ.
 
 Section slice_of_hist_props.
   Context {A : Type}.
@@ -103,7 +103,7 @@ Section slice_of_hist_props.
 
 End slice_of_hist_props.
 
-(** If we have a map of points-to predicates prior to a crash and know what we
+(** If we have a map of points-to predicates prior to a crash and know what view
 we crashed at, then we can get a map of points-to predicates for the new
 heap. *)
 Lemma map_points_to_to_new `{nvmBaseFixedG Σ} logHists store CV (hG hG' : nvmBaseDeltaG Σ) :
@@ -202,6 +202,22 @@ Qed.
 Section wpr.
   Context `{nvmFixedG Σ}.
 
+  (* Computes the new abstract history based on the old history, the crash
+  view, and the bumpers. *)
+  Definition new_abs_hist (abs_hists : gmap loc (gmap time positive))
+             (CV : view) (bumpers : gmap loc (positive → option positive))
+    : gmap loc (gmap time positive) :=
+    map_zip_with
+      (λ (hist : gmap time positive) bumper,
+        (default (1%positive) ∘ bumper) <$> hist)
+      (slice_of_hist CV abs_hists)
+      bumpers.
+
+  Lemma new_abs_hist_dom abs_hists CV bumpers :
+    dom (gset loc) (new_abs_hist abs_hists CV bumpers) ≡
+    (dom _ abs_hists ∩ dom _ CV ∩ dom _ bumpers).
+  Proof. rewrite 2!map_zip_with_dom. set_solver. Qed.
+
   (* Given the state interpretations _before_ a crash we reestablish the
   interpretations _after_ a crash. *)
   Lemma nvm_reinit (hGD : nvmDeltaG Σ) n Pg tv σ σ' (Hinv : invGS Σ) (Hcrash : crashG Σ) :
@@ -226,16 +242,21 @@ Section wpr.
 
     iDestruct (big_sepM2_dom with "ordered") as %domHistsEqOrders.
     iDestruct (big_sepM2_dom with "bumpMono") as %domOrdersEqBumpers.
+    iDestruct (big_sepM2_dom with "bumperSome") as %domHistsEqBumpers.
 
     (* Allocate new ghost state for the logical histories. *)
     rewrite /interp.
-    set newAbsHists := slice_of_hist CV abs_hists.
+    set (newAbsHists := new_abs_hist abs_hists CV bumpers).
     iMod (own_full_history_gname_alloc newAbsHists)
       as (new_abs_history_name new_know_abs_history_name) "(hists' & #histFrags & knowHistories)".
 
+    (* We freeze/persist the old authorative resource algebra. *)
     iMod (own_all_preorders_persist with "allOrders") as "#allOrders".
-
     iMod (own_all_bumpers_persist with "allBumpers") as "#allBumpers".
+    iMod (own_update with "predicates") as "allPredicates".
+    { apply auth_update_auth_persist. }
+    iDestruct "allPredicates" as "#allPredicates".
+
     (* Some locations may be lost after a crash. For these we need to
     forget/throw away the predicate and preorder that was choosen for the
     location. *)
@@ -244,7 +265,8 @@ Section wpr.
       as (new_orders_name) "[newOrders #fragOrders]".
 
     set newPreds := restrict (dom (gset _) newAbsHists) predicates.
-    iMod (know_predicates_alloc newPreds) as (new_predicates_name) "newPreds".
+    iMod (know_predicates_alloc newPreds) as
+      (new_predicates_name) "[newPreds #newPredsFrag]".
 
     set newSharedLocs := (dom (gset _) newAbsHists) ∩ shared_locs.
     iMod (own_alloc (● (newSharedLocs : gsetUR _))) as (new_shared_locs_name) "newSharedLocs".
@@ -303,26 +325,34 @@ Section wpr.
         iIntros (? look).
         rewrite /know_preorder_loc /preorders_name. simpl.
         iDestruct (own_all_preorders_singleton_frag with "allOrders order")
-          as %?.
+          as %ordersLook.
         iApply (orders_frag_lookup with "fragOrders").
         rewrite /newOrders.
         apply restrict_lookup_Some.
         split; first (simplify_eq; done).
         rewrite /newAbsHists.
-        rewrite /slice_of_hist.
-        rewrite map_zip_with_dom.
-        apply elem_of_intersection.
-        split.
-        - rewrite elem_of_dom. naive_solver.
-        - rewrite domHistsEqOrders. rewrite elem_of_dom. naive_solver. }
+        rewrite new_abs_hist_dom.
+        rewrite !elem_of_intersection.
+        apply elem_of_dom_2 in look.
+        apply elem_of_dom_2 in ordersLook.
+        rewrite -domHistsEqBumpers domHistsEqOrders.
+        set_solver. }
       iIntros.
       rewrite /know_full_encoded_history_loc.
       rewrite /own_full_history /own_full_history_gname.
       iDestruct "history" as "[left right]".
       (* We show that the predicates survives a crash. *)
       iSplit. {
-        admit.
-      }
+        rewrite /post_crash_pred_impl.
+        iModIntro. iIntros (??? ℓ ϕ) "knowPred".
+        iApply (@or_lost_post_crash_ts with "[newCrashedAt] [knowPred]").
+        { iFrame "newCrashedAt". }
+        iIntros (t look).
+        iDestruct (own_all_preds_pred with "allPredicates knowPred") as (? predsLook) "H".
+        iApply (predicates_frag_lookup with "newPredsFrag").
+        rewrite /newPreds.
+        (* FIXME: There is a later in the way. *)
+        admit. }
       (* We show that the bumpers survive a crash. *)
       iSplit. {
         rewrite /post_crash_bumper_impl.
@@ -341,12 +371,11 @@ Section wpr.
         apply restrict_lookup_Some.
         split; first (simplify_eq; done).
         rewrite /newAbsHists.
-        (* iExists _. iSplit; first done. *)
-        rewrite /slice_of_hist.
-        rewrite map_zip_with_dom.
-        apply elem_of_intersection.
-        rewrite domHistsEqOrders domOrdersEqBumpers !elem_of_dom.
-        split; naive_solver. }
+        rewrite new_abs_hist_dom.
+        rewrite domHistsEqOrders domOrdersEqBumpers.
+        apply elem_of_dom_2 in look.
+        apply elem_of_dom_2 in V.
+        set_solver. }
       admit.
     }
     (* We show the state interpretation for the high-level logic. *)
@@ -355,22 +384,25 @@ Section wpr.
     iFrame "newOrders newPreds hists' newSharedLocs newCrashedAt".
     iFrame "ptsMap".
     iFrame "newBumpers".
+    (* We show that the abstract states are still ordered. *)
     iSplitR.
     { iApply big_sepM2_intro.
       - setoid_rewrite <- elem_of_dom.
-        apply set_eq. (* elem_of_equiv_L *)
+        apply set_eq.
         rewrite restrict_dom_subset_L; first done.
         rewrite -domHistsEqOrders.
-        apply slice_of_hist_dom_subset.
+        rewrite new_abs_hist_dom.
+        set_solver.
       - iModIntro.
-        rewrite /newAbsHists.
-        iIntros (??? slice ?).
+        (* rewrite /newAbsHists. *)
+        iIntros (ℓ hist order ? slice ?).
         iPureIntro.
-        apply map_lookup_zip_with_Some in slice.
-        destruct slice as ([t] & hist & -> & more).
-        destruct (hist !! t) as [s|]; simpl.
-        { apply strictly_increasing_map_singleton. }
-        { apply strictly_increasing_map_empty. } }
+        admit. }
+        (* apply map_lookup_zip_with_Some in slice. *)
+        (* destruct slice as ([t] & hist & -> & more). *)
+        (* destruct (hist !! t) as [s|]; simpl. *)
+        (* { apply strictly_increasing_map_singleton. } *)
+        (* { apply strictly_increasing_map_empty. } } *)
     iSplitR "". { admit. }
     (* Show that the bumpers are still monotone. *)
     iSplitR "".

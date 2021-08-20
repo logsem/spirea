@@ -334,8 +334,8 @@ Section predicates.
                                (positive → val → option (nvmDeltaG Σ → dProp Σ)))
     : gmapUR loc (@predicateR Σ) := pred_to_ra <$> preds.
 
-  Definition know_all_preds preds :=
-    own predicates_name (● (pred_to_ra <$> preds) : predicatesR).
+  Definition own_all_preds dq preds :=
+    own predicates_name (●{dq} (pred_to_ra <$> preds) : predicatesR).
 
   Definition encode_predicate `{Countable s}
              (ϕ : s → val → nvmDeltaG Σ → dProp Σ)
@@ -348,19 +348,20 @@ Section predicates.
         (◯ {[ ℓ := pred_to_ra (encode_predicate ϕ) ]}).
 
   Lemma know_predicates_alloc preds :
-    ⊢ |==> ∃ γ, own γ ((● (pred_to_ra <$> preds)) : predicatesR).
+    ⊢ |==> ∃ γ, own γ ((● (pred_to_ra <$> preds)) : predicatesR) ∗
+                own γ ((◯ (pred_to_ra <$> preds)) : predicatesR).
   Proof.
-    iMod (own_alloc _) as "$"; last done.
-    apply auth_auth_valid.
-    rewrite /pred_to_ra.
+    setoid_rewrite <- own_op.
+    iApply own_alloc.
+    apply auth_both_valid_2; last reflexivity.
     intros ℓ.
     rewrite lookup_fmap.
     by case (preds !! ℓ).
   Qed.
 
-  Lemma know_pred_agree `{Countable s}
-        ℓ (ϕ : s → val → nvmDeltaG Σ → dProp Σ) (preds : gmap loc predO) :
-    know_all_preds preds -∗
+  Lemma own_all_preds_pred `{Countable s}
+        dq ℓ (ϕ : s → val → nvmDeltaG Σ → dProp Σ) (preds : gmap loc predO) :
+    own_all_preds dq preds -∗
     know_pred ℓ ϕ -∗
     (∃ (o : predO),
        ⌜preds !! ℓ = Some o⌝ ∗ (* Some encoded predicate exists. *)
@@ -368,7 +369,7 @@ Section predicates.
   Proof.
     iIntros "O K".
     iDestruct (own_valid_2 with "O K") as "H".
-    iDestruct (auth_both_validI with "H") as "[tmp val]".
+    iDestruct (auth_both_dfrac_validI with "H") as "(_ & tmp & val)".
     iDestruct "tmp" as (c) "#eq".
     rewrite gmap_equivI.
     iSpecialize ("eq" $! ℓ).
@@ -402,7 +403,20 @@ Section predicates.
       iSpecialize ("eq" $! v).
       rewrite later_equivI_1.
       done.
-    Qed.
+  Qed.
+
+  Lemma predicates_frag_lookup γ predicates (ℓ : loc) pred :
+    predicates !! ℓ = Some pred →
+    own γ (◯ (pred_to_ra <$> predicates) : predicatesR) -∗
+    own γ (◯ {[ ℓ := pred_to_ra pred ]}).
+  Proof.
+    intros look. f_equiv. simpl.
+    apply auth_frag_mono.
+    rewrite singleton_included_l.
+    eexists _.
+    rewrite lookup_fmap look.
+    naive_solver.
+  Qed.
 
 End predicates.
 

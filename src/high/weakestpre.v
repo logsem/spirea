@@ -232,7 +232,7 @@ Section wp_rules.
 
     (* We need to get the points-to predicate for [ℓ]. This is inside [interp]. *)
     iNamed "interp".
-    iDestruct (know_pred_agree with "predicates knowPred") as
+    iDestruct (own_all_preds_pred with "predicates knowPred") as
       (pred predsLook) "#predsEquiv".
     iDestruct (own_full_history_agree with "[$] [$]") as %absHistlook.
     iDestruct (big_sepM_lookup_acc with "map") as "[predMap map]".
@@ -533,7 +533,7 @@ Section wp_rules.
     (* _Before_ we load the points-to predicate we deal with the predicate ϕ. We
     do this before such that the later that arrises is stripped off when we take
     the step. *)
-    iDestruct (know_pred_agree with "predicates knowPred")
+    iDestruct (own_all_preds_pred with "predicates knowPred")
       as (pred predsLook) "#predsEquiv".
 
     (* We need to get the points-to predicate for [ℓ] which is is inside
