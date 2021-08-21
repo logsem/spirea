@@ -32,13 +32,30 @@ Section nat_map.
       m !! lo = Some x ∧
       ∃ lo',
         lo < lo' ∧
-        (∀ lo'', lo < lo'' < lo' → m !! lo'' = None) ∧ (* There are not elements in between. *)
+        (∀ lo'', lo < lo'' < lo' → m !! lo'' = None) ∧ (* There are no elements in between. *)
         map_slice m lo' hi xs
     end.
 
   Lemma map_slice_lookup_between m lo hi xs t x :
     map_slice m lo hi xs → lo ≤ t ≤ hi → m !! t = Some x → x ∈ xs.
-  Proof. Admitted.
+  Proof.
+    generalize dependent m. generalize dependent lo. generalize dependent hi.
+    induction xs as [|x1 xs IH]; first done. (* Base case is trivial. *)
+    intros hi lo m.
+    (* We destruct [xs] to handle the special case where the list is a singleton. *)
+    destruct xs as [|x2 xs].
+    - intros [mLook ->] ? ?.
+      apply elem_of_list_singleton.
+      assert (t = hi) as -> by lia.
+      congruence.
+    - intros (mLook & lo' & ? & between & slice) ? ?.
+      assert (lo = t ∨ lo < t) as [eq | gt] by lia.
+      * simplify_eq. apply elem_of_list_here.
+      * apply elem_of_list_further.
+        assert (t < lo' ∨ lo' ≤ t) as [lt | ge] by lia.
+        { assert (m !! t = None) by (apply between; lia). congruence. }
+        eapply IH; [apply slice | lia | done].
+  Qed.
 
   Lemma map_slice_lookup_lo m lo hi xs :
     map_slice m lo hi xs → m !! lo = xs !! 0.
