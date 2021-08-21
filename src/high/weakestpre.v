@@ -235,7 +235,7 @@ Section wp_rules.
     iDestruct (own_all_preds_pred with "predicates knowPred") as
       (pred predsLook) "#predsEquiv".
     iDestruct (own_full_history_agree with "[$] [$]") as %absHistlook.
-    iDestruct (big_sepM_lookup_acc with "map") as "[predMap map]".
+    iDestruct (big_sepM_lookup_acc with "predsHold") as "[predMap predsHold]".
     { done. }
     iDestruct "predMap" as (pred' phys_hist physHistsLook predsLook') "predMap".
     assert (pred = pred') as <-. { apply (inj Some). rewrite -predsLook. done. }
@@ -289,10 +289,10 @@ Section wp_rules.
     iDestruct ("predMap" with "[phi]") as "predMap".
     { iApply (predicate_holds_phi with "predsEquiv phi"). done. }
     (* Reinsert into the map. *)
-    iDestruct ("map" with "[predMap]") as "map". { naive_solver. }
+    iDestruct ("predsHold" with "[predMap]") as "predsHold". { naive_solver. }
 
     iSplit; first done.
-    iSplitR "ptsMap allOrders ordered map history predicates
+    iSplitR "ptsMap allOrders ordered predsHold history predicates
              sharedLocs crashedAt allBumpers bumpMono predPostCrash".
     2: { repeat iExists _. iFrameNamed. }
     iApply "Φpost".
@@ -321,7 +321,7 @@ Section wp_rules.
     iStartProof (iProp _). iIntros (TV).
     iIntros "[pts phi]".
   Admitted.
-  (*   iDestruct "pts" as (?tGP ?tP ?tS absHist hist) "(pts & map & %incrL & %lookupP & %lookupV & %nolater & %lastVal & hist & slice & %know & per)". *)
+  (*   iDestruct "pts" as (?tGP ?tP ?tS absHist hist) "(pts & predsHold & %incrL & %lookupP & %lookupV & %nolater & %lastVal & hist & slice & %know & per)". *)
   (*   rewrite monPred_at_wand. simpl. *)
   (*   iIntros (TV' incl) "Φpost". *)
   (*   rewrite monPred_at_later. *)
@@ -546,7 +546,7 @@ Section wp_rules.
     iDestruct (
         location_sets_singleton_included with "sharedLocs isSharedLoc"
       ) as %ℓSh.
-    iDestruct (big_sepM_lookup_acc with "map") as "[predMap map]".
+    iDestruct (big_sepM_lookup_acc with "predsHold") as "[predMap predsHold]".
     { done. }
     iDestruct "predMap" as
         (pred' physHist physHistLook predsLook') "predMap".
@@ -620,14 +620,14 @@ Section wp_rules.
       iApply (predicate_holds_phi_decode with "predsEquiv phi").
       done. }
     (* Reinsert into the map. *)
-    iDestruct ("map" with "[predMap]") as "map".
+    iDestruct ("predsHold" with "[predMap]") as "predsHold".
     { iExists _, _. naive_solver. }
 
     iMod (own_full_history_alloc with "history") as "[history histS]"; try done.
     iModIntro.
     (* We re-establish [interp]. *)
     iSplit. { iPureIntro. repeat split; try done; apply view_le_l. }
-    iSplitR "ptsMap allOrders ordered map history predicates
+    iSplitR "ptsMap allOrders ordered predsHold history predicates
              crashedAt sharedLocs allBumpers bumpMono predPostCrash".
     2: { repeat iExists _. iFrameNamed. }
     iSpecialize ("Φpost" $! sL v').

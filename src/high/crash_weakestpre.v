@@ -13,6 +13,8 @@ From self.high Require Export dprop resources lifted_modalities monpred_simpl
 Section wpc.
   Context `{nvmFixedG Σ, hGD : nvmDeltaG Σ}.
 
+  Implicit Types (TV : thread_view).
+
   (* NOTE: The definition uses [i < j] and not [i ≤ j] in order to make the
   lemma [increasing_map_singleton] provable. When we use [increasing_map] the
   relation [R] will always be reflexive, and hence this does not matter. The
@@ -41,7 +43,7 @@ Section wpc.
 
   Definition encoded_predicate_holds
              (enc_pred : positive → val → option (nvmDeltaG Σ → dProp Σ))
-             (enc_state : positive) (v : val) (TV : thread_view) : iProp Σ :=
+             (enc_state : positive) (v : val) TV : iProp Σ :=
     (∃ P, ⌜enc_pred enc_state v = Some P⌝ ∗ P _ TV).
 
   (** This is our analog to the state interpretation in the Iris weakest
@@ -79,7 +81,7 @@ Section wpc.
                     ⌜increasing_map order hist⌝) ∗
 
       (* The predicates hold for all the exclusive locations. *)
-      "map" ∷
+      "predsHold" ∷
         ([∗ map] ℓ ↦ abs_hist ∈ abs_hists, ∃ pred phys_hist,
           ⌜phys_hists !! ℓ = Some phys_hist⌝ ∗
           ⌜predicates !! ℓ = Some pred⌝ ∗
@@ -95,8 +97,8 @@ Section wpc.
         ∀ e1 e2 e1' e2', ⌜bump e1 = Some e1'⌝ → ⌜bump e2 = Some e2'⌝ →
                          ⌜order e1 e2⌝ → ⌜order e1' e2'⌝) ∗
       (* The predicate holds after a crash for the bumped state. *)
-      "predPostCrash" ∷ ([∗ map] ℓ ↦ pred; bump ∈ predicates; bumpers,
-        (∀ (e : positive) (v : val) (TV : thread_view) (P : nvmDeltaG Σ → dProp _) e',
+      "#predPostCrash" ∷ ([∗ map] ℓ ↦ pred; bump ∈ predicates; bumpers,
+        □ (∀ (e : positive) (v : val) TV (P : nvmDeltaG Σ → dProp _) e',
           ⌜bump e = Some e'⌝ ∗ ⌜pred e v = Some P⌝ ∗ P _ TV -∗
           ∃ P', ⌜pred e' v = Some P'⌝ ∗ ((post_crash_flushed P') (∅, ∅, ∅)))) ∗
       (* Bumpers map valid input to valid output. *)

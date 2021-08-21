@@ -45,7 +45,7 @@ Section nat_map.
 
   Definition max_member m t v :=
     (m !! t = Some v) ∧ (∀ t', t < t' → m !! t' = None).
-  
+
   (** Expresses that the map [m] contains, in order, the values [xs] from the
   indeces starting at exactly [lo] ending at exactly [hi]. *)
   Fixpoint map_slice m (lo hi : nat) (xs : list A) :=
@@ -85,7 +85,7 @@ Section nat_map.
     - intros [? [lo' Hh]]. apply (IH hi lo').
       apply Hh.
   Qed.
-  
+
 End nat_map.
 
 (* This section has been upstreamed. *)
@@ -416,3 +416,34 @@ End restrict_leibniz.
 Lemma valid_to_agree_fmap `{Countable K} {B : ofe} (m : gmap K B) :
   ✓ (to_agree <$> m : gmapUR _ _).
 Proof. intros ℓ. rewrite lookup_fmap. by case (m !! ℓ). Qed.
+
+Section big_sepM2.
+  Context {PROP : bi}.
+  Context `{Countable K} {A B : Type}.
+  Implicit Types Φ Ψ : K → A → B → PROP.
+
+  Lemma big_sepM2_impl_subseteq `{!BiAffine PROP} (m1 n1 : gmap K A) (m2 n2 : gmap K B) Φ :
+    n1 ⊆ m1 →
+    n2 ⊆ m2 →
+    dom (gset _) n1 ≡ dom _ n2 →
+    ([∗ map] k↦y1;y2 ∈ m1;m2, Φ k y1 y2) -∗
+    [∗ map] k↦y1;y2 ∈ n1;n2, Φ k y1 y2.
+  Proof.
+    rewrite 2!big_sepM2_alt.
+    iIntros (sub sub' eq) "[%impl map]".
+    iSplit.
+    - setoid_rewrite <- elem_of_dom. rewrite -set_equiv. done.
+    - iDestruct (big_sepM_impl_dom_subseteq with "map []") as "[$ temp]".
+      { rewrite 2!map_zip_with_dom.
+        apply subseteq_dom in sub.
+        apply subseteq_dom in sub'.
+        set_solver. }
+      iModIntro.
+      setoid_rewrite map_subseteq_spec in sub.
+      setoid_rewrite map_subseteq_spec in sub'.
+      iIntros (? [??] [??] [? ?]%map_lookup_zip_Some
+               [look1%sub look2%sub']%map_lookup_zip_Some).
+      naive_solver.
+  Qed.
+
+End big_sepM2.

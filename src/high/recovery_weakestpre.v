@@ -435,10 +435,13 @@ Section wpr.
     (* We show that the encoded predicates still hold for the new abstract
     history. *)
     iSplitR "". {
-      iDestruct (big_sepM_impl_dom_subseteq with "map []") as "[$ h']".
+      (* We use the old predsHold to show the new predsHold. There are more
+      locations in the old abstract state so the new predsHold is over a subset
+      of locations. *)
+      iDestruct (big_sepM_impl_dom_subseteq with "predsHold []") as "[$ temp]".
       { rewrite new_abs_hist_dom. set_solver. }
       iModIntro.
-      iIntros (ℓ encHist encHist' absHistLook newAbsHistLook).
+      iIntros (ℓ encHist newEncHist absHistLook newAbsHistLook).
       pose proof (new_abs_hist_lookup_inv _ _ _ _ _ newAbsHistLook)
         as (t & s & s' & bumper & hist & CVLook & absHistsLook & histLook &
             bumpersLook & bumperAp & histEq).
@@ -460,31 +463,22 @@ Section wpr.
         rewrite /newPreds.
         apply restrict_lookup_Some_2; first done.
         apply elem_of_dom. done. }
-      iEval (rewrite big_sepM2_alt).
-      iEval (rewrite big_sepM2_alt) in "encs". iDestruct "encs" as "[ned encs]".
-      iSplit.
-      { iPureIntro.
-        rewrite histEq.
-        rewrite /is_Some. setoid_rewrite lookup_singleton_Some.
-        naive_solver. }
-      iDestruct (big_sepM_impl_dom_subseteq with "encs []") as "[$ hi]".
-      { admit. }
-      iModIntro.
+      rewrite histEq.
+      rewrite big_sepM2_singleton.
+      (* We now looks up in [predPostCrash]. *)
+      iDestruct (big_sepM2_lookup with "predPostCrash") as "#hi";
+        [apply predsLook | apply bumpersLook | ].
       admit. }
+
     (* Show that the bumpers are still monotone. *)
     iSplitR "".
-    {
-      iEval (rewrite big_sepM2_alt) in "bumpMono".
-      iEval (rewrite big_sepM2_alt).
-      (* do 2 rewrite big_sepM2_alt. *)
-      iDestruct "bumpMono" as (bunny) "bumpMono".
-      iSplit.
-      { iPureIntro. admit. }
-      iDestruct (big_sepM_impl_dom_subseteq _ _ _ _ with "bumpMono []") as "[$ _]".
-      { admit. }
-      iModIntro.
-      iIntros (**).
-      admit. }
+    { iApply (big_sepM2_impl_subseteq with "bumpMono").
+      { apply restrict_subseteq. }
+      { apply restrict_subseteq. }
+      { rewrite /newOrders /newBumpers.
+        rewrite 2!restrict_dom.
+        rewrite -domOrdersEqBumpers.
+        set_solver. } }
     iSplitR "". { admit. }
     iSplitR "". { admit. }
     admit.
