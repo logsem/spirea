@@ -13,30 +13,6 @@ From iris.bi Require Import derived_laws_later.
 (* We define our own relation. Workaround for universe issues in stdpp and Iris. *)
 Definition relation2 A := A -> A -> Prop.
 
-(* Section union_with.
-
-  Context `{FinMap K M}.
-
-  Context {A} (f : A → A → option A).
-
-  Implicit Types m : M A.
-
-  Lemma union_with_comm m1 m2 :
-    (∀ i x y, m1 !! i = Some x → m2 !! i = Some y → f x y = f y x) →
-    union_with f m1 m2 = union_with f m2 m1.
-  Proof.
-    intros. apply (merge_comm _). intros i.
-    destruct (m1 !! i) eqn:?, (m2 !! i) eqn:?; simpl; eauto.
-  Qed.
-  Global Instance: Comm (=) f → Comm (=@{M A}) (union_with f).
-  Proof. intros ???. apply union_with_comm. eauto. Qed.
-
-End union_with. *)
-
-(* Definition max_list := foldr max 0. *)
-
-Definition min_list := foldr min 0.
-
 (* Lemmas about finite maps of natural numbers. *)
 Section nat_map.
   Context `{FinMap nat M} {A : Type}.
@@ -58,7 +34,6 @@ Section nat_map.
         lo < lo' ∧
         (∀ lo'', lo < lo'' < lo' → m !! lo'' = None) ∧ (* There are not elements in between. *)
         map_slice m lo' hi xs
-        (* map_slice m (min_list $ elements $ filter (λ t, lo < t) (dom (gset nat) m)) hi xs *)
     end.
 
   Lemma map_slice_lookup_between m lo hi xs t x :
@@ -89,26 +64,26 @@ Section nat_map.
 End nat_map.
 
 (* This section has been upstreamed. *)
-Section max_list.
-  (* Context {A : Type}. *)
+(* Section max_list. *)
+(*   (* Context {A : Type}. *) *)
 
-  Lemma max_list_elem_of_le n ns:
-    n ∈ ns → n ≤ max_list ns.
-  Proof. induction 1; simpl; lia. Qed.
+(*   Lemma max_list_elem_of_le n ns: *)
+(*     n ∈ ns → n ≤ max_list ns. *)
+(*   Proof. induction 1; simpl; lia. Qed. *)
 
-  Lemma max_list_elem_of ns : ns ≠ [] → max_list ns ∈ ns.
-  Proof.
-    intros H. induction ns; [done|]. simpl.
-    edestruct (Nat.max_spec a) as [[Hle ->]|[HO ->]].
-    - destruct ns; [simpl in *; lia|].
-      by apply elem_of_list_further, IHns.
-    - apply elem_of_list_here.
-  Qed.
+(*   Lemma max_list_elem_of ns : ns ≠ [] → max_list ns ∈ ns. *)
+(*   Proof. *)
+(*     intros H. induction ns; [done|]. simpl. *)
+(*     edestruct (Nat.max_spec a) as [[Hle ->]|[HO ->]]. *)
+(*     - destruct ns; [simpl in *; lia|]. *)
+(*       by apply elem_of_list_further, IHns. *)
+(*     - apply elem_of_list_here. *)
+(*   Qed. *)
 
-  Lemma max_list_not_elem_of_gt n ns : max_list ns < n → n ∉ ns.
-  Proof. intros ?. induction 1; simpl in *; lia. Qed.
+(*   Lemma max_list_not_elem_of_gt n ns : max_list ns < n → n ∉ ns. *)
+(*   Proof. intros ?. induction 1; simpl in *; lia. Qed. *)
 
-End max_list.
+(* End max_list. *)
 
 Lemma singleton_included_insert `{Countable K} {A : cmra} (k : K) (a a' : A) (m : gmap K A) :
   a ≼ a' → {[k := a]} ≼ <[k:=a']> m.
@@ -197,115 +172,10 @@ Section big_sepM.
     by setoid_rewrite wand_elim_l.
   Qed.
 
-  (* upstreamed *)
-  (* Lemma map_filter_id (P : (K * A → Prop)) `{∀ (x : (K * A)), Decision (P x)} m *)
-  (*   : (∀ k x, m !! k = Some x → P (k, x)) → filter P m = m. *)
-  (* Proof. *)
-  (*   intros Hi. induction m as [|i y m ? IH] using map_ind; [done|]. *)
-  (*   rewrite map_filter_insert. *)
-  (*   - rewrite IH; [done|]. *)
-  (*     intros j ??. apply Hi. destruct (decide (i = j)); [naive_solver|]. *)
-  (*     apply lookup_insert_Some. naive_solver. *)
-  (*   - apply Hi. by rewrite lookup_insert. *)
-  (* Qed. *)
-
-  (* Lemma big_sepM_impl_strong {B} *)
-  (*       (Φ : K → A → PROP) (Ψ : K → B → PROP) (m1 : gmap K A) (m2 : gmap K B) : *)
-  (*   ([∗ map] k↦x ∈ m1, Φ k x) -∗ *)
-  (*   □ (∀ (k : K) (y : B), *)
-  (*         ⌜m2 !! k = Some y⌝ -∗ *)
-  (*         ((∃ (x : A), ⌜m1 !! k = Some x⌝ ∗ Φ k x) ∨ ⌜m1 !! k = None⌝) -∗ *)
-  (*         Ψ k y) -∗ *)
-  (*   ([∗ map] k↦y ∈ m2, Ψ k y) ∗ *)
-  (*   ([∗ map] k↦x ∈ (filter (λ '(k, _), m2 !! k = None) m1), Φ k x). *)
-  (* Proof. *)
-  (*   revert Φ m1. induction m2 as [|i y m ? IH] using map_ind=> Φ. *)
-  (*   - iIntros (m1) "H _". rewrite map_filter_id; [by iFrame| naive_solver]. *)
-  (*   - iIntros (m1) "A #H". *)
-  (*     rewrite big_sepM_insert; last done. *)
-  (*     destruct (m1 !! i) as [x|] eqn:look. *)
-  (*     * iDestruct (big_sepM_delete with "A") as "[phi A]"; first apply look. *)
-  (*       iDestruct ("H" $! i y with "[%] [phi]") as "HΨ". *)
-  (*       { by rewrite lookup_insert. } *)
-  (*       { iLeft. iExists x. iFrame. done. } *)
-  (*       iFrame. *)
-  (*       iDestruct (IH with "[A] [H]") as "[$ Hi]". *)
-  (*       { iFrame "A". } *)
-  (*       { iModIntro. *)
-  (*         iIntros (i' y' look1) "disj". *)
-  (*         iSpecialize ("H" $! i' y'). *)
-  (*         destruct (decide (i = i')) as [?|neq]; first simplify_eq. *)
-  (*         rewrite lookup_insert_ne; last done. *)
-  (*         rewrite lookup_delete_ne; last done. *)
-  (*         iSpecialize ("H" $! look1 with "disj"). *)
-  (*         done. *)
-  (*       } *)
-  (*       erewrite map_filter_strong_ext_1. *)
-  (*       { iFrame "Hi". } *)
-  (*       simpl. *)
-  (*       intros j x'. *)
-  (*       destruct (decide (i = j)). *)
-  (*       { simplify_eq. rewrite lookup_delete. rewrite lookup_insert. naive_solver. } *)
-  (*       rewrite lookup_delete_ne // lookup_insert_ne //. *)
-  (*     * iDestruct ("H" $! i y with "[%] []") as "$". *)
-  (*       { by rewrite lookup_insert. } *)
-  (*       { iRight. iFrame. done. } *)
-  (*       (* iFrame "HΨ". *) *)
-  (*       iDestruct (IH with "[A] [H]") as "Hi". *)
-  (*       { iFrame "A". } *)
-  (*       { iModIntro. *)
-  (*         iIntros (i' y' look1) "disj". *)
-  (*         iSpecialize ("H" $! i' y'). *)
-  (*         destruct (decide (i = i')) as [?|neq]; first simplify_eq. *)
-  (*         rewrite lookup_insert_ne; last done. *)
-  (*         iSpecialize ("H" $! look1 with "disj"). *)
-  (*         done. } *)
-  (*       iDestruct "Hi" as "[$ Hi]". *)
-  (*       erewrite map_filter_strong_ext_1. *)
-  (*       { iFrame "Hi". } *)
-  (*       intros i' x'. simpl. *)
-  (*       destruct (decide (i = i')) as [?|neq]; first naive_solver. *)
-  (*       by rewrite lookup_insert_ne. *)
-  (* Qed. *)
-
-  (* Lemma big_sepM_impl_sub {B} *)
-  (*       (Φ : K → A → PROP) (Ψ : K → B → PROP) (m1 : gmap K A) (m2 : gmap K B) : *)
-  (*   dom (gset _) m2 ⊆ dom _ m1 → *)
-  (*   ([∗ map] k↦x ∈ m1, Φ k x) -∗ *)
-  (*   □ (∀ (k : K) (x : A) (y : B), *)
-  (*         ⌜m1 !! k = Some x⌝ -∗ *)
-  (*         ⌜m2 !! k = Some y⌝ -∗ *)
-  (*         Φ k x -∗ *)
-  (*         Ψ k y) -∗ *)
-  (*   ([∗ map] k↦y ∈ m2, Ψ k y) ∗ *)
-  (*   ([∗ map] k↦x ∈ (filter (λ '(k, _), m2 !! k = None) m1), Φ k x). *)
-  (* Proof. *)
-  (*   intros sub. *)
-  (*   iIntros "M #impl". *)
-  (*   iApply (big_sepM_impl_strong with "M [impl]"). *)
-  (*   iIntros "!>" (?? look1) "H". *)
-  (*   iDestruct "H" as "[H|%]". *)
-  (*   2: { setoid_rewrite <- not_elem_of_dom in H1. *)
-  (*        apply elem_of_dom_2 in look1. *)
-  (*        set_solver. } *)
-  (*   iDestruct "H" as (x look) "ϕ". *)
-  (*   iApply ("impl" with "[//] [//] ϕ"). *)
-  (* Qed. *)
-
 End big_sepM.
 
 Section map_zip_with.
   Context `{FinMap K M}.
-
-  (* upstreamed *)
-  Lemma map_lookup_zip_with_None {A B C} (f : A → B → C) (m1 : M A) (m2 : M B) i :
-    map_zip_with f m1 m2 !! i = None ↔ m1 !! i = None ∨ m2 !! i = None.
-  Proof. rewrite map_lookup_zip_with. destruct (m1 !! i), (m2 !! i); naive_solver. Qed.
-
-  (* Upstreamed. *)
-  Lemma map_lookup_zip_Some {A B} (m1 : M A) (m2 : M B) l p :
-    (map_zip m1 m2) !! l = Some p ↔ m1 !! l = Some p.1 ∧ m2 !! l = Some p.2.
-  Proof. rewrite map_lookup_zip_with_Some. destruct p. naive_solver. Qed.
 
   (* Upstream this. *)
   Lemma map_zip_with_dom_fst `{FinMapDom K M D} {A B C}
@@ -342,11 +212,6 @@ Section map_zip_with.
     dom D mb ⊆ dom D ma →
     dom D (map_zip_with f ma mb) ≡ dom D mb.
   Proof. rewrite map_zip_with_dom. set_solver. Qed.
-
-  (* Upstreamed *)
-  Lemma not_elem_of_weaken `{Countable A} l (m1 m2 : gset A) :
-    l ∉ m2 → m1 ⊆ m2 → l ∉ m1.
-  Proof. set_solver. Qed.
 
 End map_zip_with.
 
