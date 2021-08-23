@@ -688,7 +688,7 @@ Section points_to_shared.
 
         "%slice" ∷ ⌜map_slice abs_hist tP tStore ss⌝ ∗
 
-        (* We "have"/"know of" the three timestamps. *)
+        (* We "have"/"know of" the two timestamps. *)
         "haveTStore" ∷ have_store_view ℓ tStore ∗
         "pers" ∷ if persisted then ⎡ persisted_loc ℓ tP ⎤ else ⌜tP = 0⌝)%I.
 
@@ -831,6 +831,20 @@ Section points_to_shared.
     apply map_slice_lookup_hi_alt in slice.
     naive_solver.
   Qed.
+
+  Lemma mapsto_ex_store_lb_incl ℓ b ss s1 s2 :
+    last ss = Some s1 →
+    know_store_lb ℓ s2 -∗
+    mapsto_ex b ℓ ss -∗
+    ⌜s2 ⊑ s1⌝.
+  Proof. Admitted.
+
+  Lemma mapsto_ex_flush_lb_incl ℓ b ss s1 s2 :
+    last ss = Some s1 →
+    know_flush_lb ℓ s2 -∗
+    mapsto_ex b ℓ ss -∗
+    ⌜s2 ⊑ s1⌝.
+  Proof. Admitted.
 
 End points_to_shared.
 
