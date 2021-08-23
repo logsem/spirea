@@ -90,29 +90,33 @@ Section nat_map.
     exists x. split; last done. rewrite -eq. by eapply map_slice_lookup_hi.
   Qed.
 
+  (* The map [m] is undefined for all natural numbers greater than [t]. *)
+  Definition map_no_later m t := ∀ t', t < t' → m !! t' = None.
+
+  Lemma map_no_later_Some m t t' :
+    map_no_later m t → is_Some (m !! t') → t' ≤ t.
+  Proof. intros ? ?%not_eq_None_Some. apply not_gt. naive_solver. Qed.
+
+  Lemma map_no_later_singleton t x :
+    map_no_later {[ t := x ]} t.
+  Proof. intros ??. rewrite lookup_singleton_ne; [done | lia]. Qed.
+
+  Lemma map_slice_no_later_elem_of abs_hist tP t tStore xs x :
+    abs_hist !! t = Some x →
+    tP ≤ t →
+    map_slice abs_hist tP tStore xs →
+    map_no_later abs_hist tStore →
+    x ∈ xs.
+  Proof.
+    intros ??? nolater.
+    eapply map_slice_lookup_between; [done | | done].
+    split; first done.
+    apply not_gt.
+    intros gt%nolater.
+    congruence.
+  Qed.
+
 End nat_map.
-
-(* This section has been upstreamed. *)
-(* Section max_list. *)
-(*   (* Context {A : Type}. *) *)
-
-(*   Lemma max_list_elem_of_le n ns: *)
-(*     n ∈ ns → n ≤ max_list ns. *)
-(*   Proof. induction 1; simpl; lia. Qed. *)
-
-(*   Lemma max_list_elem_of ns : ns ≠ [] → max_list ns ∈ ns. *)
-(*   Proof. *)
-(*     intros H. induction ns; [done|]. simpl. *)
-(*     edestruct (Nat.max_spec a) as [[Hle ->]|[HO ->]]. *)
-(*     - destruct ns; [simpl in *; lia|]. *)
-(*       by apply elem_of_list_further, IHns. *)
-(*     - apply elem_of_list_here. *)
-(*   Qed. *)
-
-(*   Lemma max_list_not_elem_of_gt n ns : max_list ns < n → n ∉ ns. *)
-(*   Proof. intros ?. induction 1; simpl in *; lia. Qed. *)
-
-(* End max_list. *)
 
 Lemma singleton_included_insert `{Countable K} {A : cmra} (k : K) (a a' : A) (m : gmap K A) :
   a ≼ a' → {[k := a]} ≼ <[k:=a']> m.
@@ -122,17 +126,6 @@ Proof.
   exists a'.
   split. - by rewrite lookup_insert. - apply Some_included. right. done.
 Qed.
-
-Lemma big_sepM_imap {PROP : bi} `{Countable K} {A B} (f : K → A → B) (Φ : K → B → PROP) (m : gmap K A) :
-  ([∗ map] k↦y ∈ map_imap (λ (k : K) a, Some (f k a)) m, Φ k y) ⊣⊢ ([∗ map] k↦y ∈ m, Φ k (f k y)).
-Proof. Admitted.
-
-Lemma big_sepM_impl' {PROP : bi} `{Countable K} {A B} (Φ : K → A → PROP) (Ψ : K → B → PROP) (m1 : gmap K A) (m2 : gmap K B) :
-  dom (gset K) m1 = dom _ m2 →
-  ([∗ map] k↦x ∈ m1, Φ k x) -∗
-  □ (∀ (k : K) (x : A) (y : B), ⌜m1 !! k = Some x⌝ → ⌜m2 !! k = Some y⌝ → Φ k x -∗ Ψ k y) -∗
-  [∗ map] k↦y ∈ m2, Ψ k y.
-Proof. Admitted.
 
 Lemma map_Forall_singleton `{FinMap K M} {A} (j : K) (y : A) (P : K → A → Prop) :
   P j y ↔

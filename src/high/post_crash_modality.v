@@ -66,7 +66,9 @@ Definition know_history_post_crash `{nvmFixedG Σ}
   or_lost_post_crash ℓ (λ t,
     ∃ s, ⌜hist !! t = Some s⌝ ∗
          know_full_encoded_history_loc ℓ ({[ 0 := s ]}) ∗
-         know_frag_encoded_history_loc ℓ ({[ 0 := s ]}))%I.
+         know_frag_encoded_history_loc ℓ ({[ 0 := s ]}) ∗
+         (* Remove this last thing if [persisted] is added to [crashed_at]. *)
+         persisted_loc ℓ 0)%I.
 
 Definition post_crash_history_impl `{hG : nvmFixedG Σ}
            (hGD hGD' : nvmDeltaG Σ) : iProp Σ :=
@@ -245,13 +247,22 @@ Section post_crash_interact.
     iDestruct "disj" as "[(% & _ & ?) | hop]"; try naive_solver.
   Qed.
 
-  Lemma or_lost_get CV ℓ P :
+  Lemma or_lost_get `{nvmDeltaG Σ} CV ℓ P :
     is_Some (CV !! ℓ) → ⎡ crashed_at CV ⎤ -∗ or_lost ℓ P -∗ P.
   Proof.
-    iIntros ((? & look)) "crashed".
-    iDestruct 1 as (CV') "[crashed' [$ | %look']]".
-    iDestruct (crashed_at_agree with "crashed crashed'") as %->.
-    simplify_eq.
+    iIntros ([[t] look]) "crash (%CV' & crash' & [$ | %look'])".
+    iDestruct (crashed_at_agree with "crash crash'") as %<-.
+    congruence.
+  Qed.
+
+  Lemma or_lost_with_t_get `{nvmDeltaG Σ} CV ℓ t P :
+    CV !! ℓ = Some (MaxNat t) → ⎡ crashed_at CV ⎤ -∗ or_lost_with_t ℓ P -∗ P t.
+  Proof.
+    rewrite /or_lost_with_t.
+    iIntros (look) "crash (%CV' & crash' & [(%t' & %look' & P)|%look'])";
+    iDestruct (crashed_at_agree with "crash crash'") as %<-.
+    - simplify_eq. iFrame "P".
+    - congruence.
   Qed.
 
   Lemma post_crash_know_full_history_loc ℓ (abs_hist : gmap time ST) :
@@ -259,7 +270,9 @@ Section post_crash_interact.
     <PC> _, or_lost_with_t ℓ (λ t, ∃ (s : ST),
         ⌜abs_hist !! t = Some s⌝ ∗
         ⎡ know_full_history_loc ℓ {[ 0 := s ]} ⎤ ∗
-        ⎡ know_frag_history_loc ℓ {[ 0 := s ]} ⎤).
+        ⎡ know_frag_history_loc ℓ {[ 0 := s ]} ⎤ ∗
+        (* Remove this last thing if [persisted] is added to [crashed_at]. *)
+        ⎡ persisted_loc ℓ 0 ⎤).
   Proof.
     iStartProof (iProp _). iIntros (TV') "HP".
     iIntrosPostCrash.
@@ -279,8 +292,8 @@ Section post_crash_interact.
       iPureIntro.
       by apply v. }
     iDestruct ("reIns" with "[$HP]") as "$".
-    iFrame "in".
-    iFrameNamed.
+    iFrame "in post_crash_history_impl post_crash_pred_impl post_crash_bumper_impl".
+    (* iFrameNamed. *)
     rewrite /know_history_post_crash /or_lost_with_t.
     iDestruct "H" as (CV) "[crashedAt [H|H]]"; iExists (CV);
       iFrame "crashedAt"; [iLeft|iRight; done].
@@ -408,8 +421,9 @@ Section IntoCrash.
       (⎡know_full_history_loc ℓ abs_hist⎤)
       (λ hG', or_lost_with_t ℓ (λ t, ∃ (s : ST),
         ⌜abs_hist !! t = Some s⌝ ∗
-        ⎡know_full_history_loc ℓ {[ 0 := s ]}⎤ ∗
-        ⎡know_frag_history_loc ℓ {[ 0 := s ]}⎤))%I.
+        ⎡ know_full_history_loc ℓ {[ 0 := s ]} ⎤ ∗
+        ⎡ know_frag_history_loc ℓ {[ 0 := s ]} ⎤ ∗
+        ⎡ persisted_loc ℓ 0 ⎤ ))%I.
   Proof.
     rewrite /IntoCrash. iIntros "P".
     by iApply post_crash_know_full_history_loc.
@@ -547,57 +561,73 @@ Section post_crash_derived.
     - iApply know_store_lb_at_zero; done.
   Qed.
 
+  (* NOTE: This rule should be changed once the "bump-back function" is
+  introduced. *)
+  Lemma post_crash_mapsto_persisted_ex `{AbstractState ST} ℓ ss :
+    ℓ ↦ₚ ss -∗ <PC> hG', ∃ s, ⌜s ∈ ss⌝ ∗ ℓ ↦ₚ [s] ∗ recovered_at ℓ s.
+  Proof.
+    iNamed 1.
+    iDestruct "order" as "-#order".
+    iCrash.
+    iDestruct "pers" as "(persisted & (%CV & % & [% %] & #crash))".
+    iDestruct (or_lost_get with "crash order") as "order"; first done.
+    iDestruct (or_lost_with_t_get with "crash hist") as (s) "(% & ? & ? & _)";
+      first done.
+    iExists s.
+    iSplit. { iPureIntro. by eapply map_slice_no_later_elem_of. }
+    iSplit.
+    - iExists 0, 0, _. iFrame.
+      iPureGoal. { apply increasing_list_singleton. }
+      iPureGoal. { by rewrite lookup_singleton. }
+      iPureGoal. { apply map_no_later_singleton. }
+      iPureGoal. { simpl. by rewrite lookup_singleton. }
+      rewrite /have_store_view.
+      iStopProof.
+      iStartProof (iProp _). iIntros (?) "_ !%".
+      lia.
+    - iExists _. iFrame "∗#". iPureIntro. apply elem_of_dom. naive_solver.
+  Qed.
+
   Lemma post_crash_mapsto_ex `{AbstractState ST} ℓ ss :
     ℓ ↦ ss -∗
-    post_crash (λ hG', (∃ s, ⌜s ∈ ss⌝ ∗ ℓ ↦ [s] ∗ recovered_at ℓ s) ∨ lost ℓ).
-   Proof.
-     rewrite /mapsto_ex.
-     (* iStartProof (iProp _). iIntros (TV). simpl. *)
-     iNamed 1.
-     iDestruct "pers" as %tPeq.
-     iDestruct "order" as "-#order".
-     iCrash.
-     iDestruct "hist" as (CV) "[#crashed [left|%look]]".
-     - iDestruct "left" as (t look) "(%s & %absHistLook & full & frag)".
-       iLeft.
-       iExists s.
-       iSplit.
-       { iPureIntro. apply: map_slice_lookup_between; try done.
-         split; first lia.
-         eapply map_no_later_Some; naive_solver. }
-       rewrite /recovered_at.
-       iSplit.
-       + iExists 0, 0, _. iFrame.
-         iPureGoal. { apply increasing_list_singleton. }
-         iPureGoal. { by rewrite lookup_singleton. }
-         iPureGoal. { apply map_no_later_singleton. }
-         iPureGoal. { by rewrite lookup_singleton. }
-         iPureGoal. { done. }
-         rewrite /or_lost.
-         iDestruct (or_lost_get with "[$] order") as "$"; first naive_solver.
-         (* iDestruct (or_lost_get with "[$] isExclusiveLoc") as "$"; first naive_solver. *)
-         iStopProof.
-         iStartProof (iProp _). iIntros (?) "_".
-         simpl. iPureIntro. lia.
-       + iExists _. iFrame "∗#". iPureIntro. rewrite elem_of_dom. naive_solver.
-     - iRight. iExists CV. iFrame "∗#". iPureIntro. by rewrite not_elem_of_dom. 
+    post_crash (λ hG', (∃ s, ⌜s ∈ ss⌝ ∗ ℓ ↦ₚ [s] ∗ recovered_at ℓ s) ∨ lost ℓ).
+  Proof.
+    rewrite /mapsto_ex.
+    iNamed 1.
+    iDestruct "pers" as %tPeq.
+    iDestruct "order" as "-#order".
+    iCrash.
+    iDestruct "hist" as (CV) "[#crash [left|%look]]".
+    - iDestruct "left" as (t look) "(%s & %absHistLook & full & frag & pers)".
+      iDestruct (or_lost_get with "crash order") as "order"; first done.
+      iLeft.
+      iExists s.
+      iSplit.
+      { iPureIntro. apply: map_slice_lookup_between; try done.
+        split; first lia.
+        eapply map_no_later_Some; naive_solver. }
+      rewrite /recovered_at.
+      iSplit.
+      + iExists 0, 0, _. iFrame.
+        iPureGoal. { apply increasing_list_singleton. }
+        iPureGoal. { by rewrite lookup_singleton. }
+        iPureGoal. { apply map_no_later_singleton. }
+        iPureGoal. { by rewrite lookup_singleton. }
+        iStopProof.
+        iStartProof (iProp _). iIntros (?) "_".
+        simpl. iPureIntro. lia.
+      + iExists _. iFrame "∗#". iPureIntro. rewrite elem_of_dom. naive_solver.
+    - iRight. iExists CV. iFrame "∗#". iPureIntro. by rewrite not_elem_of_dom.
   Qed.
 
   Global Instance mapsto_ex_into_crash `{AbstractState ST} ℓ ss :
     IntoCrash
       (ℓ ↦ ss)%I
-      (λ hG', (∃ s, ⌜s ∈ ss⌝ ∗ ℓ ↦ [s] ∗ recovered_at ℓ s) ∨ lost ℓ)%I.
+      (λ hG', (∃ s, ⌜s ∈ ss⌝ ∗ ℓ ↦ₚ [s] ∗ recovered_at ℓ s) ∨ lost ℓ)%I.
   Proof. rewrite /IntoCrash. iIntros "P". by iApply post_crash_mapsto_ex. Qed.
 
-  (* NOTE: This rule should hold as of right now — but not after the "bump-back
-  function" is implemented. *)
-  Lemma post_crash_mapsto_persisted_ex `{AbstractState ST} ℓ ss :
-    ℓ ↦ₚ ss -∗ <PC> hG', ∃ s, ⌜s ∈ ss⌝ ∗ ℓ ↦ₚ [s].
-  Proof.
-  Admitted.
-
   Global Instance mapsto_ex_persisted_into_crash `{AbstractState ST} ℓ ss :
-    IntoCrash (ℓ ↦ₚ ss)%I (λ hG', ∃ s, ⌜s ∈ ss⌝ ∗ ℓ ↦ₚ [s])%I.
+    IntoCrash (ℓ ↦ₚ ss)%I (λ hG', ∃ s, ⌜s ∈ ss⌝ ∗ ℓ ↦ₚ [s] ∗ recovered_at ℓ s)%I.
   Proof.
     rewrite /IntoCrash. iIntros "P". by iApply post_crash_mapsto_persisted_ex.
   Qed.

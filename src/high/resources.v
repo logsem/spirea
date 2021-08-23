@@ -635,17 +635,6 @@ Section bumpers.
 
 End bumpers.
 
-(* The map [m] is undefined for all natural numbers greater than [t]. *)
-Definition map_no_later {A} (m : gmap nat A) t := ∀ t', t < t' → m !! t' = None.
-
-Lemma map_no_later_Some {A} (m : gmap nat A) t t' :
-  map_no_later m t → is_Some (m !! t') → t' ≤ t.
-Proof. intros ? ?%not_eq_None_Some. apply not_gt. naive_solver. Qed.
-
-Lemma map_no_later_singleton {A} t (s : A) :
-  map_no_later {[ t := s ]} t.
-Proof. intros ??. rewrite lookup_singleton_ne; [done | lia]. Qed.
-
 Definition increasing_list `{SqSubsetEq ST} (ss : list ST) :=
   ∀ i j s s', i < j → (ss !! i = Some s) → (ss !! j = Some s') → s ≠ s' ∧ s ⊑ s'.
 
