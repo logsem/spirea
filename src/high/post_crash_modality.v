@@ -632,6 +632,17 @@ Section post_crash_derived.
     rewrite /IntoCrash. iIntros "P". by iApply post_crash_mapsto_persisted_ex.
   Qed.
 
+  Lemma recovered_at_or_lost `{AbstractState ST} ℓ P (s : ST) :
+    recovered_at ℓ s -∗ or_lost ℓ P -∗ P.
+  Proof.
+    iNamed 1.
+    iIntros "(%CV' & crash & [$ | %look])".
+    iDestruct (crashed_at_agree with "crashed crash") as %->.
+    apply elem_of_dom in inCV.
+    destruct inCV as [??].
+    congruence.
+  Qed.
+
 End post_crash_derived.
 
 (* Definition post_crash_flushed `{nvmFixedG Σ, nvmDeltaG Σ} *)
