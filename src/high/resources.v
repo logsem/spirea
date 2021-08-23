@@ -835,6 +835,14 @@ Section points_to_shared.
     know_store_lb ℓ s.
   Proof. Admitted.
 
+  Lemma mapsto_ex_last b ℓ ss : mapsto_ex b ℓ ss -∗ ⌜∃ s, last ss = Some s⌝.
+  Proof.
+    rewrite /mapsto_ex.
+    iNamed 1.
+    apply map_slice_lookup_hi_alt in slice.
+    naive_solver.
+  Qed.
+
 End points_to_shared.
 
 (** Notation for the exclusive points-to predicate. *)

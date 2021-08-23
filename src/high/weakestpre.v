@@ -209,11 +209,11 @@ Section wp_rules.
       by iRewrite "predsEquiv".
   Qed.
 
-  Lemma wp_load_ex ℓ ss s Q ϕ positive E :
+  Lemma wp_load_ex ℓ (b : bool) ss s Q ϕ positive E :
     last ss = Some s →
-    {{{ ℓ ↦ ss ∗ ⎡ know_pred ℓ ϕ ⎤ ∗ (<obj> (∀ v, ϕ s v _ -∗ Q v ∗ ϕ s v _)) }}}
+    {{{ mapsto_ex b ℓ ss ∗ ⎡ know_pred ℓ ϕ ⎤ ∗ (<obj> (∀ v, ϕ s v _ -∗ Q v ∗ ϕ s v _)) }}}
       Load (Val $ LitV $ LitLoc ℓ) @ positive; E
-    {{{ v, RET v; ℓ ↦ ss ∗ Q v }}}.
+    {{{ v, RET v; mapsto_ex b ℓ ss ∗ Q v }}}.
   Proof.
     intros sLast Φ.
     iStartProof (iProp _). iIntros (TV).
@@ -304,6 +304,8 @@ Section wp_rules.
     }
     iExists _, _, _.
     iFrameNamed.
+    monPred_simpl.
+    iDestruct (objective_at with "pers") as "$". { destruct b; apply _. }
     iPureIntro.
     etrans. eassumption.
     etrans. eassumption.

@@ -66,6 +66,9 @@ Section nat_map.
     - intros [? _]. done.
   Qed.
 
+  Lemma map_slice_nonempty m lo hi xs : map_slice m lo hi xs → xs ≠ [].
+  Proof. by destruct xs. Qed.
+
   Lemma map_slice_lookup_hi m lo hi xs :
     map_slice m lo hi xs → m !! hi = last xs.
   Proof.
@@ -76,6 +79,15 @@ Section nat_map.
     - intros [? ->]. done.
     - intros [? [lo' Hh]]. apply (IH hi lo').
       apply Hh.
+  Qed.
+
+  Lemma map_slice_lookup_hi_alt m lo hi xs :
+    map_slice m lo hi xs → ∃ x, m !! hi = Some x ∧ last xs = Some x.
+  Proof.
+    intros ?.
+    assert (is_Some (last xs)) as [x eq].
+    { apply last_is_Some. eapply map_slice_nonempty. done. }
+    exists x. split; last done. rewrite -eq. by eapply map_slice_lookup_hi.
   Qed.
 
 End nat_map.
