@@ -255,6 +255,42 @@ Section memory.
     intros ?%consistent_cut_subseteq_dom. set_solver.
   Qed.
 
+  Lemma slice_of_store_lookup_Some CV store ℓ msg hist t :
+    slice_of_store CV store !! ℓ = Some hist →
+    hist !! t = Some msg →
+    exists t' hist' msg',
+      CV !! ℓ = Some (MaxNat t') ∧
+      t = 0 ∧
+      store !! ℓ = Some hist' ∧
+      hist' !! t' = Some msg' ∧
+      msg = discard_msg_views msg' ∧
+      hist = {[0 := discard_msg_views msg']}.
+  Proof.
+    rewrite /slice_of_store.
+    intros ([t'] & h & -> & ? & ?)%map_lookup_zip_with_Some histLook.
+    exists t', h.
+    destruct (h !! t') as [|m]; last naive_solver.
+    exists m.
+    apply lookup_singleton_Some in histLook.
+    naive_solver.
+  Qed.
+
+  Lemma slice_of_store_lookup_Some_singleton CV store ℓ msg :
+    slice_of_store CV store !! ℓ = Some {[0 := discard_msg_views msg]} →
+    exists t h, CV !! ℓ = Some (MaxNat t) ∧
+           store !! ℓ = Some h ∧
+           (msg_val <$> h !! t) = Some (msg_val msg).
+  Proof.
+    rewrite /slice_of_store.
+    intros ([t] & h & ? & ? & ?)%map_lookup_zip_with_Some.
+    exists t, h.
+    split_and!; [done | done |].
+    destruct (h !! t) as [|m]; last done.
+    destruct msg, m.
+    simplify_eq.
+    done.
+  Qed.
+
 End memory.
 
 (* A few lattice rules for thread_view. *)

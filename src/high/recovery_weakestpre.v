@@ -253,6 +253,18 @@ Section wpr.
   Proof.
   Admitted.
 
+  (* TODO: Could maybe be upstreamed. *)
+  Lemma map_subseteq_lookup_eq (m1 m2 : store) v1 v2 k :
+    m1 ⊆ m2 → m1 !! k = Some v1 → m2 !! k = Some v2 → v1 = v2.
+  Proof. rewrite map_subseteq_spec. naive_solver. Qed.
+
+  (* TODO: Could maybe be upstreamed. *)
+  Lemma map_Forall_subseteq P (n m : gmap loc (positive → option positive)) :
+    m ⊆ n →
+    map_Forall P n →
+    map_Forall P m.
+  Proof. rewrite map_subseteq_spec. rewrite /map_Forall. naive_solver. Qed.
+
   (* Given the state interpretations _before_ a crash we reestablish the
   interpretations _after_ a crash. *)
   Lemma nvm_reinit (hGD : nvmDeltaG Σ) n Pg tv σ σ' (Hinv : invGS Σ) (Hcrash : crashG Σ) :
@@ -271,13 +283,23 @@ Section wpr.
     iNamed "H".
     iIntros "(heap & authStor & %inv & pers & recov) Pg".
 
+    (* Our [phys_hist] may contain only a subset of all the locations in
+    [store]. But, those that are in [phys_hist] agree with what is in
+    [store]. *)
+    iAssert (⌜phys_hists ⊆ store⌝)%I as %physHistsSubStore.
+    { rewrite map_subseteq_spec.
+      iIntros (ℓ hist look).
+      iDestruct (big_sepM_lookup with "ptsMap") as "pts"; first eassumption.
+      iApply (gen_heap_valid with "heap pts"). }
+
     (* We need to first re-create the ghost state for the base interpretation. *)
     iMod (nvm_heap_reinit _ _ _ _ _ Hcrash with "heap pers")
-      as (baseNames) "(map' & interp' & #persImpl & #newCrashedAt)"; try done.
+      as (baseNames) "(map' & baseInterp & #persImpl & #newCrashedAt)"; try done.
 
     iDestruct (big_sepM2_dom with "ordered") as %domHistsEqOrders.
     iDestruct (big_sepM2_dom with "bumpMono") as %domOrdersEqBumpers.
     iDestruct (big_sepM2_dom with "bumperSome") as %domHistsEqBumpers.
+    iDestruct (big_sepM2_dom with "predPostCrash") as %domPredsEqBumpers.
 
     (* Allocate new ghost state for the logical histories. *)
     rewrite /interp.
@@ -327,12 +349,11 @@ Section wpr.
                       bumpers_name := new_bumpers_name;
                    |})
       ).
-    iFrame "interp'".
+    iFrame "baseInterp".
     rewrite /nvm_heap_ctx.
-    rewrite /post_crash. simpl.
-    rewrite /base_post_crash. simpl.
+    (* rewrite /post_crash. simpl. *)
+    (* rewrite /base_post_crash. simpl. *)
     iDestruct ("Pg" $! _ (abs_hists) (store, _) _ with "persImpl map'") as "(map' & Pg)".
-    simpl.
     iDestruct
       (map_points_to_to_new _ _ _ _ (MkNvmBaseDeltaG Σ Hcrash baseNames)
          with "newCrashedAt map' ptsMap") as "ptsMap"; first done.
@@ -442,9 +463,13 @@ Section wpr.
       { rewrite new_abs_hist_dom. set_solver. }
       iModIntro.
       iIntros (ℓ encHist newEncHist absHistLook newAbsHistLook).
+
       pose proof (new_abs_hist_lookup_inv _ _ _ _ _ newAbsHistLook)
         as (t & s & s' & bumper & hist & CVLook & absHistsLook & histLook &
             bumpersLook & bumperAp & histEq).
+      (* Can we avoid introducing [encHist] altogether? *)
+      assert (encHist = hist) as -> by congruence.
+
       iIntros "(%pred & %physHist & %physHistLook & %predsLook & encs)".
       (* assert (is_Some (CV !! ℓ)) as [[t] CVLook]. *)
       (* { apply elem_of_dom_2 in newAbsHistLook. *)
@@ -453,21 +478,41 @@ Section wpr.
       (*   apply elem_of_dom. *)
       (*   set_solver. } *)
       epose proof (holo _ _ _ _ CVLook cut) as (msg & physHist' & storeLook & hi & ho).
+      (* FIXME: Can we avoid introducting [physHist] altogether? *)
+      assert (physHist = physHist') as <- by eauto using map_subseteq_lookup_eq.
       iExists pred, {[ 0 := discard_msg_views msg]}.
       iPureGoal. {
-        (* We need to establish relationship between [store] and
-        [phys_hist]. This depends on the points-to predicates that we had
-        earlier (where did they go?) *)
-        admit. }
+        rewrite /slice_of_store.
+        apply slice_of_store_lookup_Some_singleton in ho.
+        destruct ho as (tt & ?tempHist & eq & ? & ?).
+        assert (physHist = tempHist) as <- by eauto using map_subseteq_lookup_eq.
+        apply map_lookup_zip_with_Some.
+        exists (MaxNat tt), physHist.
+        rewrite -lookup_fmap in H1.
+        apply lookup_fmap_Some in H1.
+        destruct H1 as (msg' & eq' & ->).
+        split_and!; [| done | done].
+        destruct msg, msg'. rewrite /discard_msg_views. simpl.
+        simpl in eq'.
+        congruence. }
       iPureGoal. {
         rewrite /newPreds.
         apply restrict_lookup_Some_2; first done.
         apply elem_of_dom. done. }
       rewrite histEq.
       rewrite big_sepM2_singleton.
+
+      (* We look up the relevant predicate in [encs]. *)
+      iDestruct (big_sepM2_lookup with "encs") as "flip"; [done | done | ].
+
       (* We now looks up in [predPostCrash]. *)
       iDestruct (big_sepM2_lookup with "predPostCrash") as "#hi";
         [apply predsLook | apply bumpersLook | ].
+      iSpecialize ("hi" $! s (msg_val msg)).
+
+      rewrite /encoded_predicate_holds.
+      iDestruct "flip" as (P eq) "PHolds".
+
       admit. }
 
     (* Show that the bumpers are still monotone. *)
@@ -479,10 +524,52 @@ Section wpr.
         rewrite 2!restrict_dom.
         rewrite -domOrdersEqBumpers.
         set_solver. } }
-    iSplitR "". { admit. }
-    iSplitR "". { admit. }
-    admit.
+    iSplitR "". {
+      iApply (big_sepM2_impl_subseteq with "predPostCrash").
+      { apply restrict_subseteq. }
+      { apply restrict_subseteq. }
+      { rewrite /newOrders /newBumpers.
+        rewrite 2!restrict_dom.
+        rewrite -domPredsEqBumpers.
+        set_solver. } }
+    iSplitR "". {
+      iPureIntro.
+      eapply map_Forall_subseteq; last apply bumperBumpToValid.
+      apply restrict_subseteq. }
+    (* bumperSome *)
+    iSplitR "". {
+      iApply big_sepM2_forall.
+      iSplit.
+      { iPureIntro.
+        setoid_rewrite <- elem_of_dom.
+        apply set_eq.
+        rewrite restrict_dom_subset_L; first done.
+        rewrite new_abs_hist_dom.
+        set_solver. }
+      (* iIntros (ℓ hist bumper [empty | (s' & histEq)]%new_abs_hist_lookup look2). *)
+      iIntros (ℓ hist bumper look look2).
+      apply new_abs_hist_lookup_inv in look.
+      destruct look as (? & ? & ? & ? & hist' & ? & ? & ? & ? & ? & histEq).
+      (* We handle the empty case here, but we should be able to rule it out. *)
+      (* { rewrite empty. iPureIntro. apply map_Forall_empty. } *)
+      rewrite histEq.
+      rewrite map_Forall_singleton.
+      assert (bumpers !! ℓ = Some bumper). { admit. }
+      iDestruct (big_sepM2_lookup with "bumperSome") as %i; [done|done|].
+      (* Note: We probably have to use [bumpMono] as well. *)
+
+      admit.
+    }
+    (* We show that the shared location still satisfy that heir two persist
+    views are equial. *)
+    { iPureIntro.
+      intros ℓ hist [look roflcopter]%restrict_lookup_Some.
+      intros t msg histLook.
+      epose proof (slice_of_store_lookup_Some _ _ _ _ _ _ look histLook)
+        as (? & ? & [????] & ? & ? & ? & ? & -> & ?).
+      reflexivity. }
   Admitted.
+
 
   (*
   Lemma nvm_reinit' (hG' : nvmFixedG Σ, nvmDeltaG Σ) n σ σ' (Hinv : invGS Σ) (Hcrash : crashG Σ) Pg :
