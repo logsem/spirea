@@ -8,6 +8,38 @@ From self Require Import extra.
 From self.algebra Require Export view.
 From self.lang Require Export syntax.
 
+Definition valid_slice {A} (V : view) (σ : gmap loc (gmap time A)) :=
+  map_Forall (λ ℓ hist, ∃ t, V !! ℓ = Some (MaxNat t) ∧ is_Some (hist !! t)) σ.
+
+(* For each location in [p] pick the message in the store that it specifies. *)
+Definition slice_of_hist {A} (V : view) (σ : gmap loc (gmap time A)) :
+  gmap loc (gmap time A) :=
+  map_zip_with
+    (λ '(MaxNat t) hist,
+      match hist !! t with
+        Some s => {[ 0 := s ]}
+      | None => ∅ (* The None branch here is never taken. *)
+      end)
+    V σ.
+
+Section slice_of_hist_props.
+  Context {A : Type}.
+  Implicit Types (hists : gmap loc (gmap time A)).
+
+  Lemma slice_of_hist_dom_subset p hists :
+    dom (gset loc) (slice_of_hist p hists) ⊆ dom (gset loc) hists.
+  Proof.
+    rewrite /slice_of_hist.
+    intros l.
+    rewrite !elem_of_dom.
+    intros [? look].
+    apply map_lookup_zip_with_Some in look.
+    destruct look as (? & ? & ? & ? & ?).
+    eexists _. done.
+  Qed.
+
+End slice_of_hist_props.
+
 Record message : Type := Msg {
   msg_val : val;
   msg_store_view : view;
@@ -198,14 +230,9 @@ Section memory.
 
   (* For each location in [p] pick the message in the store that it specifies. *)
   Definition slice_of_store (p : view) (σ : store) : store :=
-    map_zip_with
-      (λ '(MaxNat t) hist,
-       match hist !! t with
-         Some msg => {[ 0 := discard_msg_views msg]}
-       | None => ∅ (* The None branch here should never be taken. *)
-       end)
-      p σ.
+    (λ (hist : gmap _ _), discard_msg_views <$> hist) <$> (slice_of_hist p σ).
 
+  (* Note: This could be defined with the help of [valid_slice]. *)
   Definition consistent_cut (p : view) (σ : store) : Prop :=
     map_Forall
       (λ ℓ '(MaxNat t),
@@ -251,7 +278,10 @@ Section memory.
   Lemma consistent_cut_lookup_slice CV σ ℓ :
     consistent_cut CV σ → slice_of_store CV σ !! ℓ = None → CV !! ℓ = None.
   Proof.
-    rewrite -!not_elem_of_dom. rewrite map_zip_with_dom.
+    rewrite -!not_elem_of_dom. rewrite /slice_of_store.
+    rewrite dom_fmap.
+    rewrite /slice_of_hist.
+    rewrite map_zip_with_dom.
     intros ?%consistent_cut_subseteq_dom. set_solver.
   Qed.
 
@@ -266,11 +296,13 @@ Section memory.
       msg = discard_msg_views msg' ∧
       hist = {[0 := discard_msg_views msg']}.
   Proof.
-    rewrite /slice_of_store.
+    rewrite /slice_of_store /slice_of_hist map_fmap_zip_with.
     intros ([t'] & h & -> & ? & ?)%map_lookup_zip_with_Some histLook.
     exists t', h.
     destruct (h !! t') as [|m]; last naive_solver.
     exists m.
+    rewrite map_fmap_singleton.
+    rewrite map_fmap_singleton in histLook.
     apply lookup_singleton_Some in histLook.
     naive_solver.
   Qed.
@@ -281,14 +313,14 @@ Section memory.
            store !! ℓ = Some h ∧
            (msg_val <$> h !! t) = Some (msg_val msg).
   Proof.
-    rewrite /slice_of_store.
-    intros ([t] & h & ? & ? & ?)%map_lookup_zip_with_Some.
+    rewrite /slice_of_store /slice_of_hist map_fmap_zip_with.
+    intros ([t] & h & eq & ? & ?)%map_lookup_zip_with_Some.
     exists t, h.
     split_and!; [done | done |].
     destruct (h !! t) as [|m]; last done.
+    rewrite map_fmap_singleton in eq.
     destruct msg, m.
-    simplify_eq.
-    done.
+    by simplify_eq.
   Qed.
 
 End memory.

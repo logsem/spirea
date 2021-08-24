@@ -63,46 +63,6 @@ Proof.
   apply (fixpoint_unfold (wpr_pre st k)).
 Qed.
 
-(* For each location in [p] pick the message in the store that it specifies. *)
-Definition slice_of_hist {A} (V : view) (σ : gmap loc (gmap time A)) :
-  gmap loc (gmap time A) :=
-  map_zip_with
-    (λ '(MaxNat t) hist,
-      match hist !! t with
-        Some s => {[ 0 := s ]}
-      | None => ∅ (* The None branch here is never taken. *)
-      end)
-    V σ.
-
-Section slice_of_hist_props.
-  Context {A : Type}.
-  Implicit Types (hists : gmap loc (gmap time A)).
-
-  Lemma slice_of_hist_dom_subset p hists :
-    dom (gset loc) (slice_of_hist p hists) ⊆ dom (gset loc) hists.
-  Proof.
-    rewrite /slice_of_hist.
-    intros l.
-    rewrite !elem_of_dom.
-    intros [? look].
-    apply map_lookup_zip_with_Some in look.
-    destruct look as (? & ? & ? & ? & ?).
-    eexists _. done.
-  Qed.
-
-  (* Lemma slice_of_hist_dom_eq p store hists : *)
-  (*   consistent_cut p store → *)
-  (*   dom (gset loc) (slice_of_hist p hists) = dom _ p. *)
-  (* Proof. *)
-  (*   rewrite set_eq. *)
-  (*   (* rewrite /consistent_cut /slice_of_hist. *) *)
-  (*   intros ?%consistent_cut_subseteq_dom ℓ. *)
-  (*   rewrite map_zip_with_dom. *)
-  (*   set_solver. *)
-  (*   apply consistent_cut_subseteq_dom. *)
-
-End slice_of_hist_props.
-
 (** If we have a map of points-to predicates prior to a crash and know what view
 we crashed at, then we can get a map of points-to predicates for the new
 heap. *)
@@ -137,7 +97,8 @@ Proof.
     apply restrict_subseteq. }
   iDestruct (big_sepM2_alt with "map") as "[%fall map]".
   iDestruct (big_sepM_impl_dom_subseteq _ _ _ (slice_of_store _ _) with "map []") as "[$ _]".
-  { rewrite /slice_of_store.
+  { rewrite /slice_of_store /slice_of_hist.
+    rewrite dom_fmap.
     rewrite !map_zip_with_dom.
     rewrite (restrict_dom_subset _ store).
     2: { rewrite restrict_dom. set_solver. }
@@ -158,7 +119,7 @@ Proof.
     iDestruct (crashed_at_agree with "crashed rec") as %->.
   2: {
     iExFalso.
-    rewrite /slice_of_store in look'.
+    rewrite /slice_of_store /slice_of_hist map_fmap_zip_with in look'.
     apply elem_of_dom_2 in look'.
     setoid_rewrite map_zip_with_dom in look'.
     setoid_rewrite elem_of_intersection in look'.
@@ -173,14 +134,14 @@ Proof.
   destruct look as (? & ? & [= <- <-] & ? & lookStore).
   apply restrict_lookup_Some in lookStore.
   destruct lookStore as [lookStore ?].
-  rewrite /slice_of_store in look'.
+  rewrite /slice_of_store /slice_of_hist map_fmap_zip_with in look'.
   apply map_lookup_zip_with_Some in look'.
   destruct look' as ([t'] & physHist & eq & ?look & ?look).
 
   setoid_rewrite map_subseteq_spec in sub.
   specialize (sub _ _ look0).
   simplify_eq.
-  rewrite lookm.
+  rewrite lookm map_fmap_singleton.
   iFrame "newPts".
 Qed.
 
@@ -482,7 +443,7 @@ Section wpr.
       assert (physHist = physHist') as <- by eauto using map_subseteq_lookup_eq.
       iExists pred, {[ 0 := discard_msg_views msg]}.
       iPureGoal. {
-        rewrite /slice_of_store.
+        rewrite /slice_of_store /slice_of_hist map_fmap_zip_with.
         apply slice_of_store_lookup_Some_singleton in ho.
         destruct ho as (tt & ?tempHist & eq & ? & ?).
         assert (physHist = tempHist) as <- by eauto using map_subseteq_lookup_eq.
@@ -494,6 +455,8 @@ Section wpr.
         split_and!; [| done | done].
         destruct msg, msg'. rewrite /discard_msg_views. simpl.
         simpl in eq'.
+        rewrite map_fmap_singleton.
+        simpl.
         congruence. }
       iPureGoal. {
         rewrite /newPreds.
