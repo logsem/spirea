@@ -90,9 +90,25 @@ Section simple_increment.
     else #().
 
   Definition crash_condition {hD : nvmDeltaG Σ} ℓa ℓb : dProp Σ :=
-    ("pred1" ∷ ⎡ know_pred ℓa (λ (n : nat) v _, ⌜v = #n⌝) ⎤ ∗
-     "pred2" ∷ ⎡ know_pred ℓb (λ (n : nat) v hG, ⌜v = #n⌝ ∗ know_flush_lb ℓa n) ⎤ ∗
+    ("#aPred" ∷ ⎡ know_pred ℓa (λ (n : nat) v _, ⌜v = #n⌝) ⎤ ∗
+     "#bPred" ∷ ⎡ know_pred ℓb (λ (n : nat) v hG, ⌜v = #n⌝ ∗ know_flush_lb ℓa n) ⎤ ∗
      "pts" ∷ ∃ (sa sb : list nat), "aPts" ∷ ℓa ↦ₚ sa ∗ "bPts" ∷ ℓb ↦ₚ sb)%I.
+
+  Lemma prove_crash_condition {hD : nvmDeltaG Σ} ℓa ssA ℓb ssB :
+    ⎡ know_pred ℓa (λ (n0 : nat) (v : val) (_ : nvmDeltaG Σ), ⌜v = #n0⌝) ⎤ -∗
+    ⎡ know_pred ℓb (λ (n0 : nat) (v : val) (hG : nvmDeltaG Σ), ⌜v = #n0⌝ ∗ know_flush_lb ℓa n0) ⎤ -∗
+    ℓa ↦ₚ ssA -∗
+    ℓb ↦ₚ ssB -∗
+    <PC> hG, crash_condition ℓa ℓb.
+  Proof.
+    iIntros "aPred bPred aPts bPts".
+    iCrash.
+    iDestruct "aPts" as (sA ?) "[aPts recA]".
+    iDestruct "bPts" as (sB ?) "[bPts recB]".
+    iDestruct (recovered_at_or_lost with "recA aPred") as "aPred".
+    iDestruct (recovered_at_or_lost with "recB bPred") as "bPred".
+    iFrame "aPred bPred". iExists [sA], [sB]. iFrame "aPts bPts".
+  Qed.
 
   (* NOTE: This example is currently broken since the crash condition used is
   not objective. We should use the post crash modality in the crash condition
@@ -106,139 +122,58 @@ Section simple_increment.
         {{ λ _, ℓa ↦ₚ [0; 1] ∗ ℓb ↦ₚ [0; 1] }}
         {{ <PC> _, crash_condition ℓa ℓb }}.
   Proof.
-    iIntros "#pred1 #pred2 aPts bPts".
+    iIntros "#aPred #bPred aPts bPts".
     rewrite /incr_both.
 
     (* The first store *)
     wpc_bind (_ <- _)%E.
     iApply wpc_atomic_no_mask.
-    iSplit. {
-      iDestruct "pred1" as "-#pred1". iDestruct "pred2" as "-#pred2".
-      iCrash.
-      iDestruct "aPts" as (? ?) "[aPts recA]".
-      iDestruct "bPts" as (? ?) "[bPts recB]".
-      iDestruct (recovered_at_or_lost with "recA pred1") as "pred1".
-      iDestruct (recovered_at_or_lost with "recB pred2") as "pred2".
-      iFrame. iExists _, _. iFrame. }
+    iSplit. { iApply (prove_crash_condition with "aPred bPred aPts bPts"). }
     iApply (wp_store_ex with "[$aPts]").
     { reflexivity. }
     { suff leq : (0 ≤ 1); first apply leq. lia. }
-    { iFrame "pred1". done. }
+    { iFrame "aPred". done. }
     simpl.
     iNext. iIntros "aPts".
-    iSplit. {
-      iModIntro.
-      iDestruct "pred1" as "-#pred1". iDestruct "pred2" as "-#pred2".
-      iCrash.
-      iDestruct "aPts" as (? ?) "[aPts recA]".
-      iDestruct "bPts" as (? ?) "[bPts recB]".
-      iDestruct (recovered_at_or_lost with "recA pred1") as "pred1".
-      iDestruct (recovered_at_or_lost with "recB pred2") as "pred2".
-      iFrame. iExists _, _. iFrame. }
+    iSplit. { iModIntro. iApply (prove_crash_condition with "aPred bPred aPts bPts"). }
     iModIntro.
     wpc_pures.
-    { iDestruct "pred1" as "-#pred1". iDestruct "pred2" as "-#pred2".
-      iCrash.
-      iDestruct "aPts" as (? ?) "[aPts recA]".
-      iDestruct "bPts" as (? ?) "[bPts recB]".
-      iDestruct (recovered_at_or_lost with "recA pred1") as "pred1".
-      iDestruct (recovered_at_or_lost with "recB pred2") as "pred2".
-      iFrame. iExists _, _. iFrame. }
+    { iApply (prove_crash_condition with "aPred bPred aPts bPts"). }
 
     (* The write back *)
     wpc_bind (WB _)%E.
     iApply wpc_atomic_no_mask.
-    iSplit. {
-      iDestruct "pred1" as "-#pred1". iDestruct "pred2" as "-#pred2".
-      iCrash.
-      iDestruct "aPts" as (? ?) "[aPts recA]".
-      iDestruct "bPts" as (? ?) "[bPts recB]".
-      iDestruct (recovered_at_or_lost with "recA pred1") as "pred1".
-      iDestruct (recovered_at_or_lost with "recB pred2") as "pred2".
-      iFrame. iExists _, _. iFrame. }
+    iSplit. { iApply (prove_crash_condition with "aPred bPred aPts bPts"). }
     iApply (wp_wb_ex with "aPts"); first reflexivity.
     iNext.
     iIntros "[aPts afterFence]".
-    iSplit. {
-      iClear "afterFence". (* FIXME: [iModIntro] spins in the absence of this. *)
-      iModIntro.
-      iDestruct "pred1" as "-#pred1". iDestruct "pred2" as "-#pred2".
-      iCrash.
-      iDestruct "aPts" as (? ?) "[aPts recA]".
-      iDestruct "bPts" as (? ?) "[bPts recB]".
-      iDestruct (recovered_at_or_lost with "recA pred1") as "pred1".
-      iDestruct (recovered_at_or_lost with "recB pred2") as "pred2".
-      iFrame. iExists _, _. iFrame. }
+    iSplit; first iApply (prove_crash_condition with "aPred bPred aPts bPts").
     iModIntro.
     wpc_pures.
-    { iClear "afterFence". (* FIXME: [iModIntro] spins in the absence of this. *)
-      iDestruct "pred1" as "-#pred1". iDestruct "pred2" as "-#pred2".
-      iCrash.
-      iDestruct "aPts" as (? ?) "[aPts recA]".
-      iDestruct "bPts" as (? ?) "[bPts recB]".
-      iDestruct (recovered_at_or_lost with "recA pred1") as "pred1".
-      iDestruct (recovered_at_or_lost with "recB pred2") as "pred2".
-      iFrame. iExists _, _. iFrame. }
+    { iApply (prove_crash_condition with "aPred bPred aPts bPts"). }
 
     (* The fence. *)
     wpc_bind (Fence)%E.
     iApply wpc_atomic_no_mask.
-    iSplit. {
-      iClear "afterFence". (* FIXME: [iModIntro] spins in the absence of this. *)
-      iDestruct "pred1" as "-#pred1". iDestruct "pred2" as "-#pred2".
-      iCrash.
-      iDestruct "aPts" as (? ?) "[aPts recA]".
-      iDestruct "bPts" as (? ?) "[bPts recB]".
-      iDestruct (recovered_at_or_lost with "recA pred1") as "pred1".
-      iDestruct (recovered_at_or_lost with "recB pred2") as "pred2".
-      iFrame. iExists _, _. iFrame. }
+    iSplit; first iApply (prove_crash_condition with "aPred bPred aPts bPts").
     iApply (wp_fence with "afterFence").
     iNext.
     iIntros "#pLowerBound".
     iSplit. {
-      iModIntro.
-      iDestruct "pred1" as "-#pred1". iDestruct "pred2" as "-#pred2".
-      iCrash.
-      iDestruct "aPts" as (? ?) "[aPts recA]".
-      iDestruct "bPts" as (? ?) "[bPts recB]".
-      iDestruct (recovered_at_or_lost with "recA pred1") as "pred1".
-      iDestruct (recovered_at_or_lost with "recB pred2") as "pred2".
-      iFrame. iExists _, _. iFrame. }
+      iModIntro. iApply (prove_crash_condition with "aPred bPred aPts bPts"). }
     iModIntro.
-    wpc_pures.
-    {
-      iDestruct "pred1" as "-#pred1". iDestruct "pred2" as "-#pred2".
-      iCrash.
-      iDestruct "aPts" as (? ?) "[aPts recA]".
-      iDestruct "bPts" as (? ?) "[bPts recB]".
-      iDestruct (recovered_at_or_lost with "recA pred1") as "pred1".
-      iDestruct (recovered_at_or_lost with "recB pred2") as "pred2".
-      iFrame. iExists _, _. iFrame. }
+    wpc_pures. { iApply (prove_crash_condition with "aPred bPred aPts bPts"). }
 
     (* The last store *)
     iApply wpc_atomic_no_mask.
-    iSplit.
-    { iDestruct "pred1" as "-#pred1". iDestruct "pred2" as "-#pred2".
-      iCrash.
-      iDestruct "aPts" as (? ?) "[aPts recA]".
-      iDestruct "bPts" as (? ?) "[bPts recB]".
-      iDestruct (recovered_at_or_lost with "recA pred1") as "pred1".
-      iDestruct (recovered_at_or_lost with "recB pred2") as "pred2".
-      iFrame. iExists _, _. iFrame. }
+    iSplit. { iApply (prove_crash_condition with "aPred bPred aPts bPts"). }
     iApply (wp_store_ex with "[$bPts]").
     { reflexivity. }
     { suff leq : (0 ≤ 1); first apply leq. lia. }
     { iFrame "#". iFrame "pLowerBound". done. }
     iNext. iIntros "bPts".
-    iSplit. {
-      iModIntro.
-      iDestruct "pred1" as "-#pred1". iDestruct "pred2" as "-#pred2".
-      iCrash.
-      iDestruct "aPts" as (? ?) "[aPts recA]".
-      iDestruct "bPts" as (? ?) "[bPts recB]".
-      iDestruct (recovered_at_or_lost with "recA pred1") as "pred1".
-      iDestruct (recovered_at_or_lost with "recB pred2") as "pred2".
-      iFrame. iExists _, _. iFrame. }
+    iSplit.
+    { iModIntro. iApply (prove_crash_condition with "aPred bPred aPts bPts"). }
     iModIntro.
     iFrame "aPts bPts".
   Qed.
@@ -258,90 +193,39 @@ Section simple_increment.
     (* Load [ℓa]. *)
     wpc_bind (! _)%E.
     iApply wpc_atomic_no_mask.
-    iSplit. {
-      iDestruct "pred1" as "-#pred1". iDestruct "pred2" as "-#pred2".
-      iCrash.
-      iDestruct "aPts" as (? ?) "[aPts recA]".
-      iDestruct "bPts" as (? ?) "[bPts recB]".
-      iDestruct (recovered_at_or_lost with "recA pred1") as "pred1".
-      iDestruct (recovered_at_or_lost with "recB pred2") as "pred2".
-      iFrame. iExists _, _. iFrame. }
-    iDestruct "pred1" as "#pred1".
-    iDestruct "pred2" as "#pred2".
-    iApply (wp_load_ex _ _ _ _ (λ v, ⌜v = #sA⌝)%I with "[$aPts $pred1]"); first done.
+    iSplit; first iApply (prove_crash_condition with "aPred bPred aPts bPts").
+
+    iApply (wp_load_ex _ _ _ _ (λ v, ⌜v = #sA⌝)%I with "[$aPts $aPred]"); first done.
     { iModIntro. naive_solver. }
     iIntros "!>" (?) "[aPts ->]".
     iSplit.
-    { iModIntro.
-      iDestruct "pred1" as "-#pred1". iDestruct "pred2" as "-#pred2".
-      iCrash.
-      iDestruct "aPts" as (? ?) "[aPts recA]".
-      iDestruct "bPts" as (? ?) "[bPts recB]".
-      iDestruct (recovered_at_or_lost with "recA pred1") as "pred1".
-      iDestruct (recovered_at_or_lost with "recB pred2") as "pred2".
-      iFrame. iExists _, _. iFrame. }
+    { iModIntro. iApply (prove_crash_condition with "aPred bPred aPts bPts"). }
 
     iModIntro.
     wpc_pures.
-    { iDestruct "pred1" as "-#pred1". iDestruct "pred2" as "-#pred2".
-      iCrash.
-      iDestruct "aPts" as (? ?) "[aPts recA]".
-      iDestruct "bPts" as (? ?) "[bPts recB]".
-      iDestruct (recovered_at_or_lost with "recA pred1") as "pred1".
-      iDestruct (recovered_at_or_lost with "recB pred2") as "pred2".
-      iFrame. iExists _, _. iFrame. }
+    { iApply (prove_crash_condition with "aPred bPred aPts bPts"). }
 
     (* Load [ℓb]. *)
     wpc_bind (! _)%E.
     iApply wpc_atomic_no_mask.
-    iSplit. {
-      iDestruct "pred1" as "-#pred1". iDestruct "pred2" as "-#pred2".
-      iCrash.
-      iDestruct "aPts" as (? ?) "[aPts recA]".
-      iDestruct "bPts" as (? ?) "[bPts recB]".
-      iDestruct (recovered_at_or_lost with "recA pred1") as "pred1".
-      iDestruct (recovered_at_or_lost with "recB pred2") as "pred2".
-      iFrame. iExists _, _. iFrame. }
-    iDestruct "pred1" as "#pred1".
-    iDestruct "pred2" as "#pred2".
+    iSplit; first iApply (prove_crash_condition with "aPred bPred aPts bPts").
     iApply (wp_load_ex _ _ _ _ (λ v, ⌜v = #sB⌝ ∗ know_flush_lb ℓa sB)%I
-              with "[$bPts $pred2]"); first done.
+              with "[$bPts $bPred]"); first done.
     { iModIntro. iIntros (?) "[-> hi]". naive_solver. }
     iIntros "!>" (?) "(bPts & -> & lub)".
     iSplit.
-    { iModIntro.
-      iDestruct "pred1" as "-#pred1". iDestruct "pred2" as "-#pred2".
-      iCrash.
-      iDestruct "aPts" as (? ?) "[aPts recA]".
-      iDestruct "bPts" as (? ?) "[bPts recB]".
-      iDestruct (recovered_at_or_lost with "recA pred1") as "pred1".
-      iDestruct (recovered_at_or_lost with "recB pred2") as "pred2".
-      iFrame. iExists _, _. iFrame. }
+    { iModIntro. iApply (prove_crash_condition with "aPred bPred aPts bPts"). }
 
     iModIntro.
-    wpc_pures.
-    { iDestruct "pred1" as "-#pred1". iDestruct "pred2" as "-#pred2".
-      iCrash.
-      iDestruct "aPts" as (? ?) "[aPts recA]".
-      iDestruct "bPts" as (? ?) "[bPts recB]".
-      iDestruct (recovered_at_or_lost with "recA pred1") as "pred1".
-      iDestruct (recovered_at_or_lost with "recB pred2") as "pred2".
-      iFrame. iExists _, _. iFrame. }
+    wpc_pures; first iApply (prove_crash_condition with "aPred bPred aPts bPts").
 
     iDestruct (mapsto_ex_flush_lb_incl with "lub aPts") as %incl; first done.
     rewrite bool_decide_eq_false_2.
     2: { rewrite subseteq_nat_le in incl. lia. }
 
-    wpc_pures.
-    { iDestruct "pred1" as "-#pred1". iDestruct "pred2" as "-#pred2".
-      iCrash.
-      iDestruct "aPts" as (? ?) "[aPts recA]".
-      iDestruct "bPts" as (? ?) "[bPts recB]".
-      iDestruct (recovered_at_or_lost with "recA pred1") as "pred1".
-      iDestruct (recovered_at_or_lost with "recB pred2") as "pred2".
-      iFrame. iExists _, _. iFrame. }
+    wpc_pures; first iApply (prove_crash_condition with "aPred bPred aPts bPts").
 
-    iModIntro. done.
+    by iModIntro.
   Qed.
 
   (* FIXME: Hoare triples don't work as Perennial's Hoare triples are tied to iProp. *)
@@ -365,7 +249,8 @@ Section simple_increment.
         (λ _, ℓa ↦ₚ [0; 1] ∗ ℓb ↦ₚ [0; 1]) (λ _ _, True%I).
   Proof.
     iIntros "a b c d".
-    iApply (idempotence_wpr _ _ _ _ _ _ _ (λ _, <PC> _, crash_condition ℓa ℓb)%I with "[a b c d] []").
+    iApply (idempotence_wpr _ _ _ _ _ _ _ (λ _, <PC> _, crash_condition ℓa ℓb)%I
+              with "[a b c d] []").
     { iApply (wp_incr _ _ s k E with "a b c d"). }
     do 2 iModIntro.
     iIntros (hG') "R".
