@@ -61,11 +61,16 @@ Proof.
   iExists _. iFrame. iPureIntro. rewrite dom_empty. set_solver.
 Qed.
 
-(* Adequacy theorem. *)
-Theorem heap_recv_adequacy Σ `{hPre : !nvmBaseGpreS Σ} s k e r σ g φ φr φinv Φinv :
+(* The adequacy theorem for the base logic.
+
+ This adequacy theorem makes use of the invariant feature in Perennial (the
+ [φinv] and [Φinv]). This makes the statement a bit more complex and we do not
+ actually need the invariant feature at all. Hence we also have a simpler
+ variant below for the case where the invariant is alwasy true.  *)
+Theorem base_recv_adequacy Σ `{hPre : !nvmBaseGpreS Σ} s k e r σ g φ φr φinv Φinv :
   valid_heap σ.1 →
-  (∀ `{Hheap : !nvmBaseFixedG Σ, hi : !nvmBaseDeltaG Σ},
-    ⊢ ([∗ map] l↦v ∈ σ.1, l ↦h v) -∗ (
+  (∀ `{Hheap : !nvmBaseFixedG Σ, hD : !nvmBaseDeltaG Σ},
+    ⊢ ([∗ map] l ↦ v ∈ σ.1, l ↦h v) -∗ (
        □ (∀ σ nt, state_interp σ nt -∗ |NC={⊤, ∅}=> ⌜ φinv σ ⌝) ∗
        □ (∀ hGD, Φinv hGD -∗ □ ∀ σ nt, state_interp σ nt -∗ |NC={⊤, ∅}=> ⌜ φinv σ ⌝) ∗
        wpr s k ⊤ e r (λ v, ⌜φ v⌝) Φinv (λ _ v, ⌜φr v⌝))) →
@@ -111,4 +116,50 @@ Proof.
   - eauto.
   - done.
   - done.
+Qed.
+
+(* Similar to the [reccv_adequate] in Perennial except the invariant is removed. *)
+Record recv_adequate (s : stuckness) (e1 r1: thread_state) (σ1 : state nvm_lang)
+       (g1 : global_state nvm_lang)
+       (φ φr: thread_val → state nvm_lang → global_state nvm_lang → Prop) := {
+  recv_adequate_result_normal t2 σ2 g2 v2 :
+   erased_rsteps (CS := nvm_crash_lang) r1 ([e1], (σ1,g1)) (thread_of_val v2 :: t2, (σ2,g2)) Normal →
+   φ v2 σ2 g2;
+  recv_adequate_result_crashed t2 σ2 g2 v2 :
+   erased_rsteps (CS := nvm_crash_lang) r1 ([e1], (σ1,g1)) (thread_of_val v2 :: t2, (σ2,g2)) Crashed →
+   φr v2 σ2 g2;
+  recv_adequate_not_stuck t2 σ2 g2 e2 stat :
+   s = NotStuck →
+   erased_rsteps (CS := nvm_crash_lang) r1 ([e1], (σ1,g1)) (t2, (σ2,g2)) stat →
+   e2 ∈ t2 → (is_Some (thread_to_val e2) ∨ reducible (Λ := nvm_lang) e2 σ2 g2);
+}.
+
+Lemma adequacy_impl (s : stuckness) (e1 r1: thread_state) (σ1 : state nvm_lang)
+       (g1 : global_state nvm_lang)
+       (φ φr: thread_val → state nvm_lang → global_state nvm_lang → Prop) :
+  recovery_adequacy.recv_adequate (CS := nvm_crash_lang) s e1 r1 σ1 g1 φ φr (λ _ _, True) →
+  recv_adequate s e1 r1 σ1 g1 φ φr.
+Proof. intros [????]. split; try naive_solver. Qed.
+
+(* This is the simpler adequacy result. *)
+Corollary base_recv_adequacy_simpl Σ `{hPre : !nvmBaseGpreS Σ} s k e r σ g φ φr :
+  valid_heap σ.1 →
+  (∀ `{Hheap : !nvmBaseFixedG Σ, hD : !nvmBaseDeltaG Σ},
+    ⊢ ([∗ map] l ↦ v ∈ σ.1, l ↦h v) -∗ (
+       wpr s k ⊤ e r (λ v, ⌜φ v⌝) (λ _, True) (λ _ v, ⌜φr v⌝))) →
+  recv_adequate s e r σ g (λ v _ _, φ v) (λ v _ _, φr v).
+Proof.
+  intros val hyp.
+  apply adequacy_impl.
+  eapply (base_recv_adequacy Σ); first apply val.
+  intros nB nBD.
+  specialize (hyp nB nBD).
+  iIntros "ptsMap".
+  iDestruct (hyp with "ptsMap") as "wpr".
+  iSplit.
+  { iIntros "!>" (? ?) "_". iApply ncfupd_mask_intro; naive_solver. }
+  iSplit.
+  { iIntros "!>" (?) "? !>". iIntros (? ?) "?".
+    iApply ncfupd_mask_intro; naive_solver. }
+  iFrame.
 Qed.
