@@ -22,9 +22,13 @@ Notation pbundleG := recovery_weakestpre.pbundleG.
 
 Notation perennialG := recovery_weakestpre.perennialG.
 
-(* The recovery WP is parameterized by two predicates: [Φ] is the postcondition
-   for normal non-crashing execution and [Φr] is the postcondition satisfied in
-   case of a crash. *)
+(** The recovery WP is parameterized by two predicates: [Φ], the postcondition
+ for normal non-crashing execution and [Φr], the postcondition satisfied upon
+ termination after one ore more crashes.
+
+ This definition of the recovery weakest precondition is defined on top of our
+ crash weakest precondition following the same pattern that is used in Perennial
+ to define Perennial's wpr on top of Perennial's wpc. *)
 Definition wpr_pre `{nvmFixedG Σ} (s : stuckness) (k : nat)
     (wpr : nvmDeltaG Σ -d> coPset -d> expr -d> expr -d> (val -d> dPropO Σ) -d>
                      (nvmDeltaG Σ -d> val -d> dPropO Σ) -d> dPropO Σ) :
@@ -32,15 +36,15 @@ Definition wpr_pre `{nvmFixedG Σ} (s : stuckness) (k : nat)
   (nvmDeltaG Σ -d> val -d> dPropO Σ) -d> dPropO Σ :=
   λ hGD E e e_rec Φ Φr,
   (WPC e @ s ; k; E
-     {{ Φ }}
-     {{ ∀ σ σ' (HC : crash_prim_step nvm_crash_lang σ σ') n,
-        ⎡ interp -∗ state_interp σ n ={E}=∗ ▷ ∀ (Hc1 : crashG Σ) q, NC q ={E}=∗
-          ∃ (hGD' : nvmDeltaG Σ), (* Maybe state that [hGD'] contains [Hc1] *)
-            (* let hG := (nvm_update Σ hG _ Hc1 names) in *)
-              state_interp σ' 0 ∗
-              (monPred_at (wpr hGD' E e_rec e_rec (λ v, Φr hGD' v) Φr) (∅, ∅, ∅)) ∗
-              NC q ⎤
-     }})%I.
+    {{ Φ }}
+    {{ ∀ σ σ' (HC : crash_prim_step nvm_crash_lang σ σ') n,
+      ⎡ interp -∗ state_interp σ n ={E}=∗ ▷ ∀ (Hc1 : crashG Σ) q, NC q ={E}=∗
+        ∃ (hGD' : nvmDeltaG Σ), (* Maybe state that [hGD'] contains [Hc1] *)
+          (* let hG := (nvm_update Σ hG _ Hc1 names) in *)
+          state_interp σ' 0 ∗
+          (monPred_at (wpr hGD' E e_rec e_rec (λ v, Φr hGD' v) Φr) (∅, ∅, ∅)) ∗
+          NC q ⎤
+    }})%I.
 
 Local Instance wpr_pre_contractive `{nvmFixedG Σ} s k: Contractive (wpr_pre s k).
 Proof.
