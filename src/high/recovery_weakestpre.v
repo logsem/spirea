@@ -212,6 +212,13 @@ Section wpr.
       bumper s = Some s' ∧
       hist = {[ 0 := s' ]}.
   Proof.
+    rewrite /new_abs_hist.
+    rewrite map_lookup_zip_with_Some.
+    intros (newHist & bumper & hi & ho & hip).
+    (* slice_of_hist lemma *)
+    rewrite /slice_of_hist in ho.
+    setoid_rewrite map_lookup_zip_with_Some in ho.
+    destruct ho as ([t] & ? & ? & ? & ?).
   Admitted.
 
   (* TODO: Could maybe be upstreamed. *)
@@ -265,7 +272,7 @@ Section wpr.
     (* Allocate new ghost state for the logical histories. *)
     rewrite /interp.
     set (newAbsHists := new_abs_hist abs_hists CV bumpers).
-    iMod (own_full_history_gname_alloc newAbsHists)
+    iMod (own_full_history_alloc newAbsHists)
       as (new_abs_history_name new_know_abs_history_name) "(hists' & #histFrags & knowHistories)".
 
     (* We freeze/persist the old authorative resource algebra. *)
@@ -292,7 +299,7 @@ Section wpr.
 
     (* Allocate the new map of bumpers. *)
     set newBumpers := restrict (dom (gset _) newAbsHists) bumpers.
-    iMod (own_all_bumpers_gname_alloc newBumpers)
+    iMod (own_all_bumpers_alloc newBumpers)
          as (new_bumpers_name) "[newBumpers #bumpersFrag]".
 
     (* We are done allocating ghost state and can now present a new bundle of
@@ -356,7 +363,7 @@ Section wpr.
         set_solver. }
       iIntros.
       rewrite /know_full_encoded_history_loc.
-      rewrite /own_full_history /own_full_history_gname.
+      rewrite /own_full_history.
       iDestruct "history" as "[left right]".
       (* We show that the predicates survives a crash. *)
       iSplit. {

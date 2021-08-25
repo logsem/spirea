@@ -338,3 +338,24 @@ Proof.
   destruct tv1 as [[??]?], tv2 as [[??]?].
   repeat split; apply view_le_r.
 Qed.
+
+(** Get the largest time of any message in a given history. *)
+Definition max_msg (h : history) : time :=
+  max_list (elements (dom (gset time) h)).
+
+(** Convert a [store] to a [view] by taking the largest time for of any message
+for each location. We call this the "lub view" b.c., in an actual execution this
+view will be the l.u.b. of all the threads views. *)
+Definition max_view (heap : store) : view := MaxNat <$> (max_msg <$> heap).
+
+Definition hist_inv lub (hist : history) : Prop :=
+  (* Every history has an initial message. *)
+  is_Some (hist !! 0) ∧
+  (* Every view in every message is included in the lub view. *)
+  (map_Forall (λ t msg, msg.(msg_store_view) ⊑ lub) hist).
+
+(* Every store view in every message is included in [lub]. *)
+Definition valid_heap_lub lub (s : store) : Prop :=
+  map_Forall (λ _ hist, hist_inv lub hist) s.
+
+Definition valid_heap store : Prop := valid_heap_lub (max_view store) store.

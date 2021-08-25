@@ -71,11 +71,11 @@ Section wpc.
 
       (* Ownership over the full knowledge of the abstract history of _all_
       locations. *)
-      "history" ∷ own_full_history abs_hists ∗
+      "history" ∷ own_full_history abs_history_name know_abs_history_name abs_hists ∗
       (* Knowledge of all the predicates. *)
       "predicates" ∷ own predicates_name (● preds_to_ra predicates) ∗
       (* All the encoded orders *)
-      "allOrders" ∷ own_all_preorders orders ∗
+      "allOrders" ∷ own_all_preorders preorders_name orders ∗
       (* Shared locations. *)
       "sharedLocs" ∷ own shared_locs_name (● shared_locs) ∗
       (* Exclusive locations. *)
@@ -95,7 +95,7 @@ Section wpc.
 
       (** * Bump-back function *)
       (* We know about all the bumpers. *)
-      "allBumpers" ∷ own_all_bumpers bumpers ∗
+      "allBumpers" ∷ own_all_bumpers bumpers_name bumpers ∗
       (* The bump functions are monotone. *)
       "#bumpMono" ∷ ([∗ map] ℓ ↦ order; bump ∈ orders; bumpers,
         ∀ e1 e2 e1' e2', ⌜bump e1 = Some e1'⌝ → ⌜bump e2 = Some e2'⌝ →

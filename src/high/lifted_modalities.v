@@ -127,6 +127,7 @@ Section lifted_own_discrete.
     own_discrete Q -∗ Q.
   Proof.
     rewrite own_discrete_eq.
+    rewrite /own_discrete_def.
     iStartProof (iProp _). iIntros (tv).
     iApply own_discrete_elim.
   Qed.

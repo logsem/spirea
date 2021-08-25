@@ -625,7 +625,7 @@ Section wp_rules.
     iDestruct ("predsHold" with "[predMap]") as "predsHold".
     { iExists _, _. naive_solver. }
 
-    iMod (own_full_history_alloc with "history") as "[history histS]"; try done.
+    iMod (own_full_history_alloc_frag with "history") as "[history histS]"; try done.
     iModIntro.
     (* We re-establish [interp]. *)
     iSplit. { iPureIntro. repeat split; try done; apply view_le_l. }

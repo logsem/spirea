@@ -334,3 +334,9 @@ Section big_sepM2.
   Qed.
 
 End big_sepM2.
+
+(* Applicative notation. *)
+Definition mapply {A B} `{MBind M, FMap M} (mf : M (A → B)) (a : M A) :=
+  mf ≫= (λ f, f <$> a).
+
+Notation "mf <*> a" := (mapply mf a) (at level 61, left associativity).

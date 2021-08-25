@@ -1,9 +1,9 @@
 (* In this file we define [dProp], the type of propositions in the high-level
 logic. *)
 
-From iris.bi Require Export monpred big_op.
-From iris.proofmode Require Import tactics monpred modality_instances.
-From iris.base_logic.lib Require Import fancy_updates.
+From iris.bi Require Export monpred.
+From iris.proofmode Require Import monpred.
+From iris.base_logic.lib Require Import iprop.
 
 From self Require Export view memory.
 
@@ -23,7 +23,7 @@ Proof.
 Qed.
 
 (* Types of view predicates. *)
-Definition dProp Σ := monPred thread_view_bi_index (iPropI Σ). (* FIXME: use iPropI here. *)
+Definition dProp Σ := monPred thread_view_bi_index (iPropI Σ).
 Definition dPropO Σ := monPredO thread_view_bi_index (iPropI Σ).
 Definition dPropI Σ := monPredI thread_view_bi_index (iPropI Σ).
 
