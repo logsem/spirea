@@ -280,10 +280,12 @@ Section wpr.
     { destruct hGD. iFrame. }
     { iModIntro. iIntros (? [names] σ_pre_crash g σ_post_crash Hcrash ns mj D κs ?) "H".
       iSpecialize ("Hidemp" $! (MkNvmBaseDeltaG _ _ names) with "[//] H").
-      iIntros "interp _ !> !>".
+      iIntros "interp g !> !>".
       iIntros (Hc' ?) "HNC".
       iMod (nvm_heap_reinit_alt _ _ _ _ Hc' _ Hcrash with "interp Hidemp") as (hnames) "(map & interp' & idemp)".
       iExists {| pbundleT := hnames |}, (reflexivity _), (reflexivity _).
+      iMod (global_state_interp_le (Λ := nvm_lang) _ _ () _ _ κs with "[$]") as "$";
+        first (simpl; lia).
       iModIntro.
       rewrite /state_interp //=.
       rewrite /nvm_heap_ctx.

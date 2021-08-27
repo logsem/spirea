@@ -1,6 +1,6 @@
 From iris.proofmode Require Import tactics.
 From iris.bi.lib Require Import fractional.
-From iris.base_logic.lib Require Export gen_heap proph_map.
+From iris.base_logic.lib Require Export gen_heap. (* proph_map. *)
 
 From Perennial.program_logic Require Import ectx_lifting.
 From Perennial.program_logic Require Export ectx_language weakestpre lifting.
@@ -10,6 +10,7 @@ From iris_named_props Require Import named_props.
 From iris.prelude Require Import options.
 
 From self Require Import extra ipm_tactics.
+From self Require Import cred_frag.
 From self.algebra Require Import view.
 From self.lang Require Export notation.
 From self.base Require Import tactics.
@@ -22,6 +23,7 @@ Class nvmBaseFixedG Σ := {
   nvmBaseG_gen_heapGS :> gen_heapGpreS loc history Σ;  (* For the heap. *)
   view_inG :> inG Σ (authR viewUR);                    (* For views. *)
   crashed_at_inG :> inG Σ (agreeR viewO);              (* For crashed at knowledge. *)
+  nvm_base_creditG :> creditGS Σ;
 }.
 
 (** Names for the heap that needs to change after a crash. *)
@@ -119,18 +121,30 @@ Definition nvm_heap_ctx `{hG : !nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ} σ : i
     "%cvSubset" ∷ ⌜dom (gset _) CV ⊆ dom _ σ.1⌝ ∗
     "#crashedAt" ∷ own crashed_at_view_name (to_agree CV : agreeR viewO)).
 
+Definition borrowN := nroot .@ "borrow".
+Definition crash_borrow_ginv_number : nat := 6%nat.
+Definition crash_borrow_ginv `{!invGS Σ} `{creditGS Σ}
+  := (inv borrowN (cred_frag crash_borrow_ginv_number)).
+
 Global Program Instance nvmBaseG_irisGS `{!nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ} :
   irisGS nvm_lang Σ := {
   iris_invG := nvmBaseG_invGS;
   iris_crashG := nvm_base_crashG;
   state_interp σ _nt := nvm_heap_ctx σ;
-  global_state_interp _g _ns _κs _ _ := True%I;
+  global_state_interp g ns mj D _ :=
+    (@crash_borrow_ginv _ nvmBaseG_invGS _ ∗
+     cred_interp ns ∗
+     ⌜(/ 2 < mj ≤ 1) ⌝%Qp ∗
+     pinv_tok mj D)%I;
   fork_post _ := True%I;
 
   num_laters_per_step := (λ n, 3 ^ (n + 1))%nat; (* This is the choice GooseLang takes. *)
   step_count_next := (λ n, 10 * (n + 1))%nat;
 }.
-Next Obligation. intros. eauto. Qed.
+Next Obligation.
+  intros (**). iIntros "($ & ? & $)".
+  by iMod (cred_interp_incr with "[$]") as "($ & _)".
+Qed.
 Next Obligation. intros => //=. lia. Qed.
 
 (* NOTE: Uncomment as needed. *)
@@ -175,7 +189,7 @@ Section view_ra_rules.
     by iFrame.
   Qed.
 
-  Lemma auth_auth_view_grow_incl γ V V' : V ⊑ V' → own γ (● V) ==∗ own γ (● V').
+Lemma auth_auth_view_grow_incl γ V V' : V ⊑ V' → own γ (● V) ==∗ own γ (● V').
   Proof.
     iIntros (incl) "H".
     iMod (own_update with "H") as "$"; last done.
@@ -516,6 +530,10 @@ Section lifting.
       apply view_le_r.
   Qed.
 
+  Ltac whack_global :=
+    iMod (global_state_interp_le (Λ := nvm_lang) _ _ () _ _ _ with "[$]") as "$";
+      first (simpl; lia).
+
   Lemma wp_fork s E (e : expr) TV (Φ : thread_val → iProp Σ) :
     ▷ WP (ThreadState e TV) @ s; ⊤ {{ _, True }} -∗
     ▷ Φ (ThreadVal (LitV LitUnit) TV) -∗
@@ -523,7 +541,6 @@ Section lifting.
   Proof.
     iIntros "He HΦ".
     iApply (wp_lift_atomic_head_step (Φ := Φ)); first done.
-
     iIntros (σ1 [] mj D ns κ κs n) "Hσ Hg !>".
     iPureGoal.
     { rewrite /head_reducible.
@@ -531,7 +548,8 @@ Section lifting.
       eexists [], _, _, _, _. simpl.
       constructor. constructor. }
     iNext. iIntros (v2 σ2 g2 efs Hstep).
-    inv_head_step. inv_thread_step. iFrame. done.
+    whack_global.
+    inv_head_step. inv_thread_step. by iFrame.
   Qed.
 
   (* Create a message from a [value] and a [thread_view]. *)
@@ -568,7 +586,7 @@ Section lifting.
   Proof.
     iIntros (Hn Φ) "_ HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
-    iIntros ([??] [] ns mj D κ κs k). iNamed 1. iIntros "_ !>". iNamed "crash".
+    iIntros ([??] [] ns mj D κ κs k). iNamed 1. iIntros "? !>". iNamed "crash".
     iSplit.
     - (* We must show that [ref v] is can take some step. *)
        rewrite /head_reducible.
@@ -578,6 +596,7 @@ Section lifting.
        * constructor. done.
        * apply alloc_fresh. lia.
     - iNext. iIntros (e2 σ2 [] efs Hstep).
+      whack_global.
       simpl in *.
       inv_impure_thread_step.
       iSplitR=>//.
@@ -593,7 +612,7 @@ Section lifting.
       { apply Hdisj. }
       iModIntro.
       iPureGoal. { apply hist_inv_alloc; done. }
-      rewrite left_id.
+      (* rewrite left_id. *)
       iFrame.
       iDestruct ("HΦ" with "[Hl Hm]") as "$".
       { iFrame "crashedAt".
@@ -630,7 +649,7 @@ Section lifting.
   Proof.
     iIntros (Φ) "[ℓPts Hval] HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
-    iIntros ([??] [] ns mj D κ κs k). iNamed 1. iIntros "_ /= !>". iNamed "crash".
+    iIntros ([??] [] ns mj D κ κs k). iNamed 1. iIntros "? !>". iNamed "crash".
     (* From the points-to predicate we know that [hist] is in the heap at ℓ. *)
     iDestruct (gen_heap_valid with "Hσ ℓPts") as %Hlook.
     iSplit.
@@ -648,8 +667,9 @@ Section lifting.
       * econstructor; last by apply view_lt_lt.
         + done.
         + rewrite Hmsgeq. done.
-    - iNext. iIntros (e2 σ2 [] efs Hstep) "!>".
-      inv_impure_thread_step.
+    - iNext. iIntros (e2 σ2 [] efs Hstep).
+      whack_global.
+      simpl in *. inv_impure_thread_step.
       iSplitR=>//.
       iFrame.
       (* iFrame "Hheap lubauth persist Hincl Ht". *)
@@ -657,6 +677,7 @@ Section lifting.
       apply lookup_fmap_Some in H11.
       destruct H11 as [x [??]].
       iDestruct ("HΦ" with "[$ℓPts]") as "$"; first naive_solver.
+      iModIntro.
       naive_solver.
   Qed.
 
@@ -671,7 +692,7 @@ Section lifting.
   Proof.
     iIntros (Φ) "[ℓPts Hval] HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
-    iIntros ([??] [] ns mj D κ κs k). iNamed 1. iIntros "_ /= !>". iNamed "crash".
+    iIntros ([??] [] ns mj D κ κs k). iNamed 1. iIntros "? !>". iNamed "crash".
     (* The time at the view is smaller than the time in the lub view (which is
     the time of the most recent message *)
     iDestruct (auth_frag_leq with "Hval lubauth") as %Vincl.
@@ -694,6 +715,7 @@ Section lifting.
         + done.
         + rewrite Hmsgeq. done.
     - iNext. iIntros (e2 σ2 [] efs Hstep).
+      whack_global.
       simpl in *. inv_impure_thread_step. iSplitR=>//.
       iMod (own_update with "lubauth") as "[lubauth valid']".
       { apply (auth_update_dfrac_alloc _ _ (V ⋅ MV)).
@@ -716,7 +738,7 @@ Section lifting.
   Proof.
     iIntros (Φ) "[ℓPts Hval] HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
-    iIntros ([??] [] ns mj D κ κs k). iNamed 1. iIntros "_ /= !>". iNamed "crash".
+    iIntros ([??] [] ns mj D κ κs k). iNamed 1. iIntros "? !>". iNamed "crash".
     (* The time at the view is smaller than the time in the lub view (which is
     the time of the most recent message *)
     iDestruct (auth_frag_leq with "Hval lubauth") as %Vincl.
@@ -738,6 +760,7 @@ Section lifting.
         + pose proof (view_lt_lt _ _ Vincl ℓ ℓ eq_refl). lia.
         + done.
     - iNext. iIntros (e2 σ2 [] efs Hstep).
+      whack_global.
       simpl in *. inv_impure_thread_step. iSplitR=>//.
       (* The persist view didn't change. *)
       iFrame "Hpers". simpl.
@@ -749,7 +772,7 @@ Section lifting.
       iFrame "lubauth".
       (* We now update the big op. *)
       iModIntro.
-      rewrite left_id. iPureGoal.
+      iPureGoal.
       { apply hist_inv_insert_msg; try done. apply view_empty_least. }
       iCombine "Hval viewT" as "v".
       iDestruct ("HΦ" with "[$ℓPts v]") as "$".
@@ -768,7 +791,7 @@ Section lifting.
   Proof.
     iIntros (Φ) "[ℓPts Hval] HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
-    iIntros ([??] [] ns mj D κ κs k). iNamed 1. iIntros "Ht /= !>". iNamed "crash".
+    iIntros ([??] [] ns mj D κ κs k). iNamed 1. iIntros "Ht !>". iNamed "crash".
     (* The time at the view is smaller than the time in the lub view (which is the time of the most recent message *)
     iDestruct (auth_frag_leq with "Hval lubauth") as %Vincl.
     (* From the points-to predicate we know that [hist] is in the heap at ℓ. *)
@@ -789,6 +812,7 @@ Section lifting.
         + pose proof (view_lt_lt _ _ Vincl ℓ _ eq_refl). lia.
         + done.
     - iNext. iIntros (e2 σ2 [] efs Hstep).
+      whack_global.
       simpl in *. inv_impure_thread_step. iSplitR=>//.
       (* The persist view didn't change. *)
       iFrame "Hpers".
@@ -797,7 +821,7 @@ Section lifting.
       iFrame "Hσ".
       (* We must now update the authorative element for the max_view. *)
       iMod (auth_max_view_insert with "lubauth") as "[lubauth viewT]"; [done|].
-      iFrame "lubauth Ht".
+      iFrame "lubauth".
       (* We now update the big op. *)
       iPureGoal.
       { apply hist_inv_insert_msg; try done. apply max_view_incl_insert; done. }
@@ -826,6 +850,7 @@ Section lifting.
        iExists [], _, _, _, _. simpl. iPureIntro.
        eapply impure_step; by econstructor; done.
     - iNext. iIntros (e2 σ2 [] efs Hstep).
+      whack_global. Unshelve. 2: { done. }
       inv_impure_thread_step. iSplitR=>//.
       iModIntro. iFrame "∗%". iApply "HΦ". iFrame.
   Qed.
@@ -843,6 +868,7 @@ Section lifting.
        iExists [], _, _, _, _. simpl. iPureIntro.
        eapply impure_step; by econstructor; done.
     - iNext. iIntros (e2 σ2 [] efs Hstep).
+      whack_global. Unshelve. 2: { done. }
       inv_impure_thread_step. iSplitR=>//.
       iModIntro. iFrame "∗%". iApply "HΦ". done.
   Qed.
@@ -860,6 +886,7 @@ Section lifting.
        iExists [], _, _, _, _. simpl. iPureIntro.
        eapply impure_step; by econstructor; done.
     - iNext. iIntros (e2 σ2 [] efs Hstep).
+      whack_global. Unshelve. 2: { done. }
       inv_impure_thread_step. iSplitR=>//.
       iMod (auth_auth_view_grow_op with "Hpers") as "[$ perB]".
       iModIntro. iFrame "∗%". iApply "HΦ". iFrame.
