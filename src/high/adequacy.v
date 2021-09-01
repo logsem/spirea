@@ -39,9 +39,10 @@ Proof.
   intros t2 σ2 stat.
   intros [n [κs nstep]]%erased_rsteps_nrsteps.
   destruct (nrsteps_snoc _ _ _ _ _ _ nstep) as (ns' & n' & ->).
+  set (n := 0).
   set (nsinit := (n * 4 + crash_borrow_ginv_number)).
-  eapply (step_fupdN_fresh_soundness _ ns' nsinit
-              (crash_adequacy.steps_sum _ _ (Nat.iter (sum_crash_steps ns') f2 nsinit) n')
-               (S (S (_ (Nat.iter (n' + sum_crash_steps ns') _ nsinit)))))
-         => Hinv Hc.
+  (* eapply (step_fupdN_fresh_soundness _ ns' nsinit *)
+  (*             (crash_adequacy.steps_sum _ _ (Nat.iter (sum_crash_steps ns') f2 nsinit) n') *)
+  (*              (S (S (_ (Nat.iter (n' + sum_crash_steps ns') _ nsinit))))) *)
+  (*        => Hinv Hc. *)
 Admitted.

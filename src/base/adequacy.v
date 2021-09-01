@@ -8,6 +8,7 @@ From Perennial.algebra Require Import proph_map.
 From Perennial.program_logic Require Import recovery_weakestpre recovery_adequacy.
 From Perennial.Helpers Require Import ipm.
 
+From self.base Require Import cred_frag crash_borrow.
 From self.base Require Export wpr_lifting primitive_laws.
 
 Set Default Proof Using "Type".
@@ -18,14 +19,18 @@ Class nvmBaseGpreS Σ := NvmBasePreG {
   nvmBase_preG_crash :> crashPreG Σ;
   nvmBase_preG_view_inG : view_preG Σ;
   nvmBase_preG_crashed_at :> inG Σ (agreeR viewO);
+  nvmBase_preG_credit :> credit_preG Σ;
 }.
 
-Definition nvm_build_base Σ (hpreG : nvmBaseGpreS Σ) (Hinv : invGS Σ) : nvmBaseFixedG Σ :=
+Definition nvm_build_base Σ (hpreG : nvmBaseGpreS Σ) (Hinv : invGS Σ)
+           (cred_names : cr_names) : nvmBaseFixedG Σ :=
   {|
     nvmBaseG_invGS := Hinv;
     nvmBaseG_gen_heapGS := nvmBase_preG_gen_heapGS;
     view_inG := nvmBase_preG_view_inG;
     crashed_at_inG := nvmBase_preG_crashed_at;
+    nvm_base_creditG :=
+      creditGS_update_pre Σ (nvmBase_preG_credit) cred_names;
   |}.
 
 Definition nvm_build_delta Σ Hc (names : nvm_base_names) : nvmBaseDeltaG Σ :=
@@ -35,10 +40,10 @@ Definition nvm_build_delta Σ Hc (names : nvm_base_names) : nvmBaseDeltaG Σ :=
   |}.
 
 (* Allocate the state intepretation in the base logic for any valid heap. *)
-Lemma allocate_state_interp `{hPre : !nvmBaseGpreS Σ} Hinv Hc σ :
+Lemma allocate_state_interp `{hPre : !nvmBaseGpreS Σ} Hinv Hc σ cred_names :
   valid_heap σ.1 →
   ⊢ |==> ∃ (names : nvm_base_names),
-    let hG := nvm_build_base _ hPre Hinv in
+    let hG := nvm_build_base _ hPre Hinv cred_names in
     let hGD := nvm_build_delta _ Hc names in
     nvm_heap_ctx σ ∗ [∗ map] l↦v ∈ σ.1, l ↦h v.
 Proof.
@@ -68,23 +73,31 @@ Qed.
  [φinv] and [Φinv]). This makes the statement a bit more complex and we do not
  actually need the invariant feature at all. Hence we also have a simpler
  variant below for the case where the invariant is alwasy true.  *)
-Theorem base_recv_adequacy Σ `{hPre : !nvmBaseGpreS Σ} s k e r σ g φ φr φinv Φinv :
+Theorem base_recv_adequacy Σ `{hPre : !nvmBaseGpreS Σ} s k e r σ g φ φr φinv Φinv n :
   valid_heap σ.1 →
   (∀ `{Hheap : !nvmBaseFixedG Σ, hD : !nvmBaseDeltaG Σ},
-    ⊢ ([∗ map] l ↦ v ∈ σ.1, l ↦h v) -∗ (
-       □ (∀ σ nt, state_interp σ nt -∗ |NC={⊤, ∅}=> ⌜ φinv σ ⌝) ∗
-       □ (∀ hGD, Φinv hGD -∗ □ ∀ σ nt, state_interp σ nt -∗ |NC={⊤, ∅}=> ⌜ φinv σ ⌝) ∗
-       wpr s k ⊤ e r (λ v, ⌜φ v⌝) Φinv (λ _ v, ⌜φr v⌝))) →
+    ⊢ pre_borrowN n -∗
+      ([∗ map] l ↦ v ∈ σ.1, l ↦h v) -∗ (
+        □ (∀ σ nt, state_interp σ nt -∗ |NC={⊤, ∅}=> ⌜ φinv σ ⌝) ∗
+        □ (∀ hGD, Φinv hGD -∗ □ ∀ σ nt, state_interp σ nt -∗ |NC={⊤, ∅}=> ⌜ φinv σ ⌝) ∗
+        wpr s k ⊤ e r (λ v, ⌜φ v⌝) Φinv (λ _ v, ⌜φr v⌝))) →
   recv_adequate (CS := nvm_crash_lang) s e r σ g (λ v _ _, φ v) (λ v _ _, φr v) (λ σ _, φinv σ).
 Proof.
   intros val Hwp.
   eapply (wp_recv_adequacy_inv _ _ _ nvm_base_namesO _ _ _ _ _ _ _ _ _ _).
   iIntros (???) "".
-  iMod (allocate_state_interp Hinv Hc σ) as (hnames) "[interp pts]"; first done.
+
+  iMod (credit_name_init (n * 4 + crash_borrow_ginv_number)) as
+      (name_credit) "(Hcred_auth&Hcred&Htok)".
+  iDestruct (cred_frag_split with "Hcred") as "(Hpre&Hcred)".
+  iAssert (|={⊤}=> crash_borrow_ginv)%I with "[Hcred]" as ">#Hinv".
+  { rewrite /crash_borrow_ginv. iApply (inv_alloc _). iNext. eauto. }
+
+  iMod (allocate_state_interp Hinv Hc σ name_credit) as (hnames) "[interp pts]"; first done.
 
   iExists ({| pbundleT := hnames |}).
   (* Build an nvmBaseFixedG. *)
-  set (hG := nvm_build_base _ hPre Hinv).
+  set (hG := nvm_build_base _ hPre Hinv name_credit).
   set (hGD := nvm_build_delta _ Hc hnames).
   iExists
     (λ t σ nt, let _ := nvm_base_delta_update_names hGD (@pbundleT _ _ t) in
@@ -101,7 +114,10 @@ Proof.
   iExists (λ names0 _Hinv Hc names,
              Φinv ({| nvm_base_crashG := Hc;
                       nvm_base_names' := (@pbundleT _ _ names) |} )).
-  iDestruct (Hwp hG hGD with "pts") as "(#H1 & #H2 & Hwp)".
+  rewrite /pre_borrowN in Hwp.
+  rewrite /pre_borrow in Hwp.
+  iDestruct (@cred_frag_to_pre_borrowN _ hG _ n with "Hpre") as "Hpre".
+  iDestruct (Hwp hG _ with "Hpre pts") as "(#H1 & #H2 & Hwp)".
   iModIntro.
   iSplitR.
   { iModIntro. iIntros (??) "Hσ".
@@ -113,10 +129,11 @@ Proof.
     { iExactEq "H". f_equal. }
     iModIntro. iIntros (??) "H". iSpecialize ("H3" with "[H]"); eauto. }
   iFrame.
+  iFrame "Hinv".
+  iSplit. { iPureIntro. done. }
+  rewrite /hG. done.
   Unshelve.
-  - eauto.
-  - done.
-  - done.
+  - exact 0.
 Qed.
 
 (* Similar to the [reccv_adequate] in Perennial except that:
@@ -144,10 +161,11 @@ Lemma adequacy_impl (s : stuckness) (e1 r1: thread_state) (σ1 : state nvm_lang)
 Proof. intros [????]. split; try naive_solver. Qed.
 
 (* This is the simpler adequacy result. *)
-Corollary base_recv_adequacy_simpl Σ `{hPre : !nvmBaseGpreS Σ} s k e r σ φ φr :
+Corollary base_recv_adequacy_simpl Σ `{hPre : !nvmBaseGpreS Σ} s k e r σ φ φr n :
   valid_heap σ.1 →
   (∀ `{Hheap : !nvmBaseFixedG Σ, hD : !nvmBaseDeltaG Σ},
-    ⊢ ([∗ map] l ↦ v ∈ σ.1, l ↦h v) -∗ (
+    ⊢ pre_borrowN n -∗
+      ([∗ map] l ↦ v ∈ σ.1, l ↦h v) -∗ (
        wpr s k ⊤ e r (λ v, ⌜φ v⌝) (λ _, True) (λ _ v, ⌜φr v⌝))) →
   recv_adequate s e r σ (λ v _, φ v) (λ v _, φr v).
 Proof.
@@ -156,8 +174,8 @@ Proof.
   eapply (base_recv_adequacy Σ); first apply val.
   intros nB nBD.
   specialize (hyp nB nBD).
-  iIntros "ptsMap".
-  iDestruct (hyp with "ptsMap") as "wpr".
+  iIntros "borrow ptsMap".
+  iDestruct (hyp with "borrow ptsMap") as "wpr".
   iSplit.
   { iIntros "!>" (? ?) "_". iApply ncfupd_mask_intro; naive_solver. }
   iSplit.
