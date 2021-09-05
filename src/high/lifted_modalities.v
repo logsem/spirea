@@ -81,12 +81,12 @@ Section lifted_fupd_level.
 
 End lifted_fupd_level.
 
-Program Definition ncfupd_def `{!invGS Σ, !crashG Σ} (E1 E2 : coPset) (P : dProp Σ) : dProp Σ :=
+Program Definition ncfupd_def `{!invGS Σ, !crashGS Σ} (E1 E2 : coPset) (P : dProp Σ) : dProp Σ :=
   MonPred (λ TV, ncfupd E1 E2 (P TV))%I _.
 Next Obligation. solve_proper. Qed.
-Definition ncfupd_aux `{!invGS Σ, !crashG Σ} : seal (ncfupd_def). Proof. by eexists. Qed.
-Definition ncfupd `{!invGS Σ, !crashG Σ} := ncfupd_aux.(unseal).
-Definition ncfupd_eq `{!invGS Σ, !crashG Σ} : ncfupd = ncfupd_def := ncfupd_aux.(seal_eq).
+Definition ncfupd_aux `{!invGS Σ, !crashGS Σ} : seal (ncfupd_def). Proof. by eexists. Qed.
+Definition ncfupd `{!invGS Σ, !crashGS Σ} := ncfupd_aux.(unseal).
+Definition ncfupd_eq `{!invGS Σ, !crashGS Σ} : ncfupd = ncfupd_def := ncfupd_aux.(seal_eq).
 
 Notation "|NC={ E1 }=> Q" := (ncfupd E1 E1 Q)
   (at level 99, E1 at level 50, Q at level 200,
@@ -101,7 +101,7 @@ Notation "|NC={ E1 } [ E2 ]▷=>^ n Q" := (Nat.iter n (λ P, |NC={E1}[E2]▷=> P
   (at level 99, E1, E2 at level 50, n at level 9, Q at level 200,
    format "'[  ' |NC={ E1 } [ E2 ]▷=>^ n  '/' Q ']'").
 
-Program Definition cfupd `{!invGS Σ, !crashG Σ} (k : nat) E1 (P : dProp Σ) :=
+Program Definition cfupd `{!invGS Σ, !crashGS Σ} (k : nat) E1 (P : dProp Σ) :=
   (⎡C⎤ -∗ |={E1}=> P)%I.
   (* MonPred (λ TV, cfupd k E1 (P TV))%I _. *)
 (* Next Obligation. solve_proper. Qed. *)
@@ -111,7 +111,7 @@ Notation "|C={ E1 }_ k => P" := (cfupd k E1 P)
        format "'[  ' |C={ E1 }_ k =>  '/' P ']'").
 
 Section lifted_modalities.
-  Context `{crashG Σ, invGS Σ}.
+  Context `{crashGS Σ, invGS Σ}.
 
   (*** ncfupd *)
 

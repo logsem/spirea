@@ -38,7 +38,7 @@ Definition wpr_pre `{nvmFixedG Σ} (s : stuckness) (k : nat)
   (WPC e @ s ; k; E
     {{ Φ }}
     {{ ∀ σ σ' (HC : crash_prim_step nvm_crash_lang σ σ') n,
-      ⎡ interp -∗ state_interp σ n ={E}=∗ ▷ ∀ (Hc1 : crashG Σ) q, NC q ={E}=∗
+      ⎡ interp -∗ state_interp σ n ={E}=∗ ▷ ∀ (Hc1 : crashGS Σ) q, NC q ={E}=∗
         ∃ (hGD' : nvmDeltaG Σ), (* Maybe state that [hGD'] contains [Hc1] *)
           (* let hG := (nvm_update Σ hG _ Hc1 names) in *)
           state_interp σ' 0 ∗
@@ -239,7 +239,7 @@ Section wpr.
 
   (* Given the state interpretations _before_ a crash we reestablish the
   interpretations _after_ a crash. *)
-  Lemma nvm_reinit (hGD : nvmDeltaG Σ) n Pg tv σ σ' (Hinv : invGS Σ) (Hcrash : crashG Σ) :
+  Lemma nvm_reinit (hGD : nvmDeltaG Σ) n Pg tv σ σ' (Hinv : invGS Σ) (Hcrash : crashGS Σ) :
     crash_step σ σ' →
     ⊢ interp -∗
       state_interp σ n -∗
@@ -546,7 +546,7 @@ Section wpr.
 
 
   (*
-  Lemma nvm_reinit' (hG' : nvmFixedG Σ, nvmDeltaG Σ) n σ σ' (Hinv : invGS Σ) (Hcrash : crashG Σ) Pg :
+  Lemma nvm_reinit' (hG' : nvmFixedG Σ, nvmDeltaG Σ) n σ σ' (Hinv : invGS Σ) (Hcrash : crashGS Σ) Pg :
     crash_step σ σ' →
     ⊢ ⎡interp⎤ -∗
       ⎡state_interp σ n⎤ -∗

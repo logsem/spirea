@@ -30,7 +30,7 @@ Canonical Structure nvm_base_namesO := leibnizO nvm_base_names.
 (** Given an [hG : nvmBaseFixedG Σ, nvmBaseDeltaG Σ], update the fields per the information in the
 rest of the arguments. In particular, all the gnames in [names] replaces the
 corresponding gnames in [hG].
-TOOD: See if we can get rid of the [invGS] and [crashG] argument.
+TOOD: See if we can get rid of the [invGS] and [crashGS] argument.
  *)
 
 (* Lemma heap_update_eq {Σ} heapGS' (heapGS : gen_heapGS loc history Σ) : *)
@@ -49,7 +49,7 @@ TOOD: See if we can get rid of the [invGS] and [crashG] argument.
 (* (* Qed. *) *)
 
 (* Lemma nvm_update_id {Σ} (hGD : nvmBaseDeltaG Σ) (hG : nvmBaseFixedG Σ) : *)
-(*   hGD = {| nvm_base_crashG := nvm_base_crashG; *)
+(*   hGD = {| nvm_base_crashGS := nvm_base_crashGS; *)
 (*            nvm_base_names' := *)
 (*              nvm_base_get_names Σ {| nvm_base_inG := hG; nvmBaseDeltaG' := hGD |} *)
 (*         |}. *)
@@ -68,7 +68,7 @@ Next Obligation. eauto. Qed.
 Next Obligation. eauto. Qed.
 Next Obligation. eauto. Qed.
 
-Definition wpr `{nvmBaseFixedG Σ, hG : nvmBaseDeltaG Σ} `{hC : !crashG Σ}
+Definition wpr `{nvmBaseFixedG Σ, hG : nvmBaseDeltaG Σ} `{hC : !crashGS Σ}
            (s : stuckness) (k : nat) (E : coPset)
            (e : thread_state) (recv : thread_state) (Φ : thread_val → iProp Σ)
            (Φinv : nvmBaseDeltaG Σ → iProp Σ)
@@ -145,7 +145,7 @@ Section wpr.
   Proof. do 2 constructor; simpl; auto. apply: core_id_core. Qed.
 
   Lemma nvm_heap_reinit (hG : nvmBaseFixedG Σ) (hGD : nvmBaseDeltaG Σ) σ p p'
-        (Hcrash : crashG Σ) :
+        (Hcrash : crashGS Σ) :
     (* The first two assumptions are the content of [crash_step σ σ'] *)
     p ⊑ p' →
     consistent_cut p' σ →
@@ -240,7 +240,7 @@ Section wpr.
   Qed.
 
   Lemma nvm_heap_reinit_alt (hG : nvmBaseFixedG Σ) (hGD : nvmBaseDeltaG Σ) σ σ'
-        (Hcrash : crashG Σ) Pg :
+        (Hcrash : crashGS Σ) Pg :
     crash_step σ σ' →
     ⊢ nvm_heap_ctx σ -∗
       post_crash Pg ==∗
@@ -255,7 +255,7 @@ Section wpr.
       as (hnames) "(map & interp' & #persImpl & rec)"; try done.
     rewrite /post_crash.
     set newBundle : nvmBaseDeltaG Σ :=
-      {| nvm_base_crashG := Hcrash; nvm_base_names' := hnames |}.
+      {| nvm_base_crashGS := Hcrash; nvm_base_names' := hnames |}.
     iSpecialize ("Pg" $! (store, p') newBundle).
     rewrite /newBundle.
     iDestruct ("Pg" with "persImpl map") as "(map & Pg)".

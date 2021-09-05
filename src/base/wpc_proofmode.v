@@ -20,7 +20,7 @@ Set Default Proof Using "Type".
 Import uPred.
 
 (*
-Lemma wpc_fork `{ffi_sem: ext_semantics} `{!ffi_interp ffi} `{!nvmBaseFixedG Σ, nvmBaseDeltaG Σ, !crashG Σ} s k E1 e Φ Φc :
+Lemma wpc_fork `{ffi_sem: ext_semantics} `{!ffi_interp ffi} `{!nvmBaseFixedG Σ, nvmBaseDeltaG Σ, !crashGS Σ} s k E1 e Φ Φc :
   ▷ WPC e @ s; k; ⊤ {{ _, True }} {{ True }} -∗ (Φc ∧ ▷ Φ (LitV LitUnit)) -∗
                       WPC Fork e @ s; k; E1 {{ Φ }} {{ Φc }}.
 Proof.
@@ -53,7 +53,7 @@ Tactic Notation "wpc_expr_eval" tactic(t) :=
       [let x := fresh in intros x; t; unfold x; notypeclasses refine eq_refl|]
   end.
 
-Lemma tac_wpc_pure_ctx `{!nvmBaseFixedG Σ, nvmBaseDeltaG Σ, !crashG Σ}
+Lemma tac_wpc_pure_ctx `{!nvmBaseFixedG Σ, nvmBaseDeltaG Σ, !crashGS Σ}
       Δ Δ' s k E1 K e1 e2 TV φ Φ Φc :
   PureExecBase φ 1 e1 e2 →
   φ →
@@ -69,7 +69,7 @@ Proof.
   rewrite HΔ' //.
 Qed.
 
-Lemma tac_wpc_pure_no_later_ctx `{!nvmBaseFixedG Σ, nvmBaseDeltaG Σ, !crashG Σ}
+Lemma tac_wpc_pure_no_later_ctx `{!nvmBaseFixedG Σ, nvmBaseDeltaG Σ, !crashGS Σ}
       Δ s k E1 K e1 e2 TV φ Φ Φc :
   PureExecBase φ 1 e1 e2 →
   φ →
@@ -267,7 +267,7 @@ Ltac wpc_pures :=
       [try iFromCache .. | repeat (wpc_pure_no_later wp_pure_filter as Hcrash; []); clear Hcrash]
   end.
 
-Lemma tac_wpc_bind `{!nvmBaseFixedG Σ, nvmBaseDeltaG Σ, !crashG Σ} K Δ s k E1 Φ Φc e TV f :
+Lemma tac_wpc_bind `{!nvmBaseFixedG Σ, nvmBaseDeltaG Σ, !crashGS Σ} K Δ s k E1 Φ Φc e TV f :
   f = (λ e, fill K e) → (* as an eta expanded hypothesis so that we can `simpl` it *)
   envs_entails Δ (WPC (ThreadState e TV) @ s; k; E1 {{ tv, WPC (ThreadState (f $ Val tv.(val_val)) (tv.(val_view))) @ s; k; E1 {{ Φ }} {{ Φc }} }} {{ Φc }})%I →
   envs_entails Δ (WPC (ThreadState (fill K e) TV) @ s; k; E1 {{ Φ }} {{ Φc }}).
@@ -281,7 +281,7 @@ Qed.
 
 (*
 Lemma tac_wpc_wp_frame `{ffi_sem: ext_semantics} `{!ffi_interp ffi}
-      `{!nvmBaseFixedG Σ, nvmBaseDeltaG Σ, !crashG Σ} Δ d js s k E1 e (Φ: _ -> iProp Σ) (Φc: iProp Σ) :
+      `{!nvmBaseFixedG Σ, nvmBaseDeltaG Σ, !crashGS Σ} Δ d js s k E1 e (Φ: _ -> iProp Σ) (Φc: iProp Σ) :
   match envs_split d js Δ with
   | Some (Δ1, Δ2) => envs_entails Δ1 (<disc> Φc) ∧
                      envs_entails Δ2 (WP e @ s; E1
@@ -310,7 +310,7 @@ Qed.
 (* combines using [wpc_frame Hs] with [iFromCache], simultaneously framing and
    proving the crash condition using a cache *)
 Lemma tac_wpc_wp_frame_cache `{ffi_sem: ext_semantics} `{!ffi_interp ffi}
-      `{!nvmBaseFixedG Σ, nvmBaseDeltaG Σ, !crashG Σ} (Φc: iProp Σ) i (* name of cache *) (c: cache (<disc> Φc)%I)
+      `{!nvmBaseFixedG Σ, nvmBaseDeltaG Σ, !crashGS Σ} (Φc: iProp Σ) i (* name of cache *) (c: cache (<disc> Φc)%I)
       Δ stk k E1 e (Φ: _ → iProp Σ)  :
   envs_lookup i Δ = Some (true, cached c) →
   match envs_split Left c.(cache_names) Δ with

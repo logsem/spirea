@@ -16,7 +16,7 @@ Set Default Proof Using "Type".
 Class nvmBaseGpreS Σ := NvmBasePreG {
   nvmBase_preG_iris :> invGpreS Σ;
   nvmBase_preG_gen_heapGS :> gen_heapGpreS loc history Σ;
-  nvmBase_preG_crash :> crashPreG Σ;
+  nvmBase_preG_crash :> crashGpreS Σ;
   nvmBase_preG_view_inG : view_preG Σ;
   nvmBase_preG_crashed_at :> inG Σ (agreeR viewO);
   nvmBase_preG_credit :> credit_preG Σ;
@@ -35,7 +35,7 @@ Definition nvm_build_base Σ (hpreG : nvmBaseGpreS Σ) (Hinv : invGS Σ)
 
 Definition nvm_build_delta Σ Hc (names : nvm_base_names) : nvmBaseDeltaG Σ :=
   {|
-    nvm_base_crashG := Hc;
+    nvm_base_crashGS := Hc;
     nvm_base_names' := names;
   |}.
 
@@ -112,7 +112,7 @@ Proof.
   iExists _.
   iExists _.
   iExists (λ names0 _Hinv Hc names,
-             Φinv ({| nvm_base_crashG := Hc;
+             Φinv ({| nvm_base_crashGS := Hc;
                       nvm_base_names' := (@pbundleT _ _ names) |} )).
   rewrite /pre_borrowN in Hwp.
   rewrite /pre_borrow in Hwp.

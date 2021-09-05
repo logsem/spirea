@@ -43,15 +43,15 @@ Class nvm_base_names := {
 
 (* Things that change upon a crash. We would have like to _only_ have ghost
 names in this record, but due to how Perennial is implemented we need to keep
-the entire [crashG] in it. *)
+the entire [crashGS] in it. *)
 Class nvmBaseDeltaG Σ := MkNvmBaseDeltaG {
-  nvm_base_crashG :> crashG Σ;
+  nvm_base_crashGS :> crashGS Σ;
   nvm_base_names' :> nvm_base_names;
 }.
 
 Definition nvm_base_delta_update_names {Σ}
            (hGD : nvmBaseDeltaG Σ) (names : nvm_base_names) :=
-  {| nvm_base_crashG := nvm_base_crashG;
+  {| nvm_base_crashGS := nvm_base_crashGS;
      nvm_base_names' := names |}.
 
 (* When we have an [nvmBaseG] instance we can stich together a [gen_heapGS]
@@ -128,8 +128,8 @@ Definition crash_borrow_ginv `{!invGS Σ} `{creditGS Σ}
 
 Global Program Instance nvmBaseG_irisGS `{!nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ} :
   irisGS nvm_lang Σ := {
-  iris_invG := nvmBaseG_invGS;
-  iris_crashG := nvm_base_crashG;
+  iris_invGS := nvmBaseG_invGS;
+  iris_crashGS := nvm_base_crashGS;
   state_interp σ _nt := nvm_heap_ctx σ;
   global_state_interp g ns mj D _ :=
     (@crash_borrow_ginv _ nvmBaseG_invGS _ ∗
@@ -798,7 +798,7 @@ Section lifting.
     iDestruct (gen_heap_valid with "Hσ ℓPts") as %Hlook.
     iSplit.
     - (* We must show that the store can take some step. To do this we must use
-         the points-to predicate and fact that the view is valid. *)
+         the points-tostep_fupdN_freshredicate and fact that the view is valid. *)
       rewrite /head_reducible.
       (* We need to show that there is _some_ message that the load could read.
       It could certainly read the most recent message. *)
