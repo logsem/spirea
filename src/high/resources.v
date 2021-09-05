@@ -60,10 +60,6 @@ Class nvmFixedG Σ := NvmFixedG {
   nvmG_highG :> nvmHighFixedG Σ;
 }.
 
-Global Instance discretizable_ghost_map_elem `{ghost_mapG Σ K V} ℓ γ v :
-  own_discrete.Discretizable (ℓ ↪[γ] v).
-Proof. rewrite ghost_map_elem_eq /ghost_map_elem_def. apply _. Qed.
-
 (* Wrappers around ownership of resources that extracts the ghost names from [nvmDeltaG]. *)
 
 Section ownership_wrappers.
@@ -263,10 +259,6 @@ Section points_to_shared.
         (* We "have"/"know of" the two timestamps. *)
         "haveTStore" ∷ have_store_view ℓ tStore ∗
         "pers" ∷ if persisted then ⎡ persisted_loc ℓ tP ⎤ else ⌜tP = 0⌝)%I.
-
-  Global Instance mapsto_ex_discretizable b ℓ ss :
-    Discretizable (mapsto_ex b ℓ ss).
-  Proof. destruct b; apply _. Qed.
 
   (* NOTE: This comment is out of date. *)
   (* This definition uses an existentially quantified [s']. We do this such that
