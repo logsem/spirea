@@ -1,14 +1,20 @@
-From stdpp Require Export binders strings.
+(* We define the syntax and operational semantics of NvmLang. A language with
+ release/acquire weak memory and non-volatile memory.
+
+ The language is adapted from HeapLang and is identical to it in all aspects
+ except for those related to the memory model. *)
+
+From stdpp Require Import binders strings.
 From stdpp Require Import gmap.
-From iris.algebra Require Export ofe.
+From iris.algebra Require Import ofe.
 From iris.prelude Require Import options.
+
+From self.lang Require Export memory.
+
 From Perennial.program_logic Require Export language ectx_language ectxi_language.
 From Perennial.program_logic Require Export crash_lang.
 
-From self.lang Require Export syntax memory.
-
-(* nvm_lang.  A language with release/acquire weak memory and persistent
-non-volatile memory. The language is adapted from HeapLang. *)
+From self.lang Require Export syntax.
 
 (* Scope delimiters like the ones that HeapLang has. *)
 Delimit Scope expr_scope with E.
@@ -464,6 +470,10 @@ Canonical Structure nvm_crash_lang : crash_semantics nvm_lang :=
   {| crash_prim_step := crash_step |}.
 
 Export nvm_lang.
+
+(* Convenient way of writing an expression and a thread view. *)
+Notation "e '`at`' TV" := (ThreadState e TV) (at level 180) : expr_scope.
+Notation "v '`at`' TV" := (ThreadVal v TV) (at level 180) : val_scope.
 
 (* There is a correspondance between [fill] in nvm_lang and expr_lang. *)
 Lemma nvm_fill_fill (K : list (ectx_item)) (e1 : expr) TV :

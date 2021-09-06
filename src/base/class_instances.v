@@ -8,9 +8,9 @@ From self.lang Require Export lang notation.
 From self.base Require Import tactics.
 
 (* [IntoVal] and [AsVal] for nvm_lang. *)
-Global Instance into_val_ts v TV : IntoVal (ThreadState (Val v) TV) (ThreadVal v TV).
+Global Instance into_val_ts v TV : IntoVal (Val v `at` TV) (v `at` TV).
 Proof. done. Qed.
-Global Instance as_val_val_ts v TV : AsVal (ThreadState (Val v) TV).
+Global Instance as_val_val_ts v TV : AsVal (Val v `at` TV).
 Proof. by eexists (ThreadVal _ _). Qed.
 
 (* [IntoVal] and [AsVal] for expr_lang. *)
@@ -21,7 +21,7 @@ Proof. by exists v. Qed.
 
 (** * Instances of the [Atomic] class *)
 
-Global Notation AtomicBase s e := (∀ TV, Atomic s (ThreadState e TV)).
+Global Notation AtomicBase s e := (∀ TV, Atomic s (e `at` TV)).
 
 Section atomic.
   Local Ltac solve_atomic :=
@@ -131,7 +131,7 @@ Global Hint Extern 0 (AsRecV (RecV _ _ _) _ _ _) =>
   apply AsRecV_recv : typeclass_instances.
 
 Global Notation PureExecBase P nsteps e1 e2 :=
-  (∀ TV, PureExec P nsteps (ThreadState e1 TV) (ThreadState e2 TV)).
+  (∀ TV, PureExec P nsteps (e1 `at` TV) (e2 `at` TV)).
 
 Section pure_exec.
   Lemma pure_exec_base_fill K φ n e1 e2 :

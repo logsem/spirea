@@ -1,12 +1,12 @@
 (* This module defines the memory model or the memory subsystem. *)
 
 From stdpp Require Import countable numbers gmap.
-From iris.heap_lang Require Export locations.
-From iris.algebra Require Export gmap numbers.
+From iris.heap_lang Require Import locations.
+From iris.algebra Require Import gmap numbers.
 
 From self Require Import extra.
 From self.algebra Require Export view.
-From self.lang Require Export syntax.
+From self.lang Require Import syntax.
 
 Definition valid_slice {A} (V : view) (σ : gmap loc (gmap time A)) :=
   map_Forall (λ ℓ hist, ∃ t, V !! ℓ = Some (MaxNat t) ∧ is_Some (hist !! t)) σ.

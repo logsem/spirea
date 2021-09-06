@@ -1,10 +1,7 @@
 From stdpp Require Export binders strings.
-From stdpp Require Import gmap.
-From iris.prelude Require Import options.
+From stdpp Require Import countable.
 From iris.algebra Require Import ofe.
-From iris.heap_lang Require Export locations.
-
-(* From self.lang Require Export memory. *)
+From iris.heap_lang Require Import locations.
 
 Module syntax.
 
@@ -69,6 +66,8 @@ Module syntax.
     | InjLV (v : val)
     | InjRV (v : val).
 
+  Declare Scope expr_scope.
+  Declare Scope val_scope.
   Bind Scope expr_scope with expr.
   Bind Scope val_scope with val.
 
