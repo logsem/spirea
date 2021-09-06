@@ -329,13 +329,14 @@ Module nvm_lang.
   Proof. intros. induction Ki; simplify_option_eq; eauto. Qed.
 
   (* Even though what we have so far does not qualify as a "language" that we
-  can instantiate Iris with, we will instantiate Iris with a pseudo instance.
-  This is because the WP notation is constructed using a type class called [Wp]
-  which requires the expression argument to be the expression for some language.
-  We call it `expr_lang` since it expressions are actually expressions (in
-  comparison to `nvm_lang` where expressions are thread states. )
-  *)
-    (* expr -> state -> global_state -> list observation -> expr -> state -> global_state -> list expr -> Prop := *)
+  can instantiate Iris with, we will instantiate Iris with a pseudo/pro forma
+  instance.  This is because the WPC notation in Perennial is constructed using
+  a type class called [Wpc] which requires the expression argument to be the
+  expression for some language.  We call it `expr_lang` since it expressions are
+  actually expressions (in comparison to `nvm_lang` where expressions are thread
+  states). Note: in the past is was also the case that [WP] in Iris itself
+  depended on the expressions having a language instance, but this is no longer
+  the case. *)
   Lemma expr_ectxi_lang_mixin :
     EctxiLanguageMixin (state := unit) (observation := Empty_set) (global_state := unit)
       of_val to_val fill_item
@@ -345,9 +346,6 @@ Module nvm_lang.
             fill_item_val, fill_item_val_inv, fill_item_no_val_inj,
             head_ctx_step_val =>//.
   Qed.
-
-  (* Definition expr_ectxi_lang := EctxiLanguage expr_ectxi_lang_mixin.
-  Definition expr_ectx_lang := EctxLanguageOfEctxi expr_ectxi_lang. *)
 
   (* We synchronize the memory model with the stepping relation for expressions
   and arrive at a semantics in the form that Iris requires. *)

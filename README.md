@@ -16,6 +16,7 @@
   * [`base/primitive_laws.v`](src/base/primitive_laws.v) - Contains, among other things, the state
     interpretation used in the base logic.
 * [`high`](src/high) - The high-level logic. The definition of `dprop`, `wp`, etc.
+  * [`high/dprop.v`](src/high/dprop.v) - Defines the domain of propositions _dProp_.
   * [`high/resources`](src/high/resources) - Contains some of the resource algebras/CAMERAs used in
     the high-level logic.
 * [`extra`.v](src/extra.v) - Auxiliary definitions and lemmas that are not
@@ -23,12 +24,23 @@
 
 ## Development
 
+### Clone
+
+The project uses submodules. So to clone it and the associated submodules use
+the following command:
+
+```
+git submodule update --init --recursive
+```
+
 ### Updating dependencies
 
 The dependencies are included as git submodules.
 
-The following git command updates all the dependencies:
+The following git command updates all the dependencies (the option `--recursive
+` may be necessary as well but it seems to not be the case):
+
 ```
-git submodule update --recursive --remote --merge
+git submodule update --remote --merge
 ```
 
