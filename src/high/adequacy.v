@@ -11,39 +11,41 @@ From Perennial.base_logic.lib Require Import wsat.
 
 From Perennial.program_logic Require Import recovery_adequacy.
 From Perennial.program_logic Require Import step_fupd_extra crash_lang crash_weakestpre.
+From Perennial.program_logic Require Import crash_adequacy.
 
+From self Require Import ipm_tactics.
 From self.lang Require Import lang.
 From self.base Require Import adequacy. (* To get [recv_adequace]. *)
 From self.high Require Import weakestpre resources.
 From self.high Require Import recovery_weakestpre.
 (* From Perennial.program_logic Require Export crash_lang recovery_weakestpre. *)
-(* From Perennial.program_logic Require Import crash_adequacy. *)
 
 Notation steps_sum := crash_adequacy.steps_sum.
 
 Section recovery_adequacy.
 
-  Context `{Σ : gFunctors}.
+  Context `{!nvmFixedG Σ, !nvmDeltaG Σ}.
   Implicit Types s : stuckness.
   Implicit Types k : nat.
   (* Implicit Types P : iProp Σ. *)
   Implicit Types Φ : val → dProp Σ.
   Implicit Types Φinv : nvmDeltaG Σ → dProp Σ.
-  Implicit Types Φc : nvmDeltaG Σ → val → dProp Σ.
+  Implicit Types Φr : nvmDeltaG Σ → val → dProp Σ.
   Implicit Types v : val.
   Implicit Types te : thread_state.
   Implicit Types e : expr.
 
   Notation wptp s k t := ([∗ list] ef ∈ t, WPC ef @ s; k; ⊤ {{ fork_post }} {{ True }})%I.
 
-  (*
-  Lemma wptp_recv_strong_normal_adequacy Φ Φr κs' s k Hc t n ns ncurr mj D r1 e1 TV1 t1 κs t2 σ1 g1 σ2 g2 :
-    nrsteps (CS := nvm_crash_lang) (ThreadState r1 ∅) (ns ++ [n]) ((ThreadState e1 TV1) :: t1, (σ1,g1)) κs (t2, (σ2,g2)) Normal →
+  Lemma wptp_recv_strong_normal_adequacy Φ Φr κs' s k n (ncurr : nat) mj D r1 e1 TV1 (t1 : list thread_state) κs t2 σ1 g1 σ2 g2 :
+    nrsteps (Λ := nvm_lang) (CS := nvm_crash_lang) (ThreadState r1 (∅, ∅, ∅)) [n] ((ThreadState e1 TV1) :: t1, (σ1, g1)) κs (t2, (σ2,g2)) Normal →
     state_interp σ1 (length t1) -∗
     global_state_interp g1 ncurr mj D (κs ++ κs') -∗
-    ((wpr s k (* Hc t *) ⊤ e1 r1 Φ (* Φinv *) Φr) ∅) -∗
-    wptp s k t1 -∗ NC 1-∗ step_fupdN_fresh ncurr ns Hc t (λ Hc' t',
-      ⌜ Hc' = Hc ∧ t' = t ⌝ ∗
+    crash_weakestpre.interp -∗
+    validV (store_view TV1) -∗
+    ((wpr s k (* Hc t *) ⊤ e1 r1 Φ (* Φinv *) Φr) (∅, ∅, ∅)) -∗
+    wptp s k t1 -∗
+    NC 1-∗ (
       (||={⊤|⊤,∅|∅}=> ||▷=>^(steps_sum num_laters_per_step step_count_next ncurr n) ||={∅|∅,⊤|⊤}=>
       ∃ e2 TV2 t2',
       ⌜ t2 = (ThreadState e2 TV2) :: t2' ⌝ ∗
@@ -52,25 +54,38 @@ Section recovery_adequacy.
       state_interp σ2 (length t2') ∗
       global_state_interp g2 (Nat.iter n step_count_next ncurr) mj D κs' ∗
       from_option (λ v, Φ v TV2) True (to_val e2) ∗
-      ([∗ list] v ∈ omap to_val (ts_expr <$> t2'), fork_post v) ∗
-      NC 1)).
+      (* ([∗ list] v ∈ omap to_val t2', fork_post v) ∗ *) (* FIXME *)
+      NC 1
+      )%I).
   Proof.
-  Admitted.
-  *)
-  (*   iIntros (Hstep) "Hσ Hg He Ht HNC". *)
-  (*   inversion Hstep. subst. *)
-  (*   iPoseProof (wptp_strong_adequacy with "Hσ Hg [He] Ht") as "H". *)
-  (*   { eauto. } *)
-  (*   {rewrite wpr_unfold /wpr_pre. iApply "He". } *)
-  (*   rewrite perennial_crashG. *)
-  (*   iSpecialize ("H" with "[$]"). *)
-  (*   assert (ns = []) as ->; *)
-  (*     first by (eapply nrsteps_normal_empty_prefix; eauto). *)
-  (*   inversion H. subst. *)
-  (*   rewrite /step_fupdN_fresh. *)
-  (*   iSplitL ""; first by eauto. *)
-  (*   iApply (step_fupd2N_wand with "H"); auto. *)
-  (* Qed. *)
+    iIntros (Hstep) "Hσ Hg Hi Hv He Ht HNC".
+    inversion Hstep. subst.
+
+    (* Find the WPC inside the WPR. *)
+    rewrite /wpr wpr_unfold /wpr_pre.
+
+    (* Find the WPC inside the WPC. *)
+    iEval (rewrite crash_weakestpre.wpc_eq /=) in "He".
+    iSpecialize ("He" $! TV1 with "[%] Hv Hi").
+    { destruct TV1 as [[??]?]. repeat split; apply view_empty_least. }
+
+    iPoseProof (wptp_strong_adequacy with "Hσ Hg He Ht") as "H".
+    { eauto. }
+    iSpecialize ("H" with "[$]").
+    iApply (step_fupd2N_wand with "H"); first auto.
+    iApply fupd2_mono.
+    iIntros "(%ts2 & % & % & PIZ & ZA & PEPPERONI & HI & horse & NC)".
+    destruct ts2 as [e2 TV2].
+    iExists e2, TV2, _.
+    iFrame.
+    iSplit. { iPureIntro. done. }
+    simpl.
+    rewrite /thread_to_val.
+    simpl.
+    destruct (to_val e2); last done.
+    simpl.
+    iDestruct "HI" as "(_ & _ & $ & _)".
+  Qed.
 
 End recovery_adequacy.
 
