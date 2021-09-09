@@ -16,10 +16,6 @@ From Perennial.program_logic Require Export crash_lang.
 
 From self.lang Require Export syntax.
 
-(* Scope delimiters like the ones that HeapLang has. *)
-Delimit Scope expr_scope with E.
-Delimit Scope val_scope with V.
-
 Module nvm_lang.
 
   (** Evaluation context items. *)
@@ -391,16 +387,16 @@ Module nvm_lang.
       thread_step (ThreadState e TV) σ () [] (ThreadState e' V') σ' () [].
   Arguments thread_step _%E _ _ _%E _ _%E.
 
-  (* Lemma head_step_view_sqsubseteq e TV σ κs e' V' σ' ef P B P' B'
-    (step : head_step (ThreadState e (TV, P, B)) σ κs (ThreadState e' (V', P', B')) σ' ef) :
+  (* The thread view is monotonically increasing with steps. *)
+  Lemma thread_step_view_sqsubseteq e TV σ g κs e' TV' σ' g' ef :
+    thread_step (ThreadState e TV) σ g κs (ThreadState e' TV') σ' g' ef →
     TV ⊑ TV'.
   Proof.
-    inversion step; first done. subst.
-    match goal with H : mem_step _ _ _ _ _ |- _ => destruct H; try solve_lat end.
-    intros ℓ'. case (decide (ℓ = ℓ')) => [ <- | ? ] ;
-      [ rewrite lookup_insert | by rewrite lookup_insert_ne ].
-    by subst.
-  Qed. *)
+    inversion 1; first done.
+    match goal with H : mem_step _ _ _ _ _ |- _ => destruct H end;
+      repeat split; auto using view_le_l, view_le_r, view_insert_le'
+                         with lia subst.
+  Qed.
 
   (** Some properties of the language. **)
 
@@ -469,9 +465,22 @@ Canonical Structure nvm_crash_lang : crash_semantics nvm_lang :=
 
 Export nvm_lang.
 
+Declare Scope thread_expr_scope.
+Declare Scope thread_val_scope.
+
+Bind Scope thread_expr_scope with thread_state.
+Bind Scope thread_val_scope with thread_val.
+
+(* Scope delimiters like the ones that HeapLang has. *)
+Delimit Scope thread_expr_scope with TE.
+Delimit Scope thread_val_scope with TV.
+
 (* Convenient way of writing an expression and a thread view. *)
-Notation "e '`at`' TV" := (ThreadState e TV) (at level 180) : expr_scope.
-Notation "v '`at`' TV" := (ThreadVal v TV) (at level 180) : val_scope.
+Notation "e '`at`' TV" := (ThreadState e%E TV) (at level 180) : thread_expr_scope.
+Notation "v '`at`' TV" := (ThreadVal v%V TV) (at level 180) : thread_val_scope.
+
+Notation "e '`at`' TV" := (ThreadState e%E TV) (at level 180) : expr_scope.
+Notation "v '`at`' TV" := (ThreadVal v%V TV) (at level 180) : val_scope.
 
 (* There is a correspondance between [fill] in nvm_lang and expr_lang. *)
 Lemma nvm_fill_fill (K : list (ectx_item)) (e1 : expr) TV :

@@ -49,6 +49,8 @@ Record message : Type := Msg {
 
 Notation thread_view := (view * view * view)%type.
 
+Instance thread_view_bottom : Bottom thread_view := ε.
+
 (* Convert a message to a thread_view corresponding to what is stored in the
 message. *)
 Definition msg_to_tv (m : message) : thread_view :=
@@ -209,7 +211,7 @@ Section memory.
      (SV !!0 ℓ) = t → (* An equality here is fine, the timestamps are only lower bounds anyway. *)
      mem_step (σ, p) (SV, P, B)
               (MEvWB ℓ)
-              (σ, p) (SV, P, <[ℓ := MaxNat t]>B)
+              (σ, p) (SV, P, {[ℓ := MaxNat t]} ⊔ B)
   (* Asynchronous fence. *)
   | MStepFence σ SV P B p :
      mem_step (σ, p) (SV, P, B)

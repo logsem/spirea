@@ -68,8 +68,12 @@ Module syntax.
 
   Declare Scope expr_scope.
   Declare Scope val_scope.
+
   Bind Scope expr_scope with expr.
   Bind Scope val_scope with val.
+
+  Delimit Scope expr_scope with E.
+  Delimit Scope val_scope with V.
 
   Definition observation : Set := proph_id * (val * val).
 

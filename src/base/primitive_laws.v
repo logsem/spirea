@@ -838,7 +838,7 @@ Section lifting.
   Lemma wp_wb V P B ℓ (hist : history) s E :
     {{{ ℓ ↦h hist }}}
       (ThreadState (WB #ℓ) (V, P, B)) @ s; E
-    {{{ RET ThreadVal #() (V, P, <[ℓ := MaxNat (V !!0 ℓ)]>B); ℓ ↦h hist }}}.
+    {{{ RET ThreadVal #() (V, P, {[ℓ := MaxNat (V !!0 ℓ)]} ⊔ B); ℓ ↦h hist }}}.
   Proof.
     iIntros (Φ) "pts HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
