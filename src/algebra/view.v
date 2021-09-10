@@ -165,11 +165,11 @@ Proof.
   apply option_max_nat_included; done.
 Qed.
 
-Lemma view_insert_le V ℓ t :
-  (V !!0 ℓ) ≤ t → V ⊑ <[ℓ := MaxNat t]>V.
+Lemma view_insert_le' V V' ℓ t :
+  V ⊑ V' → (V !!0 ℓ) ≤ t → V ⊑ <[ℓ := MaxNat t]> V'.
 Proof.
   rewrite /lookup_zero.
-  intros le.
+  intros sub le.
   rewrite subseteq_view_incl.
   rewrite lookup_included.
   intros ℓ'.
@@ -180,8 +180,13 @@ Proof.
     * rewrite eq.
       replace (None) with (ε : option _); last done.
       apply ucmra_unit_least.
-  - rewrite lookup_insert_ne; done.
+  - rewrite lookup_insert_ne; last done.
+    by apply lookup_included.
 Qed.
+
+Lemma view_insert_le V ℓ t :
+  (V !!0 ℓ) ≤ t → V ⊑ <[ℓ := MaxNat t]>V.
+Proof. by apply view_insert_le'. Qed.
 
 Lemma view_insert_op V ℓ t :
   (V !!0 ℓ) ≤ t → (V ⊔ {[ℓ := MaxNat t]}) = (<[ℓ := MaxNat t]> V).
@@ -232,6 +237,33 @@ Proof.
   destruct look as ([t2] & [= eq] & look).
   edestruct view_le_look as (t'' & look' & lt); [apply look|apply le|].
   exists 0. rewrite lookup_fmap look' -eq. done.
+Qed.
+
+Lemma view_sqsubseteq_antisym V W : V ⊑ W → W ⊑ V → V = W.
+Proof.
+  rewrite !subseteq_view_incl.
+  rewrite !lookup_included.
+  intros sub1 sub2.
+  apply map_eq.
+  intros ℓ.
+  specialize (sub1 ℓ).
+  specialize (sub2 ℓ).
+  apply option_included_total in sub1.
+  apply option_included_total in sub2.
+  destruct sub1 as [eq1 | ([a] & [b] & c & ? & ?)];
+  destruct sub2 as [eq2 | ([e] & [f] & g & ? & ?)].
+  - by rewrite eq1 eq2.
+  - naive_solver.
+  - naive_solver.
+  - rewrite H1.
+    rewrite g.
+    setoid_rewrite max_nat_included in H0.
+    setoid_rewrite max_nat_included in H2.
+    f_equiv.
+    f_equiv.
+    simpl in *.
+    simplify_eq.
+    lia.
 Qed.
 
 Lemma view_to_zero_singleton ℓ t :
