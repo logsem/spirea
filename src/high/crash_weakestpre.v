@@ -129,11 +129,12 @@ Section wpc.
         validV (store_view TV) -∗
         interp -∗
         WPC (ThreadState e TV) @ s; k; E {{ λ res,
-          let '(ThreadVal v TV') := res return _ in
+          interp ∗
+          (let '(ThreadVal v TV') := res return _ in
             ⌜TV ⊑ TV'⌝ ∗ (* The operational semantics always grow the thread
             view, encoding this in the WPC is convenient. *)
-            validV (store_view TV') ∗ (Φ v TV') ∗ interp
-          }}{{ Φc (∅, ∅, ∅) }}
+            validV (store_view TV') ∗ Φ v TV')
+        }}{{ interp ∗ Φc ⊥ }}
     )%I _.
   Next Obligation. solve_proper. Qed.
 
@@ -185,14 +186,14 @@ Section wpc.
     { apply: ectx_lang_ctx. }
     iApply (wpc_mono with "HI").
     2: { done. }
-    iIntros ([v TV']) "(%cinl & val & wpc & interp)".
+    iIntros ([v TV']) "(interp & %cinl & val & wpc)".
     iDestruct ("wpc" $! TV' with "[//] val interp") as "HI".
     rewrite nvm_fill_fill.
     simpl. rewrite /thread_of_val.
     iApply (wpc_strong_mono' with "HI"); try auto.
     iSplit.
-    2: { iIntros "$". eauto. }
-    iIntros ([??]) "[%incl' $]".
+    2: { iIntros "$". done. }
+    iIntros ([??]) "[$ [%inl' $]]".
     iPureIntro. etrans; eassumption.
   Qed.
 
@@ -211,7 +212,7 @@ Section wpc.
     rewrite -crash_weakestpre.wpc_pure_step_later; last done.
     iSplit.
     - iNext. iApply ("WP" with "[//] val interp").
-    - iApply objective_at. iDestruct "WP" as "[_ $]".
+    - iFrame. iApply objective_at. iDestruct "WP" as "[_ $]".
   Qed.
 
   Lemma wp_wpc s k E1 e Φ:
@@ -256,7 +257,7 @@ Section wpc.
     { etrans; eassumption. }
     iApply (wpc_strong_mono with "wpc"); try eassumption.
     iSplit.
-    - iIntros ([??]) "(%incl & val & phi & int)".
+    - iIntros ([??]) "(int & %incl & val & phi)".
       monPred_simpl.
       iDestruct "conj" as "[conj _]".
       iSpecialize ("conj" $! _).
@@ -269,11 +270,12 @@ Section wpc.
       iFrame "∗%".
     - monPred_simpl.
       iDestruct ("conj") as "[_ conj]".
-      iIntros "phi".
+      iIntros "[interp phi]".
       monPred_simpl.
       iSpecialize ("conj" $! tv' with "[% //]").
       rewrite /cfupd.
       iIntros "HC".
+      iFrame "interp".
       monPred_simpl.
       iSpecialize ("conj" with "[phi]").
       { iApply objective_at. iApply "phi". }
@@ -313,6 +315,7 @@ Section wpc.
       rewrite cfupd_unfold_at.
       iDestruct "H" as ">H".
       iModIntro.
+      iFrame.
       iApply objective_at.
       iApply "H".
     - iDestruct "H" as "[_ H]".
@@ -338,6 +341,7 @@ Section wpc.
     - rewrite cfupd_unfold_at.
       iMod "H".
       iModIntro.
+      iFrame.
       iApply objective_at.
       iApply "H".
     - rewrite wp_eq. rewrite /wp_def.
@@ -346,9 +350,9 @@ Section wpc.
       rewrite crash_weakestpre.wp_eq /crash_weakestpre.wp_def.
       iSpecialize ("H" with "[//] val interp").
       monPred_simpl.
-      iApply (wpc_mono with "H"); last done.
+      iApply (wpc_mono with "H"); last naive_solver.
       simpl.
-      iIntros ([??]) "(? & ? & H & interp)".
+      iIntros ([??]) "(interp & ? & ? & H)".
       rewrite monPred_at_fupd.
       monPred_simpl.
       iDestruct "H" as ">H".
@@ -356,10 +360,11 @@ Section wpc.
       iSplit; [iDestruct "H" as "[H _]"|iDestruct "H" as "[_ H]"].
       * rewrite monPred_at_fupd.
         iMod "H".
-        iModIntro. iSplit; first done. iFrame.
+        iModIntro. iFrame.
       * rewrite cfupd_unfold_at.
         iMod "H".
         iModIntro.
+        iFrame.
         iApply objective_at.
         iApply "H".
   Qed.

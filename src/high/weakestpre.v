@@ -78,10 +78,14 @@ Section wp.
 
   Global Instance make_monPred_at_step_fupdN `{BiFUpd PROP} i E1 E2 n (P : dProp Σ) 𝓟 :
     MakeMonPredAt i P 𝓟 → MakeMonPredAt i (|={E1}[E2]▷=>^n P)%I (|={E1}[E2]▷=>^n 𝓟)%I.
-  Proof. rewrite /MakeMonPredAt. rewrite monPred_at_step_fupdN => h.
-         Abort.
-         (* rewrite h. <-. Qed. *)
+  Proof.
+    rewrite /MakeMonPredAt. rewrite monPred_at_step_fupdN => h.
+  Abort.
+  (* rewrite h. <-. Qed. *)
 
+  (* Note: This proof broke when [interp] was added to the recovery condition in
+  the definition of our WPR. It should still be probable though. Maybe by doing
+  induction in [n] and using [wpc_pure_step_fupd] from Perennial. *)
   Lemma wp_pure_step_fupd `{!Inhabited (state Λ)} s E E' e1 e2 φ n Φ :
     PureExecBase φ n e1 e2 →
     φ →
@@ -89,19 +93,31 @@ Section wp.
   Proof.
     rewrite wp_eq /wp_def wpc_eq /wpc_def => Hexec Hφ. iStartProof (iProp _).
     simpl.
-    iIntros "% Hwp" (?) "A V C".
-    monPred_simpl.
-    iApply program_logic.crash_weakestpre.wp_wpc.
-    iApply wp_pure_step_fupd; first apply Hφ.
+    (* iIntros (TV). *)
+    iIntros (TV) "H". iIntros (TV').
+    iRevert "H".
+    specialize (Hexec TV' Hφ).
+    iInduction n as [|n] "IH" forall (e1 TV Hexec).
+    { inversion Hexec. simpl. iIntros "H". iApply "H". }
+    iIntros "H % HV int".
+    pose proof (Hexec) as step.
+    inversion step.
+    subst.
+    destruct y as [e1' TV1'].
+    assert (TV1' = TV'). {
+      eauto using pure_step_thread_view, nsteps_pure_step_thread_view,
+                  thread_view_sqsubseteq_antisym. }
+    subst.
+    iApply wpc_pure_step_fupd.
+    { econstructor; last done. eassumption. }
+    { constructor. }
+    iSplit.
+    2: { iFrame. done. }
     simpl.
-    monPred_simpl.
-    rewrite monPred_at_step_fupdN.
-    simpl.
-    iApply (step_fupdN_wand with "Hwp").
-    iIntros "H".
-    iSpecialize ("H" $! TV with "A V C").
-    iApply wpc_wp.
-    iFrame.
+    iApply (step_fupd_mask_mono E E E'); [set_solver|done|].
+    rewrite monPred_at_step_fupd.
+    iApply (step_fupd_wand with "H"). iIntros "H".
+    iApply ("IH" with "[//] H [//] HV int").
   Qed.
 
   (* This lemma is like the [wp_pure_step_later] in Iris except its premise uses
@@ -228,7 +244,9 @@ Section wp_rules.
     rewrite wpc_eq. simpl.
     iIntros ([[SV PV] BV] incl2) "#val interp".
     rewrite monPred_at_pure.
-    iApply program_logic.crash_weakestpre.wp_wpc.
+    iApply program_logic.crash_weakestpre.wpc_atomic_no_mask.
+    iSplit.
+    { by iFrame. }
 
     (* We need to get the points-to predicate for [ℓ]. This is inside [interp]. *)
     iNamed "interp".
@@ -291,10 +309,14 @@ Section wp_rules.
     (* Reinsert into the map. *)
     iDestruct ("predsHold" with "[predMap]") as "predsHold". { naive_solver. }
 
-    iSplit; first done.
-    iSplitR "ptsMap allOrders ordered predsHold history predicates
+    iSplit.
+    { iModIntro. rewrite right_id. repeat iExists _. iFrameNamed. }
+    iModIntro.
+    (* iSplit; first done. *)
+    iSplitL "ptsMap allOrders ordered predsHold history predicates
              sharedLocs crashedAt allBumpers bumpMono predPostCrash".
-    2: { repeat iExists _. iFrameNamed. }
+    { repeat iExists _. iFrameNamed. }
+    iSplit; first done.
     iApply "Φpost".
     iSplitR "Q".
     2: {
@@ -440,10 +462,13 @@ Section wp_rules.
     rewrite wp_eq /wp_def.
     rewrite wpc_eq. simpl.
     iIntros ([[SV PV] BV] incl2) "#val interp".
-    monPred_simpl.
-    iApply program_logic.crash_weakestpre.wp_wpc.
+    monPred_simpl. rewrite right_id.
+    iApply program_logic.crash_weakestpre.wpc_atomic_no_mask.
+    iSplit. { iFrame. }
     iApply (wp_fence with "[//]").
     iNext. iIntros (_).
+    iSplit; first done.
+    iModIntro.
     cbn.
     iFrame "#∗".
     iSplit. { iPureIntro. repeat split; try done. apply view_le_l. }
@@ -524,8 +549,9 @@ Section wp_rules.
     iIntros (TV' incl) "Φpost".
     rewrite wp_eq /wp_def wpc_eq.
     iIntros ([[SV PV] BV] incl2) "#val interp".
-    monPred_simpl.
-    iApply program_logic.crash_weakestpre.wp_wpc.
+    monPred_simpl. rewrite right_id.
+    iApply program_logic.crash_weakestpre.wpc_atomic_no_mask.
+    iSplit; first done.
 
     (* We open [interp]. *)
     iNamed "interp".
@@ -628,10 +654,12 @@ Section wp_rules.
     iMod (own_full_history_alloc_frag with "history") as "[history histS]"; try done.
     iModIntro.
     (* We re-establish [interp]. *)
-    iSplit. { iPureIntro. repeat split; try done; apply view_le_l. }
-    iSplitR "ptsMap allOrders ordered predsHold history predicates
+    iSplit; iModIntro.
+    { repeat iExists _. iFrameNamed. }
+    iSplitL "ptsMap allOrders ordered predsHold history predicates
              crashedAt sharedLocs allBumpers bumpMono predPostCrash".
-    2: { repeat iExists _. iFrameNamed. }
+    { repeat iExists _. iFrameNamed. }
+    iSplit. { iPureIntro. repeat split; try done; apply view_le_l. }
     iSpecialize ("Φpost" $! sL v').
     monPred_simpl.
     iApply "Φpost".

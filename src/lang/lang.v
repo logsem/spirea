@@ -491,3 +491,50 @@ Proof.
   - done.
   - rewrite !fill_app. rewrite -IHK. done.
 Qed.
+
+Lemma pure_step_thread_view e1 e2 TV1 TV2 :
+  language.pure_step (ThreadState e1 TV1) (ThreadState e2 TV2) → TV1 ⊑ TV2.
+Proof.
+  destruct 1 as [safe det].
+  rewrite /reducible_no_obs in safe.
+  edestruct (safe (∅, ∅) ()) as ([e' TV'] & ? & ? & ? & step).
+  simpl in *.
+  pose proof (det _ _ _ _ _ _ _ step) as (? & ? & ? & ? & ?).
+  simplify_eq.
+  destruct step as [K [? TV1'] [? TV2'] eq1 eq2 step].
+  simpl in *.
+  apply thread_step_view_sqsubseteq in step.
+  rewrite -!nvm_fill_fill in eq1, eq2.
+  by simplify_eq.
+Qed.
+
+Lemma nsteps_pure_step_thread_view n e1 TV1 e2 TV2 :
+  relations.nsteps language.pure_step n (e1 `at` TV1)%E (e2 `at` TV2)%E → TV1 ⊑ TV2.
+Proof.
+  revert e1 TV1 e2 TV2.
+  induction n as [|n IH].
+  - inversion 1. done.
+  - intros e1 TV1 e2 TV2. inversion 1 as [|? ? [??] ? step ?].
+    apply pure_step_thread_view in step.
+    etrans; first apply step.
+    eapply IH.
+    done.
+Qed.
+
+(* This lemma seems true, but we haven't needed it yet. If (e `at` TV) can
+take a pure step to (e' at TV) then for any TV (e `at` TV') can take a pure
+step to (e' at TV'). *)
+Lemma pure_step_thread_view_independent e1 e2 TV :
+  language.pure_step (e1 `at` TV)%E (e2 `at` TV)%E →
+  ∀ TV', language.pure_step (e1 `at` TV')%E (e2 `at` TV')%E.
+Proof.
+  intros [safe det] TV'.
+  rewrite /reducible_no_obs in safe.
+  edestruct (safe (∅, ∅) ()) as ([e' ?TV] & ? & ? & ? & step).
+  simpl in *.
+  pose proof (det _ _ _ _ _ _ _ step) as (? & ? & ? & ? & ?).
+  simplify_eq.
+  destruct step as [K [? TV1'] [? TV2'] eq1 eq2 step].
+  simpl in *.
+  inversion step.
+Abort.

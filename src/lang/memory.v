@@ -329,6 +329,14 @@ End memory.
 
 (* A few lattice rules for thread_view. *)
 
+Lemma thread_view_sqsubseteq_antisym (TV1 TV2 : thread_view) :
+  TV1 ⊑ TV2 → TV2 ⊑ TV1 → TV1 = TV2.
+Proof.
+  destruct TV1 as [[??]?]. destruct TV2 as [[??]?]. intros [[??] ?] [[??] ?].
+  rewrite 2!pair_equal_spec.
+  auto using view_sqsubseteq_antisym.
+Qed.
+
 Lemma thread_view_le_l (tv1 tv2 : thread_view) : tv1 ⊑ tv1 ⊔ tv2.
 Proof.
   destruct tv1 as [[??]?], tv2 as [[??]?].
