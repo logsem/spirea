@@ -16,15 +16,33 @@ From Perennial.program_logic Require Import crash_adequacy.
 From self Require Import ipm_tactics.
 From self.lang Require Import lang.
 From self.base Require Import adequacy. (* To get [recv_adequace]. *)
-From self.high Require Import weakestpre resources.
+From self.high Require Import weakestpre resources monpred_simpl.
 From self.high Require Import recovery_weakestpre.
 (* From Perennial.program_logic Require Export crash_lang recovery_weakestpre. *)
 
 Notation steps_sum := crash_adequacy.steps_sum.
 
+Definition nrsteps := nrsteps (CS := nvm_crash_lang).
+Arguments nrsteps _%TE _ _%TE _ _ _.
+
+Lemma nrsteps_crashed_length_status r ns ρ1 κ ρ2 s:
+  nrsteps r ns ρ1 κ ρ2 s → (length ns ≥ 2 ↔ s = Crashed).
+Proof.
+ inversion 1.
+ - simpl. split; [lia| done].
+ - split; first done.
+    match goal with
+    | [ H : crash_lang.nrsteps _ _ _ _ _ _ |- _ ] => inversion H
+    end; simpl; lia.
+Qed.
+
+Lemma nrsteps_crashed_length r ns ρ1 κ ρ2:
+  nrsteps r ns ρ1 κ ρ2 Crashed → length ns ≥ 2.
+Proof. intros ?%nrsteps_crashed_length_status. naive_solver. Qed.
+
 Section recovery_adequacy.
 
-  Context `{!nvmFixedG Σ, !nvmDeltaG Σ}.
+  Context `{!nvmFixedG Σ}.
   Implicit Types s : stuckness.
   Implicit Types k : nat.
   (* Implicit Types P : iProp Σ. *)
@@ -35,20 +53,39 @@ Section recovery_adequacy.
   Implicit Types te : thread_state.
   Implicit Types e : expr.
 
+  (* The assertion [P] holds after [lenght ns] crashes where each execution is
+  [ns !! i] many steps.
+
+  Note: The new [crashGS] that is created after each crash may note be handles
+  correctly, yet, in this definition. Maybe we should state that the [nvmDeltaG]
+  must use the given [crashGS]. Maybe we can avoid mentioning a crashGS and just
+  use nvmDeltaG. *)
+  Fixpoint step_fupdN_fresh ncurrent (ns : list nat) (Hc0 : crashGS Σ) (hD : nvmDeltaG Σ)
+          (P : nvmDeltaG Σ → iProp Σ) {struct ns} :=
+    match ns with
+    | [] => P hD
+    | n :: ns =>
+      (||={⊤|⊤,∅|∅}=> ||▷=>^(steps_sum (perennial_num_laters_per_step) (perennial_step_count_next)
+                                      ncurrent (S n)) ||={∅|∅, ⊤|⊤}=>
+      ||={⊤|⊤,∅|∅}=> ||▷=>^2 ||={∅|∅, ⊤|⊤}=>
+      ∀ Hc', NC 1 ={⊤}=∗ (∃ hD' : nvmDeltaG Σ, step_fupdN_fresh ((Nat.iter (S n) step_count_next ncurrent)) ns Hc' hD' P))%I
+    end.
+
   Notation wptp s k t := ([∗ list] ef ∈ t, WPC ef @ s; k; ⊤ {{ fork_post }} {{ True }})%I.
 
-  Lemma wptp_recv_strong_normal_adequacy Φ Φr κs' s k n (ncurr : nat) mj D r1 e1 TV1 (t1 : list thread_state) κs t2 σ1 g1 σ2 g2 :
-    nrsteps (Λ := nvm_lang) (CS := nvm_crash_lang) (ThreadState r1 (∅, ∅, ∅)) [n] ((ThreadState e1 TV1) :: t1, (σ1, g1)) κs (t2, (σ2,g2)) Normal →
+  Lemma wptp_recv_strong_normal_adequacy `{!nvmDeltaG Σ} Φ Φr κs' s k n (ncurr : nat) mj D r1 e1
+        TV1 (t1 : list thread_state) κs t2 σ1 g1 σ2 g2 :
+    nrsteps (r1 `at` ⊥) [n] ((e1 `at` TV1) :: t1, (σ1, g1))%TE κs (t2, (σ2, g2)) Normal →
     state_interp σ1 (length t1) -∗
     global_state_interp g1 ncurr mj D (κs ++ κs') -∗
     crash_weakestpre.interp -∗
     validV (store_view TV1) -∗
-    ((wpr s k (* Hc t *) ⊤ e1 r1 Φ (* Φinv *) Φr) (∅, ∅, ∅)) -∗
+    ((wpr s k (* Hc t *) ⊤ e1 r1 Φ (* Φinv *) Φr) ⊥) -∗
     wptp s k t1 -∗
     NC 1-∗ (
       (||={⊤|⊤,∅|∅}=> ||▷=>^(steps_sum num_laters_per_step step_count_next ncurr n) ||={∅|∅,⊤|⊤}=>
       ∃ e2 TV2 t2',
-      ⌜ t2 = (ThreadState e2 TV2) :: t2' ⌝ ∗
+      ⌜ t2 = (e2 `at` TV2)%TE :: t2' ⌝ ∗
       ▷^(S (S (num_laters_per_step (Nat.iter n step_count_next ncurr))))
           (⌜ ∀ te2, s = NotStuck → te2 ∈ t2 → not_stuck te2 σ2 g2 ⌝) ∗
       state_interp σ2 (length t2') ∗
@@ -56,22 +93,19 @@ Section recovery_adequacy.
       from_option (λ v, Φ v TV2) True (to_val e2) ∗
       (* ([∗ list] v ∈ omap to_val t2', fork_post v) ∗ *) (* FIXME *)
       NC 1
-      )%I).
+    )%I).
   Proof.
     iIntros (Hstep) "Hσ Hg Hi Hv He Ht HNC".
     inversion Hstep. subst.
-
     (* Find the WPC inside the WPR. *)
     rewrite /wpr wpr_unfold /wpr_pre.
-
     (* Find the WPC inside the WPC. *)
     iEval (rewrite crash_weakestpre.wpc_eq /=) in "He".
     iSpecialize ("He" $! TV1 with "[%] Hv Hi").
     { destruct TV1 as [[??]?]. repeat split; apply view_empty_least. }
-
-    iPoseProof (wptp_strong_adequacy with "Hσ Hg He Ht") as "H".
+    iDestruct (wptp_strong_adequacy with "Hσ Hg He Ht") as "H".
     { eauto. }
-    iSpecialize ("H" with "[$]").
+    iSpecialize ("H" with "HNC").
     iApply (step_fupd2N_wand with "H"); first auto.
     iApply fupd2_mono.
     iIntros "(%ts2 & % & % & PIZ & ZA & PEPPERONI & HI & horse & NC)".
@@ -84,8 +118,103 @@ Section recovery_adequacy.
     simpl.
     destruct (to_val e2); last done.
     simpl.
-    iDestruct "HI" as "(_ & _ & $ & _)".
+    iDestruct "HI" as "(_ & _ & _ & $)".
   Qed.
+
+  Lemma wptp_recv_strong_crash_adequacy Φ Φr κs' s k t ncurr mj D (ns : list nat) n r1 e1
+        TV1 t1 κs t2 σ1 g1 σ2 g2 :
+    nrsteps (r1 `at` ⊥) (ns ++ [n]) ((e1 `at` TV1)%E :: t1, (σ1, g1)) κs (t2, (σ2, g2)) Crashed →
+    state_interp σ1 (length t1) -∗
+    global_state_interp g1 ncurr mj D (κs ++ κs') -∗
+    crash_weakestpre.interp -∗
+    validV (store_view TV1) -∗
+    ((wpr s k (* Hc t *) ⊤ e1 r1 Φ Φr) ⊥) -∗
+    wptp s k t1 -∗ NC 1 -∗
+    step_fupdN_fresh ncurr ns _ t (λ hD,
+      let ntot := (steps_sum perennial_num_laters_per_step perennial_step_count_next
+                            (Nat.iter (sum_crash_steps ns) perennial_step_count_next ncurr )
+                            n)  in
+      let ntot' := ((Nat.iter (n + sum_crash_steps ns) perennial_step_count_next ncurr)) in
+      (||={⊤|⊤, ∅|∅}=> ||▷=>^ntot ||={∅|∅, ⊤|⊤}=> (∃ e2 TV2 t2',
+      ⌜ t2 = (e2 `at` TV2)%TE :: t2' ⌝ ∗
+      ▷^(S (S (num_laters_per_step $ ntot')))
+          (⌜ ∀ te, s = NotStuck → te ∈ t2 → not_stuck te σ2 g2⌝) ∗
+      state_interp σ2 (length t2') ∗
+      global_state_interp g2 ntot' mj D κs' ∗
+      from_option (λ v, Φr hD v TV2) True (to_val e2) ∗
+      (* ([∗ list] v ∈ omap to_val t2', fork_post v) ∗ *)
+      NC 1))).
+  Proof.
+    (* We do induction on the length of [ns]. *)
+    revert t e1 TV1 t1 κs κs' t2 σ1 g1 ncurr σ2 Φ.
+    induction ns as [|n' ns' IH] => hD e1 TV1 t1 κs κs' t2 σ1 g1 ncurr σ2 Φ.
+    { (* In the base case we've taken [n] steps but there is no crash, this is a
+      contradiction as we assume the status is [Crashed]. *)
+      rewrite app_nil_l.
+      intros Hgt%nrsteps_crashed_length.
+      simpl in Hgt. lia. }
+    iIntros (Hsteps) "Hσ Hg Hi Hv He Ht HNC".
+    inversion_clear Hsteps as [|?? [t1' ?] ????? s0].
+    rewrite /step_fupdN_fresh -/step_fupdN_fresh.
+    destruct ρ2 as (?&[σ2_pre_crash []]).
+    iEval (rewrite -assoc) in "Hg".
+
+    iEval (rewrite /wpr wpr_unfold /wpr_pre) in "He".
+    iEval (rewrite crash_weakestpre.wpc_eq) in "He".
+    iSpecialize ("He" $! TV1 with "[%] Hv Hi").
+    { destruct TV1 as [[??]?]. repeat split; apply view_empty_least. }
+    rewrite Nat_iter_S.
+    iDestruct (wptp_strong_crash_adequacy with "Hσ Hg He Ht") as "H"; eauto.
+    (* rewrite perennial_crashG. *)
+    (* Set Printing Implicit. *)
+    (* Hc vs (@iris_crashGS nvm_lang Σ
+                   (@nvmBaseG_irisGS Σ (@nvmG_baseG Σ nvmFixedG0) (@nvm_delta_base Σ hD))) *)
+    (* rewrite /NC. *)
+    iSpecialize ("H" with "HNC").
+    (* rewrite perennial_num_laters_per_step_spec. *)
+    (* rewrite perennial_step_count_next_spec. *)
+    iMod "H". iModIntro.
+    iApply (step_fupd2N_wand with "H").
+    iIntros "H".
+    iMod "H".
+    iModIntro. iMod (fupd2_mask_subseteq ∅ ∅) as "Hclo"; try set_solver+.
+    iModIntro. iModIntro. iNext.
+    iMod ("Hclo") as "_".
+    iMod (fupd2_mask_subseteq ∅ ∅) as "Hclo";
+      [apply empty_subseteq | apply empty_subseteq|].
+    iMod ("Hclo") as "_".
+    iDestruct "H" as (e2 t2' ?) "(H & Hσ & Hg & HC)".
+    iDestruct "H" as "[interp H]".
+    iEval (repeat setoid_rewrite monPred_at_forall) in "H".
+    iEval (setoid_rewrite monPred_at_embed) in "H".
+    iMod ("H" $! _ _ _ _ _ _ 0 with "interp Hσ Hg") as "H".
+    iMod (fupd2_mask_subseteq ∅ ∅) as "Hclo";
+      [apply empty_subseteq | apply empty_subseteq|].
+    do 2 iModIntro. iNext.
+    iModIntro.
+    iMod ("Hclo") as "_".
+    iModIntro.
+
+    destruct s0. (* Could we do induction on [ns'] instead? *)
+    - (* The remaining execution also crashed. *)
+      admit.
+    - (* The remaining execution did not crash. This is a "base case" of sorts. *)
+      iIntros (Hc') "HNC".
+      iMod ("H" $! Hc' with "[$]") as (hD') "(interp & Hσ & Hg & Hv & Hr & HNC)".
+      iExists hD'.
+      assert (ns' = []) as ->; first by (eapply nrsteps_normal_empty_prefix; auto).
+      iDestruct (wptp_recv_strong_normal_adequacy with "Hσ Hg interp [Hv] Hr [] [HNC]") as "H"; eauto.
+      { admit. }
+      iModIntro.
+      rewrite /sum_crash_steps.
+      rewrite plus_0_r.
+      rewrite Nat_iter_S.
+      iApply (step_fupd2N_inner_wand with "H"); try set_solver+.
+      iIntros "H".
+      rewrite -Nat_iter_S Nat_iter_S_r.
+      rewrite Nat_iter_add Nat_iter_S_r.
+      eauto.
+  Admitted.
 
 End recovery_adequacy.
 
@@ -141,4 +270,3 @@ Proof.
   (* set (pG := PerennialG _ _ nvm_base_names). *)
   (* iExists pG. *)
 Admitted.
-

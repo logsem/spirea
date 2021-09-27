@@ -37,11 +37,17 @@ Definition wpr_pre `{nvmFixedG Σ} (s : stuckness) (k : nat)
   λ hGD E e e_rec Φ Φr,
   (WPC e @ s ; k; E
     {{ Φ }}
-    {{ ∀ σ σ' (HC : crash_prim_step nvm_crash_lang σ σ') n,
-      ⎡ interp -∗ state_interp σ n ={E}=∗ ▷ ∀ (Hc1 : crashGS Σ) q, NC q ={E}=∗
+    {{ ∀ σ mj D σ' (HC : crash_prim_step nvm_crash_lang σ σ') ns n, (* The [n] here actually doesn't matter. *)
+      ⎡ interp -∗
+        state_interp σ n -∗
+        global_state_interp (Λ := nvm_lang) () ns mj D []
+      ={E}=∗ ▷ ∀ (Hc1 : crashGS Σ) q, NC q ={E}=∗
         ∃ (hGD' : nvmDeltaG Σ), (* Maybe state that [hGD'] contains [Hc1] *)
           (* let hG := (nvm_update Σ hG _ Hc1 names) in *)
+          interp ∗
           state_interp σ' 0 ∗
+          global_state_interp (Λ := nvm_lang) () (step_count_next ns) mj D [] ∗
+          validV ∅ ∗
           (monPred_at (wpr hGD' E e_rec e_rec (λ v, Φr hGD' v) Φr) (∅, ∅, ∅)) ∗
           NC q ⎤
     }})%I.
@@ -585,9 +591,9 @@ Section wpr.
     iIntros (??).
     iIntros "phiC".
     iModIntro.
-    iIntros (?? step ?).
+    iIntros (???? step ns ?).
     iDestruct ("Hidemp" with "phiC") as "idemp'".
-    iIntros "interp state".
+    iIntros "interp state global".
     iModIntro (|={E1}=> _)%I.
     iNext.
     iIntros (??) "NC".
@@ -596,6 +602,12 @@ Section wpr.
     iMod (nvm_reinit _ _ _ _ _ _ _ _ with "interp state idemp'") as (names) "(interp & stateInterp & idemp)".
     { apply step. }
 
+    iDestruct "global" as "($ & Hc & $ & $)".
+    assert (exists k, ns + k = step_count_next ns) as [k' eq].
+    { simpl. eexists _. simpl. rewrite -assoc. reflexivity. }
+    iMod (cred_frag.cred_interp_incr_k _ k' with "Hc") as "(Hc & _)".
+    rewrite eq.
+
     iModIntro (|={E1}=> _)%I.
     iExists names.
     iFrame.
@@ -603,7 +615,8 @@ Section wpr.
     iSpecialize ("IH" $! _ _ names (∅, ∅, ∅) with "[idemp] [Hidemp]").
     { done. }
     { monPred_simpl. done. }
+    iSplit. { admit. }
     iApply "IH".
-  Qed.
+  Admitted.
 
 End wpr.
