@@ -242,6 +242,20 @@ Section post_crash_interact.
     ∃ CV, ⎡crashed_at CV⎤ ∗ ((∃ t, ⌜CV !! ℓ = Some (MaxNat t)⌝ ∗ P t)
                           ∨ ⌜CV !! ℓ = None⌝).
 
+  Lemma or_lost_sep {nD' : nvmDeltaG Σ} ℓ (P Q : dProp Σ) :
+    ⊢ or_lost ℓ P ∗ or_lost ℓ Q ∗-∗ or_lost ℓ (P ∗ Q)%I.
+  Proof.
+    iSplit.
+    - iIntros "[(%CV & crash & MP) (%CV' & crash' & MQ)]".
+      iDestruct (crashed_at_agree with "crash crash'") as %<-.
+      iExists CV. iFrame.
+      iDestruct "MP" as "[P|%]"; iDestruct "MQ" as "[Q|%]"; try (by iRight).
+      iLeft. iFrame.
+    - iIntros "(%CV & #crash & [[P Q]|%])".
+      * iSplitL "P"; iExists CV; iFrame "∗#".
+      * iSplitL; iExists CV; iFrame "#%".
+  Qed.
+
   Lemma or_lost_embed {nD' : nvmDeltaG Σ} ℓ P TV :
     or_lost_post_crash_no_t ℓ P -∗ or_lost ℓ ⎡ P ⎤ TV.
   Proof.
