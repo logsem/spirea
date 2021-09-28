@@ -71,6 +71,27 @@ Section recovery_adequacy.
       ∀ Hc', NC 1 ={⊤}=∗ (∃ hD' : nvmDeltaG Σ, step_fupdN_fresh ((Nat.iter (S n) step_count_next ncurrent)) ns Hc' hD' P))%I
     end.
 
+  Lemma step_fupdN_fresh_wand ncurr1 ncurr2 (ns : list nat) Hc0 hD Q Q' :
+    ncurr1 = ncurr2 →
+    step_fupdN_fresh ncurr1 (ns) Hc0 hD Q -∗
+    (∀ hD, Q hD -∗ Q' hD) -∗
+    step_fupdN_fresh ncurr2 ns Hc0 hD Q'.
+  Proof.
+    revert Hc0 hD ncurr1 ncurr2.
+    induction ns => ?????.
+    - iIntros "H Hwand". iApply "Hwand". eauto.
+    - iIntros "H Hwand". rewrite /step_fupdN_fresh -/step_fupdN_fresh.
+      iApply (step_fupd2N_inner_wand with "H"); try auto.
+      { subst. auto. }
+      iIntros "H".
+      iMod "H". iModIntro. iApply (step_fupd2N_wand with "H"). iIntros "H".
+      iMod "H". iModIntro.
+      iIntros (Hc') "HNC". iSpecialize ("H" $! Hc' with "[$]"). iMod "H" as (?) "H".
+      iExists _. iModIntro. iApply (IHns with "H").
+      { subst. auto. }
+      eauto.
+  Qed.
+
   Notation wptp s k t := ([∗ list] ef ∈ t, WPC ef @ s; k; ⊤ {{ fork_post }} {{ True }})%I.
 
   Lemma wptp_recv_strong_normal_adequacy `{!nvmDeltaG Σ} Φ Φr κs' s k n (ncurr : nat) mj D r1 e1
@@ -165,14 +186,7 @@ Section recovery_adequacy.
     { destruct TV1 as [[??]?]. repeat split; apply view_empty_least. }
     rewrite Nat_iter_S.
     iDestruct (wptp_strong_crash_adequacy with "Hσ Hg He Ht") as "H"; eauto.
-    (* rewrite perennial_crashG. *)
-    (* Set Printing Implicit. *)
-    (* Hc vs (@iris_crashGS nvm_lang Σ
-                   (@nvmBaseG_irisGS Σ (@nvmG_baseG Σ nvmFixedG0) (@nvm_delta_base Σ hD))) *)
-    (* rewrite /NC. *)
     iSpecialize ("H" with "HNC").
-    (* rewrite perennial_num_laters_per_step_spec. *)
-    (* rewrite perennial_step_count_next_spec. *)
     iMod "H". iModIntro.
     iApply (step_fupd2N_wand with "H").
     iIntros "H".
@@ -197,7 +211,44 @@ Section recovery_adequacy.
 
     destruct s0. (* Could we do induction on [ns'] instead? *)
     - (* The remaining execution also crashed. *)
-      admit.
+      iIntros (Hc') "HNC".
+      iMod ("H" $! Hc' with "[$]") as (hD') "(interp & Hσ & Hg & Hv & Hr & HNC)".
+      assert (Hc' = @nvm_base_crashGS Σ (@nvm_delta_base Σ hD')) as eq.
+      { admit. }
+        (* We need [Hc' = @nvm_base_crashGS Σ (@nvm_delta_base Σ hD')] *)
+      iPoseProof (IH with "Hσ Hg interp [Hv] Hr [] [HNC]") as "H"; eauto.
+      { Set Printing Implicit.
+        rewrite eq. iFrame.
+        Unset Printing Implicit. }
+      iExists _. iModIntro.
+      rewrite /sum_crash_steps.
+      rewrite Nat_iter_S.
+      rewrite eq.
+      iApply (step_fupdN_fresh_wand with "H").
+      { done. }
+      iIntros (?) "H".
+      iMod "H". iModIntro.
+      rewrite {1}plus_comm Nat_iter_add.
+      rewrite -Nat_iter_S Nat_iter_S_r.
+      iApply step_fupd2N_le; last iApply (step_fupd2N_wand with "H").
+      { apply Nat.eq_le_incl. f_equal.
+        rewrite {1}plus_comm ?Nat_iter_add.
+        f_equal. rewrite -Nat_iter_S_r //. }
+      iIntros ">H".
+      rewrite {1}plus_comm ?Nat_iter_add.
+      iDestruct "H" as (??? Heq) "(H1 & ? & Hg & ? & ?)".
+      iExists _, _, _. iFrame "∗".
+      iSplitL ""; first eauto.
+      iSplitL "H1".
+      { iModIntro. iNext. iNext. iApply (bi.laterN_le with "H1"); auto.
+        apply Nat.eq_le_incl. f_equal.
+        rewrite -?Nat_iter_S_r -?Nat_iter_add.
+        f_equal. lia. }
+      iMod (global_state_interp_le with "Hg") as "$".
+      { apply Nat.eq_le_incl.
+        rewrite -?Nat_iter_S_r -?Nat_iter_add.
+        f_equal. lia. }
+      iModIntro; done.
     - (* The remaining execution did not crash. This is a "base case" of sorts. *)
       iIntros (Hc') "HNC".
       iMod ("H" $! Hc' with "[$]") as (hD') "(interp & Hσ & Hg & Hv & Hr & HNC)".
