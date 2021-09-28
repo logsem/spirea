@@ -267,6 +267,67 @@ Section recovery_adequacy.
       eauto.
   Admitted.
 
+  (* In this lemma we combine [wptp_recv_strong_normal_adequacy] and
+  [wptp_recv_strong_crash_adequacy] into a lemma that applies both in the
+  absence and presence of crashes. *)
+  Lemma wptp_recv_strong_adequacy Φ Φr κs' s k hD ns mj D n r1 e1 TV1 t1 κs t2 σ1 g1 ncurr σ2 g2 stat :
+    nrsteps (r1 `at` ⊥) (ns ++ [n]) ((e1 `at` TV1)%TE :: t1, (σ1,g1)) κs (t2, (σ2,g2)) stat →
+    state_interp σ1 (length t1) -∗
+    global_state_interp g1 ncurr mj D (κs ++ κs') -∗
+    crash_weakestpre.interp -∗
+    validV (store_view TV1) -∗
+    ((wpr s k (* Hc t *) ⊤ e1 r1 Φ Φr) ⊥) -∗
+    (* □ (∀ Hc' t', Φinv Hc' t' -∗ □ Φinv' Hc' t') -∗ *)
+    wptp s k t1 -∗
+    NC 1 -∗
+    step_fupdN_fresh ncurr ns _ hD (λ hD',
+      let ntot := (steps_sum perennial_num_laters_per_step perennial_step_count_next
+                            (Nat.iter (sum_crash_steps ns) perennial_step_count_next ncurr )
+                            n)  in
+      let ntot' := ((Nat.iter (n + sum_crash_steps ns) perennial_step_count_next ncurr)) in
+      (||={⊤|⊤, ∅|∅}=> ||▷=>^ntot ||={∅|∅, ⊤|⊤}=> (∃ e2 TV2 t2',
+      ⌜ t2 = (e2 `at` TV2)%TE :: t2' ⌝ ∗
+      ▷^(S (S (num_laters_per_step $ ntot')))
+          (⌜ ∀ te, s = NotStuck → te ∈ t2 → not_stuck te σ2 g2 ⌝) ∗
+      state_interp σ2 (length t2') ∗
+      global_state_interp g2 ntot' mj D κs' ∗
+      (match stat with
+       | Normal =>
+          ⌜ (* Hc' = Hc ∧ *) hD' = hD ⌝ ∗
+          (* from_option Φ True (to_val e2) *)
+          from_option (λ v, Φ v TV2) True (to_val e2)
+       | Crashed =>
+          from_option (λ v, Φr hD' v TV2) True (to_val e2)
+           (* from_option (Φr Hc' t') True (to_val e2) ∗ □ Φinv' Hc' t' *)
+      end)  ∗
+      (* ([∗ list] v ∈ omap to_val t2', fork_post v) ∗ *) (* FIXME: Fix this *)
+      NC 1))).
+  Proof.
+    intros. destruct stat.
+    - iIntros.
+      iDestruct (wptp_recv_strong_crash_adequacy
+                  with "[$] [$] [$] [$] [$] [$]") as "H"; eauto.
+      iDestruct ("H" with "[$]") as "H".
+      iApply (step_fupdN_fresh_wand with "H"); first auto.
+      iIntros (?) "H".
+      iApply (step_fupd2N_wand with "H"); auto.
+      (* iIntros "H". *)
+      (* iMod "H" as (???) "(#? & H & ? & ? & ? & ?)". iExists _, _, _. *)
+      (* repeat (iSplitL ""; try iFrame; eauto). *)
+      (* Set Printing Implicit. *)
+      (* admit. *)
+    - iIntros.
+      assert (ns = []) as ->; first by (eapply nrsteps_normal_empty_prefix; auto).
+      rewrite Nat.add_0_r.
+      iDestruct (wptp_recv_strong_normal_adequacy
+                  with "[$] [$] [$] [$] [$] [$] [$]") as "H"; eauto.
+      iMod "H". iModIntro.
+      iApply (step_fupd2N_wand with "H").
+      setoid_rewrite (bi.pure_True (hD = hD) eq_refl).
+      setoid_rewrite (left_id (True%I) _ _).
+      naive_solver.
+  Qed.
+
 End recovery_adequacy.
 
 (* An alternative representation of [recv_adequate] that can be more convenient
