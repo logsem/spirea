@@ -22,6 +22,9 @@ Notation pbundleG := recovery_weakestpre.pbundleG.
 
 Notation perennialG := recovery_weakestpre.perennialG.
 
+Definition get_crashG {Σ} (hD : nvmDeltaG Σ) :=
+  @nvm_base_crashGS Σ (@nvm_delta_base Σ hD).
+
 (** The recovery WP is parameterized by two predicates: [Φ], the postcondition
  for normal non-crashing execution and [Φr], the postcondition satisfied upon
  termination after one ore more crashes.
@@ -42,13 +45,14 @@ Definition wpr_pre `{nvmFixedG Σ} (s : stuckness) (k : nat)
         state_interp σ n -∗
         global_state_interp (Λ := nvm_lang) () ns mj D []
       ={E}=∗ ▷ ∀ (Hc1 : crashGS Σ) q, NC q ={E}=∗
-        ∃ (hGD' : nvmDeltaG Σ), (* Maybe state that [hGD'] contains [Hc1] *)
+        ∃ (hD' : nvmDeltaG Σ), (* Maybe state that [hD'] contains [Hc1] *)
+          ⌜ Hc1 = get_crashG hD' ⌝ ∗
           (* let hG := (nvm_update Σ hG _ Hc1 names) in *)
           interp ∗
           state_interp σ' 0 ∗
           global_state_interp (Λ := nvm_lang) () (step_count_next ns) mj D [] ∗
           validV ∅ ∗
-          (monPred_at (wpr hGD' E e_rec e_rec (λ v, Φr hGD' v) Φr) (∅, ∅, ∅)) ∗
+          (monPred_at (wpr hD' E e_rec e_rec (λ v, Φr hD' v) Φr) (∅, ∅, ∅)) ∗
           NC q ⎤
     }})%I.
 
@@ -250,11 +254,13 @@ Section wpr.
     ⊢ interp -∗
       state_interp σ n -∗
       (post_crash Pg) tv ==∗
-      ∃ (hGD' : nvmDeltaG Σ),
+      ∃ (hD' : nvmDeltaG Σ),
         (* let hG := nvm_update Σ hG' Hinv Hcrash names in *)
-          interp (hGD := hGD') ∗
-          nvm_heap_ctx (hG := _) σ' ∗
-          Pg hGD' (∅, ∅, ∅).
+        ⌜ Hcrash = get_crashG hD' ⌝ ∗
+        validV ∅ ∗
+        interp (hGD := hD') ∗
+        nvm_heap_ctx (hG := _) σ' ∗
+        Pg hD' (∅, ∅, ∅).
   Proof.
     iIntros ([store p CV pIncl cut]).
     iIntros "H".
@@ -272,7 +278,8 @@ Section wpr.
 
     (* We need to first re-create the ghost state for the base interpretation. *)
     iMod (nvm_heap_reinit _ _ _ _ _ Hcrash with "heap pers")
-      as (baseNames) "(map' & baseInterp & #persImpl & #newCrashedAt)"; try done.
+      as (baseNames) "(valView & map' & baseInterp & #persImpl & #newCrashedAt)";
+      try done.
 
     iDestruct (big_sepM2_dom with "ordered") as %domHistsEqOrders.
     iDestruct (big_sepM2_dom with "bumpMono") as %domOrdersEqBumpers.
@@ -412,6 +419,8 @@ Section wpr.
         set_solver. }
       admit.
     }
+    iFrame "valView".
+    iSplit; first done.
     (* We show the state interpretation for the high-level logic. *)
     repeat iExists _.
     rewrite /own_full_history.
@@ -550,7 +559,6 @@ Section wpr.
       reflexivity. }
   Admitted.
 
-
   (*
   Lemma nvm_reinit' (hG' : nvmFixedG Σ, nvmDeltaG Σ) n σ σ' (Hinv : invGS Σ) (Hcrash : crashGS Σ) Pg :
     crash_step σ σ' →
@@ -599,7 +607,8 @@ Section wpr.
     iIntros (??) "NC".
 
     (* Allocate the new ghost state. *)
-    iMod (nvm_reinit _ _ _ _ _ _ _ _ with "interp state idemp'") as (names) "(interp & stateInterp & idemp)".
+    iMod (nvm_reinit _ _ _ _ _ _ _ _ with "interp state idemp'")
+      as (names) "(% & val & interp & stateInterp & idemp)".
     { apply step. }
 
     iDestruct "global" as "($ & Hc & $ & $)".
@@ -610,12 +619,12 @@ Section wpr.
 
     iModIntro (|={E1}=> _)%I.
     iExists names.
+    iSplit; first done.
     iFrame.
     monPred_simpl.
     iSpecialize ("IH" $! _ _ names (∅, ∅, ∅) with "[idemp] [Hidemp]").
     { done. }
     { monPred_simpl. done. }
-    iSplit. { admit. }
     iApply "IH".
   Admitted.
 

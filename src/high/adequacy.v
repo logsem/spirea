@@ -68,7 +68,9 @@ Section recovery_adequacy.
       (||={⊤|⊤,∅|∅}=> ||▷=>^(steps_sum (perennial_num_laters_per_step) (perennial_step_count_next)
                                       ncurrent (S n)) ||={∅|∅, ⊤|⊤}=>
       ||={⊤|⊤,∅|∅}=> ||▷=>^2 ||={∅|∅, ⊤|⊤}=>
-      ∀ Hc', NC 1 ={⊤}=∗ (∃ hD' : nvmDeltaG Σ, step_fupdN_fresh ((Nat.iter (S n) step_count_next ncurrent)) ns Hc' hD' P))%I
+        ∀ Hc', NC 1 ={⊤}=∗ (∃ hD' : nvmDeltaG Σ,
+          ⌜ Hc' = get_crashG hD' ⌝ ∗
+          step_fupdN_fresh ((Nat.iter (S n) step_count_next ncurrent)) ns Hc' hD' P))%I
     end.
 
   Lemma step_fupdN_fresh_wand ncurr1 ncurr2 (ns : list nat) Hc0 hD Q Q' :
@@ -86,10 +88,10 @@ Section recovery_adequacy.
       iIntros "H".
       iMod "H". iModIntro. iApply (step_fupd2N_wand with "H"). iIntros "H".
       iMod "H". iModIntro.
-      iIntros (Hc') "HNC". iSpecialize ("H" $! Hc' with "[$]"). iMod "H" as (?) "H".
-      iExists _. iModIntro. iApply (IHns with "H").
-      { subst. auto. }
-      eauto.
+      iIntros (Hc') "HNC". iSpecialize ("H" $! Hc' with "[$]").
+      iMod "H" as (?) "[? H]".
+      iExists _. iModIntro. iFrame. iApply (IHns with "H"). { congruence. }
+      iFrame.
   Qed.
 
   Notation wptp s k t := ([∗ list] ef ∈ t, WPC ef @ s; k; ⊤ {{ fork_post }} {{ True }})%I.
@@ -175,9 +177,9 @@ Section recovery_adequacy.
       intros Hgt%nrsteps_crashed_length.
       simpl in Hgt. lia. }
     iIntros (Hsteps) "Hσ Hg Hi Hv He Ht HNC".
-    inversion_clear Hsteps as [|?? [t1' ?] ????? s0].
+    inversion_clear Hsteps as [|? ? [t1' ?] ρ2 ? ? ? ? ? ? step].
     rewrite /step_fupdN_fresh -/step_fupdN_fresh.
-    destruct ρ2 as (?&[σ2_pre_crash []]).
+    destruct ρ2 as (? & [σ2_pre_crash []]).
     iEval (rewrite -assoc) in "Hg".
 
     iEval (rewrite /wpr wpr_unfold /wpr_pre) in "He".
@@ -201,7 +203,7 @@ Section recovery_adequacy.
     iDestruct "H" as "[interp H]".
     iEval (repeat setoid_rewrite monPred_at_forall) in "H".
     iEval (setoid_rewrite monPred_at_embed) in "H".
-    iMod ("H" $! _ _ _ _ _ _ 0 with "interp Hσ Hg") as "H".
+    iMod ("H" $! _ _ _ _ step _ 0 with "interp Hσ Hg") as "H".
     iMod (fupd2_mask_subseteq ∅ ∅) as "Hclo";
       [apply empty_subseteq | apply empty_subseteq|].
     do 2 iModIntro. iNext.
@@ -212,18 +214,14 @@ Section recovery_adequacy.
     destruct s0. (* Could we do induction on [ns'] instead? *)
     - (* The remaining execution also crashed. *)
       iIntros (Hc') "HNC".
-      iMod ("H" $! Hc' with "[$]") as (hD') "(interp & Hσ & Hg & Hv & Hr & HNC)".
-      assert (Hc' = @nvm_base_crashGS Σ (@nvm_delta_base Σ hD')) as eq.
-      { admit. }
-        (* We need [Hc' = @nvm_base_crashGS Σ (@nvm_delta_base Σ hD')] *)
-      iPoseProof (IH with "Hσ Hg interp [Hv] Hr [] [HNC]") as "H"; eauto.
-      { Set Printing Implicit.
-        rewrite eq. iFrame.
-        Unset Printing Implicit. }
+      iMod ("H" $! Hc' with "[$]") as (hD') "(-> & interp & Hσ & Hg & Hv & Hr & HNC)".
+      iPoseProof (IH with "Hσ Hg interp [Hv] Hr [//] HNC") as "H".
+      { eauto. }
+      { eauto. }
       iExists _. iModIntro.
       rewrite /sum_crash_steps.
       rewrite Nat_iter_S.
-      rewrite eq.
+      iSplit; first done.
       iApply (step_fupdN_fresh_wand with "H").
       { done. }
       iIntros (?) "H".
@@ -251,12 +249,12 @@ Section recovery_adequacy.
       iModIntro; done.
     - (* The remaining execution did not crash. This is a "base case" of sorts. *)
       iIntros (Hc') "HNC".
-      iMod ("H" $! Hc' with "[$]") as (hD') "(interp & Hσ & Hg & Hv & Hr & HNC)".
+      iMod ("H" $! Hc' with "[$]") as (hD') "(-> & interp & Hσ & Hg & Hv & Hr & HNC)".
       iExists hD'.
       assert (ns' = []) as ->; first by (eapply nrsteps_normal_empty_prefix; auto).
-      iDestruct (wptp_recv_strong_normal_adequacy with "Hσ Hg interp [Hv] Hr [] [HNC]") as "H"; eauto.
-      { admit. }
+      iDestruct (wptp_recv_strong_normal_adequacy with "Hσ Hg interp [Hv] Hr [] HNC") as "H"; eauto.
       iModIntro.
+      iSplit; first done.
       rewrite /sum_crash_steps.
       rewrite plus_0_r.
       rewrite Nat_iter_S.
@@ -265,7 +263,7 @@ Section recovery_adequacy.
       rewrite -Nat_iter_S Nat_iter_S_r.
       rewrite Nat_iter_add Nat_iter_S_r.
       eauto.
-  Admitted.
+  Qed.
 
   (* In this lemma we combine [wptp_recv_strong_normal_adequacy] and
   [wptp_recv_strong_crash_adequacy] into a lemma that applies both in the
@@ -311,11 +309,6 @@ Section recovery_adequacy.
       iApply (step_fupdN_fresh_wand with "H"); first auto.
       iIntros (?) "H".
       iApply (step_fupd2N_wand with "H"); auto.
-      (* iIntros "H". *)
-      (* iMod "H" as (???) "(#? & H & ? & ? & ? & ?)". iExists _, _, _. *)
-      (* repeat (iSplitL ""; try iFrame; eauto). *)
-      (* Set Printing Implicit. *)
-      (* admit. *)
     - iIntros.
       assert (ns = []) as ->; first by (eapply nrsteps_normal_empty_prefix; auto).
       rewrite Nat.add_0_r.

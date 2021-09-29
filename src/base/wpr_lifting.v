@@ -154,6 +154,7 @@ Section wpr.
       persist_auth (σ, p)
       ==∗
       ∃ names : nvm_base_names,
+        validV (hGD := MkNvmBaseDeltaG Σ Hcrash names) ∅ ∗
         post_crash_map σ _ (MkNvmBaseDeltaG Σ Hcrash names) ∗
         nvm_heap_ctx (hGD := MkNvmBaseDeltaG Σ Hcrash names)
                      (slice_of_store p' σ, view_to_zero p') ∗
@@ -169,12 +170,11 @@ Section wpr.
     { apply auth_update_auth_persist. }
     iDestruct "pers" as "#oldPers".
     (* Allocate a new persist view. *)
-    (* set newPersisted := ((λ _, MaxNat 0) <$> p). *)
     iMod (own_alloc (● (view_to_zero p') ⋅ ◯ (view_to_zero p'))) as (persistG) "[pers #persFrag]".
     { apply auth_both_valid_2; [apply view_valid|done]. }
     (* Allocate the store view at a _new_ ghost name. *)
-    iMod (own_alloc (● max_view (slice_of_store p' σ))) as (storeG) "store".
-    { apply auth_auth_valid. apply view_valid. }
+    iMod (own_alloc (● max_view (slice_of_store p' σ) ⋅ ◯ ∅)) as (storeG) "[store fragStore]".
+    { apply auth_both_valid_2; [apply view_valid | apply: ucmra_unit_least]. }
     (* Allocate the crashed at view at a _new_ ghost name. *)
     iMod (own_alloc (to_agree p' : agreeR viewO)) as (crashedAtG) "#crashed".
     { done. }
@@ -252,7 +252,7 @@ Section wpr.
     iIntros ([store p p' pIncl cut]).
     iIntros "(heap & authStor & %inv & pers & recov) Pg".
     iMod (nvm_heap_reinit _ _ _ _ _ Hcrash with "heap pers")
-      as (hnames) "(map & interp' & #persImpl & rec)"; try done.
+      as (hnames) "(_ & map & interp' & #persImpl & rec)"; try done.
     rewrite /post_crash.
     set newBundle : nvmBaseDeltaG Σ :=
       {| nvm_base_crashGS := Hcrash; nvm_base_names' := hnames |}.
