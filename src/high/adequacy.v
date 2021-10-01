@@ -19,6 +19,7 @@ From self.base Require Import adequacy. (* To get [recv_adequace]. *)
 From self.high Require Import weakestpre resources monpred_simpl.
 From self.high Require Import recovery_weakestpre.
 (* From Perennial.program_logic Require Export crash_lang recovery_weakestpre. *)
+Import uPred.
 
 Notation steps_sum := crash_adequacy.steps_sum.
 
@@ -42,7 +43,8 @@ Proof. intros ?%nrsteps_crashed_length_status. naive_solver. Qed.
 
 Section recovery_adequacy.
 
-  Context `{!nvmFixedG Σ}.
+  Context {Σ : gFunctors}.
+  (* Context `{!nvmFixedG Σ}. *)
   Implicit Types s : stuckness.
   Implicit Types k : nat.
   (* Implicit Types P : iProp Σ. *)
@@ -60,7 +62,9 @@ Section recovery_adequacy.
   correctly, yet, in this definition. Maybe we should state that the [nvmDeltaG]
   must use the given [crashGS]. Maybe we can avoid mentioning a crashGS and just
   use nvmDeltaG. *)
-  Fixpoint step_fupdN_fresh ncurrent (ns : list nat) (Hc0 : crashGS Σ) (hD : nvmDeltaG Σ)
+  (* TODO: Remove the [Hc0]. Should be possible. *)
+  Fixpoint step_fupdN_fresh `{!nvmFixedG Σ}
+           ncurrent (ns : list nat) (Hc0 : crashGS Σ) (hD : nvmDeltaG Σ)
           (P : nvmDeltaG Σ → iProp Σ) {struct ns} :=
     match ns with
     | [] => P hD
@@ -73,7 +77,7 @@ Section recovery_adequacy.
           step_fupdN_fresh ((Nat.iter (S n) step_count_next ncurrent)) ns Hc' hD' P))%I
     end.
 
-  Lemma step_fupdN_fresh_wand ncurr1 ncurr2 (ns : list nat) Hc0 hD Q Q' :
+  Lemma step_fupdN_fresh_wand `{!nvmFixedG Σ} ncurr1 ncurr2 (ns : list nat) Hc0 hD Q Q' :
     ncurr1 = ncurr2 →
     step_fupdN_fresh ncurr1 (ns) Hc0 hD Q -∗
     (∀ hD, Q hD -∗ Q' hD) -∗
@@ -96,7 +100,8 @@ Section recovery_adequacy.
 
   Notation wptp s k t := ([∗ list] ef ∈ t, WPC ef @ s; k; ⊤ {{ fork_post }} {{ True }})%I.
 
-  Lemma wptp_recv_strong_normal_adequacy `{!nvmDeltaG Σ} Φ Φr κs' s k n (ncurr : nat) mj D r1 e1
+  Lemma wptp_recv_strong_normal_adequacy `{!nvmFixedG Σ, !nvmDeltaG Σ}
+        Φ Φr κs' s k n (ncurr : nat) mj D r1 e1
         TV1 (t1 : list thread_state) κs t2 σ1 g1 σ2 g2 :
     nrsteps (r1 `at` ⊥) [n] ((e1 `at` TV1) :: t1, (σ1, g1))%TE κs (t2, (σ2, g2)) Normal →
     state_interp σ1 (length t1) -∗
@@ -144,7 +149,7 @@ Section recovery_adequacy.
     iDestruct "HI" as "(_ & _ & _ & $)".
   Qed.
 
-  Lemma wptp_recv_strong_crash_adequacy Φ Φr κs' s k t ncurr mj D (ns : list nat) n r1 e1
+  Lemma wptp_recv_strong_crash_adequacy `{!nvmFixedG Σ} Φ Φr κs' s k t ncurr mj D (ns : list nat) n r1 e1
         TV1 t1 κs t2 σ1 g1 σ2 g2 :
     nrsteps (r1 `at` ⊥) (ns ++ [n]) ((e1 `at` TV1)%E :: t1, (σ1, g1)) κs (t2, (σ2, g2)) Crashed →
     state_interp σ1 (length t1) -∗
@@ -268,7 +273,7 @@ Section recovery_adequacy.
   (* In this lemma we combine [wptp_recv_strong_normal_adequacy] and
   [wptp_recv_strong_crash_adequacy] into a lemma that applies both in the
   absence and presence of crashes. *)
-  Lemma wptp_recv_strong_adequacy Φ Φr κs' s k hD ns mj D n r1 e1 TV1 t1 κs t2 σ1 g1 ncurr σ2 g2 stat :
+  Lemma wptp_recv_strong_adequacy `{!nvmFixedG Σ} Φ Φr κs' s k hD ns mj D n r1 e1 TV1 t1 κs t2 σ1 g1 ncurr σ2 g2 stat :
     nrsteps (r1 `at` ⊥) (ns ++ [n]) ((e1 `at` TV1)%TE :: t1, (σ1,g1)) κs (t2, (σ2,g2)) stat →
     state_interp σ1 (length t1) -∗
     global_state_interp g1 ncurr mj D (κs ++ κs') -∗
@@ -323,6 +328,107 @@ Section recovery_adequacy.
 
 End recovery_adequacy.
 
+(* If you can prove a plain proposition [P] under [step_fupdN_fresh] then the *)
+(* proposition holds under only under a number of laters. *)
+Lemma step_fupdN_fresh_plain `{!nvmFixedG Σ, hD : nvmDeltaG Σ} P `{!Plain P} ns ncurr k :
+  (step_fupdN_fresh ncurr ns _ _
+                 (λ _, ||={⊤|⊤,∅|∅}=> ||▷=>^k ||={∅|∅, ⊤|⊤}=> P)) -∗
+  ||={⊤|⊤, ⊤|⊤}=> ▷ ▷^(k + fresh_later_count num_laters_per_step step_count_next ncurr ns) P.
+Proof.
+  iIntros "H".
+  iInduction ns as [|n' ns] "IH" forall (ncurr hD).
+  - rewrite /step_fupdN_fresh Nat.add_0_r.
+    by iApply step_fupd2N_inner_plain.
+  -
+    iMod NC_alloc as (Hc') "NC".
+    rewrite /step_fupdN_fresh -/step_fupdN_fresh.
+    iDestruct (step_fupdN_fresh_pattern_fupd _ _ _ (▷^ (S _) P)%I with "H [IH NC]") as "H".
+    { iIntros "H".
+      iSpecialize ("H" with "NC").
+      iMod "H". iDestruct "H" as (hD' eq) "H".
+      rewrite eq.
+      iMod ("IH" with "H") as "H".
+      iModIntro.
+      simpl.
+      iApply "H". }
+    rewrite step_fupd2N_inner_plus.
+    iPoseProof (step_fupd2N_inner_plain with "H") as "H".
+    simpl.
+    iMod "H". iModIntro.
+    rewrite -?laterN_later.
+    rewrite -?laterN_plus.
+    iNext.
+    rewrite -later_laterN.
+    iApply (laterN_le with "H").
+    { lia. }
+    Unshelve. split. apply _.
+  Qed.
+
+(* (* If you can prove a plain proposition [P] under [step_fupdN_fresh] then the *)
+(* proposition holds under only under a number of laters. *) *)
+(* Lemma step_fupdN_fresh_plain {Λ CS T Σ} `{!invGpreS Σ} `{!crashGpreS Σ} P `{!Plain P} ns ncurr f g k: *)
+(*   (∀ (Hi' : invGS Σ) Hc', NC 1-∗ |={⊤}=> *)
+(*    ∃ (pG : perennialG Λ CS T Σ) *)
+(*      (Hpf1 : ∀ Hc t, @iris_invGS _ _ (perennial_irisG Hc t) = Hi') *)
+(*      (Hpf2 : perennial_num_laters_per_step = f) *)
+(*      (Hpf3 : perennial_step_count_next = g) t, *)
+(*      |={⊤}=> step_fupdN_fresh ncurr ns Hc' t *)
+(*                   (λ _ _, ||={⊤|⊤,∅|∅}=> ||▷=>^k ||={∅|∅, ⊤|⊤}=> P)) -∗ *)
+(*   ▷^(fresh_later_count f g ncurr ns + S k) P. *)
+(* Proof. *)
+
+Lemma step_fupdN_fresh_soundness `{!nvmGpreS Σ} φ ns ncurr k k2 :
+  (⊢ ∀ (Hi : invGS Σ),
+    |={⊤}=> ∃ (nF : nvmFixedG Σ) (nD : nvmDeltaG Σ),
+      (* ⌜ num_laters_per_step = f ⌝ ∗ *)
+      (* ⌜ step_count_next = g ⌝ ∗ *)
+      ⌜ nvmBaseG_invGS = Hi ⌝ ∗
+      step_fupdN_fresh ncurr ns _ _
+        (λ _, ||={⊤|⊤,∅|∅}=> ||▷=>^k ||={∅|∅, ⊤|⊤}=> ▷^k2 ⌜φ⌝))%I →
+  φ.
+Proof.
+  intros iter.
+  eapply (soundness (M := iResUR Σ) _ (S (_) + k2)).
+  iApply (fupd2_plain_soundness ⊤ ⊤ ⊤ ⊤).
+  iIntros (inv).
+  rewrite laterN_plus.
+  iMod (iter $! inv) as (nF nD (* _ _ *) eqInv) "it".
+  iDestruct (step_fupdN_fresh_plain _ ns ncurr k) as "H".
+  Set Printing All.
+  rewrite -eqInv.
+  simpl.
+  assert ((@iris_invGS nvm_lang Σ (@nvmBaseG_irisGS Σ (@nvmG_baseG Σ nF)
+                                  (@nvm_delta_base Σ _))) =
+          (@nvmBaseG_invGS Σ (@nvmG_baseG Σ nF))) as ->.
+  { done. }
+  Unset Printing All.
+  iApply "H".
+  iApply "it".
+  Unshelve.
+  apply _.
+Qed.
+
+(* Lemma step_fupdN_fresh_soundness {Σ} `{!nvmGpreS Σ} (φ : Prop) ns ncurr k k2 (* f  *)(* g  *): *)
+(*   (∀ (hDD : nvmFixedG Σ) (hD : nvmDeltaG Σ), NC 1 ={⊤}=∗ *)
+(*     (* ∃ (hD : nvmDeltaG Σ), *) *)
+(*       (* (pG : perennialG Λ CS T Σ) *) *)
+(*       (* (Hpf1 : ∀ Hc t, @iris_invGS _ _ (perennial_irisG Hc t) = Hi) *) *)
+(*       (* (Hpf2 : perennial_num_laters_per_step = f) *) *)
+(*       (* (Hpf2 : perennial_step_count_next = g) *) *)
+(*       (* t0 *) *)
+(*         (|={⊤}=> step_fupdN_fresh ncurr ns _ _ (λ _, *)
+(*         ||={⊤|⊤,∅|∅}=> ||▷=>^k ||={∅|∅, ⊤|⊤}=> ▷^k2 ⌜φ⌝))%I) → *)
+(*   φ. *)
+(* Proof. *)
+(*   intros Hiter. *)
+(*   eapply (soundness (M := iResUR Σ) _ (_ + k2)); simpl. *)
+(*   rewrite laterN_plus. *)
+(*   iApply (step_fupdN_fresh_plain). iIntros (Hinv Hc). *)
+(*   iIntros "H". *)
+(* Admitted. *)
+(* (*   by iApply iter. *) *)
+(* (* Qed. *) *)
+
 (* An alternative representation of [recv_adequate] that can be more convenient
 to show. *)
 Lemma recv_adequate_alt s e1 r1 σ1 (φ φr : thread_val → _ → Prop) :
@@ -342,7 +448,7 @@ Qed.
 
 (* This adequacy lemma is similar to the adequacy lemma for [wpr] in Perennial:
 [wp_recv_adequacy_inv]. *)
-Lemma high_recv_adequacy (Σ : gFunctors) s k e r σ (φ φr : val → Prop) :
+Lemma high_recv_adequacy `{hPre : !nvmGpreS Σ} s k e r σ (φ φr : val → Prop) :
   valid_heap σ.1 →
   (∀ `{nF : !nvmFixedG Σ, nD : !nvmDeltaG Σ},
     ⊢ (* ⎡ ([∗ map] l ↦ v ∈ σ.1, l ↦h v) ⎤ -∗ *)

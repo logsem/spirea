@@ -13,15 +13,6 @@ From self.base Require Export wpr_lifting primitive_laws.
 
 Set Default Proof Using "Type".
 
-Class nvmBaseGpreS Σ := NvmBasePreG {
-  nvmBase_preG_iris :> invGpreS Σ;
-  nvmBase_preG_gen_heapGS :> gen_heapGpreS loc history Σ;
-  nvmBase_preG_crash :> crashGpreS Σ;
-  nvmBase_preG_view_inG : view_preG Σ;
-  nvmBase_preG_crashed_at :> inG Σ (agreeR viewO);
-  nvmBase_preG_credit :> credit_preG Σ;
-}.
-
 Definition nvm_build_base Σ (hpreG : nvmBaseGpreS Σ) (Hinv : invGS Σ)
            (cred_names : cr_names) : nvmBaseFixedG Σ :=
   {|

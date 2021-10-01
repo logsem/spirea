@@ -42,11 +42,21 @@ Class nvm_base_names := {
 }.
 
 (* Things that change upon a crash. We would have like to _only_ have ghost
-names in this record, but due to how Perennial is implemented we need to keep
-the entire [crashGS] in it. *)
+names in this record, but due to how Perennial works we need to keep the entire
+[crashGS] in it. *)
 Class nvmBaseDeltaG Σ := MkNvmBaseDeltaG {
   nvm_base_crashGS :> crashGS Σ;
   nvm_base_names' :> nvm_base_names;
+}.
+
+(* All the functors that we need for the base logic (and not ghost names). *)
+Class nvmBaseGpreS Σ := NvmBasePreG {
+  nvmBase_preG_iris :> invGpreS Σ;
+  nvmBase_preG_gen_heapGS :> gen_heapGpreS loc history Σ;
+  nvmBase_preG_crash :> crashGpreS Σ;
+  nvmBase_preG_view_inG : view_preG Σ;
+  nvmBase_preG_crashed_at :> inG Σ (agreeR viewO);
+  nvmBase_preG_credit :> credit_preG Σ;
 }.
 
 Definition nvm_base_delta_update_names {Σ}

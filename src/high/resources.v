@@ -60,6 +60,12 @@ Class nvmFixedG Σ := NvmFixedG {
   nvmG_highG :> nvmHighFixedG Σ;
 }.
 
+(* All the functors that we need for the high-level logic (and no ghost names). *)
+Class nvmGpreS Σ := NvmPreG {
+  nvmPreG_base :> nvmBaseGpreS Σ;
+  nvmPreG_high :> nvmHighFixedG Σ; (* We can use [nvmHighFixedG] directly as it has no ghost names. *)
+}.
+
 (* Wrappers around ownership of resources that extracts the ghost names from [nvmDeltaG]. *)
 
 Section ownership_wrappers.
