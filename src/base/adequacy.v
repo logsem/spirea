@@ -36,12 +36,12 @@ Lemma allocate_state_interp `{hPre : !nvmBaseGpreS Σ} Hinv Hc σ PV cred_names 
   ⊢ |==> ∃ (names : nvm_base_names),
     let hG := nvm_build_base _ hPre Hinv cred_names in
     let hGD := nvm_build_delta _ Hc names in
-    nvm_heap_ctx (σ, PV) ∗ ([∗ map] l↦v ∈ σ, l ↦h v) ∗ persisted PV.
+    nvm_heap_ctx (σ, PV) ∗ ([∗ map] l↦v ∈ σ, l ↦h v) ∗ validV ∅ ∗ persisted PV.
 Proof.
   intros val.
   iMod (gen_heap_init_names σ) as (γh γm) "(yo & lo & holo)".
-  iMod (own_alloc (● max_view σ)) as (store_view_name) "HIP".
-  { apply auth_auth_valid, view_valid. }
+  iMod (own_alloc (● max_view σ ⋅ ◯ ε)) as (store_view_name) "[HIP ?]".
+  { apply auth_both_valid_2; auto using view_valid, ucmra_unit_least. }
   iMod (own_alloc (● PV ⋅ ◯ PV)) as (persist_view_name) "[? ?]".
   { apply auth_both_valid_2; auto using view_valid. }
   iMod (own_alloc (to_agree ∅ : agreeR viewO)) as (crashed_at_name) "crashed".
@@ -69,6 +69,7 @@ Theorem base_recv_adequacy Σ `{hPre : !nvmBaseGpreS Σ} s k e r σ PV g φ φr 
   (∀ `{Hheap : !nvmBaseFixedG Σ, hD : !nvmBaseDeltaG Σ},
     ⊢ pre_borrowN n -∗
       ([∗ map] l ↦ v ∈ σ, l ↦h v) -∗
+      validV ∅ -∗
       persisted PV -∗ (
         □ (∀ σ nt, state_interp σ nt -∗ |NC={⊤, ∅}=> ⌜ φinv σ ⌝) ∗
         □ (∀ hGD, Φinv hGD -∗ □ ∀ σ nt, state_interp σ nt -∗ |NC={⊤, ∅}=> ⌜ φinv σ ⌝) ∗
@@ -86,7 +87,7 @@ Proof.
   { rewrite /crash_borrow_ginv. iApply (inv_alloc _). iNext. eauto. }
 
   iMod (allocate_state_interp Hinv Hc σ PV name_credit)
-    as (hnames) "(interp & pts & pers)"; first done.
+    as (hnames) "(interp & pts & validV & pers)"; first done.
 
   iExists ({| pbundleT := hnames |}).
   (* Build an nvmBaseFixedG. *)
@@ -110,7 +111,7 @@ Proof.
   rewrite /pre_borrowN in Hwp.
   rewrite /pre_borrow in Hwp.
   iDestruct (@cred_frag_to_pre_borrowN _ hG _ n with "Hpre") as "Hpre".
-  iDestruct (Hwp hG _ with "Hpre pts pers") as "(#H1 & #H2 & Hwp)".
+  iDestruct (Hwp hG _ with "Hpre pts validV pers") as "(#H1 & #H2 & Hwp)".
   iModIntro.
   iSplitR.
   { iModIntro. iIntros (??) "Hσ".
