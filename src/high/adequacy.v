@@ -15,8 +15,8 @@ From Perennial.program_logic Require Import crash_adequacy.
 
 From self Require Import ipm_tactics.
 From self.lang Require Import lang.
-From self.base Require Import adequacy. (* To get [recv_adequace]. *)
-From self.high Require Import weakestpre resources monpred_simpl.
+From self.base Require Import cred_frag adequacy. (* To get [recv_adequace]. *)
+From self.high Require Import crash_weakestpre resources monpred_simpl.
 From self.high Require Import recovery_weakestpre.
 (* From Perennial.program_logic Require Export crash_lang recovery_weakestpre. *)
 Import uPred.
@@ -446,14 +446,27 @@ Proof.
   - constructor; naive_solver.
 Qed.
 
+Lemma allocate_high_state_interp `{!nvmGpreS Σ} Hinv σ PV ncurr mj D κs :
+  valid_heap σ →
+  ⊢ |==> ∃ (nF : nvmFixedG Σ) (nD : nvmDeltaG Σ),
+      ⌜ nvmBaseG_invGS = Hinv ⌝ ∗
+      interp ∗
+      validV ∅ ∗
+      NC 1 ∗
+      global_state_interp (Λ := nvm_lang) () ncurr mj D κs ∗
+      nvm_heap_ctx (σ, PV).
+Proof. Admitted.
+  (* iMod NC_alloc as (Hc) "HNC". *)
+
 (* This adequacy lemma is similar to the adequacy lemma for [wpr] in Perennial:
 [wp_recv_adequacy_inv]. *)
-Lemma high_recv_adequacy `{hPre : !nvmGpreS Σ} s k e r σ (φ φr : val → Prop) :
-  valid_heap σ.1 →
+  (* FIXME: We need a [pre_borrow] somewhere. *)
+Lemma high_recv_adequacy `{hPre : !nvmGpreS Σ} s k e r σ PV (φ φr : val → Prop) :
+  valid_heap σ →
   (∀ `{nF : !nvmFixedG Σ, nD : !nvmDeltaG Σ},
     ⊢ (* ⎡ ([∗ map] l ↦ v ∈ σ.1, l ↦h v) ⎤ -∗ *)
       (wpr s k ⊤ e r (λ v, ⌜φ v⌝) (λ _ v, ⌜φr v⌝))) →
-  recv_adequate s (ThreadState e ε) (ThreadState r ε) σ
+  recv_adequate s (ThreadState e ⊥) (ThreadState r ⊥) (σ, PV)
                 (λ v _, φ v.(val_val)) (λ v _, φr v.(val_val)).
 Proof.
   intros val.
@@ -465,19 +478,34 @@ Proof.
   set (n := 0).
   set (nsinit := (n * 4 + crash_borrow_ginv_number)).
   (* We apply soundness of Perennial/Iris. *)
-(* Notation "||={ E1a | E1b }=> Q" := (uPred_fupd2 E1a E1b E1a E1b Q) : bi_scope *)
-  eapply (step_fupdN_fresh_soundness (Λ := nvm_lang) (CS := nvm_crash_lang) (Σ := Σ)
-              _ ns' nsinit
-              (crash_adequacy.steps_sum _ _ (Nat.iter (sum_crash_steps ns') _ nsinit) n')
-               (S (S (_ (Nat.iter (n' + sum_crash_steps ns') _ nsinit)))))
-         => Hinv Hc.
-  (* iStartProof (dProp _). *)
-  (* iStartProof (iProp _). *)
-  iIntros "HNC".
+  eapply (step_fupdN_fresh_soundness _ ns' nsinit
+                                     (steps_sum _ _ (Nat.iter (sum_crash_steps ns') _ nsinit) n')).
+  iIntros (inv).
+
+  iMod (credit_name_init (n * 4 + crash_borrow_ginv_number)) as
+      (name_credit) "(Hcred_auth&Hcred&Htok)".
+  iDestruct (cred_frag_split with "Hcred") as "(Hpre&Hcred)".
+  iAssert (|={⊤}=> crash_borrow_ginv)%I with "[Hcred]" as ">#Hinv".
+  { rewrite /crash_borrow_ginv. iApply (inv_alloc _). iNext. eauto. }
+  
+  iMod (allocate_high_state_interp inv σ PV)
+    as (nF nD eq) "(high & validV & nc & global & int)"; first done.
+
   iDestruct (Hwp _ _ ) as "-#Hwp".
-  (* rewrite /wpr /wpr'. *)
   iDestruct ("Hwp" $! (∅, ∅, ∅)) as "Hwpr".
   iModIntro.
-  (* set (pG := PerennialG _ _ nvm_base_names). *)
-  (* iExists pG. *)
+  iExists _, _.
+  iPureGoal. { done. }
+  iDestruct (wptp_recv_strong_adequacy with "int global") as "HIP".
+  { done. }
+  iSpecialize ("HIP" with "high validV Hwpr [//] nc").
+
+  iApply (step_fupdN_fresh_wand with "HIP").
+  { auto. }
+  iIntros (hD).
+  iIntros "H".
+  rewrite -eq.
+  iMod "H".
+  (* This does not work yet. *)
+  (* iApply (step_fupd2N_wand with "H"); auto. *)
 Admitted.
