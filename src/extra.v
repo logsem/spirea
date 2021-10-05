@@ -286,6 +286,9 @@ Section restrict.
     s ⊆ dom _ m → dom _ (restrict s m) ≡ s.
   Proof. rewrite restrict_dom. set_solver. Qed.
 
+  Lemma restrict_empty (m : M A) : restrict (D := D) ∅ m = ∅.
+  Proof. apply map_filter_empty_iff. intros ???. set_solver. Qed.
+
 End restrict.
 
 Section restrict_leibniz.

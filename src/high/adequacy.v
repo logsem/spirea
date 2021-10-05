@@ -13,7 +13,7 @@ From Perennial.program_logic Require Import recovery_adequacy.
 From Perennial.program_logic Require Import step_fupd_extra crash_lang crash_weakestpre.
 From Perennial.program_logic Require Import crash_adequacy.
 
-From self Require Import ipm_tactics.
+From self Require Import ipm_tactics extra.
 From self.lang Require Import lang.
 From self.base Require Import cred_frag adequacy. (* To get [recv_adequace]. *)
 From self.high Require Import crash_weakestpre resources monpred_simpl.
@@ -119,7 +119,8 @@ Section recovery_adequacy.
       state_interp σ2 (length t2') ∗
       global_state_interp g2 (Nat.iter n step_count_next ncurr) mj D κs' ∗
       from_option (λ v, Φ v TV2) True (to_val e2) ∗
-      (* ([∗ list] v ∈ omap to_val t2', fork_post v) ∗ *) (* FIXME *)
+      (* ([∗ list] v ∈ omap to_val t2', fork_post v) ∗ *) (* We don't have post
+      conditions for forked threads. *)
       NC 1
     )%I).
   Proof.
@@ -303,7 +304,7 @@ Section recovery_adequacy.
           from_option (λ v, Φr hD' v TV2) True (to_val e2)
            (* from_option (Φr Hc' t') True (to_val e2) ∗ □ Φinv' Hc' t' *)
       end)  ∗
-      (* ([∗ list] v ∈ omap to_val t2', fork_post v) ∗ *) (* FIXME: Fix this *)
+      (* ([∗ list] v ∈ omap to_val t2', fork_post v) ∗ *)
       NC 1))).
   Proof.
     intros. destruct stat.
@@ -364,19 +365,6 @@ Proof.
     Unshelve. split. apply _.
   Qed.
 
-(* (* If you can prove a plain proposition [P] under [step_fupdN_fresh] then the *)
-(* proposition holds under only under a number of laters. *) *)
-(* Lemma step_fupdN_fresh_plain {Λ CS T Σ} `{!invGpreS Σ} `{!crashGpreS Σ} P `{!Plain P} ns ncurr f g k: *)
-(*   (∀ (Hi' : invGS Σ) Hc', NC 1-∗ |={⊤}=> *)
-(*    ∃ (pG : perennialG Λ CS T Σ) *)
-(*      (Hpf1 : ∀ Hc t, @iris_invGS _ _ (perennial_irisG Hc t) = Hi') *)
-(*      (Hpf2 : perennial_num_laters_per_step = f) *)
-(*      (Hpf3 : perennial_step_count_next = g) t, *)
-(*      |={⊤}=> step_fupdN_fresh ncurr ns Hc' t *)
-(*                   (λ _ _, ||={⊤|⊤,∅|∅}=> ||▷=>^k ||={∅|∅, ⊤|⊤}=> P)) -∗ *)
-(*   ▷^(fresh_later_count f g ncurr ns + S k) P. *)
-(* Proof. *)
-
 Lemma step_fupdN_fresh_soundness `{!nvmGpreS Σ} φ ns ncurr k k2 :
   (⊢ ∀ (Hi : invGS Σ),
     |={⊤}=> ∃ (nF : nvmFixedG Σ) (nD : nvmDeltaG Σ),
@@ -408,27 +396,6 @@ Proof.
   apply _.
 Qed.
 
-(* Lemma step_fupdN_fresh_soundness {Σ} `{!nvmGpreS Σ} (φ : Prop) ns ncurr k k2 (* f  *)(* g  *): *)
-(*   (∀ (hDD : nvmFixedG Σ) (hD : nvmDeltaG Σ), NC 1 ={⊤}=∗ *)
-(*     (* ∃ (hD : nvmDeltaG Σ), *) *)
-(*       (* (pG : perennialG Λ CS T Σ) *) *)
-(*       (* (Hpf1 : ∀ Hc t, @iris_invGS _ _ (perennial_irisG Hc t) = Hi) *) *)
-(*       (* (Hpf2 : perennial_num_laters_per_step = f) *) *)
-(*       (* (Hpf2 : perennial_step_count_next = g) *) *)
-(*       (* t0 *) *)
-(*         (|={⊤}=> step_fupdN_fresh ncurr ns _ _ (λ _, *)
-(*         ||={⊤|⊤,∅|∅}=> ||▷=>^k ||={∅|∅, ⊤|⊤}=> ▷^k2 ⌜φ⌝))%I) → *)
-(*   φ. *)
-(* Proof. *)
-(*   intros Hiter. *)
-(*   eapply (soundness (M := iResUR Σ) _ (_ + k2)); simpl. *)
-(*   rewrite laterN_plus. *)
-(*   iApply (step_fupdN_fresh_plain). iIntros (Hinv Hc). *)
-(*   iIntros "H". *)
-(* Admitted. *)
-(* (*   by iApply iter. *) *)
-(* (* Qed. *) *)
-
 (* An alternative representation of [recv_adequate] that can be more convenient
 to show. *)
 Lemma recv_adequate_alt s e1 r1 σ1 (φ φr : thread_val → _ → Prop) :
@@ -446,25 +413,87 @@ Proof.
   - constructor; naive_solver.
 Qed.
 
-Lemma allocate_high_state_interp `{!nvmGpreS Σ} Hinv σ PV ncurr mj D κs :
+Lemma allocate_high_state_interp `{!nvmGpreS Σ} Hinv σ PV κs :
   valid_heap σ →
-  ⊢ |==> ∃ (nF : nvmFixedG Σ) (nD : nvmDeltaG Σ),
+  ⊢ |={⊤}=> ∃ (nF : nvmFixedG Σ) (nD : nvmDeltaG Σ),
       ⌜ nvmBaseG_invGS = Hinv ⌝ ∗
       interp ∗
       validV ∅ ∗
       NC 1 ∗
-      global_state_interp (Λ := nvm_lang) () ncurr mj D κs ∗
+      global_state_interp (Λ := nvm_lang) () crash_borrow_ginv_number 1%Qp ∅ κs ∗
       nvm_heap_ctx (σ, PV).
-Proof. Admitted.
-  (* iMod NC_alloc as (Hc) "HNC". *)
+Proof.
+  intros valid.
+  iMod NC_alloc as (Hc) "NC".
+  (* assert (hi : cr_names). first apply _. *)
+
+  set (n := 0).
+  iMod (credit_name_init (n * 4 + crash_borrow_ginv_number)) as
+      (name_credit) "([credfull credfrag] & Hcred & Htok)".
+  iDestruct (cred_frag_split with "Hcred") as "(Hpre&Hcred)".
+  iAssert (|={⊤}=> crash_borrow_ginv)%I with "[Hcred]" as ">#Hinv".
+  { rewrite /crash_borrow_ginv. iApply (inv_alloc _). iNext. eauto. }
+
+  iMod (allocate_state_interp Hinv Hc σ PV name_credit)
+    as (names) "(ctx & Ha & #valid & crashedAt & Hc)";
+    first eassumption.
+  (* set (base := (NvmFixedG _ (nvm_build_base _ _ Hinv _) _)). *)
+  set (fixed := NvmFixedG _ (nvm_build_base _ _ Hinv name_credit) nvmPreG_high).
+  iExists (fixed).
+  (* Unshelve. *)
+  (* Allocate abstract history. *)
+  iMod (own_full_history_alloc ∅)
+    as (abs_history_name know_abs_history_name) "(hists' & #histFrags & knowHistories)".
+  (* Allocate predicates. *)
+  iMod (know_predicates_alloc ∅) as (predicates_name) "[preds #predsFrag]".
+  (* Allocate preorders. *)
+  iMod (own_all_preorders_gname_alloc ∅) as (orders_name) "[orders #fragOrders]".
+  (* Allocate set of shared locations.. *)
+  iMod (own_alloc (● (∅ : gsetUR _))) as (shared_locs_name) "sharedLocs".
+  { apply auth_auth_valid. done. }
+  iMod (own_all_bumpers_alloc ∅) as (bumpers_name) "[bumpers #bumpersFrag]".
+
+  iExists (
+    NvmDeltaG _
+              (MkNvmBaseDeltaG _ _ _)
+              ({| abs_history_name := abs_history_name;
+                  know_abs_history_name := know_abs_history_name;
+                  predicates_name := predicates_name;
+                  preorders_name := orders_name;
+                  shared_locs_name := shared_locs_name;
+                  (* exclusive_locs_name := _; *)
+                  bumpers_name := bumpers_name;
+                |})
+    ).
+  iModIntro.
+  iPureGoal. { done. }
+  simpl.
+  iFrame "NC valid ctx Hinv".
+  iFrame.
+  rewrite /cred_interp.
+  iPureGoal; first done.
+  rewrite /interp.
+  iExists _, ∅, ∅, ∅, ∅, ∅, ∅.
+  simpl.
+  iFrame.
+  rewrite 4!big_sepM2_empty. rewrite 4!left_id.
+  rewrite 2!big_sepM_empty. rewrite 1!left_id.
+
+  iPureIntro.
+  replace (restrict ∅ σ) with (∅ : store).
+  2: { symmetry. apply restrict_empty. }
+  split; apply map_Forall_empty.
+Qed.
 
 (* This adequacy lemma is similar to the adequacy lemma for [wpr] in Perennial:
 [wp_recv_adequacy_inv]. *)
-  (* FIXME: We need a [pre_borrow] somewhere. *)
 Lemma high_recv_adequacy `{hPre : !nvmGpreS Σ} s k e r σ PV (φ φr : val → Prop) :
   valid_heap σ →
   (∀ `{nF : !nvmFixedG Σ, nD : !nvmDeltaG Σ},
     ⊢ (* ⎡ ([∗ map] l ↦ v ∈ σ.1, l ↦h v) ⎤ -∗ *)
+      (* Note: We need to add the resources that can be used to prove the [wpr]
+      includin [pre_borrow]. These should require the user to decide which
+      locations should be shared/exclusive, location invariants, etc. *)
       (wpr s k ⊤ e r (λ v, ⌜φ v⌝) (λ _ v, ⌜φr v⌝))) →
   recv_adequate s (ThreadState e ⊥) (ThreadState r ⊥) (σ, PV)
                 (λ v _, φ v.(val_val)) (λ v _, φr v.(val_val)).
@@ -499,7 +528,7 @@ Proof.
   iAssert (|={⊤}=> crash_borrow_ginv)%I with "[Hcred]" as ">#Hinv".
   { rewrite /crash_borrow_ginv. iApply (inv_alloc _). iNext. eauto. }
   
-  iMod (allocate_high_state_interp inv σ PV _ 1%Qp ⊤ [])
+  iMod (allocate_high_state_interp inv σ PV [])
     as (nF nD eq) "(high & validV & nc & global & int)"; first done.
 
   iDestruct (Hwp _ _ ) as "-#Hwp".

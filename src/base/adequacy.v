@@ -36,7 +36,11 @@ Lemma allocate_state_interp `{hPre : !nvmBaseGpreS Σ} Hinv Hc σ PV cred_names 
   ⊢ |==> ∃ (names : nvm_base_names),
     let hG := nvm_build_base _ hPre Hinv cred_names in
     let hGD := nvm_build_delta _ Hc names in
-    nvm_heap_ctx (σ, PV) ∗ ([∗ map] l↦v ∈ σ, l ↦h v) ∗ validV ∅ ∗ persisted PV.
+    nvm_heap_ctx (σ, PV) ∗
+    ([∗ map] l↦v ∈ σ, l ↦h v) ∗
+    validV ∅ ∗
+    crashed_at ∅ ∗
+    persisted PV.
 Proof.
   intros val.
   iMod (gen_heap_init_names σ) as (γh γm) "(yo & lo & holo)".
@@ -44,18 +48,17 @@ Proof.
   { apply auth_both_valid_2; auto using view_valid, ucmra_unit_least. }
   iMod (own_alloc (● PV ⋅ ◯ PV)) as (persist_view_name) "[? ?]".
   { apply auth_both_valid_2; auto using view_valid. }
-  iMod (own_alloc (to_agree ∅ : agreeR viewO)) as (crashed_at_name) "crashed".
+  iMod (own_alloc (to_agree ∅ : agreeR viewO)) as (crashed_at_name) "#crashed".
   { done. }
   iExists ({| heap_names_name := {| name_gen_heap := γh; name_gen_meta := γm |};
               store_view_name := store_view_name;
               persist_view_name := persist_view_name;
               crashed_at_view_name := crashed_at_name |}).
   iModIntro.
-  iFrame.
-  iFrame "%".
+  iFrame "∗#%".
   rewrite /valid_heap.
   rewrite /hist_inv.
-  iExists _. iFrame. iPureIntro. rewrite dom_empty. set_solver.
+  iExists _. iFrame "∗#". iPureIntro. rewrite dom_empty. set_solver.
 Qed.
 
 (* The adequacy theorem for the base logic.
@@ -87,7 +90,7 @@ Proof.
   { rewrite /crash_borrow_ginv. iApply (inv_alloc _). iNext. eauto. }
 
   iMod (allocate_state_interp Hinv Hc σ PV name_credit)
-    as (hnames) "(interp & pts & validV & pers)"; first done.
+    as (hnames) "(interp & pts & validV & crashedAt & pers)"; first done.
 
   iExists ({| pbundleT := hnames |}).
   (* Build an nvmBaseFixedG. *)
@@ -171,7 +174,7 @@ Proof.
   eapply (base_recv_adequacy Σ); first apply val.
   intros nB nBD.
   specialize (hyp nB nBD).
-  iIntros "borrow ptsMap pers".
+  iIntros "borrow ptsMap crashedAt pers".
   iDestruct (hyp with "borrow ptsMap pers") as "wpr".
   iSplit.
   { iIntros "!>" (? ?) "_". iApply ncfupd_mask_intro; naive_solver. }
