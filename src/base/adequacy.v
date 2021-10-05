@@ -130,16 +130,18 @@ Proof.
   - exact 0.
 Qed.
 
-(* Similar to the [reccv_adequate] in Perennial except that:
+(* Similar to the [recv_adequate] in Perennial except that:
    1. The invariant is removed.
    2. We ignore the global state (which is [unit] for nvm_lang). *)
 Record recv_adequate (s : stuckness) (e1 r1: thread_state) (σ1 : state nvm_lang)
        (φ φr: thread_val → state nvm_lang → Prop) := {
   recv_adequate_result_normal t2 σ2 v2 :
-   erased_rsteps (CS := nvm_crash_lang) r1 ([e1], (σ1,())) (thread_of_val v2 :: t2, (σ2,())) Normal →
+    erased_rsteps (CS := nvm_crash_lang) r1 ([e1], (σ1,()))
+                  (thread_of_val v2 :: t2, (σ2,())) Normal →
    φ v2 σ2;
   recv_adequate_result_crashed t2 σ2 v2 :
-   erased_rsteps (CS := nvm_crash_lang) r1 ([e1], (σ1,())) (thread_of_val v2 :: t2, (σ2,())) Crashed →
+    erased_rsteps (CS := nvm_crash_lang) r1 ([e1], (σ1,()))
+                  (thread_of_val v2 :: t2, (σ2,())) Crashed →
    φr v2 σ2;
   recv_adequate_not_stuck t2 σ2 e2 stat :
    s = NotStuck →

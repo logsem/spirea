@@ -69,7 +69,7 @@ Section recovery_adequacy.
     match ns with
     | [] => P hD
     | n :: ns =>
-      (||={⊤|⊤,∅|∅}=> ||▷=>^(steps_sum (perennial_num_laters_per_step) (perennial_step_count_next)
+      (||={⊤|⊤,∅|∅}=> ||▷=>^(steps_sum (num_laters_per_step) (step_count_next)
                                       ncurrent (S n)) ||={∅|∅, ⊤|⊤}=>
       ||={⊤|⊤,∅|∅}=> ||▷=>^2 ||={∅|∅, ⊤|⊤}=>
         ∀ Hc', NC 1 ={⊤}=∗ (∃ hD' : nvmDeltaG Σ,
@@ -159,10 +159,10 @@ Section recovery_adequacy.
     ((wpr s k (* Hc t *) ⊤ e1 r1 Φ Φr) ⊥) -∗
     wptp s k t1 -∗ NC 1 -∗
     step_fupdN_fresh ncurr ns _ t (λ hD,
-      let ntot := (steps_sum perennial_num_laters_per_step perennial_step_count_next
-                            (Nat.iter (sum_crash_steps ns) perennial_step_count_next ncurr )
+      let ntot := (steps_sum num_laters_per_step step_count_next
+                            (Nat.iter (sum_crash_steps ns) step_count_next ncurr )
                             n)  in
-      let ntot' := ((Nat.iter (n + sum_crash_steps ns) perennial_step_count_next ncurr)) in
+      let ntot' := ((Nat.iter (n + sum_crash_steps ns) step_count_next ncurr)) in
       (||={⊤|⊤, ∅|∅}=> ||▷=>^ntot ||={∅|∅, ⊤|⊤}=> (∃ e2 TV2 t2',
       ⌜ t2 = (e2 `at` TV2)%TE :: t2' ⌝ ∗
       ▷^(S (S (num_laters_per_step $ ntot')))
@@ -284,10 +284,10 @@ Section recovery_adequacy.
     wptp s k t1 -∗
     NC 1 -∗
     step_fupdN_fresh ncurr ns _ hD (λ hD',
-      let ntot := (steps_sum perennial_num_laters_per_step perennial_step_count_next
-                            (Nat.iter (sum_crash_steps ns) perennial_step_count_next ncurr )
+      let ntot := (steps_sum num_laters_per_step step_count_next
+                            (Nat.iter (sum_crash_steps ns) step_count_next ncurr )
                             n)  in
-      let ntot' := ((Nat.iter (n + sum_crash_steps ns) perennial_step_count_next ncurr)) in
+      let ntot' := ((Nat.iter (n + sum_crash_steps ns) step_count_next ncurr)) in
       (||={⊤|⊤, ∅|∅}=> ||▷=>^ntot ||={∅|∅, ⊤|⊤}=> (∃ e2 TV2 t2',
       ⌜ t2 = (e2 `at` TV2)%TE :: t2' ⌝ ∗
       ▷^(S (S (num_laters_per_step $ ntot')))
@@ -477,9 +477,20 @@ Proof.
   destruct (nrsteps_snoc _ _ _ _ _ _ nstep) as (ns' & n' & ->).
   set (n := 0).
   set (nsinit := (n * 4 + crash_borrow_ginv_number)).
+  (* Very beautiful! *)
+  eset (n'' :=
+          S (S (3 ^ (Nat.iter (n' + sum_crash_steps ns')
+                    (λ n0 : nat,
+                       n0 + 1 +
+                       (n0 + 1 +
+                        (n0 + 1 +
+                         (n0 + 1 +
+                          (n0 + 1 +
+                           (n0 + 1 +
+                            (n0 + 1 + (n0 + 1 + (n0 + 1 + (n0 + 1 + 0))))))))))
+                    nsinit + 1)))).
   (* We apply soundness of Perennial/Iris. *)
-  eapply (step_fupdN_fresh_soundness _ ns' nsinit
-                                     (steps_sum _ _ (Nat.iter (sum_crash_steps ns') _ nsinit) n')).
+  eapply (step_fupdN_fresh_soundness _ ns' nsinit _ n'').
   iIntros (inv).
 
   iMod (credit_name_init (n * 4 + crash_borrow_ginv_number)) as
@@ -488,7 +499,7 @@ Proof.
   iAssert (|={⊤}=> crash_borrow_ginv)%I with "[Hcred]" as ">#Hinv".
   { rewrite /crash_borrow_ginv. iApply (inv_alloc _). iNext. eauto. }
   
-  iMod (allocate_high_state_interp inv σ PV)
+  iMod (allocate_high_state_interp inv σ PV _ 1%Qp ⊤ [])
     as (nF nD eq) "(high & validV & nc & global & int)"; first done.
 
   iDestruct (Hwp _ _ ) as "-#Hwp".
@@ -496,7 +507,7 @@ Proof.
   iModIntro.
   iExists _, _.
   iPureGoal. { done. }
-  iDestruct (wptp_recv_strong_adequacy with "int global") as "HIP".
+  iDestruct (wptp_recv_strong_adequacy _ _ [] with "int global") as "HIP".
   { done. }
   iSpecialize ("HIP" with "high validV Hwpr [//] nc").
 
@@ -506,6 +517,19 @@ Proof.
   iIntros "H".
   rewrite -eq.
   iMod "H".
-  (* This does not work yet. *)
-  (* iApply (step_fupd2N_wand with "H"); auto. *)
-Admitted.
+  simpl.
+  iApply (step_fupd2N_wand with "H"); auto.
+  iModIntro. iIntros "H".
+  iMod "H" as (v2 TV2 ts2 ->) "(stuck & interp & global & HIP & nc)".
+  destruct stat.
+  - iDestruct "HIP" as "#HIP".
+    iModIntro.
+    do 3 iNext.
+    iSplit; last naive_solver.
+    by iIntros (? ? [= ->]).
+  - iDestruct "HIP" as "[%eq'' #HIP]".
+    iModIntro.
+    do 3 iNext.
+    iSplit; last naive_solver.
+    by iIntros (? ? [= ->]).
+Qed.
