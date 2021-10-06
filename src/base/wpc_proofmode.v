@@ -14,33 +14,42 @@ From Perennial.program_logic Require Import atomic.
 From Perennial.program_logic Require Export crash_weakestpre staged_invariant.
 From Perennial.Helpers Require Export ipm NamedProps ProofCaching.
 
+From self Require Import ipm_tactics.
 From self.base Require Import proofmode.
 
 Set Default Proof Using "Type".
 Import uPred.
 
-(*
-Lemma wpc_fork `{ffi_sem: ext_semantics} `{!ffi_interp ffi} `{!nvmBaseFixedG Σ, nvmBaseDeltaG Σ, !crashGS Σ} s k E1 e Φ Φc :
-  ▷ WPC e @ s; k; ⊤ {{ _, True }} {{ True }} -∗ (Φc ∧ ▷ Φ (LitV LitUnit)) -∗
-                      WPC Fork e @ s; k; E1 {{ Φ }} {{ Φc }}.
-Proof.
-  iIntros "He HΦ". iApply wpc_lift_head_step; [done|].
-  iSplit; last first.
-  {  iDestruct "HΦ" as "(HΦc&_)". iModIntro. by iModIntro. }
-  iIntros (σ1 g1 ns κ κs n) "Hσ Hg".
-  iMod (fupd_mask_subseteq ∅) as "Hclose"; first by set_solver+.
-  iModIntro. iNext. iSplit.
-  { iPureIntro; econstructor; do 4 eexists. constructor. constructor. eauto. }
-   iIntros (v2 σ2 g2 efs Hstep). apply head_step_atomic_inv in Hstep; [ | by inversion 1 ]. rewrite /head_step /= in Hstep.
-  inversion Hstep as [??? Heq]. inversion Heq; subst.
-  iMod "Hclose". iFrame. iModIntro => //=. rewrite right_id.
-  iApply wpc_value; iSplit.
-  - by iDestruct "HΦ" as "(_&$)".
-  - iDestruct "HΦ" as "(?&_)". do 2 iModIntro. auto.
-Qed.
-*)
+Lemma thread_of_val_fold (v : val) TV :
+  ThreadState v TV = thread_of_val (ThreadVal v TV).
+Proof. done. Qed.
 
-Lemma tac_wpc_expr_eval `{!nvmBaseFixedG Σ, nvmBaseDeltaG Σ} Δ (s: stuckness) (k: nat) E1 Φ (Φc: iProp Σ) e e' :
+Lemma wpc_fork `{!nvmBaseFixedG Σ, !nvmBaseDeltaG Σ} s k E1 e TV Φ Φc :
+  ▷ WPC e `at` TV @ s; k; ⊤ {{ _, True }} {{ True }} -∗
+  (Φc ∧ ▷ Φ (LitV LitUnit `at` TV)%TV) -∗
+  WPC (Fork e `at` TV) @ s; k; E1 {{ Φ }} {{ Φc }}.
+Proof.
+  iIntros "He HΦ".
+  iApply (wpc_lift_head_step s k E1 Φ Φc (Fork e `at` TV)). { done. }
+  iSplit; last first.
+  {  iDestruct "HΦ" as "[HΦc _]". eauto. }
+  iIntros (σ1 [] ns mj D κ κs n) "interp global".
+  iMod (fupd_mask_subseteq ∅) as "Hclose"; first by set_solver+.
+  iModIntro. iNext.
+  iPureGoal.
+  { econstructor. repeat eexists _. constructor. constructor. }
+  iIntros (v2 σ2 g2 efs Hstep).
+  iMod "Hclose".
+  iMod (global_state_interp_le with "global") as "$".
+  { apply step_count_next_incr. }
+  inv_thread_step.
+  iModIntro. rewrite right_id.
+  iFrame.
+  rewrite thread_of_val_fold.
+  iApply wpc_value'. by rewrite comm.
+Qed.
+
+Lemma tac_wpc_expr_eval `{!nvmBaseFixedG Σ, nvmBaseDeltaG Σ} Δ (s: stuckness) (k : nat) E1 Φ (Φc: iProp Σ) e e' :
   (∀ (e'':=e'), e = e'') →
   envs_entails Δ (WPC e' @ s; k; E1 {{ Φ }} {{ Φc }}) → envs_entails Δ (WPC e @ s; k; E1 {{ Φ }} {{ Φc }}).
 Proof. by intros ->. Qed.
@@ -85,10 +94,6 @@ Proof.
     iModIntro.
     iApply HΔ'; iAssumption.
 Qed.
-
-Lemma thread_of_val_fold (v : val) TV :
-  ThreadState v TV = thread_of_val (ThreadVal v TV).
-Proof. done. Qed.
 
 Lemma tac_wpc_value `{!nvmBaseFixedG Σ, nvmBaseDeltaG Σ} Δ s k E1 Φ Φc v TV :
   envs_entails Δ (|NC={E1}=> Φ (ThreadVal v TV)) →

@@ -572,10 +572,7 @@ Section post_crash_derived.
     { iExists 0, s''. iFrame "#%". iPureIntro. split; first reflexivity. lia. }
     (* We show the local persist lower bound. *)
     iSplit.
-    - iExists 0, s''.
-      iFrame "#%".
-      iPureGoal; first reflexivity.
-      iPureIntro. by right.
+    - iExists 0, s''. iFrame "#%". iPureIntro. naive_solver.
     - iApply know_store_lb_at_zero; done.
   Qed.
 
@@ -592,7 +589,7 @@ Section post_crash_derived.
     iDestruct (or_lost_with_t_get with "crash hist") as (s) "(% & ? & ? & _)";
       first done.
     iExists s.
-    iSplit. { iPureIntro. by eapply map_slice_no_later_elem_of. }
+    iPureGoal. { by eapply map_slice_no_later_elem_of. }
     iSplit.
     - iExists 0, 0, _. iFrame.
       iPureGoal. { apply increasing_list_singleton. }
