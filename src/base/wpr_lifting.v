@@ -27,7 +27,7 @@ Definition nvm_base_get_names Σ (hG : nvmBaseDeltaG Σ) : nvm_base_names :=
 
 Canonical Structure nvm_base_namesO := leibnizO nvm_base_names.
 
-(** Given an [hG : nvmBaseFixedG Σ, nvmBaseDeltaG Σ], update the fields per the information in the
+(** Given an [hG : nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG Σ], update the fields per the information in the
 rest of the arguments. In particular, all the gnames in [names] replaces the
 corresponding gnames in [hG].
 TOOD: See if we can get rid of the [invGS] and [crashGS] argument.
@@ -55,7 +55,7 @@ TOOD: See if we can get rid of the [invGS] and [crashGS] argument.
 (*         |}. *)
 (* Proof. destruct hGD. done. Qed. *)
 
-Program Global Instance nvmBaseG_perennialG `{!nvmBaseFixedG Σ} :
+Program Global Instance nvmBaseG_perennialG `{!nvmBaseFixedG Σ, !extraStateInterp Σ} :
   perennialG nvm_lang nvm_crash_lang nvm_base_namesO Σ := {
   perennial_irisG :=
     λ Hcrash hnames,
@@ -68,7 +68,7 @@ Next Obligation. eauto. Qed.
 Next Obligation. eauto. Qed.
 Next Obligation. eauto. Qed.
 
-Definition wpr `{nvmBaseFixedG Σ, hG : nvmBaseDeltaG Σ} `{hC : !crashGS Σ}
+Definition wpr `{nvmBaseFixedG Σ, !extraStateInterp Σ, hG : nvmBaseDeltaG Σ} `{hC : !crashGS Σ}
            (s : stuckness) (k : nat) (E : coPset)
            (e : thread_state) (recv : thread_state) (Φ : thread_val → iProp Σ)
            (Φinv : nvmBaseDeltaG Σ → iProp Σ)
@@ -88,7 +88,7 @@ Section wpr.
   Implicit Types v : thread_val.
   Implicit Types e : thread_state.
 
-  Lemma wpr_strong_mono `{hG : !nvmBaseFixedG Σ, nvmBaseDeltaG Σ}
+  Lemma wpr_strong_mono `{hG : !nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG Σ}
         s k E e rec Φ Ψ Φinv Ψinv Φr Ψr :
     wpr s k E e rec Φ Φinv Φr -∗
     (∀ v, Φ v ==∗ Ψ v) ∧
@@ -264,7 +264,7 @@ Section wpr.
   Qed.
 
   Lemma idempotence_wpr `{!ffi_interp_adequacy}
-        `{hG : nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ} s k E1 e rec Φx Φinv Φrx Φcx :
+        `{hG : nvmBaseFixedG Σ, !extraStateInterp Σ, hGD : nvmBaseDeltaG Σ} s k E1 e rec Φx Φinv Φrx Φcx :
     ⊢ WPC e @ s ; k ; E1 {{ Φx }} {{ Φcx hGD }} -∗
     (□ ∀ (hG1 : nvmBaseDeltaG Σ)
          (* (Hpf : @nvmBaseG_invGS Σ (@nvm_base_inG _ hG) = *)
@@ -280,7 +280,7 @@ Section wpr.
     { destruct hGD. iFrame. }
     { iModIntro. iIntros (? [names] σ_pre_crash g σ_post_crash Hcrash ns mj D κs ?) "H".
       iSpecialize ("Hidemp" $! (MkNvmBaseDeltaG _ _ names) with "[//] H").
-      iIntros "interp g !> !>".
+      iIntros "[interp extra] g !> !>".
       iIntros (Hc' ?) "HNC".
       iMod (nvm_heap_reinit_alt _ _ _ _ Hc' _ Hcrash with "interp Hidemp") as (hnames) "(map & interp' & idemp)".
       iExists {| pbundleT := hnames |}, (reflexivity _), (reflexivity _).

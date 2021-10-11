@@ -121,20 +121,24 @@ Section wpc.
           (λ _ msg, msg.(msg_persist_view) = msg.(msg_persisted_after_view)))
           (restrict shared_locs phys_hists)⌝).
 
+  Global Instance highExtraStateInterp : extraStateInterp Σ := {
+    extra_state_interp := interp;
+  }.
+
   Program Definition wpc_def s k E e (Φ : val → dProp Σ) (Φc : dProp Σ) : dProp Σ :=
     (* monPred_objectively Φc ∗ *)
     MonPred (λ V,
       ∀ TV,
         ⌜V ⊑ TV⌝ -∗
         validV (store_view TV) -∗
-        interp -∗
+        (* interp -∗ *)
         WPC (ThreadState e TV) @ s; k; E {{ λ res,
-          interp ∗
+          (* interp ∗ *)
           (let '(ThreadVal v TV') := res return _ in
             ⌜TV ⊑ TV'⌝ ∗ (* The operational semantics always grow the thread
             view, encoding this in the WPC is convenient. *)
             validV (store_view TV') ∗ Φ v TV')
-        }}{{ interp ∗ Φc ⊥ }}
+        }}{{ (* interp ∗ *) Φc ⊥ }}
     )%I _.
   Next Obligation. solve_proper. Qed.
 
@@ -179,21 +183,21 @@ Section wpc.
     rewrite wpc_eq.
     iStartProof (iProp _). iIntros (V).
     iIntros "WP".
-    iIntros (TV) "%incl val interp".
-    iDestruct ("WP" with "[% //] val interp") as "HI".
+    iIntros (TV) "%incl val".
+    iDestruct ("WP" with "[% //] val") as "HI".
     rewrite nvm_fill_fill.
     iApply crash_weakestpre.wpc_bind.
     { apply: ectx_lang_ctx. }
     iApply (wpc_mono with "HI").
     2: { done. }
-    iIntros ([v TV']) "(interp & %cinl & val & wpc)".
-    iDestruct ("wpc" $! TV' with "[//] val interp") as "HI".
+    iIntros ([v TV']) "(%cinl & val & wpc)".
+    iDestruct ("wpc" $! TV' with "[//] val") as "HI".
     rewrite nvm_fill_fill.
     simpl. rewrite /thread_of_val.
     iApply (wpc_strong_mono' with "HI"); try auto.
     iSplit.
     2: { iIntros "$". done. }
-    iIntros ([??]) "[$ [%inl' $]]".
+    iIntros ([??]) "[%inl' $]".
     iPureIntro. etrans; eassumption.
   Qed.
 
@@ -208,10 +212,10 @@ Section wpc.
     iStartProof (iProp _). iIntros (TV).
     simpl.
     iIntros "WP".
-    iIntros (TV') "%incl val interp".
+    iIntros (TV') "%incl val".
     rewrite -crash_weakestpre.wpc_pure_step_later; last done.
     iSplit.
-    - iNext. iApply ("WP" with "[//] val interp").
+    - iNext. iApply ("WP" with "[//] val").
     - iFrame. iApply objective_at. iDestruct "WP" as "[_ $]".
   Qed.
 
@@ -220,12 +224,12 @@ Section wpc.
   Proof.
     iStartProof (iProp _).
     rewrite wp_eq /wp_def wpc_eq /wpc_def.
-    iIntros (?) "H /=". iIntros (TV ?) "??".
+    iIntros (?) "H /=". iIntros (TV ?) "?".
     setoid_rewrite (monPred_at_pure ⊥).
     rewrite /crash_weakestpre.wpc_def crash_weakestpre.wpc_eq.
     iIntros (n).
     iApply wpc0_change_k.
-    iApply ("H" $! TV with "[% //] [$] [$]").
+    iApply ("H" $! TV with "[% //] [$]").
   Qed.
 
   (*
@@ -252,12 +256,12 @@ Section wpc.
     monPred_simpl. simpl.
     iIntros "wpc".
     iIntros (tv' ?) "conj".
-    iIntros (TV ?) "??".
-    iSpecialize ("wpc" $! TV with "[%] [$] [$]"); try eassumption.
+    iIntros (TV ?) "?".
+    iSpecialize ("wpc" $! TV with "[%] [$]"); try eassumption.
     { etrans; eassumption. }
     iApply (wpc_strong_mono with "wpc"); try eassumption.
     iSplit.
-    - iIntros ([??]) "(int & %incl & val & phi)".
+    - iIntros ([??]) "(%incl & val & phi)".
       monPred_simpl.
       iDestruct "conj" as "[conj _]".
       iSpecialize ("conj" $! _).
@@ -270,12 +274,12 @@ Section wpc.
       iFrame "∗%".
     - monPred_simpl.
       iDestruct ("conj") as "[_ conj]".
-      iIntros "[interp phi]".
+      iIntros "phi".
       monPred_simpl.
       iSpecialize ("conj" $! tv' with "[% //]").
       rewrite /cfupd.
       iIntros "HC".
-      iFrame "interp".
+      (* iFrame "interp". *)
       monPred_simpl.
       iSpecialize ("conj" with "[phi]").
       { iApply objective_at. iApply "phi". }
@@ -308,7 +312,7 @@ Section wpc.
     iStartProof (iProp _). iIntros (TV).
     iIntros "H".
     simpl.
-    iIntros (?) "%incl val interp".
+    iIntros (?) "%incl val".
     iApply ncfupd_wpc.
     iSplit.
     - iDestruct "H" as "[H _]".
@@ -322,7 +326,7 @@ Section wpc.
       rewrite ncfupd_unfold_at.
       iDestruct "H" as ">H".
       iModIntro.
-      iApply ("H" with "[//] val interp").
+      iApply ("H" with "[//] val").
   Qed.
 
   Lemma wpc_atomic_crash_modality s k E1 e Φ Φc
@@ -335,7 +339,7 @@ Section wpc.
     iStartProof (iProp _). iIntros (TV).
     iIntros "H".
     simpl.
-    iIntros (?) "%incl val interp".
+    iIntros (?) "%incl val".
     iApply wpc_atomic_crash_modality.
     iSplit; [iDestruct "H" as "[H _]"|iDestruct "H" as "[_ H]"].
     - rewrite cfupd_unfold_at.
@@ -348,11 +352,11 @@ Section wpc.
       rewrite wpc_eq. rewrite /wpc_def.
       simpl.
       rewrite crash_weakestpre.wp_eq /crash_weakestpre.wp_def.
-      iSpecialize ("H" with "[//] val interp").
+      iSpecialize ("H" with "[//] val").
       monPred_simpl.
       iApply (wpc_mono with "H"); last naive_solver.
       simpl.
-      iIntros ([??]) "(interp & ? & ? & H)".
+      iIntros ([??]) "(? & ? & H)".
       rewrite monPred_at_fupd.
       monPred_simpl.
       iDestruct "H" as ">H".
@@ -378,7 +382,7 @@ Section wpc.
     iStartProof (iProp _). iIntros (TV).
     simpl.
     iIntros "H".
-    iIntros (TV') "%lec hv i".
+    iIntros (TV') "%lec hv".
     iApply (wpc_value _ _ _ _ _ (ThreadVal _ _)).
     iSplit.
     - iFrame. iDestruct "H" as "(H & _)".

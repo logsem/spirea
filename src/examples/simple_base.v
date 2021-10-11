@@ -6,7 +6,7 @@ From self.base Require Import proofmode wpc_proofmode.
 From self.lang Require Import lang.
 
 Section simple_increment.
-  Context `{!nvmBaseFixedG Σ, nvmBaseDeltaG Σ}.
+  Context `{!nvmBaseFixedG Σ, extraStateInterp Σ, nvmBaseDeltaG Σ}.
 
   Definition pure : expr :=
     let: "a" := #1 in

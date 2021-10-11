@@ -7,11 +7,11 @@ From self.base Require Import proofmode.
 From iris.prelude Require Import options.
 
 Section lifting.
-  Context `{!nvmBaseFixedG Σ, nvmBaseDeltaG Σ}.
+  Context `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG Σ}.
 
   Lemma wp_assert E (Φ : thread_val → iProp Σ) e TV :
-    WP ThreadState e TV @ E {{ v, ⌜val_val v = #true⌝ ∧ ▷ Φ (ThreadVal #() (val_view v)) }} -∗
-    WP ThreadState (assert: e)%V TV @ E {{ Φ }}.
+    WP e `at` TV @ E {{ v, ⌜val_val v = #true⌝ ∧ ▷ Φ (ThreadVal #() (val_view v)) }} -∗
+    WP (assert: e)%V `at` TV @ E {{ Φ }}.
   Proof.
     iIntros "HΦ".
     wp_lam.
@@ -22,4 +22,5 @@ Section lifting.
     wp_if.
     done.
   Qed.
+
 End lifting.

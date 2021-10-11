@@ -99,7 +99,7 @@ Section wp.
     specialize (Hexec TV' Hφ).
     iInduction n as [|n] "IH" forall (e1 TV Hexec).
     { inversion Hexec. simpl. iIntros "H". iApply "H". }
-    iIntros "H % HV int".
+    iIntros "H % HV".
     pose proof (Hexec) as step.
     inversion step.
     subst.
@@ -117,7 +117,7 @@ Section wp.
     iApply (step_fupd_mask_mono E E E'); [set_solver|done|].
     rewrite monPred_at_step_fupd.
     iApply (step_fupd_wand with "H"). iIntros "H".
-    iApply ("IH" with "[//] H [//] HV int").
+    iApply ("IH" with "[//] H [//] HV").
   Qed.
 
   (* This lemma is like the [wp_pure_step_later] in Iris except its premise uses
@@ -242,7 +242,7 @@ Section wp_rules.
     rewrite monPred_at_later.
     rewrite wp_eq /wp_def.
     rewrite wpc_eq. simpl.
-    iIntros ([[SV PV] BV] incl2) "#val interp".
+    iIntros ([[SV PV] BV] incl2) "#val".
     rewrite monPred_at_pure.
     iApply program_logic.crash_weakestpre.wpc_atomic_no_mask.
     iSplit.

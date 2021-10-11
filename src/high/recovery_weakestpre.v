@@ -41,14 +41,14 @@ Definition wpr_pre `{nvmFixedG Σ} (s : stuckness) (k : nat)
   (WPC e @ s ; k; E
     {{ Φ }}
     {{ ∀ σ mj D σ' (HC : crash_prim_step nvm_crash_lang σ σ') ns n, (* The [n] here actually doesn't matter. *)
-      ⎡ interp -∗
+      ⎡ (* interp -∗ *)
         state_interp σ n -∗
         global_state_interp (Λ := nvm_lang) () ns mj D []
       ={E}=∗ ▷ ∀ (Hc1 : crashGS Σ) q, NC q ={E}=∗
         ∃ (hD' : nvmDeltaG Σ), (* Maybe state that [hD'] contains [Hc1] *)
           ⌜ Hc1 = get_crashG hD' ⌝ ∗
           (* let hG := (nvm_update Σ hG _ Hc1 names) in *)
-          interp ∗
+          (* interp ∗ *)
           state_interp σ' 0 ∗
           global_state_interp (Λ := nvm_lang) () (step_count_next ns) mj D [] ∗
           validV ∅ ∗
@@ -251,7 +251,7 @@ Section wpr.
   interpretations _after_ a crash. *)
   Lemma nvm_reinit (hGD : nvmDeltaG Σ) n Pg tv σ σ' (Hinv : invGS Σ) (Hcrash : crashGS Σ) :
     crash_step σ σ' →
-    ⊢ interp -∗
+    ⊢ (* interp -∗ *)
       state_interp σ n -∗
       (post_crash Pg) tv ==∗
       ∃ (hD' : nvmDeltaG Σ),
@@ -263,9 +263,9 @@ Section wpr.
         Pg hD' (∅, ∅, ∅).
   Proof.
     iIntros ([store p CV pIncl cut]).
-    iIntros "H".
-    iNamed "H".
-    iIntros "(heap & authStor & %inv & pers & recov) Pg".
+    iIntros "[H1 H2] Pg".
+    iNamed "H1". iNamed "H2".
+    (* iIntros "(heap & authStor & %inv & pers & recov) Pg". *)
 
     (* Our [phys_hist] may contain only a subset of all the locations in
     [store]. But, those that are in [phys_hist] agree with what is in
@@ -274,10 +274,10 @@ Section wpr.
     { rewrite map_subseteq_spec.
       iIntros (ℓ hist look).
       iDestruct (big_sepM_lookup with "ptsMap") as "pts"; first eassumption.
-      iApply (gen_heap_valid with "heap pts"). }
+      iApply (gen_heap_valid with "Hσ pts"). }
 
     (* We need to first re-create the ghost state for the base interpretation. *)
-    iMod (nvm_heap_reinit _ _ _ _ _ Hcrash with "heap pers")
+    iMod (nvm_heap_reinit _ _ _ _ _ Hcrash with "Hσ Hpers")
       as (baseNames) "(valView & map' & baseInterp & #persImpl & #newCrashedAt)";
       try done.
 
@@ -601,14 +601,14 @@ Section wpr.
     iModIntro.
     iIntros (???? step ns ?).
     iDestruct ("Hidemp" with "phiC") as "idemp'".
-    iIntros "interp state global".
+    iIntros "state global".
     iModIntro (|={E1}=> _)%I.
     iNext.
     iIntros (??) "NC".
 
     (* Allocate the new ghost state. *)
-    iMod (nvm_reinit _ _ _ _ _ _ _ _ with "interp state idemp'")
-      as (names) "(% & val & interp & stateInterp & idemp)".
+    iMod (nvm_reinit _ _ _ _ _ _ _ _ with "state idemp'")
+      as (names) "(% & val & stateInterp & HIHI & idemp)".
     { apply step. }
 
     iDestruct "global" as "($ & Hc & $ & $)".

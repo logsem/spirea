@@ -136,21 +136,25 @@ Definition crash_borrow_ginv_number : nat := 6%nat.
 Definition crash_borrow_ginv `{!invGS Σ} `{creditGS Σ}
   := (inv borrowN (cred_frag crash_borrow_ginv_number)).
 
-Global Program Instance nvmBaseG_irisGS `{!nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ} :
+Class extraStateInterp Σ := {
+  extra_state_interp : iProp Σ;
+}.
+
+Global Program Instance nvmBaseG_irisGS `{!nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ, extraStateInterp Σ} :
   irisGS nvm_lang Σ := {
   iris_invGS := nvmBaseG_invGS;
   iris_crashGS := nvm_base_crashGS;
-  state_interp σ _nt := nvm_heap_ctx σ;
+  state_interp σ _nt := (nvm_heap_ctx σ ∗ extra_state_interp)%I;
   global_state_interp g ns mj D _ :=
     (@crash_borrow_ginv _ nvmBaseG_invGS _ ∗
      cred_interp ns ∗
      ⌜(/ 2 < mj ≤ 1) ⌝%Qp ∗
      pinv_tok mj D)%I;
   fork_post _ := True%I;
-
   num_laters_per_step := (λ n, 3 ^ (n + 1))%nat; (* This is the choice GooseLang takes. *)
   step_count_next := (λ n, 10 * (n + 1))%nat;
 }.
+
 Next Obligation.
   intros (**). iIntros "($ & ? & $)".
   by iMod (cred_interp_incr with "[$]") as "($ & _)".
@@ -384,7 +388,7 @@ Section max_view.
     { apply: auth_update_dfrac_alloc.
       apply singleton_included_l.
       epose proof (max_view_lookup_insert _ _ _ _ _) as (y & look' & le).
-      exists (MaxNat y). 
+      exists (MaxNat y).
       erewrite look'.
       split; first done.
       apply Some_included_2.
@@ -432,7 +436,7 @@ Section persisted.
 End persisted.
 
 Section lifting.
-  Context `{!nvmBaseFixedG Σ, nvmBaseDeltaG Σ}.
+  Context `{!nvmBaseFixedG Σ, nvmBaseDeltaG Σ, !extraStateInterp Σ}.
 
   Implicit Types Q : iProp Σ.
   Implicit Types Φ Ψ : val → iProp Σ.
@@ -483,7 +487,7 @@ Section lifting.
       pose proof (map_Forall_lookup_1 _ _ _ _ M look) as [? ?].
       split.
       * apply lookup_insert_is_Some'. by right.
-      * 
+      *
         apply map_Forall_insert_2.
         + done.
         + eapply map_Forall_impl; first done.
@@ -596,7 +600,8 @@ Section lifting.
   Proof.
     iIntros (Hn Φ) "_ HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
-    iIntros ([??] [] ns mj D κ κs k). iNamed 1. iIntros "? !>". iNamed "crash".
+    iIntros ([??] [] ns mj D κ κs k) "[interp extra]". iNamed "interp".
+    iIntros "? !>". iNamed "crash".
     iSplit.
     - (* We must show that [ref v] is can take some step. *)
        rewrite /head_reducible.
@@ -659,7 +664,8 @@ Section lifting.
   Proof.
     iIntros (Φ) "[ℓPts Hval] HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
-    iIntros ([??] [] ns mj D κ κs k). iNamed 1. iIntros "? !>". iNamed "crash".
+    iIntros ([??] [] ns mj D κ κs k) "[interp extra]". iNamed "interp".
+    iIntros "? !>". iNamed "crash".
     (* From the points-to predicate we know that [hist] is in the heap at ℓ. *)
     iDestruct (gen_heap_valid with "Hσ ℓPts") as %Hlook.
     iSplit.
@@ -702,7 +708,8 @@ Section lifting.
   Proof.
     iIntros (Φ) "[ℓPts Hval] HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
-    iIntros ([??] [] ns mj D κ κs k). iNamed 1. iIntros "? !>". iNamed "crash".
+    iIntros ([??] [] ns mj D κ κs k) "[interp extra]". iNamed "interp".
+    iIntros "? !>". iNamed "crash".
     (* The time at the view is smaller than the time in the lub view (which is
     the time of the most recent message *)
     iDestruct (auth_frag_leq with "Hval lubauth") as %Vincl.
@@ -748,7 +755,8 @@ Section lifting.
   Proof.
     iIntros (Φ) "[ℓPts Hval] HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
-    iIntros ([??] [] ns mj D κ κs k). iNamed 1. iIntros "? !>". iNamed "crash".
+    iIntros ([??] [] ns mj D κ κs k) "[interp extra]". iNamed "interp".
+    iIntros "? !>". iNamed "crash".
     (* The time at the view is smaller than the time in the lub view (which is
     the time of the most recent message *)
     iDestruct (auth_frag_leq with "Hval lubauth") as %Vincl.
@@ -787,7 +795,7 @@ Section lifting.
       iCombine "Hval viewT" as "v".
       iDestruct ("HΦ" with "[$ℓPts v]") as "$".
       { rewrite -view_insert_op; last lia. rewrite H11. naive_solver. }
-      iExists _. iFrame "#". iPureIntro. set_solver.
+      iFrame. iExists _. iFrame "#". iPureIntro. set_solver.
   Qed.
 
   Lemma wp_store_release V v p B ℓ (hist : history) s E :
@@ -801,7 +809,8 @@ Section lifting.
   Proof.
     iIntros (Φ) "[ℓPts Hval] HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
-    iIntros ([??] [] ns mj D κ κs k). iNamed 1. iIntros "Ht !>". iNamed "crash".
+    iIntros ([??] [] ns mj D κ κs k) "[interp extra]". iNamed "interp".
+    iIntros "? !>". iNamed "crash".
     (* The time at the view is smaller than the time in the lub view (which is the time of the most recent message *)
     iDestruct (auth_frag_leq with "Hval lubauth") as %Vincl.
     (* From the points-to predicate we know that [hist] is in the heap at ℓ. *)
@@ -838,7 +847,7 @@ Section lifting.
       iCombine "Hval viewT" as "v".
       iDestruct ("HΦ" with "[$ℓPts v]") as "$".
       { rewrite -view_insert_op; last lia. rewrite H11. naive_solver. }
-      iExists _. iFrame "#". iPureIntro. set_solver.
+      iFrame. iExists _. iFrame "#". iPureIntro. set_solver.
   Qed.
 
   (* Lemma wp_cmpxch  *)
@@ -852,7 +861,8 @@ Section lifting.
   Proof.
     iIntros (Φ) "pts HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
-    iIntros ([??] [] ns mj D κ κs k). iNamed 1. iIntros "Ht /= !>".
+    iIntros ([??] [] ns mj D κ κs k) "[interp extra]". iNamed "interp".
+    iIntros "? /= !>". iNamed "crash".
     (* From the points-to predicate we know that [hist] is in the heap at ℓ. *)
     iDestruct (gen_heap_valid with "Hσ pts") as %Hlook.
     iSplit.
@@ -860,9 +870,11 @@ Section lifting.
        iExists [], _, _, _, _. simpl. iPureIntro.
        eapply impure_step; by econstructor; done.
     - iNext. iIntros (e2 σ2 [] efs Hstep).
-      whack_global. Unshelve. 2: { done. }
+      whack_global.
+      Unshelve. 2: { done. }
       inv_impure_thread_step. iSplitR=>//.
-      iModIntro. iFrame "∗%". iApply "HΦ". iFrame.
+      iDestruct ("HΦ" with "pts") as "$".
+      iModIntro. iFrame "∗%". naive_solver.
   Qed.
 
   Lemma wp_fence V P B s E :
@@ -890,7 +902,9 @@ Section lifting.
   Proof.
     iIntros (Φ) "_ HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
-    iIntros ([??] [] ns mj D κ κs k). iNamed 1. iIntros "Ht /= !>".
+    (* iIntros ([??] [] ns mj D κ κs k). iNamed 1. iIntros "Ht /= !>". *)
+    iIntros ([??] [] ns mj D κ κs k) "[interp extra]". iNamed "interp".
+    iIntros "? /= !>". iNamed "crash".
     iSplit.
     - rewrite /head_reducible.
        iExists [], _, _, _, _. simpl. iPureIntro.
@@ -899,7 +913,91 @@ Section lifting.
       whack_global. Unshelve. 2: { done. }
       inv_impure_thread_step. iSplitR=>//.
       iMod (auth_auth_view_grow_op with "Hpers") as "[$ perB]".
-      iModIntro. iFrame "∗%". iApply "HΦ". iFrame.
+      iModIntro. iFrame "∗%". iDestruct ("HΦ" with "perB") as "$". naive_solver.
   Qed.
 
 End lifting.
+
+From self.base Require Import class_instances.
+
+Section extra_state_interp.
+
+  Context `{!nvmBaseFixedG Σ, nvmBaseDeltaG Σ, extra : extraStateInterp Σ}.
+
+  (* Lemma hihi ℓ TV K e1' : *)
+  (*   (! #ℓ `at` TV)%E = fill K e1' → *)
+  (*   K = []. *)
+  (* Proof. *)
+  (*   induction K using rev_ind; first done. *)
+  (*   rewrite fill_app. *)
+  (*   simpl. *)
+  (*   intros eq. *)
+  (*   destruct x; inversion eq. *)
+  (*   simpl in eq. *)
+  (*   induction K using rev_ind. - simpl in H1. first done. *)
+  (*   destruct K; inversion H1. *)
+  (* Qed. *)
+
+  Lemma wp_extra_state_interp ℓ TV (Φ : thread_val → iProp Σ) :
+    (let
+      ex : extraStateInterp Σ := {| extra_state_interp := True |}
+    in
+      (@extra_state_interp _ extra) -∗
+      WP (Load #ℓ `at` TV) {{ v, Φ v ∗ (@extra_state_interp _ extra) }}) -∗
+    WP Load #ℓ `at` TV {{ Φ }}.
+  Proof.
+    iIntros "H".
+
+    rewrite !wp_eq /wp_def.
+    rewrite !wpc_eq /wpc_def.
+    setoid_rewrite wpc0_unfold. rewrite /wpc_pre.
+    iIntros (?).
+    iSplit; last first.
+    { iIntros.
+      iApply step_fupd_extra.step_fupd2N_inner_later; auto. iNext. iFrame. }
+
+    iIntros (????????) "[interp extra]". iIntros.
+    iSpecialize ("H" with "extra").
+    iDestruct ("H" $! mj) as "[H _]".
+    iSpecialize ("H" $! _ _ _ _ _ _ _ 0 with "[$interp //] [$] [$]").
+
+    iMod "H".
+    iModIntro.
+    iApply (step_fupd_extra.step_fupd2N_wand with "H").
+    iIntros "[$ A]".
+    iIntros (???? step).
+
+    iMod ("A" $! _ _ _ _ step) as "(A & Q & C & D & AB)".
+
+    epose proof (atomic (a := StronglyAtomic) _ _ _ _ _ _ _ step) as [val eq].
+    apply thread_of_to_val in eq.
+    subst.
+
+    (* rewrite eq. *)
+    iEval (rewrite right_id) in "A".
+    iMod (wpc0_value_inv_option _ _ _ _ _ _ _ _ _ g2 [] _ with "C Q AB")
+      as "([Φ extra] & B & V)".
+    simpl.
+    iFrame.
+    iModIntro.
+
+    assert (efs = []) as ->.
+    { inversion step. simpl in *. subst. inv_impure_thread_step; try done.
+      subst.
+      induction K using rev_ind; try done.
+      rewrite fill_app in H0.
+      simpl in *.
+      inversion H1.
+      admit. (* we have a contradiction *) }
+
+    rewrite /= right_id.
+    rewrite wpc0_unfold /wpc_pre.
+    iFrame.
+    iSplit. { iIntros. iFrame. done. }
+    iIntros.
+    iApply step_fupd_extra.step_fupd2N_inner_later; first done; first done.
+    iModIntro.
+    iFrame.
+  Admitted.
+
+End extra_state_interp.

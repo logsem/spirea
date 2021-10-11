@@ -61,6 +61,10 @@ Proof.
   iExists _. iFrame "∗#". iPureIntro. rewrite dom_empty. set_solver.
 Qed.
 
+Instance empExtraStateInterp {Σ} : extraStateInterp Σ := {
+  extra_state_interp := True%I
+}.
+
 (* The adequacy theorem for the base logic.
 
  This adequacy theorem makes use of the invariant feature in Perennial (the
@@ -113,7 +117,7 @@ Proof.
                       nvm_base_names' := (@pbundleT _ _ names) |} )).
   rewrite /pre_borrowN in Hwp.
   rewrite /pre_borrow in Hwp.
-  iDestruct (@cred_frag_to_pre_borrowN _ hG _ n with "Hpre") as "Hpre".
+  iDestruct (@cred_frag_to_pre_borrowN _ hG _ _ n with "Hpre") as "Hpre".
   iDestruct (Hwp hG _ with "Hpre pts validV pers") as "(#H1 & #H2 & Hwp)".
   iModIntro.
   iSplitR.
