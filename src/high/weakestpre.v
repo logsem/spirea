@@ -16,6 +16,7 @@ From self Require Export extra ipm_tactics.
 From self.high Require Export dprop.
 From self Require Export view.
 From self Require Export lang.
+From self.base Require Import tactics.
 From self.base Require Import primitive_laws.
 From self.lang Require Import syntax.
 From self.high Require Import resources crash_weakestpre lifted_modalities
@@ -250,6 +251,34 @@ Section wp_rules.
 
     (* We need to get the points-to predicate for [ℓ]. This is inside [interp]. *)
     iApply wp_extra_state_interp.
+    { done. }
+    { (* Try and simplify this with lemmas/automation. *)
+      clear.
+      intros ??????? [Ki [??] [??] ? ? step].
+      subst.
+      simpl in *.
+      induction Ki using rev_ind.
+      { simpl in *. subst. inv_impure_thread_step; try done.
+        rewrite list_fmap_singleton.
+        subst.
+        congruence. }
+      move: H.
+      rewrite fill_app.
+      simpl.
+      destruct x; try done.
+      simpl.
+      rewrite /thread_fill_item.
+      simpl.
+      inversion 1.
+      simpl in *.
+      rewrite -nvm_fill_fill in H2.
+      simpl in *.
+      destruct Ki using rev_ind; try done.
+      { simpl in *. subst. inv_impure_thread_step; try done. }
+      simpl in *.
+      rewrite fill_app in H2.
+      simpl in *.
+      destruct x; try done. }
     iNamed 1.
     iDestruct (own_all_preds_pred with "predicates knowPred") as
       (pred predsLook) "#predsEquiv".

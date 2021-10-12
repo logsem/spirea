@@ -938,15 +938,19 @@ Section extra_state_interp.
   (*   destruct K; inversion H1. *)
   (* Qed. *)
 
-  Lemma wp_extra_state_interp ℓ TV s E (Φ : thread_val → iProp Σ) :
+  Lemma wp_extra_state_interp (e : expr) `{!AtomicBase StronglyAtomic e}
+        TV s E (Φ : thread_val → iProp Σ) :
+    to_val e = None →
+    (* [e] does not fork threads. *)
+    (∀ σ1 g1 κ e2 σ2 g2 efs, prim_step (e `at` TV) σ1 g1 κ e2 σ2 g2 efs → efs = []) →
     (let
       ex : extraStateInterp Σ := {| extra_state_interp := True |}
     in
       (@extra_state_interp _ extra) -∗
-      WP (Load #ℓ `at` TV) @ s; E {{ v, Φ v ∗ (@extra_state_interp _ extra) }}) -∗
-    WP Load #ℓ `at` TV @ s; E {{ Φ }}.
+      WP (e `at` TV) @ s; E {{ v, Φ v ∗ (@extra_state_interp _ extra) }}) -∗
+    WP e `at` TV @ s; E {{ Φ }}.
   Proof.
-    iIntros "H".
+    iIntros (eq nofork) "H".
 
     rewrite !wp_eq /wp_def.
     rewrite !wpc_eq /wpc_def.
@@ -956,39 +960,39 @@ Section extra_state_interp.
     { iIntros.
       iApply step_fupd_extra.step_fupd2N_inner_later; auto. iNext. iFrame. }
 
+    rewrite /= /thread_to_val. rewrite eq /=.
     iIntros (????????) "[interp extra]". iIntros.
     iSpecialize ("H" with "extra").
     iDestruct ("H" $! mj) as "[H _]".
-    iSpecialize ("H" $! _ _ _ _ _ _ _ 0 with "[$interp //] [$] [$]").
+    iSpecialize ("H" $! _ _ g1 _ _ κ [] 0 with "[$interp //] [$] [$]").
+    (* Unshelve. *)
 
     iMod "H".
     iModIntro.
     iApply (step_fupd_extra.step_fupd2N_wand with "H").
+    iNext.
     iIntros "[$ A]".
     iIntros (???? step).
 
     iMod ("A" $! _ _ _ _ step) as "(A & Q & C & D & AB)".
 
-    epose proof (atomic (a := StronglyAtomic) _ _ _ _ _ _ _ step) as [val eq].
-    apply thread_of_to_val in eq.
+    epose proof (atomic (a := StronglyAtomic) _ _ _ _ _ _ _ step) as [val toValE2].
+    apply thread_of_to_val in toValE2.
+    simpl.
     subst.
 
-    (* rewrite eq. *)
     iEval (rewrite right_id) in "A".
-    iMod (wpc0_value_inv_option _ _ _ _ _ _ _ _ _ g2 [] _ with "C Q AB")
+    (* iDestruct (wpc0_value_inv_option _ _ _ _ _ _ _ _ _ _ [] _ with "[C] [] [AB]") *)
+    (*   as "HI". *)
+    iMod (wpc0_value_inv_option _ _ _ _ _ _ _ _ _ _ [] _ with "C Q AB")
       as "([Φ extra] & B & V)".
+    Unshelve. 2: { apply (). }
     simpl.
     iFrame.
     iModIntro.
+    simpl in *.
 
-    assert (efs = []) as ->.
-    { inversion step. simpl in *. subst. inv_impure_thread_step; try done.
-      subst.
-      induction K using rev_ind; try done.
-      rewrite fill_app in H0.
-      simpl in *.
-      inversion H1.
-      admit. (* we have a contradiction *) }
+    apply nofork in step. subst.
 
     rewrite /= right_id.
     rewrite wpc0_unfold /wpc_pre.
@@ -998,6 +1002,6 @@ Section extra_state_interp.
     iApply step_fupd_extra.step_fupd2N_inner_later; first done; first done.
     iModIntro.
     iFrame.
-  Admitted.
+  Qed.
 
 End extra_state_interp.
