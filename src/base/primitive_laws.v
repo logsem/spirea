@@ -216,7 +216,7 @@ lub view. *)
 Definition validV `{nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ} (V : view) : iProp Σ :=
   own store_view_name (◯ V).
 
-(* Expresses that the view [P] is persisted. This means that it is included in
+(* Expresses that the view [V] is persisted. This means that it is included in
 the global persisted view. *)
 Definition persisted `{nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ} (V : view) : iProp Σ :=
   own persist_view_name (◯ V).
@@ -436,7 +436,7 @@ Section persisted.
 End persisted.
 
 Section lifting.
-  Context `{!nvmBaseFixedG Σ, nvmBaseDeltaG Σ, !extraStateInterp Σ}.
+  Context `{!nvmBaseFixedG Σ, nvmBaseDeltaG Σ, extra : !extraStateInterp Σ}.
 
   Implicit Types Q : iProp Σ.
   Implicit Types Φ Ψ : val → iProp Σ.
@@ -656,11 +656,11 @@ Section lifting.
   Qed.
 
   (* Non-atomic load. *)
-  Lemma wp_load (V p B : view) ℓ q (hist : history) s E :
-    {{{ ℓ ↦h{q} hist ∗ validV V }}}
-      (ThreadState (! #ℓ) (V, p, B)) @ s; E
-    {{{ t v msg, RET (ThreadVal v (V, p, B));
-        ℓ ↦h{q} hist ∗ ⌜hist !! t = Some msg ∧ msg.(msg_val) = v ∧ (V !!0 ℓ) ≤ t⌝ }}}.
+  Lemma wp_load (SV FV BV : view) ℓ q (hist : history) s E :
+    {{{ ℓ ↦h{q} hist ∗ validV SV }}}
+      (ThreadState (! #ℓ) (SV, FV, BV)) @ s; E
+    {{{ t v msg, RET (ThreadVal v (SV, FV, BV));
+        ℓ ↦h{q} hist ∗ ⌜hist !! t = Some msg ∧ msg.(msg_val) = v ∧ (SV !!0 ℓ) ≤ t⌝ }}}.
   Proof.
     iIntros (Φ) "[ℓPts Hval] HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
@@ -697,13 +697,13 @@ Section lifting.
       naive_solver.
   Qed.
 
-  Lemma wp_load_acquire V PV B ℓ q (hist : history) s E :
-    {{{ ℓ ↦h{q} hist ∗ validV V }}}
-      (ThreadState (!{acq} #ℓ) (V, PV, B)) @ s; E
-    {{{ t v V' P' _P, RET (ThreadVal v (V ⊔ V', PV, B ⊔ P'));
+  Lemma wp_load_acquire SV PV BV ℓ q (hist : history) s E :
+    {{{ ℓ ↦h{q} hist ∗ validV SV }}}
+      (ThreadState (!{acq} #ℓ) (SV, PV, BV)) @ s; E
+    {{{ t v V' P' _P, RET (ThreadVal v (SV ⊔ V', PV, BV ⊔ P'));
         ⌜ (hist !! t) = Some (Msg v V' P' _P) ⌝ ∗
-        ⌜ (V !!0 ℓ) ≤ t ⌝ ∗
-        validV (V ⊔ V') ∗
+        ⌜ (SV !!0 ℓ) ≤ t ⌝ ∗
+        validV (SV ⊔ V') ∗
         ℓ ↦h{q} hist }}}.
   Proof.
     iIntros (Φ) "[ℓPts Hval] HΦ".
@@ -735,7 +735,7 @@ Section lifting.
       whack_global.
       simpl in *. inv_impure_thread_step. iSplitR=>//.
       iMod (own_update with "lubauth") as "[lubauth valid']".
-      { apply (auth_update_dfrac_alloc _ _ (V ⋅ MV)).
+      { apply (auth_update_dfrac_alloc _ _ (SV ⋅ MV)).
         rewrite -subseteq_view_incl.
         apply view_lub_le; first done.
         eapply message_included_in_max_view; done. }
@@ -744,10 +744,10 @@ Section lifting.
       naive_solver.
   Qed.
 
-  Lemma wp_store v SV PV B ℓ (hist : history) s E :
+  Lemma wp_store v SV PV BV ℓ (hist : history) s E :
     {{{ ℓ ↦h hist ∗ validV SV }}}
-      (ThreadState (#ℓ <- v) (SV, PV, B)) @ s; E
-    {{{ t, RET ThreadVal #() (<[ℓ := MaxNat t]>SV, PV, B);
+      (ThreadState (#ℓ <- v) (SV, PV, BV)) @ s; E
+    {{{ t, RET ThreadVal #() (<[ℓ := MaxNat t]>SV, PV, BV);
           ⌜msg_val <$> (hist !! t) = None⌝ ∗
           ⌜(SV !!0 ℓ) < t⌝ ∗
           validV (<[ℓ := MaxNat t]>SV) ∗
@@ -798,14 +798,14 @@ Section lifting.
       iFrame. iExists _. iFrame "#". iPureIntro. set_solver.
   Qed.
 
-  Lemma wp_store_release V v p B ℓ (hist : history) s E :
-    {{{ ℓ ↦h hist ∗ validV V }}}
-      (ThreadState (#ℓ <-{rel} v) (V, p, B)) @ s; E
-    {{{ t, RET ThreadVal #() (<[ℓ := MaxNat t]>V, p, B);
+  Lemma wp_store_release SV v FV BV ℓ (hist : history) s E :
+    {{{ ℓ ↦h hist ∗ validV SV }}}
+      (ThreadState (#ℓ <-{rel} v) (SV, FV, BV)) @ s; E
+    {{{ t, RET ThreadVal #() (<[ℓ := MaxNat t]>SV, FV, BV);
           ⌜msg_val <$> (hist !! t) = None⌝ ∗
-          ⌜(V !!0 ℓ) < t⌝ ∗
-          validV (<[ℓ := MaxNat t]>V) ∗
-          ℓ ↦h (<[t := Msg v (<[ℓ := MaxNat t]>V) p p]>hist) }}}.
+          ⌜(SV !!0 ℓ) < t⌝ ∗
+          validV (<[ℓ := MaxNat t]>SV) ∗
+          ℓ ↦h (<[t := Msg v (<[ℓ := MaxNat t]>SV) FV FV]>hist) }}}.
   Proof.
     iIntros (Φ) "[ℓPts Hval] HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
@@ -854,10 +854,10 @@ Section lifting.
 
   (* Lemma wp_faa  *)
 
-  Lemma wp_wb V P B ℓ (hist : history) s E :
+  Lemma wp_wb SV FV BV ℓ (hist : history) s E :
     {{{ ℓ ↦h hist }}}
-      (ThreadState (WB #ℓ) (V, P, B)) @ s; E
-    {{{ RET ThreadVal #() (V, P, {[ℓ := MaxNat (V !!0 ℓ)]} ⊔ B); ℓ ↦h hist }}}.
+      (ThreadState (WB #ℓ) (SV, FV, BV)) @ s; E
+    {{{ RET ThreadVal #() (SV, FV, {[ℓ := MaxNat (SV !!0 ℓ)]} ⊔ BV); ℓ ↦h hist }}}.
   Proof.
     iIntros (Φ) "pts HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
@@ -877,10 +877,10 @@ Section lifting.
       iModIntro. iFrame "∗%". naive_solver.
   Qed.
 
-  Lemma wp_fence V P B s E :
+  Lemma wp_fence SV FV BV s E :
     {{{ True }}}
-      (ThreadState Fence (V, P, B)) @ s; E
-    {{{ RET ThreadVal #() (V, P ⊔ B, B); True }}}.
+      (ThreadState Fence (SV, FV, BV)) @ s; E
+    {{{ RET ThreadVal #() (SV, FV ⊔ BV, BV); True }}}.
   Proof.
     iIntros (Φ) "_ HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
@@ -895,10 +895,10 @@ Section lifting.
       iModIntro. iFrame "∗%". iApply "HΦ". done.
   Qed.
 
-  Lemma wp_fence_sync V P B s E :
+  Lemma wp_fence_sync SV FV BV s E :
     {{{ True }}}
-      (ThreadState FenceSync (V, P, B)) @ s; E
-    {{{ RET ThreadVal #() (V, P ⊔ B, B); persisted B }}}.
+      (ThreadState FenceSync (SV, FV, BV)) @ s; E
+    {{{ RET ThreadVal #() (SV, FV ⊔ BV, BV); persisted BV }}}.
   Proof.
     iIntros (Φ) "_ HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
@@ -938,13 +938,13 @@ Section extra_state_interp.
   (*   destruct K; inversion H1. *)
   (* Qed. *)
 
-  Lemma wp_extra_state_interp ℓ TV (Φ : thread_val → iProp Σ) :
+  Lemma wp_extra_state_interp ℓ TV s E (Φ : thread_val → iProp Σ) :
     (let
       ex : extraStateInterp Σ := {| extra_state_interp := True |}
     in
       (@extra_state_interp _ extra) -∗
-      WP (Load #ℓ `at` TV) {{ v, Φ v ∗ (@extra_state_interp _ extra) }}) -∗
-    WP Load #ℓ `at` TV {{ Φ }}.
+      WP (Load #ℓ `at` TV) @ s; E {{ v, Φ v ∗ (@extra_state_interp _ extra) }}) -∗
+    WP Load #ℓ `at` TV @ s; E {{ Φ }}.
   Proof.
     iIntros "H".
 

@@ -12,7 +12,7 @@ From iris.program_logic Require weakestpre.
 From iris.heap_lang Require Import locations.
 From iris_named_props Require Import named_props.
 
-From self Require Export extra.
+From self Require Export extra ipm_tactics.
 From self.high Require Export dprop.
 From self Require Export view.
 From self Require Export lang.
@@ -249,7 +249,8 @@ Section wp_rules.
     { by iFrame. }
 
     (* We need to get the points-to predicate for [ℓ]. This is inside [interp]. *)
-    iNamed "interp".
+    iApply wp_extra_state_interp.
+    iNamed 1.
     iDestruct (own_all_preds_pred with "predicates knowPred") as
       (pred predsLook) "#predsEquiv".
     iDestruct (own_full_history_agree with "[$] [$]") as %absHistlook.
@@ -260,7 +261,7 @@ Section wp_rules.
     clear predsLook'.
 
     iDestruct (big_sepM_lookup_acc with "ptsMap") as "[pts ptsMap]"; first done.
-    iApply (wp_load with "[$pts $val]").
+    iApply (wp_load (extra := {| extra_state_interp := True |}) with "[$pts $val]").
     iNext. iIntros (t' v' msg) "[pts (%look & %msgVal & %gt)]".
     rewrite /store_view. simpl.
     iDestruct ("ptsMap" with "pts") as "ptsMap".
@@ -309,14 +310,16 @@ Section wp_rules.
     (* Reinsert into the map. *)
     iDestruct ("predsHold" with "[predMap]") as "predsHold". { naive_solver. }
 
-    iSplit.
-    { iModIntro. rewrite right_id. repeat iExists _. iFrameNamed. }
-    iModIntro.
+    (* iSplit. *)
+    (* { iModIntro. rewrite right_id. repeat iExists _. iFrameNamed. } *)
+    (* iModIntro. *)
     (* iSplit; first done. *)
-    iSplitL "ptsMap allOrders ordered predsHold history predicates
-             sharedLocs crashedAt allBumpers bumpMono predPostCrash".
+    iSplitR "ptsMap allOrders ordered predsHold history predicates
+             sharedLocs crashedAt allBumpers bumpMono predPostCrash"; last first.
     { repeat iExists _. iFrameNamed. }
     iSplit; first done.
+    iModIntro.
+    iPureGoal; first reflexivity.
     iApply "Φpost".
     iSplitR "Q".
     2: {
@@ -461,10 +464,10 @@ Section wp_rules.
     monPred_simpl.
     rewrite wp_eq /wp_def.
     rewrite wpc_eq. simpl.
-    iIntros ([[SV PV] BV] incl2) "#val interp".
-    monPred_simpl. rewrite right_id.
+    iIntros ([[SV PV] BV] incl2) "#val".
+    monPred_simpl. (* rewrite right_id. *)
     iApply program_logic.crash_weakestpre.wpc_atomic_no_mask.
-    iSplit. { iFrame. }
+    iSplit; first done.
     iApply (wp_fence with "[//]").
     iNext. iIntros (_).
     iSplit; first done.
