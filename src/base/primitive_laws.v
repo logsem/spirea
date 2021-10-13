@@ -924,21 +924,7 @@ Section extra_state_interp.
 
   Context `{!nvmBaseFixedG Σ, nvmBaseDeltaG Σ, extra : extraStateInterp Σ}.
 
-  (* Lemma hihi ℓ TV K e1' : *)
-  (*   (! #ℓ `at` TV)%E = fill K e1' → *)
-  (*   K = []. *)
-  (* Proof. *)
-  (*   induction K using rev_ind; first done. *)
-  (*   rewrite fill_app. *)
-  (*   simpl. *)
-  (*   intros eq. *)
-  (*   destruct x; inversion eq. *)
-  (*   simpl in eq. *)
-  (*   induction K using rev_ind. - simpl in H1. first done. *)
-  (*   destruct K; inversion H1. *)
-  (* Qed. *)
-
-  Lemma wp_extra_state_interp (e : expr) `{!AtomicBase StronglyAtomic e}
+  Lemma wp_extra_state_interp_fupd (e : expr) `{!AtomicBase StronglyAtomic e}
         TV s E (Φ : thread_val → iProp Σ) :
     to_val e = None →
     (* [e] does not fork threads. *)
@@ -947,7 +933,7 @@ Section extra_state_interp.
       ex : extraStateInterp Σ := {| extra_state_interp := True |}
     in
       (@extra_state_interp _ extra) -∗
-      WP (e `at` TV) @ s; E {{ v, Φ v ∗ (@extra_state_interp _ extra) }}) -∗
+      WP (e `at` TV) @ s; E {{ v, Φ v ∗ |={E}=>(@extra_state_interp _ extra) }}) -∗
     WP e `at` TV @ s; E {{ Φ }}.
   Proof.
     iIntros (eq nofork) "H".
@@ -965,7 +951,6 @@ Section extra_state_interp.
     iSpecialize ("H" with "extra").
     iDestruct ("H" $! mj) as "[H _]".
     iSpecialize ("H" $! _ _ g1 _ _ κ [] 0 with "[$interp //] [$] [$]").
-    (* Unshelve. *)
 
     iMod "H".
     iModIntro.
@@ -982,13 +967,12 @@ Section extra_state_interp.
     subst.
 
     iEval (rewrite right_id) in "A".
-    (* iDestruct (wpc0_value_inv_option _ _ _ _ _ _ _ _ _ _ [] _ with "[C] [] [AB]") *)
-    (*   as "HI". *)
     iMod (wpc0_value_inv_option _ _ _ _ _ _ _ _ _ _ [] _ with "C Q AB")
       as "([Φ extra] & B & V)".
     Unshelve. 2: { apply (). }
     simpl.
     iFrame.
+    iMod "extra".
     iModIntro.
     simpl in *.
 
@@ -1002,6 +986,24 @@ Section extra_state_interp.
     iApply step_fupd_extra.step_fupd2N_inner_later; first done; first done.
     iModIntro.
     iFrame.
+  Qed.
+
+  Lemma wp_extra_state_interp (e : expr) `{!AtomicBase StronglyAtomic e}
+        TV s E (Φ : thread_val → iProp Σ) :
+    to_val e = None →
+    (∀ σ1 g1 κ e2 σ2 g2 efs, prim_step (e `at` TV) σ1 g1 κ e2 σ2 g2 efs → efs = []) →
+    (let
+      ex : extraStateInterp Σ := {| extra_state_interp := True |}
+    in
+      (@extra_state_interp _ extra) -∗
+      WP (e `at` TV) @ s; E {{ v, Φ v ∗ (@extra_state_interp _ extra) }}) -∗
+    WP e `at` TV @ s; E {{ Φ }}.
+  Proof.
+    iIntros (eq nofork) "H".
+    iApply wp_extra_state_interp_fupd; [done|done|].
+    iIntros "I". iSpecialize ("H" with "I").
+    iApply (wp_mono with "H").
+    iIntros (?) "[$ $]". done.
   Qed.
 
 End extra_state_interp.
