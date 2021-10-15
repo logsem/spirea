@@ -106,7 +106,7 @@ Section recovery_adequacy.
     nrsteps (r1 `at` ⊥) [n] ((e1 `at` TV1) :: t1, (σ1, g1))%TE κs (t2, (σ2, g2)) Normal →
     state_interp σ1 (length t1) -∗
     global_state_interp g1 ncurr mj D (κs ++ κs') -∗
-    crash_weakestpre.interp -∗
+    (* crash_weakestpre.interp -∗ *)
     validV (store_view TV1) -∗
     ((wpr s k (* Hc t *) ⊤ e1 r1 Φ (* Φinv *) Φr) ⊥) -∗
     wptp s k t1 -∗
@@ -124,15 +124,17 @@ Section recovery_adequacy.
       NC 1
     )%I).
   Proof.
-    iIntros (Hstep) "Hσ Hg Hi Hv He Ht HNC".
+    iIntros (Hstep) "Hσ Hg Hv He Ht HNC".
     inversion Hstep. subst.
     (* Find the WPC inside the WPR. *)
     rewrite /wpr wpr_unfold /wpr_pre.
     (* Find the WPC inside the WPC. *)
     iEval (rewrite crash_weakestpre.wpc_eq /=) in "He".
-    iSpecialize ("He" $! TV1 with "[%] Hv Hi").
+    iSpecialize ("He" $! TV1 with "[%] Hv").
     { destruct TV1 as [[??]?]. repeat split; apply view_empty_least. }
-    iDestruct (wptp_strong_adequacy with "Hσ Hg He Ht") as "H".
+    iDestruct (wptp_strong_adequacy (irisGS0 := (@nvmBaseG_irisGS Σ (@nvmG_baseG Σ nvmFixedG0)
+                   (@nvm_delta_base Σ nvmDeltaG0)
+                   (@highExtraStateInterp Σ nvmFixedG0 nvmDeltaG0))) with "Hσ Hg He Ht") as "H".
     { eauto. }
     iSpecialize ("H" with "HNC").
     iApply (step_fupd2N_wand with "H"); first auto.
@@ -147,7 +149,7 @@ Section recovery_adequacy.
     simpl.
     destruct (to_val e2); last done.
     simpl.
-    iDestruct "HI" as "(_ & _ & _ & $)".
+    iDestruct "HI" as "(_ & _ & $)".
   Qed.
 
   Lemma wptp_recv_strong_crash_adequacy `{!nvmFixedG Σ} Φ Φr κs' s k t ncurr mj D (ns : list nat) n r1 e1
@@ -155,7 +157,7 @@ Section recovery_adequacy.
     nrsteps (r1 `at` ⊥) (ns ++ [n]) ((e1 `at` TV1)%E :: t1, (σ1, g1)) κs (t2, (σ2, g2)) Crashed →
     state_interp σ1 (length t1) -∗
     global_state_interp g1 ncurr mj D (κs ++ κs') -∗
-    crash_weakestpre.interp -∗
+    (* crash_weakestpre.interp -∗ *)
     validV (store_view TV1) -∗
     ((wpr s k (* Hc t *) ⊤ e1 r1 Φ Φr) ⊥) -∗
     wptp s k t1 -∗ NC 1 -∗
@@ -182,7 +184,7 @@ Section recovery_adequacy.
       rewrite app_nil_l.
       intros Hgt%nrsteps_crashed_length.
       simpl in Hgt. lia. }
-    iIntros (Hsteps) "Hσ Hg Hi Hv He Ht HNC".
+    iIntros (Hsteps) "Hσ Hg Hv He Ht HNC".
     inversion_clear Hsteps as [|? ? [t1' ?] ρ2 ? ? ? ? ? ? step].
     rewrite /step_fupdN_fresh -/step_fupdN_fresh.
     destruct ρ2 as (? & [σ2_pre_crash []]).
@@ -190,7 +192,7 @@ Section recovery_adequacy.
 
     iEval (rewrite /wpr wpr_unfold /wpr_pre) in "He".
     iEval (rewrite crash_weakestpre.wpc_eq) in "He".
-    iSpecialize ("He" $! TV1 with "[%] Hv Hi").
+    iSpecialize ("He" $! TV1 with "[%] Hv").
     { destruct TV1 as [[??]?]. repeat split; apply view_empty_least. }
     rewrite Nat_iter_S.
     iDestruct (wptp_strong_crash_adequacy with "Hσ Hg He Ht") as "H"; eauto.
@@ -206,10 +208,10 @@ Section recovery_adequacy.
       [apply empty_subseteq | apply empty_subseteq|].
     iMod ("Hclo") as "_".
     iDestruct "H" as (e2 t2' ?) "(H & Hσ & Hg & HC)".
-    iDestruct "H" as "[interp H]".
+    (* iDestruct "H" as "[interp H]". *)
     iEval (repeat setoid_rewrite monPred_at_forall) in "H".
     iEval (setoid_rewrite monPred_at_embed) in "H".
-    iMod ("H" $! _ _ _ _ step _ 0 with "interp Hσ Hg") as "H".
+    iMod ("H" $! _ _ _ _ step _ 0 with "Hσ Hg") as "H".
     iMod (fupd2_mask_subseteq ∅ ∅) as "Hclo";
       [apply empty_subseteq | apply empty_subseteq|].
     do 2 iModIntro. iNext.
@@ -220,8 +222,8 @@ Section recovery_adequacy.
     destruct s0. (* Could we do induction on [ns'] instead? *)
     - (* The remaining execution also crashed. *)
       iIntros (Hc') "HNC".
-      iMod ("H" $! Hc' with "[$]") as (hD') "(-> & interp & Hσ & Hg & Hv & Hr & HNC)".
-      iPoseProof (IH with "Hσ Hg interp [Hv] Hr [//] HNC") as "H".
+      iMod ("H" $! Hc' with "[$]") as (hD') "(-> & Hσ & Hg & Hv & Hr & HNC)".
+      iPoseProof (IH with "Hσ Hg [Hv] Hr [//] HNC") as "H".
       { eauto. }
       { eauto. }
       iExists _. iModIntro.
@@ -255,10 +257,10 @@ Section recovery_adequacy.
       iModIntro; done.
     - (* The remaining execution did not crash. This is a "base case" of sorts. *)
       iIntros (Hc') "HNC".
-      iMod ("H" $! Hc' with "[$]") as (hD') "(-> & interp & Hσ & Hg & Hv & Hr & HNC)".
+      iMod ("H" $! Hc' with "[$]") as (hD') "(-> & Hσ & Hg & Hv & Hr & HNC)".
       iExists hD'.
       assert (ns' = []) as ->; first by (eapply nrsteps_normal_empty_prefix; auto).
-      iDestruct (wptp_recv_strong_normal_adequacy with "Hσ Hg interp [Hv] Hr [] HNC") as "H"; eauto.
+      iDestruct (wptp_recv_strong_normal_adequacy with "Hσ Hg [Hv] Hr [] HNC") as "H"; eauto.
       iModIntro.
       iSplit; first done.
       rewrite /sum_crash_steps.
@@ -278,7 +280,7 @@ Section recovery_adequacy.
     nrsteps (r1 `at` ⊥) (ns ++ [n]) ((e1 `at` TV1)%TE :: t1, (σ1,g1)) κs (t2, (σ2,g2)) stat →
     state_interp σ1 (length t1) -∗
     global_state_interp g1 ncurr mj D (κs ++ κs') -∗
-    crash_weakestpre.interp -∗
+    (* crash_weakestpre.interp -∗ *)
     validV (store_view TV1) -∗
     ((wpr s k (* Hc t *) ⊤ e1 r1 Φ Φr) ⊥) -∗
     (* □ (∀ Hc' t', Φinv Hc' t' -∗ □ Φinv' Hc' t') -∗ *)
@@ -310,7 +312,7 @@ Section recovery_adequacy.
     intros. destruct stat.
     - iIntros.
       iDestruct (wptp_recv_strong_crash_adequacy
-                  with "[$] [$] [$] [$] [$] [$]") as "H"; eauto.
+                  with "[$] [$] [$] [$] [$]") as "H"; eauto.
       iDestruct ("H" with "[$]") as "H".
       iApply (step_fupdN_fresh_wand with "H"); first auto.
       iIntros (?) "H".
@@ -319,7 +321,7 @@ Section recovery_adequacy.
       assert (ns = []) as ->; first by (eapply nrsteps_normal_empty_prefix; auto).
       rewrite Nat.add_0_r.
       iDestruct (wptp_recv_strong_normal_adequacy
-                  with "[$] [$] [$] [$] [$] [$] [$]") as "H"; eauto.
+                  with "[$] [$] [$] [$] [$] [$]") as "H"; eauto.
       iMod "H". iModIntro.
       iApply (step_fupd2N_wand with "H").
       setoid_rewrite (bi.pure_True (hD = hD) eq_refl).
@@ -386,7 +388,7 @@ Proof.
   rewrite -eqInv.
   simpl.
   assert ((@iris_invGS nvm_lang Σ (@nvmBaseG_irisGS Σ (@nvmG_baseG Σ nF)
-                                  (@nvm_delta_base Σ _))) =
+                                  (@nvm_delta_base Σ _) _)) =
           (@nvmBaseG_invGS Σ (@nvmG_baseG Σ nF))) as ->.
   { done. }
   Unset Printing All.
@@ -536,9 +538,9 @@ Proof.
   iModIntro.
   iExists _, _.
   iPureGoal. { done. }
-  iDestruct (wptp_recv_strong_adequacy _ _ [] with "int global") as "HIP".
+  iDestruct (wptp_recv_strong_adequacy _ _ [] with "[$int $high] global") as "HIP".
   { done. }
-  iSpecialize ("HIP" with "high validV Hwpr [//] nc").
+  iSpecialize ("HIP" with "validV Hwpr [//] nc").
 
   iApply (step_fupdN_fresh_wand with "HIP").
   { auto. }

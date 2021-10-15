@@ -61,129 +61,133 @@ Proof.
   iExists _. iFrame "∗#". iPureIntro. rewrite dom_empty. set_solver.
 Qed.
 
-Instance empExtraStateInterp {Σ} : extraStateInterp Σ := {
-  extra_state_interp := True%I
-}.
+Section base_adequacy.
 
-(* The adequacy theorem for the base logic.
+  Instance empExtraStateInterp {Σ} : extraStateInterp Σ := {
+    extra_state_interp := True%I
+  }.
 
- This adequacy theorem makes use of the invariant feature in Perennial (the
- [φinv] and [Φinv]). This makes the statement a bit more complex and we do not
- actually need the invariant feature at all. Hence we also have a simpler
- variant below for the case where the invariant is alwasy true.  *)
-Theorem base_recv_adequacy Σ `{hPre : !nvmBaseGpreS Σ} s k e r σ PV g φ φr φinv Φinv n :
-  valid_heap σ →
-  (∀ `{Hheap : !nvmBaseFixedG Σ, hD : !nvmBaseDeltaG Σ},
-    ⊢ pre_borrowN n -∗
-      ([∗ map] l ↦ v ∈ σ, l ↦h v) -∗
-      validV ∅ -∗
-      persisted PV -∗ (
-        □ (∀ σ nt, state_interp σ nt -∗ |NC={⊤, ∅}=> ⌜ φinv σ ⌝) ∗
-        □ (∀ hGD, Φinv hGD -∗ □ ∀ σ nt, state_interp σ nt -∗ |NC={⊤, ∅}=> ⌜ φinv σ ⌝) ∗
-        wpr s k ⊤ e r (λ v, ⌜φ v⌝) Φinv (λ _ v, ⌜φr v⌝))) →
-  recv_adequate (CS := nvm_crash_lang) s e r (σ, PV) g (λ v _ _, φ v) (λ v _ _, φr v) (λ σ _, φinv σ).
-Proof.
-  intros val Hwp.
-  eapply (wp_recv_adequacy_inv _ _ _ nvm_base_namesO _ _ _ _ _ _ _ _ _ _).
-  iIntros (???) "".
+  (* The adequacy theorem for the base logic.
 
-  iMod (credit_name_init (n * 4 + crash_borrow_ginv_number)) as
-      (name_credit) "(Hcred_auth&Hcred&Htok)".
-  iDestruct (cred_frag_split with "Hcred") as "(Hpre&Hcred)".
-  iAssert (|={⊤}=> crash_borrow_ginv)%I with "[Hcred]" as ">#Hinv".
-  { rewrite /crash_borrow_ginv. iApply (inv_alloc _). iNext. eauto. }
+  This adequacy theorem makes use of the invariant feature in Perennial (the
+  [φinv] and [Φinv]). This makes the statement a bit more complex and we do not
+  actually need the invariant feature at all. Hence we also have a simpler
+  variant below for the case where the invariant is alwasy true.  *)
+  Theorem base_recv_adequacy Σ `{hPre : !nvmBaseGpreS Σ} s k e r σ PV g φ φr φinv Φinv n :
+    valid_heap σ →
+    (∀ `{Hheap : !nvmBaseFixedG Σ, hD : !nvmBaseDeltaG Σ},
+      ⊢ pre_borrowN n -∗
+        ([∗ map] l ↦ v ∈ σ, l ↦h v) -∗
+        validV ∅ -∗
+        persisted PV -∗ (
+          □ (∀ σ nt, state_interp σ nt -∗ |NC={⊤, ∅}=> ⌜ φinv σ ⌝) ∗
+          □ (∀ hGD, Φinv hGD -∗ □ ∀ σ nt, state_interp σ nt -∗ |NC={⊤, ∅}=> ⌜ φinv σ ⌝) ∗
+          wpr s k ⊤ e r (λ v, ⌜φ v⌝) Φinv (λ _ v, ⌜φr v⌝))) →
+    recv_adequate (CS := nvm_crash_lang) s e r (σ, PV) g (λ v _ _, φ v) (λ v _ _, φr v) (λ σ _, φinv σ).
+  Proof.
+    intros val Hwp.
+    eapply (wp_recv_adequacy_inv _ _ _ nvm_base_namesO _ _ _ _ _ _ _ _ _ _).
+    iIntros (???) "".
 
-  iMod (allocate_state_interp Hinv Hc σ PV name_credit)
-    as (hnames) "(interp & pts & validV & crashedAt & pers)"; first done.
+    iMod (credit_name_init (n * 4 + crash_borrow_ginv_number)) as
+        (name_credit) "(Hcred_auth&Hcred&Htok)".
+    iDestruct (cred_frag_split with "Hcred") as "(Hpre&Hcred)".
+    iAssert (|={⊤}=> crash_borrow_ginv)%I with "[Hcred]" as ">#Hinv".
+    { rewrite /crash_borrow_ginv. iApply (inv_alloc _). iNext. eauto. }
 
-  iExists ({| pbundleT := hnames |}).
-  (* Build an nvmBaseFixedG. *)
-  set (hG := nvm_build_base _ hPre Hinv name_credit).
-  set (hGD := nvm_build_delta _ Hc hnames).
-  iExists
-    (λ t σ nt, let _ := nvm_base_delta_update_names hGD (@pbundleT _ _ t) in
-               state_interp σ nt)%I,
-    (λ t g ns κs, let _ := nvm_base_delta_update_names hGD (@pbundleT _ _ t) in
-                  global_state_interp g ns κs).
-  iExists _. 
-  iExists _.
-  iExists _.
-  iExists _.
-  iExists _.
-  iExists _.
-  iExists _.
-  iExists (λ names0 _Hinv Hc names,
-             Φinv ({| nvm_base_crashGS := Hc;
-                      nvm_base_names' := (@pbundleT _ _ names) |} )).
-  rewrite /pre_borrowN in Hwp.
-  rewrite /pre_borrow in Hwp.
-  iDestruct (@cred_frag_to_pre_borrowN _ hG _ _ n with "Hpre") as "Hpre".
-  iDestruct (Hwp hG _ with "Hpre pts validV pers") as "(#H1 & #H2 & Hwp)".
-  iModIntro.
-  iSplitR.
-  { iModIntro. iIntros (??) "Hσ".
-    iApply ("H1" with "[Hσ]").
-    iExactEq "Hσ". do 2 f_equal. }
-  iSplitR.
-  { iModIntro. iIntros (Hc' names') "H".
-    iDestruct ("H2" $! _ with "[H]") as "#H3".
-    { iExactEq "H". f_equal. }
-    iModIntro. iIntros (??) "H". iSpecialize ("H3" with "[H]"); eauto. }
-  iFrame.
-  iFrame "Hinv".
-  iSplit. { iPureIntro. done. }
-  rewrite /hG. done.
-  Unshelve.
-  - exact 0.
-Qed.
+    iMod (allocate_state_interp Hinv Hc σ PV name_credit)
+      as (hnames) "(interp & pts & validV & crashedAt & pers)"; first done.
 
-(* Similar to the [recv_adequate] in Perennial except that:
-   1. The invariant is removed.
-   2. We ignore the global state (which is [unit] for nvm_lang). *)
-Record recv_adequate (s : stuckness) (e1 r1: thread_state) (σ1 : state nvm_lang)
-       (φ φr: thread_val → state nvm_lang → Prop) := {
-  recv_adequate_result_normal t2 σ2 v2 :
-    erased_rsteps (CS := nvm_crash_lang) r1 ([e1], (σ1,()))
-                  (thread_of_val v2 :: t2, (σ2,())) Normal →
-   φ v2 σ2;
-  recv_adequate_result_crashed t2 σ2 v2 :
-    erased_rsteps (CS := nvm_crash_lang) r1 ([e1], (σ1,()))
-                  (thread_of_val v2 :: t2, (σ2,())) Crashed →
-   φr v2 σ2;
-  recv_adequate_not_stuck t2 σ2 e2 stat :
-   s = NotStuck →
-   erased_rsteps (CS := nvm_crash_lang) r1 ([e1], (σ1,())) (t2, (σ2,())) stat →
-   e2 ∈ t2 → (is_Some (thread_to_val e2) ∨ reducible (Λ := nvm_lang) e2 σ2 ());
-}.
+    iExists ({| pbundleT := hnames |}).
+    (* Build an nvmBaseFixedG. *)
+    set (hG := nvm_build_base _ hPre Hinv name_credit).
+    set (hGD := nvm_build_delta _ Hc hnames).
+    iExists
+      (λ t σ nt, let _ := nvm_base_delta_update_names hGD (@pbundleT _ _ t) in
+                state_interp σ nt)%I,
+      (λ t g ns κs, let _ := nvm_base_delta_update_names hGD (@pbundleT _ _ t) in
+                    global_state_interp g ns κs).
+    iExists _.
+    iExists _.
+    iExists _.
+    iExists _.
+    iExists _.
+    iExists _.
+    iExists _.
+    iExists (λ names0 _Hinv Hc names,
+              Φinv ({| nvm_base_crashGS := Hc;
+                        nvm_base_names' := (@pbundleT _ _ names) |} )).
+    rewrite /pre_borrowN in Hwp.
+    rewrite /pre_borrow in Hwp.
+    iDestruct (@cred_frag_to_pre_borrowN _ hG _ _ n with "Hpre") as "Hpre".
+    iDestruct (Hwp hG _ with "Hpre pts validV pers") as "(#H1 & #H2 & Hwp)".
+    iModIntro.
+    iSplitR.
+    { iModIntro. iIntros (??) "Hσ".
+      iApply ("H1" with "[Hσ]").
+      iExactEq "Hσ". do 2 f_equal. }
+    iSplitR.
+    { iModIntro. iIntros (Hc' names') "H".
+      iDestruct ("H2" $! _ with "[H]") as "#H3".
+      { iExactEq "H". f_equal. }
+      iModIntro. iIntros (??) "H". iSpecialize ("H3" with "[H]"); eauto. }
+    iFrame.
+    iFrame "Hinv".
+    iSplit. { iPureIntro. done. }
+    rewrite /hG. done.
+    Unshelve.
+    - exact 0.
+  Qed.
 
-Lemma adequacy_impl (s : stuckness) (e1 r1: thread_state) (σ1 : state nvm_lang)
-       (φ φr: thread_val → state nvm_lang → Prop) :
-  recovery_adequacy.recv_adequate (CS := nvm_crash_lang)
-                                  s e1 r1 σ1 () (λ v σ _, φ v σ) (λ v σ _, φr v σ) (λ _ _, True) →
-  recv_adequate s e1 r1 σ1 φ φr.
-Proof. intros [????]. split; try naive_solver. Qed.
+  (* Similar to the [recv_adequate] in Perennial except that:
+    1. The invariant is removed.
+    2. We ignore the global state (which is [unit] for nvm_lang). *)
+  Record recv_adequate (s : stuckness) (e1 r1: thread_state) (σ1 : state nvm_lang)
+        (φ φr: thread_val → state nvm_lang → Prop) := {
+    recv_adequate_result_normal t2 σ2 v2 :
+      erased_rsteps (CS := nvm_crash_lang) r1 ([e1], (σ1,()))
+                    (thread_of_val v2 :: t2, (σ2,())) Normal →
+    φ v2 σ2;
+    recv_adequate_result_crashed t2 σ2 v2 :
+      erased_rsteps (CS := nvm_crash_lang) r1 ([e1], (σ1,()))
+                    (thread_of_val v2 :: t2, (σ2,())) Crashed →
+    φr v2 σ2;
+    recv_adequate_not_stuck t2 σ2 e2 stat :
+    s = NotStuck →
+    erased_rsteps (CS := nvm_crash_lang) r1 ([e1], (σ1,())) (t2, (σ2,())) stat →
+    e2 ∈ t2 → (is_Some (thread_to_val e2) ∨ reducible (Λ := nvm_lang) e2 σ2 ());
+  }.
 
-(* This is the simpler adequacy result. *)
-Corollary base_recv_adequacy_simpl Σ `{hPre : !nvmBaseGpreS Σ} s k e r σ PV φ φr n :
-  valid_heap σ →
-  (∀ `{Hheap : !nvmBaseFixedG Σ, hD : !nvmBaseDeltaG Σ},
-    ⊢ pre_borrowN n -∗
-      ([∗ map] l ↦ v ∈ σ, l ↦h v) -∗
-      persisted PV -∗
-      wpr s k ⊤ e r (λ v, ⌜φ v⌝) (λ _, True) (λ _ v, ⌜φr v⌝)) →
-  recv_adequate s e r (σ, PV) (λ v _, φ v) (λ v _, φr v).
-Proof.
-  intros val hyp.
-  apply adequacy_impl.
-  eapply (base_recv_adequacy Σ); first apply val.
-  intros nB nBD.
-  specialize (hyp nB nBD).
-  iIntros "borrow ptsMap crashedAt pers".
-  iDestruct (hyp with "borrow ptsMap pers") as "wpr".
-  iSplit.
-  { iIntros "!>" (? ?) "_". iApply ncfupd_mask_intro; naive_solver. }
-  iSplit.
-  { iIntros "!>" (?) "? !>". iIntros (? ?) "?".
-    iApply ncfupd_mask_intro; naive_solver. }
-  iFrame.
-Qed.
+  Lemma adequacy_impl (s : stuckness) (e1 r1: thread_state) (σ1 : state nvm_lang)
+        (φ φr: thread_val → state nvm_lang → Prop) :
+    recovery_adequacy.recv_adequate (CS := nvm_crash_lang)
+                                    s e1 r1 σ1 () (λ v σ _, φ v σ) (λ v σ _, φr v σ) (λ _ _, True) →
+    recv_adequate s e1 r1 σ1 φ φr.
+  Proof. intros [????]. split; try naive_solver. Qed.
+
+  (* This is the simpler adequacy result. *)
+  Corollary base_recv_adequacy_simpl Σ `{hPre : !nvmBaseGpreS Σ} s k e r σ PV φ φr n :
+    valid_heap σ →
+    (∀ `{Hheap : !nvmBaseFixedG Σ, hD : !nvmBaseDeltaG Σ},
+      ⊢ pre_borrowN n -∗
+        ([∗ map] l ↦ v ∈ σ, l ↦h v) -∗
+        persisted PV -∗
+        wpr s k ⊤ e r (λ v, ⌜φ v⌝) (λ _, True) (λ _ v, ⌜φr v⌝)) →
+    recv_adequate s e r (σ, PV) (λ v _, φ v) (λ v _, φr v).
+  Proof.
+    intros val hyp.
+    apply adequacy_impl.
+    eapply (base_recv_adequacy Σ); first apply val.
+    intros nB nBD.
+    specialize (hyp nB nBD).
+    iIntros "borrow ptsMap crashedAt pers".
+    iDestruct (hyp with "borrow ptsMap pers") as "wpr".
+    iSplit.
+    { iIntros "!>" (? ?) "_". iApply ncfupd_mask_intro; naive_solver. }
+    iSplit.
+    { iIntros "!>" (?) "? !>". iIntros (? ?) "?".
+      iApply ncfupd_mask_intro; naive_solver. }
+    iFrame.
+  Qed.
+
+End base_adequacy.

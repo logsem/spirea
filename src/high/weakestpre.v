@@ -580,13 +580,42 @@ Section wp_rules.
     (* We unfold the WP. *)
     iIntros (TV' incl) "Φpost".
     rewrite wp_eq /wp_def wpc_eq.
-    iIntros ([[SV PV] BV] incl2) "#val interp".
-    monPred_simpl. rewrite right_id.
+    iIntros ([[SV PV] BV] incl2) "#val".
+    (* monPred_simpl. rewrite right_id. *)
     iApply program_logic.crash_weakestpre.wpc_atomic_no_mask.
     iSplit; first done.
 
+    iApply wp_extra_state_interp_fupd.
+    { done. }
+    { (* Try and simplify this with lemmas/automation. *)
+      clear.
+      intros ??????? [Ki [??] [??] ? ? step].
+      subst.
+      simpl in *.
+      induction Ki using rev_ind.
+      { simpl in *. subst. inv_impure_thread_step; try done.
+        rewrite list_fmap_singleton.
+        subst.
+        congruence. }
+      move: H.
+      rewrite fill_app.
+      simpl.
+      destruct x; try done.
+      simpl.
+      rewrite /thread_fill_item.
+      simpl.
+      inversion 1.
+      simpl in *.
+      rewrite -nvm_fill_fill in H2.
+      simpl in *.
+      destruct Ki using rev_ind; try done.
+      { simpl in *. subst. inv_impure_thread_step; try done. }
+      simpl in *.
+      rewrite fill_app in H2.
+      simpl in *.
+      destruct x; try done. }
     (* We open [interp]. *)
-    iNamed "interp".
+    iNamed 1.
     iDestruct (crashed_at_agree with "crashed crashedAt") as %<-.
     iClear "crashed".
 
@@ -615,8 +644,9 @@ Section wp_rules.
 
     (* We can now get the points-to predicate and execute the load. *)
     iDestruct (big_sepM_lookup_acc with "ptsMap") as "[pts ptsMap]"; first done.
-    iApply wp_fupd.
-    iApply (wp_load_acquire with "[$pts $val]").
+    (* iApply wp_fupd. *)
+    iApply (wp_load_acquire (extra := {| extra_state_interp := True |})
+             with "[$pts $val]").
     iIntros "!>" (t' v' SV' PV' _PV') "(%look & %gt & #val' & pts)".
 
     rewrite /store_view.
@@ -683,14 +713,17 @@ Section wp_rules.
     iDestruct ("predsHold" with "[predMap]") as "predsHold".
     { iExists _, _. naive_solver. }
 
-    iMod (own_full_history_alloc_frag with "history") as "[history histS]"; try done.
-    iModIntro.
+    (* Note: This allocation was commented out. Do we need it? *)
+    (* iMod (own_full_history_alloc_frag with "history") as "[history histS]"; try done. *)
+    (* iModIntro. *)
     (* We re-establish [interp]. *)
-    iSplit; iModIntro.
-    { repeat iExists _. iFrameNamed. }
-    iSplitL "ptsMap allOrders ordered predsHold history predicates
-             crashedAt sharedLocs allBumpers bumpMono predPostCrash".
-    { repeat iExists _. iFrameNamed. }
+    (* iSplit; iModIntro. *)
+    (* { repeat iExists _. iFrameNamed. } *)
+    iSplitR "ptsMap allOrders ordered predsHold history predicates
+             crashedAt sharedLocs allBumpers bumpMono predPostCrash"; last first.
+    { repeat iExists _. iModIntro. iFrameNamed. }
+    iSplit; first done.
+    iModIntro.
     iSplit. { iPureIntro. repeat split; try done; apply view_le_l. }
     iSpecialize ("Φpost" $! sL v').
     monPred_simpl.
