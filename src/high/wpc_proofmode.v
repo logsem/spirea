@@ -7,32 +7,35 @@ From Perennial.program_logic Require Import atomic.
 (* From Perennial.program_logic Require Export crash_weakestpre staged_invariant. *)
 From Perennial.Helpers Require Export ipm NamedProps ProofCaching.
 
+From self Require Import ipm_tactics.
 From self.lang Require Import lang.
 From self.base Require Import tactics.
+From self.base Require Import primitive_laws wpc_proofmode.
 From self.high Require Import lifted_modalities crash_weakestpre proofmode.
 
 Set Default Proof Using "Type".
 
 Import uPred.
 
-(* Lemma wpc_fork `{!nvmFixedG Σ, nvmDeltaG Σ, !crashGS Σ} s k E1 e Φ Φc : *)
-(*   ▷ WPC e @ s; k; ⊤ {{ _, True }} {{ True }} -∗ (Φc ∧ ▷ Φ (LitV LitUnit)) -∗ *)
-(*                       WPC Fork e @ s; k; E1 {{ Φ }} {{ Φc }}. *)
-(* Proof. *)
-(*   iIntros "He HΦ". iApply wpc_lift_head_step; [done|]. *)
-(*   iSplit; last first. *)
-(*   {  iDestruct "HΦ" as "(HΦc&_)". iModIntro. by iModIntro. } *)
-(*   iIntros (σ1 g1 ns κ κs n) "Hσ Hg". *)
-(*   iMod (fupd_mask_subseteq ∅) as "Hclose"; first by set_solver+. *)
-(*   iModIntro. iNext. iSplit. *)
-(*   { iPureIntro; econstructor; do 4 eexists. constructor. constructor. eauto. } *)
-(*    iIntros (v2 σ2 g2 efs Hstep). apply head_step_atomic_inv in Hstep; [ | by inversion 1 ]. rewrite /head_step /= in Hstep. *)
-(*   inversion Hstep as [??? Heq]. inversion Heq; subst. *)
-(*   iMod "Hclose". iFrame. iModIntro => //=. rewrite right_id. *)
-(*   iApply wpc_value; iSplit. *)
-(*   - by iDestruct "HΦ" as "(_&$)". *)
-(*   - iDestruct "HΦ" as "(?&_)". do 2 iModIntro. auto. *)
-(* Qed. *)
+Lemma wpc_fork `{!nvmFixedG Σ, !nvmDeltaG Σ} s (k : nat) E1 e
+      (Φ : val → dProp Σ) (Φc : dProp Σ) `{!Objective Φc} :
+  ▷ WPC e @ s; k; ⊤ {{ _, True }} {{ True }} -∗
+  (Φc ∧ ▷ Φ (LitV LitUnit)) -∗
+  WPC (Fork e) @ s; k; E1 {{ Φ }} {{ Φc }}.
+Proof.
+  rewrite wpc_eq.
+  iStartProof (iProp _). iIntros (V) "/=".
+  iIntros "WP" (? ?) "Φ".
+  iIntros (TV) "%incl #val".
+  iApply (wpc_fork with "[WP]").
+  { iNext.
+    iSpecialize ("WP" $! TV with "[%] val"). { etrans; done. }
+    iApply (program_logic.crash_weakestpre.wpc_mono with "WP"); naive_solver. }
+  iSplit.
+  - iApply objective_at. iDestruct "Φ" as "[$ _]".
+  - iNext. iFrame "∗#". iPureGoal; first done.
+    iDestruct "Φ" as "[_ $]".
+Qed.
 
 Lemma tac_wpc_expr_eval
       `{!nvmFixedG Σ, nvmDeltaG Σ} Δ (s : stuckness) (k : nat) E1 Φ (Φc : dProp Σ) e e' :
