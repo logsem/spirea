@@ -8,7 +8,8 @@ From self.lang Require Import notation lang.
 From self.algebra Require Import view.
 From self.base Require Import primitive_laws class_instances.
 From self.high Require Import proofmode wpc_proofmode.
-From self.high Require Import dprop resources crash_weakestpre weakestpre recovery_weakestpre lifted_modalities post_crash_modality.
+From self.high Require Import dprop resources crash_weakestpre weakestpre
+     recovery_weakestpre lifted_modalities post_crash_modality protocol.
 
 Instance subseteq_nat : SqSubsetEq nat := λ v w, v ≤ w.
 
@@ -89,14 +90,32 @@ Section simple_increment.
     then #() #() (* Get stuck. *)
     else #().
 
+  (* Predicate used for the location [a]. *)
+  Definition ϕa : loc_pred (Σ := Σ) nat := λ n v _, ⌜v = #n⌝%I.
+
+  Program Instance : LocationProtocol ϕa := { bumper n := n }.
+  Next Obligation. iIntros. by iApply post_crash_flush_pure. Qed.
+
+  (* Predicate used for the location [b]. *)
+  Definition ϕb (ℓa : loc) : loc_pred (Σ := Σ) nat :=
+    λ n v _, (⌜v = #n⌝ ∗ know_flush_lb ℓa n)%I.
+
+  Program Instance protocol_b ℓa : LocationProtocol (ϕb ℓa) := { bumper n := n }.
+  Next Obligation.
+    iIntros (????) "[% lb]".
+    iCrashFlush.
+    iDestruct "lb" as "(_ & $ & _)".
+    done.
+  Qed.
+
   Definition crash_condition {hD : nvmDeltaG Σ} ℓa ℓb : dProp Σ :=
-    ("#aPred" ∷ ⎡ know_pred ℓa (λ (n : nat) v _, ⌜v = #n⌝) ⎤ ∗
-     "#bPred" ∷ ⎡ know_pred ℓb (λ (n : nat) v hG, ⌜v = #n⌝ ∗ know_flush_lb ℓa n) ⎤ ∗
+    ("#aPred" ∷ know_protocol ℓa ϕa ∗
+     "#bPred" ∷ know_protocol ℓb (ϕb ℓa) ∗
      "pts" ∷ ∃ (sa sb : list nat), "aPts" ∷ ℓa ↦ₚ sa ∗ "bPts" ∷ ℓb ↦ₚ sb)%I.
 
   Lemma prove_crash_condition {hD : nvmDeltaG Σ} ℓa ssA ℓb ssB :
-    ⎡ know_pred ℓa (λ (n0 : nat) (v : val) (_ : nvmDeltaG Σ), ⌜v = #n0⌝) ⎤ -∗
-    ⎡ know_pred ℓb (λ (n0 : nat) (v : val) (hG : nvmDeltaG Σ), ⌜v = #n0⌝ ∗ know_flush_lb ℓa n0) ⎤ -∗
+    know_protocol ℓa ϕa -∗
+    know_protocol ℓb (ϕb ℓa) -∗
     ℓa ↦ₚ ssA -∗
     ℓb ↦ₚ ssB -∗
     <PC> hG, crash_condition ℓa ℓb.
@@ -114,8 +133,8 @@ Section simple_increment.
   not objective. We should use the post crash modality in the crash condition
   (maybe built in to WPC). *)
   Lemma wp_incr ℓa ℓb s n E :
-    ⊢ ⎡ know_pred ℓa (λ (n : nat) v _, ⌜v = #n⌝) ⎤ -∗
-      ⎡ know_pred ℓb (λ (n : nat) v hG, ⌜v = #n⌝ ∗ know_flush_lb ℓa n) ⎤ -∗
+    ⊢ know_protocol ℓa ϕa -∗
+      know_protocol ℓb (ϕb ℓa) -∗
       ℓa ↦ₚ [0] -∗
       ℓb ↦ₚ [0] -∗
       WPC (incr_both ℓa ℓb) @ s; n; E
@@ -211,7 +230,7 @@ Section simple_increment.
     iSplit; first iApply (prove_crash_condition with "aPred bPred aPts bPts").
     iApply (wp_load_ex _ _ _ _ (λ v, ⌜v = #sB⌝ ∗ know_flush_lb ℓa sB)%I
               with "[$bPts $bPred]"); first done.
-    { iModIntro. iIntros (?) "[-> hi]". naive_solver. }
+    { iModIntro. iIntros (?) "[-> #?]". rewrite /ϕb. iFrame "#". naive_solver. }
     iIntros "!>" (?) "(bPts & -> & lub)".
     iSplit.
     { iModIntro. iApply (prove_crash_condition with "aPred bPred aPts bPts"). }
@@ -241,8 +260,8 @@ Section simple_increment.
   (*   {{{ (True : dProp Σ) }}}. *)
 
   Lemma incr_safe s k E ℓa ℓb :
-    ⊢ ⎡ know_pred ℓa (λ (n : nat) v _, ⌜v = #n⌝) ⎤ -∗
-      ⎡ know_pred ℓb (λ (n : nat) v hG, ⌜v = #n⌝ ∗ know_flush_lb ℓa n) ⎤ -∗
+    ⊢ know_protocol ℓa ϕa -∗
+      know_protocol ℓb (ϕb ℓa) -∗
       ℓa ↦ₚ [0] -∗
       ℓb ↦ₚ [0] -∗
       wpr s k E (incr_both ℓa ℓb) (recover ℓa ℓb)
