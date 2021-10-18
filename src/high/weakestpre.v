@@ -20,7 +20,7 @@ From self.base Require Import tactics.
 From self.base Require Import primitive_laws.
 From self.lang Require Import syntax.
 From self.high Require Import resources crash_weakestpre lifted_modalities
-     monpred_simpl modalities.
+     monpred_simpl modalities protocol.
 
 Section wp.
   Context `{!nvmFixedG Σ, nvmDeltaG Σ}.
@@ -226,16 +226,18 @@ Section wp_rules.
       by iRewrite "predsEquiv".
   Qed.
 
-  Lemma wp_load_ex ℓ (b : bool) ss s Q ϕ positive E :
+  Lemma wp_load_ex ℓ (b : bool) ss s Q ϕ `{!LocationProtocol ϕ} positive E :
     last ss = Some s →
-    {{{ mapsto_ex b ℓ ss ∗ ⎡ know_pred ℓ ϕ ⎤ ∗ (<obj> (∀ v, ϕ s v _ -∗ Q v ∗ ϕ s v _)) }}}
+    {{{ mapsto_ex b ℓ ss ∗
+        know_protocol ℓ ϕ ∗
+        (<obj> (∀ v, ϕ s v _ -∗ Q v ∗ ϕ s v _)) }}}
       Load (Val $ LitV $ LitLoc ℓ) @ positive; E
     {{{ v, RET v; mapsto_ex b ℓ ss ∗ Q v }}}.
   Proof.
     intros sLast Φ.
     iStartProof (iProp _). iIntros (TV).
     (* We destruct the exclusive points-to predicate. *)
-    iIntros "(pts & knowPred & pToQ)".
+    iIntros "(pts & [knowPred _] & pToQ)".
     iDestruct "pts" as (?tP ?tS absHist) "pts". iNamed "pts".
     iDestruct "haveTStore" as %haveTStore.
     rewrite monPred_at_wand. simpl.
@@ -366,10 +368,10 @@ Section wp_rules.
     eassumption.
   Admitted.
 
-  Lemma wp_store_ex ℓ b ss v s__last s ϕ st E :
+  Lemma wp_store_ex ℓ b ss v s__last s ϕ `{!LocationProtocol ϕ} st E :
     last ss = Some s__last →
     s__last ⊑ s →
-    {{{ mapsto_ex b ℓ ss ∗ ⎡ know_pred ℓ ϕ ⎤ ∗ ϕ s v _ }}}
+    {{{ mapsto_ex b ℓ ss ∗ know_protocol ℓ ϕ ∗ ϕ s v _ }}}
       #ℓ <- v @ st; E
     {{{ RET #(); mapsto_ex b ℓ (ss ++ [s]) }}}.
   Proof.

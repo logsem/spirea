@@ -233,9 +233,6 @@ Section points_to_shared.
     apply singleton_included_l.
   Qed.
 
-  Definition know_inv ℓ ϕ : dProp Σ :=
-    ⎡know_pred ℓ ϕ ∗ know_preorder_loc ℓ (⊑@{ST})⎤%I.
-
   Program Definition have_store_view ℓ t : dProp Σ :=
     MonPred (λ (TV : thread_view), ⌜t ≤ (store_view TV) !!0 ℓ⌝)%I _.
   Next Obligation. solve_proper. Qed.
