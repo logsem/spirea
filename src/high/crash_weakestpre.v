@@ -46,9 +46,9 @@ Section wpc.
              (enc_state : positive) (v : val) TV : iProp Σ :=
     (∃ P, ⌜enc_pred enc_state v = Some P⌝ ∗ P _ TV).
 
-  Definition pred_post_crash_implication `{AbstractState ST}
+  Definition pred_post_crash_implication {ST}
              (ϕ : ST → val → _ → dProp Σ) bumper : dProp Σ :=
-    □ ∀ (hD: nvmDeltaG Σ) s v, ϕ s v hD -∗ <PCF> hD', ϕ (bumper s) v hD'.
+    □ ∀ (hD : nvmDeltaG Σ) s v, ϕ s v hD -∗ <PCF> hD', ϕ (bumper s) v hD'.
 
   (** This is our analog to the state interpretation in the Iris weakest
   precondition. We keep this in our crash weakest precondition ensuring that it
@@ -104,7 +104,7 @@ Section wpc.
       "#predPostCrash" ∷ ([∗ map] ℓ ↦ pred; bump ∈ predicates; bumpers,
         □ (∀ (e : positive) (v : val) (hG : nvmDeltaG Σ) TV (P : nvmDeltaG Σ → dProp _) e',
           ⌜bump e = Some e'⌝ ∗ ⌜pred e v = Some P⌝ ∗ P hG TV -∗
-          ∃ P', ⌜pred e' v = Some P'⌝ ∗ ((post_crash_flushed P') (∅, ∅, ∅)))) ∗
+          ∃ P', ⌜pred e' v = Some P'⌝ ∗ ((post_crash_flush P') (∅, ∅, ∅)))) ∗
       (* Bumpers map valid input to valid output. *)
       "%bumperBumpToValid" ∷
         ⌜map_Forall (λ _ bumper, ∀ e, ∃ e', bumper e = Some e' →

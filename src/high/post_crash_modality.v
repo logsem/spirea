@@ -243,7 +243,7 @@ Section post_crash_interact.
                           ∨ ⌜CV !! ℓ = None⌝).
 
   Lemma or_lost_sep {nD' : nvmDeltaG Σ} ℓ (P Q : dProp Σ) :
-    ⊢ or_lost ℓ P ∗ or_lost ℓ Q ∗-∗ or_lost ℓ (P ∗ Q)%I.
+    or_lost ℓ P ∗ or_lost ℓ Q ⊣⊢ or_lost ℓ (P ∗ Q)%I.
   Proof.
     iSplit.
     - iIntros "[(%CV & crash & MP) (%CV' & crash' & MQ)]".
@@ -660,10 +660,10 @@ Section post_crash_derived.
 
 End post_crash_derived.
 
-(* Definition post_crash_flushed `{nvmFixedG Σ, nvmDeltaG Σ} *)
+(* Definition post_crash_flush `{nvmFixedG Σ, nvmDeltaG Σ} *)
 (*         (P : nvmDeltaG Σ → dProp Σ) : dProp Σ := *)
 (*     <PC> (λ (nD' : nvmDeltaG Σ), P nD'). *)
-(* Definition post_crash_flushed `{nvmFixedG Σ, nvmDeltaG Σ} *)
+(* Definition post_crash_flush `{nvmFixedG Σ, nvmDeltaG Σ} *)
 (*         (P : nvmDeltaG Σ → dProp Σ) : dProp Σ := *)
 (*   (∀ TV, monPred_in TV -∗ *)
 (*     <PC> (nD' : nvmDeltaG Σ), *)
@@ -673,7 +673,7 @@ End post_crash_derived.
 (*         P nD')%I. *)
 (* Next Obligation. intros ??????. apply post_crash_mono. solve_proper. Qed. *)
 
-Program Definition post_crash_flushed `{nvmFixedG Σ, nvmDeltaG Σ}
+Program Definition post_crash_flush `{nvmFixedG Σ, nvmDeltaG Σ}
         (P : nvmDeltaG Σ → dProp Σ) : dProp Σ :=
   MonPred (λ TV,
     (<PC> (nD' : nvmDeltaG Σ),
@@ -686,7 +686,7 @@ Program Definition post_crash_flushed `{nvmFixedG Σ, nvmDeltaG Σ}
 Next Obligation. intros ???????. apply post_crash_mono. solve_proper. Qed.
 
 (*
-Program Definition post_crash_flushed `{hG : !nvmFixedG Σ, nvmDeltaG Σ}
+Program Definition post_crash_flush `{hG : !nvmFixedG Σ, nvmDeltaG Σ}
         (P : nvmFixedG Σ, nvmDeltaG Σ → dProp Σ) : dProp Σ :=
   MonPred (λ TV,
     (post_crash (λ hG', ∃ CV, ⌜flush_view TV ⊑ CV⌝ ∗ ⎡crashed_at CV⎤ -∗ P hG')) TV
@@ -695,19 +695,19 @@ Next Obligation. intros ??????. apply post_crash_mono. solve_proper. Qed.
 *)
 
 Notation "'<PCF>' g , P" :=
-  (post_crash_flushed (λ g, P))
+  (post_crash_flush (λ g, P))
   (at level 200, g binder, right associativity) : bi_scope.
 
 Section post_crash_persisted.
   Context `{hG: !nvmFixedG Σ, nvmDeltaG Σ}.
 
-  Lemma post_crash_flushed_impl_post_crash P :
+  Lemma post_crash_flush_post_crash P :
     post_crash P -∗
-    post_crash_flushed P.
+    post_crash_flush P.
   Proof.
     iStartProof (iProp _).
     iIntros (TV) "P".
-    rewrite /post_crash_flushed.
+    rewrite /post_crash_flush.
     rewrite /post_crash.
     simpl.
     iIntros (nD CV).
@@ -720,7 +720,59 @@ Section post_crash_persisted.
     iApply monPred_mono; done.
   Qed.
 
-  Lemma post_crash_persisted_know_flush_lb `{AbstractState ST}
+  Lemma post_crash_flush_named `{nvmFixedG Σ, nvmDeltaG Σ} P name :
+    named name (post_crash_flush (λ hG, P hG)) -∗
+    post_crash_flush (λ hG, named name (P hG)).
+  Proof. rewrite //=. Qed.
+
+  Lemma post_crash_flush_sep `{nvmFixedG Σ, nvmDeltaG Σ} P Q :
+    post_crash_flush P ∗ post_crash_flush Q -∗ <PCF> hG, P hG ∗ Q hG.
+  Proof.
+    iStartProof (iProp _). iIntros (TV).
+    iIntros "(HP & HQ)".
+    iIntrosPostCrash.
+    iDestruct ("HP" $! hG' hh) as "HP".
+    iDestruct ("HQ" $! hG' hh) as "HQ".
+    base.post_crash_modality.iCrash.
+    iIntros "M".
+    iDestruct ("HP" with "M") as "[H M]".
+    iDestruct ("HQ" with "M") as "[H1 $]".
+    iIntros (CV).
+    iSpecialize ("H" $! CV).
+    iSpecialize ("H1" $! CV).
+    monPred_simpl.
+    iIntros (TV'' le) "(%flushLe & #pers & #crashedAt)".
+    iSpecialize ("H" $! TV'' le with "[$pers $crashedAt //]").
+    iSpecialize ("H1" $! TV'' le with "[$pers $crashedAt //]").
+    iFrame.
+  Qed.
+
+  Lemma post_crash_flush_mono P Q :
+    (∀ hG, P hG -∗ Q hG) → post_crash_flush P -∗ post_crash_flush Q.
+  Proof.
+    iStartProof (iProp _). iIntros (Hmono TV') "HP".
+    iIntrosPostCrash.
+    simpl.
+    iDestruct ("HP" $! hG' hh) as "P".
+    iApply (base.post_crash_modality.post_crash_mono with "P").
+    iIntros (hG2).
+    (* rewrite /post_crash_impl. *)
+    iIntros "P M".
+    iDestruct ("P" with "M") as "[P $]".
+    iIntros (CV).
+    iSpecialize ("P" $! CV).
+    monPred_simpl.
+    iIntros (TV'' le) "(%flushLe & pers & crashedAt)".
+    iSpecialize ("P" $! TV'' le with "[$pers $crashedAt //]").
+    iDestruct (Hmono with "P") as "H".
+    done.
+  Qed.
+
+  Lemma post_crash_flush_pure (P : Prop) : P → ⊢ <PCF> _, ⌜P⌝.
+    rewrite -post_crash_flush_post_crash. apply post_crash_pure.
+  Qed.
+
+  Lemma post_crash_flush_know_flush_lb `{AbstractState ST}
         (ℓ : loc) (s : ST) :
     know_flush_lb ℓ s -∗
     <PCF> hG,
@@ -824,3 +876,74 @@ Section post_crash_persisted.
   Qed.
 
 End post_crash_persisted.
+
+Class IntoCrashFlush {Σ} `{nvmFixedG Σ, nvmDeltaG Σ}
+      (P : dProp Σ) (Q : nvmDeltaG Σ → dProp Σ) :=
+  into_crash_flushed : P -∗ post_crash_flush (Σ := Σ) (λ nD', Q nD').
+
+Arguments IntoCrashFlush {_} {_} {_} _%I _%I.
+
+Section IntoCrashFlush.
+  Context `{nvmFixedG Σ, nvmDeltaG Σ}.
+
+  (* Arguments IntoCrash {_} {_} {_} _%I hi%I. *)
+
+  Global Instance into_crash_into_crash_flushed P Q :
+    IntoCrash P Q →
+    IntoCrashFlush P Q.
+  Proof.
+    rewrite /IntoCrashFlush /IntoCrash.
+    rewrite -post_crash_flush_post_crash.
+    done.
+  Qed.
+
+  (* Global Instance pure_into_crash_flushed (P : Prop) : *)
+  (*   IntoCrashFlush (⌜ P ⌝) (λ _, ⌜ P ⌝)%I. *)
+  (* Proof. rewrite /IntoCrashFlush. iIntros "%". by iApply post_crash_flush_pure. Qed. *)
+
+  Global Instance know_flush_into_crash `{AbstractState ST} ℓ (s : ST) :
+    IntoCrashFlush (know_flush_lb ℓ s) (λ _,
+      know_persist_lb ℓ s ∗
+      know_flush_lb ℓ s ∗
+      know_store_lb ℓ s)%I.
+  Proof.
+    rewrite /IntoCrashFlush. iIntros "P".
+    by iApply post_crash_flush_know_flush_lb.
+  Qed.
+
+End IntoCrashFlush.
+
+Ltac crash_flush_env Γ :=
+  match Γ with
+    | environments.Enil => idtac
+    | environments.Esnoc ?Γ' ?id (post_crash_flush _) => crash_flush_env Γ'
+    | environments.Esnoc ?Γ' ?id ?A =>
+      first [ iEval (rewrite (@into_crash_flushed _ _ _ A) ) in id || iClear id ] ; crash_flush_env Γ'
+  end.
+
+Ltac crash_flush_ctx :=
+  match goal with
+  | [ |- environments.envs_entails ?Γ _] =>
+    let spatial := pm_eval (environments.env_spatial Γ) in
+    let intuit := pm_eval (environments.env_intuitionistic Γ) in
+    crash_flush_env spatial; crash_flush_env intuit
+  end.
+
+Ltac iCrashFlush :=
+  crash_flush_ctx;
+  iApply (modus_ponens with "[-]"); [ iNamedAccu | ];
+  rewrite ?post_crash_flush_named ?post_crash_flush_sep; iApply post_crash_flush_mono;
+  intros; simpl;
+  let H := iFresh in iIntros H; iNamed H.
+
+Section post_crash_flush_test.
+  Context `{nvmFixedG Σ, nvmDeltaG Σ}.
+
+  Lemma foo P : ⌜ P ⌝ -∗ <PCF> _, ⌜ P ⌝.
+  Proof.
+    iIntros "P".
+    iCrashFlush.
+    done.
+  Qed.
+
+End post_crash_flush_test.
