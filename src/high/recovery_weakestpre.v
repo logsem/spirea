@@ -294,6 +294,9 @@ Section wpr.
 
     (* We freeze/persist the old authorative resource algebra. *)
     iMod (own_all_preorders_persist with "allOrders") as "#allOrders".
+    iMod (own_update with "sharedLocs") as "sharedLocs".
+    { apply auth_update_auth_persist. }
+    iDestruct "sharedLocs" as "#sharedLocs".
     iMod (own_all_bumpers_persist with "allBumpers") as "#allBumpers".
     iMod (own_update with "predicates") as "allPredicates".
     { apply auth_update_auth_persist. }
@@ -311,8 +314,10 @@ Section wpr.
       (new_predicates_name) "[newPreds #newPredsFrag]".
 
     set newSharedLocs := (dom (gset _) newAbsHists) ∩ shared_locs.
-    iMod (own_alloc (● (newSharedLocs : gsetUR _))) as (new_shared_locs_name) "newSharedLocs".
-    { apply auth_auth_valid. done. }
+    iMod (own_alloc (● (newSharedLocs : gsetUR _) ⋅ ◯ _))
+      as (new_shared_locs_name) "[newSharedLocs sharedLocsFrag]".
+    { apply auth_both_valid. done. }
+    iDestruct "sharedLocsFrag" as "#sharedLocsFrag".
 
     (* Allocate the new map of bumpers. *)
     set newBumpers := restrict (dom (gset _) newAbsHists) bumpers.
@@ -394,6 +399,38 @@ Section wpr.
         rewrite /newPreds.
         (* FIXME: There is a later in the way. *)
         admit. }
+      (* Shared locations. *)
+      iSplit. {
+        rewrite /post_crash_shared_loc_impl.
+        iIntros "!>" (ℓ) "sh".
+        iApply (@or_lost_post_crash_ts with "[newCrashedAt] [sh]").
+        { iFrame "newCrashedAt". }
+        iIntros (t look).
+        rewrite /is_shared_loc.
+        iDestruct (own_valid_2 with "sharedLocs sh")
+          as %[_ [elem _]]%auth_both_dfrac_valid_discrete.
+        iApply (own_mono with "sharedLocsFrag").
+        exists (◯ newSharedLocs).
+        rewrite -auth_frag_op.
+        rewrite gset_op.
+        f_equiv.
+        apply gset_included in elem.
+        symmetry.
+        eapply subseteq_union_1.
+        rewrite /newSharedLocs.
+        apply elem_of_subseteq_singleton.
+        apply elem_of_intersection.
+        split; last set_solver.
+        rewrite /newAbsHists.
+        rewrite new_abs_hist_dom.
+        rewrite -domHistsEqBumpers.
+        apply elem_of_intersection.
+        split; last first.
+        { set_solver. }
+        apply elem_of_intersection.
+        split; first set_solver.
+        apply elem_of_dom.
+        naive_solver. }
       (* We show that the bumpers survive a crash. *)
       iSplit. {
         rewrite /post_crash_bumper_impl.
@@ -428,6 +465,8 @@ Section wpr.
     iFrame "ptsMap".
     iFrame "newBumpers".
     (* We show that the abstract states are still ordered. *)
+    iSplit.
+    { iPureIntro. rewrite /newSharedLocs /newAbsHists. set_solver. }
     iSplitR.
     { iApply big_sepM2_intro.
       - setoid_rewrite <- elem_of_dom.

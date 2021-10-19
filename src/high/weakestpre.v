@@ -562,10 +562,10 @@ Section wp_rules.
       done.
   Qed.
 
-  Lemma wp_load_shared ℓ s Q ϕ positive E :
+  Lemma wp_load_shared ℓ s Q ϕ `{!LocationProtocol ϕ} positive E :
     {{{
-        "knowPred" ∷ ⎡ know_pred ℓ ϕ ⎤ ∗
-        "isSharedLoc" ∷ ⎡ own shared_locs_name (◯ {[ ℓ ]}) ⎤ ∗
+        "knowProt" ∷ know_protocol ℓ ϕ ∗
+        "isSharedLoc" ∷ ⎡ is_shared_loc ℓ ⎤ ∗
         "storeLB" ∷ know_store_lb ℓ s ∗
         "pToQ" ∷ <obj> (∀ s' v, ⌜ s ⊑ s' ⌝ ∗ ϕ s' v _ -∗ Q s' v ∗ ϕ s' v _) ∗
         "live" ∷ live ℓ }}} 
@@ -577,6 +577,7 @@ Section wp_rules.
     intros Φ.
     iStartProof (iProp _). iIntros (TV).
     iNamed 1.
+    iDestruct "knowProt" as "(knowPred & _ & _)".
     iNamed "storeLB".
     iDestruct "live" as (t''' CV') "(%storeDisj & %tvIn & crashed)".
     (* We unfold the WP. *)

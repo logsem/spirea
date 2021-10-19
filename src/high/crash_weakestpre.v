@@ -78,6 +78,7 @@ Section wpc.
       "allOrders" ∷ own_all_preorders preorders_name orders ∗
       (* Shared locations. *)
       "sharedLocs" ∷ own shared_locs_name (● shared_locs) ∗
+      "%sharedLocsSubseteq" ∷ ⌜ shared_locs ⊆ dom _ abs_hists ⌝ ∗
       (* Exclusive locations. *)
       (* "exclusiveLocs" ∷ own exclusive_locs_name (● exclusive_locs) ∗ *)
 

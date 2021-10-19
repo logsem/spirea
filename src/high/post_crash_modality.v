@@ -91,6 +91,11 @@ Definition post_crash_pred_impl `{nvmFixedG Σ}
     know_pred (hGD := nD) ℓ ϕ -∗
     or_lost_post_crash_no_t ℓ (know_pred (hGD := nD') ℓ ϕ).
 
+Definition post_crash_shared_loc_impl `{nvmFixedG Σ}
+           (nD nD' : nvmDeltaG Σ) : iProp Σ :=
+  □ ∀ ℓ, is_shared_loc (hGD := nD) ℓ -∗
+    or_lost_post_crash_no_t ℓ (is_shared_loc (hGD := nD') ℓ).
+
 Definition get_bumpers_name {Σ} (hD : nvmDeltaG Σ) := bumpers_name.
 
 Definition post_crash_bumper_impl `{nvmFixedG Σ}
@@ -123,6 +128,7 @@ Definition post_crash_resource `{nvmFixedG Σ}
   "#post_crash_history_impl" ∷ post_crash_history_impl nD nD' ∗
   "#post_crash_preorder_impl" ∷ post_crash_preorder_impl nD nD' ∗
   "#post_crash_pred_impl" ∷ post_crash_pred_impl nD nD' ∗
+  "#post_crash_shared_loc_impl" ∷ post_crash_shared_loc_impl nD nD' ∗
   "#post_crash_bumper_impl" ∷ post_crash_bumper_impl nD nD' ∗
   (* "#post_crash_exclusive_loc_impl" ∷ post_crash_exclusive_loc_impl nD nD' ∗ *)
   "post_crash_map" ∷ post_crash_map h nD nD'.
@@ -309,7 +315,7 @@ Section post_crash_interact.
       by apply v. }
     iDestruct ("reIns" with "[$HP]") as "$".
     iFrame "in post_crash_history_impl post_crash_pred_impl post_crash_bumper_impl".
-    (* iFrameNamed. *)
+    iFrameNamed.
     rewrite /know_history_post_crash /or_lost_with_t.
     iDestruct "H" as (CV) "[crashedAt [H|H]]"; iExists (CV);
       iFrame "crashedAt"; [iLeft|iRight; done].
@@ -367,6 +373,20 @@ Section post_crash_interact.
     iNamed 1.
     rewrite /post_crash_resource. iFrameNamed.
     iDestruct ("post_crash_pred_impl" with "HP") as "H".
+    rewrite -or_lost_embed.
+    done.
+  Qed.
+
+  Lemma post_crash_shared_loc ℓ :
+    ⎡ is_shared_loc ℓ ⎤ -∗ <PC> _, or_lost ℓ (⎡ is_shared_loc ℓ ⎤).
+  Proof.
+    iStartProof (iProp _). iIntros (TV') "HP".
+    iIntrosPostCrash.
+    iDestruct (post_crash_modality.post_crash_nodep with "HP") as "HP".
+    post_crash_modality.iCrash.
+    iNamed 1.
+    rewrite /post_crash_resource. iFrameNamed.
+    iDestruct ("post_crash_shared_loc_impl" with "HP") as "H".
     rewrite -or_lost_embed.
     done.
   Qed.
@@ -430,6 +450,9 @@ Section IntoCrash.
     iIntros "$". done.
   Qed.
 
+  Ltac lift_into_crash lem := 
+    rewrite /IntoCrash; iIntros "P"; by iApply lem.
+
   (* Global Instance embed_into_crash P : *)
   (*   IntoCrash (⎡ P ⎤%I) (λ _, ⎡ P ⎤%I). *)
   (* Proof. rewrite /IntoCrash. iIntros "P". by iApply post_crash_embed_nodep. Qed. *)
@@ -451,7 +474,7 @@ Section IntoCrash.
     IntoCrash
     (⎡ know_preorder_loc ℓ abs_state_relation ⎤)
     (λ hG', or_lost ℓ (⎡know_preorder_loc ℓ abs_state_relation⎤))%I.
-  Proof. rewrite /IntoCrash. iIntros "P". by iApply post_crash_preorder. Qed.
+  Proof. lift_into_crash post_crash_preorder. Qed.
 
   Global Instance frag_history_into_crash `{AbstractState ST} ℓ t s :
     IntoCrash
@@ -460,7 +483,7 @@ Section IntoCrash.
               ⌜t ≤ t' ↔ s ⊑ s'⌝ ∗
               ⎡know_frag_history_loc ℓ {[ 0 := s' ]}⎤
                              ))%I.
-  Proof. rewrite /IntoCrash. iIntros "P". by iApply post_crash_frag_history. Qed.
+  Proof. lift_into_crash post_crash_frag_history. Qed.
 
   Global Instance know_pred_into_crash `{AbstractState ST}
          ℓ (ϕ : ST → val → _ → dProp Σ) :
@@ -469,11 +492,17 @@ Section IntoCrash.
       (λ hG', or_lost ℓ (⎡ know_pred ℓ ϕ ⎤))%I.
   Proof. rewrite /IntoCrash. iIntros "P". by iApply post_crash_know_pred. Qed.
 
+  Global Instance shared_loc_into_crash ℓ :
+    IntoCrash
+      (⎡ is_shared_loc ℓ ⎤)%I
+      (λ hG', or_lost ℓ (⎡ is_shared_loc ℓ ⎤))%I.
+  Proof. lift_into_crash post_crash_shared_loc. Qed.
+
   Global Instance know_bumper_into_crash `{AbstractState ST} ℓ bumper :
     IntoCrash
       (⎡ know_bumper ℓ bumper ⎤)%I
       (λ hG', or_lost ℓ (⎡ know_bumper ℓ bumper ⎤))%I.
-  Proof. rewrite /IntoCrash. iIntros "P". by iApply post_crash_know_bumper. Qed.
+  Proof. lift_into_crash post_crash_know_bumper. Qed.
 
   (*
   Global Instance exclusive_loc_into_crash ℓ :

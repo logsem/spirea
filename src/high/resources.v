@@ -239,7 +239,7 @@ Section points_to_shared.
 
   (* Definition is_exclusive_loc ℓ := own exclusive_locs_name (◯ {[ ℓ ]}). *)
 
-  Definition is_shared_loc ℓ := own shared_locs_name (◯ {[ ℓ ]}).
+  Definition is_shared_loc ℓ : iProp Σ := own shared_locs_name (◯ {[ ℓ ]}).
 
   (* _Exclusive_ points-to predicate. This predcate says that we know that the
   last events at [ℓ] corresponds to the *)
