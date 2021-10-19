@@ -513,6 +513,8 @@ Section crash_borrow_def.
     iIntros "(H1&HP)". iApply "H1". eauto.
   Qed.
 
+*)
+
   Lemma crash_borrow_later_conseq P Pc P' Pc' :
     □ (P' -∗ Pc') -∗
     ▷ (P -∗ P') -∗
@@ -544,6 +546,8 @@ Section crash_borrow_def.
     - iNext. iIntros. iApply "Hw2'". iApply "Hw2". done.
     - iNext. iIntros. iModIntro. iIntros. iApply "H3". iApply "Hw3'". done.
   Qed.
+
+  (*
 
   Lemma wpc_crash_borrow_split' k E e Φ Φc P Pc P1 P2 Pc1 Pc2 :
     language.to_val e = None →
@@ -805,9 +809,13 @@ Section crash_borrow_def.
     }
   Qed.
 
+  *)
+
   Lemma crash_borrow_crash_wand P Pc:
     crash_borrow P Pc -∗ □ (P -∗ Pc).
   Proof. iDestruct 1 as (??) "($&_)". Qed.
+
+  (*
 
   Lemma crash_borrow_wpc_nval' E Pc P P' R :
     crash_borrow P Pc -∗
