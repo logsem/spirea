@@ -50,6 +50,53 @@ Section post_fence.
     iSplit; iIntros "$".
   Qed.
 
+  Lemma post_fence_mono P Q : (P -∗ Q) -∗ post_fence P -∗ post_fence Q.
+  Proof.
+    iStartProof (iProp _).
+    iIntros (TV) "pToQ".
+    rewrite 2!monPred_at_wand.
+    simpl.
+    iIntros (TV' ?).
+    iApply "pToQ".
+    iPureIntro.
+    destruct TV as [[??]?].
+    destruct TV' as [[??]?].
+    repeat split.
+    - apply H.
+    - apply view_le_lub_l. apply H.
+    - apply H.
+  Qed.
+
+  Lemma post_fence_objective P `{!Objective P} : post_fence P ⊢ P.
+  Proof.
+    iStartProof (iProp _). iIntros (TV).
+    rewrite post_fence_at. iApply objective_at.
+  Qed.
+
+  Global Instance post_fence_persistent P :
+    Persistent P → Persistent (post_fence P).
+  Proof.
+    rewrite /Persistent.
+    intros pers.
+    iStartProof (iProp _).
+    iIntros (TV) "H".
+    rewrite post_fence_at.
+    iApply pers.
+    iApply "H".
+  Qed.
+
+  Lemma post_fence_extract P `{!Persistent Q, !Objective Q} :
+    post_fence P -∗ (P -∗ Q) -∗ post_fence P ∗ Q.
+  Proof.
+    iIntros "P pToQ".
+    iEval (rewrite -(post_fence_objective Q)).
+    rewrite post_fence_sep.
+    iApply (post_fence_mono with "[pToQ] P").
+    iIntros "P".
+    iDestruct ("pToQ" with "P") as "#Q".
+    iFrame "∗#".
+  Qed.
+
 End post_fence.
 
 Program Definition floor_buffer {Σ} (P : dProp Σ) : dProp Σ :=
@@ -63,7 +110,8 @@ Next Obligation.
   done.
 Qed.
 
-Notation "'<floorbuf>' P" := (floor_buffer P) (at level 20, right associativity) : bi_scope.
+Notation "'<floorbuf>' P" :=
+  (floor_buffer P) (at level 20, right associativity) : bi_scope.
 
 Section floor_buffer.
 End floor_buffer.
