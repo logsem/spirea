@@ -567,7 +567,7 @@ Section wp_rules.
       "knowProt" ∷ know_protocol ℓ ϕ ∗
       "isSharedLoc" ∷ ⎡ is_shared_loc ℓ ⎤ ∗
       "storeLB" ∷ know_store_lb ℓ s ∗
-      "pToQ" ∷ <obj> (∀ s' v, ⌜ s ⊑ s' ⌝ ∗ ϕ s' v _ -∗ Q s' v ∗ ϕ s' v _)
+      "pToQ" ∷ <obj> (∀ s' v, ⌜ s ⊑ s' ⌝ -∗ ϕ s' v _ -∗ Q s' v ∗ ϕ s' v _)
     }}}
       !{acq} #ℓ @ positive; E
     {{{ s' v, RET v;
@@ -699,10 +699,9 @@ Section wp_rules.
       first done.
     iSpecialize ("pToQ" $! (SV', PV', ∅) sL v').
     monPred_simpl.
-    iEval (setoid_rewrite monPred_at_sep) in "pToQ".
-    iSpecialize ("pToQ" $! (SV', PV', ∅)).
-    iDestruct ("pToQ" with "[//] [$PH]") as "[Q phi]".
-    { iPureIntro. etrans; done. }
+    iEval (setoid_rewrite monPred_at_wand) in "pToQ".
+    iDestruct ("pToQ" $! (SV', PV', ∅) with "[//] [%] [//] PH") as "[Q phi]".
+    { etrans; done. }
     (* Reinsert into the predicate map. *)
     iDestruct ("predMap" with "[phi]") as "predMap".
     { iFrame "%".
