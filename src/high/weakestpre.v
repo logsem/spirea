@@ -564,27 +564,25 @@ Section wp_rules.
 
   Lemma wp_load_shared ℓ s Q ϕ `{!LocationProtocol ϕ} positive E :
     {{{
-        "knowProt" ∷ know_protocol ℓ ϕ ∗
-        "isSharedLoc" ∷ ⎡ is_shared_loc ℓ ⎤ ∗
-        "storeLB" ∷ know_store_lb ℓ s ∗
-        "pToQ" ∷ <obj> (∀ s' v, ⌜ s ⊑ s' ⌝ ∗ ϕ s' v _ -∗ Q s' v ∗ ϕ s' v _) ∗
-        "live" ∷ live ℓ }}} 
+      "knowProt" ∷ know_protocol ℓ ϕ ∗
+      "isSharedLoc" ∷ ⎡ is_shared_loc ℓ ⎤ ∗
+      "storeLB" ∷ know_store_lb ℓ s ∗
+      "pToQ" ∷ <obj> (∀ s' v, ⌜ s ⊑ s' ⌝ ∗ ϕ s' v _ -∗ Q s' v ∗ ϕ s' v _)
+    }}}
       !{acq} #ℓ @ positive; E
     {{{ s' v, RET v;
-        "storeLB" ∷ know_store_lb ℓ s' ∗
-        post_fence (Q s' v) }}}.
+      "storeLB" ∷ know_store_lb ℓ s' ∗
+      post_fence (Q s' v) }}}.
   Proof.
     intros Φ.
     iStartProof (iProp _). iIntros (TV).
     iNamed 1.
     iDestruct "knowProt" as "(knowPred & _ & _)".
     iNamed "storeLB".
-    iDestruct "live" as (t''' CV') "(%storeDisj & %tvIn & crashed)".
     (* We unfold the WP. *)
     iIntros (TV' incl) "Φpost".
     rewrite wp_eq /wp_def wpc_eq.
     iIntros ([[SV PV] BV] incl2) "#val".
-    (* monPred_simpl. rewrite right_id. *)
     iApply program_logic.crash_weakestpre.wpc_atomic_no_mask.
     iSplit; first done.
 
@@ -619,8 +617,6 @@ Section wp_rules.
       destruct x; try done. }
     (* We open [interp]. *)
     iNamed 1.
-    iDestruct (crashed_at_agree with "crashed crashedAt") as %<-.
-    iClear "crashed".
 
     (* _Before_ we load the points-to predicate we deal with the predicate ϕ. We
     do this before such that the later that arrises is stripped off when we take

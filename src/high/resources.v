@@ -330,16 +330,6 @@ Section points_to_shared.
       "#crashed" ∷ ⎡crashed_at CV⎤ ∗
       "%notInCV" ∷ ⌜ℓ ∉ dom (gset _) CV⌝.
 
-  (* Live expresses that once we read from [ℓ] we are sure to get a message that
-  was written during this execution and not one that was recoverd. *)
-  Definition live ℓ : dProp Σ :=
-    ∃ (t : nat) CV,
-      (* This disjunction entails that ϕ holds for the write *)
-      "%storeDisj" ∷ ⌜0 ≠ t ∨ ℓ ∉ dom (gset _) CV⌝ ∗
-      "%tvIn" ∷ monPred_in (∅, ∅, {[ ℓ := MaxNat t ]}) ∗
-      "#crashed" ∷ ⎡crashed_at CV⎤.
-      (* ∗ "#knowFragHist" ∷ ⎡know_frag_history_loc ℓ {[ t := s ]}⎤. *)
-
   (* Let's see if we want this.
   Definition mapsto_shared ℓ s1 s2 s3 ϕ : dProp Σ :=
     "knowPred" ∷ ⎡ know_pred ℓ ϕ ⎤ ∗
