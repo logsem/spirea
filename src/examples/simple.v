@@ -11,17 +11,6 @@ From self.high Require Import proofmode wpc_proofmode.
 From self.high Require Import dprop resources crash_weakestpre weakestpre
      recovery_weakestpre lifted_modalities post_crash_modality protocol.
 
-Instance subseteq_nat : SqSubsetEq nat := λ v w, v ≤ w.
-
-Instance subseteq_nat_preorder : PreOrder (⊑@{nat}).
-Proof. apply _. Qed.
-
-Instance nat_abstract_state : AbstractState nat.
-Proof. esplit; apply _. Defined.
-
-Lemma subseteq_nat_le (n m : nat) : n ⊑ m = (n ≤ m).
-Proof. done. Qed.
-
 Definition prog : expr := let: "l" := ref #1 in ! "l".
 
 Definition pure : expr :=

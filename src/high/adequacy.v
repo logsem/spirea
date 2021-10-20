@@ -484,6 +484,7 @@ Proof.
   iPureIntro.
   replace (restrict ∅ σ) with (∅ : store).
   2: { symmetry. apply restrict_empty. }
+  split; first done.
   split; apply map_Forall_empty.
 Qed.
 

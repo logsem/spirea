@@ -153,6 +153,12 @@ Qed.
 Lemma view_le_r V W : V ⊑ W ⊔ V.
 Proof. rewrite comm. apply view_le_l. Qed.
 
+Lemma view_le_lub_l V W U : V ⊑ W → V ⊑ W ⊔ U.
+Proof. intros H. etrans. apply H. apply view_le_l. Qed.
+
+Lemma view_le_lub_r V W U : V ⊑ W → V ⊑ U ⊔ W.
+Proof. intros H. etrans. apply H. apply view_le_r. Qed.
+
 (* NOTE: Perhaps this lema could be an instance of some [Proper] thing. *)
 Lemma view_lub_le V V' W :
   V ⊑ W → V' ⊑ W → (V ⊔ V') ⊑ W.

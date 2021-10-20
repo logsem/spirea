@@ -771,6 +771,7 @@ Section crash_borrow_def.
     iIntros (Hnval) "Hborrow1 Hborrow2 #Hc Hwandc12 HwandP Hwpc".
     iApply (wpc_crash_borrow_combine' with "[$Hborrow1] [$Hborrow2] [$] [$Hwandc12] [$HwandP]"); eauto.
   Qed.
+  *)
 
   Lemma wpc_crash_borrow_open_modify k E1 e Φ Φc P Pc:
     to_val e = None →
@@ -808,8 +809,6 @@ Section crash_borrow_def.
         iExists _, _. iFrame "Hs # ∗". iNext. iIntros "($&_)".
     }
   Qed.
-
-  *)
 
   Lemma crash_borrow_crash_wand P Pc:
     crash_borrow P Pc -∗ □ (P -∗ Pc).
@@ -946,6 +945,7 @@ Section crash_borrow_def.
     iApply big_sepM_insert; first by assumption.
     iFrame.
   Qed.
+  *)
 
   Lemma wpc_crash_borrow_open k E1 e Φ Φc P Pc:
     to_val e = None →
@@ -1004,6 +1004,8 @@ Section crash_borrow_def.
       { iApply wpc_crash_modality_intro. iIntros. iDestruct "HΦ" as "($&_)". }
       iIntros "Hltok". iDestruct "HΦ" as "(_&$)". }
   Qed.
+
+  (*
 
   Opaque crash_borrow.
   Lemma crash_borrow_wpc_nval_sepM `{Countable A} {B} E (P: A → B → iProp Σ) Q Q' R m:

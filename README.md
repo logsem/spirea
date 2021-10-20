@@ -18,7 +18,9 @@
 * [`high`](src/high) - The high-level logic. The definition of `dprop`, `wp`, etc.
   * [`high/dprop.v`](src/high/dprop.v) - Defines the domain of propositions _dProp_.
   * [`high/resources`](src/high/resources) - Contains some of the resource algebras/CAMERAs used in
-    the high-level logic.
+  * [`high/recovery_weakestpre.v`](src/high/recovery_weakestpre.v) - The
+    definition of the recovery weakest precondition in the high-level logic as
+    well as the proof of the idempotence rule.
 * [`extra`.v](src/extra.v) - Auxiliary definitions and lemmas that are not
   specific to the logic.
 
