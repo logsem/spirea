@@ -67,6 +67,14 @@ Section post_fence.
     - apply H.
   Qed.
 
+  Lemma post_fence_objective' P : post_fence (<obj> P) ⊢ P.
+  Proof.
+    iStartProof (iProp _). iIntros (TV).
+    rewrite post_fence_at.
+    rewrite monPred_at_objectively.
+    naive_solver.
+  Qed.
+
   Lemma post_fence_objective P `{!Objective P} : post_fence P ⊢ P.
   Proof.
     iStartProof (iProp _). iIntros (TV).
@@ -85,7 +93,19 @@ Section post_fence.
     iApply "H".
   Qed.
 
-  Lemma post_fence_extract P `{!Persistent Q, !Objective Q} :
+  Lemma post_fence_extract P Q :
+    post_fence P -∗ (P -∗ <pers> <obj> Q) -∗ post_fence P ∗ Q.
+  Proof.
+    iIntros "P pToQ".
+    iEval (rewrite -(post_fence_objective' Q)).
+    rewrite post_fence_sep.
+    iApply (post_fence_mono with "[pToQ] P").
+    iIntros "P".
+    iDestruct ("pToQ" with "P") as "#Q".
+    iFrame "∗#".
+  Qed.
+
+  Lemma post_fence_extract' P `{!Persistent Q, !Objective Q} :
     post_fence P -∗ (P -∗ Q) -∗ post_fence P ∗ Q.
   Proof.
     iIntros "P pToQ".
@@ -99,7 +119,7 @@ Section post_fence.
 
 End post_fence.
 
-Program Definition floor_buffer {Σ} (P : dProp Σ) : dProp Σ :=
+Program Definition no_buffer {Σ} (P : dProp Σ) : dProp Σ :=
   MonPred (λ tv, P (store_view tv, flush_view tv, ∅)) _.
 Next Obligation.
   (* FIXME: Figure out if there is a way to make [solve_proper] handle this,
@@ -110,8 +130,8 @@ Next Obligation.
   done.
 Qed.
 
-Notation "'<floorbuf>' P" :=
-  (floor_buffer P) (at level 20, right associativity) : bi_scope.
+Notation "'<nobuf>' P" :=
+  (no_buffer P) (at level 20, right associativity) : bi_scope.
 
-Section floor_buffer.
-End floor_buffer.
+Section no_buffer.
+End no_buffer.

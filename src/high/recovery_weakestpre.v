@@ -467,8 +467,8 @@ Section wpr.
     (* We show that the abstract states are still ordered. *)
     iSplit.
     { iPureIntro. rewrite /newSharedLocs /newAbsHists. set_solver. }
-    (* mapShared. We show that the shared location still satisfy that heir two
-    persist - views are equial. *)
+    (* mapShared. We show that the shared location still satisfy that
+    heir two persist-views are equal. *)
     iSplit.
     { iPureIntro.
       (* The equality holds trivially for each message from the fact that

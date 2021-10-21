@@ -80,4 +80,37 @@ Section crash_borrow_high.
     { iApply (monPred_mono with "P"). etrans; done. }
   Qed.
 
+  Lemma wpc_crash_borrow_open_modify k E1 e Φ Φc P Pc `{!Objective Pc} :
+    to_val e = None →
+    crash_borrow P Pc -∗
+    (Φc ∧
+      (P -∗ WPC e @ k; E1
+                  {{λ v, ∃ P', P' ∗ □ (P' -∗ Pc) ∗ (crash_borrow P' Pc -∗ (Φc ∧ Φ v))}}
+                  {{ Φc ∗ Pc }})) -∗
+    WPC e @ k; E1 {{ Φ }} {{ Φc }}.
+  Proof.
+  Admitted.
+
+  Lemma wpc_crash_borrow_open k E1 e Φ Φc P Pc `{!Objective Φc, !Objective Pc} :
+    to_val e = None →
+    crash_borrow P Pc -∗
+    (Φc ∧ (P -∗ WPC e @ k; E1
+                      {{λ v, P ∗ (crash_borrow P Pc -∗ (Φc ∧ Φ v))}}
+                      {{ Φc ∗ Pc }})) -∗
+    WPC e @ k; E1 {{ Φ }} {{ Φc }}.
+  Proof.
+    iIntros (Hnv) "H1 Hwp".
+    iDestruct (crash_borrow_crash_wand with "[$]") as "#Hw".
+    iApply (wpc_crash_borrow_open_modify with "[$] [Hwp]"); auto.
+    iSplit; first by iDestruct "Hwp" as "($&_)".
+    iIntros "HP".
+    iDestruct "Hwp" as "(_&Hwp)".
+    iSpecialize ("Hwp" with "[$]").
+    iApply (wpc_strong_mono with "Hwp"); auto.
+    { iSplit; last first.
+      { iIntros "[$ $]". eauto. }
+      iIntros (?) "(HP&H)". iModIntro.
+      iExists P. iFrame. eauto. }
+  Qed.
+
 End crash_borrow_high.
