@@ -467,6 +467,20 @@ Section wpr.
     (* We show that the abstract states are still ordered. *)
     iSplit.
     { iPureIntro. rewrite /newSharedLocs /newAbsHists. set_solver. }
+    (* mapShared. We show that the shared location still satisfy that heir two
+    persist - views are equial. *)
+    iSplit.
+    { iPureIntro.
+      (* The equality holds trivially for each message from the fact that
+      [slice_of_store] discards all views. *)
+      intros ℓ hist [look ?]%restrict_lookup_Some.
+      intros t msg histLook.
+      epose proof (slice_of_store_lookup_Some _ _ _ _ _ _ look histLook)
+        as (? & ? & [????] & ? & ? & ? & ? & -> & ?).
+      reflexivity. }
+    (* sharedLocsHistories *)
+    iSplitR.
+    { admit. }
     iSplitR.
     { iApply big_sepM2_intro.
       - setoid_rewrite <- elem_of_dom.
@@ -565,8 +579,7 @@ Section wpr.
       eapply map_Forall_subseteq; last apply bumperBumpToValid.
       apply restrict_subseteq. }
     (* bumperSome *)
-    iSplitR "". {
-      iApply big_sepM2_forall.
+    { iApply big_sepM2_forall.
       iSplit.
       { iPureIntro.
         setoid_rewrite <- elem_of_dom.
@@ -585,17 +598,7 @@ Section wpr.
       assert (bumpers !! ℓ = Some bumper). { admit. }
       iDestruct (big_sepM2_lookup with "bumperSome") as %i; [done|done|].
       (* Note: We probably have to use [bumpMono] as well. *)
-
-      admit.
-    }
-    (* We show that the shared location still satisfy that heir two persist
-    views are equial. *)
-    { iPureIntro.
-      intros ℓ hist [look roflcopter]%restrict_lookup_Some.
-      intros t msg histLook.
-      epose proof (slice_of_store_lookup_Some _ _ _ _ _ _ look histLook)
-        as (? & ? & [????] & ? & ? & ? & ? & -> & ?).
-      reflexivity. }
+      admit. }
   Admitted.
 
   (*

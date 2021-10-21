@@ -76,9 +76,23 @@ Section wpc.
       "predicates" ∷ own predicates_name (● preds_to_ra predicates) ∗
       (* All the encoded orders *)
       "allOrders" ∷ own_all_preorders preorders_name orders ∗
+
       (* Shared locations. *)
       "sharedLocs" ∷ own shared_locs_name (● shared_locs) ∗
       "%sharedLocsSubseteq" ∷ ⌜ shared_locs ⊆ dom _ abs_hists ⌝ ∗
+      "%mapShared" ∷
+        ⌜map_Forall (λ _, map_Forall
+          (* For shared locations the two persist views are equal. This enforces
+          that shared locations can only be written to using release store and
+          RMW operations. *)
+          (λ _ msg, msg.(msg_persist_view) = msg.(msg_persisted_after_view)))
+          (restrict shared_locs phys_hists)⌝ ∗
+      (* For shared locations [interp] owns the fragment for the full history. *)
+      "sharedLocsHistories" ∷ ([∗ set] ℓ ∈ shared_locs,
+        ∃ abs_hist,
+          ⌜ abs_hists !! ℓ = Some abs_hist ⌝ ∗
+          know_full_encoded_history_loc ℓ abs_hist) ∗
+
       (* Exclusive locations. *)
       (* "exclusiveLocs" ∷ own exclusive_locs_name (● exclusive_locs) ∗ *)
 
@@ -112,15 +126,8 @@ Section wpc.
                                             is_Some (bumper e')) bumpers⌝ ∗
       (* All the abstract state are "valid" inputs to the bumpers. *)
       "#bumperSome" ∷ ([∗ map] ℓ ↦ abs_hist; bumper ∈ abs_hists; bumpers,
-        ⌜map_Forall (λ _ e, is_Some (bumper e)) abs_hist⌝) ∗
+        ⌜map_Forall (λ _ e, is_Some (bumper e)) abs_hist⌝)).
 
-      "%mapShared" ∷
-        ⌜map_Forall (λ _, map_Forall
-          (* For shared locations the two persist views are equal. This enforces
-          that shared locations can only be written to using release store and
-          RMW operations. *)
-          (λ _ msg, msg.(msg_persist_view) = msg.(msg_persisted_after_view)))
-          (restrict shared_locs phys_hists)⌝).
 
   Global Instance highExtraStateInterp : extraStateInterp Σ := {
     extra_state_interp := interp;

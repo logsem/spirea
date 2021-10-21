@@ -1,4 +1,4 @@
-(* Resource algebra to store the abstract histories. *)
+(* Resource algebra to represent abstract histories. *)
 
 From iris.algebra Require Import auth gmap.
 From iris.base_logic.lib Require Import own ghost_map.
@@ -7,6 +7,11 @@ From iris.proofmode Require Import proofmode.
 
 From self.lang Require Import lang.
 From self Require Import extra.
+
+(* For abstract history we need two types of fragmental knowledge. One that
+represents ownership about the entire abstract history of a location (for
+non-atomic) and one that represents only knowledge about one entry in the
+abstract history. *)
 
 (* Resource algebras that for each location stores the encoded abstract states
 associated with each message/store. *)
@@ -61,7 +66,6 @@ Section abs_history_lemmas.
   Definition own_frag_history_loc γ ℓ (abs_hist : gmap time ST) : iProp Σ :=
     ∃ enc,
       ⌜decode <$> enc = Some <$> abs_hist⌝ ∗
-      (* ⌜enc = encode <$> abs_hist⌝ ∗ *)
       own_frag_encoded_history_loc γ ℓ enc.
 
   Lemma own_full_history_alloc h :

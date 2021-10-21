@@ -307,7 +307,8 @@ Section wp_rules.
     iDestruct ("predsHold" with "[predMap]") as "predsHold". { naive_solver. }
 
     iSplitR "ptsMap allOrders ordered predsHold history predicates
-             sharedLocs crashedAt allBumpers bumpMono predPostCrash"; last first.
+             sharedLocs crashedAt allBumpers bumpMono predPostCrash
+             sharedLocsHistories"; last first.
     { repeat iExists _. iFrameNamed. }
     iSplit; first done.
     iApply "Φpost".
