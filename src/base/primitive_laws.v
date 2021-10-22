@@ -171,18 +171,6 @@ Notation "l ↦h{# q } v" := (mapsto (L:=loc) (V:=history) l (DfracOwn q) (v%V))
 Notation "l ↦h v" := (mapsto (L:=loc) (V:=history) l (DfracOwn 1) (v%V))
   (at level 20, format "l  ↦h  v") : bi_scope.
 
-Lemma auth_auth_grow {A : ucmra} `{!CmraDiscrete A} (a a' : A) :
-  ✓a' → a ≼ a' → ● a ~~> ● a'.
-Proof.
-  intros val [a'' eq]. rewrite eq.
-  apply (auth_update_auth _ _ a'').
-  rewrite comm.
-  rewrite -{2}(right_id _ _ a'').
-  apply op_local_update_discrete.
-  rewrite comm -eq.
-  done.
-Qed.
-
 Section view_ra_rules.
   (** Rules for view RA. ***)
   Context `{inG Σ (authR viewUR)}.

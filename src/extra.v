@@ -2,9 +2,8 @@
 words, our own little (std++)++. *)
 
 From stdpp Require Import countable numbers gmap fin_maps list.
-From iris Require Import cmra.
 From iris.bi Require Import big_op.
-From iris.algebra Require Import gmap agree big_op.
+From iris.algebra Require Import cmra updates gmap agree big_op auth.
 From iris.proofmode Require Import tactics.
 Import interface.bi derived_laws.bi derived_laws_later.bi.
 
@@ -117,6 +116,18 @@ Section nat_map.
   Qed.
 
 End nat_map.
+
+Lemma auth_auth_grow {A : ucmra} `{!CmraDiscrete A} (a a' : A) :
+  ✓ a' → a ≼ a' → ● a ~~> ● a'.
+Proof.
+  intros val [a'' eq]. rewrite eq.
+  apply (auth_update_auth _ _ a'').
+  rewrite comm.
+  rewrite -{2}(right_id _ _ a'').
+  apply op_local_update_discrete.
+  rewrite comm -eq.
+  done.
+Qed.
 
 Lemma singleton_included_insert `{Countable K} {A : cmra} (k : K) (a a' : A) (m : gmap K A) :
   a ≼ a' → {[k := a]} ≼ <[k:=a']> m.

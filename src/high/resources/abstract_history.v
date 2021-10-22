@@ -21,6 +21,46 @@ Definition encoded_abs_historyR := gmapUR time (agreeR positiveO).
 Definition know_abs_historiesR :=
   authR (gmapUR loc (gmapUR time (agreeR positiveO))).
 
+Definition fmap_fmap_to_agree (m : gmap loc (gmap time positive)) : gmapUR loc _ :=
+  (λ n : gmap _ _, to_agree <$> n) <$> m.
+
+Section fmap_fmap_to_agree.
+
+  Lemma fmap_fmap_to_agree_valid m : ✓ fmap_fmap_to_agree m.
+  Proof.
+    rewrite /fmap_fmap_to_agree.
+    intros ?.
+    rewrite lookup_fmap.
+    destruct (m !! i); last done.
+    simpl.
+    apply Some_valid.
+    apply valid_to_agree_fmap.
+  Qed.
+
+  Lemma fmap_fmap_to_agree_incl m m' :
+    dom (gset _) m ⊆ dom _ m' →
+    (∀ ℓ mi mi', m !! ℓ = Some mi → m' !! ℓ = Some mi' → mi ⊆ mi') →
+    (fmap_fmap_to_agree m) ≼ (fmap_fmap_to_agree m').
+  Proof.
+    intros subOut subIn.
+    rewrite /fmap_fmap_to_agree.
+    apply lookup_included => ℓ.
+    rewrite 2!lookup_fmap.
+    destruct (m !! ℓ) as [mi|] eqn:lookM.
+    2: { apply option_included. naive_solver. }
+    destruct (m' !! ℓ) as [mi'|] eqn:lookM'.
+    2: { exfalso.
+         apply not_elem_of_dom in lookM'.
+         apply elem_of_dom_2 in lookM.
+         set_solver. }
+    simpl.
+    apply Some_included_total.
+    apply to_agree_fmap.
+    eapply subIn; done.
+  Qed.
+
+End fmap_fmap_to_agree.
+
 (** We define a few things about the resource algebra that that we use to encode
 abstract histories. *)
 Section abs_history_lemmas.
@@ -39,21 +79,19 @@ Section abs_history_lemmas.
   resource algebras. *)
   Definition own_full_history γ1 γ2 abs_hists : iProp Σ :=
     ghost_map_auth γ1 1 abs_hists ∗
-    own γ2 (
-      ● ((λ m : gmap _ _, to_agree <$> m) <$> abs_hists) : know_abs_historiesR
-    ).
+    own γ2 (● (fmap_fmap_to_agree abs_hists) : know_abs_historiesR).
 
   (* Definition own_full_history abs_hists : iProp Σ := *)
   (*   own_full_history abs_history_name know_abs_history_name abs_hists. *)
 
-  Definition own_full_encoded_history_loc γ ℓ enc_abs_hist : iProp Σ :=
-    ℓ ↪[ γ ] enc_abs_hist.
+  Definition own_full_encoded_history_loc γ1 ℓ enc_abs_hist : iProp Σ :=
+    ℓ ↪[ γ1 ] enc_abs_hist.
 
-  Definition own_full_history_loc γ ℓ abs_hist : iProp Σ :=
-    ℓ ↪[ γ ] (encode <$> abs_hist).
+  Definition own_full_history_loc γ1 ℓ abs_hist : iProp Σ :=
+    ℓ ↪[ γ1 ] (encode <$> abs_hist).
 
-  Definition own_frag_encoded_history_loc γ ℓ enc_abs_hist : iProp Σ :=
-    own γ (◯ {[ ℓ := to_agree <$> enc_abs_hist ]}).
+  Definition own_frag_encoded_history_loc γ2 ℓ enc_abs_hist : iProp Σ :=
+    own γ2 (◯ {[ ℓ := to_agree <$> enc_abs_hist ]}).
 
   (* In this definition we store that decoding the stored encoded histry is
   equal to our abstract history. This is weaker than strong the other way
@@ -241,5 +279,44 @@ Section abs_history_lemmas.
   (* Proof. w w *)
   (*   iIntros "O K". *)
   (* Admitted. *)
+
+  (* Insert a new message into an abstract history. *)
+  Lemma own_full_history_insert γ1 γ2 ℓ t enc_abs_hist abs_hists encS :
+    enc_abs_hist !! t = None →
+    own_full_history γ1 γ2 abs_hists -∗
+    own_full_encoded_history_loc γ1 ℓ enc_abs_hist ==∗
+    let enc_abs_hist' := <[t := encS]>enc_abs_hist
+    in own_full_history γ1 γ2 (<[ℓ := enc_abs_hist']>abs_hists) ∗
+       own_full_encoded_history_loc γ1 ℓ enc_abs_hist' ∗
+       own_frag_encoded_history_loc γ2 ℓ {[ t := encS ]}.
+  Proof.
+    iIntros (look) "[M N] O".
+    iDestruct (ghost_map_lookup with "M O") as %hips.
+    iMod (ghost_map_update with "M O") as "[$ $]".
+    iMod (own_update with "N ") as "H".
+    2: {
+      iMod (own_update with "H") as "[$ $]".
+      { apply: auth_update_dfrac_alloc.
+        rewrite /fmap_fmap_to_agree.
+        rewrite fmap_insert.
+        apply singleton_included_insert.
+        apply to_agree_fmap.
+        apply map_singleton_subseteq_l.
+        apply lookup_insert. }
+      done. }
+    { apply auth_auth_grow.
+      { apply fmap_fmap_to_agree_valid. }
+      apply fmap_fmap_to_agree_incl.
+      * set_solver.
+      * intros ℓ' mi mi' look1 look2.
+        destruct (decide (ℓ = ℓ')).
+        + simplify_eq.
+          rewrite lookup_insert in look2.
+          simplify_eq.
+          by apply insert_subseteq.
+        + rewrite lookup_insert_ne in look2; last done.
+          simplify_eq.
+          reflexivity. }
+  Qed.
 
 End abs_history_lemmas.
