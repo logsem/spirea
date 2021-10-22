@@ -313,10 +313,12 @@ Section wp_at_rules.
     iIntros (TV' incl) "Φpost".
     rewrite wp_eq /wp_def wpc_eq.
     iIntros ([[SV PV] BV] incl2) "#val".
-    iApply program_logic.crash_weakestpre.wpc_atomic_no_mask.
-    iSplit; first done.
 
-    iApply wp_extra_state_interp_fupd. { done. }
+    monPred_simpl.
+    iApply program_logic.crash_weakestpre.wp_wpc.
+    (* iApply wp_fupd. *)
+
+    iApply wp_extra_state_interp. { done. }
     { (* Try and simplify this with lemmas/automation. *)
       clear.
       intros ??????? [Ki [??] [??] ? ? step].
@@ -359,6 +361,7 @@ Section wp_at_rules.
         destruct x; try done. }
 
     iNamed 1.
+    iApply (wp_fupd (irisGS0 := (@nvmBaseG_irisGS _ _ _ (Build_extraStateInterp _ _)))).
 
     (* _Before_ we load the points-to predicate we deal with the predicate ϕ. We
     do this before such that the later that arrises is stripped off when we take
@@ -367,11 +370,11 @@ Section wp_at_rules.
       as (pred predsLook) "#predsEquiv".
     
     (* We need to get the points-to predicate for [ℓ] which is is inside
-    [interp].  We want to look up the points-to predicate in [ptsMap]. To this
+    [interp]. We want to look up the points-to predicate in [ptsMap]. To this
     end, we combine our fragment of the history with the authorative element. *)
     iDestruct (
         own_frag_history_agree_singleton with "history knowFragHist") as %look.
-    destruct look as (absHist & enc & absHistLook & lookTS & decodeEnc).
+    destruct look as (absHist & enc & absHistsLook & lookTS & decodeEnc).
 
     iDestruct (
         location_sets_singleton_included with "sharedLocs isSharedLoc"
@@ -384,12 +387,78 @@ Section wp_at_rules.
     clear predsLook'.
 
     (* We can now get the points-to predicate and execute the load. *)
-    iDestruct (big_sepM_lookup_acc with "ptsMap") as "[pts ptsMap]"; first done.
+    iDestruct (big_sepM_delete with "ptsMap") as "[pts ptsMap]"; first done.
 
     iApply (wp_store_release (extra := {| extra_state_interp := True |})
              with "[$pts $val]").
-    iIntros "!>" (t') "(%look & %gt & #val' & pts)".
+    iIntros "!>" (tNew) "(%look & %gt & #valNew & pts)".
+
+    iFrame "valNew".
+
+    (* We've inserted a new message at time [tNew] in the physical
+    history. Hence, we must accordingly insert a new state in the abstract
+    history. *)
+
+    iDestruct (big_sepS_delete with "sharedLocsHistories") as
+      "[(%abs_hist' & %absHistLook' & absHist) sharedLocsHistories]"; first done.
+    simplify_eq.
+
+    iAssert (⌜ absHist !! tNew = None ⌝)%I as %absHistLook.
+    { iDestruct (big_sepM2_dom with "predMap") as %domEq.
+      iPureIntro. move: look.
+      rewrite fmap_None.
+      rewrite -!not_elem_of_dom.
+      rewrite domEq.
+      done. }
+
+    (* Update the ghost state for the abstract history. *)
+    iMod (own_full_history_insert _ _ _ _ _ _ (encode s2) with "history absHist")
+      as "(history & absHist & histFrag)". { done. }
+
+    iModIntro.
+    iEval (rewrite -assoc).
+    iSplit. { iPureIntro. repeat split; try done. apply view_insert_le. lia. }
+
+    iSplitL "Φpost histFrag".
+    { iApply "Φpost".
+      - iPureIntro. destruct TV' as [[??]?].
+        repeat split.
+        * etrans; first apply incl2. apply view_insert_le. lia.
+        * apply incl2.
+        * apply incl2.
+      - iExists _, _.
+        iDestruct (own_frag_equiv _ _ {[ tNew := s2 ]} with "[histFrag]") as "histFrag".
+        { rewrite map_fmap_singleton. iFrame "histFrag". }
+        iFrame "histFrag knowPreorder".
+        iPureIntro.
+        split; first done.
+        rewrite /store_view. simpl.
+        rewrite /lookup_zero.
+        rewrite lookup_insert.
+        done. }
+
+
+    iDestruct (big_sepM_insert_delete with "[$ptsMap $pts]") as "ptsMap".
+    repeat iExists _.
+    iFrame "ptsMap".
+    iFrameNamed.
+
+    iSplit. { iPureIntro. etrans; first done. apply dom_insert_subseteq. }
+
+  Admitted.
+  (*   "history absHist" *)
+  (* Qed. *)
+
+  (* Definition insert_hist {A} (ℓ : loc) (a : A) (m : gmap ℓ (gmap nat A)) := *)
+  (*   <[]>m *)
     
-  Qed.
+  (* Insert a new message into an abstract history. *)
+  (* Lemma foo ℓ t abs_hist abs_hists encS : *)
+  (*   (* abs_hists !! ℓ = abs_hist *) *)
+  (*   abs_hist !! t = None → *)
+  (*   own_full_history abs_history_name know_abs_history_name abs_hists -∗ *)
+  (*   know_full_encoded_history_loc ℓ abs_hist -∗ *)
+  (*     own_full_history abs_history_name know_abs_history_name <[t := encS]abs_hists ∗ *)
+  (*     own_frag_encoded_history_loc γ ℓ <[t := encS]>enc. *)
 
 End wp_at_rules.
