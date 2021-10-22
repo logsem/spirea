@@ -93,28 +93,20 @@ Section post_fence.
     iApply "H".
   Qed.
 
-  Lemma post_fence_extract P Q :
-    post_fence P -∗ (P -∗ <pers> <obj> Q) -∗ post_fence P ∗ Q.
+  Lemma post_fence_extract P Q : post_fence P -∗ (P -∗ <obj> Q) -∗ Q.
   Proof.
     iIntros "P pToQ".
     iEval (rewrite -(post_fence_objective' Q)).
-    rewrite post_fence_sep.
     iApply (post_fence_mono with "[pToQ] P").
-    iIntros "P".
-    iDestruct ("pToQ" with "P") as "#Q".
-    iFrame "∗#".
+    done.
   Qed.
 
-  Lemma post_fence_extract' P `{!Persistent Q, !Objective Q} :
-    post_fence P -∗ (P -∗ Q) -∗ post_fence P ∗ Q.
+  Lemma post_fence_extract' P Q `{!Objective Q} : post_fence P -∗ (P -∗ Q) -∗ Q.
   Proof.
     iIntros "P pToQ".
-    iEval (rewrite -(post_fence_objective Q)).
-    rewrite post_fence_sep.
-    iApply (post_fence_mono with "[pToQ] P").
-    iIntros "P".
-    iDestruct ("pToQ" with "P") as "#Q".
-    iFrame "∗#".
+    iApply (post_fence_extract with "P").
+    rewrite -(objective_objectively Q).
+    done.
   Qed.
 
 End post_fence.

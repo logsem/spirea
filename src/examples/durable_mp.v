@@ -8,8 +8,8 @@ From self.lang Require Import notation lang.
 From self.algebra Require Import view.
 From self.base Require Import primitive_laws class_instances crash_borrow.
 From self.high Require Import proofmode wpc_proofmode.
-From self.high Require Import crash_weakestpre modalities weakestpre recovery_weakestpre
-     protocol crash_borrow.
+From self.high Require Import crash_weakestpre modalities weakestpre
+     weakestpre_at recovery_weakestpre protocol crash_borrow.
 
 Section program.
 
@@ -138,8 +138,8 @@ Section proof.
       - iDestruct "a" as "%". naive_solver. }
     iNext.
     iIntros (??) "[yLb' disj]".
-    iDestruct (post_fence_extract _ (⌜v = #true ∨ v = #false⌝)%I with "disj []") as "[disj [-> | ->]]".
-    { iIntros "[[-> _]|->]"; iModIntro; iModIntro; naive_solver. }
+    iDestruct (post_fence_extract' _ (⌜v = #true ∨ v = #false⌝)%I with "disj []") as %[-> | ->].
+    { iIntros "[[-> _]|->]"; naive_solver. }
     2: {
       (* We loaded [false] and this case is trivial. *)
       whack_right_cc.
