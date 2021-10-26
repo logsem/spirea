@@ -250,11 +250,16 @@ Section wp_rules.
     iDestruct (own_all_preds_pred with "predicates knowPred") as
       (pred predsLook) "#predsEquiv".
     iDestruct (own_full_history_agree with "[$] [$]") as %absHistlook.
-    iDestruct (big_sepM_lookup_acc with "predsHold") as "[predMap predsHold]".
-    { done. }
-    iDestruct "predMap" as (pred' phys_hist physHistsLook predsLook') "predMap".
+
+    iDestruct (big_sepM2_dom with "predsHold") as %domPhysHistEqAbsHist.
+    assert (is_Some (phys_hists !! ℓ)) as [physHist physHistsLook].
+    { rewrite -elem_of_dom domPhysHistEqAbsHist elem_of_dom. done. }
+
+    iDestruct (big_sepM2_lookup_acc with "predsHold") as "[predMap predsHold]".
+    { done. } { done. }
+    iDestruct "predMap" as (pred' predsLook') "predMap".
     assert (pred = pred') as <-. { apply (inj Some). rewrite -predsLook. done. }
-    clear predsLook'.
+    (* clear predsLook'. *)
 
     iDestruct (big_sepM_lookup_acc with "ptsMap") as "[pts ptsMap]"; first done.
     iApply (wp_load (extra := {| extra_state_interp := True |}) with "[$pts $val]").

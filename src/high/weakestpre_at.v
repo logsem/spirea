@@ -175,13 +175,16 @@ Section wp_at_rules.
         own_frag_history_agree_singleton with "history knowFragHist") as %look.
     destruct look as (absHist & enc & absHistLook & lookTS & decodeEnc).
 
+    iDestruct (big_sepM2_dom with "predsHold") as %domPhysHistEqAbsHist.
+    assert (is_Some (phys_hists !! ℓ)) as [physHist physHistsLook].
+    { rewrite -elem_of_dom domPhysHistEqAbsHist elem_of_dom. done. }
+
     iDestruct (
         location_sets_singleton_included with "sharedLocs isSharedLoc"
       ) as %ℓSh.
-    iDestruct (big_sepM_lookup_acc with "predsHold") as "[predMap predsHold]".
-    { done. }
-    iDestruct "predMap" as
-        (pred' physHist physHistLook predsLook') "predMap".
+    iDestruct (big_sepM2_lookup_acc with "predsHold") as "[predMap predsHold]".
+    { done. } { done. }
+    iDestruct "predMap" as (pred' predsLook') "predMap".
     assert (pred = pred') as <-. { apply (inj Some). rewrite -predsLook. done. }
     clear predsLook'.
 
@@ -253,7 +256,7 @@ Section wp_at_rules.
       done. }
     (* Reinsert into the map. *)
     iDestruct ("predsHold" with "[predMap]") as "predsHold".
-    { iExists _, _. naive_solver. }
+    { iExists _. naive_solver. }
 
     (* Note: This allocation was commented out. Do we need it? *)
     (* iMod (own_full_history_alloc_frag with "history") as "[history histS]"; try done. *)
@@ -379,10 +382,14 @@ Section wp_at_rules.
     iDestruct (
         location_sets_singleton_included with "sharedLocs isSharedLoc"
       ) as %ℓSh.
-    iDestruct (big_sepM_lookup_acc with "predsHold") as "[predMap predsHold]".
-    { done. }
-    iDestruct "predMap" as
-        (pred' physHist physHistLook predsLook') "predMap".
+
+    iDestruct (big_sepM2_dom with "predsHold") as %domPhysHistEqAbsHist.
+    assert (is_Some (phys_hists !! ℓ)) as [physHist physHistsLook].
+    { rewrite -elem_of_dom domPhysHistEqAbsHist elem_of_dom. done. }
+
+    iDestruct (big_sepM2_lookup_acc with "predsHold") as "[predMap predsHold]".
+    { done. } { done. }
+    iDestruct "predMap" as (pred' predsLook') "predMap".
     assert (pred = pred') as <-. { apply (inj Some). rewrite -predsLook. done. }
     clear predsLook'.
 
@@ -470,7 +477,17 @@ Section wp_at_rules.
     (* [ordered] *)
     iSplitL "". { admit. }
     (* [predsHold] *)
-    iSplitL "". { admit. }
+    iSplitL "predsHold predMap phi". {
+      iSpecialize ("predsHold" with "[predMap]"). { naive_solver. }
+      iApply (big_sepM2_insert_override_2 with "predsHold"); [done|done|].
+      simpl.
+      iDestruct 1 as (pred' predicatesLook) "H".
+      iExists _.
+      iSplit; first done.
+      iApply (big_sepM2_insert_2 with "[] H").
+      rewrite /msg_to_tv /store_view. simpl.
+      admit.
+    }
     iDestruct (big_sepM2_dom with "bumperSome") as %domEq.
 
     (* "bumperSome" *)

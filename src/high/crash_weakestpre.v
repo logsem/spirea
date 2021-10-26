@@ -101,8 +101,7 @@ Section wpc.
 
       (* The predicates hold for all the exclusive locations. *)
       "predsHold" ∷
-        ([∗ map] ℓ ↦ abs_hist ∈ abs_hists, ∃ pred phys_hist,
-          ⌜phys_hists !! ℓ = Some phys_hist⌝ ∗
+        ([∗ map] ℓ ↦ phys_hist;abs_hist ∈ phys_hists;abs_hists, ∃ pred,
           ⌜predicates !! ℓ = Some pred⌝ ∗
           (* The predicate holds for each message in the history. *)
           ([∗ map] t ↦ msg; encS ∈ phys_hist; abs_hist,
@@ -127,7 +126,6 @@ Section wpc.
       (* All the abstract state are "valid" inputs to the bumpers. *)
       "#bumperSome" ∷ ([∗ map] ℓ ↦ abs_hist; bumper ∈ abs_hists; bumpers,
         ⌜map_Forall (λ _ e, is_Some (bumper e)) abs_hist⌝)).
-
 
   Global Instance highExtraStateInterp : extraStateInterp Σ := {
     extra_state_interp := interp;

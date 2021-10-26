@@ -352,6 +352,38 @@ Section big_sepM2.
       naive_solver.
   Qed.
 
+  Lemma big_sepM2_insert_override Φ m1 m2 i x1 x2 x1' x2' :
+    m1 !! i = Some x1 →
+    m2 !! i = Some x2 →
+    (Φ i x1 x2 ⊣⊢ Φ i x1' x2') →
+    ([∗ map] k↦y1;y2 ∈ <[i:=x1']>m1; <[i:=x2']>m2, Φ k y1 y2) ⊣⊢
+      ([∗ map] k↦y1;y2 ∈ m1;m2, Φ k y1 y2).
+  Proof.
+    intros Hm1 Hm2 Hp. rewrite big_sepM2_eq /big_sepM2_def -map_insert_zip_with.
+    rewrite big_sepM_insert_override.
+    2: { by rewrite map_lookup_zip_with Hm1 Hm2. }
+    2: { done. }
+    apply (anti_symm _).
+  Admitted.
+  (*   - rewrite pure_intro. *)
+  (*   -  *)
+  (*   split. *)
+  (*   rewrite pure_True. 2: { set_solver.. } *)
+  (* Qed. *)
+
+  Lemma big_sepM2_insert_override_2 Φ m1 m2 i x1 x2 x1' x2' :
+    m1 !! i = Some x1 →
+    m2 !! i = Some x2 →
+    ([∗ map] k↦y1;y2 ∈ m1;m2, Φ k y1 y2) ⊢
+      (Φ i x1 x2 -∗ Φ i x1' x2') -∗ ([∗ map] k↦y1;y2 ∈ <[i:=x1']> m1; <[i:=x2']> m2, Φ k y1 y2).
+  Proof.
+    intros ??. apply wand_intro_l.
+  (*   rewrite (big_sepM2_insert_override). *)
+  (*   rewrite {1}big_sepM_delete //; rewrite assoc wand_elim_l. *)
+  (*   rewrite -insert_delete_insert big_sepM_insert ?lookup_delete //. *)
+  (* Qed. *)
+  Admitted.
+
 End big_sepM2.
 
 (* Applicative notation. *)
