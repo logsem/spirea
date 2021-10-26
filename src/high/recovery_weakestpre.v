@@ -297,7 +297,8 @@ Section wpr.
     iMod (own_update with "sharedLocs") as "sharedLocs".
     { apply auth_update_auth_persist. }
     iDestruct "sharedLocs" as "#sharedLocs".
-    iMod (own_all_bumpers_persist with "allBumpers") as "#allBumpers".
+    (* FIXME: Temporarily commented out. *)
+    (* iMod (own_all_bumpers_persist with "allBumpers") as "#allBumpers". *)
     iMod (own_update with "predicates") as "allPredicates".
     { apply auth_update_auth_persist. }
     iDestruct "allPredicates" as "#allPredicates".
@@ -441,19 +442,22 @@ Section wpr.
         rewrite /know_bumper.
         iDestruct "knowBumper" as "[$ knowBumper]".
 
-        iDestruct (own_valid_2 with "allBumpers knowBumper") as %V.
-        eapply auth_valid_to_agree_singleton_l in V.
+        (* FIXME: Temporarily commented out. *)
+        (* iDestruct (own_valid_2 with "allBumpers knowBumper") as %V. *)
+        (* eapply auth_valid_to_agree_singleton_l in V. *)
 
-        iApply (bumpers_frag_lookup with "bumpersFrag").
-        rewrite /newBumpers.
-        apply restrict_lookup_Some.
-        split; first (simplify_eq; done).
-        rewrite /newAbsHists.
-        rewrite new_abs_hist_dom.
-        rewrite domHistsEqOrders domOrdersEqBumpers.
-        apply elem_of_dom_2 in look.
-        apply elem_of_dom_2 in V.
-        set_solver. }
+        (* iApply (bumpers_frag_extract with "bumpersFrag"). *)
+        (* rewrite /newBumpers. *)
+        (* apply restrict_lookup_Some. *)
+        (* split; first (simplify_eq; done). *)
+        (* rewrite /newAbsHists. *)
+        (* rewrite new_abs_hist_dom. *)
+        (* rewrite domHistsEqOrders domOrdersEqBumpers. *)
+        (* apply elem_of_dom_2 in look. *)
+        (* apply elem_of_dom_2 in V. *)
+        (* set_solver. *)
+        admit.
+      }
       admit.
     }
     iFrame "valView".

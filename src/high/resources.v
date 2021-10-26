@@ -47,7 +47,7 @@ Class nvmHighFixedG Σ := {
   abs_histories :> ghost_mapG Σ loc (gmap time positive);
   preordersG :> inG Σ preordersR;
   shared_locsG :> inG Σ shared_locsR;
-  bumpersG :> inG Σ bumpersR
+  nvm_bumpersG :> bumpersG Σ;
 }.
 
 Class nvmHighG Σ := NvmHighG {
