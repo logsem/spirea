@@ -368,7 +368,7 @@ Section wp_at_rules.
     the step. *)
     iDestruct (own_all_preds_pred with "predicates knowPred")
       as (pred predsLook) "#predsEquiv".
-    
+
     (* We need to get the points-to predicate for [ℓ] which is is inside
     [interp]. We want to look up the points-to predicate in [ptsMap]. To this
     end, we combine our fragment of the history with the authorative element. *)
@@ -394,6 +394,8 @@ Section wp_at_rules.
     iIntros "!>" (tNew) "(%look & %gt & #valNew & pts)".
 
     iFrame "valNew".
+
+    iDestruct (bumpers_lookup with "allBumpers knowBumper") as %bumpersLook.
 
     (* We've inserted a new message at time [tNew] in the physical
     history. Hence, we must accordingly insert a new state in the abstract
@@ -437,7 +439,6 @@ Section wp_at_rules.
         rewrite lookup_insert.
         done. }
 
-
     iDestruct (big_sepM_insert_delete with "[$ptsMap $pts]") as "ptsMap".
     repeat iExists _.
     iFrame "ptsMap".
@@ -445,13 +446,61 @@ Section wp_at_rules.
 
     iSplit. { iPureIntro. etrans; first done. apply dom_insert_subseteq. }
 
+    (* [mapShared] - We need to show that the newly inserted message satisfied
+    the restriction on shared locations that their persist view and their
+    persisted after view is equal. *)
+    iSplit.
+    { iPureIntro.
+      setoid_rewrite (restrict_insert ℓ); last done.
+      apply map_Forall_insert_2; last done.
+      apply map_Forall_insert_2; first done.
+      eapply mapShared.
+      apply restrict_lookup_Some_2; done. }
+
+    (* [sharedLocsHistories] *)
+    iSplitL "sharedLocsHistories absHist".
+    {
+      rewrite /know_full_encoded_history_loc.
+      iApply (big_sepS_delete_2 with "[absHist] [sharedLocsHistories]").
+      - iExists _. iFrame "absHist". by rewrite lookup_insert.
+      - iApply (big_sepS_impl with "sharedLocsHistories").
+        iIntros "!>" (ℓ' [elm neq%not_elem_of_singleton_1]%elem_of_difference) "?".
+        iEval (setoid_rewrite (lookup_insert_ne abs_hists ℓ ℓ' _); last done).
+        iFrame. }
+    (* [ordered] *)
+    iSplitL "". { admit. }
+    (* [predsHold] *)
+    iSplitL "". { admit. }
+    iDestruct (big_sepM2_dom with "bumperSome") as %domEq.
+
+    (* "bumperSome" *)
+    iApply big_sepM2_forall. iSplit.
+    { iPureIntro. iIntros (ℓ'). setoid_rewrite <- elem_of_dom.
+      rewrite dom_insert_lookup_L; last done. rewrite domEq. done. }
+
+    iIntros (ℓ' absHist' bumper' look1 look2).
+    iDestruct (big_sepM2_forall with "bumperSome") as %[notneeded bumperSome].
+    iPureIntro.
+    destruct (decide (ℓ = ℓ')) as [->|neq].
+    - rewrite lookup_insert in look1.
+      simplify_eq.
+      apply map_Forall_insert_2; last first.
+      { eapply bumperSome; try done. }
+      (* This is where we show the "actually interesting" part or the new
+      obligation that we have (the only thing that doesn't follow from the
+      existing fact.. *)
+      rewrite /encode_bumper. rewrite decode_encode. done.
+    - eapply bumperSome; try done.
+      rewrite lookup_insert_ne in look1; done.
+
   Admitted.
+
   (*   "history absHist" *)
   (* Qed. *)
 
   (* Definition insert_hist {A} (ℓ : loc) (a : A) (m : gmap ℓ (gmap nat A)) := *)
   (*   <[]>m *)
-    
+
   (* Insert a new message into an abstract history. *)
   (* Lemma foo ℓ t abs_hist abs_hists encS : *)
   (*   (* abs_hists !! ℓ = abs_hist *) *)

@@ -300,6 +300,11 @@ Section restrict.
   Lemma restrict_empty (m : M A) : restrict (D := D) ∅ m = ∅.
   Proof. apply map_filter_empty_iff. intros ???. set_solver. Qed.
 
+  Lemma restrict_insert k s v m :
+    k ∈ s →
+    restrict s (<[ k := v ]>m) = <[ k:= v]>(restrict s m).
+  Proof. intros elm. by apply map_filter_insert_True. Qed.
+
 End restrict.
 
 Section restrict_leibniz.
