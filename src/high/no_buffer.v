@@ -82,11 +82,18 @@ Section no_buffer_rules.
   Lemma no_buffer_know_flush_lb `{AbstractState ST} ℓ (s : ST) :
     know_flush_lb ℓ s -∗ <nobuf> know_flush_lb ℓ s.
   Proof.
-  Admitted.
-  (*   rewrite /know_flush_lb. *)
-  (*   iModel. *)
-  (*   simpl. *)
-  (* Qed. *)
+    rewrite /know_flush_lb.
+    iModel.
+    simpl.
+    iDestruct 1 as (???) "HI".
+    iExists _, _.
+    iFrame. done.
+  Qed.
+
+  Global Instance into_no_buffer_know_flush_lb  `{AbstractState ST} ℓ s :
+    IntoNoBuffer (know_flush_lb ℓ s) (know_flush_lb ℓ s).
+  Proof. rewrite /IntoNoBuffer. eauto using no_buffer_know_flush_lb. Qed.
+
 End no_buffer_rules.
 
 Section no_buffer_test.

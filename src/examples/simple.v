@@ -9,7 +9,8 @@ From self.algebra Require Import view.
 From self.base Require Import primitive_laws class_instances.
 From self.high Require Import proofmode wpc_proofmode.
 From self.high Require Import dprop resources crash_weakestpre weakestpre
-     recovery_weakestpre lifted_modalities modalities post_crash_modality protocol.
+     recovery_weakestpre lifted_modalities modalities post_crash_modality
+     protocol no_buffer.
 
 Definition prog : expr := let: "l" := ref #1 in ! "l".
 
@@ -98,10 +99,7 @@ Section simple_increment.
     done.
   Qed.
   Next Obligation.
-    iIntros (????).
-    rewrite /ϕb.
-    iApply no_buffer_pure.
-    done.
+    iIntros (????). iIntros "[? H]". iModIntro. iFrame.
   Qed.
 
   Definition crash_condition {hD : nvmDeltaG Σ} ℓa ℓb : dProp Σ :=
