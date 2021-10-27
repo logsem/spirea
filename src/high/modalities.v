@@ -30,7 +30,7 @@ Class IntoFence {Σ} (P: dProp Σ) (Q : dProp Σ) :=
   into_crash : P -∗ <fence> Q.
 
 Section post_fence.
-  Context `{Σ : iprop.gFunctors}.
+  Context `{Σ : gFunctors}.
 
   Implicit Types (P : dProp Σ).
 
@@ -111,7 +111,7 @@ Section post_fence.
 
 End post_fence.
 
-Program Definition no_buffer {Σ} (P : dProp Σ) : dProp Σ :=
+Program Definition no_buffer `{Σ : gFunctors} (P : dProp Σ) : dProp Σ :=
   MonPred (λ tv, P (store_view tv, flush_view tv, ∅)) _.
 Next Obligation.
   (* FIXME: Figure out if there is a way to make [solve_proper] handle this,
@@ -124,6 +124,3 @@ Qed.
 
 Notation "'<nobuf>' P" :=
   (no_buffer P) (at level 20, right associativity) : bi_scope.
-
-Section no_buffer.
-End no_buffer.

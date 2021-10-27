@@ -2,7 +2,7 @@ From iris.base_logic.lib Require Import own ghost_map.
 From iris.proofmode Require Import reduction monpred tactics.
 From iris_named_props Require Import named_props.
 
-From self.high Require Import dprop resources post_crash_modality monpred_simpl.
+From self.high Require Import dprop resources modalities post_crash_modality monpred_simpl.
 From self.lang Require Import lang.
 
 
@@ -19,7 +19,9 @@ Class LocationProtocol `{AbstractState ST, nvmFixedG Σ} (ϕ : loc_pred ST) := {
   bumper_mono :> Proper ((⊑@{ST}) ==> (⊑))%signature bumper;
   phi_condition :
     (⊢ ∀ (hD : nvmDeltaG Σ) s v,
-      ϕ s v hD -∗ <PCF> hD', ϕ (bumper s) v hD' : dProp Σ)%I
+      ϕ s v hD -∗ <PCF> hD', ϕ (bumper s) v hD' : dProp Σ)%I;
+  phi_nobuf :
+    (⊢ ∀ (hD : nvmDeltaG Σ) s v, ϕ s v hD -∗ <nobuf> ϕ s v hD)%I
 }.
 
 (** [know_protocol] represents the knowledge that a location is associated with a

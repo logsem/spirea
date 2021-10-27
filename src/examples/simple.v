@@ -9,7 +9,7 @@ From self.algebra Require Import view.
 From self.base Require Import primitive_laws class_instances.
 From self.high Require Import proofmode wpc_proofmode.
 From self.high Require Import dprop resources crash_weakestpre weakestpre
-     recovery_weakestpre lifted_modalities post_crash_modality protocol.
+     recovery_weakestpre lifted_modalities modalities post_crash_modality protocol.
 
 Definition prog : expr := let: "l" := ref #1 in ! "l".
 
@@ -84,6 +84,7 @@ Section simple_increment.
 
   Program Instance : LocationProtocol ϕa := { bumper n := n }.
   Next Obligation. iIntros. by iApply post_crash_flush_pure. Qed.
+  Next Obligation. iIntros (????). iApply no_buffer_pure. done. Qed.
 
   (* Predicate used for the location [b]. *)
   Definition ϕb (ℓa : loc) : loc_pred (Σ := Σ) nat :=
@@ -94,6 +95,12 @@ Section simple_increment.
     iIntros (????) "[% lb]".
     iCrashFlush.
     iDestruct "lb" as "(_ & $ & _)".
+    done.
+  Qed.
+  Next Obligation.
+    iIntros (????).
+    rewrite /ϕb.
+    iApply no_buffer_pure.
     done.
   Qed.
 
