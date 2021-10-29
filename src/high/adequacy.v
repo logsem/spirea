@@ -475,17 +475,20 @@ Proof.
   rewrite /cred_interp.
   iPureGoal; first done.
   rewrite /interp.
-  iExists _, ∅, ∅, ∅, ∅, ∅, ∅.
+  iExists ∅, ∅, ∅, ∅, ∅, ∅, ∅.
   simpl.
   iFrame.
-  rewrite 4!big_sepM2_empty. rewrite 4!left_id.
-  rewrite 2!big_sepM_empty. rewrite 1!left_id.
+  iEval (rewrite !big_sepM2_empty).
+  iEval (rewrite !big_sepM_empty).
+  iEval (rewrite !big_sepS_empty).
 
   iPureIntro.
-  replace (restrict ∅ σ) with (∅ : store).
-  2: { symmetry. apply restrict_empty. }
-  split; first done.
-  split; apply map_Forall_empty.
+  (* rewrite !left_id !right_id. *)
+  done.
+  (* replace (restrict ∅ σ) with (∅ : store). *)
+  (* 2: { symmetry. apply restrict_empty. } *)
+  (* split; first done. *)
+  (* split; apply map_Forall_empty. *)
 Qed.
 
 (* This adequacy lemma is similar to the adequacy lemma for [wpr] in Perennial:

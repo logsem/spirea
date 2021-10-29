@@ -278,19 +278,18 @@ Section points_to_shared.
   [s] but must ensure that exactly [s] exists in the abstract history. *)
   Program Definition know_persist_lb ℓ (sP : ST) : dProp Σ :=
     MonPred (λ TV,
-      ∃ tP sP',
-        "%sPInclSP'" ∷ ⌜ sP ⊑ sP' ⌝ ∗
+      ∃ tP,
+        (* "%sPInclSP'" ∷ ⌜ sP ⊑ sP' ⌝ ∗ *)
         (* We have the persisted state in our store view. *)
         "%tPLe" ∷ ⌜ tP ≤ (store_view TV) !!0 ℓ ⌝ ∗
         "persisted" ∷ persisted_loc ℓ tP ∗
         "order" ∷ know_preorder_loc ℓ abs_state_relation ∗
-        "knowFragHist" ∷ know_frag_history_loc ℓ {[ tP := sP' ]})%I _.
+        "knowFragHist" ∷ know_frag_history_loc ℓ {[ tP := sP ]})%I _.
   Next Obligation. solve_proper. Qed.
 
   Program Definition know_flush_lb ℓ (s : ST) : dProp Σ :=
     MonPred (λ TV,
-      ∃ (tF : nat) s',
-        "%sInclS'" ∷ ⌜ s ⊑ s' ⌝ ∗
+      ∃ (tF : nat),
         (* Either the location is persisted or we have something in the flush
         view. The later case is for use after a crash where we don't have
         anything in the flush view. *)
@@ -300,17 +299,16 @@ Section points_to_shared.
         (*            (⌜tF = 0⌝ ∗ persisted_loc ℓ 0)) ∗ *)
         (* (⌜ tF ≤ (flush_view TV) !!0 ℓ ⌝ ∨ ⌜tF = 0⌝ ∗ ) ∗ *)
         "order" ∷ know_preorder_loc ℓ abs_state_relation ∗
-        "knowFragHist" ∷ know_frag_history_loc ℓ {[ tF := s' ]}
+        "knowFragHist" ∷ know_frag_history_loc ℓ {[ tF := s ]}
     )%I _.
   Next Obligation. solve_proper. Qed.
 
   Program Definition know_store_lb ℓ (s : ST) : dProp Σ :=
     MonPred (λ TV,
-      ∃ (tS : nat) s',
-        "%sInclS'" ∷ ⌜ s ⊑ s' ⌝ ∗
+      ∃ (tS : nat),
         "%tSLe" ∷ ⌜ tS ≤ (store_view TV) !!0 ℓ ⌝ ∗
         "order" ∷ know_preorder_loc ℓ abs_state_relation ∗
-        "knowFragHist" ∷ know_frag_history_loc ℓ {[ tS := s' ]}
+        "knowFragHist" ∷ know_frag_history_loc ℓ {[ tS := s ]}
     )%I _.
   Next Obligation. solve_proper. Qed.
 
@@ -357,6 +355,7 @@ Section points_to_shared.
   (*   iIntros (? ?) "?". iExists 0, s'. iFrame "%∗". iPureIntro. lia. *)
   (* Qed. *)
 
+  (*
   Lemma know_store_lb_at_zero ℓ (s s' : ST) :
     s ⊑ s' →
     ⎡ know_frag_history_loc ℓ {[0 := s']} ⎤ -∗
@@ -366,6 +365,7 @@ Section points_to_shared.
     iStartProof (iProp _). iIntros (incl ?) "?".
     iIntros (? ?) "?". iExists 0, s'. iFrame "%∗". iPureIntro. lia.
   Qed.
+  *)
 
   (* A few utility lemmas. *)
   Lemma recovered_at_not_lot ℓ s : recovered_at ℓ s -∗ lost ℓ -∗ False.

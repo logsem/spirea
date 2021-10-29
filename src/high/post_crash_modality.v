@@ -583,7 +583,7 @@ Section post_crash_derived.
     post_crash (λ hG, ∃ s', ⌜s ⊑ s'⌝ ∗
       know_persist_lb ℓ s' ∗
       know_flush_lb ℓ s' ∗
-      know_store_lb ℓ s).
+      know_store_lb ℓ s').
   Proof.
     iStartProof (iProp _). iIntros (TV).
     iNamed 1.
@@ -598,11 +598,11 @@ Section post_crash_derived.
     iSplit; first done.
     (* We show the global persist lower bound. *)
     iSplit.
-    { iExists 0, s''. iFrame "#%". iPureIntro. split; first reflexivity. lia. }
+    { iExists 0. iFrame "#%". iPureIntro. lia. }
     (* We show the local persist lower bound. *)
     iSplit.
-    - iExists 0, s''. iFrame "#%". iPureIntro. naive_solver.
-    - iApply know_store_lb_at_zero; done.
+    - iExists 0. iFrame "#%". iPureIntro. naive_solver.
+    - iExists 0. iFrame "#%". iPureIntro. lia. 
   Qed.
 
   (* NOTE: This rule should be changed once the "bump-back function" is
@@ -804,10 +804,10 @@ Section post_crash_persisted.
   Lemma post_crash_flush_know_flush_lb `{AbstractState ST}
         (ℓ : loc) (s : ST) :
     know_flush_lb ℓ s -∗
-    <PCF> hG,
-      know_persist_lb ℓ s ∗
-      know_flush_lb ℓ s ∗
-      know_store_lb ℓ s.
+    <PCF> hG, ∃ s__pc, ⌜s ⊑ s__pc⌝ ∗ 
+      know_persist_lb ℓ s__pc ∗
+      know_flush_lb ℓ s__pc ∗
+      know_store_lb ℓ s__pc.
   Proof.
     iStartProof (iProp _).
     iIntros (TV).
@@ -851,19 +851,16 @@ Section post_crash_persisted.
         rewrite lookup_fmap.
         rewrite eq.
         done. }
+      iExists s''.
+      iSplit. { done. }
+      iSplit. { iExists 0. iFrameNamed. iPureIntro. lia. }
       iSplit.
-      { iExists 0, s''.
+      { iExists 0.
         iFrameNamed.
-        iPureGoal; first done.
-        iPureIntro. apply lookup_zero_gt_zero. }
-      iSplit.
-      { iExists 0, s''.
-        iFrameNamed.
-        iPureGoal; first done.
         iRight. by iFrame "#". }
-      iExists 0, s''.
+      iExists 0.
       iFrameNamed.
-      iPureGoal; first done.
+      (* iPureGoal. {} first done. *)
       iPureIntro. apply lookup_zero_gt_zero.
     * base.post_crash_modality.iCrash.
       iNamed 1.
@@ -888,20 +885,13 @@ Section post_crash_persisted.
         rewrite /lookup_zero.
         rewrite eq.
         lia. }
+      iExists s''.
+      iSplit. { done. }
       iSplit.
-      { iExists 0, s''.
-        iFrameNamed.
-        iPureIntro.
-        split; [done|lia]. }
+      { iExists 0. iFrameNamed. iPureIntro. lia. }
       iSplit.
-      { iExists 0, s''.
-        iFrameNamed.
-        iPureGoal; first done.
-        iRight. by iFrame "#". }
-      iExists 0, s''.
-      iFrameNamed.
-      iPureGoal; first done.
-      iPureIntro. apply lookup_zero_gt_zero.
+      { iExists 0. iFrameNamed. iRight. by iFrame "#". }
+      iExists 0. iFrameNamed. iPureIntro. lia.
   Qed.
 
 End post_crash_persisted.
@@ -931,10 +921,10 @@ Section IntoCrashFlush.
   (* Proof. rewrite /IntoCrashFlush. iIntros "%". by iApply post_crash_flush_pure. Qed. *)
 
   Global Instance know_flush_into_crash `{AbstractState ST} ℓ (s : ST) :
-    IntoCrashFlush (know_flush_lb ℓ s) (λ _,
-      know_persist_lb ℓ s ∗
-      know_flush_lb ℓ s ∗
-      know_store_lb ℓ s)%I.
+    IntoCrashFlush (know_flush_lb ℓ s) (λ _, ∃ s__pc, ⌜ s ⊑ s__pc ⌝ ∗
+      know_persist_lb ℓ s__pc ∗
+      know_flush_lb ℓ s__pc ∗
+      know_store_lb ℓ s__pc)%I.
   Proof.
     rewrite /IntoCrashFlush. iIntros "P".
     by iApply post_crash_flush_know_flush_lb.

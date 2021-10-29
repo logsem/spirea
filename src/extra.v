@@ -328,6 +328,24 @@ Section big_sepM2.
   Context `{Countable K} {A B : Type}.
   Implicit Types Φ Ψ : K → A → B → PROP.
 
+  Lemma big_sepM2_impl_dom_subseteq Φ Ψ m1 m2 n1 n2 :
+    dom (gset _) n1 ⊆ dom (gset _) m1 →
+    dom (gset _) n1 = dom (gset _) n2 →
+    ([∗ map] k↦x1;x2 ∈ m1;m2, Φ k x1 x2) -∗
+    □ (∀ (k : K) x1 x2 y1 y2,
+        ⌜m1 !! k = Some x1⌝ → ⌜m2 !! k = Some x2⌝ →
+        ⌜n1 !! k = Some y1⌝ → ⌜n2 !! k = Some y2⌝ → Φ k x1 x2 -∗ Ψ k y1 y2) -∗
+    ([∗ map] k↦y1;y2 ∈ n1;n2, Ψ k y1 y2).
+    (* ∗ ([∗ map] k↦x ∈ filter (λ '(k, _), m2 !! k = None) m1, Φ k x). *)
+  Proof.
+    iIntros (sub1 sub2).
+    rewrite !big_sepM2_alt.
+    iIntros "[%impl sep] #impl".
+  Admitted.
+  (*   iDestruct (big_sepM_impl_dom_subseteq with "[] [sep]") as "[hi temp]". *)
+  (*   4: { iApply "hi". } *)
+  (* Qed. *)
+    
   Lemma big_sepM2_impl_subseteq `{!BiAffine PROP} (m1 n1 : gmap K A) (m2 n2 : gmap K B) Φ :
     n1 ⊆ m1 →
     n2 ⊆ m2 →

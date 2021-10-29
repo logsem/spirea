@@ -85,9 +85,7 @@ Section no_buffer_rules.
     rewrite /know_flush_lb.
     iModel.
     simpl.
-    iDestruct 1 as (???) "HI".
-    iExists _, _.
-    iFrame. done.
+    iDestruct 1 as (?) "HI". iExists _. iFrame.
   Qed.
 
   Global Instance into_no_buffer_know_flush_lb  `{AbstractState ST} ℓ s :
@@ -102,7 +100,7 @@ Section no_buffer_test.
   Implicit Types (P : dProp Σ).
 
   Lemma test φ (P : iProp Σ) :
-    ⌜φ⌝ -∗ ⎡P⎤ -∗ <nobuf> (⌜φ⌝ ∗ ⎡P⎤).
+    ⌜ φ ⌝ -∗ ⎡ P ⎤ -∗ <nobuf> (⌜ φ ⌝ ∗ ⎡ P ⎤).
   Proof.
     iIntros "ph P".
     iModIntro.

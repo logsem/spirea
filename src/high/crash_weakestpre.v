@@ -96,7 +96,7 @@ Section wpc.
       (* Exclusive locations. *)
       (* "exclusiveLocs" ∷ own exclusive_locs_name (● exclusive_locs) ∗ *)
 
-      "ordered" ∷ ([∗ map] ℓ ↦ hist; order ∈ abs_hists; orders,
+      "#ordered" ∷ ([∗ map] ℓ ↦ hist; order ∈ abs_hists; orders,
                     ⌜increasing_map order hist⌝) ∗
 
       (* The predicates hold for all the exclusive locations. *)

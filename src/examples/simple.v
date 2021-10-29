@@ -89,17 +89,20 @@ Section simple_increment.
 
   (* Predicate used for the location [b]. *)
   Definition ϕb (ℓa : loc) : loc_pred (Σ := Σ) nat :=
-    λ n v _, (⌜v = #n⌝ ∗ know_flush_lb ℓa n)%I.
+    λ n v _, (⌜v = #n⌝ ∗ ∃ m, ⌜ n ≤ m ⌝ ∗ know_flush_lb ℓa m)%I.
 
   Program Instance protocol_b ℓa : LocationProtocol (ϕb ℓa) := { bumper n := n }.
   Next Obligation.
     iIntros (????) "[% lb]".
+    iDestruct "lb" as (m ?) "lb".
     iCrashFlush.
-    iDestruct "lb" as "(_ & $ & _)".
-    done.
+    iDestruct "lb" as (??) "(_ & H & _)".
+    iPureGoal; first done.
+    iExists _. iFrame .
+    iPureIntro. etrans; done.
   Qed.
   Next Obligation.
-    iIntros (????). iIntros "[? H]". iModIntro. iFrame.
+    iIntros (????). iIntros "[? (% & H1 & H2)]". iModIntro. iFrame. naive_solver.
   Qed.
 
   Definition crash_condition {hD : nvmDeltaG Σ} ℓa ℓb : dProp Σ :=
@@ -183,7 +186,7 @@ Section simple_increment.
     iApply (wp_store_ex with "[$bPts]").
     { reflexivity. }
     { suff leq : (0 ≤ 1); first apply leq. lia. }
-    { iFrame "#". iFrame "pLowerBound". done. }
+    { iFrame "#". iPureGoal; first done. naive_solver. }
     iNext. iIntros "bPts".
     iSplit.
     { iModIntro. iApply (prove_crash_condition with "aPred bPred aPts bPts"). }
@@ -222,10 +225,12 @@ Section simple_increment.
     wpc_bind (! _)%E.
     iApply wpc_atomic_no_mask.
     iSplit; first iApply (prove_crash_condition with "aPred bPred aPts bPts").
-    iApply (wp_load_ex _ _ _ _ (λ v, ⌜v = #sB⌝ ∗ know_flush_lb ℓa sB)%I
+    iApply (wp_load_ex _ _ _ _ (λ v, ∃ sB', ⌜ sB ⊑ sB' ⌝ ∗ ⌜v = #sB⌝ ∗ know_flush_lb ℓa sB')%I
               with "[$bPts $bPred]"); first done.
-    { iModIntro. iIntros (?) "[-> #?]". rewrite /ϕb. iFrame "#". naive_solver. }
-    iIntros "!>" (?) "(bPts & -> & lub)".
+    { iModIntro. iIntros (?) "(-> & (%sB' & % & #?))".
+      iSplit. { iExists _. iFrame "#". naive_solver. }
+      rewrite /ϕb. iFrame "#". naive_solver. }
+    iIntros "!>" (?) "(bPts & (%sB' & %incl2 & -> & lub))".
     iSplit.
     { iModIntro. iApply (prove_crash_condition with "aPred bPred aPts bPts"). }
 
@@ -234,7 +239,7 @@ Section simple_increment.
 
     iDestruct (mapsto_ex_flush_lb_incl with "lub aPts") as %incl; first done.
     rewrite bool_decide_eq_false_2.
-    2: { rewrite subseteq_nat_le in incl. lia. }
+    2: { rewrite subseteq_nat_le in incl. rewrite subseteq_nat_le in incl2. lia. }
 
     wpc_pures; first iApply (prove_crash_condition with "aPred bPred aPts bPts").
 

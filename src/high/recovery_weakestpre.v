@@ -463,6 +463,7 @@ Section wpr.
     iFrame "valView".
     iSplit; first done.
     (* We show the state interpretation for the high-level logic. *)
+    iExists _.
     repeat iExists _.
     rewrite /own_full_history.
     iFrame "newOrders newPreds hists' newSharedLocs newCrashedAt".
@@ -503,10 +504,15 @@ Section wpr.
       (* We use the old predsHold to show the new predsHold. There are more
       locations in the old abstract state so the new predsHold is over a subset
       of locations. *)
-      iDestruct (big_sepM_impl_dom_subseteq with "predsHold []") as "[$ temp]".
-      { rewrite new_abs_hist_dom. set_solver. }
+      iDestruct (big_sepM2_impl_dom_subseteq with "predsHold []") as "$".
+      { admit. (* Lemma for this. *) }
+      { admit. }
+      (* iDestruct (big_sepM_impl_dom_subseteq with "predsHold []") as "[$ temp]". *)
+      (* { rewrite new_abs_hist_dom. set_solver. } *)
       iModIntro.
-      iIntros (ℓ encHist newEncHist absHistLook newAbsHistLook).
+      iIntros (ℓ physHist encHist newPhysHist newAbsHist physHistsLook
+               absHistLook newPhysHistsLook newAbsHistLook).
+      (* iIntros (ℓ encHist newEncHist absHistLook newAbsHistLook). *)
 
       pose proof (new_abs_hist_lookup_inv _ _ _ _ _ newAbsHistLook)
         as (t & s & s' & bumper & hist & CVLook & absHistsLook & histLook &
@@ -514,7 +520,8 @@ Section wpr.
       (* Can we avoid introducing [encHist] altogether? *)
       assert (encHist = hist) as -> by congruence.
 
-      iIntros "(%pred & %physHist & %physHistLook & %predsLook & encs)".
+      (* iIntros "(%pred & %physHist & %physHistLook & %predsLook & encs)". *)
+      iIntros "(%pred & %predsLook & encs)".
       (* assert (is_Some (CV !! ℓ)) as [[t] CVLook]. *)
       (* { apply elem_of_dom_2 in newAbsHistLook. *)
       (*   rewrite /newAbsHists in newAbsHistLook. *)
@@ -524,28 +531,58 @@ Section wpr.
       epose proof (holo _ _ _ _ CVLook cut) as (msg & physHist' & storeLook & hi & ho).
       (* FIXME: Can we avoid introducting [physHist] altogether? *)
       assert (physHist = physHist') as <- by eauto using map_subseteq_lookup_eq.
-      iExists pred, {[ 0 := discard_msg_views msg]}.
-      iPureGoal. {
-        rewrite /slice_of_store /slice_of_hist map_fmap_zip_with.
-        apply slice_of_store_lookup_Some_singleton in ho.
-        destruct ho as (tt & ?tempHist & eq & ? & ?).
-        assert (physHist = tempHist) as <- by eauto using map_subseteq_lookup_eq.
-        apply map_lookup_zip_with_Some.
-        exists (MaxNat tt), physHist.
-        rewrite -lookup_fmap in H1.
-        apply lookup_fmap_Some in H1.
-        destruct H1 as (msg' & eq' & ->).
-        split_and!; [| done | done].
-        destruct msg, msg'. rewrite /discard_msg_views. simpl.
-        simpl in eq'.
-        rewrite map_fmap_singleton.
-        simpl.
-        congruence. }
+      (* iExists pred, {[ 0 := discard_msg_views msg]}. *)
+      iExists pred.
+      (* iPureGoal. { *)
+      (*   rewrite /slice_of_store /slice_of_hist map_fmap_zip_with. *)
+      (*   apply slice_of_store_lookup_Some_singleton in ho. *)
+      (*   destruct ho as (tt & ?tempHist & eq & ? & ?). *)
+      (*   assert (physHist = tempHist) as <- by eauto using map_subseteq_lookup_eq. *)
+      (*   apply map_lookup_zip_with_Some. *)
+      (*   exists (MaxNat tt), physHist. *)
+      (*   rewrite -lookup_fmap in H1. *)
+      (*   apply lookup_fmap_Some in H1. *)
+      (*   destruct H1 as (msg' & eq' & ->). *)
+      (*   split_and!; [| done | done]. *)
+      (*   destruct msg, msg'. rewrite /discard_msg_views. simpl. *)
+      (*   simpl in eq'. *)
+      (*   rewrite map_fmap_singleton. *)
+      (*   simpl. *)
+      (*   congruence. } *)
       iPureGoal. {
         rewrite /newPreds.
         apply restrict_lookup_Some_2; first done.
         apply elem_of_dom. done. }
       rewrite histEq.
+      iDestruct (big_sepM2_dom with "encs") as %domEq.
+      assert (newPhysHist = {[ 0 := discard_msg_views msg ]}).
+      {
+        (* apply (inj Some). *)
+        (* rewrite -ho. *)
+        (* rewrite -newPhysHistsLook. *)
+        (* done. *)
+        assert (is_Some (physHist !! t)) as [msg' physHistLook].
+        { apply elem_of_dom. rewrite domEq. apply elem_of_dom. naive_solver. }
+        (* eapply slice_of_store_lookup_Some in newPhysHistsLook. *)
+        apply slice_of_store_lookup_Some_singleton in ho.
+        destruct ho as (tt & ?tempHist & eq & ? & ?).
+        assert (physHist = tempHist) as <- by eauto using map_subseteq_lookup_eq.
+      (*   apply map_lookup_zip_with_Some. *)
+      (*   exists (MaxNat tt), physHist. *)
+        rewrite -lookup_fmap in H1.
+        apply lookup_fmap_Some in H1.
+        (* destruct H1 as (msg' & eq' & eq2). *)
+        admit.
+        (* eapply slice_of_store_lookup_Some in newPhysHistsLook. *)
+        (* 2: { done. } *)
+        (* split_and!; [| done | done]. *)
+        (* destruct msg, msg'. rewrite /discard_msg_views. simpl. *)
+        (* simpl in eq'. *)
+        (* rewrite map_fmap_singleton. *)
+        (* simpl. *)
+        (* congruence. } *)
+      }
+      rewrite H0.
       rewrite big_sepM2_singleton.
 
       (* We look up the relevant predicate in [encs]. *)

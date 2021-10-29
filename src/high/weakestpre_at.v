@@ -240,7 +240,7 @@ Section wp_at_rules.
     rewrite orderEq in orderRelated.
     epose proof (encode_relation_related _ _ _ orderRelated)
       as (? & sL & eqX & decodeS' & s3InclS').
-    assert (x = s') as -> by congruence.
+    assert (x = s) as -> by congruence.
 
     iDestruct (predicate_holds_phi_decode with "predsEquiv predHolds") as "PH";
       first done.
@@ -248,7 +248,7 @@ Section wp_at_rules.
     monPred_simpl.
     iEval (setoid_rewrite monPred_at_wand) in "pToQ".
     iDestruct ("pToQ" $! (SV', PV', ∅) with "[//] [%] [//] PH") as "[Q phi]".
-    { etrans; done. }
+    { done. }
     (* Reinsert into the predicate map. *)
     iDestruct ("predMap" with "[phi]") as "predMap".
     { iFrame "%".
@@ -278,9 +278,9 @@ Section wp_at_rules.
     { do 2 (etrans; first done). repeat split; auto using view_le_l. }
     iSplitR "Q".
     - iFrameNamed.
-      iExists t', sL.
+      iExists t'.
+      (* iExists t', sL. *)
       iFrame "∗#".
-      iSplit; first done.
       (* FIXME: Intuitively the lhs. should be included in because we read [t']
       and a write includes its own timestamp. But, we don't remember this fact,
       yet. *)
@@ -299,7 +299,7 @@ Section wp_at_rules.
       "knowProt" ∷ know_protocol ℓ ϕ ∗
       "isSharedLoc" ∷ ⎡ is_shared_loc ℓ ⎤ ∗
       "storeLB" ∷ know_store_lb ℓ s1 ∗
-      "phi" ∷ <nobuf> (ϕ s2 v _) ∗
+      "phi" ∷ ϕ s2 v _ ∗
       (* The new state must be greater than the possible current states. *)
       "greater" ∷ (∀ s' v', ⌜ s1 ⊑ s' ⌝ ∗ ϕ s' v' _ -∗ ⌜ s' ⊑ s2 ⌝)
     }}}
@@ -435,12 +435,11 @@ Section wp_at_rules.
         * etrans; first apply incl2. apply view_insert_le. lia.
         * apply incl2.
         * apply incl2.
-      - iExists _, _.
+      - iExists _.
         iDestruct (own_frag_equiv _ _ {[ tNew := s2 ]} with "[histFrag]") as "histFrag".
         { rewrite map_fmap_singleton. iFrame "histFrag". }
         iFrame "histFrag knowPreorder".
         iPureIntro.
-        split; first done.
         rewrite /store_view. simpl.
         rewrite /lookup_zero.
         rewrite lookup_insert.
@@ -475,7 +474,26 @@ Section wp_at_rules.
         iEval (setoid_rewrite (lookup_insert_ne abs_hists ℓ ℓ' _); last done).
         iFrame. }
     (* [ordered] *)
-    iSplitL "". { admit. }
+
+    iSplitL "". {
+      iDestruct (big_sepM2_forall with "ordered") as %[? orderedForall].
+      iApply big_sepM2_forall.
+      iSplit.
+      { admit. }
+      iPureIntro. simpl.
+      intros ℓ'.
+      destruct (decide (ℓ' = ℓ)) as [->|neq]; last first.
+      { setoid_rewrite lookup_insert_ne; last done. apply orderedForall. }
+      setoid_rewrite lookup_insert.
+      intros absHist' order [= <-] ordersLook.
+      specialize (orderedForall _ _ _ absHistsLook ordersLook).
+      rewrite /increasing_map.
+      intros absList order' absHistLook'.
+      (* We need to show that the newly inserted abstract state is greater than
+      all the ones before it. *)
+
+      admit.
+    }
     (* [predsHold] *)
     iSplitL "predsHold predMap phi". {
       iSpecialize ("predsHold" with "[predMap]"). { naive_solver. }
