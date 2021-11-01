@@ -41,11 +41,6 @@ Section wpc.
     still holds. *)
     (m.(msg_store_view), m.(msg_persisted_after_view), ∅).
 
-  Definition encoded_predicate_holds
-             (enc_pred : positive → val → option (nvmDeltaG Σ → dProp Σ))
-             (enc_state : positive) (v : val) TV : iProp Σ :=
-    (∃ P, ⌜enc_pred enc_state v = Some P⌝ ∗ P _ TV).
-
   Definition pred_post_crash_implication {ST}
              (ϕ : ST → val → _ → dProp Σ) bumper : dProp Σ :=
     □ ∀ (hD : nvmDeltaG Σ) s v, ϕ s v hD -∗ <PCF> hD', ϕ (bumper s) v hD'.

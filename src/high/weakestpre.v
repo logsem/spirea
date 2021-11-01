@@ -161,38 +161,6 @@ Section wp_rules.
 
   Hint Extern 0 (MakeMonPredAt _ (named _ _) _) => apply make_monPred_at_embed2 : typeclass_instances.
 
-  Lemma predicate_holds_phi ϕ s encS (encϕ : predO) v TV :
-    encS = encode s →
-    (encϕ ≡ encode_predicate ϕ)%I -∗
-    (encoded_predicate_holds encϕ encS v TV ∗-∗ ϕ s v _ TV).
-  Proof.
-    iIntros (eqEncS) "predsEquiv".
-    iSplit.
-    - iDestruct 1 as (P) "[%eqP PH]".
-      do 2 iEval (setoid_rewrite discrete_fun_equivI) in "predsEquiv".
-      iSpecialize ("predsEquiv" $! encS v).
-      rewrite /encode_predicate.
-      rewrite {2}eqEncS.
-      rewrite decode_encode.
-      simpl.
-      rewrite eqP.
-      rewrite option_equivI.
-      iEval (setoid_rewrite discrete_fun_equivI) in "predsEquiv".
-      iSpecialize ("predsEquiv" $! hG).
-      by iRewrite -"predsEquiv".
-    - iIntros "phi".
-      rewrite /encoded_predicate_holds.
-      do 2 iEval (setoid_rewrite discrete_fun_equivI) in "predsEquiv".
-      iSpecialize ("predsEquiv" $! encS v).
-      rewrite /encode_predicate. rewrite eqEncS. rewrite decode_encode.
-      simpl.
-      destruct (encϕ (encode s) v); rewrite option_equivI; last done.
-      iExists _. iSplit; first done.
-      iEval (setoid_rewrite discrete_fun_equivI) in "predsEquiv".
-      iSpecialize ("predsEquiv" $! hG).
-      by iRewrite "predsEquiv".
-  Qed.
-
   Lemma wp_load_ex ℓ (b : bool) ss s Q ϕ `{!LocationProtocol ϕ} positive E :
     last ss = Some s →
     {{{ mapsto_ex b ℓ ss ∗

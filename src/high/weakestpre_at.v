@@ -36,7 +36,7 @@ Section wp_at_rules.
   Proof.
     iIntros (eq') "predsEquiv".
     iSplit.
-    - iDestruct 1 as (P') "[%eq PH]".
+    - iDestruct 1 as (P') "[eq PH]".
       iDestruct (discrete_fun_equivI with "predsEquiv") as "HI".
       iDestruct ("HI" $! encS) as "HIP". (* iClear "HI". *)
       iEval (rewrite discrete_fun_equivI) in "HIP".
@@ -44,8 +44,8 @@ Section wp_at_rules.
       rewrite /encode_predicate.
       rewrite eq'.
       simpl.
+      iRewrite "eq" in "HI".
       rewrite option_equivI.
-      rewrite eq.
       iEval (setoid_rewrite discrete_fun_equivI) in "HI".
       iSpecialize ("HI" $! hG).
       by iRewrite "HI" in "PH".
@@ -60,6 +60,20 @@ Section wp_at_rules.
       iEval (setoid_rewrite discrete_fun_equivI) in "predsEquiv".
       iSpecialize ("predsEquiv" $! hG).
       by iRewrite "predsEquiv".
+  Qed.
+
+  Lemma pred_encode_Some ϕ (s : ST) (v : val) (pred : predO) :
+    (pred ≡ encode_predicate ϕ : iProp Σ) -∗
+    (pred (encode s) v ≡ Some (ϕ s v) : iProp Σ).
+  Proof.
+    iIntros "eq".
+    iEval (setoid_rewrite discrete_fun_equivI) in "eq".
+    iEval (setoid_rewrite discrete_fun_equivI) in "eq".
+    iSpecialize ("eq" $! (encode s) v).
+    Unshelve. 2: { done. } 2: { done. }
+    rewrite /encode_predicate. rewrite decode_encode /=.
+    (* iRewrite "eq". *) (* Why this no work? *)
+    done.
   Qed.
 
   Lemma msg_persisted_views_eq'
@@ -294,18 +308,21 @@ Section wp_at_rules.
       * apply view_empty_least.
   Admitted.
 
-  Lemma wp_store_rel ℓ v s1 s2 ϕ `{!LocationProtocol ϕ} positive E :
+  (* Rule for store on an atomic. *)
+  Lemma wp_store_at ℓ s_i s_t v_t ϕ `{!LocationProtocol ϕ} positive E :
     {{{
       "knowProt" ∷ know_protocol ℓ ϕ ∗
       "isSharedLoc" ∷ ⎡ is_shared_loc ℓ ⎤ ∗
-      "storeLB" ∷ know_store_lb ℓ s1 ∗
-      "phi" ∷ ϕ s2 v _ ∗
+      "storeLB" ∷ know_store_lb ℓ s_i ∗
+      "phi" ∷ (∀ v_i, ϕ s_i v_i _ -∗ ϕ s_t v_t _ ∗ ϕ s_i v_i _) ∗
       (* The new state must be greater than the possible current states. *)
-      "greater" ∷ (∀ s' v', ⌜ s1 ⊑ s' ⌝ ∗ ϕ s' v' _ -∗ ⌜ s' ⊑ s2 ⌝)
+      "greater" ∷
+        (∀ v_i s_c v_c,
+          ϕ s_i v_i _ -∗ ϕ s_t v_t _ -∗ ϕ s_c v_c _ -∗ ⌜ s_t ⊑ s_c ∧ s_c ⊑ s_t ⌝)
     }}}
-      #ℓ <-{rel} v @ positive; E
+      #ℓ <-{rel} v_t @ positive; E
     {{{ RET #();
-      know_store_lb ℓ s2
+      know_store_lb ℓ s_t
     }}}.
   Proof.
     intros Φ. iStartProof (iProp _). iIntros (TV). iNamed 1.
@@ -387,7 +404,7 @@ Section wp_at_rules.
     assert (is_Some (phys_hists !! ℓ)) as [physHist physHistsLook].
     { rewrite -elem_of_dom domPhysHistEqAbsHist elem_of_dom. done. }
 
-    iDestruct (big_sepM2_lookup_acc with "predsHold") as "[predMap predsHold]".
+    iDestruct (big_sepM2_delete with "predsHold") as "[predMap predsHold]".
     { done. } { done. }
     iDestruct "predMap" as (pred' predsLook') "predMap".
     assert (pred = pred') as <-. { apply (inj Some). rewrite -predsLook. done. }
@@ -421,7 +438,7 @@ Section wp_at_rules.
       done. }
 
     (* Update the ghost state for the abstract history. *)
-    iMod (own_full_history_insert _ _ _ _ _ _ (encode s2) with "history absHist")
+    iMod (own_full_history_insert _ _ _ _ _ _ (encode s_t) with "history absHist")
       as "(history & absHist & histFrag)". { done. }
 
     iModIntro.
@@ -436,7 +453,7 @@ Section wp_at_rules.
         * apply incl2.
         * apply incl2.
       - iExists _.
-        iDestruct (own_frag_equiv _ _ {[ tNew := s2 ]} with "[histFrag]") as "histFrag".
+        iDestruct (own_frag_equiv _ _ {[ tNew := s_t ]} with "[histFrag]") as "histFrag".
         { rewrite map_fmap_singleton. iFrame "histFrag". }
         iFrame "histFrag knowPreorder".
         iPureIntro.
@@ -491,19 +508,33 @@ Section wp_at_rules.
       intros absList order' absHistLook'.
       (* We need to show that the newly inserted abstract state is greater than
       all the ones before it. *)
-
       admit.
     }
+
+    (* We must extract the phi for the inserted state from "phi". *)
+    (* iDestruct (big_sepM_lookup_acc with "predMap") as "H". *)
+
     (* [predsHold] *)
     iSplitL "predsHold predMap phi". {
-      iSpecialize ("predsHold" with "[predMap]"). { naive_solver. }
+      iDestruct (big_sepM2_insert_delete with "[predMap $predsHold]") as "predsHold".
+      { iExists _. iSplit; first done. iApply "predMap". }
+      rewrite (insert_id phys_hists); last done.
+      rewrite (insert_id abs_hists); last done.
+      (* iSpecialize ("predsHold" with "[predMap]"). { naive_solver. } *)
       iApply (big_sepM2_insert_override_2 with "predsHold"); [done|done|].
       simpl.
-      iDestruct 1 as (pred' predicatesLook) "H".
+      iDestruct 1 as (pred' predsLook') "H".
+      assert (pred = pred') as <-. { apply (inj Some). rewrite -predsLook. done. }
+      clear predsLook'.
       iExists _.
       iSplit; first done.
-      iApply (big_sepM2_insert_2 with "[] H").
+      iApply (big_sepM2_insert_2 with "[phi] H").
       rewrite /msg_to_tv /store_view. simpl.
+      rewrite /encoded_predicate_holds.
+      iExists (ϕ s_t v_t).
+      iSplit.
+      { iApply pred_encode_Some. done. }
+
       admit.
     }
     iDestruct (big_sepM2_dom with "bumperSome") as %domEq.
@@ -529,6 +560,7 @@ Section wp_at_rules.
       rewrite lookup_insert_ne in look1; done.
 
   Admitted.
+
 
   (*   "history absHist" *)
   (* Qed. *)

@@ -209,6 +209,51 @@ Section predicates.
 
 End predicates.
 
+Section encoded_predicate.
+  Context `{AbstractState ST}.
+  Context `{!nvmFixedG Σ, hG : nvmDeltaG Σ}.
+
+  Implicit Types (s : ST) (ϕ : ST → val → nvmDeltaG Σ → dProp Σ).
+
+  Definition encoded_predicate_holds
+             (enc_pred : positive → val → optionO (nvmDeltaG Σ -d> dPropO Σ))
+             (enc_state : positive) (v : val) TV : iProp Σ :=
+    (∃ P, (enc_pred enc_state v ≡ Some P) ∗ P _ TV).
+
+  Lemma predicate_holds_phi ϕ s encS (encϕ : predO) v TV :
+    encS = encode s →
+    (encϕ ≡ encode_predicate ϕ)%I -∗
+    (encoded_predicate_holds encϕ encS v TV ∗-∗ ϕ s v _ TV).
+  Proof.
+    iIntros (eqEncS) "predsEquiv".
+    iSplit.
+    - iDestruct 1 as (P) "[eqP PH]".
+      do 2 iEval (setoid_rewrite discrete_fun_equivI) in "predsEquiv".
+      iSpecialize ("predsEquiv" $! encS v).
+      rewrite /encode_predicate.
+      rewrite {2}eqEncS.
+      rewrite decode_encode.
+      simpl.
+      iRewrite "eqP" in "predsEquiv".
+      rewrite option_equivI.
+      iEval (setoid_rewrite discrete_fun_equivI) in "predsEquiv".
+      iSpecialize ("predsEquiv" $! hG).
+      by iRewrite -"predsEquiv".
+    - iIntros "phi".
+      rewrite /encoded_predicate_holds.
+      do 2 iEval (setoid_rewrite discrete_fun_equivI) in "predsEquiv".
+      iSpecialize ("predsEquiv" $! encS v).
+      rewrite /encode_predicate. rewrite eqEncS. rewrite decode_encode.
+      simpl.
+      destruct (encϕ (encode s) v); rewrite option_equivI; last done.
+      iExists _. iSplit; first done.
+      iEval (setoid_rewrite discrete_fun_equivI) in "predsEquiv".
+      iSpecialize ("predsEquiv" $! hG).
+      by iRewrite "predsEquiv".
+  Qed.
+
+End encoded_predicate.
+
 Definition increasing_list `{SqSubsetEq ST} (ss : list ST) :=
   ∀ i j s s', i < j → (ss !! i = Some s) → (ss !! j = Some s') → s ≠ s' ∧ s ⊑ s'.
 
