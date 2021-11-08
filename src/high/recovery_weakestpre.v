@@ -594,7 +594,7 @@ Section wpr.
       iSpecialize ("hi" $! s (msg_val msg)).
 
       rewrite /encoded_predicate_holds.
-      iDestruct "flip" as (P eq) "PHolds".
+      iDestruct "flip" as (P) "[eq PHolds]".
 
       admit. }
 
@@ -635,7 +635,7 @@ Section wpr.
       (* We handle the empty case here, but we should be able to rule it out. *)
       (* { rewrite empty. iPureIntro. apply map_Forall_empty. } *)
       rewrite histEq.
-      rewrite map_Forall_singleton.
+      iEval (rewrite -map_Forall_singleton).
       assert (bumpers !! ℓ = Some bumper). { admit. }
       iDestruct (big_sepM2_lookup with "bumperSome") as %i; [done|done|].
       (* Note: We probably have to use [bumpMono] as well. *)

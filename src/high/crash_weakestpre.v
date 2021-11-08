@@ -8,29 +8,12 @@ From Perennial.program_logic Require crash_weakestpre.
 From self Require Import extra.
 From self.base Require Import primitive_laws class_instances.
 From self.high Require Export dprop resources lifted_modalities monpred_simpl
-     post_crash_modality.
+     post_crash_modality increasing_map.
 
 Section wpc.
   Context `{nvmFixedG Σ, hGD : nvmDeltaG Σ}.
 
   Implicit Types (TV : thread_view).
-
-  (* NOTE: The definition uses [i < j] and not [i ≤ j] in order to make the
-  lemma [increasing_map_singleton] provable. When we use [increasing_map] the
-  relation [R] will always be reflexive, and hence this does not matter. The
-  _knowledge_ that [R] is reflexive may not always be available however (since
-  we may not know that [R] is in fact the encoding of some preorder, and hence
-  this definition works best. *)
-  Definition increasing_map (R : relation2 positive) (ss : gmap nat positive) :=
-    ∀ i j (s s' : positive),
-      i < j → (ss !! i = Some s) → (ss !! j = Some s') → R s s'.
-
-  Lemma increasing_map_singleton R t s :
-    increasing_map R {[ t := s ]}.
-  Proof. intros ????? ?%lookup_singleton_Some ?%lookup_singleton_Some. lia. Qed.
-
-  Lemma increasing_map_empty R : increasing_map R ∅.
-  Proof. intros ????? [=]. Qed.
 
   (* Convert a message to a thread_view corresponding to what is stored in the
   message. *)
