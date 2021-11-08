@@ -1,14 +1,17 @@
 (* Resource algebra to store the preorders that are associated with each
-location. *)
+   location.
+
+   The preorders are stored in encoded format in the RA because the preorder may
+   be over an arbitrary type. *)
 
 From iris.algebra Require Import auth gmap.
 From iris.base_logic.lib Require Import own.
 From iris.heap_lang Require Export locations.
 From iris.proofmode Require Import proofmode.
 
-From self Require Import extra.
+From self Require Import extra encode_relation.
 
-(* Resourcce algebra that stores the encoded preorder for each location. *)
+(* Resource algebra that stores the encoded preorder for each location. *)
 Definition relationO := leibnizO (positive → positive → Prop).
 Definition preordersR := authR (gmapUR loc (agreeR relationO)).
 
@@ -17,17 +20,6 @@ Section preorders.
   Context `{Countable A}.
 
   Implicit Type (preorders : gmap loc (relation2 positive)).
-
-  Definition encode_relation (R : relation2 A) : relation2 positive :=
-    λ (a b : positive), default False (R <$> decode a <*> decode b).
-
-  Lemma encode_relation_iff (R : relation2 A) (a b : A) :
-    R a b ↔ (encode_relation R) (encode a) (encode b).
-  Proof.
-    rewrite /encode_relation.
-    rewrite !decode_encode.
-    reflexivity.
-  Qed.
 
   Definition map_to_agree preorders : gmapUR _ (agreeR relationO) :=
     to_agree <$> preorders.
@@ -88,7 +80,8 @@ Section preorders.
     done.
   Qed.
 
-  Lemma own_all_preorders_singleton_frag dq γ ℓ preorders preorder :
+  Lemma own_all_preorders_singleton_frag dq γ (ℓ : loc) preorders
+        (preorder : relation A) :
     own γ (●{dq} (map_to_agree preorders)) -∗
     own γ (◯ ({[ ℓ := to_agree (encode_relation preorder)]})) -∗
     ⌜preorders !! ℓ = Some (encode_relation preorder)⌝.
@@ -124,24 +117,5 @@ Section preorders.
     rewrite lookup_fmap look.
     naive_solver.
   Qed.
-
-  (* If we know that two encoded values are related by en encoded relation, then
-  we can "recover" related unencoded values taht are related by the unencoded
-  relation. *)
-  Lemma encode_relation_related (R : relation2 A) ea eb :
-    (encode_relation R) ea eb →
-    ∃ a b, decode ea = Some a ∧ decode eb = Some b ∧ R a b.
-  Proof.
-    rewrite /encode_relation.
-    destruct (decode ea) as [|], (decode eb) as [|]; try done.
-    intros ?. eexists _, _. done.
-  Qed.
-
-  Lemma encode_relation_decode_iff (R : relation2 A) ea eb (a b : A) :
-    decode ea = Some a →
-    decode eb = Some b →
-    (encode_relation R) ea eb →
-    R a b.
-  Proof. rewrite /encode_relation. intros -> ->. done. Qed.
 
 End preorders.
