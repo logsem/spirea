@@ -246,6 +246,16 @@ Section map_zip_with.
     dom D (map_zip_with f ma mb) ≡ dom D mb.
   Proof. rewrite map_zip_with_dom. set_solver. Qed.
 
+  Lemma dom_eq_alt `{FinMapDom K M D} {A B} (m1 : M A) (m2 : M B) :
+    (∀ k : K, is_Some (m1 !! k) ↔ is_Some (m2 !! k)) ↔
+    (dom D m1 ≡ dom D m2).
+  Proof. setoid_rewrite <- elem_of_dom. rewrite set_equiv. done. Qed.
+
+  Lemma dom_eq_alt_L `{FinMapDom K M D} `{!LeibnizEquiv D} {A B} (m1 : M A) (m2 : M B) :
+    (∀ k : K, is_Some (m1 !! k) ↔ is_Some (m2 !! k)) ↔
+    (dom D m1 = dom D m2).
+  Proof. unfold_leibniz. apply dom_eq_alt. Qed.
+
 End map_zip_with.
 
 Definition restrict `{FinMap K M, ElemOf K D, !RelDecision (∈@{D})} {A} (s : D) (m : M A) :=

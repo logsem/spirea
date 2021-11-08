@@ -11,7 +11,7 @@ From iris.program_logic Require weakestpre.
 From iris.heap_lang Require Import locations.
 From iris_named_props Require Import named_props.
 
-From self Require Export extra ipm_tactics.
+From self Require Export extra ipm_tactics encode_relation.
 From self.high Require Export dprop.
 From self Require Export view.
 From self Require Export lang.
@@ -252,7 +252,7 @@ Section wp_at_rules.
              rewrite decodeEnc. simpl. done. }
         congruence. }
     rewrite orderEq in orderRelated.
-    epose proof (encode_relation_related _ _ _ orderRelated)
+    epose proof (encode_relation_inv _ _ _ orderRelated)
       as (? & sL & eqX & decodeS' & s3InclS').
     assert (x = s) as -> by congruence.
 
@@ -311,6 +311,7 @@ Section wp_at_rules.
   (* Rule for store on an atomic. *)
   Lemma wp_store_at ℓ s_i s_t v_t ϕ `{!LocationProtocol ϕ} positive E :
     {{{
+       "%targetGt" ∷ ⌜ s_i ⊑ s_t ⌝ ∗
       "knowProt" ∷ know_protocol ℓ ϕ ∗
       "isSharedLoc" ∷ ⎡ is_shared_loc ℓ ⎤ ∗
       "storeLB" ∷ know_store_lb ℓ s_i ∗
@@ -318,7 +319,7 @@ Section wp_at_rules.
       (* The new state must be greater than the possible current states. *)
       "greater" ∷
         (∀ v_i s_c v_c,
-          ϕ s_i v_i _ -∗ ϕ s_t v_t _ -∗ ϕ s_c v_c _ -∗ ⌜ s_t ⊑ s_c ∧ s_c ⊑ s_t ⌝)
+          ϕ s_i v_i _ ∗ ϕ s_t v_t _ ∗ ϕ s_c v_c _ -∗ ⌜ s_t ⊑ s_c ∧ s_c ⊑ s_t ⌝)
     }}}
       #ℓ <-{rel} v_t @ positive; E
     {{{ RET #();
@@ -328,7 +329,7 @@ Section wp_at_rules.
     intros Φ. iStartProof (iProp _). iIntros (TV). iNamed 1.
 
     iNamed "knowProt".
-    iNamed "storeLB".
+    iDestruct "storeLB" as (t_i) "temp". iNamed "temp".
     (* We unfold the WP. *)
     iIntros (TV' incl) "Φpost".
     rewrite wp_eq /wp_def wpc_eq.
@@ -415,13 +416,29 @@ Section wp_at_rules.
 
     iApply (wp_store_release (extra := {| extra_state_interp := True |})
              with "[$pts $val]").
-    iIntros "!>" (tNew) "(%look & %gt & #valNew & pts)".
+    iIntros "!>" (t_t) "(%look & %gt & #valNew & pts)".
+
+    (* We can conclude that [t_t] is strictly greater than [t_i]. *)
+    assert (t_i < t_t) as tILtTt.
+    { destruct TV as [[??]?].
+      destruct TV' as [[??]?].
+      rewrite /store_view in tSLe, gt.
+      simpl in tSLe. simpl in gt.
+      destruct incl as [[??]?].
+      destruct incl2 as [[??]?].
+      eapply gt_le_trans; first done.
+      etrans; first done.
+      f_equiv.
+      etrans; done. }
+
+    iDestruct (own_all_preorders_singleton_frag with "allOrders knowPreorder")
+      as %ordersLook.
 
     iFrame "valNew".
 
     iDestruct (bumpers_lookup with "allBumpers knowBumper") as %bumpersLook.
 
-    (* We've inserted a new message at time [tNew] in the physical
+    (* We've inserted a new message at time [t_t] in the physical
     history. Hence, we must accordingly insert a new state in the abstract
     history. *)
 
@@ -429,7 +446,7 @@ Section wp_at_rules.
       "[(%abs_hist' & %absHistLook' & absHist) sharedLocsHistories]"; first done.
     simplify_eq.
 
-    iAssert (⌜ absHist !! tNew = None ⌝)%I as %absHistLook.
+    iAssert (⌜ absHist !! t_t = None ⌝)%I as %absHistLook.
     { iDestruct (big_sepM2_dom with "predMap") as %domEq.
       iPureIntro. move: look.
       rewrite fmap_None.
@@ -453,7 +470,7 @@ Section wp_at_rules.
         * apply incl2.
         * apply incl2.
       - iExists _.
-        iDestruct (own_frag_equiv _ _ {[ tNew := s_t ]} with "[histFrag]") as "histFrag".
+        iDestruct (own_frag_equiv _ _ {[ t_t := s_t ]} with "[histFrag]") as "histFrag".
         { rewrite map_fmap_singleton. iFrame "histFrag". }
         iFrame "histFrag knowPreorder".
         iPureIntro.
@@ -462,11 +479,35 @@ Section wp_at_rules.
         rewrite lookup_insert.
         done. }
 
+    (* Maybe add a lemma for this lookup *)
+    iDestruct (
+        own_frag_history_agree_singleton with "history knowFragHist") as %look'.
+    destruct look' as (hist' & enc' & absHistsLook' & hip & hop).
+    rewrite lookup_insert in absHistsLook'.
+    apply (inj Some) in absHistsLook'.
+    iDestruct (big_sepM2_dom with "predMap") as %physHistAbsHistDom.
+    assert (is_Some (physHist !! t_i)) as [vI physHistLook].
+    { rewrite -elem_of_dom physHistAbsHistDom elem_of_dom. done. }
+
+    (* We must extract the phi for the inserted state from "phi". *)
+    iDestruct (big_sepM2_delete with "predMap") as "[phiI predMap]".
+    { apply physHistLook. } { done. }
+    iDestruct (predicate_holds_phi_decode with "predsEquiv phiI") as "phiI";
+      first done.
+
+    assert (msg_to_tv vI ⊑ TV).
+    { admit. (* TODO: This should hold but we don't know that it does. We must
+      throw some extra in somewhere. *) }
+
+    iDestruct ("phi" with "[phiI]") as "[phiT phiI]".
+    { iApply monPred_mono; last iApply "phiI".
+      done. }
+
     iDestruct (big_sepM_insert_delete with "[$ptsMap $pts]") as "ptsMap".
     repeat iExists _.
-    iFrame "ptsMap".
-    iFrameNamed.
+    iFrame "ptsMap crashedAt history predicates allOrders sharedLocs allBumpers bumpMono".
 
+    (* [sharedLocsSubseteq] *)
     iSplit. { iPureIntro. etrans; first done. apply dom_insert_subseteq. }
 
     (* [mapShared] - We need to show that the newly inserted message satisfied
@@ -490,32 +531,83 @@ Section wp_at_rules.
         iIntros "!>" (ℓ' [elm neq%not_elem_of_singleton_1]%elem_of_difference) "?".
         iEval (setoid_rewrite (lookup_insert_ne abs_hists ℓ ℓ' _); last done).
         iFrame. }
-    (* [ordered] *)
 
-    iSplitL "". {
+    (* [ordered] *)
+    iSplit. {
       iDestruct (big_sepM2_forall with "ordered") as %[? orderedForall].
       iApply big_sepM2_forall.
       iSplit.
-      { admit. }
-      iPureIntro. simpl.
-      intros ℓ'.
+      { iPureIntro.
+        apply dom_eq_alt_L.
+        rewrite dom_insert_lookup_L; last naive_solver.
+        apply dom_eq_alt_L.
+        done. }
+      iIntros (ℓ').
+      (* If ℓ' is not equal to ℓ then the history is unchanged. *)
       destruct (decide (ℓ' = ℓ)) as [->|neq]; last first.
-      { setoid_rewrite lookup_insert_ne; last done. apply orderedForall. }
-      setoid_rewrite lookup_insert.
-      intros absHist' order [= <-] ordersLook.
+      { iPureIntro. simpl.
+        setoid_rewrite lookup_insert_ne; [apply orderedForall | done]. }
+      iIntros (absHist' order). rewrite lookup_insert. iIntros ([= <-] ordersLook').
       specialize (orderedForall _ _ _ absHistsLook ordersLook).
-      rewrite /increasing_map.
-      intros absList order' absHistLook'.
-      (* We need to show that the newly inserted abstract state is greater than
-      all the ones before it. *)
-      admit.
-    }
+      eassert (order = _) as ->.
+      { apply (inj Some). rewrite -ordersLook'. apply ordersLook. }
 
-    (* We must extract the phi for the inserted state from "phi". *)
-    (* iDestruct (big_sepM_lookup_acc with "predMap") as "H". *)
+      epose proof
+        (increasing_map_insert_after _ _ _ _ _ (encode s_t) orderedForall
+                                      lookTS _ tILtTt) as h.
+      Unshelve.
+      2: { eapply encode_relation_decode_iff; eauto using decode_encode. }
+
+      iApply (bi.pure_mono); first apply h.
+      iIntros (t_c encSC ? ?).
+      epose proof (orderedForall _ _ _ _ a0 lookTS a) as related.
+      epose proof (encode_relation_inv _ _ _ related)
+        as (s_i' & s_c & eqX & decodeS' & incl3).
+      assert (s_i = s_i') as <-. { congruence. }
+      simpl.
+      rewrite /encode_relation.
+      rewrite decode_encode.
+      rewrite decodeS'.
+      simpl.
+
+      assert (is_Some (physHist !! t_c)) as [vC physHistLook'].
+      { rewrite -elem_of_dom physHistAbsHistDom elem_of_dom. done. }
+
+      iDestruct (big_sepM2_delete with "predMap") as "[phiC predMap]".
+      { rewrite lookup_delete_ne; [apply physHistLook' | lia]. }
+      { rewrite lookup_delete_ne; [apply a | lia]. }
+      iDestruct (predicate_holds_phi_decode with "predsEquiv phiC") as "phiC";
+        first done.
+
+      iSpecialize ("greater" $! _ _ _).
+      iEval (monPred_simpl) in "greater".
+      iEval (setoid_rewrite monPred_at_pure) in "greater".
+
+      iApply ("greater" $! (TV' ⊔ (msg_to_tv vC))).
+      { admit. (* should be easy. *) }
+      monPred_simpl.
+      iFrame.
+      iSplitL "phiI".
+      { iApply monPred_mono; last iApply "phiI".
+        etrans; last apply thread_view_le_l. etrans; done. }
+      iSplitL "phiT".
+      { iApply monPred_mono; last iApply "phiT".
+        etrans; last apply thread_view_le_l. etrans; done. }
+
+      iApply monPred_mono; last iApply "phiC".
+      apply thread_view_le_r. }
 
     (* [predsHold] *)
-    iSplitL "predsHold predMap phi". {
+    (* We show that the invariant hold for all messages in all histories. The
+    non-trivial part of this is to show that the invariant hold for the newly
+    inserted store message. *)
+    iSplitL "predsHold predMap phiI phiT". {
+      iDestruct (big_sepM2_insert_delete with "[$predMap phiI]") as "predMap".
+      {
+        iApply predicate_holds_phi_decode; [done|done|].
+        iApply monPred_mono; last iApply "phiI". done.
+        iApply (predicate_holds_phi_decode with "predsEquiv phiI") as "phiI";
+      }
       iDestruct (big_sepM2_insert_delete with "[predMap $predsHold]") as "predsHold".
       { iExists _. iSplit; first done. iApply "predMap". }
       rewrite (insert_id phys_hists); last done.
