@@ -159,7 +159,7 @@ Qed.
 Lemma option_not_included_None {A : cmra} (x : A) : ¬ (Some x ≼ None).
 Proof. intros [[y|] eq]; inversion eq. Qed.
 
-Lemma to_agree_fmap (a b : gmap nat positive) :
+Lemma to_agree_fmap {A : ofe} `{!LeibnizEquiv A} (a b : gmap nat A) :
   a ⊆ b ↔ to_agree <$> a ≼ to_agree <$> b.
 Proof.
   rewrite lookup_included.
@@ -168,10 +168,9 @@ Proof.
   split.
   - intros sub.
     intros i.
-    (* apply option_included_total. *)
     destruct (a !! i) eqn:eq.
     2: { eexists _. rewrite left_id. reflexivity. }
-    rewrite (sub i p); done.
+    rewrite (sub i o); done.
   - intros incl.
     intros i.
     destruct (a !! i) eqn:eq.
@@ -185,6 +184,7 @@ Proof.
     simpl in incl.
     setoid_rewrite Some_included_total in incl.
     setoid_rewrite to_agree_included in incl.
+    apply leibniz_equiv in incl.
     setoid_rewrite incl.
     done.
 Qed.

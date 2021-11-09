@@ -7,6 +7,7 @@ From iris.proofmode Require Import proofmode.
 
 From self.lang Require Import lang.
 From self Require Import extra.
+From self.high.resources Require Import auth_map_map.
 
 (* For abstract history we need two types of fragmental knowledge. One that
 represents ownership about the entire abstract history of a location (for
@@ -16,50 +17,8 @@ abstract history. *)
 (* Resource algebras that for each location stores the encoded abstract states
 associated with each message/store. *)
 Definition encoded_abs_historyR := gmapUR time (agreeR positiveO).
-(* Definition enc_abs_histories := gmap loc (gmap time positive). *)
 
-Definition know_abs_historiesR :=
-  authR (gmapUR loc (gmapUR time (agreeR positiveO))).
-
-Definition fmap_fmap_to_agree (m : gmap loc (gmap time positive)) : gmapUR loc _ :=
-  (λ n : gmap _ _, to_agree <$> n) <$> m.
-
-Section fmap_fmap_to_agree.
-
-  Lemma fmap_fmap_to_agree_valid m : ✓ fmap_fmap_to_agree m.
-  Proof.
-    rewrite /fmap_fmap_to_agree.
-    intros ?.
-    rewrite lookup_fmap.
-    destruct (m !! i); last done.
-    simpl.
-    apply Some_valid.
-    apply valid_to_agree_fmap.
-  Qed.
-
-  Lemma fmap_fmap_to_agree_incl m m' :
-    dom (gset _) m ⊆ dom _ m' →
-    (∀ ℓ mi mi', m !! ℓ = Some mi → m' !! ℓ = Some mi' → mi ⊆ mi') →
-    (fmap_fmap_to_agree m) ≼ (fmap_fmap_to_agree m').
-  Proof.
-    intros subOut subIn.
-    rewrite /fmap_fmap_to_agree.
-    apply lookup_included => ℓ.
-    rewrite 2!lookup_fmap.
-    destruct (m !! ℓ) as [mi|] eqn:lookM.
-    2: { apply option_included. naive_solver. }
-    destruct (m' !! ℓ) as [mi'|] eqn:lookM'.
-    2: { exfalso.
-         apply not_elem_of_dom in lookM'.
-         apply elem_of_dom_2 in lookM.
-         set_solver. }
-    simpl.
-    apply Some_included_total.
-    apply to_agree_fmap.
-    eapply subIn; done.
-  Qed.
-
-End fmap_fmap_to_agree.
+Definition know_abs_historiesR := auth_map_mapR positiveO.
 
 (** We define a few things about the resource algebra that that we use to encode
 abstract histories. *)
@@ -80,9 +39,6 @@ Section abs_history_lemmas.
   Definition own_full_history γ1 γ2 abs_hists : iProp Σ :=
     ghost_map_auth γ1 1 abs_hists ∗
     own γ2 (● (fmap_fmap_to_agree abs_hists) : know_abs_historiesR).
-
-  (* Definition own_full_history abs_hists : iProp Σ := *)
-  (*   own_full_history abs_history_name know_abs_history_name abs_hists. *)
 
   Definition own_full_encoded_history_loc γ1 ℓ enc_abs_hist : iProp Σ :=
     ℓ ↪[ γ1 ] enc_abs_hist.
@@ -120,10 +76,10 @@ Section abs_history_lemmas.
       intros k.
       rewrite lookup_fmap.
       destruct (h !! k); simpl; last done.
-      apply Some_valid.
       intros k'.
+      apply Some_valid.
       rewrite lookup_fmap.
-      destruct (g !! k'); done. }
+      case (g !! k'); done. }
     done.
   Qed.
 
@@ -204,7 +160,8 @@ Section abs_history_lemmas.
     apply singleton_included_l in incl.
     destruct incl as [hist' [look incl]].
     rewrite lookup_fmap in look.
-    destruct (hists !! ℓ) as [hist|]. 2: { inversion look. }
+    destruct (hists !! ℓ) as [hist|].
+    2: { inversion look. }
     simpl in look.
     iExists hist.
     iSplit; first done.
@@ -298,7 +255,7 @@ Section abs_history_lemmas.
       iMod (own_update with "H") as "[$ $]".
       { apply: auth_update_dfrac_alloc.
         rewrite /fmap_fmap_to_agree.
-        rewrite fmap_insert.
+        rewrite -> fmap_insert.
         apply singleton_included_insert.
         apply to_agree_fmap.
         apply map_singleton_subseteq_l.
