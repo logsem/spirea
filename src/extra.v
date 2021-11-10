@@ -117,15 +117,17 @@ Section nat_map.
 
 End nat_map.
 
-Lemma auth_auth_grow {A : ucmra} `{!CmraDiscrete A} (a a' : A) :
+Lemma auth_auth_grow {A : ucmra} (a a' : A) :
   ✓ a' → a ≼ a' → ● a ~~> ● a'.
 Proof.
   intros val [a'' eq]. rewrite eq.
   apply (auth_update_auth _ _ a'').
   rewrite comm.
   rewrite -{2}(right_id _ _ a'').
-  apply op_local_update_discrete.
+  apply op_local_update => n.
   rewrite comm -eq.
+  intros ?.
+  apply cmra_valid_validN.
   done.
 Qed.
 

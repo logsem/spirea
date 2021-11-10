@@ -75,8 +75,8 @@ Section abs_history_lemmas.
     { apply auth_both_valid_2; last reflexivity.
       intros k.
       rewrite lookup_fmap.
-      destruct (h !! k); simpl; last done.
-      intros k'.
+      case (h !! k); simpl; last done.
+      intros ? k'.
       apply Some_valid.
       rewrite lookup_fmap.
       case (g !! k'); done. }
@@ -160,8 +160,9 @@ Section abs_history_lemmas.
     apply singleton_included_l in incl.
     destruct incl as [hist' [look incl]].
     rewrite lookup_fmap in look.
-    destruct (hists !! ℓ) as [hist|].
-    2: { inversion look. }
+    destruct (hists !! ℓ) as [hist|] eqn:eq'.
+    2: { rewrite eq' in look. inversion look. }
+    rewrite eq' in look.
     simpl in look.
     iExists hist.
     iSplit; first done.
@@ -250,30 +251,11 @@ Section abs_history_lemmas.
     iIntros (look) "[M N] O".
     iDestruct (ghost_map_lookup with "M O") as %hips.
     iMod (ghost_map_update with "M O") as "[$ $]".
-    iMod (own_update with "N ") as "H".
-    2: {
-      iMod (own_update with "H") as "[$ $]".
-      { apply: auth_update_dfrac_alloc.
-        rewrite /fmap_fmap_to_agree.
-        rewrite -> fmap_insert.
-        apply singleton_included_insert.
-        apply to_agree_fmap.
-        apply map_singleton_subseteq_l.
-        apply lookup_insert. }
-      done. }
-    { apply auth_auth_grow.
-      { apply fmap_fmap_to_agree_valid. }
-      apply fmap_fmap_to_agree_incl.
-      * set_solver.
-      * intros ℓ' mi mi' look1 look2.
-        destruct (decide (ℓ = ℓ')).
-        + simplify_eq.
-          rewrite lookup_insert in look2.
-          simplify_eq.
-          by apply insert_subseteq.
-        + rewrite lookup_insert_ne in look2; last done.
-          simplify_eq.
-          reflexivity. }
+    iMod (auth_map_map_insert with "N") as "[$ h]"; try done.
+    rewrite /auth_map_map_frag_singleton.
+    rewrite /auth_map_map_frag.
+    rewrite fmap_fmap_to_agree_singleton.
+    by iFrame.
   Qed.
 
 End abs_history_lemmas.
