@@ -860,7 +860,6 @@ Section post_crash_persisted.
         iRight. by iFrame "#". }
       iExists 0.
       iFrameNamed.
-      (* iPureGoal. {} first done. *)
       iPureIntro. apply lookup_zero_gt_zero.
     * base.post_crash_modality.iCrash.
       iNamed 1.

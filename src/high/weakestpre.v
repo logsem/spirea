@@ -279,7 +279,7 @@ Section wp_rules.
     (* Reinsert into the map. *)
     iDestruct ("predsHold" with "[predMap]") as "predsHold". { naive_solver. }
 
-    iSplitR "ptsMap allOrders ordered predsHold history predicates
+    iSplitR "ptsMap physHist allOrders ordered predsHold history predicates
              sharedLocs crashedAt allBumpers bumpMono predPostCrash
              sharedLocsHistories"; last first.
     { repeat iExists _. iFrameNamed. }
@@ -287,6 +287,8 @@ Section wp_rules.
     iApply "Φpost".
     iSplitR "Q".
     2: {
+      simplify_eq.
+      rewrite /msg_to_tv.
       (* This _should_ hold bc. the view in the message is smaller. But, we
       don't have that fact. *)
       admit.

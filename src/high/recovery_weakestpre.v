@@ -325,6 +325,9 @@ Section wpr.
     iMod (own_all_bumpers_alloc newBumpers)
          as (new_bumpers_name) "[newBumpers #bumpersFrag]".
 
+    iMod (auth_map_map_alloc (A := leibnizO _) (slice_of_store CV phys_hists))
+      as (new_phys_hist_name) "[newPhysHist H]".
+
     (* We are done allocating ghost state and can now present a new bundle of
     ghost names. *)
     iModIntro.
@@ -468,6 +471,7 @@ Section wpr.
     rewrite /own_full_history.
     iFrame "newOrders newPreds hists' newSharedLocs newCrashedAt".
     iFrame "ptsMap".
+    iFrame "newPhysHist".
     iFrame "newBumpers".
     (* We show that the abstract states are still ordered. *)
     iSplit.

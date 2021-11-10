@@ -45,6 +45,7 @@ Section wpc.
       that at a crash we know that the value recovered after a crash has a
       corresponding abstract value. *)
       "ptsMap" ∷ ([∗ map] ℓ ↦ hist ∈ phys_hists, ℓ ↦h hist) ∗
+      "physHist" ∷ auth_map_map_auth know_phys_history_name phys_hists ∗
       "#crashedAt" ∷ crashed_at CV ∗
 
       (* Ownership over the full knowledge of the abstract history of _all_

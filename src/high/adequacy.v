@@ -454,6 +454,7 @@ Proof.
   iMod (own_alloc (● (∅ : gsetUR _))) as (shared_locs_name) "sharedLocs".
   { apply auth_auth_valid. done. }
   iMod (own_all_bumpers_alloc ∅) as (bumpers_name) "[bumpers #bumpersFrag]".
+  iMod (auth_map_map_alloc ∅) as (phys_hist_name) "[physHist _]".
 
   iExists (
     NvmDeltaG _

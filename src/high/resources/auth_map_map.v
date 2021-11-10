@@ -71,6 +71,17 @@ Section auth_map_map.
   Definition auth_map_map_frag_singleton γ ℓ t a :=
     auth_map_map_frag γ {[ ℓ := {[ t := a ]} ]}.
 
+  Lemma auth_map_map_alloc m :
+    ⊢ |==> ∃ γ, auth_map_map_auth γ m ∗ auth_map_map_frag γ m.
+  Proof.
+    rewrite /auth_map_map_auth /auth_map_map_frag.
+    setoid_rewrite <- own_op.
+    iApply own_alloc.
+    apply auth_both_valid_2.
+    - apply fmap_fmap_to_agree_valid.
+    - done.
+  Qed.
+
   (* NOTE: The requirement on leibniz equiv may not be strictly necessary, but
   it is convenient right now. *)
   Lemma auth_map_map_insert `{!LeibnizEquiv A} γ m ℓ t h a :

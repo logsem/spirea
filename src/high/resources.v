@@ -10,12 +10,15 @@ From self.lang Require Import lang.
 From self.base Require Import primitive_laws.
 From self.high Require Import dprop abstract_state lifted_modalities.
 From self.high Require Export abstract_state.
-From self.high.resources Require Export bumpers preorders abstract_history.
+From self.high.resources Require Export bumpers preorders auth_map_map abstract_history.
 
 Class nvmHighDeltaG := MkNvmHighDeltaG {
   (* "Global" ghost names *)
+  (* For abstract history *)
   abs_history_name : gname;
   know_abs_history_name : gname;
+  (* For physical history *)
+  know_phys_history_name : gname;
   predicates_name : gname;
   preorders_name : gname;
   shared_locs_name : gname;
@@ -45,6 +48,7 @@ Class nvmHighFixedG Σ := {
   predicates_inG :> inG Σ (@predicatesR Σ);
   ra_inG' :> inG Σ know_abs_historiesR;
   abs_histories :> ghost_mapG Σ loc (gmap time positive);
+  phys_histories :> inG Σ (auth_map_mapR (leibnizO message));
   preordersG :> inG Σ preordersR;
   shared_locsG :> inG Σ shared_locsR;
   nvm_bumpersG :> bumpersG Σ;
@@ -350,10 +354,13 @@ Section points_to_shared.
 
   Program Definition know_store_lb ℓ (s : ST) : dProp Σ :=
     MonPred (λ TV,
-      ∃ (tS : nat),
+      ∃ (tS : nat) (* (msg : message) *),
         "%tSLe" ∷ ⌜ tS ≤ (store_view TV) !!0 ℓ ⌝ ∗
-        "order" ∷ know_preorder_loc ℓ abs_state_relation ∗
-        "knowFragHist" ∷ know_frag_history_loc ℓ {[ tS := s ]}
+        "#order" ∷ know_preorder_loc ℓ abs_state_relation ∗
+        "#knowFragHist" ∷ know_frag_history_loc ℓ {[ tS := s ]} (* ∗ *)
+        (* "#knowFragPhysHist" ∷ *)
+        (*   auth_map_map_frag_singleton know_phys_history_name ℓ tS msg ∗ *)
+        (* "%msgViewIncluded" ∷ ⌜ msg.(msg_persist_view) ⊑ store_view TV ⌝ *)
     )%I _.
   Next Obligation. solve_proper. Qed.
 

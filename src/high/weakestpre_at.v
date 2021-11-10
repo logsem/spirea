@@ -276,7 +276,7 @@ Section wp_at_rules.
     (* iMod (own_full_history_alloc_frag with "history") as "[history histS]"; try done. *)
     (* iModIntro. *)
     (* We re-establish [interp]. *)
-    iSplitR "ptsMap allOrders ordered predsHold history predicates
+    iSplitR "ptsMap physHist allOrders ordered predsHold history predicates
              crashedAt sharedLocs allBumpers bumpMono predPostCrash sharedLocsHistories"; last first.
     { repeat iExists _. iModIntro. iFrameNamed. }
     iSplit. { iPureIntro. repeat split; try done; apply view_le_l. }
