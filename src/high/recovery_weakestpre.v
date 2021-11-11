@@ -241,11 +241,23 @@ Section wpr.
   Proof. rewrite map_subseteq_spec. naive_solver. Qed.
 
   (* TODO: Could maybe be upstreamed. *)
-  Lemma map_Forall_subseteq P (n m : gmap loc (positive → option positive)) :
+  Lemma map_Forall_subseteq `{Countable K} {B} P (n m : gmap K B) :
     m ⊆ n →
     map_Forall P n →
     map_Forall P m.
   Proof. rewrite map_subseteq_spec. rewrite /map_Forall. naive_solver. Qed.
+
+  (** The invariant for shared locations holds trivially for all locations after
+  a crash. *)
+  Lemma shared_locs_inv_slice_of_store (shared : gset loc) CV phys_hists :
+    shared_locs_inv (restrict shared (slice_of_store CV phys_hists)).
+  Proof.
+    eapply map_Forall_subseteq. { apply restrict_subseteq. }
+    intros ℓ hist look. intros t msg histLook.
+    epose proof (slice_of_store_lookup_Some _ _ _ _ _ _ look histLook)
+      as (? & ? & [????] & ? & ? & ? & ? & -> & ?).
+    naive_solver.
+  Qed.
 
   (* Given the state interpretations _before_ a crash we reestablish the
   interpretations _after_ a crash. *)
@@ -478,15 +490,7 @@ Section wpr.
     { iPureIntro. rewrite /newSharedLocs /newAbsHists. set_solver. }
     (* mapShared. We show that the shared location still satisfy that
     heir two persist-views are equal. *)
-    iSplit.
-    { iPureIntro.
-      (* The equality holds trivially for each message from the fact that
-      [slice_of_store] discards all views. *)
-      intros ℓ hist [look ?]%restrict_lookup_Some.
-      intros t msg histLook.
-      epose proof (slice_of_store_lookup_Some _ _ _ _ _ _ look histLook)
-        as (? & ? & [????] & ? & ? & ? & ? & -> & ?).
-      reflexivity. }
+    iSplit. { iPureIntro. apply shared_locs_inv_slice_of_store. }
     (* sharedLocsHistories *)
     iSplitR.
     { admit. }

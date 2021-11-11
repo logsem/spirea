@@ -76,22 +76,6 @@ Section wp_at_rules.
     done.
   Qed.
 
-  Lemma msg_persisted_views_eq'
-        (ℓ : loc) (hists : gmap loc (gmap time message))
-        (hist : gmap time message) (msg : message)
-        (sharedLocs : gset loc) (t : time) :
-    map_Forall
-      (λ _ : loc,
-        map_Forall
-          (λ _ msg, msg_persist_view msg = msg_persisted_after_view msg))
-      (restrict sharedLocs hists) →
-    ℓ ∈ sharedLocs →
-    hists !! ℓ = Some hist →
-    hist !! t = Some msg →
-    msg.(msg_persist_view) = msg.(msg_persisted_after_view).
-  Proof.
-  Admitted.
-
   Lemma msg_persisted_views_eq
         (ℓ : loc) (hists : gmap loc (gmap time (message * positive)))
         (hist : gmap time (message * positive)) (msg : message)
@@ -213,9 +197,10 @@ Section wp_at_rules.
     iDestruct ("ptsMap" with "pts") as "ptsMap".
     iFrame "val'".
 
-    (* We show that [PV'] is equal to [_PV']. *)
-    assert (PV' = _PV') as <-.
-    { eapply msg_persisted_views_eq' in mapShared; try done. done. }
+    eassert _ as temp.
+    { eapply map_map_Forall_lookup_1; eauto using mapShared.
+        apply restrict_lookup_Some_2; done. }
+    simpl in temp. destruct temp as [SV'lookup <-].
 
     assert (tS ≤ t') as lte.
     { destruct TV as [[??]?].
@@ -293,11 +278,13 @@ Section wp_at_rules.
     iSplitR "Q".
     - iFrameNamed.
       iExists t'.
-      (* iExists t', sL. *)
       iFrame "∗#".
       (* FIXME: Intuitively the lhs. should be included in because we read [t']
       and a write includes its own timestamp. But, we don't remember this fact,
       yet. *)
+      iPureGoal. {
+        rewrite -SV'lookup. rewrite /store_view /=.
+        rewrite lookup_zero_lub. lia. }
       admit.
     - simpl.
       rewrite /store_view /flush_view /=.

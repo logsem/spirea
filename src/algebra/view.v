@@ -61,6 +61,13 @@ Definition lookup_zero (V : view) l := default 0 (max_nat_car <$> (V !! l)).
 
 Notation "m !!0 l" := (lookup_zero m l) (at level 50).
 
+Lemma lookup_zero_lub V1 V2 ℓ : ((V1 ⊔ V2) !!0 ℓ) = (V1 !!0 ℓ) `max` (V2 !!0 ℓ).
+  rewrite /lookup_zero. rewrite view_join. rewrite lookup_op.
+  destruct (V1 !! ℓ) eqn:eq1; rewrite eq1;
+  destruct (V2 !! ℓ) eqn:eq2; rewrite eq2; try done.
+  simpl. lia.
+Qed.
+
 Lemma view_lookup_zero_empty ℓ : ((∅ : view) !!0 ℓ) = 0.
 Proof. rewrite /lookup_zero. by rewrite lookup_empty. Qed.
 

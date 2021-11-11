@@ -6,19 +6,49 @@ From self Require Import extra.
 From self.base Require Import primitive_laws.
 From self.high Require Export dprop resources post_crash_modality increasing_map.
 
+
+(* Convert a message to a thread_view corresponding to what is stored in the
+message. *)
+Definition msg_to_tv (m : message) : thread_view :=
+  (* NOTE: We use the [msg_persisted_after_view] and _not_ the
+  [msg_persist_view]. This is because the [msg_persisted_after] can be
+  transfered to the recovery program after a crash and the predicate then
+  still holds. *)
+  (m.(msg_store_view), m.(msg_persisted_after_view), ∅).
+
+Definition map_map_Forall `{Countable K1, Countable K2} {A : Type}
+            (P : K1 → K2 → A → Prop) (m : gmap K1 (gmap K2 A)):=
+  map_Forall (λ k1, map_Forall (λ k2 x, P k1 k2 x)) m.
+
+Section map_map_Forall.
+  Context `{Countable K1, Countable K2} {A : Type}.
+
+  Implicit Types (m : gmap K1 (gmap K2 A)).
+
+  Lemma map_map_Forall_lookup_1 P m n i j x :
+    map_map_Forall P m → m !! i = Some n → n !! j = Some x → P i j x.
+  Proof.
+    intros map ? ?.
+    eapply map_Forall_lookup_1 in map; last done.
+    eapply map_Forall_lookup_1 in map; done.
+  Qed.
+
+End map_map_Forall.
+
+Definition shared_locs_inv (locs : gmap loc (gmap time message)) :=
+  map_map_Forall
+    (λ (ℓ : loc) (t : time) (msg : message),
+      (* For shared locations the two persist views are equal. This enforces
+      that shared locations can only be written to using release store and
+      RMW operations. *)
+      msg.(msg_store_view) !!0 ℓ = t ∧
+      msg.(msg_persist_view) = msg.(msg_persisted_after_view))
+    locs.
+
 Section state_interpretation.
   Context `{nvmFixedG Σ, hGD : nvmDeltaG Σ}.
 
   Implicit Types (TV : thread_view).
-
-  (* Convert a message to a thread_view corresponding to what is stored in the
-  message. *)
-  Definition msg_to_tv (m : message) : thread_view :=
-    (* NOTE: We use the [msg_persisted_after_view] and _not_ the
-    [msg_persist_view]. This is because the [msg_persisted_after] can be
-    transfered to the recovery program after a crash and the predicate then
-    still holds. *)
-    (m.(msg_store_view), m.(msg_persisted_after_view), ∅).
 
   Definition pred_post_crash_implication {ST}
              (ϕ : ST → val → _ → dProp Σ) bumper : dProp Σ :=
@@ -55,13 +85,7 @@ Section state_interpretation.
       (* Shared locations. *)
       "sharedLocs" ∷ own shared_locs_name (● shared_locs) ∗
       "%sharedLocsSubseteq" ∷ ⌜ shared_locs ⊆ dom _ abs_hists ⌝ ∗
-      "%mapShared" ∷
-        ⌜map_Forall (λ _, map_Forall
-          (* For shared locations the two persist views are equal. This enforces
-          that shared locations can only be written to using release store and
-          RMW operations. *)
-          (λ _ msg, msg.(msg_persist_view) = msg.(msg_persisted_after_view)))
-          (restrict shared_locs phys_hists)⌝ ∗
+      "%mapShared" ∷ ⌜ shared_locs_inv (restrict shared_locs phys_hists) ⌝ ∗
       (* For shared locations [interp] owns the fragment for the full history. *)
       "sharedLocsHistories" ∷ ([∗ set] ℓ ∈ shared_locs,
         ∃ abs_hist,
