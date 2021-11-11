@@ -8,107 +8,12 @@ From Perennial.program_logic Require crash_weakestpre.
 From self Require Import extra.
 From self.base Require Import primitive_laws class_instances.
 From self.high Require Export dprop resources lifted_modalities monpred_simpl
-     post_crash_modality increasing_map.
+     post_crash_modality increasing_map state_interpretation.
 
 Section wpc.
   Context `{nvmFixedG Σ, hGD : nvmDeltaG Σ}.
 
   Implicit Types (TV : thread_view).
-
-  (* Convert a message to a thread_view corresponding to what is stored in the
-  message. *)
-  Definition msg_to_tv (m : message) : thread_view :=
-    (* NOTE: We use the [msg_persisted_after_view] and _not_ the
-    [msg_persist_view]. This is because the [msg_persisted_after] can be
-    transfered to the recovery program after a crash and the predicate then
-    still holds. *)
-    (m.(msg_store_view), m.(msg_persisted_after_view), ∅).
-
-  Definition pred_post_crash_implication {ST}
-             (ϕ : ST → val → _ → dProp Σ) bumper : dProp Σ :=
-    □ ∀ (hD : nvmDeltaG Σ) s v, ϕ s v hD -∗ <PCF> hD', ϕ (bumper s) v hD'.
-
-  (** This is our analog to the state interpretation in the Iris weakest
-  precondition. We keep this in our crash weakest precondition ensuring that it
-  holds before and after each step. **)
-  Definition interp : iProp Σ :=
-    (∃ (phys_hists : gmap loc (gmap time message))
-       (abs_hists : gmap loc (gmap time positive))
-       (predicates : gmap loc (positive → val → option (nvmDeltaG Σ → dProp Σ)))
-       (CV : view)
-       (orders : gmap loc (relation2 positive))
-       (* (exclusive_locs : gset loc) *)
-       (bumpers : gmap loc (positive → option positive))
-       (shared_locs : gset loc),
-      (* We keep the points-to predicates to ensure that we know that the keys
-      in the abstract history correspond to the physical history. This ensures
-      that at a crash we know that the value recovered after a crash has a
-      corresponding abstract value. *)
-      "ptsMap" ∷ ([∗ map] ℓ ↦ hist ∈ phys_hists, ℓ ↦h hist) ∗
-      "physHist" ∷ auth_map_map_auth know_phys_history_name phys_hists ∗
-      "#crashedAt" ∷ crashed_at CV ∗
-
-      (* Ownership over the full knowledge of the abstract history of _all_
-      locations. *)
-      "history" ∷ own_full_history abs_history_name know_abs_history_name abs_hists ∗
-      (* Knowledge of all the predicates. *)
-      "predicates" ∷ own predicates_name (● preds_to_ra predicates) ∗
-      (* All the encoded orders *)
-      "allOrders" ∷ own_all_preorders preorders_name orders ∗
-
-      (* Shared locations. *)
-      "sharedLocs" ∷ own shared_locs_name (● shared_locs) ∗
-      "%sharedLocsSubseteq" ∷ ⌜ shared_locs ⊆ dom _ abs_hists ⌝ ∗
-      "%mapShared" ∷
-        ⌜map_Forall (λ _, map_Forall
-          (* For shared locations the two persist views are equal. This enforces
-          that shared locations can only be written to using release store and
-          RMW operations. *)
-          (λ _ msg, msg.(msg_persist_view) = msg.(msg_persisted_after_view)))
-          (restrict shared_locs phys_hists)⌝ ∗
-      (* For shared locations [interp] owns the fragment for the full history. *)
-      "sharedLocsHistories" ∷ ([∗ set] ℓ ∈ shared_locs,
-        ∃ abs_hist,
-          ⌜ abs_hists !! ℓ = Some abs_hist ⌝ ∗
-          know_full_encoded_history_loc ℓ abs_hist) ∗
-
-      (* Exclusive locations. *)
-      (* "exclusiveLocs" ∷ own exclusive_locs_name (● exclusive_locs) ∗ *)
-
-      "#ordered" ∷ ([∗ map] ℓ ↦ hist; order ∈ abs_hists; orders,
-                    ⌜increasing_map order hist⌝) ∗
-
-      (* The predicates hold for all the exclusive locations. *)
-      "predsHold" ∷
-        ([∗ map] ℓ ↦ phys_hist;abs_hist ∈ phys_hists;abs_hists, ∃ pred,
-          ⌜predicates !! ℓ = Some pred⌝ ∗
-          (* The predicate holds for each message in the history. *)
-          ([∗ map] t ↦ msg; encS ∈ phys_hist; abs_hist,
-            encoded_predicate_holds pred encS msg.(msg_val) (msg_to_tv msg))) ∗
-
-      (** * Bump-back function *)
-      (* We know about all the bumpers. *)
-      "allBumpers" ∷ own_all_bumpers bumpers_name bumpers ∗
-      (* The bump functions are monotone. *)
-      "#bumpMono" ∷ ([∗ map] ℓ ↦ order; bump ∈ orders; bumpers,
-        ∀ e1 e2 e1' e2', ⌜bump e1 = Some e1'⌝ → ⌜bump e2 = Some e2'⌝ →
-                         ⌜order e1 e2⌝ → ⌜order e1' e2'⌝) ∗
-      (* The predicate holds after a crash for the bumped state. *)
-      "#predPostCrash" ∷ ([∗ map] ℓ ↦ pred; bump ∈ predicates; bumpers,
-        □ (∀ (e : positive) (v : val) (hG : nvmDeltaG Σ) TV (P : nvmDeltaG Σ → dProp _) e',
-          ⌜bump e = Some e'⌝ ∗ ⌜pred e v = Some P⌝ ∗ P hG TV -∗
-          ∃ P', ⌜pred e' v = Some P'⌝ ∗ ((post_crash_flush P') (∅, ∅, ∅)))) ∗
-      (* Bumpers map valid input to valid output. *)
-      "%bumperBumpToValid" ∷
-        ⌜map_Forall (λ _ bumper, ∀ e, ∃ e', bumper e = Some e' →
-                                            is_Some (bumper e')) bumpers⌝ ∗
-      (* All the abstract state are "valid" inputs to the bumpers. *)
-      "#bumperSome" ∷ ([∗ map] ℓ ↦ abs_hist; bumper ∈ abs_hists; bumpers,
-        ⌜map_Forall (λ _ e, is_Some (bumper e)) abs_hist⌝)).
-
-  Global Instance highExtraStateInterp : extraStateInterp Σ := {
-    extra_state_interp := interp;
-  }.
 
   Program Definition wpc_def s k E e (Φ : val → dProp Σ) (Φc : dProp Σ) : dProp Σ :=
     (* monPred_objectively Φc ∗ *)
@@ -116,9 +21,7 @@ Section wpc.
       ∀ TV,
         ⌜V ⊑ TV⌝ -∗
         validV (store_view TV) -∗
-        (* interp -∗ *)
         WPC (ThreadState e TV) @ s; k; E {{ λ res,
-          (* interp ∗ *)
           (let '(ThreadVal v TV') := res return _ in
             ⌜TV ⊑ TV'⌝ ∗ (* The operational semantics always grow the thread
             view, encoding this in the WPC is convenient. *)
