@@ -300,7 +300,8 @@ Section wp_at_rules.
       "knowProt" ∷ know_protocol ℓ ϕ ∗
       "isSharedLoc" ∷ ⎡ is_shared_loc ℓ ⎤ ∗
       "storeLB" ∷ know_store_lb ℓ s_i ∗
-      "phi" ∷ (∀ v_i, ϕ s_i v_i _ -∗ ϕ s_t v_t _ ∗ ϕ s_i v_i _) ∗
+      (* "phi" ∷ (∀ v_i, ϕ s_i v_i _ -∗ ϕ s_t v_t _ ∗ ϕ s_i v_i _) ∗ *)
+      "phi" ∷ <nobuf> (ϕ s_t v_t _) ∗
       (* The new state must be greater than the possible current states. *)
       "greater" ∷
         (∀ v_i s_c v_c,
@@ -443,6 +444,11 @@ Section wp_at_rules.
     iMod (own_full_history_insert _ _ _ _ _ _ (encode s_t) with "history absHist")
       as "(history & absHist & histFrag)". { done. }
 
+    iMod (auth_map_map_insert with "physHist") as "[physHist unusedFrag]".
+    { done. }
+    { eapply fmap_None. done. }
+
+    (* We are done updating ghost state. *)
     iModIntro.
     iEval (rewrite -assoc).
     iSplit. { iPureIntro. repeat split; try done. apply view_insert_le. lia. }
@@ -473,6 +479,9 @@ Section wp_at_rules.
     iDestruct (big_sepM2_dom with "predMap") as %physHistAbsHistDom.
     assert (is_Some (physHist !! t_i)) as [vI physHistLook].
     { rewrite -elem_of_dom physHistAbsHistDom elem_of_dom. done. }
+    assert (enc = enc') as <-.
+    { apply (inj Some). rewrite -hip. rewrite -lookTS. rewrite -absHistsLook'.
+      rewrite lookup_insert_ne; [done| lia]. }
 
     (* We must extract the phi for the inserted state from "phi". *)
     iDestruct (big_sepM2_delete with "predMap") as "[phiI predMap]".
@@ -480,17 +489,10 @@ Section wp_at_rules.
     iDestruct (predicate_holds_phi_decode with "predsEquiv phiI") as "phiI";
       first done.
 
-    assert (msg_to_tv vI ⊑ TV).
-    { admit. (* TODO: This should hold but we don't know that it does. We must
-      throw some extra in somewhere. *) }
-
-    iDestruct ("phi" with "[phiI]") as "[phiT phiI]".
-    { iApply monPred_mono; last iApply "phiI".
-      done. }
-
     iDestruct (big_sepM_insert_delete with "[$ptsMap $pts]") as "ptsMap".
     repeat iExists _.
-    iFrame "ptsMap crashedAt history predicates allOrders sharedLocs allBumpers bumpMono".
+    iFrame "ptsMap physHist crashedAt history predicates allOrders sharedLocs
+            allBumpers bumpMono".
 
     (* [sharedLocsSubseteq] *)
     iSplit. { iPureIntro. etrans; first done. apply dom_insert_subseteq. }
@@ -501,10 +503,15 @@ Section wp_at_rules.
     iSplit.
     { iPureIntro.
       setoid_rewrite (restrict_insert ℓ); last done.
-      apply map_Forall_insert_2; last done.
-      apply map_Forall_insert_2; first done.
-      eapply mapShared.
-      apply restrict_lookup_Some_2; done. }
+      rewrite /shared_locs_inv.
+      apply map_map_Forall_insert_2.
+      - apply restrict_lookup_Some; done.
+      - simpl.
+        rewrite /lookup_zero.
+        rewrite lookup_insert.
+        simpl.
+        done.
+      - done. }
 
     (* [sharedLocsHistories] *)
     iSplitL "sharedLocsHistories absHist".
@@ -568,36 +575,47 @@ Section wp_at_rules.
       iEval (monPred_simpl) in "greater".
       iEval (setoid_rewrite monPred_at_pure) in "greater".
 
-      iApply ("greater" $! (TV' ⊔ (msg_to_tv vC))).
-      { admit. (* should be easy. *) }
+      iApply ("greater" $! (TV' ⊔ (msg_to_tv vC) ⊔ (msg_to_tv vI))).
+      { iPureIntro. etrans; first apply incl.
+        rewrite -assoc.
+        apply thread_view_le_l. }
       monPred_simpl.
       iFrame.
       iSplitL "phiI".
       { iApply monPred_mono; last iApply "phiI".
-        etrans; last apply thread_view_le_l. etrans; done. }
-      iSplitL "phiT".
-      { iApply monPred_mono; last iApply "phiT".
-        etrans; last apply thread_view_le_l. etrans; done. }
+        apply thread_view_le_r. }
+      iSplitL "phi".
+      { iApply monPred_mono; last iApply "phi".
+        etrans; last apply thread_view_le_l.
+        etrans; last apply thread_view_le_l.
+        destruct TV as [[??]?].
+        destruct TV' as [[??]?].
+        rewrite /store_view /flush_view. simpl.
+        repeat split.
+        - apply incl.
+        - apply incl.
+        - apply view_empty_least. }
 
       iApply monPred_mono; last iApply "phiC".
-      apply thread_view_le_r. }
+      rewrite (comm _ TV').
+      rewrite -assoc.
+      apply thread_view_le_l. }
 
     (* [predsHold] *)
     (* We show that the invariant hold for all messages in all histories. The
     non-trivial part of this is to show that the invariant hold for the newly
     inserted store message. *)
-    iSplitL "predsHold predMap phiI phiT". {
+    iSplitL "predsHold predMap phiI phi". {
       iDestruct (big_sepM2_insert_delete with "[$predMap phiI]") as "predMap".
       {
         iApply predicate_holds_phi_decode; [done|done|].
-        iApply monPred_mono; last iApply "phiI". done.
-        iApply (predicate_holds_phi_decode with "predsEquiv phiI") as "phiI";
-      }
+        iApply monPred_mono; last iApply "phiI". done. }
       iDestruct (big_sepM2_insert_delete with "[predMap $predsHold]") as "predsHold".
       { iExists _. iSplit; first done. iApply "predMap". }
+      rewrite (insert_id physHist); last done.
       rewrite (insert_id phys_hists); last done.
+      rewrite (insert_id absHist); last done.
       rewrite (insert_id abs_hists); last done.
-      (* iSpecialize ("predsHold" with "[predMap]"). { naive_solver. } *)
       iApply (big_sepM2_insert_override_2 with "predsHold"); [done|done|].
       simpl.
       iDestruct 1 as (pred' predsLook') "H".
@@ -611,10 +629,21 @@ Section wp_at_rules.
       iExists (ϕ s_t v_t).
       iSplit.
       { iApply pred_encode_Some. done. }
-
-      admit.
+      iApply monPred_mono; last iFrame.
+      destruct TV as [[??]?].
+      destruct TV' as [[??]?].
+      repeat split; last done.
+      - simpl. etrans; first apply incl. etrans; first apply incl2.
+        rewrite /store_view in gt. simpl in gt.
+        apply view_insert_le'; [done|lia].
+      - simpl. rewrite /flush_view. simpl.
+        etrans; first apply incl.
+        apply incl2.
     }
     iDestruct (big_sepM2_dom with "bumperSome") as %domEq.
+
+    iFrame "predPostCrash".
+    iFrame (bumperBumpToValid).
 
     (* "bumperSome" *)
     iApply big_sepM2_forall. iSplit.
@@ -635,23 +664,6 @@ Section wp_at_rules.
       rewrite /encode_bumper. rewrite decode_encode. done.
     - eapply bumperSome; try done.
       rewrite lookup_insert_ne in look1; done.
-
-  Admitted.
-
-
-  (*   "history absHist" *)
-  (* Qed. *)
-
-  (* Definition insert_hist {A} (ℓ : loc) (a : A) (m : gmap ℓ (gmap nat A)) := *)
-  (*   <[]>m *)
-
-  (* Insert a new message into an abstract history. *)
-  (* Lemma foo ℓ t abs_hist abs_hists encS : *)
-  (*   (* abs_hists !! ℓ = abs_hist *) *)
-  (*   abs_hist !! t = None → *)
-  (*   own_full_history abs_history_name know_abs_history_name abs_hists -∗ *)
-  (*   know_full_encoded_history_loc ℓ abs_hist -∗ *)
-  (*     own_full_history abs_history_name know_abs_history_name <[t := encS]abs_hists ∗ *)
-  (*     own_frag_encoded_history_loc γ ℓ <[t := encS]>enc. *)
+  Qed.
 
 End wp_at_rules.

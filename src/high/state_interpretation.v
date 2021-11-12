@@ -23,7 +23,7 @@ Definition map_map_Forall `{Countable K1, Countable K2} {A : Type}
 Section map_map_Forall.
   Context `{Countable K1, Countable K2} {A : Type}.
 
-  Implicit Types (m : gmap K1 (gmap K2 A)).
+  Implicit Types (m : gmap K1 (gmap K2 A)) (P : K1 → K2 → A → Prop).
 
   Lemma map_map_Forall_lookup_1 P m n i j x :
     map_map_Forall P m → m !! i = Some n → n !! j = Some x → P i j x.
@@ -31,6 +31,18 @@ Section map_map_Forall.
     intros map ? ?.
     eapply map_Forall_lookup_1 in map; last done.
     eapply map_Forall_lookup_1 in map; done.
+  Qed.
+
+  Lemma map_map_Forall_insert_2 P m n k1 k2 a :
+    m !! k1 = Some n →
+    P k1 k2 a →
+    map_map_Forall P m →
+    map_map_Forall P (<[k1:=<[k2:=a]>n]>m).
+  Proof.
+    intros look HP map.
+    apply map_Forall_insert_2; last done.
+    apply map_Forall_insert_2; first done.
+    apply map. done.
   Qed.
 
 End map_map_Forall.

@@ -320,6 +320,19 @@ Proof.
   split; etrans; done.
 Qed.
 
+Global Instance prod_join_assoc `{!Join A, !Join B, !Assoc (=@{A}) (⊔),
+      !Assoc (=@{B}) (⊔)} : Assoc (=@{A * B}) (⊔).
+Proof.
+  intros [??] [??] [??]. cbv. rewrite assoc. rewrite assoc. done.
+Qed.
+
+Global Instance prod_join_comm `{!Join A, !Join B, !Comm (=@{A}) (⊔),
+      !Comm (=@{B}) (⊔)} : Comm (=@{A * B}) (⊔).
+Proof.
+  intros [a b] [? ?]. cbv. rewrite (comm _ a) (comm _ b). done.
+Qed.
+
+
 (* Global Instance pair_join_mono `{!Join A, !Join B, !SqSubsetEq A, !SqSubsetEq B} : Proper ((⊑@{A * B}) ==> (⊑) ==> (⊑)) (⊔). *)
 (* Proof. *)
 (*   Check pointwise_relation. *)

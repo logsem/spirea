@@ -37,7 +37,7 @@ Definition mk_stack : expr :=
 returns unit once the element has been pushed.*)
 Definition push : expr :=
   λ: "toHead" "val",
-    let: "toVal" := ref "val" in
+    (* let: "toVal" := ref "val" in *)
     let: "toNext" := ref #() in
     let: "newNode" := ref (InjR ("val", "toNext")) in
     (rec: "loop" <> :=
