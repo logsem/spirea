@@ -140,6 +140,15 @@ Proof.
   split. - by rewrite lookup_insert. - apply Some_included. right. done.
 Qed.
 
+Lemma singleton_included_look {A : cmra} `{Countable K} (m : gmap K A) (k : K) (a b : A) :
+  m !! k = Some b → a ≼ b → {[k := a]} ≼ m.
+Proof.
+  intros L incl.
+  apply singleton_included_l.
+  eexists b. rewrite L. split; first reflexivity.
+  by apply Some_included_2.
+Qed.
+
 Lemma map_Forall_singleton `{FinMap K M} {A} (j : K) (y : A) (P : K → A → Prop) :
   P j y ↔
   map_Forall P ({[j := y]} : M A).

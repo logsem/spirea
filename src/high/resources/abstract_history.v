@@ -196,6 +196,23 @@ Section abs_history_lemmas.
     repeat split; done.
   Qed.
 
+  Lemma own_full_history_lookup γ1 γ2 abs_hists enc_abs_hist ℓ t s :
+    abs_hists !! ℓ = Some enc_abs_hist →
+    enc_abs_hist !! t = Some s →
+    own_full_history γ1 γ2 abs_hists ==∗
+    own_full_history γ1 γ2 abs_hists ∗
+    own_frag_encoded_history_loc γ2 ℓ {[ t := s ]}.
+  Proof.
+    iIntros (look1 look2).
+    iIntros "[M N]".
+    iMod (auth_map_map_lookup with "N") as "[N hip]"; try done.
+    iFrame.
+    rewrite /auth_map_map_frag_singleton.
+    rewrite /auth_map_map_frag.
+    rewrite fmap_fmap_to_agree_singleton.
+    by iFrame.
+  Qed.
+
   Lemma own_full_history_alloc_frag γ1 γ2 ℓ t encS (s : ST) hists hist :
     hists !! ℓ = Some hist →
     hist !! t = Some encS →
@@ -203,24 +220,10 @@ Section abs_history_lemmas.
     own_full_history γ1 γ2 hists ==∗
     own_full_history γ1 γ2 hists ∗ own_frag_history_loc γ2 ℓ {[ t := s ]}.
   Proof.
-    iIntros (look lookHist decEq) "[$ H2]".
-    rewrite /own_full_history /own_frag_history_loc.
-    iMod (own_update with "H2") as "[$ H]".
-    { apply (auth_update_dfrac_alloc _ _ {[ ℓ := {[ t := to_agree encS ]} ]}).
-      apply singleton_included_l.
-      eexists _.
-      rewrite lookup_fmap.
-      rewrite look.
-      simpl.
-      split; first reflexivity.
-      rewrite /abs_hist_to_ra.
-      apply Some_included_total.
-      apply singleton_included_l.
-      eexists _.
-      rewrite lookup_fmap.
-      rewrite lookHist.
-      simpl.
-      split; f_equiv. }
+    iIntros (look lookHist decEq) "M".
+    iMod (own_full_history_lookup with "M") as "[M hi]"; try done.
+    iFrame. iModIntro.
+    rewrite /own_frag_history_loc.
     iExists {[ t := encS ]}.
     rewrite /own_frag_encoded_history_loc.
     rewrite !map_fmap_singleton.

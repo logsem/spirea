@@ -128,7 +128,7 @@ Section wp_at_rules.
     monPred_simpl.
     iApply program_logic.crash_weakestpre.wp_wpc.
 
-    iApply wp_extra_state_interp_fupd.
+    iApply wp_extra_state_interp.
     { done. }
     { (* Try and simplify this with lemmas/automation. *)
       clear.
@@ -159,6 +159,8 @@ Section wp_at_rules.
       destruct x; try done. }
     (* We open [interp]. *)
     iNamed 1.
+
+    iApply (wp_fupd (irisGS0 := (@nvmBaseG_irisGS _ _ _ (Build_extraStateInterp _ _)))).
 
     (* _Before_ we load the points-to predicate we deal with the predicate ϕ. We
     do this before such that the later that arrises is stripped off when we take
@@ -258,12 +260,12 @@ Section wp_at_rules.
     { iExists _. naive_solver. }
 
     (* Note: This allocation was commented out. Do we need it? *)
-    (* iMod (own_full_history_alloc_frag with "history") as "[history histS]"; try done. *)
-    (* iModIntro. *)
+    iMod (own_full_history_alloc_frag with "history") as "[history histS]"; try done.
+    iModIntro.
     (* We re-establish [interp]. *)
     iSplitR "ptsMap physHist allOrders ordered predsHold history predicates
              crashedAt sharedLocs allBumpers bumpMono predPostCrash sharedLocsHistories"; last first.
-    { repeat iExists _. iModIntro. iFrameNamed. }
+    { repeat iExists _. iFrameNamed. }
     iSplit. { iPureIntro. repeat split; try done; apply view_le_l. }
     iSpecialize ("Φpost" $! sL v').
     monPred_simpl.
@@ -279,13 +281,9 @@ Section wp_at_rules.
     - iFrameNamed.
       iExists t'.
       iFrame "∗#".
-      (* FIXME: Intuitively the lhs. should be included in because we read [t']
-      and a write includes its own timestamp. But, we don't remember this fact,
-      yet. *)
-      iPureGoal. {
-        rewrite -SV'lookup. rewrite /store_view /=.
-        rewrite lookup_zero_lub. lia. }
-      admit.
+      iPureIntro.
+      rewrite -SV'lookup. rewrite /store_view /=.
+      rewrite lookup_zero_lub. lia.
     - simpl.
       rewrite /store_view /flush_view /=.
       iApply monPred_mono; last iApply "Q".
@@ -293,7 +291,7 @@ Section wp_at_rules.
       * apply view_le_r.
       * rewrite assoc. apply view_le_r.
       * apply view_empty_least.
-  Admitted.
+  Qed.
 
   (* Rule for store on an atomic. *)
   Lemma wp_store_at ℓ s_i s_t v_t ϕ `{!LocationProtocol ϕ} positive E :

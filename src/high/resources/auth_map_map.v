@@ -82,6 +82,26 @@ Section auth_map_map.
     - done.
   Qed.
 
+  Lemma auth_map_map_lookup `{!LeibnizEquiv A} γ m ℓ t h a :
+    m !! ℓ = Some h →
+    h !! t = Some a →
+    auth_map_map_auth γ m ==∗
+    auth_map_map_auth γ m ∗ auth_map_map_frag_singleton γ ℓ t a.
+  Proof.
+    iIntros (mLook hLook) "N".
+    rewrite /auth_map_map_auth /auth_map_map_frag. setoid_rewrite <- own_op.
+    iApply (own_update with "N").
+    apply: auth_update_dfrac_alloc.
+    rewrite fmap_fmap_to_agree_singleton.
+    eapply singleton_included_look.
+    { rewrite /fmap_fmap_to_agree lookup_fmap mLook /=. reflexivity. }
+    simpl.
+    rewrite map_fmap_singleton.
+    eapply singleton_included_look.
+    { rewrite lookup_fmap. rewrite hLook. simpl. reflexivity. }
+    { done. }
+  Qed.
+
   (* NOTE: The requirement on leibniz equiv may not be strictly necessary, but
   it is convenient right now. *)
   Lemma auth_map_map_insert `{!LeibnizEquiv A} γ m ℓ t h a :
