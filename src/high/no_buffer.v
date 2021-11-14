@@ -73,6 +73,16 @@ Section no_buffer.
   Global Instance into_no_buffer_embed (P : iProp Σ) : IntoNoBuffer ⎡P⎤ ⎡P⎤.
   Proof. rewrite /IntoNoBuffer. eauto using no_buffer_embed. Qed.
 
+  Global Instance into_no_buffer_if (b : bool) (P P' Q Q' : dProp Σ) :
+    IntoNoBuffer P P' →
+    IntoNoBuffer Q Q' →
+    IntoNoBuffer (if b then P else Q) (if b then P' else Q').
+  Proof. rewrite /IntoNoBuffer. destruct b; naive_solver. Qed.
+
+  Global Instance into_no_buffer_sep (P P' Q Q' : dProp Σ) :
+    IntoNoBuffer P P' → IntoNoBuffer Q Q' → IntoNoBuffer (P ∗ Q)%I (P' ∗ Q')%I.
+  Proof. rewrite /IntoNoBuffer no_buffer_sep. by intros <- <-. Qed.
+
 End no_buffer.
 
 Section no_buffer_rules.

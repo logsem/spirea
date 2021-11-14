@@ -9,7 +9,7 @@ From self.algebra Require Import view.
 From self.base Require Import primitive_laws class_instances crash_borrow.
 From self.high Require Import proofmode wpc_proofmode.
 From self.high Require Import crash_weakestpre modalities weakestpre
-     weakestpre_at recovery_weakestpre protocol crash_borrow.
+     weakestpre_at recovery_weakestpre protocol crash_borrow no_buffer.
 
 Section program.
 
@@ -44,6 +44,7 @@ Section proof.
 
   Program Instance : LocationProtocol inv_x := { bumper n := n }.
   Next Obligation. iIntros. by iApply post_crash_flush_pure. Qed.
+  Next Obligation. iIntros (???) "? !> //". Qed.
 
   Definition inv_y (b : bool) (v : val) (hG : nvmDeltaG Σ) : dProp Σ :=
     match b with
@@ -54,8 +55,14 @@ Section proof.
   Program Instance : LocationProtocol inv_y := { bumper n := n }.
   Next Obligation.
     iIntros (? [|] ?); simpl.
-    - iIntros "[% lb]". iCrashFlush. iDestruct "lb" as "(_ & $ & _)". done.
+    - iIntros "[% lb]". iCrashFlush.
+      iDestruct "lb" as "(% & %le & h & hi & _)".
+      destruct s__pc; last done.
+      iFrame "∗%".
     - iIntros "%". iApply post_crash_flush_pure. done.
+  Qed.
+  Next Obligation.
+    rewrite /inv_y. iIntros (???) "H". iModIntro. done.
   Qed.
 
   Definition inv_z := inv_y.
