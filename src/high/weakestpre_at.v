@@ -24,6 +24,7 @@ From self.high Require Import resources crash_weakestpre lifted_modalities
 Section wp_at_rules.
   Context `{AbstractState ST}.
   Context `{!nvmFixedG Σ, hG : nvmDeltaG Σ}.
+  Context `{!stagedG Σ}.
 
   Implicit Types (ℓ : loc) (s : ST) (ϕ : ST → val → nvmDeltaG Σ → dProp Σ).
 

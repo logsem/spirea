@@ -438,6 +438,10 @@ Section IntoCrash.
     IntoCrash (⌜ P ⌝) (λ _, ⌜ P ⌝)%I.
   Proof. rewrite /IntoCrash. iIntros "%". by iApply post_crash_pure. Qed.
 
+  Global Instance lifted_embed_nodep_into_crash (P : iProp Σ) :
+    IntoCrash (⎡ P ⎤) (λ _, ⎡ P ⎤)%I | 1000.
+  Proof. apply post_crash_embed_nodep. Qed.
+
   Global Instance lifted_embed_into_crash (P : iProp Σ) Q :
     base.post_crash_modality.IntoCrash P Q →
     IntoCrash (⎡ P ⎤) (λ _, ⎡ Q _ ⎤)%I.
@@ -799,6 +803,12 @@ Section post_crash_persisted.
 
   Lemma post_crash_flush_pure (P : Prop) : P → ⊢ <PCF> _, ⌜P⌝.
     rewrite -post_crash_flush_post_crash. apply post_crash_pure.
+  Qed.
+
+  Lemma post_crash_flush_embed_nodep P :
+    ⎡ P ⎤ -∗ <PCF> _, ⎡ P ⎤.
+  Proof.
+    rewrite -post_crash_flush_post_crash. apply post_crash_embed_nodep.
   Qed.
 
   Lemma post_crash_flush_know_flush_lb `{AbstractState ST}

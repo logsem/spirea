@@ -296,6 +296,18 @@ Section wpc.
 
   (** * Derived rules *)
 
+  Lemma wpc_crash_mono stk k E1 e Φ Φc Φc' `{!Objective Φc, !Objective Φc'} :
+    (Φc' -∗ Φc) -∗
+    WPC e @ stk; k; E1 {{ Φ }} {{ Φc' }} -∗
+    WPC e @ stk; k; E1 {{ Φ }} {{ Φc }}.
+  Proof.
+    iIntros "Hweaken Hwpc".
+    iApply (wpc_strong_mono' with "Hwpc"); eauto.
+    iSplit; eauto.
+    iIntros "Hc'".
+    by iApply "Hweaken".
+  Qed.
+
   Lemma wpc_mono s k E1 e Φ Ψ Φc Ψc `{!Objective Φc, !Objective Ψc} :
     (∀ v, Φ v ⊢ Ψ v) →
     (Φc ⊢ Ψc) →
