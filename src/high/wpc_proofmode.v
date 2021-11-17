@@ -8,8 +8,7 @@ From Perennial.program_logic Require Import atomic.
 From Perennial.Helpers Require Export ipm NamedProps ProofCaching.
 
 From self Require Import ipm_tactics.
-From self.lang Require Import lang.
-From self.base Require Import tactics.
+From self.lang Require Import lang tactics.
 From self.base Require Import primitive_laws wpc_proofmode.
 From self.high Require Import lifted_modalities crash_weakestpre proofmode.
 

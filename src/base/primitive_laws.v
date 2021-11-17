@@ -12,8 +12,7 @@ From iris.prelude Require Import options.
 From self Require Import extra ipm_tactics.
 From self Require Import cred_frag.
 From self.algebra Require Import view.
-From self.lang Require Export notation.
-From self.base Require Import tactics.
+From self.lang Require Export notation tactics.
 
 Definition view_preG Σ := inG Σ (authR viewUR).
 

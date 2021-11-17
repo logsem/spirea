@@ -14,8 +14,7 @@ From iris_named_props Require Import named_props.
 From self Require Export extra ipm_tactics encode_relation.
 From self.high Require Export dprop.
 From self Require Export view.
-From self Require Export lang lemmas.
-From self.base Require Import tactics.
+From self.lang Require Export lang lemmas tactics.
 From self.base Require Import primitive_laws.
 From self.lang Require Import syntax.
 From self.high Require Import resources crash_weakestpre lifted_modalities

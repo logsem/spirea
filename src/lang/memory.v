@@ -47,6 +47,8 @@ Record message : Type := Msg {
   msg_persisted_after_view : view;
 }.
 
+Canonical Structure messageO := leibnizO message.
+
 Notation thread_view := (view * view * view)%type.
 
 Instance thread_view_bottom : Bottom thread_view := ε.

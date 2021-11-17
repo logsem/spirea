@@ -4,8 +4,7 @@ These are used in the proof mode. *)
 From Perennial.program_logic Require Export language.
 From iris.prelude Require Import options.
 
-From self.lang Require Export lang notation.
-From self.base Require Import tactics.
+From self.lang Require Export lang notation tactics.
 
 (* [IntoVal] and [AsVal] for nvm_lang. *)
 Global Instance into_val_ts v TV : IntoVal (Val v `at` TV) (v `at` TV).

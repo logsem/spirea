@@ -282,6 +282,9 @@ Section points_to_shared.
     apply singleton_included_l.
   Qed.
 
+  Program Definition monPred_in_store_view SV : dProp Σ :=
+    monPred_in ((SV, ∅, ∅)).
+
   Program Definition have_store_view ℓ t : dProp Σ :=
     MonPred (λ (TV : thread_view), ⌜t ≤ (store_view TV) !!0 ℓ⌝)%I _.
   Next Obligation. solve_proper. Qed.
@@ -294,23 +297,26 @@ Section points_to_shared.
   last events at [ℓ] corresponds to the *)
   Program Definition mapsto_ex (persisted : bool) (ℓ : loc) (ss : list ST) : dProp Σ :=
     (* MonPred (λ TV, *)
-      (∃ (tP tStore : time) (abs_hist : gmap time ST),
-        "%incrList" ∷ ⌜increasing_list ss⌝ ∗
+      (∃ (tP tStore : time) SV (abs_hist : gmap time ST) (msg : message),
+        "%incrList" ∷ ⌜ increasing_list ss ⌝ ∗
         (* "isExclusiveLoc" ∷ ⎡ is_exclusive_loc ℓ ⎤ ∗ *)
         "#order" ∷ ⎡ know_preorder_loc ℓ (abs_state_relation) ⎤ ∗
 
         (* [tStore] is the last message and it agrees with the last state in ss. *)
-        "%lookupV" ∷ ⌜abs_hist !! tStore = last ss⌝ ∗
-        "%nolater" ∷ ⌜map_no_later abs_hist tStore⌝ ∗
+        "%lookupV" ∷ ⌜ abs_hist !! tStore = last ss ⌝ ∗
+        "%nolater" ∷ ⌜ map_no_later abs_hist tStore ⌝ ∗
 
         (* Ownership over the abstract history. *)
         "hist" ∷ ⎡ know_full_history_loc ℓ abs_hist ⎤ ∗
 
-        "%slice" ∷ ⌜map_slice abs_hist tP tStore ss⌝ ∗
+        "%slice" ∷ ⌜ map_slice abs_hist tP tStore ss ⌝ ∗
+        "#physMsg" ∷ ⎡ auth_map_map_frag_singleton know_phys_history_name ℓ tStore msg ⎤ ∗
+        "%msgViewIncluded" ∷ ⌜ msg_store_view msg ⊑ SV ⌝ ∗
+        "#haveSV" ∷ monPred_in_store_view SV ∗
+        (* We have the [tStore] timestamp in our store view. *)
+        "%haveTStore" ∷ ⌜ tStore ≤ SV !!0 ℓ ⌝ ∗
 
-        (* We "have"/"know of" the two timestamps. *)
-        "haveTStore" ∷ have_store_view ℓ tStore ∗
-        "pers" ∷ if persisted then ⎡ persisted_loc ℓ tP ⎤ else ⌜tP = 0⌝)%I.
+        "pers" ∷ if persisted then ⎡ persisted_loc ℓ tP ⎤ else ⌜ tP = 0 ⌝)%I.
 
   (* NOTE: This comment is out of date. *)
   (* This definition uses an existentially quantified [s']. We do this such that

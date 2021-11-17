@@ -139,4 +139,25 @@ Section auth_map_map.
           reflexivity. }
   Qed.
 
+  Lemma auth_map_map_lookup_agree `{!OfeDiscrete A} `{!LeibnizEquiv A} γ m ℓ h t a a' :
+    m !! ℓ = Some h →
+    h !! t = Some a →
+    auth_map_map_auth γ m -∗
+    auth_map_map_frag_singleton γ ℓ t a' -∗
+    ⌜ a = a' ⌝.
+  Proof.
+    iIntros (mLook hLook) "O F".
+    rewrite /auth_map_map_auth.
+    rewrite /auth_map_map_frag_singleton /auth_map_map_frag.
+    rewrite /fmap_fmap_to_agree.
+    (* iDestruct (own_valid_2 with "F O") as %[incl _]%auth_both_valid_discrete. *)
+    iDestruct (own_valid_2 with "O F") as %V.
+    iPureIntro.
+    apply auth_both_valid_discrete in V.
+    destruct V as [incl _].
+    move: incl.
+    rewrite map_fmap_singleton.
+    rewrite singleton_included_l.
+  Admitted.
+
 End auth_map_map.

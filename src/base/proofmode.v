@@ -6,10 +6,9 @@ From iris.proofmode Require Export tactics.
 
 From Perennial.program_logic Require Export weakestpre.
 
-From self.base Require Export tactics.
 From self.base Require Export primitive_laws class_instances.
 From self.lang Require Import notation.
-From self.lang Require Import lang.
+From self.lang Require Import lang tactics.
 Import uPred.
 
 Lemma tac_wp_expr_eval `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG Σ} Δ s E Φ e e' :

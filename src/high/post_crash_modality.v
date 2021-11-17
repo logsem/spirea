@@ -624,17 +624,18 @@ Section post_crash_derived.
     iExists s.
     iPureGoal. { by eapply map_slice_no_later_elem_of. }
     iSplit.
-    - iExists 0, 0, _. iFrame.
+    - iExists 0, 0, ∅, _, (Msg _ ∅ ∅ ∅). iFrame.
       iPureGoal. { apply increasing_list_singleton. }
       iPureGoal. { by rewrite lookup_singleton. }
       iPureGoal. { apply map_no_later_singleton. }
       iPureGoal. { simpl. by rewrite lookup_singleton. }
-      rewrite /have_store_view.
+      iSplit. { admit. } (* FIXME: We'd need to add some post crash rule for this. *)
       iStopProof.
       iStartProof (iProp _). iIntros (?) "_ !%".
-      lia.
+      split_and!; try done.
+      destruct i as [[??]?]; repeat split; apply view_empty_least.
     - iExists _. iFrame "∗#". iPureIntro. apply elem_of_dom. naive_solver.
-  Qed.
+  Admitted.
 
   Lemma post_crash_mapsto_ex `{AbstractState ST} ℓ ss :
     ℓ ↦ ss -∗
@@ -656,17 +657,19 @@ Section post_crash_derived.
         eapply map_no_later_Some; naive_solver. }
       rewrite /recovered_at.
       iSplit.
-      + iExists 0, 0, _. iFrame.
+      + iExists 0, 0, ∅, _, (Msg _ ∅ ∅ ∅). iFrame.
         iPureGoal. { apply increasing_list_singleton. }
         iPureGoal. { by rewrite lookup_singleton. }
         iPureGoal. { apply map_no_later_singleton. }
         iPureGoal. { by rewrite lookup_singleton. }
+        iSplit. { admit. } (* FIXME: We'd need to add some post crash rule for this. *)
         iStopProof.
         iStartProof (iProp _). iIntros (?) "_".
-        simpl. iPureIntro. lia.
+        simpl. iPureIntro. split_and!; try done.
+        destruct i as [[??]?]; repeat split; apply view_empty_least.
       + iExists _. iFrame "∗#". iPureIntro. rewrite elem_of_dom. naive_solver.
     - iRight. iExists CV. iFrame "∗#". iPureIntro. by rewrite not_elem_of_dom.
-  Qed.
+  Admitted.
 
   Global Instance mapsto_ex_into_crash `{AbstractState ST} ℓ ss :
     IntoCrash

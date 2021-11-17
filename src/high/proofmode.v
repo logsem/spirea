@@ -8,8 +8,8 @@ From Perennial.Helpers Require Export ipm.
 
 From Perennial.program_logic Require Export language ectx_language ectxi_language.
 
-From self.base Require Import tactics class_instances primitive_laws.
-From self.lang Require Export notation.
+From self.base Require Import class_instances primitive_laws.
+From self.lang Require Export notation tactics.
 From self.high Require Import resources crash_weakestpre weakestpre lifted_modalities.
 
 Set Default Proof Using "Type".

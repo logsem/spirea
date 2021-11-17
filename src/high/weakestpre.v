@@ -16,9 +16,8 @@ From self Require Export extra ipm_tactics.
 From self.high Require Export dprop.
 From self Require Export view.
 From self Require Export lang.
-From self.base Require Import tactics.
 From self.base Require Import primitive_laws.
-From self.lang Require Import syntax.
+From self.lang Require Import syntax tactics.
 From self.high Require Import resources crash_weakestpre lifted_modalities
      monpred_simpl modalities protocol.
 

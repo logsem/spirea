@@ -14,8 +14,7 @@ From iris_named_props Require Import named_props.
 From self Require Export extra ipm_tactics encode_relation.
 From self.high Require Export dprop.
 From self Require Export view.
-From self Require Export lang lemmas.
-From self.base Require Import tactics.
+From self.lang Require Export lang lemmas tactics.
 From self.base Require Import primitive_laws.
 From self.lang Require Import syntax.
 From self.high Require Import resources crash_weakestpre lifted_modalities
@@ -38,15 +37,16 @@ Section wp_na_rules.
     intros sLast Φ.
     iStartProof (iProp _). iIntros (TV).
     (* We destruct the exclusive points-to predicate. *)
-    iIntros "(pts & [knowPred _] & pToQ)".
-    iDestruct "pts" as (?tP ?tS absHist) "pts". iNamed "pts".
-    iDestruct "haveTStore" as %haveTStore.
+    iIntros "(pts & temp & pToQ)".
+    iNamed "temp".
+    iDestruct "pts" as (?tP ?tS SV absHist msg) "pts". iNamed "pts".
+    iDestruct "haveSV" as %haveSV.
     rewrite monPred_at_wand. simpl.
     iIntros (TV' incl) "Φpost".
     rewrite monPred_at_later.
     rewrite wp_eq /wp_def.
     rewrite wpc_eq. simpl.
-    iIntros ([[SV PV] BV] incl2) "#val".
+    iIntros ([[SV' PV] BV] incl2) "#val".
     rewrite monPred_at_pure.
     iApply program_logic.crash_weakestpre.wp_wpc.
 
@@ -71,21 +71,23 @@ Section wp_na_rules.
 
     iDestruct (big_sepM_lookup_acc with "ptsMap") as "[pts ptsMap]"; first done.
     iApply (wp_load (extra := {| extra_state_interp := True |}) with "[$pts $val]").
-    iNext. iIntros (t' v' msg) "[pts (%look & %msgVal & %gt)]".
+    iNext. iIntros (t' v' msg') "[pts (%look & %msgVal & %gt)]".
     rewrite /store_view. simpl.
     iDestruct ("ptsMap" with "pts") as "ptsMap".
     iFrame "val".
 
     (* We need to conclude that the only write we could read is [tS]. I.e., that
     [t' = tS]. *)
-    assert (tS ≤ SV !!0 ℓ) as tSle.
-    { destruct TV as [[??]?].
+    assert (tS ≤ SV' !!0 ℓ) as tSle.
+    { etrans; first done.
+      destruct TV as [[??]?].
       destruct TV' as [[??]?].
-      etrans; first done.
       rewrite /store_view /=.
-      apply view_lt_lt. etrans; first apply incl; apply incl2. done. }
+      apply view_lt_lt; last done.
+      etrans; first apply haveSV.
+      etrans; first apply incl; apply incl2. }
     assert (tS ≤ t') as lte.
-    { etrans; first apply tSle. apply gt. }
+    { etrans; first done. apply gt. }
     iDestruct (big_sepM2_dom with "predMap") as %domEq.
     assert (is_Some (absHist !! t')) as HI.
     { apply elem_of_dom.
@@ -103,6 +105,10 @@ Section wp_na_rules.
       rewrite slice.
       done. }
     clear lte HI.
+
+    iDestruct (auth_map_map_lookup_agree with "[$] [$]") as %eq.
+    { done. } { done. }
+    subst.
 
     iDestruct (big_sepM2_lookup_acc with "predMap") as "[predHolds predMap]";
       first done.
@@ -129,11 +135,17 @@ Section wp_na_rules.
     2: {
       simplify_eq.
       rewrite /msg_to_tv.
-      (* This _should_ hold bc. the view in the message is smaller. But, we
-      don't have that fact. *)
-      admit.
+      iApply monPred_mono; last iApply "Q".
+      repeat split.
+      - etrans; first done.
+        destruct TV as [[??]?]. destruct TV' as [[??]?].
+        etrans; first apply haveSV.
+        etrans; first apply incl.
+        apply incl2.
+      - admit.
+      - apply view_empty_least.
     }
-    iExists _, _, _.
+    iExists _, _, _, _, _.
     iFrameNamed.
     monPred_simpl.
     iDestruct (objective_at with "pers") as "$". { destruct b; apply _. }
