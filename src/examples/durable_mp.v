@@ -182,7 +182,7 @@ Section proof.
     { iApply (right_crash_condition_impl with "yProt zProt yLb yShared zPts"). }
 
     iApply wpc_atomic_no_mask. whack_right_cc.
-    iApply (wp_store_ex _ _ _ _ _ true inv_z with "[$zPts $zProt]").
+    iApply (wp_store_na _ _ _ _ _ true inv_z with "[$zPts $zProt]").
     { reflexivity. }
     { done. }
     { simpl. iFrame "xLb". done. }
@@ -256,7 +256,7 @@ Section proof.
       rewrite /leftProg.
       wpc_bind (_ <- _)%E.
       iApply wpc_atomic_no_mask. whack_left_cc.
-      iApply (wp_store_ex x _ _ _ _ true with "[$xProt $xPts]").
+      iApply (wp_store_na x _ _ _ _ true with "[$xProt $xPts]").
       { reflexivity. } { done. }
       { rewrite /inv_x. done. }
       simpl.

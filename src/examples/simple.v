@@ -9,8 +9,8 @@ From self.algebra Require Import view.
 From self.base Require Import primitive_laws class_instances.
 From self.high Require Import proofmode wpc_proofmode.
 From self.high Require Import dprop resources crash_weakestpre weakestpre
-     recovery_weakestpre lifted_modalities modalities post_crash_modality
-     protocol no_buffer.
+     weakestpre_na recovery_weakestpre lifted_modalities modalities
+     post_crash_modality protocol no_buffer.
 
 Definition prog : expr := let: "l" := ref #1 in ! "l".
 
@@ -145,7 +145,7 @@ Section simple_increment.
     wpc_bind (_ <- _)%E.
     iApply wpc_atomic_no_mask.
     iSplit. { iApply (prove_crash_condition with "aPred bPred aPts bPts"). }
-    iApply (wp_store_ex with "[$aPts]").
+    iApply (wp_store_na with "[$aPts]").
     { reflexivity. }
     { suff leq : (0 ≤ 1); first apply leq. lia. }
     { iFrame "aPred". done. }
@@ -183,7 +183,7 @@ Section simple_increment.
     (* The last store *)
     iApply wpc_atomic_no_mask.
     iSplit. { iApply (prove_crash_condition with "aPred bPred aPts bPts"). }
-    iApply (wp_store_ex with "[$bPts]").
+    iApply (wp_store_na with "[$bPts]").
     { reflexivity. }
     { suff leq : (0 ≤ 1); first apply leq. lia. }
     { iFrame "#". iPureGoal; first done. naive_solver. }
@@ -211,7 +211,7 @@ Section simple_increment.
     iApply wpc_atomic_no_mask.
     iSplit; first iApply (prove_crash_condition with "aPred bPred aPts bPts").
 
-    iApply (wp_load_ex _ _ _ _ (λ v, ⌜v = #sA⌝)%I with "[$aPts $aPred]"); first done.
+    iApply (wp_load_na _ _ _ _ (λ v, ⌜v = #sA⌝)%I with "[$aPts $aPred]"); first done.
     { iModIntro. naive_solver. }
     iIntros "!>" (?) "[aPts ->]".
     iSplit.
@@ -225,7 +225,7 @@ Section simple_increment.
     wpc_bind (! _)%E.
     iApply wpc_atomic_no_mask.
     iSplit; first iApply (prove_crash_condition with "aPred bPred aPts bPts").
-    iApply (wp_load_ex _ _ _ _ (λ v, ∃ sB', ⌜ sB ⊑ sB' ⌝ ∗ ⌜v = #sB⌝ ∗ know_flush_lb ℓa sB')%I
+    iApply (wp_load_na _ _ _ _ (λ v, ∃ sB', ⌜ sB ⊑ sB' ⌝ ∗ ⌜v = #sB⌝ ∗ know_flush_lb ℓa sB')%I
               with "[$bPts $bPred]"); first done.
     { iModIntro. iIntros (?) "(-> & (%sB' & % & #?))".
       iSplit. { iExists _. iFrame "#". naive_solver. }

@@ -14,7 +14,7 @@ From iris_named_props Require Import named_props.
 From self Require Export extra ipm_tactics encode_relation.
 From self.high Require Export dprop.
 From self Require Export view.
-From self Require Export lang.
+From self Require Export lang lemmas.
 From self.base Require Import tactics.
 From self.base Require Import primitive_laws.
 From self.lang Require Import syntax.
@@ -24,7 +24,6 @@ From self.high Require Import resources crash_weakestpre lifted_modalities
 Section wp_at_rules.
   Context `{AbstractState ST}.
   Context `{!nvmFixedG Σ, hG : nvmDeltaG Σ}.
-  Context `{!stagedG Σ}.
 
   Implicit Types (ℓ : loc) (s : ST) (ϕ : ST → val → nvmDeltaG Σ → dProp Σ).
 
@@ -129,35 +128,7 @@ Section wp_at_rules.
     monPred_simpl.
     iApply program_logic.crash_weakestpre.wp_wpc.
 
-    iApply wp_extra_state_interp.
-    { done. }
-    { (* Try and simplify this with lemmas/automation. *)
-      clear.
-      intros ??????? [Ki [??] [??] ? ? step].
-      subst.
-      simpl in *.
-      induction Ki using rev_ind.
-      { simpl in *. subst. inv_impure_thread_step; try done.
-        rewrite list_fmap_singleton.
-        subst.
-        congruence. }
-      move: H.
-      rewrite fill_app.
-      simpl.
-      destruct x; try done.
-      simpl.
-      rewrite /thread_fill_item.
-      simpl.
-      inversion 1.
-      simpl in *.
-      rewrite -nvm_fill_fill in H2.
-      simpl in *.
-      destruct Ki using rev_ind; try done.
-      { simpl in *. subst. inv_impure_thread_step; try done. }
-      simpl in *.
-      rewrite fill_app in H2.
-      simpl in *.
-      destruct x; try done. }
+    iApply wp_extra_state_interp. { done. } { by apply prim_step_load_acq_no_fork. }
     (* We open [interp]. *)
     iNamed 1.
 
@@ -327,46 +298,7 @@ Section wp_at_rules.
     (* iApply wp_fupd. *)
 
     iApply wp_extra_state_interp. { done. }
-    { (* Try and simplify this with lemmas/automation. *)
-      clear.
-      intros ??????? [Ki [??] [??] ? ? step].
-      subst.
-      simpl in *.
-      induction Ki using rev_ind.
-      { simpl in *. subst. inv_impure_thread_step; try done.
-        rewrite list_fmap_singleton.
-        subst.
-        congruence. }
-      move: H.
-      rewrite fill_app.
-      simpl.
-      destruct x; try done.
-      - simpl.
-        rewrite /thread_fill_item.
-        simpl.
-        inversion 1.
-        simpl in *.
-        rewrite -nvm_fill_fill in H2.
-        simpl in *.
-        destruct Ki using rev_ind; try done.
-        { simpl in *. subst. inv_impure_thread_step; try done. }
-        simpl in *.
-        rewrite fill_app in H2.
-        simpl in *.
-        destruct x; try done.
-      - simpl.
-        rewrite /thread_fill_item.
-        simpl.
-        inversion 1.
-        simpl in *.
-        rewrite -nvm_fill_fill in H3.
-        simpl in *.
-        destruct Ki using rev_ind; try done.
-        { simpl in *. subst. inv_impure_thread_step; try done. }
-        simpl in *.
-        rewrite fill_app in H3.
-        simpl in *.
-        destruct x; try done. }
+    { apply prim_step_store_rel_no_fork. }
 
     iNamed 1.
     iApply (wp_fupd (irisGS0 := (@nvmBaseG_irisGS _ _ _ (Build_extraStateInterp _ _)))).
