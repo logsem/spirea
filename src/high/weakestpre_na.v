@@ -40,7 +40,7 @@ Section wp_na_rules.
     iIntros "(pts & temp & pToQ)".
     iNamed "temp".
     iDestruct "pts" as (?tP ?tS SV absHist msg) "pts". iNamed "pts".
-    iDestruct "haveSV" as %haveSV.
+    iDestruct "inThreadView" as %inThreadView.
     rewrite monPred_at_wand. simpl.
     iIntros (TV' incl) "Φpost".
     rewrite monPred_at_later.
@@ -84,7 +84,7 @@ Section wp_na_rules.
       destruct TV' as [[??]?].
       rewrite /store_view /=.
       apply view_lt_lt; last done.
-      etrans; first apply haveSV.
+      etrans; first apply inThreadView.
       etrans; first apply incl; apply incl2. }
     assert (tS ≤ t') as lte.
     { etrans; first done. apply gt. }
@@ -139,12 +139,14 @@ Section wp_na_rules.
       repeat split.
       - etrans; first done.
         destruct TV as [[??]?]. destruct TV' as [[??]?].
-        etrans; first apply haveSV.
+        etrans; first apply inThreadView.
         etrans; first apply incl.
         apply incl2.
-      - admit.
-      - apply view_empty_least.
-    }
+      - destruct TV as [[??]?]. destruct TV' as [[??]?].
+        etrans; first apply inThreadView.
+        etrans; first apply incl.
+        apply incl2.
+      - apply view_empty_least. }
     iExists _, _, _, _, _.
     iFrameNamed.
     monPred_simpl.
@@ -153,7 +155,7 @@ Section wp_na_rules.
     etrans. eassumption.
     etrans. eassumption.
     eassumption.
-  Admitted.
+  Qed.
 
   Lemma wp_store_na ℓ b ss v s__last s ϕ `{!LocationProtocol ϕ} st E :
     last ss = Some s__last →

@@ -11,7 +11,7 @@ From self.algebra Require Import view.
 From self.base Require Import primitive_laws class_instances crash_borrow.
 From self.high Require Import proofmode wpc_proofmode.
 From self.high Require Import crash_weakestpre modalities weakestpre
-     weakestpre_at recovery_weakestpre protocol crash_borrow no_buffer.
+     weakestpre_na weakestpre_at recovery_weakestpre protocol crash_borrow no_buffer.
 
 Section program.
 

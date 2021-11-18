@@ -282,13 +282,6 @@ Section points_to_shared.
     apply singleton_included_l.
   Qed.
 
-  Program Definition monPred_in_store_view SV : dProp Σ :=
-    monPred_in ((SV, ∅, ∅)).
-
-  Program Definition have_store_view ℓ t : dProp Σ :=
-    MonPred (λ (TV : thread_view), ⌜t ≤ (store_view TV) !!0 ℓ⌝)%I _.
-  Next Obligation. solve_proper. Qed.
-
   (* Definition is_exclusive_loc ℓ := own exclusive_locs_name (◯ {[ ℓ ]}). *)
 
   Definition is_shared_loc ℓ : iProp Σ := own shared_locs_name (◯ {[ ℓ ]}).
@@ -312,7 +305,7 @@ Section points_to_shared.
         "%slice" ∷ ⌜ map_slice abs_hist tP tStore ss ⌝ ∗
         "#physMsg" ∷ ⎡ auth_map_map_frag_singleton know_phys_history_name ℓ tStore msg ⎤ ∗
         "%msgViewIncluded" ∷ ⌜ msg_store_view msg ⊑ SV ⌝ ∗
-        "#haveSV" ∷ monPred_in_store_view SV ∗
+        "#inThreadView" ∷ monPred_in (SV, msg_persisted_after_view msg, ∅) ∗
         (* We have the [tStore] timestamp in our store view. *)
         "%haveTStore" ∷ ⌜ tStore ≤ SV !!0 ℓ ⌝ ∗
 
