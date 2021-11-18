@@ -9,7 +9,7 @@
 * [`algebra`](src/algebra) - Resource algebras.
   * [`algebra/view.v`](src/algebra/view.v) - The resource algebra of views. Used
     pervasively.
-* [`base`](src/base) - The base program logic. The instantiation of the Iris and
+* [`base`](src/base) - The low-level program logic. The instantiation of the Iris and
   Perennial program logic, the base post crash modality, etc.
   * [`base/adequacy.v`](src/base/adequacy.v) - The adequacy result for the recovery weakest
     precondition of the base logic.
@@ -21,6 +21,10 @@
   * [`high/recovery_weakestpre.v`](src/high/recovery_weakestpre.v) - The
     definition of the recovery weakest precondition in the high-level logic as
     well as the proof of the idempotence rule.
+  * [`high/weakestpre_na.v`](src/high/weakestpre_na.v) - WP lemmas about
+    _non-atomic_ location.
+  * [`high/weakestpre_at.v`](src/high/weakestpre_at.v) - WP lemmas about
+    _atomic_ location.
 * [`extra`.v](src/extra.v) - Auxiliary definitions and lemmas that are not
   specific to the logic.
 
