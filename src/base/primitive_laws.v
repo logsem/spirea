@@ -735,7 +735,7 @@ Section lifting.
     {{{ ℓ ↦h hist ∗ validV SV }}}
       (ThreadState (#ℓ <- v) (SV, PV, BV)) @ s; E
     {{{ t, RET ThreadVal #() (<[ℓ := MaxNat t]>SV, PV, BV);
-          ⌜msg_val <$> (hist !! t) = None⌝ ∗
+          ⌜hist !! t = None⌝ ∗
           ⌜(SV !!0 ℓ) < t⌝ ∗
           validV (<[ℓ := MaxNat t]>SV) ∗
           ℓ ↦h (<[t := Msg v ∅ ∅ PV]>hist) }}}.

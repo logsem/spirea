@@ -141,8 +141,9 @@ Section predicates.
         (◯ {[ ℓ := pred_to_ra (encode_predicate ϕ) ]}).
 
   Lemma know_predicates_alloc preds :
-    ⊢ |==> ∃ γ, own γ ((● (pred_to_ra <$> preds)) : predicatesR) ∗
-                own γ ((◯ (pred_to_ra <$> preds)) : predicatesR).
+    ⊢ |==> ∃ γ,
+          own γ ((● (pred_to_ra <$> preds)) : predicatesR) ∗
+          own γ ((◯ (pred_to_ra <$> preds)) : predicatesR).
   Proof.
     setoid_rewrite <- own_op.
     iApply own_alloc.

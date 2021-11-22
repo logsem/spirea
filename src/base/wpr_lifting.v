@@ -140,10 +140,6 @@ Section wpr.
              (σ : mem_config) :=
     own persist_view_name (● σ.2).
 
-  (* this has been upstreamed *)
-  Instance tt (p : view) : CoreId (●□ p).
-  Proof. do 2 constructor; simpl; auto. apply: core_id_core. Qed.
-
   Lemma nvm_heap_reinit (hG : nvmBaseFixedG Σ) (hGD : nvmBaseDeltaG Σ) σ p p'
         (Hcrash : crashGS Σ) :
     (* The first two assumptions are the content of [crash_step σ σ'] *)

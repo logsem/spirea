@@ -99,9 +99,8 @@ Section state_interpretation.
       "%sharedLocsSubseteq" ∷ ⌜ shared_locs ⊆ dom _ abs_hists ⌝ ∗
       "%mapShared" ∷ ⌜ shared_locs_inv (restrict shared_locs phys_hists) ⌝ ∗
       (* For shared locations [interp] owns the fragment for the full history. *)
-      "sharedLocsHistories" ∷ ([∗ set] ℓ ∈ shared_locs,
-        ∃ abs_hist,
-          ⌜ abs_hists !! ℓ = Some abs_hist ⌝ ∗
+      "sharedLocsHistories" ∷
+        ([∗ map] ℓ ↦ abs_hist ∈ (restrict shared_locs abs_hists),
           know_full_encoded_history_loc ℓ abs_hist) ∗
 
       (* Exclusive locations. *)

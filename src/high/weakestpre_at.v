@@ -230,7 +230,6 @@ Section wp_at_rules.
     iDestruct ("predsHold" with "[predMap]") as "predsHold".
     { iExists _. naive_solver. }
 
-    (* Note: This allocation was commented out. Do we need it? *)
     iMod (own_full_history_alloc_frag with "history") as "[history histS]"; try done.
     iModIntro.
     (* We re-establish [interp]. *)
@@ -360,9 +359,13 @@ Section wp_at_rules.
     history. Hence, we must accordingly insert a new state in the abstract
     history. *)
 
-    iDestruct (big_sepS_delete with "sharedLocsHistories") as
-      "[(%abs_hist' & %absHistLook' & absHist) sharedLocsHistories]"; first done.
-    simplify_eq.
+    iDestruct (big_sepM_delete with "sharedLocsHistories") as
+      "(absHist & sharedLocsHistories)".
+    { apply restrict_lookup_Some_2; done. }
+
+    (* iDestruct (big_sepM_delete with "sharedLocsHistories") as *)
+    (*   "[(%abs_hist' & %absHistLook' & absHist) sharedLocsHistories]"; first done. *)
+    (* simplify_eq. *)
 
     iAssert (⌜ absHist !! t_t = None ⌝)%I as %absHistLook.
     { iDestruct (big_sepM2_dom with "predMap") as %domEq.
@@ -449,12 +452,10 @@ Section wp_at_rules.
     iSplitL "sharedLocsHistories absHist".
     {
       rewrite /know_full_encoded_history_loc.
-      iApply (big_sepS_delete_2 with "[absHist] [sharedLocsHistories]").
-      - iExists _. iFrame "absHist". by rewrite lookup_insert.
-      - iApply (big_sepS_impl with "sharedLocsHistories").
-        iIntros "!>" (ℓ' [elm neq%not_elem_of_singleton_1]%elem_of_difference) "?".
-        iEval (setoid_rewrite (lookup_insert_ne abs_hists ℓ ℓ' _); last done).
-        iFrame. }
+      (* NOTE: This rewrite is mega-slow. *)
+      iEval (setoid_rewrite (restrict_insert ℓ shared_locs (<[t_t:=encode s_t]> absHist) abs_hists ℓSh)).
+      iApply big_sepM_insert_delete.
+      iFrame. }
 
     (* [ordered] *)
     iSplit. {
