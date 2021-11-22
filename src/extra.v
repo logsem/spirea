@@ -326,6 +326,11 @@ Section restrict.
     restrict s (<[ k := v ]>m) = <[ k:= v]>(restrict s m).
   Proof. intros elm. by apply map_filter_insert_True. Qed.
 
+  Lemma restrict_insert_not_elem k s v m :
+    k ∉ s →
+    restrict s (<[ k := v ]>m) = restrict s m.
+  Proof. intros elm. by apply map_filter_insert_not. Qed.
+
 End restrict.
 
 Section restrict_leibniz.
@@ -410,6 +415,8 @@ Section big_sepM2.
   (*   rewrite pure_True. 2: { set_solver.. } *)
   (* Qed. *)
 
+
+  (* FIXME: Delete the next lemma and use big_sepM2_insert_acc. *)
   Lemma big_sepM2_insert_override_2 Φ m1 m2 i x1 x2 x1' x2' :
     m1 !! i = Some x1 →
     m2 !! i = Some x2 →

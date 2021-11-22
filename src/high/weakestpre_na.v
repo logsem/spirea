@@ -71,13 +71,13 @@ Section wp_na_rules.
 
     iDestruct (big_sepM_lookup_acc with "ptsMap") as "[pts ptsMap]"; first done.
     iApply (wp_load (extra := {| extra_state_interp := True |}) with "[$pts $val]").
-    iNext. iIntros (t' v' msg') "[pts (%look & %msgVal & %gt)]".
+    iNext. iIntros (tT v' msg') "[pts (%look & %msgVal & %gt)]".
     rewrite /store_view. simpl.
     iDestruct ("ptsMap" with "pts") as "ptsMap".
     iFrame "val".
 
     (* We need to conclude that the only write we could read is [tS]. I.e., that
-    [t' = tS]. *)
+    [tT = tS]. *)
     assert (tS ≤ SV' !!0 ℓ) as tSle.
     { etrans; first done.
       destruct TV as [[??]?].
@@ -86,18 +86,18 @@ Section wp_na_rules.
       apply view_lt_lt; last done.
       etrans; first apply inThreadView.
       etrans; first apply incl; apply incl2. }
-    assert (tS ≤ t') as lte.
+    assert (tS ≤ tT) as lte.
     { etrans; first done. apply gt. }
     iDestruct (big_sepM2_dom with "predMap") as %domEq.
-    assert (is_Some (absHist !! t')) as HI.
+    assert (is_Some (absHist !! tT)) as HI.
     { apply elem_of_dom.
       erewrite <- dom_fmap_L.
       erewrite <- domEq.
       apply elem_of_dom.
       naive_solver. }
-    assert (t' = tS) as ->.
+    assert (tT = tS) as ->.
     { apply Nat.lt_eq_cases in lte. destruct lte as [lt|]; last done.
-      pose proof (nolater t' lt) as eq.
+      pose proof (nolater tT lt) as eq.
       rewrite eq in HI. inversion HI as [? [=]]. }
     assert (absHist !! tS = Some s) as lookS.
     { rewrite -sLast.
@@ -157,6 +157,22 @@ Section wp_na_rules.
     eassumption.
   Qed.
 
+  Lemma map_dom_eq_lookup_Some `{Countable K} {V W} (a : gmap K V) (b : gmap K W) v k :
+    dom (gset _) a = dom (gset _) b →
+    b !! k = Some v →
+    is_Some (a !! k).
+  Proof.
+    intros domEq look. rewrite -elem_of_dom domEq elem_of_dom. done.
+  Qed.
+
+  Lemma map_dom_eq_lookup_None `{Countable K} {V W} (a : gmap K V) (b : gmap K W) k :
+    dom (gset _) a = dom (gset _) b →
+    b !! k = None →
+    a !! k = None.
+  Proof.
+    intros domEq look. rewrite -not_elem_of_dom domEq not_elem_of_dom. done.
+  Qed.
+
   Lemma wp_store_na ℓ b ss v s__last s ϕ `{!LocationProtocol ϕ} st E :
     last ss = Some s__last →
     s__last ⊑ s →
@@ -166,18 +182,135 @@ Section wp_na_rules.
   Proof.
     intros last stateGt Φ.
     iStartProof (iProp _). iIntros (TV).
-    iIntros "[pts phi]".
+    iIntros "(pts & temp & phi)".
+    iNamed "temp".
+    iDestruct "pts" as (?tP ?tS SV absHist msg) "pts". iNamed "pts".
+    iDestruct "inThreadView" as %inThreadView.
+
+    rewrite monPred_at_wand. simpl.
+    iIntros (TV' incl) "Φpost".
+    rewrite monPred_at_later.
+    rewrite wp_eq /wp_def.
+    rewrite wpc_eq. simpl.
+    iIntros ([[SV' PV] BV] incl2) "#val".
+    rewrite monPred_at_pure.
+    iApply program_logic.crash_weakestpre.wp_wpc.
+
+    (* We need to get the points-to predicate for [ℓ]. This is inside [interp]. *)
+    iApply wp_extra_state_interp.
+    { done. } { by apply prim_step_store_no_fork. }
+    iNamed 1.
+    iApply (wp_fupd (irisGS0 := (@nvmBaseG_irisGS _ _ _ (Build_extraStateInterp _ _)))).
+
+    (* _Before_ we load the points-to predicate we deal with the predicate ϕ. We
+    do this before such that the later that arrises is stripped off when we take
+    the step. *)
+    iDestruct (own_all_preds_pred with "predicates knowPred")
+      as (pred predsLook) "#predsEquiv".
+
+    iDestruct (own_full_history_agree with "history hist") as %absHistsLook.
+
+    iDestruct (big_sepM2_dom with "predsHold") as %domPhysHistEqAbsHist.
+
+    assert (is_Some (phys_hists !! ℓ)) as [physHist physHistsLook]
+      by by eapply map_dom_eq_lookup_Some.
+    (* iDestruct (big_sepM2_lookup_acc with "predsHold") as "[predMap predsHold]". *)
+    (* { done. } { done. } *)
+
+    iDestruct (big_sepM_delete with "ptsMap") as "[pts ptsMap]"; first done.
+
+    iApply (wp_store (extra := {| extra_state_interp := True |})
+             with "[$pts $val]").
+    iIntros "!>" (tT) "(%look & %gt & #valNew & pts)".
+
+    iDestruct (big_sepM_insert_delete with "[$ptsMap $pts]") as "ptsMap".
+
+    iAssert (⌜ absHist !! tT = None ⌝)%I as %absHistLook.
+    { iDestruct (big_sepM2_lookup_acc with "predsHold") as "[predMap predsHold]".
+      { done. } { done. }
+      iDestruct "predMap" as (pred' predsLook') "predMap".
+
+      iDestruct (big_sepM2_dom with "predMap") as %domEq.
+      iPureIntro. move: look.
+      rewrite -!not_elem_of_dom. rewrite domEq. rewrite dom_fmap. done. }
+
+    assert (ℓ ∉ shared_locs) as ℓnotSh.
+    { admit. (* TODO: Should be easy but we need to know that ℓ is not in
+    shared_locs and to do this we need some more ghost state. *) }
+    (* Update the ghost state for the abstract history. *)
+    iMod (own_full_history_insert _ _ _ _ _ _ (encode s) with "history hist")
+      as "(history & hist & histFrag)".
+    { rewrite lookup_fmap. apply fmap_None.
+      eapply map_dom_eq_lookup_None; done. }
+
+    (* Update ghost state. *)
+    iMod (auth_map_map_insert with "physHist") as "[physHist #physHistFrag]".
+    { done. } { done. }
+
+    rewrite /validV.
+    iModIntro.
+    iFrame "valNew".
+    rewrite -assoc.
+    iSplit.
+    { iPureIntro. repeat split; [|done|done]. apply view_insert_le. lia. }
+    iSplitL "Φpost".
+    { iApply monPred_mono; last iApply "Φpost".
+      - etrans; first done.
+        repeat split; try done.
+        apply view_insert_le. lia.
+      - iExists _, _, _, _, _.
+        iFrame "#".
+        admit. }
+    repeat iExists _.
+    iFrame "history".
+    iFrame "ptsMap".
+    iFrame "#".
+    iFrameNamed.
+    (* [sharedLocsSubseteq] *)
+    iSplit. { iPureIntro. etrans; first done. apply dom_insert_subseteq. }
+    (* [mapShared] *)
+    iSplit.
+    { iPureIntro. setoid_rewrite restrict_insert_not_elem; done. }
+
+    (* [sharedLocsHistories] *)
+    iSplitL "sharedLocsHistories hist".
+    {
+      setoid_rewrite restrict_insert_not_elem. done. done. }
+
+    iSplit.
+    (* [ordered] *)
+    { admit. }
+    iSplit.
+    (* [predsHold] *)
+    {
+      iEval (erewrite <- (insert_id abs_hists); last done).
+      (* iApply (big_sepM2_insert_override_2 with "predsHold"). [done|done|]. *)
+
+      (* iDestruct 1 as (pred' predsLook') "H". *)
+      (* assert (pred = pred') as <-. { apply (inj Some). rewrite -predsLook. done. } *)
+      (* clear predsLook'. *)
+      (* iExists _. *)
+      (* iSplit; first done. *)
+      (* iApply (big_sepM2_insert_2 with "[phi] H"). *)
+      (* rewrite /msg_to_tv /store_view. simpl. *)
+      (* rewrite /encoded_predicate_holds. *)
+      (* iExists (ϕ s_t v_t). *)
+      (* iSplit. *)
+      (* { iApply pred_encode_Some. done. } *)
+      (* iApply monPred_mono; last iFrame. *)
+      (* destruct TV as [[??]?]. *)
+      (* destruct TV' as [[??]?]. *)
+      (* repeat split; last done. *)
+      (* - simpl. etrans; first apply incl. etrans; first apply incl2. *)
+      (*   rewrite /store_view in gt. simpl in gt. *)
+      (*   apply view_insert_le'; [done|lia]. *)
+      (* - simpl. rewrite /flush_view. simpl. *)
+      (*   etrans; first apply incl. *)
+      (*   apply incl2. *)
+      admit.
+    }
+    (* [bumperSome] *)
+    admit.
   Admitted.
-  (*   iDestruct "pts" as (?tGP ?tP ?tS absHist hist) "(pts & predsHold & %incrL & %lookupP & %lookupV & %nolater & %lastVal & hist & slice & %know & per)". *)
-  (*   rewrite monPred_at_wand. simpl. *)
-  (*   iIntros (TV' incl) "Φpost". *)
-  (*   rewrite monPred_at_later. *)
-  (*   rewrite wp_eq /wp_def. *)
-  (*   rewrite wpc_eq. simpl. *)
-  (*   iIntros ([[SV PV] BV] incl2) "#val interp". *)
-  (*   rewrite monPred_at_pure. *)
-  (*   iApply program_logic.crash_weakestpre.wp_wpc. *)
-  (*   iApply (wp_store with "pts"). *)
-  (* Qed. *)
 
 End wp_na_rules.
