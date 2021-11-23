@@ -453,6 +453,9 @@ Proof.
   (* Allocate set of shared locations.. *)
   iMod (own_alloc (● (∅ : gsetUR _))) as (shared_locs_name) "sharedLocs".
   { apply auth_auth_valid. done. }
+  (* Allocate set of exclusive locations.. *)
+  iMod (own_alloc (● (∅ : gsetUR _))) as (exclusive_locs_name) "exclusiveLocs".
+  { apply auth_auth_valid. done. }
   iMod (own_all_bumpers_alloc ∅) as (bumpers_name) "[bumpers #bumpersFrag]".
   iMod (auth_map_map_alloc ∅) as (phys_hist_name) "[physHist _]".
 
@@ -464,7 +467,7 @@ Proof.
                   predicates_name := predicates_name;
                   preorders_name := orders_name;
                   shared_locs_name := shared_locs_name;
-                  (* exclusive_locs_name := _; *)
+                  exclusive_locs_name := _;
                   bumpers_name := bumpers_name;
                 |})
     ).
@@ -476,20 +479,15 @@ Proof.
   rewrite /cred_interp.
   iPureGoal; first done.
   rewrite /interp.
-  iExists ∅, ∅, ∅, ∅, ∅, ∅, ∅.
+  repeat iExists ∅.
   simpl.
   iFrame.
   iEval (rewrite !big_sepM2_empty).
   iEval (rewrite !big_sepM_empty).
-  iEval (rewrite !big_sepS_empty).
 
   iPureIntro.
-  (* rewrite !left_id !right_id. *)
-  done.
-  (* replace (restrict ∅ σ) with (∅ : store). *)
-  (* 2: { symmetry. apply restrict_empty. } *)
-  (* split; first done. *)
-  (* split; apply map_Forall_empty. *)
+  split_and!; try done.
+  set_solver.
 Qed.
 
 (* This adequacy lemma is similar to the adequacy lemma for [wpr] in Perennial:

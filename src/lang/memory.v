@@ -303,7 +303,7 @@ Section memory.
     rewrite /slice_of_store /slice_of_hist map_fmap_zip_with.
     intros ([t'] & h & -> & ? & ?)%map_lookup_zip_with_Some histLook.
     exists t', h.
-    destruct (h !! t') as [|m]; last naive_solver.
+    destruct (h !! t') as [m|]; last naive_solver.
     exists m.
     rewrite map_fmap_singleton.
     rewrite map_fmap_singleton in histLook.
@@ -321,7 +321,7 @@ Section memory.
     intros ([t] & h & eq & ? & ?)%map_lookup_zip_with_Some.
     exists t, h.
     split_and!; [done | done |].
-    destruct (h !! t) as [|m]; last done.
+    destruct (h !! t) as [m|]; last done.
     rewrite map_fmap_singleton in eq.
     destruct msg, m.
     by simplify_eq.

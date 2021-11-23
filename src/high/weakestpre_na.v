@@ -126,7 +126,7 @@ Section wp_na_rules.
     iDestruct ("predsHold" with "[predMap]") as "predsHold". { naive_solver. }
 
     iSplitR "ptsMap physHist allOrders ordered predsHold history predicates
-             sharedLocs crashedAt allBumpers bumpMono predPostCrash
+             sharedLocs exclusiveLocs crashedAt allBumpers bumpMono predPostCrash
              sharedLocsHistories"; last first.
     { repeat iExists _. iFrameNamed. }
     iSplit; first done.
@@ -214,8 +214,6 @@ Section wp_na_rules.
 
     assert (is_Some (phys_hists !! ℓ)) as [physHist physHistsLook]
       by by eapply map_dom_eq_lookup_Some.
-    (* iDestruct (big_sepM2_lookup_acc with "predsHold") as "[predMap predsHold]". *)
-    (* { done. } { done. } *)
 
     iDestruct (big_sepM_delete with "ptsMap") as "[pts ptsMap]"; first done.
 
@@ -234,9 +232,10 @@ Section wp_na_rules.
       iPureIntro. move: look.
       rewrite -!not_elem_of_dom. rewrite domEq. rewrite dom_fmap. done. }
 
-    assert (ℓ ∉ shared_locs) as ℓnotSh.
-    { admit. (* TODO: Should be easy but we need to know that ℓ is not in
-    shared_locs and to do this we need some more ghost state. *) }
+    iDestruct (
+        location_sets_singleton_included with "exclusiveLocs isExclusiveLoc"
+      ) as %ℓEx.
+    assert (ℓ ∉ shared_locs) as ℓnotSh by set_solver.
     (* Update the ghost state for the abstract history. *)
     iMod (own_full_history_insert _ _ _ _ _ _ (encode s) with "history hist")
       as "(history & hist & histFrag)".
@@ -262,51 +261,38 @@ Section wp_na_rules.
         iFrame "#".
         admit. }
     repeat iExists _.
-    iFrame "history".
-    iFrame "ptsMap".
-    iFrame "#".
-    iFrameNamed.
-    (* [sharedLocsSubseteq] *)
-    iSplit. { iPureIntro. etrans; first done. apply dom_insert_subseteq. }
+    iFrame "history". iFrame "ptsMap". iFrame "#". iFrameNamed.
+    iSplit. { iPureIntro. set_solver. }
     (* [mapShared] *)
     iSplit.
     { iPureIntro. setoid_rewrite restrict_insert_not_elem; done. }
 
     (* [sharedLocsHistories] *)
     iSplitL "sharedLocsHistories hist".
-    {
-      setoid_rewrite restrict_insert_not_elem. done. done. }
+    { setoid_rewrite restrict_insert_not_elem. done. done. }
 
     iSplit.
     (* [ordered] *)
     { admit. }
     iSplit.
     (* [predsHold] *)
-    {
-      iEval (erewrite <- (insert_id abs_hists); last done).
-      (* iApply (big_sepM2_insert_override_2 with "predsHold"). [done|done|]. *)
+    { iApply (big_sepM2_insert_override_2 with "predsHold"); [done|done|].
+      iDestruct 1 as (pred' predsLook') "H".
+      assert (pred = pred') as <-. { apply (inj Some). rewrite -predsLook. done. }
+      clear predsLook'.
+      iExists _.
+      iSplit; first done.
 
-      (* iDestruct 1 as (pred' predsLook') "H". *)
-      (* assert (pred = pred') as <-. { apply (inj Some). rewrite -predsLook. done. } *)
-      (* clear predsLook'. *)
-      (* iExists _. *)
-      (* iSplit; first done. *)
-      (* iApply (big_sepM2_insert_2 with "[phi] H"). *)
-      (* rewrite /msg_to_tv /store_view. simpl. *)
-      (* rewrite /encoded_predicate_holds. *)
-      (* iExists (ϕ s_t v_t). *)
-      (* iSplit. *)
-      (* { iApply pred_encode_Some. done. } *)
-      (* iApply monPred_mono; last iFrame. *)
-      (* destruct TV as [[??]?]. *)
-      (* destruct TV' as [[??]?]. *)
-      (* repeat split; last done. *)
-      (* - simpl. etrans; first apply incl. etrans; first apply incl2. *)
-      (*   rewrite /store_view in gt. simpl in gt. *)
-      (*   apply view_insert_le'; [done|lia]. *)
-      (* - simpl. rewrite /flush_view. simpl. *)
-      (*   etrans; first apply incl. *)
-      (*   apply incl2. *)
+      iApply (big_sepM2_insert_2 with "[phi] H").
+      rewrite /msg_to_tv /store_view. simpl.
+      rewrite /encoded_predicate_holds.
+      iExists (ϕ s v).
+      iSplit.
+      { iApply pred_encode_Some. done. }
+      iApply monPred_mono; last iFrame.
+      destruct TV as [[??]?].
+      destruct TV' as [[??]?].
+      (* Oops, we are stuck ^^ *)
       admit.
     }
     (* [bumperSome] *)

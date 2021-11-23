@@ -21,8 +21,8 @@ Class nvmHighDeltaG := MkNvmHighDeltaG {
   know_phys_history_name : gname;
   predicates_name : gname;
   preorders_name : gname;
+  exclusive_locs_name : gname;
   shared_locs_name : gname;
-  (* exclusive_locs_name : gname; *) (* NOTE: Keep this in case we need it again. *)
   bumpers_name : gname;
 }.
 
@@ -51,6 +51,7 @@ Class nvmHighFixedG Σ := {
   phys_histories :> inG Σ (auth_map_mapR (leibnizO message));
   preordersG :> inG Σ preordersR;
   shared_locsG :> inG Σ shared_locsR;
+  exclusive_locsG :> inG Σ shared_locsR;
   nvm_bumpersG :> bumpersG Σ;
 }.
 
@@ -153,8 +154,8 @@ Section predicates.
     by case (preds !! ℓ).
   Qed.
 
-  Lemma own_all_preds_pred `{Countable s}
-        dq ℓ (ϕ : s → val → nvmDeltaG Σ → dProp Σ) (preds : gmap loc predO) :
+  Lemma own_all_preds_pred `{Countable ST}
+        dq ℓ (ϕ : ST → val → nvmDeltaG Σ → dProp Σ) (preds : gmap loc predO) :
     own_all_preds dq preds -∗
     know_pred ℓ ϕ -∗
     (∃ (o : predO),
@@ -210,6 +211,22 @@ Section predicates.
     eexists _.
     rewrite lookup_fmap look.
     naive_solver.
+  Qed.
+
+  (** If [pred] is the encoding of [Φ] then [pred] holding for the encoding of
+  [s] is equivalent to [ϕ] holding for [s]. *)
+  Lemma pred_encode_Some `{Countable ST} ϕ (s : ST) (v : val) (pred : predO) :
+    (pred ≡ encode_predicate ϕ : iProp Σ) -∗
+    (pred (encode s) v ≡ Some (ϕ s v) : iProp Σ).
+  Proof.
+    iIntros "eq".
+    iEval (setoid_rewrite discrete_fun_equivI) in "eq".
+    iEval (setoid_rewrite discrete_fun_equivI) in "eq".
+    iSpecialize ("eq" $! (encode s) v).
+    Unshelve. 2: { done. } 2: { done. }
+    (* iRewrite "eq". Why this no work? *)
+    rewrite /encode_predicate. rewrite decode_encode /=.
+    done.
   Qed.
 
 End predicates.
@@ -283,7 +300,7 @@ Section points_to_shared.
     apply singleton_included_l.
   Qed.
 
-  (* Definition is_exclusive_loc ℓ := own exclusive_locs_name (◯ {[ ℓ ]}). *)
+  Definition is_exclusive_loc ℓ := own exclusive_locs_name (◯ {[ ℓ ]}).
 
   Definition is_shared_loc ℓ : iProp Σ := own shared_locs_name (◯ {[ ℓ ]}).
 
@@ -293,7 +310,7 @@ Section points_to_shared.
     (* MonPred (λ TV, *)
       (∃ (tP tStore : time) SV (abs_hist : gmap time ST) (msg : message),
         "%incrList" ∷ ⌜ increasing_list ss ⌝ ∗
-        (* "isExclusiveLoc" ∷ ⎡ is_exclusive_loc ℓ ⎤ ∗ *)
+        "isExclusiveLoc" ∷ ⎡ is_exclusive_loc ℓ ⎤ ∗
         "#order" ∷ ⎡ know_preorder_loc ℓ (abs_state_relation) ⎤ ∗
 
         (* [tStore] is the last message and it agrees with the last state in ss. *)

@@ -61,20 +61,6 @@ Section wp_at_rules.
       by iRewrite "predsEquiv".
   Qed.
 
-  Lemma pred_encode_Some ϕ (s : ST) (v : val) (pred : predO) :
-    (pred ≡ encode_predicate ϕ : iProp Σ) -∗
-    (pred (encode s) v ≡ Some (ϕ s v) : iProp Σ).
-  Proof.
-    iIntros "eq".
-    iEval (setoid_rewrite discrete_fun_equivI) in "eq".
-    iEval (setoid_rewrite discrete_fun_equivI) in "eq".
-    iSpecialize ("eq" $! (encode s) v).
-    Unshelve. 2: { done. } 2: { done. }
-    rewrite /encode_predicate. rewrite decode_encode /=.
-    (* iRewrite "eq". *) (* Why this no work? *)
-    done.
-  Qed.
-
   Lemma msg_persisted_views_eq
         (ℓ : loc) (hists : gmap loc (gmap time (message * positive)))
         (hist : gmap time (message * positive)) (msg : message)
@@ -234,7 +220,8 @@ Section wp_at_rules.
     iModIntro.
     (* We re-establish [interp]. *)
     iSplitR "ptsMap physHist allOrders ordered predsHold history predicates
-             crashedAt sharedLocs allBumpers bumpMono predPostCrash sharedLocsHistories"; last first.
+             crashedAt sharedLocs exclusiveLocs allBumpers bumpMono
+             predPostCrash sharedLocsHistories"; last first.
     { repeat iExists _. iFrameNamed. }
     iSplit. { iPureIntro. repeat split; try done; apply view_le_l. }
     iSpecialize ("Φpost" $! sL v').
@@ -427,10 +414,12 @@ Section wp_at_rules.
     iDestruct (big_sepM_insert_delete with "[$ptsMap $pts]") as "ptsMap".
     repeat iExists _.
     iFrame "ptsMap physHist crashedAt history predicates allOrders sharedLocs
-            allBumpers bumpMono".
+            exclusiveLocs allBumpers bumpMono".
 
-    (* [sharedLocsSubseteq] *)
-    iSplit. { iPureIntro. etrans; first done. apply dom_insert_subseteq. }
+    (* [locsDisjoinct] *)
+    iSplit. { iPureIntro. set_solver. }
+    (* [histDomLocs] *)
+    iSplit. { iPureIntro. set_solver. }
 
     (* [mapShared] - We need to show that the newly inserted message satisfied
     the restriction on shared locations that their persist view and their

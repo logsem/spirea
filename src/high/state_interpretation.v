@@ -77,6 +77,7 @@ Section state_interpretation.
        (orders : gmap loc (relation2 positive))
        (* (exclusive_locs : gset loc) *)
        (bumpers : gmap loc (positive → option positive))
+       (exclusive_locs : gset loc)
        (shared_locs : gset loc),
       (* We keep the points-to predicates to ensure that we know that the keys
       in the abstract history correspond to the physical history. This ensures
@@ -94,17 +95,20 @@ Section state_interpretation.
       (* All the encoded orders *)
       "allOrders" ∷ own_all_preorders preorders_name orders ∗
 
-      (* Shared locations. *)
+      (* Exclusive locations. *)
+      "%locsDisjoint" ∷ ⌜ exclusive_locs ## shared_locs ⌝ ∗
+      "%histDomLocs" ∷ ⌜ dom _ abs_hists = exclusive_locs ∪ shared_locs ⌝ ∗
+      "exclusiveLocs" ∷ own exclusive_locs_name (● exclusive_locs) ∗
       "sharedLocs" ∷ own shared_locs_name (● shared_locs) ∗
-      "%sharedLocsSubseteq" ∷ ⌜ shared_locs ⊆ dom _ abs_hists ⌝ ∗
+
+      (* Shared locations. *)
+      (* "sharedLocs" ∷ own shared_locs_name (● shared_locs) ∗ *)
+      (* "%sharedLocsSubseteq" ∷ ⌜ shared_locs ⊆ dom _ abs_hists ⌝ ∗ *)
       "%mapShared" ∷ ⌜ shared_locs_inv (restrict shared_locs phys_hists) ⌝ ∗
       (* For shared locations [interp] owns the fragment for the full history. *)
       "sharedLocsHistories" ∷
         ([∗ map] ℓ ↦ abs_hist ∈ (restrict shared_locs abs_hists),
           know_full_encoded_history_loc ℓ abs_hist) ∗
-
-      (* Exclusive locations. *)
-      (* "exclusiveLocs" ∷ own exclusive_locs_name (● exclusive_locs) ∗ *)
 
       "#ordered" ∷ ([∗ map] ℓ ↦ hist; order ∈ abs_hists; orders,
                     ⌜increasing_map order hist⌝) ∗

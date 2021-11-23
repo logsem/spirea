@@ -309,6 +309,9 @@ Section wpr.
     iMod (own_update with "sharedLocs") as "sharedLocs".
     { apply auth_update_auth_persist. }
     iDestruct "sharedLocs" as "#sharedLocs".
+    iMod (own_update with "exclusiveLocs") as "exclusiveLocs".
+    { apply auth_update_auth_persist. }
+    iDestruct "exclusiveLocs" as "#exclusiveLocs".
     (* FIXME: Temporarily commented out. *)
     (* iMod (own_all_bumpers_persist with "allBumpers") as "#allBumpers". *)
     iMod (own_update with "predicates") as "allPredicates".
@@ -332,6 +335,12 @@ Section wpr.
     { apply auth_both_valid. done. }
     iDestruct "sharedLocsFrag" as "#sharedLocsFrag".
 
+    set newExclusiveLocs := (dom (gset _) newAbsHists) ∩ exclusive_locs.
+    iMod (own_alloc (● (newExclusiveLocs : gsetUR _) ⋅ ◯ _))
+      as (new_exclusive_locs_name) "[newExclusiveLocs exclusiveLocsFrag]".
+    { apply auth_both_valid. done. }
+    iDestruct "exclusiveLocsFrag" as "#exclusiveLocsFrag".
+
     (* Allocate the new map of bumpers. *)
     set newBumpers := restrict (dom (gset _) newAbsHists) bumpers.
     iMod (own_all_bumpers_alloc newBumpers)
@@ -351,7 +360,7 @@ Section wpr.
                       predicates_name := _;
                       preorders_name := new_orders_name;
                       shared_locs_name := new_shared_locs_name;
-                      (* exclusive_locs_name := _; *)
+                      exclusive_locs_name := new_exclusive_locs_name;
                       bumpers_name := new_bumpers_name;
                    |})
       ).
@@ -447,6 +456,38 @@ Section wpr.
         split; first set_solver.
         apply elem_of_dom.
         naive_solver. }
+      (* Exclusive locations. *)
+      iSplit. {
+        rewrite /post_crash_exclusive_loc_impl.
+        iIntros "!>" (ℓ) "sh".
+        iApply (@or_lost_post_crash_ts with "[newCrashedAt] [sh]").
+        { iFrame "newCrashedAt". }
+        iIntros (t look).
+        rewrite /is_exclusive_loc.
+        iDestruct (own_valid_2 with "exclusiveLocs sh")
+          as %[_ [elem _]]%auth_both_dfrac_valid_discrete.
+        iApply (own_mono with "exclusiveLocsFrag").
+        exists (◯ newExclusiveLocs).
+        rewrite -auth_frag_op.
+        rewrite gset_op.
+        f_equiv.
+        apply gset_included in elem.
+        symmetry.
+        eapply subseteq_union_1.
+        rewrite /newExclusiveLocs.
+        apply elem_of_subseteq_singleton.
+        apply elem_of_intersection.
+        split; last set_solver.
+        rewrite /newAbsHists.
+        rewrite new_abs_hist_dom.
+        rewrite -domHistsEqBumpers.
+        apply elem_of_intersection.
+        split; last first.
+        { set_solver. }
+        apply elem_of_intersection.
+        split; first set_solver.
+        apply elem_of_dom.
+        naive_solver. }
       (* We show that the bumpers survive a crash. *)
       iSplit. {
         rewrite /post_crash_bumper_impl.
@@ -481,19 +522,39 @@ Section wpr.
     iExists _.
     repeat iExists _.
     rewrite /own_full_history.
-    iFrame "newOrders newPreds hists' newSharedLocs newCrashedAt".
     iFrame "ptsMap".
+    iFrame "newOrders newPreds hists' newSharedLocs newCrashedAt".
+    iFrame "newExclusiveLocs".
     iFrame "newPhysHist".
     iFrame "newBumpers".
-    (* We show that the abstract states are still ordered. *)
+    (* [locsDisjoint] *)
     iSplit.
-    { iPureIntro. rewrite /newSharedLocs /newAbsHists. set_solver. }
+    { iPureIntro. set_solver. }
+    (* [histDomLocs] *)
+    iSplit.
+    { iPureIntro.
+      Set Nested Proofs Allowed.
+      Lemma useful_fact `{Countable V} (A B C A' B' C' : gset V) :
+        B ## C →
+        A = B ∪ C →
+        A' ⊆ A →
+        B' = A' ∩ B →
+        C' = A' ∩ C →
+        A' = B' ∪ C'.
+      Proof. set_solver. Qed.
+      Unset Nested Proofs Allowed.
+      assert (dom _ newAbsHists ⊆ dom (gset _) abs_hists) as Hipso.
+      { rewrite new_abs_hist_dom. set_solver. }
+      (* We could use [set_solver] here but that is very slow, so instead we use
+      a useful fact. *)
+      eapply useful_fact; done. }
     (* mapShared. We show that the shared location still satisfy that
     heir two persist-views are equal. *)
     iSplit. { iPureIntro. apply shared_locs_inv_slice_of_store. }
     (* sharedLocsHistories *)
     iSplitR.
     { admit. }
+    (* [ordered]: We show that the abstract states are still ordered. *)
     iSplitR.
     { iApply big_sepM2_intro.
       - setoid_rewrite <- elem_of_dom.
