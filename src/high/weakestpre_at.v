@@ -448,24 +448,8 @@ Section wp_at_rules.
 
     (* [ordered] *)
     iSplit. {
-      iDestruct (big_sepM2_forall with "ordered") as %[? orderedForall].
-      iApply big_sepM2_forall.
-      iSplit.
-      { iPureIntro.
-        apply dom_eq_alt_L.
-        rewrite dom_insert_lookup_L; last naive_solver.
-        apply dom_eq_alt_L.
-        done. }
-      iIntros (ℓ').
-      (* If ℓ' is not equal to ℓ then the history is unchanged. *)
-      destruct (decide (ℓ' = ℓ)) as [->|neq]; last first.
-      { iPureIntro. simpl.
-        setoid_rewrite lookup_insert_ne; [apply orderedForall | done]. }
-      iIntros (absHist' order). rewrite lookup_insert. iIntros ([= <-] ordersLook').
-      specialize (orderedForall _ _ _ absHistsLook ordersLook).
-      eassert (order = _) as ->.
-      { apply (inj Some). rewrite -ordersLook'. apply ordersLook. }
-
+      iApply (big_sepM2_update_left with "ordered"); eauto.
+      iIntros (orderedForall).
       epose proof
         (increasing_map_insert_after _ _ _ _ _ (encode s_t) orderedForall
                                       lookTS _ tILtTt) as h.
@@ -538,7 +522,7 @@ Section wp_at_rules.
       rewrite (insert_id phys_hists); last done.
       rewrite (insert_id absHist); last done.
       rewrite (insert_id abs_hists); last done.
-      iApply (big_sepM2_insert_override_2 with "predsHold"); [done|done|].
+      iApply (big_sepM2_update with "predsHold"); [done|done|].
       simpl.
       iDestruct 1 as (pred' predsLook') "H".
       assert (pred = pred') as <-. { apply (inj Some). rewrite -predsLook. done. }
@@ -568,24 +552,10 @@ Section wp_at_rules.
     iFrame (bumperBumpToValid).
 
     (* "bumperSome" *)
-    iApply big_sepM2_forall. iSplit.
-    { iPureIntro. iIntros (ℓ'). setoid_rewrite <- elem_of_dom.
-      rewrite dom_insert_lookup_L; last done. rewrite domEq. done. }
-
-    iIntros (ℓ' absHist' bumper' look1 look2).
-    iDestruct (big_sepM2_forall with "bumperSome") as %[notneeded bumperSome].
-    iPureIntro.
-    destruct (decide (ℓ = ℓ')) as [->|neq].
-    - rewrite lookup_insert in look1.
-      simplify_eq.
-      apply map_Forall_insert_2; last first.
-      { eapply bumperSome; try done. }
-      (* This is where we show the "actually interesting" part or the new
-      obligation that we have (the only thing that doesn't follow from the
-      existing fact.. *)
-      rewrite /encode_bumper. rewrite decode_encode. done.
-    - eapply bumperSome; try done.
-      rewrite lookup_insert_ne in look1; done.
+    iApply (big_sepM2_update_left with "bumperSome"); eauto.
+    iPureIntro. intros bumperSome.
+    apply map_Forall_insert_2; eauto.
+    rewrite /encode_bumper decode_encode. done.
   Qed.
 
 End wp_at_rules.

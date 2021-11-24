@@ -417,18 +417,41 @@ Section big_sepM2.
 
 
   (* FIXME: Delete the next lemma and use big_sepM2_insert_acc. *)
-  Lemma big_sepM2_insert_override_2 Φ m1 m2 i x1 x2 x1' x2' :
+  Lemma big_sepM2_update Φ m1 m2 i x1 x2 x1' x2' :
     m1 !! i = Some x1 →
     m2 !! i = Some x2 →
-    ([∗ map] k↦y1;y2 ∈ m1;m2, Φ k y1 y2) ⊢
-      (Φ i x1 x2 -∗ Φ i x1' x2') -∗ ([∗ map] k↦y1;y2 ∈ <[i:=x1']> m1; <[i:=x2']> m2, Φ k y1 y2).
+    ([∗ map] k↦y1;y2 ∈ m1;m2, Φ k y1 y2) -∗
+    (Φ i x1 x2 -∗ Φ i x1' x2') -∗
+    ([∗ map] k↦y1;y2 ∈ <[i:=x1']> m1; <[i:=x2']> m2, Φ k y1 y2).
   Proof.
-    intros ??. apply wand_intro_l.
-  (*   rewrite (big_sepM2_insert_override). *)
-  (*   rewrite {1}big_sepM_delete //; rewrite assoc wand_elim_l. *)
-  (*   rewrite -insert_delete_insert big_sepM_insert ?lookup_delete //. *)
-  (* Qed. *)
-  Admitted.
+    iIntros (look1 look2) "H I".
+    iDestruct (big_sepM2_insert_acc with "H") as "[P I2]"; eauto.
+    iSpecialize ("I" with "P").
+    iApply "I2".
+    done.
+  Qed.
+
+  Lemma big_sepM2_update_right m1 m2 k v__a v1 v2 (Φ : K → A → B → PROP) :
+    m1 !! k = Some v__a →
+    m2 !! k = Some v1 →
+    ([∗ map] k↦a;b ∈ m1;m2, Φ k a b) -∗
+    (Φ k v__a v1 -∗ Φ k v__a v2) -∗
+    ([∗ map] k↦a;b ∈ m1;<[k:=v2]>m2, Φ k a b).
+  Proof.
+    intros ??. rewrite <- (insert_id m1 k v__a) at 2; eauto.
+    iApply big_sepM2_update; eauto.
+  Qed.
+
+  Lemma big_sepM2_update_left m1 m2 k v__a v__b v2 (Φ : K → A → B → PROP) :
+    m1 !! k = Some v__a →
+    m2 !! k = Some v__b →
+    ([∗ map] k↦a;b ∈ m1;m2, Φ k a b) -∗
+    (Φ k v__a v__b -∗ Φ k v2 v__b) -∗
+    ([∗ map] k↦a;b ∈ <[k:=v2]>m1;m2, Φ k a b).
+  Proof.
+    intros ??. rewrite <- (insert_id m2 k v__b) at 2; eauto.
+    iApply big_sepM2_update; eauto.
+  Qed.
 
 End big_sepM2.
 
