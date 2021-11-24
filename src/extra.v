@@ -18,9 +18,6 @@ Section nat_map.
 
   Implicit Types m : M A.
 
-  Definition max_member m t v :=
-    (m !! t = Some v) ∧ (∀ t', t < t' → m !! t' = None).
-
   (** Expresses that the map [m] contains, in order, the values [xs] from the
   indeces starting at exactly [lo] ending at exactly [hi]. *)
   Fixpoint map_slice m (lo hi : nat) (xs : list A) :=
@@ -89,22 +86,30 @@ Section nat_map.
     exists x. split; last done. rewrite -eq. by eapply map_slice_lookup_hi.
   Qed.
 
-  (* The map [m] is undefined for all natural numbers greater than [t]. *)
-  Definition map_no_later m t := ∀ t', t < t' → m !! t' = None.
+End nat_map.
+
+(** The map [m] is undefined for all natural numbers greater than [t]. *)
+Definition map_no_later`{FinMap nat M} {A : Type} (m : M A) t :=
+  ∀ t', t < t' → m !! t' = None.
+
+Section map_no_later.
+  Context `{FinMap nat M} {A : Type}.
+
+  Implicit Types m : M A.
 
   Lemma map_no_later_Some m t t' :
     map_no_later m t → is_Some (m !! t') → t' ≤ t.
   Proof. intros ? ?%not_eq_None_Some. apply not_gt. naive_solver. Qed.
 
-  Lemma map_no_later_singleton t x :
+  Lemma map_no_later_singleton t (x : A) :
     map_no_later {[ t := x ]} t.
   Proof. intros ??. rewrite lookup_singleton_ne; [done | lia]. Qed.
 
-  Lemma map_slice_no_later_elem_of abs_hist tP t tStore xs x :
-    abs_hist !! t = Some x →
+  Lemma map_slice_no_later_elem_of m tP t tStore xs x :
+    m !! t = Some x →
     tP ≤ t →
-    map_slice abs_hist tP tStore xs →
-    map_no_later abs_hist tStore →
+    map_slice m tP tStore xs →
+    map_no_later m tStore →
     x ∈ xs.
   Proof.
     intros ??? nolater.
@@ -115,7 +120,20 @@ Section nat_map.
     congruence.
   Qed.
 
-End nat_map.
+  Lemma map_no_later_fmap {B} (f : A → B) t m :
+    map_no_later m t ↔ map_no_later (f <$> m) t.
+  Proof.
+    rewrite /map_no_later.
+    setoid_rewrite lookup_fmap.
+    setoid_rewrite fmap_None.
+    reflexivity.
+  Qed.
+
+  Lemma map_no_later_weaken m t1 t2 :
+    t1 ≤ t2 → map_no_later m t1 → map_no_later m t2.
+  Proof. intros ? nolater ??. apply nolater. lia. Qed.
+
+End map_no_later.
 
 Lemma auth_auth_grow {A : ucmra} (a a' : A) :
   ✓ a' → a ≼ a' → ● a ~~> ● a'.
@@ -354,6 +372,22 @@ Section big_sepM2.
   Context `{Countable K} {A B : Type}.
   Implicit Types Φ Ψ : K → A → B → PROP.
 
+  Lemma map_dom_eq_lookup_Some {V W} (a : gmap K V) (b : gmap K W) v k :
+    dom (gset _) a = dom (gset _) b →
+    b !! k = Some v →
+    is_Some (a !! k).
+  Proof.
+    intros domEq look. rewrite -elem_of_dom domEq elem_of_dom. done.
+  Qed.
+
+  Lemma map_dom_eq_lookup_None {V W} (a : gmap K V) (b : gmap K W) k :
+    dom (gset _) a = dom (gset _) b →
+    b !! k = None →
+    a !! k = None.
+  Proof.
+    intros domEq look. rewrite -not_elem_of_dom domEq not_elem_of_dom. done.
+  Qed.
+
   Lemma big_sepM2_impl_dom_subseteq Φ Ψ m1 m2 n1 n2 :
     dom (gset _) n1 ⊆ dom (gset _) m1 →
     dom (gset _) n1 = dom (gset _) n2 →
@@ -415,8 +449,6 @@ Section big_sepM2.
   (*   rewrite pure_True. 2: { set_solver.. } *)
   (* Qed. *)
 
-
-  (* FIXME: Delete the next lemma and use big_sepM2_insert_acc. *)
   Lemma big_sepM2_update Φ m1 m2 i x1 x2 x1' x2' :
     m1 !! i = Some x1 →
     m2 !! i = Some x2 →

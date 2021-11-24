@@ -71,3 +71,19 @@ Proof.
   - do 2 (rewrite lookup_insert_ne; last done).
     by apply increasing.
 Qed.
+
+Lemma increasing_map_insert_last order `{!Transitive order} m t_l s_l t_t s_t :
+  increasing_map order m →
+  map_no_later m t_l →
+  t_l < t_t →
+  m !! t_l = Some s_l →
+  order s_l s_t →
+  increasing_map order (<[t_t := s_t]> m).
+Proof.
+  intros ? nolater ? ? ?.
+  eapply increasing_map_insert_after; eauto.
+  intros t b c lt.
+  unfold map_no_later in *.
+  specialize (nolater t lt).
+  congruence.
+Qed.

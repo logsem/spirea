@@ -157,22 +157,6 @@ Section wp_na_rules.
     eassumption.
   Qed.
 
-  Lemma map_dom_eq_lookup_Some `{Countable K} {V W} (a : gmap K V) (b : gmap K W) v k :
-    dom (gset _) a = dom (gset _) b →
-    b !! k = Some v →
-    is_Some (a !! k).
-  Proof.
-    intros domEq look. rewrite -elem_of_dom domEq elem_of_dom. done.
-  Qed.
-
-  Lemma map_dom_eq_lookup_None `{Countable K} {V W} (a : gmap K V) (b : gmap K W) k :
-    dom (gset _) a = dom (gset _) b →
-    b !! k = None →
-    a !! k = None.
-  Proof.
-    intros domEq look. rewrite -not_elem_of_dom domEq not_elem_of_dom. done.
-  Qed.
-
   Lemma wp_store_na ℓ b ss v s__last s ϕ `{!LocationProtocol ϕ} st E :
     last ss = Some s__last →
     s__last ⊑ s →
@@ -207,6 +191,9 @@ Section wp_na_rules.
     the step. *)
     iDestruct (own_all_preds_pred with "predicates knowPred")
       as (pred predsLook) "#predsEquiv".
+
+    iDestruct (own_all_preorders_singleton_frag with "allOrders knowPreorder")
+      as %ordersLook.
 
     iDestruct (own_full_history_agree with "history hist") as %absHistsLook.
 
@@ -273,10 +260,24 @@ Section wp_na_rules.
 
     iSplit.
     (* [ordered] *)
-    { admit. }
+    { iApply (big_sepM2_update_left with "ordered"); eauto.
+      iIntros (orderedForall).
+      iPureIntro.
+      apply: increasing_map_insert_last.
+      - eauto.
+      - apply map_no_later_fmap. done.
+      - eapply Nat.le_lt_trans; last apply gt.
+        etrans; first apply haveTStore.
+        destruct TV as [[??]?]. destruct TV' as [[??]?].
+        f_equiv.
+        etrans; first apply inThreadView.
+        etrans; first apply incl.
+        apply incl2.
+      - rewrite lookup_fmap. rewrite lookupV. rewrite last. done.
+      - eapply encode_relation_decode_iff; eauto using decode_encode. }
     iSplit.
     (* [predsHold] *)
-    { iApply (big_sepM2_insert_override_2 with "predsHold"); [done|done|].
+    { iApply (big_sepM2_update with "predsHold"); [done|done|].
       iDestruct 1 as (pred' predsLook') "H".
       assert (pred = pred') as <-. { apply (inj Some). rewrite -predsLook. done. }
       clear predsLook'.
