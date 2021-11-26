@@ -388,7 +388,9 @@ Section big_sepM2.
     intros domEq look. rewrite -not_elem_of_dom domEq not_elem_of_dom. done.
   Qed.
 
-  Lemma big_sepM2_impl_dom_subseteq Φ Ψ m1 m2 n1 n2 :
+  (* This could be upstreamed but we'd need to drop the affine requirement and
+  rewrite the proof to not use the proofmode. *)
+  Lemma big_sepM2_impl_dom_subseteq `{!BiAffine PROP} Φ Ψ m1 m2 n1 n2 :
     dom (gset _) n1 ⊆ dom (gset _) m1 →
     dom (gset _) n1 = dom (gset _) n2 →
     ([∗ map] k↦x1;x2 ∈ m1;m2, Φ k x1 x2) -∗
@@ -398,13 +400,21 @@ Section big_sepM2.
     ([∗ map] k↦y1;y2 ∈ n1;n2, Ψ k y1 y2).
     (* ∗ ([∗ map] k↦x ∈ filter (λ '(k, _), m2 !! k = None) m1, Φ k x). *)
   Proof.
-    iIntros (sub1 sub2).
+    iIntros (sub1 domEq).
     rewrite !big_sepM2_alt.
     iIntros "[%impl sep] #impl".
-  Admitted.
-  (*   iDestruct (big_sepM_impl_dom_subseteq with "[] [sep]") as "[hi temp]". *)
-  (*   4: { iApply "hi". } *)
-  (* Qed. *)
+    assert (dom _ m1 = dom (gset _) m2) as domEq2.
+    { rewrite set_eq. setoid_rewrite elem_of_dom. done. }
+    iSplit. { iPureIntro. intros k. rewrite -!elem_of_dom domEq. done. }
+    iDestruct (big_sepM_impl_dom_subseteq with "sep []") as "[$ H]".
+    { etrans; first apply map_zip_with_dom_fst.
+      rewrite dom_map_zip_with. rewrite -domEq2. set_solver. }
+    { iModIntro.
+      iIntros (? [??] [??]).
+      iIntros ([??]%map_lookup_zip_Some).
+      iIntros ([??]%map_lookup_zip_Some).
+      iApply "impl"; eauto. }
+  Qed.
     
   Lemma big_sepM2_impl_subseteq `{!BiAffine PROP} (m1 n1 : gmap K A) (m2 n2 : gmap K B) Φ :
     n1 ⊆ m1 →

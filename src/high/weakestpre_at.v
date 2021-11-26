@@ -28,39 +28,6 @@ Section wp_at_rules.
 
   (** * Shared points-to predicate *)
 
-  Lemma predicate_holds_phi_decode ϕ s encS (encϕ : predO) v TV :
-    decode encS = Some s →
-    (encϕ ≡ encode_predicate ϕ)%I -∗
-    (encoded_predicate_holds encϕ encS v TV ∗-∗ ϕ s v _ TV).
-  Proof.
-    iIntros (eq') "predsEquiv".
-    iSplit.
-    - iDestruct 1 as (P') "[eq PH]".
-      iDestruct (discrete_fun_equivI with "predsEquiv") as "HI".
-      iDestruct ("HI" $! encS) as "HIP". (* iClear "HI". *)
-      iEval (rewrite discrete_fun_equivI) in "HIP".
-      iDestruct ("HIP" $! v) as "HI". (* iClear "HIP". *)
-      rewrite /encode_predicate.
-      rewrite eq'.
-      simpl.
-      iRewrite "eq" in "HI".
-      rewrite option_equivI.
-      iEval (setoid_rewrite discrete_fun_equivI) in "HI".
-      iSpecialize ("HI" $! hG).
-      by iRewrite "HI" in "PH".
-    - iIntros "phi".
-      rewrite /encoded_predicate_holds.
-      do 2 iEval (setoid_rewrite discrete_fun_equivI) in "predsEquiv".
-      iSpecialize ("predsEquiv" $! encS v).
-      rewrite /encode_predicate. rewrite eq'.
-      simpl.
-      destruct (encϕ encS v); rewrite option_equivI; last done.
-      iExists _. iSplit; first done.
-      iEval (setoid_rewrite discrete_fun_equivI) in "predsEquiv".
-      iSpecialize ("predsEquiv" $! hG).
-      by iRewrite "predsEquiv".
-  Qed.
-
   Lemma msg_persisted_views_eq
         (ℓ : loc) (hists : gmap loc (gmap time (message * positive)))
         (hist : gmap time (message * positive)) (msg : message)
@@ -139,6 +106,7 @@ Section wp_at_rules.
     iDestruct (
         location_sets_singleton_included with "sharedLocs isSharedLoc"
       ) as %ℓSh.
+
     iDestruct (big_sepM2_lookup_acc with "predsHold") as "[predMap predsHold]".
     { done. } { done. }
     iDestruct "predMap" as (pred' predsLook') "predMap".
@@ -205,6 +173,8 @@ Section wp_at_rules.
     iSpecialize ("pToQ" $! (SV', PV', ∅) sL v').
     monPred_simpl.
     iEval (setoid_rewrite monPred_at_wand) in "pToQ".
+    assert (na_views !! ℓ = None) as ->.
+    { apply not_elem_of_dom. set_solver. }
     iDestruct ("pToQ" $! (SV', PV', ∅) with "[//] [%] [//] PH") as "[Q phi]".
     { done. }
     (* Reinsert into the predicate map. *)
@@ -220,7 +190,7 @@ Section wp_at_rules.
     iModIntro.
     (* We re-establish [interp]. *)
     iSplitR "ptsMap physHist allOrders ordered predsHold history predicates
-             crashedAt sharedLocs exclusiveLocs allBumpers bumpMono
+             crashedAt sharedLocs naView exclusiveLocs allBumpers bumpMono
              predPostCrash sharedLocsHistories"; last first.
     { repeat iExists _. iFrameNamed. }
     iSplit. { iPureIntro. repeat split; try done; apply view_le_l. }
@@ -414,10 +384,9 @@ Section wp_at_rules.
     iDestruct (big_sepM_insert_delete with "[$ptsMap $pts]") as "ptsMap".
     repeat iExists _.
     iFrame "ptsMap physHist crashedAt history predicates allOrders sharedLocs
-            exclusiveLocs allBumpers bumpMono".
+            exclusiveLocs naView allBumpers bumpMono".
+    iFrame (locsDisjoint naViewsDom).
 
-    (* [locsDisjoinct] *)
-    iSplit. { iPureIntro. set_solver. }
     (* [histDomLocs] *)
     iSplit. { iPureIntro. set_solver. }
 
@@ -442,7 +411,7 @@ Section wp_at_rules.
     {
       rewrite /know_full_encoded_history_loc.
       (* NOTE: This rewrite is mega-slow. *)
-      iEval (setoid_rewrite (restrict_insert ℓ shared_locs (<[t_t:=encode s_t]> absHist) abs_hists ℓSh)).
+      iEval (setoid_rewrite (restrict_insert ℓ at_locs (<[t_t:=encode s_t]> absHist) abs_hists ℓSh)).
       iApply big_sepM_insert_delete.
       iFrame. }
 
@@ -487,6 +456,7 @@ Section wp_at_rules.
         apply thread_view_le_l. }
       monPred_simpl.
       iFrame.
+      assert (na_views !! ℓ = None) as ->. { apply not_elem_of_dom. set_solver. }
       iSplitL "phiI".
       { iApply monPred_mono; last iApply "phiI".
         apply thread_view_le_r. }
@@ -535,6 +505,7 @@ Section wp_at_rules.
       iExists (ϕ s_t v_t).
       iSplit.
       { iApply pred_encode_Some. done. }
+      assert (na_views !! ℓ = None) as ->. { apply not_elem_of_dom. set_solver. }
       iApply monPred_mono; last iFrame.
       destruct TV as [[??]?].
       destruct TV' as [[??]?].

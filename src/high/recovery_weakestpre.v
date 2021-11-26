@@ -329,15 +329,15 @@ Section wpr.
     iMod (know_predicates_alloc newPreds) as
       (new_predicates_name) "[newPreds #newPredsFrag]".
 
-    set newSharedLocs := (dom (gset _) newAbsHists) ∩ shared_locs.
+    set newSharedLocs := (dom (gset _) newAbsHists) ∩ at_locs.
     iMod (own_alloc (● (newSharedLocs : gsetUR _) ⋅ ◯ _))
       as (new_shared_locs_name) "[newSharedLocs sharedLocsFrag]".
     { apply auth_both_valid. done. }
     iDestruct "sharedLocsFrag" as "#sharedLocsFrag".
 
-    set newExclusiveLocs := (dom (gset _) newAbsHists) ∩ exclusive_locs.
-    iMod (own_alloc (● (newExclusiveLocs : gsetUR _) ⋅ ◯ _))
-      as (new_exclusive_locs_name) "[newExclusiveLocs exclusiveLocsFrag]".
+    set newNaLocs := (dom (gset _) newAbsHists) ∩ na_locs.
+    iMod (own_alloc (● (newNaLocs : gsetUR _) ⋅ ◯ _))
+      as (new_exclusive_locs_name) "[newNaLocs exclusiveLocsFrag]".
     { apply auth_both_valid. done. }
     iDestruct "exclusiveLocsFrag" as "#exclusiveLocsFrag".
 
@@ -467,14 +467,14 @@ Section wpr.
         iDestruct (own_valid_2 with "exclusiveLocs sh")
           as %[_ [elem _]]%auth_both_dfrac_valid_discrete.
         iApply (own_mono with "exclusiveLocsFrag").
-        exists (◯ newExclusiveLocs).
+        exists (◯ newNaLocs).
         rewrite -auth_frag_op.
         rewrite gset_op.
         f_equiv.
         apply gset_included in elem.
         symmetry.
         eapply subseteq_union_1.
-        rewrite /newExclusiveLocs.
+        rewrite /newNaLocs.
         apply elem_of_subseteq_singleton.
         apply elem_of_intersection.
         split; last set_solver.
@@ -488,6 +488,8 @@ Section wpr.
         split; first set_solver.
         apply elem_of_dom.
         naive_solver. }
+      (* [post_crash_na_view_impl] *)
+      iSplit. { admit. }
       (* We show that the bumpers survive a crash. *)
       iSplit. {
         rewrite /post_crash_bumper_impl.
@@ -524,7 +526,7 @@ Section wpr.
     rewrite /own_full_history.
     iFrame "ptsMap".
     iFrame "newOrders newPreds hists' newSharedLocs newCrashedAt".
-    iFrame "newExclusiveLocs".
+    iFrame "newNaLocs".
     iFrame "newPhysHist".
     iFrame "newBumpers".
     (* [locsDisjoint] *)
@@ -548,6 +550,10 @@ Section wpr.
       (* We could use [set_solver] here but that is very slow, so instead we use
       a useful fact. *)
       eapply useful_fact; done. }
+    (* [naView] *)
+    iSplitR. { admit. }
+    (* [naPredsHold] *)
+    iSplitR. { admit. }
     (* mapShared. We show that the shared location still satisfy that
     heir two persist-views are equal. *)
     iSplit. { iPureIntro. apply shared_locs_inv_slice_of_store. }
@@ -567,7 +573,7 @@ Section wpr.
         iIntros (ℓ hist order [->|[? ->]]%new_abs_hist_lookup slice) "!%".
         * apply increasing_map_empty.
         * apply increasing_map_singleton. }
-    (* We show that the encoded predicates still hold for the new abstract
+    (* [predsHold] We show that the encoded predicates still hold for the new abstract
     history. *)
     iSplitR "". {
       (* We use the old predsHold to show the new predsHold. There are more

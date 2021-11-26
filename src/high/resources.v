@@ -19,6 +19,7 @@ Class nvmHighDeltaG := MkNvmHighDeltaG {
   know_abs_history_name : gname;
   (* For physical history *)
   know_phys_history_name : gname;
+  non_atomic_views_gname : gname;
   predicates_name : gname;
   preorders_name : gname;
   exclusive_locs_name : gname;
@@ -49,6 +50,7 @@ Class nvmHighFixedG Σ := {
   ra_inG' :> inG Σ know_abs_historiesR;
   abs_histories :> ghost_mapG Σ loc (gmap time positive);
   phys_histories :> inG Σ (auth_map_mapR (leibnizO message));
+  non_atomic_views :> ghost_mapG Σ loc view;
   preordersG :> inG Σ preordersR;
   shared_locsG :> inG Σ shared_locsR;
   exclusive_locsG :> inG Σ shared_locsR;
@@ -71,7 +73,9 @@ Class nvmGpreS Σ := NvmPreG {
   nvmPreG_high :> nvmHighFixedG Σ; (* We can use [nvmHighFixedG] directly as it has no ghost names. *)
 }.
 
-(* Wrappers around ownership of resources that extracts the ghost names from [nvmDeltaG]. *)
+(* Wrappers around ownership of resources that extracts the ghost names from
+[nvmDeltaG]. These wrapper makes it easier to switch the ghost names around
+after a crash in [post_crash_modality.v]. *)
 
 Section ownership_wrappers.
   Context `{nvmFixedG Σ, nD : nvmDeltaG Σ}.
@@ -95,6 +99,9 @@ Section ownership_wrappers.
   Definition know_frag_history_loc `{Countable ST}
              ℓ (abs_hist : gmap time ST) : iProp Σ :=
     own_frag_history_loc know_abs_history_name ℓ abs_hist.
+
+  Definition know_na_view ℓ (SV : view) : iProp Σ :=
+    ℓ ↪[non_atomic_views_gname] SV.
 
 End ownership_wrappers.
 
@@ -274,6 +281,46 @@ Section encoded_predicate.
       by iRewrite "predsEquiv".
   Qed.
 
+  Lemma predicate_holds_phi_decode ϕ s encS (encϕ : predO) v TV :
+    decode encS = Some s →
+    (encϕ ≡ encode_predicate ϕ)%I -∗
+    (encoded_predicate_holds encϕ encS v TV ∗-∗ ϕ s v _ TV).
+  Proof.
+    iIntros (eq') "predsEquiv".
+    iSplit.
+    - iDestruct 1 as (P') "[eq PH]".
+      iDestruct (discrete_fun_equivI with "predsEquiv") as "HI".
+      iDestruct ("HI" $! encS) as "HIP". (* iClear "HI". *)
+      iEval (rewrite discrete_fun_equivI) in "HIP".
+      iDestruct ("HIP" $! v) as "HI". (* iClear "HIP". *)
+      rewrite /encode_predicate.
+      rewrite eq'.
+      simpl.
+      iRewrite "eq" in "HI".
+      rewrite option_equivI.
+      iEval (setoid_rewrite discrete_fun_equivI) in "HI".
+      iSpecialize ("HI" $! hG).
+      by iRewrite "HI" in "PH".
+    - iIntros "phi".
+      rewrite /encoded_predicate_holds.
+      do 2 iEval (setoid_rewrite discrete_fun_equivI) in "predsEquiv".
+      iSpecialize ("predsEquiv" $! encS v).
+      rewrite /encode_predicate. rewrite eq'.
+      simpl.
+      destruct (encϕ encS v); rewrite option_equivI; last done.
+      iExists _. iSplit; first done.
+      iEval (setoid_rewrite discrete_fun_equivI) in "predsEquiv".
+      iSpecialize ("predsEquiv" $! hG).
+      by iRewrite "predsEquiv".
+  Qed.
+
+  Global Instance encoded_predicate_holds_mono encϕ encS v :
+    Proper ((⊑) ==> (⊢)) (encoded_predicate_holds encϕ encS v).
+  Proof.
+    iIntros (???). iDestruct 1 as (P) "[eq P]".
+    iExists P. iFrame.
+  Qed.
+
 End encoded_predicate.
 
 Definition increasing_list `{SqSubsetEq ST} (ss : list ST) :=
@@ -320,12 +367,14 @@ Section points_to_shared.
         (* Ownership over the abstract history. *)
         "hist" ∷ ⎡ know_full_history_loc ℓ abs_hist ⎤ ∗
 
+        "knowSV" ∷ ⎡ know_na_view ℓ SV ⎤ ∗
         "%slice" ∷ ⌜ map_slice abs_hist tP tStore ss ⌝ ∗
         "#physMsg" ∷ ⎡ auth_map_map_frag_singleton know_phys_history_name ℓ tStore msg ⎤ ∗
-        "%msgViewIncluded" ∷ ⌜ msg_store_view msg ⊑ SV ⌝ ∗
+        (* "%msgViewIncluded" ∷ ⌜ msg_store_view msg ⊑ SV ⌝ ∗ *)
         "#inThreadView" ∷ monPred_in (SV, msg_persisted_after_view msg, ∅) ∗
         (* We have the [tStore] timestamp in our store view. *)
         "%haveTStore" ∷ ⌜ tStore ≤ SV !!0 ℓ ⌝ ∗
+        (* "haveTStore" ∷ monPred_in ({[ ℓ := MaxNat tStore ]}, ∅, ∅) ∗ *)
 
         "pers" ∷ if persisted then ⎡ persisted_loc ℓ tP ⎤ else ⌜ tP = 0 ⌝)%I.
 

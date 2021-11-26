@@ -1,11 +1,11 @@
 From iris.proofmode Require Import base.
 From iris.algebra Require Import auth gset.
+From iris.base_logic.lib Require Import ghost_map.
 From iris_named_props Require Import named_props.
 
 From self Require Import extra.
 From self.base Require Import primitive_laws.
 From self.high Require Export dprop resources post_crash_modality increasing_map.
-
 
 (* Convert a message to a thread_view corresponding to what is stored in the
 message. *)
@@ -75,10 +75,10 @@ Section state_interpretation.
        (predicates : gmap loc (positive → val → option (nvmDeltaG Σ → dProp Σ)))
        (CV : view)
        (orders : gmap loc (relation2 positive))
-       (* (exclusive_locs : gset loc) *)
        (bumpers : gmap loc (positive → option positive))
-       (exclusive_locs : gset loc)
-       (shared_locs : gset loc),
+       (na_locs : gset loc)
+       (at_locs : gset loc)
+       (na_views : gmap loc view),
       (* We keep the points-to predicates to ensure that we know that the keys
       in the abstract history correspond to the physical history. This ensures
       that at a crash we know that the value recovered after a crash has a
@@ -95,31 +95,38 @@ Section state_interpretation.
       (* All the encoded orders *)
       "allOrders" ∷ own_all_preorders preorders_name orders ∗
 
-      (* Exclusive locations. *)
-      "%locsDisjoint" ∷ ⌜ exclusive_locs ## shared_locs ⌝ ∗
-      "%histDomLocs" ∷ ⌜ dom _ abs_hists = exclusive_locs ∪ shared_locs ⌝ ∗
-      "exclusiveLocs" ∷ own exclusive_locs_name (● exclusive_locs) ∗
-      "sharedLocs" ∷ own shared_locs_name (● shared_locs) ∗
+      (* Seperation of locations. *)
+      "%locsDisjoint" ∷ ⌜ na_locs ## at_locs ⌝ ∗
+      "%histDomLocs" ∷ ⌜ dom _ abs_hists = na_locs ∪ at_locs ⌝ ∗
+      "exclusiveLocs" ∷ own exclusive_locs_name (● na_locs) ∗
+      "sharedLocs" ∷ own shared_locs_name (● at_locs) ∗
+
+      (* Non-atomic locations. *)
+      "%naViewsDom" ∷ ⌜ dom _ na_views = na_locs ⌝ ∗ (* NOTE: If this equality persists we could remove na_locs *)
+      "naView" ∷ ghost_map_auth non_atomic_views_gname 1 na_views ∗
 
       (* Shared locations. *)
-      (* "sharedLocs" ∷ own shared_locs_name (● shared_locs) ∗ *)
-      (* "%sharedLocsSubseteq" ∷ ⌜ shared_locs ⊆ dom _ abs_hists ⌝ ∗ *)
-      "%mapShared" ∷ ⌜ shared_locs_inv (restrict shared_locs phys_hists) ⌝ ∗
+      "%mapShared" ∷ ⌜ shared_locs_inv (restrict at_locs phys_hists) ⌝ ∗
       (* For shared locations [interp] owns the fragment for the full history. *)
       "sharedLocsHistories" ∷
-        ([∗ map] ℓ ↦ abs_hist ∈ (restrict shared_locs abs_hists),
+        ([∗ map] ℓ ↦ abs_hist ∈ (restrict at_locs abs_hists),
           know_full_encoded_history_loc ℓ abs_hist) ∗
 
       "#ordered" ∷ ([∗ map] ℓ ↦ hist; order ∈ abs_hists; orders,
                     ⌜increasing_map order hist⌝) ∗
 
-      (* The predicates hold for all the exclusive locations. *)
+      (* The predicates hold for all the atomic locations. *)
       "predsHold" ∷
-        ([∗ map] ℓ ↦ phys_hist;abs_hist ∈ phys_hists;abs_hists, ∃ pred,
-          ⌜predicates !! ℓ = Some pred⌝ ∗
-          (* The predicate holds for each message in the history. *)
-          ([∗ map] t ↦ msg; encS ∈ phys_hist; abs_hist,
-            encoded_predicate_holds pred encS msg.(msg_val) (msg_to_tv msg))) ∗
+        ([∗ map] ℓ ↦ phys_hist;abs_hist ∈ phys_hists;abs_hists,
+          ∃ pred,
+            ⌜predicates !! ℓ = Some pred⌝ ∗
+            (* The predicate holds for each message in the history. *)
+            ([∗ map] t ↦ msg; encS ∈ phys_hist; abs_hist,
+               encoded_predicate_holds
+                 pred
+                 encS
+                 msg.(msg_val)
+                 ((default msg.(msg_store_view) (na_views !! ℓ)), msg.(msg_persisted_after_view), ∅))) ∗
 
       (** * Bump-back function *)
       (* We know about all the bumpers. *)

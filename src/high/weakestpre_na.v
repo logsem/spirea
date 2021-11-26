@@ -67,7 +67,7 @@ Section wp_na_rules.
     { done. } { done. }
     iDestruct "predMap" as (pred' predsLook') "predMap".
     assert (pred = pred') as <-. { apply (inj Some). rewrite -predsLook. done. }
-    (* clear predsLook'. *)
+    clear predsLook'.
 
     iDestruct (big_sepM_lookup_acc with "ptsMap") as "[pts ptsMap]"; first done.
     iApply (wp_load (extra := {| extra_state_interp := True |}) with "[$pts $val]").
@@ -113,12 +113,15 @@ Section wp_na_rules.
     iDestruct (big_sepM2_lookup_acc with "predMap") as "[predHolds predMap]";
       first done.
     { rewrite lookup_fmap. rewrite lookS. done. }
+    iDestruct (ghost_map.ghost_map_lookup with "naView knowSV") as %->.
+    simpl.
     iDestruct (predicate_holds_phi with "predsEquiv predHolds") as "phi";
       first done.
     rewrite monPred_at_objectively.
-    iSpecialize ("pToQ" $! (msg_to_tv msg) (msg_val msg)).
+    iSpecialize ("pToQ" $! (SV, msg_persisted_after_view msg, ∅) (msg_val msg)).
     rewrite monPred_at_wand.
-    iDestruct ("pToQ" with "[//] phi") as "[Q phi]".
+    iDestruct ("pToQ" with "[] phi") as "[Q phi]".
+    { iPureIntro. reflexivity. }
     (* Reinsert into the predicate map. *)
     iDestruct ("predMap" with "[phi]") as "predMap".
     { iApply (predicate_holds_phi with "predsEquiv phi"). done. }
@@ -127,8 +130,8 @@ Section wp_na_rules.
 
     iSplitR "ptsMap physHist allOrders ordered predsHold history predicates
              sharedLocs exclusiveLocs crashedAt allBumpers bumpMono predPostCrash
-             sharedLocsHistories"; last first.
-    { repeat iExists _. iFrameNamed. }
+             sharedLocsHistories naView"; last first.
+    { repeat iExists _. iFrameNamed. done. }
     iSplit; first done.
     iApply "Φpost".
     iSplitR "Q".
@@ -222,7 +225,7 @@ Section wp_na_rules.
     iDestruct (
         location_sets_singleton_included with "exclusiveLocs isExclusiveLoc"
       ) as %ℓEx.
-    assert (ℓ ∉ shared_locs) as ℓnotSh by set_solver.
+    assert (ℓ ∉ at_locs) as ℓnotSh by set_solver.
     (* Update the ghost state for the abstract history. *)
     iMod (own_full_history_insert _ _ _ _ _ _ (encode s) with "history hist")
       as "(history & hist & histFrag)".
@@ -232,6 +235,10 @@ Section wp_na_rules.
     (* Update ghost state. *)
     iMod (auth_map_map_insert with "physHist") as "[physHist #physHistFrag]".
     { done. } { done. }
+
+    iDestruct (ghost_map.ghost_map_lookup with "naView knowSV") as %ℓnaView.
+
+    iMod (ghost_map.ghost_map_update (SV ⊔ SV') with "naView knowSV") as "[naView knowSV]".
 
     rewrite /validV.
     iModIntro.
@@ -248,8 +255,11 @@ Section wp_na_rules.
         iFrame "#".
         admit. }
     repeat iExists _.
-    iFrame "history". iFrame "ptsMap". iFrame "#". iFrameNamed.
+    iFrame "history". iFrame "ptsMap". iFrame "#". iFrame"naView". iFrameNamed.
     iSplit. { iPureIntro. set_solver. }
+    (* [naViewsDom] *)
+    iSplit.
+    { iPureIntro. rewrite dom_insert_lookup_L; naive_solver. }
     (* [mapShared] *)
     iSplit.
     { iPureIntro. setoid_rewrite restrict_insert_not_elem; done. }
@@ -277,25 +287,44 @@ Section wp_na_rules.
       - eapply encode_relation_decode_iff; eauto using decode_encode. }
     iSplit.
     (* [predsHold] *)
-    { iApply (big_sepM2_update with "predsHold"); [done|done|].
-      iDestruct 1 as (pred' predsLook') "H".
+    {iApply (big_sepM2_update with "[predsHold]"); [done|done| |].
+      { iApply (big_sepM2_impl with "predsHold").
+        iIntros "!>" (ℓ' physHist' absHist' physHist2 absHist2).
+        (* We consider two cases, either [ℓ] is the location where we've inserted
+        an element or it is a different location. The latter case is trivial. *)
+        destruct (decide (ℓ = ℓ')) as [<-|neq]; last first.
+        { rewrite !lookup_insert_ne; naive_solver. }
+        rewrite !lookup_insert.
+        iDestruct 1 as (pred' predLook') "H".
+        simplify_eq.
+        assert (pred = pred') as <-. { apply (inj Some). rewrite -predsLook. done. }
+        clear predLook'.
+        iExists _; iSplit; first done.
+        iApply (big_sepM2_impl with "H").
+        iIntros "!>" (?????).
+        iApply encoded_predicate_holds_mono.
+        repeat split; eauto.
+        rewrite ℓnaView. simpl.
+        apply view_le_l. }
+      iDestruct 1 as (pred' predLook') "H".
+      simplify_eq.
       assert (pred = pred') as <-. { apply (inj Some). rewrite -predsLook. done. }
-      clear predsLook'.
-      iExists _.
-      iSplit; first done.
-
-      iApply (big_sepM2_insert_2 with "[phi] H").
-      rewrite /msg_to_tv /store_view. simpl.
-      rewrite /encoded_predicate_holds.
-      iExists (ϕ s v).
-      iSplit.
-      { iApply pred_encode_Some. done. }
-      iApply monPred_mono; last iFrame.
-      destruct TV as [[??]?].
-      destruct TV' as [[??]?].
-      (* Oops, we are stuck ^^ *)
-      admit.
-    }
+      clear predLook'.
+      iExists _; iSplit; first done.
+      iApply big_sepM2_insert.
+      { done. } { rewrite lookup_fmap absHistLook. done. }
+      simpl. iFrame.
+      iApply predicate_holds_phi; auto.
+      rewrite lookup_insert /=.
+      iDestruct (phi_nobuf with "phi") as "phi".
+      simpl.
+      iApply (monPred_mono with "phi").
+      destruct TV as [[??]?]. destruct TV' as [[??]?].
+      repeat split; last done.
+      - rewrite /store_view. simpl.
+        etrans; first apply incl. etrans; first apply incl2. apply view_le_r.
+      - rewrite /flush_view. simpl.
+        etrans; first apply incl. apply incl2. }
     (* [bumperSome] *)
     admit.
   Admitted.

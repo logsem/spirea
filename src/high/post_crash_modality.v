@@ -101,6 +101,11 @@ Definition post_crash_exclusive_loc_impl `{nvmFixedG Σ}
   □ ∀ ℓ, is_exclusive_loc (hGD := nD) ℓ -∗
     or_lost_post_crash_no_t ℓ (is_exclusive_loc (hGD := nD') ℓ).
 
+Definition post_crash_na_view_impl `{nvmFixedG Σ}
+           (nD nD' : nvmDeltaG Σ) : iProp Σ :=
+  □ ∀ ℓ SV, know_na_view (nD := nD) ℓ SV -∗
+    or_lost_post_crash_no_t ℓ (know_na_view (nD := nD') ℓ ∅).
+
 Definition get_bumpers_name {Σ} (hD : nvmDeltaG Σ) := bumpers_name.
 
 Definition post_crash_bumper_impl `{nvmFixedG Σ}
@@ -135,6 +140,7 @@ Definition post_crash_resource `{nvmFixedG Σ}
   "#post_crash_pred_impl" ∷ post_crash_pred_impl nD nD' ∗
   "#post_crash_shared_loc_impl" ∷ post_crash_shared_loc_impl nD nD' ∗
   "#post_crash_exclusive_loc_impl" ∷ post_crash_exclusive_loc_impl nD nD' ∗
+  "#post_crash_na_view_impl" ∷ post_crash_na_view_impl nD nD' ∗
   "#post_crash_bumper_impl" ∷ post_crash_bumper_impl nD nD' ∗
   (* "#post_crash_exclusive_loc_impl" ∷ post_crash_exclusive_loc_impl nD nD' ∗ *)
   "post_crash_map" ∷ post_crash_map h nD nD'.
@@ -411,6 +417,20 @@ Section post_crash_interact.
     done.
   Qed.
 
+  Lemma post_crash_know_na_view ℓ SV :
+    ⎡ know_na_view ℓ SV ⎤ -∗ <PC> _, or_lost ℓ (⎡ know_na_view ℓ ∅ ⎤).
+  Proof.
+    iStartProof (iProp _). iIntros (TV') "HP".
+    iIntrosPostCrash.
+    iDestruct (post_crash_modality.post_crash_nodep with "HP") as "HP".
+    post_crash_modality.iCrash.
+    iNamed 1.
+    rewrite /post_crash_resource. iFrameNamed.
+    iDestruct ("post_crash_na_view_impl" with "HP") as "H".
+    rewrite -or_lost_embed.
+    done.
+  Qed.
+
   Lemma post_crash_know_bumper `{AbstractState ST} ℓ bumper :
     ⎡ know_bumper ℓ bumper ⎤ -∗ <PC> _, or_lost ℓ (⎡ know_bumper ℓ bumper ⎤).
   Proof.
@@ -527,6 +547,12 @@ Section IntoCrash.
       (⎡ is_exclusive_loc ℓ ⎤)%I
       (λ hG', or_lost ℓ (⎡ is_exclusive_loc ℓ ⎤))%I.
   Proof. lift_into_crash post_crash_exclusive_loc. Qed.
+
+  Global Instance exclusive_know_na_view_crash ℓ SV :
+    IntoCrash
+      (⎡ know_na_view ℓ SV ⎤)%I
+      (λ hG', or_lost ℓ (⎡ know_na_view ℓ ∅ ⎤))%I.
+  Proof. lift_into_crash post_crash_know_na_view. Qed.
 
   Global Instance know_bumper_into_crash `{AbstractState ST} ℓ bumper :
     IntoCrash
@@ -646,6 +672,7 @@ Section post_crash_derived.
     iDestruct "pers" as "(persisted & (%CV & % & [% %] & #crash))".
     iDestruct (or_lost_get with "crash isExclusiveLoc") as "isExclusiveLoc"; first done.
     iDestruct (or_lost_get with "crash order") as "order"; first done.
+    iDestruct (or_lost_get with "crash knowSV") as "knowSV"; first done.
     iDestruct (or_lost_with_t_get with "crash hist") as (s) "(% & ? & ? & _)";
       first done.
     iExists s.
@@ -677,6 +704,7 @@ Section post_crash_derived.
     - iDestruct "left" as (t look) "(%s & %absHistLook & full & frag & pers)".
       iDestruct (or_lost_get with "crash isExclusiveLoc") as "isExclusiveLoc"; first done.
       iDestruct (or_lost_get with "crash order") as "order"; first done.
+      iDestruct (or_lost_get with "crash knowSV") as "knowSV"; first done.
       iLeft.
       iExists s.
       iSplit.

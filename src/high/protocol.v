@@ -5,7 +5,6 @@ From iris_named_props Require Import named_props.
 From self.high Require Import dprop resources modalities post_crash_modality monpred_simpl.
 From self.lang Require Import lang.
 
-
 (* A handy alias for the type of location predicates. *)
 Definition loc_pred {Σ} ST `{AbstractState ST} := ST → val → nvmDeltaG Σ → dProp Σ.
 
