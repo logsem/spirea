@@ -12,6 +12,10 @@ From iris.bi Require Import derived_laws_later.
 (* We define our own relation. Workaround for universe issues in stdpp and Iris. *)
 Definition relation2 A := A -> A -> Prop.
 
+(** The map [m] is undefined for all natural numbers greater than [t]. *)
+Definition map_no_later`{FinMap nat M} {A : Type} (m : M A) t :=
+  ∀ t', t < t' → m !! t' = None.
+
 (* Lemmas about finite maps of natural numbers. *)
 Section nat_map.
   Context `{FinMap nat M} {A : Type}.
@@ -31,6 +35,15 @@ Section nat_map.
         (∀ lo'', lo < lo'' < lo' → m !! lo'' = None) ∧ (* There are no elements in between. *)
         map_slice m lo' hi xs
     end.
+
+  Lemma map_slice_lt m lo hi xs : map_slice m lo hi xs → lo ≤ hi.
+  Proof.
+    generalize dependent lo.
+    induction xs as [|x1 xs IH]; first done.
+    destruct xs as [|x2 xs]. { naive_solver. }
+    intros lo (look & lo' & ? & between & slice).
+    apply IH in slice. lia.
+  Qed.
 
   Lemma map_slice_lookup_between m lo hi xs t x :
     map_slice m lo hi xs → lo ≤ t ≤ hi → m !! t = Some x → x ∈ xs.
@@ -86,11 +99,72 @@ Section nat_map.
     exists x. split; last done. rewrite -eq. by eapply map_slice_lookup_hi.
   Qed.
 
-End nat_map.
+  Lemma map_slice_snoc m lo hi hi2 xs x :
+    hi2 < hi ∧
+    m !! hi = Some x ∧
+    (∀ hi'', hi2 < hi'' < hi → m !! hi'' = None) ∧ (* There are no elements in between. *)
+    map_slice m lo hi2 xs
+    → map_slice m lo hi (xs ++ [x]).
+  Proof.
+    generalize dependent lo.
+    induction xs as [|x1 xs IH].
+    { naive_solver. }
+    simpl.
+    destruct xs as [|x2 xs].
+    * intros lo.
+      destruct 1 as (? & ? & ? & [??]).
+      subst.
+      split; first done.
+      exists hi. split_and!; done.
+    * intros lo.
+      destruct 1 as (? & ? & ? & [look (lo' & next)]).
+      split; first apply look.
+      exists lo'.
+      split_and!; [apply next|apply next|].
+      apply IH.
+      split_and!; try done. apply next.
+  Qed.
 
-(** The map [m] is undefined for all natural numbers greater than [t]. *)
-Definition map_no_later`{FinMap nat M} {A : Type} (m : M A) t :=
-  ∀ t', t < t' → m !! t' = None.
+  Lemma map_slice_equiv m1 m2 lo hi xs :
+    (∀ t, lo ≤ t ≤ hi → m1 !! t = m2 !! t) →
+    map_slice m1 lo hi xs → map_slice m2 lo hi xs.
+  Proof.
+    generalize dependent lo.
+    induction xs as [|x1 xs IH]; first done.
+    intros lo eq slice.
+    assert (lo ≤ hi) by (by eapply map_slice_lt).
+    simpl.
+    destruct xs as [|x2 xs].
+    - destruct slice as [<- ->]. split; last done. symmetry. by apply eq.
+    - destruct slice as [<- (lo' & le & between & slice)].
+      assert (lo' ≤ hi) by (by eapply map_slice_lt).
+      split. { symmetry. apply eq. lia. }
+      exists lo'. split; first apply le.
+      split. { intros ? ?. rewrite -eq. apply between. lia. lia. }
+      apply IH.
+      + intros ??. apply eq. lia.
+      + done.
+  Qed.
+
+  Lemma map_slice_insert_snoc m lo hi hi2 xs x :
+    hi < hi2 →
+    map_no_later m hi →
+    map_slice m lo hi xs →
+    map_slice (<[hi2:=x]> m) lo hi2 (xs ++ [x]).
+  Proof.
+    intros lt nolater sl.
+    eapply map_slice_snoc.
+    split_and!.
+    - done.
+    - apply lookup_insert.
+    - intros ??.
+      rewrite lookup_insert_ne; last lia.
+      apply nolater. lia.
+    - eapply map_slice_equiv; last apply sl.
+      intros t ?. rewrite lookup_insert_ne; first done. lia.
+  Qed.
+
+End nat_map.
 
 Section map_no_later.
   Context `{FinMap nat M} {A : Type}.
@@ -132,6 +206,15 @@ Section map_no_later.
   Lemma map_no_later_weaken m t1 t2 :
     t1 ≤ t2 → map_no_later m t1 → map_no_later m t2.
   Proof. intros ? nolater ??. apply nolater. lia. Qed.
+
+  Lemma map_no_later_insert m t1 t2 s :
+    t1 ≤ t2 → map_no_later m t1 → map_no_later (<[t2 := s]> m) t2.
+  Proof.
+    intros le nolater.
+    intros t' ?.
+    rewrite lookup_insert_ne; last lia.
+    apply nolater. lia.
+  Qed.
 
 End map_no_later.
 
@@ -415,7 +498,7 @@ Section big_sepM2.
       iIntros ([??]%map_lookup_zip_Some).
       iApply "impl"; eauto. }
   Qed.
-    
+
   Lemma big_sepM2_impl_subseteq `{!BiAffine PROP} (m1 n1 : gmap K A) (m2 n2 : gmap K B) Φ :
     n1 ⊆ m1 →
     n2 ⊆ m2 →
