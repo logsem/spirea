@@ -453,9 +453,11 @@ Proof.
   (* Allocate set of shared locations.. *)
   iMod (own_alloc (● (∅ : gsetUR _))) as (shared_locs_name) "sharedLocs".
   { apply auth_auth_valid. done. }
-  (* Allocate set of exclusive locations.. *)
+  (* Allocate set of non-atomic locations.. *)
   iMod (own_alloc (● (∅ : gsetUR _))) as (exclusive_locs_name) "exclusiveLocs".
   { apply auth_auth_valid. done. }
+  (* iMod ghost_map.ghost_map_alloc_empty as (na_views_name) "na_views". *)
+  iMod (ghost_map.ghost_map_alloc (∅ : gmap loc view)) as (na_views_name) "(na_views & _)"; eauto.
   iMod (own_all_bumpers_alloc ∅) as (bumpers_name) "[bumpers #bumpersFrag]".
   iMod (auth_map_map_alloc ∅) as (phys_hist_name) "[physHist _]".
 
@@ -468,6 +470,7 @@ Proof.
                   preorders_name := orders_name;
                   shared_locs_name := shared_locs_name;
                   exclusive_locs_name := _;
+                  non_atomic_views_gname := na_views_name;
                   bumpers_name := bumpers_name;
                 |})
     ).
@@ -486,8 +489,7 @@ Proof.
   iEval (rewrite !big_sepM_empty).
 
   iPureIntro.
-  split_and!; try done.
-  set_solver.
+  split_and!; try done; set_solver.
 Qed.
 
 (* This adequacy lemma is similar to the adequacy lemma for [wpr] in Perennial:
