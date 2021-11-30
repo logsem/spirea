@@ -333,7 +333,7 @@ Section wp_at_rules.
       done. }
 
     (* Update the ghost state for the abstract history. *)
-    iMod (own_full_history_insert _ _ _ _ _ _ (encode s_t) with "history absHist")
+    iMod (own_full__history_insert _ _ _ _ _ _ (encode s_t) with "history absHist")
       as "(history & absHist & histFrag)". { done. }
 
     iMod (auth_map_map_insert with "physHist") as "[physHist unusedFrag]".

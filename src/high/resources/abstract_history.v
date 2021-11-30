@@ -242,7 +242,7 @@ Section abs_history_lemmas.
   (* Admitted. *)
 
   (* Insert a new message into an abstract history. *)
-  Lemma own_full_history_insert γ1 γ2 ℓ t enc_abs_hist abs_hists encS :
+  Lemma own_full_encoded_history_insert γ1 γ2 ℓ t enc_abs_hist abs_hists encS :
     enc_abs_hist !! t = None →
     own_full_history γ1 γ2 abs_hists -∗
     own_full_encoded_history_loc γ1 ℓ enc_abs_hist ==∗
@@ -259,6 +259,26 @@ Section abs_history_lemmas.
     rewrite /auth_map_map_frag.
     rewrite fmap_fmap_to_agree_singleton.
     by iFrame.
+  Qed.
+
+  (* Insert a new message into an abstract history. *)
+  Lemma own_full_history_insert γ1 γ2 ℓ t abs_hist abs_hists (s : ST) :
+    abs_hist !! t = None →
+    own_full_history γ1 γ2 abs_hists -∗
+    own_full_history_loc γ1 ℓ abs_hist ==∗
+    let abs_hist' := <[t := s]>abs_hist
+    in own_full_history γ1 γ2 (<[ℓ := encode <$> abs_hist']>abs_hists) ∗
+       own_full_history_loc γ1 ℓ abs_hist' ∗
+       own_frag_history_loc γ2 ℓ {[ t := s ]}.
+  Proof.
+    iIntros (look) "??".
+    iMod (own_full_encoded_history_insert with "[$] [$]") as "(H & HU & HI)".
+    { rewrite lookup_fmap. apply fmap_None. done. }
+    iModIntro.
+    rewrite /own_full_history_loc /own_frag_history_loc fmap_insert.
+    iFrame.
+    iExists _. iFrame.
+    rewrite !map_fmap_singleton. by rewrite decode_encode.
   Qed.
 
 End abs_history_lemmas.

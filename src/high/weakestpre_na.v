@@ -161,13 +161,14 @@ Section wp_na_rules.
   Qed.
 
   Lemma wp_store_na ℓ b ss v s__last s ϕ `{!LocationProtocol ϕ} st E :
+    s__last ≠ s →
     last ss = Some s__last →
     s__last ⊑ s →
     {{{ mapsto_ex b ℓ ss ∗ know_protocol ℓ ϕ ∗ ϕ s v _ }}}
       #ℓ <- v @ st; E
     {{{ RET #(); mapsto_ex b ℓ (ss ++ [s]) }}}.
   Proof.
-    intros last stateGt Φ.
+    intros neq last stateGt Φ.
     iStartProof (iProp _). iIntros (TV).
     iIntros "(pts & temp & phi)".
     iNamed "temp".
@@ -227,10 +228,8 @@ Section wp_na_rules.
       ) as %ℓEx.
     assert (ℓ ∉ at_locs) as ℓnotSh by set_solver.
     (* Update the ghost state for the abstract history. *)
-    iMod (own_full_history_insert _ _ _ _ _ _ (encode s) with "history hist")
-      as "(history & hist & histFrag)".
-    { rewrite lookup_fmap. apply fmap_None.
-      eapply map_dom_eq_lookup_None; done. }
+    iMod (own_full_history_insert _ _ _ _ _ _ s with "history hist")
+      as "(history & hist & histFrag)"; first done.
 
     (* Update ghost state. *)
     iMod (auth_map_map_insert with "physHist") as "[physHist #physHistFrag]".
@@ -246,14 +245,17 @@ Section wp_na_rules.
     rewrite -assoc.
     iSplit.
     { iPureIntro. repeat split; [|done|done]. apply view_insert_le. lia. }
-    iSplitL "Φpost".
+    simpl.
+    iSplitL "Φpost isExclusiveLoc pers hist".
     { iApply monPred_mono; last iApply "Φpost".
-      - etrans; first done.
+      { etrans; first done.
         repeat split; try done.
-        apply view_insert_le. lia.
-      - iExists _, _, _, _, _.
-        iFrame "#".
-        admit. }
+        apply view_insert_le. lia. }
+      iExists _, _, _, _, _.
+      iFrame "∗#".
+      (* [incrList] *)
+      iSplit. { iPureIntro. eapply increasing_list_snoc; eauto. }
+      admit. }
     repeat iExists _.
     iFrame "history". iFrame "ptsMap". iFrame "#". iFrame"naView". iFrameNamed.
     iSplit. { iPureIntro. set_solver. }

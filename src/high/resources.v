@@ -329,6 +329,31 @@ Definition increasing_list `{SqSubsetEq ST} (ss : list ST) :=
 Lemma increasing_list_singleton `{SqSubsetEq ST} (s : ST) : increasing_list [s].
 Proof. intros [|][|]?????; try naive_solver. simplify_eq. lia. Qed.
 
+Lemma lookup_snoc_Some {A} (l : list A) x x2 i :
+  (l ++ [x]) !! i = Some x2 →
+  (l !! i = Some x2) ∨ (length l = i ∧ x = x2).
+Proof.
+  intros [look|[? [??]%list_lookup_singleton_Some]]%lookup_app_Some.
+  - left. apply look.
+  - right. auto with lia.
+Qed.
+
+Lemma increasing_list_snoc `{SqSubsetEq ST} xs xs__last (x : ST) :
+  (xs__last ≠ x) →
+  (last xs) = Some xs__last →
+  xs__last ⊑ x →
+  increasing_list xs → increasing_list (xs ++ [x]).
+Proof.
+  intros neq last incl incr.
+  intros ?????.
+  intros [?|[??]]%lookup_snoc_Some; intros [look|[??]]%lookup_snoc_Some.
+  * eapply incr; done.
+  * simplify_eq.
+    admit.
+  * apply lookup_lt_Some in look. lia.
+  * lia.
+Admitted.
+
 Section points_to_shared.
   Context `{nvmFixedG Σ, hGD : nvmDeltaG Σ, AbstractState ST}.
 
@@ -356,6 +381,9 @@ Section points_to_shared.
   Program Definition mapsto_ex (persisted : bool) (ℓ : loc) (ss : list ST) : dProp Σ :=
     (* MonPred (λ TV, *)
       (∃ (tP tStore : time) SV (abs_hist : gmap time ST) (msg : message),
+        (* NOTE: Maybe we can actually remove [increasing_list]? It should be
+        covered by the fact that the list corresponds to [abs_hist] and that one
+        is sorted. *)
         "%incrList" ∷ ⌜ increasing_list ss ⌝ ∗
         "isExclusiveLoc" ∷ ⎡ is_exclusive_loc ℓ ⎤ ∗
         "#order" ∷ ⎡ know_preorder_loc ℓ (abs_state_relation) ⎤ ∗
