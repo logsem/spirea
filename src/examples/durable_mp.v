@@ -182,8 +182,7 @@ Section proof.
     { iApply (right_crash_condition_impl with "yProt zProt yLb yShared zPts"). }
 
     iApply wpc_atomic_no_mask. whack_right_cc.
-    iApply (wp_store_na _ _ _ _ _ true inv_z with "[$zPts $zProt]").
-    { reflexivity. }
+    iApply (wp_store_na _ _ _ _ _ true inv_z with "[$zPts $zProt]"); eauto.
     { done. }
     { simpl. iFrame "xLb". done. }
 

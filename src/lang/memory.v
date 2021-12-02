@@ -58,16 +58,31 @@ message. *)
 Definition msg_to_tv (m : message) : thread_view :=
   (m.(msg_store_view), m.(msg_persist_view), ∅).
 
-Definition store_view (tv : thread_view) : view := (tv.1).1.
-Definition flush_view (tv : thread_view) : view := (tv.1).2.
-Definition wb_buffer_view (tv : thread_view) : view := (tv.2).
+Notation store_view tv := (tv.1).1.
+Notation flush_view tv := (tv.1).2.
+Notation wb_buffer_view tv := (tv.2).
 
-Global Instance store_view_mono : Proper ((⊑) ==> (⊑)) store_view.
-Proof. solve_proper. Qed.
-Global Instance flush_view_mono : Proper ((⊑) ==> (⊑)) flush_view.
-Proof. solve_proper. Qed.
-Global Instance wb_buffer_view_mono : Proper ((⊑) ==> (⊑)) wb_buffer_view.
-Proof. solve_proper. Qed.
+(* Definition store_view (TV : thread_view) := (TV.1).1. *)
+(* Arguments store_view !TV. *)
+
+(* Definition flush_view (TV : thread_view) := (TV.1).2. *)
+(* Arguments flush_view TV /. *)
+
+(* Definition wb_buffer_view (TV : thread_view) : view := (TV.2). *)
+(* Arguments wb_buffer_view TV /. *)
+
+(* Lemma test (SV PV BV : view) : store_view (SV, PV, BV) = SV. *)
+(* Proof. simpl. reflexivity. Qed. *)
+
+(* Lemma test2 TV : store_view TV = (TV.1).1 ∧ app [1] [2] = [1; 2]. *)
+(* Proof. simpl. reflexivity. Qed. *)
+
+(* Global Instance store_view_mono : Proper ((⊑) ==> (⊑)) store_view. *)
+(* Proof. solve_proper. Qed. *)
+(* Global Instance flush_view_mono : Proper ((⊑) ==> (⊑)) flush_view. *)
+(* Proof. solve_proper. Qed. *)
+(* Global Instance wb_buffer_view_mono : Proper ((⊑) ==> (⊑)) wb_buffer_view. *)
+(* Proof. solve_proper. Qed. *)
 
 Notation history := (gmap time message).
 

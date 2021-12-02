@@ -72,20 +72,19 @@ Section wp_na_rules.
     iDestruct (big_sepM_lookup_acc with "ptsMap") as "[pts ptsMap]"; first done.
     iApply (wp_load (extra := {| extra_state_interp := True |}) with "[$pts $val]").
     iNext. iIntros (tT v' msg') "[pts (%look & %msgVal & %gt)]".
-    rewrite /store_view. simpl.
+    simpl.
     iDestruct ("ptsMap" with "pts") as "ptsMap".
     iFrame "val".
+
+    assert (SV ⊑ SV') as svInclSv'. (* This will come in handy. *)
+    { destruct TV as [[??]?]. destruct TV' as [[??]?].
+      etrans; first apply inThreadView.
+      etrans; first apply incl; apply incl2. }
 
     (* We need to conclude that the only write we could read is [tS]. I.e., that
     [tT = tS]. *)
     assert (tS ≤ SV' !!0 ℓ) as tSle.
-    { etrans; first done.
-      destruct TV as [[??]?].
-      destruct TV' as [[??]?].
-      rewrite /store_view /=.
-      apply view_lt_lt; last done.
-      etrans; first apply inThreadView.
-      etrans; first apply incl; apply incl2. }
+    { etrans; first done. f_equiv. done. }
     assert (tS ≤ tT) as lte.
     { etrans; first done. apply gt. }
     iDestruct (big_sepM2_dom with "predMap") as %domEq.
@@ -140,11 +139,7 @@ Section wp_na_rules.
       rewrite /msg_to_tv.
       iApply monPred_mono; last iApply "Q".
       repeat split.
-      - etrans; first done.
-        destruct TV as [[??]?]. destruct TV' as [[??]?].
-        etrans; first apply inThreadView.
-        etrans; first apply incl.
-        apply incl2.
+      - done.
       - destruct TV as [[??]?]. destruct TV' as [[??]?].
         etrans; first apply inThreadView.
         etrans; first apply incl.
@@ -152,12 +147,10 @@ Section wp_na_rules.
       - apply view_empty_least. }
     iExists _, _, _, _, _.
     iFrameNamed.
-    monPred_simpl.
-    iDestruct (objective_at with "pers") as "$". { destruct b; apply _. }
-    iPureIntro.
-    etrans. eassumption.
-    etrans. eassumption.
-    eassumption.
+    iSplit.
+    { iPureIntro. etrans. eassumption. etrans. eassumption. eassumption. }
+    iApply monPred_mono; last iApply "pers".
+    by etrans.
   Qed.
 
   Lemma wp_store_na ℓ b ss v s__last s ϕ `{!LocationProtocol ϕ} st E :
@@ -168,7 +161,7 @@ Section wp_na_rules.
       #ℓ <- v @ st; E
     {{{ RET #(); mapsto_ex b ℓ (ss ++ [s]) }}}.
   Proof.
-    intros neq last stateGt Φ.
+    intros neqS last stateGt Φ.
     iStartProof (iProp _). iIntros (TV).
     iIntros "(pts & temp & phi)".
     iNamed "temp".
@@ -190,6 +183,12 @@ Section wp_na_rules.
     iNamed 1.
     iApply (wp_fupd (irisGS0 := (@nvmBaseG_irisGS _ _ _ (Build_extraStateInterp _ _)))).
 
+    assert (SV ⊑ SV') as svInclSv'.
+    { destruct TV as [[??]?]. destruct TV' as [[??]?].
+      etrans; first apply inThreadView.
+      etrans; first apply incl.
+      apply incl2. }
+
     (* _Before_ we load the points-to predicate we deal with the predicate ϕ. We
     do this before such that the later that arrises is stripped off when we take
     the step. *)
@@ -205,12 +204,14 @@ Section wp_na_rules.
 
     assert (is_Some (phys_hists !! ℓ)) as [physHist physHistsLook]
       by by eapply map_dom_eq_lookup_Some.
+    iDestruct (bumpers_lookup with "allBumpers knowBumper") as %bumpersLook.
 
     iDestruct (big_sepM_delete with "ptsMap") as "[pts ptsMap]"; first done.
 
     iApply (wp_store (extra := {| extra_state_interp := True |})
              with "[$pts $val]").
     iIntros "!>" (tT) "(%look & %gt & #valNew & pts)".
+    simpl in gt.
 
     iDestruct (big_sepM_insert_delete with "[$ptsMap $pts]") as "ptsMap".
 
@@ -232,30 +233,66 @@ Section wp_na_rules.
       as "(history & hist & histFrag)"; first done.
 
     (* Update ghost state. *)
-    iMod (auth_map_map_insert with "physHist") as "[physHist #physHistFrag]".
+    set (newMsg := Msg v ∅ ∅ PV).
+    iMod (auth_map_map_insert _ _ _ _ _ newMsg with "physHist") as "[physHist #physHistFrag]".
     { done. } { done. }
 
     iDestruct (ghost_map.ghost_map_lookup with "naView knowSV") as %ℓnaView.
 
-    iMod (ghost_map.ghost_map_update (SV ⊔ SV') with "naView knowSV") as "[naView knowSV]".
+    iMod (ghost_map.ghost_map_update (<[ℓ:=MaxNat tT]>SV') with "naView knowSV") as "[naView knowSV]".
+    (* iMod (ghost_map.ghost_map_update (SV ⊔ SV') with "naView knowSV") as "[naView knowSV]". *)
 
     rewrite /validV.
     iModIntro.
     iFrame "valNew".
     rewrite -assoc.
     iSplit.
-    { iPureIntro. repeat split; [|done|done]. apply view_insert_le. lia. }
+    { iPureIntro. repeat split; [|done|done]. apply view_insert_le. simpl. lia. }
     simpl.
-    iSplitL "Φpost isExclusiveLoc pers hist".
-    { iApply monPred_mono; last iApply "Φpost".
-      { etrans; first done.
+    iSplitL "Φpost isExclusiveLoc pers hist knowSV".
+    { iEval (monPred_simpl) in "Φpost".
+      iApply "Φpost".
+      { iPureIntro. etrans; first done.
         repeat split; try done.
         apply view_insert_le. lia. }
       iExists _, _, _, _, _.
       iFrame "∗#".
       (* [incrList] *)
       iSplit. { iPureIntro. eapply increasing_list_snoc; eauto. }
-      admit. }
+      (* [lookupV] *)
+      iSplit. { iPureIntro. by rewrite lookup_insert last_snoc. }
+      (* [nolater] *)
+      iSplit. {
+        iPureIntro. eapply map_no_later_insert; last done.
+        etrans; first apply haveTStore.
+        apply Nat.lt_le_incl. eapply Nat.le_lt_trans; last apply gt.
+        f_equiv.
+        apply svInclSv'. }
+      (* [slice] *)
+      iSplit. {
+        iPureIntro. eapply map_slice_insert_snoc; [|done|done].
+        eapply Nat.le_lt_trans; last apply gt.
+        etrans; first done.
+        f_equiv.
+        apply svInclSv'. }
+      (* [inThreadView] *)
+      iSplit. {
+        iPureIntro. repeat split.
+        - done.
+          (* etrans. *)
+          (* { apply view_lub_le; last reflexivity. done. } *)
+          (* apply view_insert_le. *)
+          (* lia. *)
+        - done.
+        - apply view_empty_least. }
+      (* [haveTSore] *)
+      iSplit. { iPureIntro. by rewrite lookup_zero_insert. }
+      (* "pers" *)
+      iApply monPred_mono; last iApply "pers".
+      etrans; first done.
+      etrans; first done.
+      repeat split; [|done|done].
+      apply view_insert_le. lia. }
     repeat iExists _.
     iFrame "history". iFrame "ptsMap". iFrame "#". iFrame"naView". iFrameNamed.
     iSplit. { iPureIntro. set_solver. }
@@ -267,7 +304,7 @@ Section wp_na_rules.
     { iPureIntro. setoid_rewrite restrict_insert_not_elem; done. }
 
     (* [sharedLocsHistories] *)
-    iSplitL "sharedLocsHistories hist".
+    iSplitL "sharedLocsHistories".
     { setoid_rewrite restrict_insert_not_elem. done. done. }
 
     iSplit.
@@ -275,21 +312,18 @@ Section wp_na_rules.
     { iApply (big_sepM2_update_left with "ordered"); eauto.
       iIntros (orderedForall).
       iPureIntro.
+      rewrite fmap_insert.
       apply: increasing_map_insert_last.
       - eauto.
       - apply map_no_later_fmap. done.
       - eapply Nat.le_lt_trans; last apply gt.
         etrans; first apply haveTStore.
-        destruct TV as [[??]?]. destruct TV' as [[??]?].
-        f_equiv.
-        etrans; first apply inThreadView.
-        etrans; first apply incl.
-        apply incl2.
+        f_equiv. done.
       - rewrite lookup_fmap. rewrite lookupV. rewrite last. done.
       - eapply encode_relation_decode_iff; eauto using decode_encode. }
     iSplit.
     (* [predsHold] *)
-    {iApply (big_sepM2_update with "[predsHold]"); [done|done| |].
+    { iApply (big_sepM2_update with "[predsHold]"); [done|done| |].
       { iApply (big_sepM2_impl with "predsHold").
         iIntros "!>" (ℓ' physHist' absHist' physHist2 absHist2).
         (* We consider two cases, either [ℓ] is the location where we've inserted
@@ -307,12 +341,14 @@ Section wp_na_rules.
         iApply encoded_predicate_holds_mono.
         repeat split; eauto.
         rewrite ℓnaView. simpl.
-        apply view_le_l. }
+        etrans; first done.
+        apply view_insert_le. lia. }
       iDestruct 1 as (pred' predLook') "H".
       simplify_eq.
       assert (pred = pred') as <-. { apply (inj Some). rewrite -predsLook. done. }
       clear predLook'.
       iExists _; iSplit; first done.
+      rewrite fmap_insert.
       iApply big_sepM2_insert.
       { done. } { rewrite lookup_fmap absHistLook. done. }
       simpl. iFrame.
@@ -323,12 +359,15 @@ Section wp_na_rules.
       iApply (monPred_mono with "phi").
       destruct TV as [[??]?]. destruct TV' as [[??]?].
       repeat split; last done.
-      - rewrite /store_view. simpl.
-        etrans; first apply incl. etrans; first apply incl2. apply view_le_r.
-      - rewrite /flush_view. simpl.
-        etrans; first apply incl. apply incl2. }
+      - simpl. etrans; first apply incl. etrans; first apply incl2.
+        apply view_insert_le. lia.
+      - simpl. etrans; first apply incl. apply incl2. }
     (* [bumperSome] *)
-    admit.
-  Admitted.
+    iApply (big_sepM2_update_left with "bumperSome"); eauto.
+    iPureIntro. intros bumperSome.
+    rewrite fmap_insert.
+    apply map_Forall_insert_2; eauto.
+    rewrite /encode_bumper decode_encode. done.
+  Qed.
 
 End wp_na_rules.

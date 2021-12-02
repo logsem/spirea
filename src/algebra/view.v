@@ -73,7 +73,9 @@ Proof. rewrite /lookup_zero. by rewrite lookup_empty. Qed.
 
 Lemma lookup_zero_singleton ℓ t : ({[ ℓ := MaxNat t ]} : view) !!0 ℓ = t.
 Proof. rewrite /lookup_zero. rewrite lookup_singleton. done. Qed.
-  
+
+Lemma lookup_zero_insert ℓ t (V : view) : (<[ℓ := MaxNat t]>V) !!0 ℓ = t.
+Proof. rewrite /lookup_zero. rewrite lookup_insert. done. Qed.
 
 Lemma view_empty_least V : ∅ ⊑ V.
 Proof.

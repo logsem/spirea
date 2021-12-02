@@ -146,6 +146,7 @@ Section simple_increment.
     iApply wpc_atomic_no_mask.
     iSplit. { iApply (prove_crash_condition with "aPred bPred aPts bPts"). }
     iApply (wp_store_na with "[$aPts]").
+    { done. }
     { reflexivity. }
     { suff leq : (0 ≤ 1); first apply leq. lia. }
     { iFrame "aPred". done. }
@@ -184,6 +185,7 @@ Section simple_increment.
     iApply wpc_atomic_no_mask.
     iSplit. { iApply (prove_crash_condition with "aPred bPred aPts bPts"). }
     iApply (wp_store_na with "[$bPts]").
+    { done. }
     { reflexivity. }
     { suff leq : (0 ≤ 1); first apply leq. lia. }
     { iFrame "#". iPureGoal; first done. naive_solver. }

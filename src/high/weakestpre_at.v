@@ -120,7 +120,6 @@ Section wp_at_rules.
              with "[$pts $val]").
     iIntros "!>" (t' v' SV' PV' _PV') "(%look & %gt & #val' & pts)".
 
-    rewrite /store_view.
     iDestruct ("ptsMap" with "pts") as "ptsMap".
     iFrame "val'".
 
@@ -134,7 +133,6 @@ Section wp_at_rules.
       destruct TV' as [[??]?].
       etrans; first done.
       etrans; last done.
-      rewrite /store_view /=.
       f_equiv.
       etrans. apply incl. apply incl2. }
 
@@ -209,10 +207,9 @@ Section wp_at_rules.
       iExists t'.
       iFrame "∗#".
       iPureIntro.
-      rewrite -SV'lookup. rewrite /store_view /=.
+      rewrite -SV'lookup.
       rewrite lookup_zero_lub. lia.
     - simpl.
-      rewrite /store_view /flush_view /=.
       iApply monPred_mono; last iApply "Q".
       repeat split.
       * apply view_le_r.
@@ -296,7 +293,7 @@ Section wp_at_rules.
     assert (t_i < t_t) as tILtTt.
     { destruct TV as [[??]?].
       destruct TV' as [[??]?].
-      rewrite /store_view in tSLe, gt.
+      (* rewrite /store_view in tSLe, gt. *)
       simpl in tSLe. simpl in gt.
       destruct incl as [[??]?].
       destruct incl2 as [[??]?].
@@ -333,7 +330,7 @@ Section wp_at_rules.
       done. }
 
     (* Update the ghost state for the abstract history. *)
-    iMod (own_full__history_insert _ _ _ _ _ _ (encode s_t) with "history absHist")
+    iMod (own_full_encoded_history_insert _ _ _ _ _ _ (encode s_t) with "history absHist")
       as "(history & absHist & histFrag)". { done. }
 
     iMod (auth_map_map_insert with "physHist") as "[physHist unusedFrag]".
@@ -357,7 +354,7 @@ Section wp_at_rules.
         { rewrite map_fmap_singleton. iFrame "histFrag". }
         iFrame "histFrag knowPreorder".
         iPureIntro.
-        rewrite /store_view. simpl.
+        (* rewrite /store_view. simpl. *)
         rewrite /lookup_zero.
         rewrite lookup_insert.
         done. }
@@ -466,7 +463,7 @@ Section wp_at_rules.
         etrans; last apply thread_view_le_l.
         destruct TV as [[??]?].
         destruct TV' as [[??]?].
-        rewrite /store_view /flush_view. simpl.
+        (* rewrite /store_view /flush_view. simpl. *)
         repeat split.
         - apply incl.
         - apply incl.
@@ -500,7 +497,7 @@ Section wp_at_rules.
       iExists _.
       iSplit; first done.
       iApply (big_sepM2_insert_2 with "[phi] H").
-      rewrite /msg_to_tv /store_view. simpl.
+      rewrite /msg_to_tv.  (* /store_view. simpl. *)
       rewrite /encoded_predicate_holds.
       iExists (ϕ s_t v_t).
       iSplit.
@@ -511,9 +508,10 @@ Section wp_at_rules.
       destruct TV' as [[??]?].
       repeat split; last done.
       - simpl. etrans; first apply incl. etrans; first apply incl2.
-        rewrite /store_view in gt. simpl in gt.
+        (* rewrite /store_view in gt. *)
+        simpl in gt.
         apply view_insert_le'; [done|lia].
-      - simpl. rewrite /flush_view. simpl.
+      - simpl.
         etrans; first apply incl.
         apply incl2.
     }
