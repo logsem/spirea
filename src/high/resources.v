@@ -324,7 +324,7 @@ Section encoded_predicate.
 End encoded_predicate.
 
 Definition increasing_list `{SqSubsetEq ST} (ss : list ST) :=
-  ∀ i j s s', i < j → (ss !! i = Some s) → (ss !! j = Some s') → s ≠ s' ∧ s ⊑ s'.
+  ∀ i j s s', i < j → (ss !! i = Some s) → (ss !! j = Some s') → s ⊑ s'.
 
 Lemma increasing_list_singleton `{SqSubsetEq ST} (s : ST) : increasing_list [s].
 Proof. intros [|][|]?????; try naive_solver. simplify_eq. lia. Qed.
@@ -339,12 +339,11 @@ Proof.
 Qed.
 
 Lemma increasing_list_snoc `{SqSubsetEq ST} xs xs__last (x : ST) :
-  (xs__last ≠ x) →
   (last xs) = Some xs__last →
   xs__last ⊑ x →
   increasing_list xs → increasing_list (xs ++ [x]).
 Proof.
-  intros neq last incl incr.
+  intros last incl incr.
   intros ?????.
   intros [?|[??]]%lookup_snoc_Some; intros [look|[??]]%lookup_snoc_Some.
   * eapply incr; done.

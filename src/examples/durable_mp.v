@@ -183,7 +183,6 @@ Section proof.
 
     iApply wpc_atomic_no_mask. whack_right_cc.
     iApply (wp_store_na _ _ _ _ _ true inv_z with "[$zPts $zProt]"); eauto.
-    { done. }
     { simpl. iFrame "xLb". done. }
 
     iIntros "!> zPts /=".

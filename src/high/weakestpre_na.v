@@ -154,14 +154,13 @@ Section wp_na_rules.
   Qed.
 
   Lemma wp_store_na ℓ b ss v s__last s ϕ `{!LocationProtocol ϕ} st E :
-    s__last ≠ s →
     last ss = Some s__last →
     s__last ⊑ s →
     {{{ mapsto_ex b ℓ ss ∗ know_protocol ℓ ϕ ∗ ϕ s v _ }}}
       #ℓ <- v @ st; E
     {{{ RET #(); mapsto_ex b ℓ (ss ++ [s]) }}}.
   Proof.
-    intros neqS last stateGt Φ.
+    intros last stateGt Φ.
     iStartProof (iProp _). iIntros (TV).
     iIntros "(pts & temp & phi)".
     iNamed "temp".
