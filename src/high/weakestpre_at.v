@@ -56,7 +56,7 @@ Section wp_at_rules.
       done.
   Qed.
 
-  Lemma wp_load_shared ℓ s Q ϕ `{!LocationProtocol ϕ} positive E :
+  Lemma wp_load_at ℓ s Q ϕ `{!LocationProtocol ϕ} positive E :
     {{{
       "knowProt" ∷ know_protocol ℓ ϕ ∗
       "isSharedLoc" ∷ ⎡ is_shared_loc ℓ ⎤ ∗
@@ -224,8 +224,11 @@ Section wp_at_rules.
       "knowProt" ∷ know_protocol ℓ ϕ ∗
       "isSharedLoc" ∷ ⎡ is_shared_loc ℓ ⎤ ∗
       "storeLB" ∷ know_store_lb ℓ s_i ∗
-      (* "phi" ∷ (∀ v_i, ϕ s_i v_i _ -∗ ϕ s_t v_t _ ∗ ϕ s_i v_i _) ∗ *)
       "phi" ∷ <nobuf> (ϕ s_t v_t _) ∗
+      (* NOTE: This does _not_ work. *)
+      (* "phi" ∷ (∀ v_i, ϕ s_i v_i _ -∗ ϕ s_t v_t _ ∗ ϕ s_i v_i _) ∗ *)
+      (* NOTE: This should work and be more general. *)
+      (* "phi" ∷ (∀ v_i, (<obj> (ϕ s_i v_i -∗ ϕ s_i_v ∗ R)) ∗ (R -∗ ϕ s_t v_t)) ∗ *)
       (* The new state must be greater than the possible current states. *)
       "greater" ∷
         (∀ v_i s_c v_c,

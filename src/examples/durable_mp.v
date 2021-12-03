@@ -149,7 +149,7 @@ Section proof.
     rewrite /rightProg.
     wpc_bind (!{acq} _)%E.
     iApply wpc_atomic_no_mask. whack_right_cc.
-    iApply (wp_load_shared _ _ (λ s v, (⌜v = #true⌝ ∗ know_flush_lb x true) ∨ ⌜v = #false⌝)%I inv_y with "[$yProt $yShared $yLb]").
+    iApply (wp_load_at _ _ (λ s v, (⌜v = #true⌝ ∗ know_flush_lb x true) ∨ ⌜v = #false⌝)%I inv_y with "[$yProt $yShared $yLb]").
     { iModIntro. iIntros (?? incl) "a". rewrite /inv_y.
       destruct s'.
       - iDestruct "a" as "[% #?]". iFrame "#". naive_solver.
