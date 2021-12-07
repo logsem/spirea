@@ -530,4 +530,23 @@ Section wp_at_rules.
     rewrite /encode_bumper decode_encode. done.
   Qed.
 
+  Lemma wp_cas_at ℓ s_i v_i v_t ϕ R Q1 Q2 s_t positive E :
+    {{{
+      "isSharedLoc" ∷ ⎡ is_shared_loc ℓ ⎤ ∗
+      "storeLB" ∷ know_store_lb ℓ s_i ∗
+      "phiSuccess" ∷ (* in case of success *)
+        (∀ s_a, ⌜ s_i ⊑ s_a ⌝ -∗
+          (<obj> (ϕ s_a v_i _ -∗ ϕ s_a v_i _ ∗ R s_a)) ∗ (R s_a -∗ ϕ s_t v_t _ ∗ Q1 s_a)) ∗
+      "phiFail" ∷ (* in case of failure *)
+        (∀ s_a, ⌜ s_i ⊑ s_a ⌝ -∗
+          (<obj> (ϕ s_a v_i _ -∗ ϕ s_a v_i _ ∗ Q2 s_a)))
+    }}}
+      CAS #ℓ v_i v_t @ positive; E
+    {{{ b, RET #b;
+      (⌜ b = true ⌝ ∗ Q1 s_t ∗ know_store_lb ℓ s_t) ∨
+      (∃ s_a, ⌜ b = false ⌝ ∗ ⌜ s_i ⊑ s_a ⌝ ∗ Q2 s_a)
+    }}}.
+  Proof.
+  Admitted.
+
 End wp_at_rules.
