@@ -44,9 +44,9 @@ Proof. done. Qed.
 Instance unit_abstract_state : AbstractState unit.
 Proof. esplit; apply _. Defined.
 
-(** * Discrete abstract state. *)
+(** * discreteState abstract state. *)
 
-Record discrete A := mk_discrete { get_discrete : A }.
+Record discreteState A := mk_discrete { get_discrete : A }.
 
 Arguments mk_discrete {_} _.
 Arguments get_discrete {_} _.
@@ -54,24 +54,24 @@ Arguments get_discrete {_} _.
 Section discrete_abstract_state.
   Context {A : Type}.
 
-  Global Program Instance discrete_eq_dec `{EqDecision A} : EqDecision (discrete A).
+  Global Program Instance discrete_eq_dec `{EqDecision A} : EqDecision (discreteState A).
   Next Obligation.
     intros dec ??. unfold Decision.
     decide equality. apply dec.
   Qed.
 
-  Global Program Instance discrete_countable `{Countable A} : Countable (discrete A) :=
+  Global Program Instance discrete_countable `{Countable A} : Countable (discreteState A) :=
     {| encode da := encode da.(get_discrete);
        decode p := mk_discrete <$> decode p;
     |}.
   Next Obligation. intros ??[?]. rewrite decode_encode. done. Qed.
 
-  Global Instance discrete_sqsubseteq : SqSubsetEq (discrete A) := λ a1 a2, a1 = a2.
+  Global Instance discrete_sqsubseteq : SqSubsetEq (discreteState A) := λ a1 a2, a1 = a2.
 
-  Global Instance subseteq_discrete_preorder : PreOrder (⊑@{discrete A}).
+  Global Instance subseteq_discrete_preorder : PreOrder (⊑@{discreteState A}).
   Proof. apply _. Qed.
 
-  Global Instance discrete_abstract_state `{Countable A} : AbstractState (discrete A).
+  Global Instance discrete_abstract_state `{Countable A} : AbstractState (discreteState A).
   Proof. esplit; apply _. Defined.
 
 End discrete_abstract_state.

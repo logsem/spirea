@@ -494,6 +494,15 @@ Section IntoCrash.
     iIntros "$". done.
   Qed.
 
+  Global Instance exist_into_crash {A} Φ Ψ:
+    (∀ x : A, IntoCrash (Φ x) (λ hG, Ψ hG x)) →
+    IntoCrash (∃ x, Φ x)%I (λ hG, (∃ x, Ψ hG x)%I).
+  Proof.
+    rewrite /IntoCrash.
+    iIntros (Hc) "H". iDestruct "H" as (?) "HΦ". iPoseProof (Hc with "[$]") as "HΦ".
+    iApply (post_crash_mono with "HΦ"). auto.
+  Qed.
+
   Ltac lift_into_crash lem := 
     rewrite /IntoCrash; iIntros "P"; by iApply lem.
 
@@ -996,6 +1005,15 @@ Section IntoCrashFlush.
   Proof.
     rewrite /IntoCrashFlush. iIntros "P".
     by iApply post_crash_flush_know_flush_lb.
+  Qed.
+
+  Global Instance exist_into_crash_flush {A} Φ Ψ:
+    (∀ x : A, IntoCrashFlush (Φ x) (λ hG, Ψ hG x)) →
+    IntoCrashFlush (∃ x, Φ x)%I (λ hG, (∃ x, Ψ hG x)%I).
+  Proof.
+    rewrite /IntoCrashFlush.
+    iIntros (Hc) "H". iDestruct "H" as (?) "HΦ". iPoseProof (Hc with "[$]") as "HΦ".
+    iApply (post_crash_flush_mono with "HΦ"). auto.
   Qed.
 
 End IntoCrashFlush.

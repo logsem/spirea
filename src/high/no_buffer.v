@@ -83,6 +83,17 @@ Section no_buffer.
     IntoNoBuffer P P' → IntoNoBuffer Q Q' → IntoNoBuffer (P ∗ Q)%I (P' ∗ Q')%I.
   Proof. rewrite /IntoNoBuffer no_buffer_sep. by intros <- <-. Qed.
 
+  Global Instance into_no_buffer_no_buffer P : IntoNoBuffer (<nobuf> P) P.
+  Proof. rewrite /IntoNoBuffer. by iApply no_buffer_mono. Qed.
+
+  Global Instance into_no_buffer_exists {A} (P Q : A → dProp Σ) :
+    (∀ a, IntoNoBuffer (P a) (Q a)) → IntoNoBuffer (∃ a, P a) (∃ a, Q a).
+  Proof.
+    rewrite /IntoNoBuffer. iIntros (H).
+    iDestruct 1 as (?) "P". iDestruct (H with "P") as "P".
+    iModIntro. naive_solver.
+  Qed.
+
 End no_buffer.
 
 Section no_buffer_rules.
