@@ -56,6 +56,64 @@ Section wp_at_rules.
       done.
   Qed.
 
+  Lemma wp_alloc_at v s ϕ `{!LocationProtocol ϕ} positive E :
+    {{{ "phi" ∷ ϕ s v _ }}}
+      ref v @ positive; E
+    {{{ ℓ, RET #ℓ; know_protocol ℓ ϕ ∗ know_store_lb ℓ s }}}.
+  Proof.
+    intros Φ. iStartProof (iProp _). iIntros (TV). iNamed 1.
+    iIntros (TV' incl) "Φpost".
+
+    (* Unfold the wp *)
+    rewrite wp_eq /wp_def wpc_eq.
+    iIntros ([[SV PV] BV] incl2) "#val".
+    monPred_simpl.
+    iApply program_logic.crash_weakestpre.wp_wpc.
+
+    iApply wp_extra_state_interp. { done. } { by apply prim_step_ref_no_fork. }
+    (* We open [interp]. *)
+    iNamed 1.
+
+    iApply (wp_fupd (irisGS0 := (@nvmBaseG_irisGS _ _ _ (Build_extraStateInterp _ _)))).
+
+    iApply (wp_alloc (extra := {| extra_state_interp := True |})); first done.
+    iNext.
+    iIntros (ℓ CV') "(crashedAt' & % & pts)".
+    iFrame "val".
+
+    (* The new location is not in the existing [phys_hist]. *)
+    destruct (phys_hists !! ℓ) eqn:physHistsLook.
+    { iDestruct (big_sepM_lookup with "ptsMap") as "pts'"; first done.
+      iDestruct (mapsto_valid_2 with "pts pts'") as (?) "_".
+      done. }
+    
+    (* We update ghost state. *)
+
+    (* Add the predicate to the ghost state of predicates. *)
+    (* TODO *)
+
+    (* Allocate the abstract history for the location. *)
+    (* TODO *)
+    
+    (* Add the bumper to the ghost state of bumper. *)
+    (* TODO *)
+
+    (* Add the preorder to the ghost state of bumper. *)
+    (* TODO *)
+
+    (* We are done updating ghost. *)
+    (* TODO *)
+
+    iModIntro.
+    rewrite -assoc. iSplit; first done.
+    iSplitL "Φpost".
+    { iApply "Φpost". admit. }
+    repeat iExists _.
+    iFrame.
+    iFrame "#".
+    iFrame "%".
+  Admitted.
+
   Lemma wp_load_at ℓ s Q ϕ `{!LocationProtocol ϕ} positive E :
     {{{
       "knowProt" ∷ know_protocol ℓ ϕ ∗
@@ -73,6 +131,7 @@ Section wp_at_rules.
     iNamed 1.
     iDestruct "knowProt" as "(knowPred & _ & _)".
     iNamed "storeLB".
+
     (* We unfold the WP. *)
     iIntros (TV' incl) "Φpost".
     rewrite wp_eq /wp_def wpc_eq.
