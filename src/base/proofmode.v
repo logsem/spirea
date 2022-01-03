@@ -59,7 +59,7 @@ Proof. rewrite envs_entails_eq=> ->. by apply wp_value. Qed.
 
 Lemma tac_wp_value `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG Σ} Δ s E (Φ : _ → iPropI Σ) v TV :
   envs_entails Δ (|NC={E}=> Φ (ThreadVal v TV)) → envs_entails Δ (WP (ThreadState (Val v) TV) @ s; E {{ Φ }}).
-Proof. rewrite envs_entails_eq=> ->. rewrite wp_value_fupd. done. Qed.
+Proof. rewrite envs_entails_eq=> ->. iApply wp_value_fupd. Qed.
 
 (** Simplify the goal if it is [WP] of a value.
   If the postcondition already allows a fupd, do not add a second one.

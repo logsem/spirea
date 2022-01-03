@@ -23,8 +23,8 @@ Section simple_increment.
     by iApply "Post".
   Qed.
 
-  Lemma wpc_with_let TV k E1 :
-    {{{ True }}} ThreadState pure TV @ k; E1 {{{ RET ThreadVal (#8) TV; True }}}{{{ True }}}.
+  Lemma wpc_with_let TV E1 :
+    {{{ True }}} ThreadState pure TV @ E1 {{{ RET ThreadVal (#8) TV; True }}}{{{ True }}}.
   Proof.
     iIntros (Φ Φc) "_ Post".
     rewrite /pure.

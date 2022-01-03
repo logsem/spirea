@@ -8,20 +8,20 @@ From Perennial.program_logic Require crash_weakestpre.
 From self Require Import extra.
 From self.base Require Import primitive_laws class_instances.
 From self.high Require Export dprop resources lifted_modalities monpred_simpl
-     post_crash_modality increasing_map state_interpretation.
+     post_crash_modality increasing_map state_interpretation wpc_notation.
 
 Section wpc.
   Context `{nvmFixedG Σ, hGD : nvmDeltaG Σ}.
 
   Implicit Types (TV : thread_view).
 
-  Program Definition wpc_def s k E e (Φ : val → dProp Σ) (Φc : dProp Σ) : dProp Σ :=
+  Program Definition wpc_def s E e (Φ : val → dProp Σ) (Φc : dProp Σ) : dProp Σ :=
     (* monPred_objectively Φc ∗ *)
     MonPred (λ V,
       ∀ TV,
         ⌜V ⊑ TV⌝ -∗
         validV (store_view TV) -∗
-        WPC (ThreadState e TV) @ s; k; E {{ λ res,
+        WPC (ThreadState e TV) @ s; E {{ λ res,
           (let '(ThreadVal v TV') := res return _ in
             ⌜TV ⊑ TV'⌝ ∗ (* The operational semantics always grow the thread
             view, encoding this in the WPC is convenient. *)
@@ -33,20 +33,20 @@ Section wpc.
   (* This sealing follows the same ritual as the [wp] in Iris. *)
   Definition wpc_aux : seal (@wpc_def). by eexists. Qed.
 
-  Global Instance expr_wpc : Wpc expr_lang (dProp Σ) stuckness nat :=
+  Global Instance expr_wpc : Wpc expr_lang (dProp Σ) stuckness :=
     wpc_aux.(unseal).
 
   Lemma wpc_eq : wpc = wpc_def.
   Proof. rewrite -wpc_aux.(seal_eq). done. Qed.
 
-  Global Instance wpc_ne s k E1 e n :
-    Proper (pointwise_relation _ (dist n) ==> dist n ==> dist n) (wpc s k E1 e).
+  Global Instance wpc_ne s E1 e n :
+    Proper (pointwise_relation _ (dist n) ==> dist n ==> dist n) (wpc s E1 e).
   Proof.
     rewrite wpc_eq. constructor => V. solve_proper.
   Qed.
 
-  Global Instance wpc_proper s k E1 e :
-    Proper (pointwise_relation _ (≡) ==> (≡) ==> (≡)) (wpc s k E1 e).
+  Global Instance wpc_proper s E1 e :
+    Proper (pointwise_relation _ (≡) ==> (≡) ==> (≡)) (wpc s E1 e).
   Proof.
     rewrite wpc_eq. constructor => V. solve_proper.
   Qed.
@@ -54,7 +54,7 @@ Section wpc.
   (** The weakest precondition is defined in terms of the crash weakest
   precondition. *)
   Definition wp_def : Wp (dProp Σ) expr val stuckness :=
-    λ s E e Φ, (WPC e @ s ; 0 ; E {{ Φ }} {{ True }})%I.
+    λ s E e Φ, (WPC e @ s; E {{ Φ }} {{ True }})%I.
   Definition wp_aux : seal (@wp_def). Proof. by eexists. Qed.
   Definition wp' := wp_aux.(unseal).
   (* Global Arguments wp' {Λ Σ _}. *)
@@ -63,10 +63,10 @@ Section wpc.
   Lemma wp_eq : wp = @wp_def.
   Proof. rewrite -wp_aux.(seal_eq) //. Qed.
 
-  Lemma wpc_bind K s k E1 (e : expr) Φ Φc :
-    WPC e @ s; k; E1 {{ v, WPC fill K (of_val v) @ s; k; E1 {{ Φ }} {{ Φc }} }}
+  Lemma wpc_bind K s E1 (e : expr) Φ Φc :
+    WPC e @ s; E1 {{ v, WPC fill K (of_val v) @ s; E1 {{ Φ }} {{ Φc }} }}
                      {{ Φc }}
-    ⊢ WPC fill K e @ s; k; E1 {{ Φ }} {{ Φc }}.
+    ⊢ WPC fill K e @ s; E1 {{ Φ }} {{ Φc }}.
   Proof.
     rewrite wpc_eq.
     iStartProof (iProp _). iIntros (V).
@@ -89,11 +89,11 @@ Section wpc.
     iPureIntro. etrans; eassumption.
   Qed.
 
-  Lemma wpc_pure_step_later s k E1 e1 e2 φ Φ Φc `{!Objective Φc} :
+  Lemma wpc_pure_step_later s E1 e1 e2 φ Φ Φc `{!Objective Φc} :
     PureExecBase φ 1 e1 e2 →
     φ →
-    ▷ WPC e2 @ s; k ; E1 {{ Φ }} {{ Φc }} ∧ Φc
-    ⊢ WPC e1 @ s; k ; E1 {{ Φ }} {{ Φc }}.
+    ▷ WPC e2 @ s; E1 {{ Φ }} {{ Φc }} ∧ Φc
+    ⊢ WPC e1 @ s; E1 {{ Φ }} {{ Φc }}.
   Proof.
     intros Hexec ?.
     rewrite wpc_eq /wpc_def.
@@ -107,8 +107,8 @@ Section wpc.
     - iFrame. iApply objective_at. iDestruct "WP" as "[_ $]".
   Qed.
 
-  Lemma wp_wpc s k E1 e Φ:
-    WP e @ s ; E1 {{ Φ }} ⊢ WPC e @ s ; k ; E1 {{ Φ }} {{ True }}.
+  Lemma wp_wpc s E1 e Φ:
+    WP e @ s ; E1 {{ Φ }} ⊢ WPC e @ s ; E1 {{ Φ }} {{ True }}.
   Proof.
     iStartProof (iProp _).
     rewrite wp_eq /wp_def wpc_eq /wpc_def.
@@ -121,8 +121,8 @@ Section wpc.
   Qed.
 
   (*
-  Lemma wpc_wp s k E1 e Φ Φc:
-    WPC e @ s ; k ; E1 {{ Φ }} {{ Φc }} ⊢ WP e @ s ; E1 {{ Φ }}.
+  Lemma wpc_wp s E1 e Φ Φc:
+    WPC e @ s ; E1 {{ Φ }} {{ Φc }} ⊢ WP e @ s ; E1 {{ Φ }}.
   Proof.
     rewrite wp_eq /wp_def wpc_eq. iIntros "H" (?).
     iApply wpc0_change_k.

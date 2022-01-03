@@ -132,7 +132,7 @@ Section recovery_adequacy.
     iEval (rewrite crash_weakestpre.wpc_eq /=) in "He".
     iSpecialize ("He" $! TV1 with "[%] Hv").
     { destruct TV1 as [[??]?]. repeat split; apply view_empty_least. }
-    iDestruct (wptp_strong_adequacy (irisGS0 := (@nvmBaseG_irisGS Σ (@nvmG_baseG Σ nvmFixedG0)
+    iDestruct (wptp_strong_adequacy (irisGS0 := (@nvmBase_irisGS Σ (@nvmG_baseG Σ nvmFixedG0)
                    (@nvm_delta_base Σ nvmDeltaG0)
                    (@highExtraStateInterp Σ nvmFixedG0 nvmDeltaG0))) with "Hσ Hg He Ht") as "H".
     { eauto. }
@@ -387,7 +387,7 @@ Proof.
   Set Printing All.
   rewrite -eqInv.
   simpl.
-  assert ((@iris_invGS nvm_lang Σ (@nvmBaseG_irisGS Σ (@nvmG_baseG Σ nF)
+  assert ((@iris_invGS nvm_lang Σ (@nvmBase_irisGS Σ (@nvmG_baseG Σ nF)
                                   (@nvm_delta_base Σ _) _)) =
           (@nvmBaseG_invGS Σ (@nvmG_baseG Σ nF))) as ->.
   { done. }

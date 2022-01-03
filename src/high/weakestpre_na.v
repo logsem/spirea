@@ -180,7 +180,7 @@ Section wp_na_rules.
     iApply wp_extra_state_interp.
     { done. } { by apply prim_step_store_no_fork. }
     iNamed 1.
-    iApply (wp_fupd (irisGS0 := (@nvmBaseG_irisGS _ _ _ (Build_extraStateInterp _ _)))).
+    iApply (wp_fupd (irisGS0 := (@nvmBase_irisGS _ _ _ (Build_extraStateInterp _ _)))).
 
     assert (SV ⊑ SV') as svInclSv'.
     { destruct TV as [[??]?]. destruct TV' as [[??]?].

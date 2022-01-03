@@ -24,13 +24,13 @@ Lemma thread_of_val_fold (v : val) TV :
   ThreadState v TV = thread_of_val (ThreadVal v TV).
 Proof. done. Qed.
 
-Lemma wpc_fork `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG Σ} s k E1 e TV Φ Φc :
-  ▷ WPC e `at` TV @ s; k; ⊤ {{ _, True }} {{ True }} -∗
+Lemma wpc_fork `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG Σ} s E1 e TV Φ Φc :
+  ▷ WPC e `at` TV @ s; ⊤ {{ _, True }} {{ True }} -∗
   (Φc ∧ ▷ Φ (LitV LitUnit `at` TV)%TV) -∗
-  WPC (Fork e `at` TV) @ s; k; E1 {{ Φ }} {{ Φc }}.
+  WPC (Fork e `at` TV) @ s; E1 {{ Φ }} {{ Φc }}.
 Proof.
   iIntros "He HΦ".
-  iApply (wpc_lift_head_step s k E1 Φ Φc (Fork e `at` TV)). { done. }
+  iApply (wpc_lift_head_step s E1 Φ Φc (Fork e `at` TV)). { done. }
   iSplit; last first.
   {  iDestruct "HΦ" as "[HΦc _]". eauto. }
   iIntros (σ1 [] ns mj D κ κs n) "interp global".
@@ -49,27 +49,27 @@ Proof.
   iApply wpc_value'. by rewrite comm.
 Qed.
 
-Lemma tac_wpc_expr_eval `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG Σ} Δ (s: stuckness) (k : nat) E1 Φ (Φc: iProp Σ) e e' :
+Lemma tac_wpc_expr_eval `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG Σ} Δ (s: stuckness) E1 Φ (Φc: iProp Σ) e e' :
   (∀ (e'':=e'), e = e'') →
-  envs_entails Δ (WPC e' @ s; k; E1 {{ Φ }} {{ Φc }}) → envs_entails Δ (WPC e @ s; k; E1 {{ Φ }} {{ Φc }}).
+  envs_entails Δ (WPC e' @ s; E1 {{ Φ }} {{ Φc }}) → envs_entails Δ (WPC e @ s; E1 {{ Φ }} {{ Φc }}).
 Proof. by intros ->. Qed.
 
 Tactic Notation "wpc_expr_eval" tactic(t) :=
   iStartProof;
   lazymatch goal with
-  | |- envs_entails _ (wpc ?s ?k ?E1 ?e ?Q1 ?Q2) =>
-    notypeclasses refine (tac_wpc_expr_eval _ _ _ _ _ _ e _ _ _);
+  | |- envs_entails _ (wpc ?s ?E1 ?e ?Q1 ?Q2) =>
+    notypeclasses refine (tac_wpc_expr_eval _ _ _ _ _ e _ _ _);
       [let x := fresh in intros x; t; unfold x; notypeclasses refine eq_refl|]
   end.
 
 Lemma tac_wpc_pure_ctx `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG Σ, !crashGS Σ}
-      Δ Δ' s k E1 K e1 e2 TV φ Φ Φc :
+      Δ Δ' s E1 K e1 e2 TV φ Φ Φc :
   PureExecBase φ 1 e1 e2 →
   φ →
   MaybeIntoLaterNEnvs 1 Δ Δ' →
   envs_entails Δ Φc →
-  (envs_entails Δ Φc → envs_entails Δ' (WPC (ThreadState (fill K e2) TV) @ s; k; E1 {{ Φ }} {{ Φc }})) →
-  envs_entails Δ (WPC (ThreadState (fill K e1) TV) @ s; k; E1 {{ Φ }} {{ Φc }}).
+  (envs_entails Δ Φc → envs_entails Δ' (WPC (ThreadState (fill K e2) TV) @ s; E1 {{ Φ }} {{ Φc }})) →
+  envs_entails Δ (WPC (ThreadState (fill K e1) TV) @ s; E1 {{ Φ }} {{ Φc }}).
 Proof.
   rewrite envs_entails_eq=> ??? Hcrash HΔ'.
   pose proof @pure_exec_base_fill.
@@ -79,12 +79,12 @@ Proof.
 Qed.
 
 Lemma tac_wpc_pure_no_later_ctx `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG Σ, !crashGS Σ}
-      Δ s k E1 K e1 e2 TV φ Φ Φc :
+      Δ s E1 K e1 e2 TV φ Φ Φc :
   PureExecBase φ 1 e1 e2 →
   φ →
   envs_entails Δ Φc →
-  (envs_entails Δ Φc → envs_entails Δ (WPC (fill K (ThreadState e2 TV)) @ s; k; E1 {{ Φ }} {{ Φc }})) →
-  envs_entails Δ (WPC (fill K (ThreadState e1 TV)) @ s; k; E1 {{ Φ }} {{ Φc }}).
+  (envs_entails Δ Φc → envs_entails Δ (WPC (fill K (ThreadState e2 TV)) @ s; E1 {{ Φ }} {{ Φc }})) →
+  envs_entails Δ (WPC (fill K (ThreadState e1 TV)) @ s; E1 {{ Φ }} {{ Φc }}).
 Proof.
   rewrite envs_entails_eq=> ?? Hcrash HΔ'.
   pose proof @pure_exec_fill.
@@ -95,10 +95,10 @@ Proof.
     iApply HΔ'; iAssumption.
 Qed.
 
-Lemma tac_wpc_value `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG Σ} Δ s k E1 Φ Φc v TV :
+Lemma tac_wpc_value `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG Σ} Δ s E1 Φ Φc v TV :
   envs_entails Δ (|NC={E1}=> Φ (ThreadVal v TV)) →
   envs_entails Δ Φc →
-  envs_entails Δ (WPC (ThreadState (Val v) TV) @ s; k; E1 {{ Φ }} {{ Φc }}).
+  envs_entails Δ (WPC (ThreadState (Val v) TV) @ s; E1 {{ Φ }} {{ Φc }}).
 Proof.
   rewrite envs_entails_eq.
   rewrite thread_of_val_fold.
@@ -108,10 +108,10 @@ Proof.
   - rewrite H2. iIntros. iModIntro; auto.
 Qed.
 
-Lemma tac_wpc_value_fupd `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG Σ} Δ s k E1 Φ Φc v TV :
+Lemma tac_wpc_value_fupd `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG Σ} Δ s E1 Φ Φc v TV :
   envs_entails Δ (|NC={E1}=> Φ (ThreadVal v TV)) →
   envs_entails Δ Φc →
-  envs_entails Δ (WPC (ThreadState (Val v) TV) @ s; k; E1 {{ v, |={E1}=> Φ v }} {{ Φc }})%I.
+  envs_entails Δ (WPC (ThreadState (Val v) TV) @ s; E1 {{ v, |={E1}=> Φ v }} {{ Φc }})%I.
 Proof.
   rewrite thread_of_val_fold.
   rewrite envs_entails_eq -wpc_value => H1 H2.
@@ -120,10 +120,10 @@ Proof.
   - rewrite H2. iIntros. iModIntro; auto.
 Qed.
 
-Lemma tac_wpc_value_noncfupd `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG Σ} Δ s k E1 Φ Φc v TV :
+Lemma tac_wpc_value_noncfupd `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG Σ} Δ s E1 Φ Φc v TV :
   envs_entails Δ (Φ (ThreadVal v TV)) →
   envs_entails Δ Φc →
-  envs_entails Δ (WPC (ThreadState (Val v) TV) @ s; k; E1 {{ Φ }} {{ Φc }}).
+  envs_entails Δ (WPC (ThreadState (Val v) TV) @ s; E1 {{ Φ }} {{ Φc }}).
 Proof.
   rewrite thread_of_val_fold.
   rewrite envs_entails_eq -wpc_value => H1 H2.
@@ -142,13 +142,13 @@ Ltac wpc_expr_simpl := wpc_expr_eval simpl.
   here are bidirectional, so we never will make a goal unprovable. *)
 Ltac wpc_value_head :=
   lazymatch goal with
-  | |- envs_entails _ (wpc ?s ?k ?E (ThreadState (Val _) _) (λ _, ncfupd ?E _ _) _) =>
+  | |- envs_entails _ (wpc ?s ?E (ThreadState (Val _) _) (λ _, ncfupd ?E _ _) _) =>
       eapply tac_wpc_value_noncfupd
-  | |- envs_entails _ (wpc ?s ?k ?E (ThreadState (Val _) _) (λ _, wpc _ _ ?E _ _ _) _) =>
+  | |- envs_entails _ (wpc ?s ?E (ThreadState (Val _) _) (λ _, wpc _ _ ?E _ _ _) _) =>
       eapply tac_wpc_value_noncfupd
-  | |- envs_entails _ (wpc ?s ?k ?E (ThreadState (Val _) _) (λ _, fupd ?E _ _) _) =>
+  | |- envs_entails _ (wpc ?s ?E (ThreadState (Val _) _) (λ _, fupd ?E _ _) _) =>
       eapply tac_wpc_value_fupd
-  | |- envs_entails _ (wpc ?s ?k ?E (ThreadState (Val _) _) _ _) =>
+  | |- envs_entails _ (wpc ?s ?E (ThreadState (Val _) _) _ _) =>
       eapply tac_wpc_value
   end.
 
@@ -166,7 +166,7 @@ Ltac solve_vals_compare_safe :=
 
 Tactic Notation "iCache" "with" constr(Hs) :=
   lazymatch goal with
-  | [ |- envs_entails _ (wpc _ _ _ _ _ ?Φc) ] =>
+  | [ |- envs_entails _ (wpc _ _ _ _ ?Φc) ] =>
         iCache_go Φc Hs "#?"
   | _ => fail 1 "not a wpc goal"
   end.
@@ -181,11 +181,11 @@ The use of [open_constr] in this tactic is essential. It will convert all holes
 
 Tactic Notation "wpc_pure_later" tactic3(filter) "as" simple_intropattern(H) :=
   lazymatch goal with
-  | |- envs_entails _ (wpc ?s ?k ?E1 (ThreadState ?e ?TV) ?Q ?Qc) =>
+  | |- envs_entails _ (wpc ?s ?E1 (ThreadState ?e ?TV) ?Q ?Qc) =>
     let e := eval simpl in e in
     reshape_expr e ltac:(fun K e' =>
       filter e';
-      first [ eapply (tac_wpc_pure_ctx _ _ _ _ _ K e');
+      first [ eapply (tac_wpc_pure_ctx _ _ _ _ K e');
       [iSolveTC                       (* PureExec *)
       |try solve_vals_compare_safe    (* The pure condition for PureExec -- handles trivial goals, including [vals_compare_safe] *)
       |iSolveTC                       (* IntoLaters *)
@@ -200,11 +200,11 @@ Tactic Notation "wpc_pure_later" tactic3(filter) "as" simple_intropattern(H) :=
 
 Tactic Notation "wpc_pure_no_later" tactic3(filter) "as" simple_intropattern(H) :=
   lazymatch goal with
-  | |- envs_entails _ (wpc ?s ?k ?E1 (ThreadState ?e ?TV) ?Q ?Qc) =>
+  | |- envs_entails _ (wpc ?s ?E1 (ThreadState ?e ?TV) ?Q ?Qc) =>
     let e := eval simpl in e in
     reshape_expr e ltac:(fun K e' =>
       filter e';
-      first [ eapply (tac_wpc_pure_no_later_ctx _ _ _ _ K e');
+      first [ eapply (tac_wpc_pure_no_later_ctx _ _ _ K e');
       [iSolveTC                       (* PureExec *)
       |try solve_vals_compare_safe    (* The pure condition for PureExec -- handles trivial goals, including [vals_compare_safe] *)
       | try (apply H)                 (* crash condition, try to re-use existing proof *)
@@ -266,16 +266,16 @@ Ltac wpc_pures :=
   iStartProof;
   let Hcrash := fresh "Hcrash" in
   lazymatch goal with
-    | |- envs_entails ?envs (wpc ?s ?k ?E1 (ThreadState (Val _) ?TV) ?Q ?Qc) => wpc_finish Hcrash
+    | |- envs_entails ?envs (wpc ?s ?E1 (ThreadState (Val _) ?TV) ?Q ?Qc) => wpc_finish Hcrash
     | |- _ =>
       wpc_pure1 Hcrash;
       [try iFromCache .. | repeat (wpc_pure_no_later wp_pure_filter as Hcrash; []); clear Hcrash]
   end.
 
-Lemma tac_wpc_bind `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG Σ, !crashGS Σ} K Δ s k E1 Φ Φc e TV f :
+Lemma tac_wpc_bind `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG Σ, !crashGS Σ} K Δ s E1 Φ Φc e TV f :
   f = (λ e, fill K e) → (* as an eta expanded hypothesis so that we can `simpl` it *)
-  envs_entails Δ (WPC (ThreadState e TV) @ s; k; E1 {{ tv, WPC (ThreadState (f $ Val tv.(val_val)) (tv.(val_view))) @ s; k; E1 {{ Φ }} {{ Φc }} }} {{ Φc }})%I →
-  envs_entails Δ (WPC (ThreadState (fill K e) TV) @ s; k; E1 {{ Φ }} {{ Φc }}).
+  envs_entails Δ (WPC (ThreadState e TV) @ s; E1 {{ tv, WPC (ThreadState (f $ Val tv.(val_val)) (tv.(val_view))) @ s; E1 {{ Φ }} {{ Φc }} }} {{ Φc }})%I →
+  envs_entails Δ (WPC (ThreadState (fill K e) TV) @ s; E1 {{ Φ }} {{ Φc }}).
 Proof.
   rewrite envs_entails_eq=> -> ->.
   rewrite nvm_fill_fill.
@@ -286,14 +286,14 @@ Qed.
 
 (*
 Lemma tac_wpc_wp_frame `{ffi_sem: ext_semantics} `{!ffi_interp ffi}
-      `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG Σ, !crashGS Σ} Δ d js s k E1 e (Φ: _ -> iProp Σ) (Φc: iProp Σ) :
+      `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG Σ, !crashGS Σ} Δ d js s E1 e (Φ: _ -> iProp Σ) (Φc: iProp Σ) :
   match envs_split d js Δ with
   | Some (Δ1, Δ2) => envs_entails Δ1 (<disc> Φc) ∧
                      envs_entails Δ2 (WP e @ s; E1
                              {{ v, (env_to_named_prop Δ1.(env_spatial) -∗ Φ v)%I }})
   | None => False
   end ->
-  envs_entails Δ (WPC e @ s; k; E1 {{ Φ }} {{ Φc }}).
+  envs_entails Δ (WPC e @ s; E1 {{ Φ }} {{ Φc }}).
 Proof.
   destruct (envs_split d js Δ) as [[Δ1 Δ2]|] eqn:Hsplit; [ | contradiction ].
   rewrite envs_entails_eq=> Hentails.
@@ -316,7 +316,7 @@ Qed.
    proving the crash condition using a cache *)
 Lemma tac_wpc_wp_frame_cache `{ffi_sem: ext_semantics} `{!ffi_interp ffi}
       `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG Σ, !crashGS Σ} (Φc: iProp Σ) i (* name of cache *) (c: cache (<disc> Φc)%I)
-      Δ stk k E1 e (Φ: _ → iProp Σ)  :
+      Δ stk E1 e (Φ: _ → iProp Σ)  :
   envs_lookup i Δ = Some (true, cached c) →
   match envs_split Left c.(cache_names) Δ with
   | Some (Δ1, Δ2) =>
@@ -326,7 +326,7 @@ Lemma tac_wpc_wp_frame_cache `{ffi_sem: ext_semantics} `{!ffi_interp ffi}
       (WP e @ stk; E1 {{ v, (env_to_named_prop Δ1.(env_spatial) -∗ Φ v)%I }})
   | None => False
   end →
-  envs_entails Δ (WPC e @ stk; k; E1 {{ Φ }} {{ Φc }}).
+  envs_entails Δ (WPC e @ stk; E1 {{ Φ }} {{ Φc }}).
 Proof.
   rewrite envs_entails_eq=> Hcache H.
   destruct (envs_split Left (cache_names c) Δ) as [[Δ1 Δ2]|] eqn:Hsplit;
@@ -414,7 +414,7 @@ Ltac wpc_bind_core K :=
 Tactic Notation "wpc_bind" open_constr(efoc) :=
   iStartProof;
   lazymatch goal with
-  | |- envs_entails _ (wpc ?s ?k ?E1 (ThreadState ?e ?TV) ?Q1 ?Q2) =>
+  | |- envs_entails _ (wpc ?s ?E1 (ThreadState ?e ?TV) ?Q1 ?Q2) =>
     first [ reshape_expr e ltac:(fun K e' => unify e' efoc; wpc_bind_core K)
       | fail 1 "wpc_bind: cannot find" efoc "in" e ]
   | |- envs_entails _ (wp ?s ?E ?e ?Q) => fail "wpc_bind: 'wp', not a 'wpc'"
@@ -441,13 +441,13 @@ happens *after* [tac H] got executed. *)
 Tactic Notation "wpc_apply_core" open_constr(lem) tactic(tac) :=
   iPoseProofCore lem as false (fun H =>
     lazymatch goal with
-    | |- envs_entails _ (wpc ?s ?k ?E1 ?e ?Q ?Qc) =>
+    | |- envs_entails _ (wpc ?s ?E1 ?e ?Q ?Qc) =>
       reshape_expr e ltac:(fun K e' =>
         wpc_bind_core K; tac H) ||
       lazymatch iTypeOf H with
       | Some (_,?P) =>
         lazymatch P with
-        | wpc _ ?k' ?E1' ?e' _ _ =>
+        | wpc _ ?E1' ?e' _ _ =>
           first [ unify k k' | fail 1 "wpc_apply: cannot apply, k mismatch:" k' "≠" k ];
           first [ unify E1 E1' | fail 1 "wpc_apply: cannot apply E1 mismatch:" E1' "≠" E1 ];
           first [ unify e e' | fail 1 "wpc_apply: cannot apply" P ];

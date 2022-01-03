@@ -44,7 +44,7 @@ Class nvm_base_names := {
 names in this record, but due to how Perennial works we need to keep the entire
 [crashGS] in it. *)
 Class nvmBaseDeltaG Σ := MkNvmBaseDeltaG {
-  nvm_base_crashGS :> crashGS Σ;
+  nvm_base_crashGS : crashGS Σ;
   nvm_base_names' :> nvm_base_names;
 }.
 
@@ -139,11 +139,10 @@ Class extraStateInterp Σ := {
   extra_state_interp : iProp Σ;
 }.
 
-Global Program Instance nvmBaseG_irisGS `{!nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ, extraStateInterp Σ} :
+Global Program Instance nvmBase_irisGS
+       `{!nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ, extraStateInterp Σ} :
   irisGS nvm_lang Σ := {
   iris_invGS := nvmBaseG_invGS;
-  iris_crashGS := nvm_base_crashGS;
-  state_interp σ _nt := (nvm_heap_ctx σ ∗ extra_state_interp)%I;
   global_state_interp g ns mj D _ :=
     (@crash_borrow_ginv _ nvmBaseG_invGS _ ∗
      cred_interp ns ∗
@@ -154,6 +153,12 @@ Global Program Instance nvmBaseG_irisGS `{!nvmBaseFixedG Σ, hGD : nvmBaseDeltaG
   step_count_next := (λ n, 10 * (n + 1))%nat;
 }.
 
+Global Program Instance nvmBase_generationGS
+       `{!nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ, extraStateInterp Σ} :
+  generationGS nvm_lang Σ := {
+  iris_crashGS := nvm_base_crashGS;
+  state_interp σ _nt := (nvm_heap_ctx σ ∗ extra_state_interp)%I;
+}.
 Next Obligation.
   intros (**). iIntros "($ & ? & $)".
   by iMod (cred_interp_incr with "[$]") as "($ & _)".
@@ -954,7 +959,7 @@ Section extra_state_interp.
     subst.
 
     iEval (rewrite right_id) in "A".
-    iMod (wpc0_value_inv_option _ _ _ _ _ _ _ _ _ _ [] _ with "C Q AB")
+    iMod (wpc0_value_inv_option _ _ _ _ _ _ _ _ _ [] _ with "C Q AB")
       as "([Φ extra] & B & V)".
     Unshelve. 2: { apply (). }
     simpl.

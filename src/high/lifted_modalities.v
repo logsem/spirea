@@ -152,28 +152,28 @@ Section lifted_modalities.
 
   (*** cfupd *)
 
-  Lemma cfupd_unfold_at E1 E2 P TV :
-    (cfupd E1 E2 P) TV ⊣⊢ crash_weakestpre.cfupd E1 E2 (P TV).
-  Proof.
-    rewrite /cfupd. rewrite /crash_weakestpre.cfupd.
-    monPred_simpl.
-    setoid_rewrite monPred_at_fupd.
-    (* setoid_rewrite fupd_level_unfold_at. *)
-    setoid_rewrite monPred_at_embed.
-    iSplit.
-    - iIntros "H". iApply "H". done.
-    - iIntros "H". iIntros (? incl) "C".
-      iApply monPred_mono; first apply incl.
-      iApply "H". iFrame.
-  Qed.
+  (* Lemma cfupd_unfold_at E1 E2 P TV : *)
+  (*   (cfupd E1 E2 P) TV ⊣⊢ crash_weakestpre.cfupd E1 E2 (P TV). *)
+  (* Proof. *)
+  (*   rewrite /cfupd. rewrite /crash_weakestpre.cfupd. *)
+  (*   monPred_simpl. *)
+  (*   setoid_rewrite monPred_at_fupd. *)
+  (*   (* setoid_rewrite fupd_level_unfold_at. *) *)
+  (*   setoid_rewrite monPred_at_embed. *)
+  (*   iSplit. *)
+  (*   - iIntros "H". iApply "H". done. *)
+  (*   - iIntros "H". iIntros (? incl) "C". *)
+  (*     iApply monPred_mono; first apply incl. *)
+  (*     iApply "H". iFrame. *)
+  (* Qed. *)
 
-  Global Instance from_modal_cfupd k E1 P :
-    FromModal True modality_id (cfupd k E1 P) (cfupd k E1 P) (P).
-  Proof.
-    rewrite /FromModal /=.
-    iIntros (_) "HP _".
-    iModIntro. by iFrame.
-  Qed.
+  (* Global Instance from_modal_cfupd k E1 P : *)
+  (*   FromModal True modality_id (cfupd k E1 P) (cfupd k E1 P) (P). *)
+  (* Proof. *)
+  (*   rewrite /FromModal /=. *)
+  (*   iIntros (_) "HP _". *)
+  (*   iModIntro. by iFrame. *)
+  (* Qed. *)
 
 End lifted_modalities.
 
