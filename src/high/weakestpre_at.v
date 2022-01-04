@@ -56,9 +56,9 @@ Section wp_at_rules.
       done.
   Qed.
 
-  Lemma wp_alloc_at v s ϕ `{!LocationProtocol ϕ} positive E :
+  Lemma wp_alloc_at v s ϕ `{!LocationProtocol ϕ} st E :
     {{{ "phi" ∷ ϕ s v _ }}}
-      ref v @ positive; E
+      ref v @ st; E
     {{{ ℓ, RET #ℓ; know_protocol ℓ ϕ ∗ know_store_lb ℓ s }}}.
   Proof.
     intros Φ. iStartProof (iProp _). iIntros (TV). iNamed 1.
@@ -74,7 +74,7 @@ Section wp_at_rules.
     (* We open [interp]. *)
     iNamed 1.
 
-    iApply (wp_fupd (irisGS0 := (@nvmBaseG_irisGS _ _ _ (Build_extraStateInterp _ _)))).
+    (* iApply (wp_fupd (irisGS0 := (@nvmBase_irisGS _ _ _ (Build_extraStateInterp _ _)))). *)
 
     iApply (wp_alloc (extra := {| extra_state_interp := True |})); first done.
     iNext.
@@ -88,8 +88,10 @@ Section wp_at_rules.
       done. }
     
     (* We update ghost state. *)
+    iDestruct (own_all_preds_insert with "predicates") as "[predicates knowPred]".
 
     (* Add the predicate to the ghost state of predicates. *)
+
     (* TODO *)
 
     (* Allocate the abstract history for the location. *)
@@ -104,24 +106,25 @@ Section wp_at_rules.
     (* We are done updating ghost. *)
     (* TODO *)
 
-    iModIntro.
+    (* iModIntro. *)
     rewrite -assoc. iSplit; first done.
-    iSplitL "Φpost".
-    { iApply "Φpost". admit. }
+    iSplitL "Φpost knowPred".
+    { iApply "Φpost". iFrame "knowPred". admit. }
     repeat iExists _.
+    iFrame "predicates".
     iFrame.
     iFrame "#".
     iFrame "%".
   Admitted.
 
-  Lemma wp_load_at ℓ s Q ϕ `{!LocationProtocol ϕ} positive E :
+  Lemma wp_load_at ℓ s Q ϕ `{!LocationProtocol ϕ} st E :
     {{{
       "knowProt" ∷ know_protocol ℓ ϕ ∗
       "isSharedLoc" ∷ ⎡ is_shared_loc ℓ ⎤ ∗
       "storeLB" ∷ know_store_lb ℓ s ∗
       "pToQ" ∷ <obj> (∀ s' v, ⌜ s ⊑ s' ⌝ -∗ ϕ s' v _ -∗ Q s' v ∗ ϕ s' v _)
     }}}
-      !{acq} #ℓ @ positive; E
+      !{acq} #ℓ @ st; E
     {{{ s' v, RET v;
       "storeLB" ∷ know_store_lb ℓ s' ∗
       post_fence (Q s' v) }}}.
@@ -143,7 +146,9 @@ Section wp_at_rules.
     (* We open [interp]. *)
     iNamed 1.
 
-    iApply (wp_fupd (irisGS0 := (@nvmBaseG_irisGS _ _ _ (Build_extraStateInterp _ _)))).
+    (* We add this to prevent Coq from trying to use [highExtraStateInterp]. *)
+    set (extra := (Build_extraStateInterp _ _)).
+    iApply wp_fupd.
 
     (* _Before_ we load the points-to predicate we deal with the predicate ϕ. We
     do this before such that the later that arrises is stripped off when we take
@@ -277,7 +282,7 @@ Section wp_at_rules.
   Qed.
 
   (* Rule for store on an atomic. *)
-  Lemma wp_store_at ℓ s_i s_t v_t ϕ `{!LocationProtocol ϕ} positive E :
+  Lemma wp_store_at ℓ s_i s_t v_t ϕ `{!LocationProtocol ϕ} st E :
     {{{
        "%targetGt" ∷ ⌜ s_i ⊑ s_t ⌝ ∗
       "knowProt" ∷ know_protocol ℓ ϕ ∗
@@ -293,7 +298,7 @@ Section wp_at_rules.
         (∀ v_i s_c v_c,
           ϕ s_i v_i _ ∗ ϕ s_t v_t _ ∗ ϕ s_c v_c _ -∗ ⌜ s_t ⊑ s_c ∧ s_c ⊑ s_t ⌝)
     }}}
-      #ℓ <-{rel} v_t @ positive; E
+      #ℓ <-{rel} v_t @ st; E
     {{{ RET #();
       know_store_lb ℓ s_t
     }}}.
@@ -315,7 +320,9 @@ Section wp_at_rules.
     { apply prim_step_store_rel_no_fork. }
 
     iNamed 1.
-    iApply (wp_fupd (irisGS0 := (@nvmBaseG_irisGS _ _ _ (Build_extraStateInterp _ _)))).
+    (* We add this to prevent Coq from trying to use [highExtraStateInterp]. *)
+    set (extra := (Build_extraStateInterp _ _)).
+    iApply wp_fupd.
 
     (* _Before_ we load the points-to predicate we deal with the predicate ϕ. We
     do this before such that the later that arrises is stripped off when we take
@@ -589,7 +596,7 @@ Section wp_at_rules.
     rewrite /encode_bumper decode_encode. done.
   Qed.
 
-  Lemma wp_cas_at ℓ s_i v_i v_t ϕ R Q1 Q2 s_t positive E :
+  Lemma wp_cas_at ℓ s_i v_i v_t ϕ R Q1 Q2 s_t st E :
     {{{
       "isSharedLoc" ∷ ⎡ is_shared_loc ℓ ⎤ ∗
       "storeLB" ∷ know_store_lb ℓ s_i ∗
@@ -600,7 +607,7 @@ Section wp_at_rules.
         (∀ s_a, ⌜ s_i ⊑ s_a ⌝ -∗
           (<obj> (ϕ s_a v_i _ -∗ ϕ s_a v_i _ ∗ Q2 s_a)))
     }}}
-      CAS #ℓ v_i v_t @ positive; E
+      CAS #ℓ v_i v_t @ st; E
     {{{ b, RET #b;
       (⌜ b = true ⌝ ∗ Q1 s_t ∗ know_store_lb ℓ s_t) ∨
       (∃ s_a, ⌜ b = false ⌝ ∗ ⌜ s_i ⊑ s_a ⌝ ∗ Q2 s_a)

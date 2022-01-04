@@ -4,7 +4,7 @@
 From iris.bi Require Import derived_laws.
 From iris.proofmode Require Import base tactics classes.
 From Perennial.base_logic.lib Require Import ncfupd.
-From Perennial.program_logic Require Import crash_weakestpre.
+From Perennial.program_logic Require Import crash_weakestpre cfupd.
 
 From self.high Require Import dprop monpred_simpl.
 
@@ -101,14 +101,14 @@ Notation "|NC={ E1 } [ E2 ]▷=>^ n Q" := (Nat.iter n (λ P, |NC={E1}[E2]▷=> P
   (at level 99, E1, E2 at level 50, n at level 9, Q at level 200,
    format "'[  ' |NC={ E1 } [ E2 ]▷=>^ n  '/' Q ']'").
 
-Program Definition cfupd `{!invGS Σ, !crashGS Σ} (k : nat) E1 (P : dProp Σ) :=
+Program Definition cfupd `{!invGS Σ, !crashGS Σ} E1 (P : dProp Σ) :=
   (⎡C⎤ -∗ |={E1}=> P)%I.
   (* MonPred (λ TV, cfupd k E1 (P TV))%I _. *)
 (* Next Obligation. solve_proper. Qed. *)
 
-Notation "|C={ E1 }_ k => P" := (cfupd k E1 P)
+Notation "|C={ E1 }=> P" := (cfupd E1 P)
       (at level 99, E1 at level 50, P at level 200,
-       format "'[  ' |C={ E1 }_ k =>  '/' P ']'").
+       format "'[  ' |C={ E1 }=>  '/' P ']'").
 
 Section lifted_modalities.
   Context `{crashGS Σ, invGS Σ}.
@@ -152,28 +152,27 @@ Section lifted_modalities.
 
   (*** cfupd *)
 
-  (* Lemma cfupd_unfold_at E1 E2 P TV : *)
-  (*   (cfupd E1 E2 P) TV ⊣⊢ crash_weakestpre.cfupd E1 E2 (P TV). *)
-  (* Proof. *)
-  (*   rewrite /cfupd. rewrite /crash_weakestpre.cfupd. *)
-  (*   monPred_simpl. *)
-  (*   setoid_rewrite monPred_at_fupd. *)
-  (*   (* setoid_rewrite fupd_level_unfold_at. *) *)
-  (*   setoid_rewrite monPred_at_embed. *)
-  (*   iSplit. *)
-  (*   - iIntros "H". iApply "H". done. *)
-  (*   - iIntros "H". iIntros (? incl) "C". *)
-  (*     iApply monPred_mono; first apply incl. *)
-  (*     iApply "H". iFrame. *)
-  (* Qed. *)
+  Lemma cfupd_unfold_at E1 P TV :
+    (cfupd E1 P) TV ⊣⊢ cfupd.cfupd E1 (P TV).
+  Proof.
+    rewrite /cfupd. rewrite /cfupd.cfupd.
+    monPred_simpl.
+    setoid_rewrite monPred_at_fupd.
+    setoid_rewrite monPred_at_embed.
+    iSplit.
+    - iIntros "H". iApply "H". done.
+    - iIntros "H". iIntros (? incl) "C".
+      iApply monPred_mono; first apply incl.
+      iApply "H". iFrame.
+  Qed.
 
-  (* Global Instance from_modal_cfupd k E1 P : *)
-  (*   FromModal True modality_id (cfupd k E1 P) (cfupd k E1 P) (P). *)
-  (* Proof. *)
-  (*   rewrite /FromModal /=. *)
-  (*   iIntros (_) "HP _". *)
-  (*   iModIntro. by iFrame. *)
-  (* Qed. *)
+  Global Instance from_modal_cfupd E1 P :
+    FromModal True modality_id (cfupd E1 P) (cfupd E1 P) (P).
+  Proof.
+    rewrite /FromModal /=.
+    iIntros (_) "HP _".
+    iModIntro. by iFrame.
+  Qed.
 
 End lifted_modalities.
 

@@ -46,7 +46,6 @@ Section recovery_adequacy.
   Context {Σ : gFunctors}.
   (* Context `{!nvmFixedG Σ}. *)
   Implicit Types s : stuckness.
-  Implicit Types k : nat.
   (* Implicit Types P : iProp Σ. *)
   Implicit Types Φ : val → dProp Σ.
   Implicit Types Φinv : nvmDeltaG Σ → dProp Σ.
@@ -98,18 +97,18 @@ Section recovery_adequacy.
       iFrame.
   Qed.
 
-  Notation wptp s k t := ([∗ list] ef ∈ t, WPC ef @ s; k; ⊤ {{ fork_post }} {{ True }})%I.
+  Notation wptp s t := ([∗ list] ef ∈ t, WPC ef @ s; ⊤ {{ fork_post }} {{ True }})%I.
 
   Lemma wptp_recv_strong_normal_adequacy `{!nvmFixedG Σ, !nvmDeltaG Σ}
-        Φ Φr κs' s k n (ncurr : nat) mj D r1 e1
+        Φ Φr κs' s n (ncurr : nat) mj D r1 e1
         TV1 (t1 : list thread_state) κs t2 σ1 g1 σ2 g2 :
     nrsteps (r1 `at` ⊥) [n] ((e1 `at` TV1) :: t1, (σ1, g1))%TE κs (t2, (σ2, g2)) Normal →
     state_interp σ1 (length t1) -∗
     global_state_interp g1 ncurr mj D (κs ++ κs') -∗
     (* crash_weakestpre.interp -∗ *)
     validV (store_view TV1) -∗
-    ((wpr s k (* Hc t *) ⊤ e1 r1 Φ (* Φinv *) Φr) ⊥) -∗
-    wptp s k t1 -∗
+    ((wpr s (* Hc t *) ⊤ e1 r1 Φ (* Φinv *) Φr) ⊥) -∗
+    wptp s t1 -∗
     NC 1-∗ (
       (||={⊤|⊤,∅|∅}=> ||▷=>^(steps_sum num_laters_per_step step_count_next ncurr n) ||={∅|∅,⊤|⊤}=>
       ∃ e2 TV2 t2',
@@ -152,15 +151,15 @@ Section recovery_adequacy.
     iDestruct "HI" as "(_ & _ & $)".
   Qed.
 
-  Lemma wptp_recv_strong_crash_adequacy `{!nvmFixedG Σ} Φ Φr κs' s k t ncurr mj D (ns : list nat) n r1 e1
+  Lemma wptp_recv_strong_crash_adequacy `{!nvmFixedG Σ} Φ Φr κs' s t ncurr mj D (ns : list nat) n r1 e1
         TV1 t1 κs t2 σ1 g1 σ2 g2 :
     nrsteps (r1 `at` ⊥) (ns ++ [n]) ((e1 `at` TV1)%E :: t1, (σ1, g1)) κs (t2, (σ2, g2)) Crashed →
     state_interp σ1 (length t1) -∗
     global_state_interp g1 ncurr mj D (κs ++ κs') -∗
     (* crash_weakestpre.interp -∗ *)
     validV (store_view TV1) -∗
-    ((wpr s k (* Hc t *) ⊤ e1 r1 Φ Φr) ⊥) -∗
-    wptp s k t1 -∗ NC 1 -∗
+    ((wpr s (* Hc t *) ⊤ e1 r1 Φ Φr) ⊥) -∗
+    wptp s t1 -∗ NC 1 -∗
     step_fupdN_fresh ncurr ns _ t (λ hD,
       let ntot := (steps_sum num_laters_per_step step_count_next
                             (Nat.iter (sum_crash_steps ns) step_count_next ncurr )
@@ -276,15 +275,15 @@ Section recovery_adequacy.
   (* In this lemma we combine [wptp_recv_strong_normal_adequacy] and
   [wptp_recv_strong_crash_adequacy] into a lemma that applies both in the
   absence and presence of crashes. *)
-  Lemma wptp_recv_strong_adequacy `{!nvmFixedG Σ} Φ Φr κs' s k hD ns mj D n r1 e1 TV1 t1 κs t2 σ1 g1 ncurr σ2 g2 stat :
+  Lemma wptp_recv_strong_adequacy `{!nvmFixedG Σ} Φ Φr κs' s hD ns mj D n r1 e1 TV1 t1 κs t2 σ1 g1 ncurr σ2 g2 stat :
     nrsteps (r1 `at` ⊥) (ns ++ [n]) ((e1 `at` TV1)%TE :: t1, (σ1,g1)) κs (t2, (σ2,g2)) stat →
     state_interp σ1 (length t1) -∗
     global_state_interp g1 ncurr mj D (κs ++ κs') -∗
     (* crash_weakestpre.interp -∗ *)
     validV (store_view TV1) -∗
-    ((wpr s k (* Hc t *) ⊤ e1 r1 Φ Φr) ⊥) -∗
+    ((wpr s (* Hc t *) ⊤ e1 r1 Φ Φr) ⊥) -∗
     (* □ (∀ Hc' t', Φinv Hc' t' -∗ □ Φinv' Hc' t') -∗ *)
-    wptp s k t1 -∗
+    wptp s t1 -∗
     NC 1 -∗
     step_fupdN_fresh ncurr ns _ hD (λ hD',
       let ntot := (steps_sum num_laters_per_step step_count_next
@@ -364,8 +363,7 @@ Proof.
     rewrite -later_laterN.
     iApply (laterN_le with "H").
     { lia. }
-    Unshelve. split. apply _.
-  Qed.
+Qed.
 
 Lemma step_fupdN_fresh_soundness `{!nvmGpreS Σ} φ ns ncurr k k2 :
   (⊢ ∀ (Hi : invGS Σ),
@@ -494,14 +492,14 @@ Qed.
 
 (* This adequacy lemma is similar to the adequacy lemma for [wpr] in Perennial:
 [wp_recv_adequacy_inv]. *)
-Lemma high_recv_adequacy `{hPre : !nvmGpreS Σ} s k e r σ PV (φ φr : val → Prop) :
+Lemma high_recv_adequacy `{hPre : !nvmGpreS Σ} s e r σ PV (φ φr : val → Prop) :
   valid_heap σ →
   (∀ `{nF : !nvmFixedG Σ, nD : !nvmDeltaG Σ},
     ⊢ (* ⎡ ([∗ map] l ↦ v ∈ σ.1, l ↦h v) ⎤ -∗ *)
       (* Note: We need to add the resources that can be used to prove the [wpr]
       includin [pre_borrow]. These should require the user to decide which
       locations should be shared/exclusive, location invariants, etc. *)
-      (wpr s k ⊤ e r (λ v, ⌜φ v⌝) (λ _ v, ⌜φr v⌝))) →
+      (wpr s ⊤ e r (λ v, ⌜φ v⌝) (λ _ v, ⌜φr v⌝))) →
   recv_adequate s (ThreadState e ⊥) (ThreadState r ⊥) (σ, PV)
                 (λ v _, φ v.(val_val)) (λ v _, φr v.(val_val)).
 Proof.

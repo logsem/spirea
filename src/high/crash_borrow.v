@@ -49,13 +49,13 @@ Section crash_borrow_high.
     iDestruct 1 as "(H & _)". iApply "H".
   Qed.
 
-  Lemma wpc_crash_borrow_inits s k (e : expr) (Φ : _ → dProp Σ) Φc (P : dProp Σ)
+  Lemma wpc_crash_borrow_inits s (e : expr) (Φ : _ → dProp Σ) Φc (P : dProp Σ)
         Pc `{!Objective Pc} :
     ⎡ pre_borrow ⎤ -∗
     P -∗
     □ (P -∗ Pc) -∗
-    (crash_borrow P Pc -∗ WPC e @ s; k; ⊤ {{ Φ }} {{ Pc -∗ Φc }}) -∗
-    WPC e @ s; k; ⊤ {{ Φ }} {{ Φc }}.
+    (crash_borrow P Pc -∗ WPC e @ s; ⊤ {{ Φ }} {{ Pc -∗ Φc }}) -∗
+    WPC e @ s; ⊤ {{ Φ }} {{ Φc }}.
   Proof.
     iStartProof (iProp _). iIntros (?).
     monPred_simpl. iIntros "H" (? ?) "P".
@@ -80,24 +80,24 @@ Section crash_borrow_high.
     { iApply (monPred_mono with "P"). etrans; done. }
   Qed.
 
-  Lemma wpc_crash_borrow_open_modify k E1 e Φ Φc P Pc `{!Objective Pc} :
+  Lemma wpc_crash_borrow_open_modify E1 e Φ Φc P Pc `{!Objective Pc} :
     to_val e = None →
     crash_borrow P Pc -∗
     (Φc ∧
-      (P -∗ WPC e @ k; E1
+      (P -∗ WPC e @ E1
                   {{λ v, ∃ P', P' ∗ □ (P' -∗ Pc) ∗ (crash_borrow P' Pc -∗ (Φc ∧ Φ v))}}
                   {{ Φc ∗ Pc }})) -∗
-    WPC e @ k; E1 {{ Φ }} {{ Φc }}.
+    WPC e @ E1 {{ Φ }} {{ Φc }}.
   Proof.
   Admitted.
 
-  Lemma wpc_crash_borrow_open k E1 e Φ Φc P Pc `{!Objective Φc, !Objective Pc} :
+  Lemma wpc_crash_borrow_open E1 e Φ Φc P Pc `{!Objective Φc, !Objective Pc} :
     to_val e = None →
     crash_borrow P Pc -∗
-    (Φc ∧ (P -∗ WPC e @ k; E1
+    (Φc ∧ (P -∗ WPC e @ E1
                       {{λ v, P ∗ (crash_borrow P Pc -∗ (Φc ∧ Φ v))}}
                       {{ Φc ∗ Pc }})) -∗
-    WPC e @ k; E1 {{ Φ }} {{ Φc }}.
+    WPC e @ E1 {{ Φ }} {{ Φc }}.
   Proof.
     iIntros (Hnv) "H1 Hwp".
     iDestruct (crash_borrow_crash_wand with "[$]") as "#Hw".

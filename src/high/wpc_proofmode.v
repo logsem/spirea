@@ -16,11 +16,11 @@ Set Default Proof Using "Type".
 
 Import uPred.
 
-Lemma wpc_fork `{!nvmFixedG Σ, !nvmDeltaG Σ} s (k : nat) E1 e
+Lemma wpc_fork `{!nvmFixedG Σ, !nvmDeltaG Σ} s E1 e
       (Φ : val → dProp Σ) (Φc : dProp Σ) `{!Objective Φc} :
-  ▷ WPC e @ s; k; ⊤ {{ _, True }} {{ True }} -∗
+  ▷ WPC e @ s; ⊤ {{ _, True }} {{ True }} -∗
   (Φc ∧ ▷ Φ (LitV LitUnit)) -∗
-  WPC (Fork e) @ s; k; E1 {{ Φ }} {{ Φc }}.
+  WPC (Fork e) @ s; E1 {{ Φ }} {{ Φc }}.
 Proof.
   rewrite wpc_eq.
   iStartProof (iProp _). iIntros (V) "/=".
@@ -37,16 +37,16 @@ Proof.
 Qed.
 
 Lemma tac_wpc_expr_eval
-      `{!nvmFixedG Σ, nvmDeltaG Σ} Δ (s : stuckness) (k : nat) E1 Φ (Φc : dProp Σ) e e' :
+      `{!nvmFixedG Σ, nvmDeltaG Σ} Δ (s : stuckness) E1 Φ (Φc : dProp Σ) e e' :
   (∀ (e'':=e'), e = e'') →
-  envs_entails Δ (WPC e' @ s; k; E1 {{ Φ }} {{ Φc }}) → envs_entails Δ (WPC e @ s; k; E1 {{ Φ }} {{ Φc }}).
+  envs_entails Δ (WPC e' @ s; E1 {{ Φ }} {{ Φc }}) → envs_entails Δ (WPC e @ s; E1 {{ Φ }} {{ Φc }}).
 Proof. by intros ->. Qed.
 
 Tactic Notation "wpc_expr_eval" tactic(t) :=
   iStartProof;
   lazymatch goal with
-  | |- envs_entails _ (wpc ?s ?k ?E1 ?e ?Q1 ?Q2) =>
-    notypeclasses refine (tac_wpc_expr_eval _ _ _ _ _ _ e _ _ _);
+  | |- envs_entails _ (wpc ?s ?E1 ?e ?Q1 ?Q2) =>
+    notypeclasses refine (tac_wpc_expr_eval _ _ _ _ _ e _ _ _);
       [let x := fresh in intros x; t; unfold x; notypeclasses refine eq_refl|]
   end.
 
@@ -63,13 +63,13 @@ Tactic Notation "wpc_expr_eval" tactic(t) :=
 
 (* XXX: this caches the wrong thing as compared to the old version *)
 Lemma tac_wpc_pure_ctx
-      `{!nvmFixedG Σ, nvmDeltaG Σ} Δ Δ' s k E1 K e1 e2 φ Φ Φc `{!Objective Φc} :
+      `{!nvmFixedG Σ, nvmDeltaG Σ} Δ Δ' s E1 K e1 e2 φ Φ Φc `{!Objective Φc} :
   PureExecBase φ 1 e1 e2 →
   φ →
   MaybeIntoLaterNEnvs 1 Δ Δ' →
   envs_entails Δ Φc →
-  (envs_entails Δ Φc → envs_entails Δ' (WPC (fill K e2) @ s; k; E1 {{ Φ }} {{ Φc }})) →
-  envs_entails Δ (WPC (fill K e1) @ s; k; E1 {{ Φ }} {{ Φc }}).
+  (envs_entails Δ Φc → envs_entails Δ' (WPC (fill K e2) @ s; E1 {{ Φ }} {{ Φc }})) →
+  envs_entails Δ (WPC (fill K e1) @ s; E1 {{ Φ }} {{ Φc }}).
 Proof.
   rewrite envs_entails_eq=> ??? Hcrash HΔ'.
   pose proof @pure_exec_base_fill.
@@ -79,12 +79,12 @@ Proof.
 Qed.
 
 Lemma tac_wpc_pure_no_later_ctx `{!nvmFixedG Σ, nvmDeltaG Σ}
-      Δ s k E1 K e1 e2 φ Φ Φc `{!Objective Φc} :
+      Δ s E1 K e1 e2 φ Φ Φc `{!Objective Φc} :
   PureExecBase φ 1 e1 e2 →
   φ →
   envs_entails Δ Φc →
-  (envs_entails Δ Φc → envs_entails Δ (WPC (fill K e2) @ s; k; E1 {{ Φ }} {{ Φc }})) →
-  envs_entails Δ (WPC (fill K e1) @ s; k; E1 {{ Φ }} {{ Φc }}).
+  (envs_entails Δ Φc → envs_entails Δ (WPC (fill K e2) @ s; E1 {{ Φ }} {{ Φc }})) →
+  envs_entails Δ (WPC (fill K e1) @ s; E1 {{ Φ }} {{ Φc }}).
 Proof.
   rewrite envs_entails_eq=> ?? Hcrash HΔ'.
   pose proof @pure_exec_base_fill.
@@ -95,30 +95,30 @@ Proof.
     iApply HΔ'; iAssumption.
 Qed.
 
-Lemma tac_wpc_value `{!nvmFixedG Σ, nvmDeltaG Σ} Δ s k E1 Φ Φc `{!Objective Φc} v :
+Lemma tac_wpc_value `{!nvmFixedG Σ, nvmDeltaG Σ} Δ s E1 Φ Φc `{!Objective Φc} v :
   envs_entails Δ (|NC={E1}=> Φ v) →
   envs_entails Δ Φc →
-  envs_entails Δ (WPC (Val v) @ s; k; E1 {{ Φ }} {{ Φc }}).
+  envs_entails Δ (WPC (Val v) @ s; E1 {{ Φ }} {{ Φc }}).
 Proof.
   rewrite envs_entails_eq -wpc_value => H1 H2.
   apply and_intro.
   - rewrite H1. eauto.
   - rewrite H2. iIntros. iModIntro; auto.
 Qed.
-Lemma tac_wpc_value_fupd `{!nvmFixedG Σ, nvmDeltaG Σ} Δ s k E1 Φ Φc `{!Objective Φc} v :
+Lemma tac_wpc_value_fupd `{!nvmFixedG Σ, nvmDeltaG Σ} Δ s E1 Φ Φc `{!Objective Φc} v :
   envs_entails Δ (|NC={E1}=> Φ v) →
   envs_entails Δ Φc →
-  envs_entails Δ (WPC (Val v) @ s; k; E1 {{ v, |={E1}=> Φ v }} {{ Φc }})%I.
+  envs_entails Δ (WPC (Val v) @ s; E1 {{ v, |={E1}=> Φ v }} {{ Φc }})%I.
 Proof.
   rewrite envs_entails_eq -wpc_value => H1 H2.
   apply and_intro.
   - rewrite H1. iIntros ">?". auto.
   - rewrite H2. iIntros. iModIntro; auto.
 Qed.
-Lemma tac_wpc_value_noncfupd `{!nvmFixedG Σ, nvmDeltaG Σ} Δ s k E1 Φ Φc `{!Objective Φc} v :
+Lemma tac_wpc_value_noncfupd `{!nvmFixedG Σ, nvmDeltaG Σ} Δ s E1 Φ Φc `{!Objective Φc} v :
   envs_entails Δ (Φ v) →
   envs_entails Δ Φc →
-  envs_entails Δ (WPC (Val v) @ s; k; E1 {{ Φ }} {{ Φc }}).
+  envs_entails Δ (WPC (Val v) @ s; E1 {{ Φ }} {{ Φc }}).
 Proof.
   rewrite envs_entails_eq -wpc_value => H1 H2.
   apply and_intro.
@@ -135,13 +135,13 @@ Ltac wpc_expr_simpl := wpc_expr_eval simpl.
   here are bidirectional, so we never will make a goal unprovable. *)
 Ltac wpc_value_head :=
   lazymatch goal with
-  | |- envs_entails _ (wpc ?s ?k ?E (Val _) (λ _, ncfupd ?E _ _) _) =>
+  | |- envs_entails _ (wpc ?s ?E (Val _) (λ _, ncfupd ?E _ _) _) =>
       eapply tac_wpc_value_noncfupd; [iSolveTC| |]
-  | |- envs_entails _ (wpc ?s ?k ?E (Val _) (λ _, wpc _ _ ?E _ _ _) _) =>
+  | |- envs_entails _ (wpc ?s ?E (Val _) (λ _, wpc _ _ ?E _ _ _) _) =>
       eapply tac_wpc_value_noncfupd; [iSolveTC| |]
-  | |- envs_entails _ (wpc ?s ?k ?E (Val _) (λ _, fupd ?E _ _) _) =>
+  | |- envs_entails _ (wpc ?s ?E (Val _) (λ _, fupd ?E _ _) _) =>
       eapply tac_wpc_value_fupd; [iSolveTC| |]
-  | |- envs_entails _ (wpc ?s ?k ?E (Val _) _ _) =>
+  | |- envs_entails _ (wpc ?s ?E (Val _) _ _) =>
       eapply tac_wpc_value; [iSolveTC| |]
   end.
 
@@ -159,7 +159,7 @@ Ltac solve_vals_compare_safe :=
 
 Tactic Notation "iCache" "with" constr(Hs) :=
   lazymatch goal with
-  | [ |- envs_entails _ (wpc _ _ _ _ _ ?Φc) ] =>
+  | [ |- envs_entails _ (wpc _ _ _ _ ?Φc) ] =>
         iCache_go Φc Hs "#?"
   | _ => fail 1 "not a wpc goal"
   end.
@@ -178,7 +178,7 @@ Tactic Notation "wpc_pure_later" tactic3(filter) "as" simple_intropattern(H) :=
     let e := eval simpl in e in
     reshape_expr e ltac:(fun K e' =>
       filter e';
-      first [ eapply (tac_wpc_pure_ctx _ _ _ _ _ K e');
+      first [ eapply (tac_wpc_pure_ctx _ _ _ _ K e');
       [iSolveTC                       (* PureExec *)
       |iSolveTC                       (* Objective Φc *)
       |try solve_vals_compare_safe    (* The pure condition for PureExec -- handles trivial goals, including [vals_compare_safe] *)
@@ -198,7 +198,7 @@ Tactic Notation "wpc_pure_no_later" tactic3(filter) "as" simple_intropattern(H) 
     let e := eval simpl in e in
     reshape_expr e ltac:(fun K e' =>
       filter e';
-      first [ eapply (tac_wpc_pure_no_later_ctx _ _ _ _ K e');
+      first [ eapply (tac_wpc_pure_no_later_ctx _ _ _ K e');
       [iSolveTC                       (* PureExec *)
       |iSolveTC                       (* Objective Φc *)
       |try solve_vals_compare_safe    (* The pure condition for PureExec -- handles trivial goals, including [vals_compare_safe] *)
@@ -248,10 +248,10 @@ Ltac wpc_pures :=
   end.
 
 Lemma tac_wpc_bind
-      `{!nvmFixedG Σ, nvmDeltaG Σ, !crashGS Σ} K Δ s k E1 Φ Φc e f :
+      `{!nvmFixedG Σ, nvmDeltaG Σ, !crashGS Σ} K Δ s E1 Φ Φc e f :
   f = (λ e, fill K e) → (* as an eta expanded hypothesis so that we can `simpl` it *)
-  envs_entails Δ (WPC e @ s; k; E1 {{ v, WPC f (Val v) @ s; k; E1 {{ Φ }} {{ Φc }} }} {{ Φc }})%I →
-  envs_entails Δ (WPC fill K e @ s; k; E1 {{ Φ }} {{ Φc }}).
+  envs_entails Δ (WPC e @ s; E1 {{ v, WPC f (Val v) @ s; E1 {{ Φ }} {{ Φc }} }} {{ Φc }})%I →
+  envs_entails Δ (WPC fill K e @ s; E1 {{ Φ }} {{ Φc }}).
 Proof. rewrite envs_entails_eq=> -> ->. by apply: wpc_bind. Qed.
 
 (*

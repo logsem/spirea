@@ -18,9 +18,9 @@ From self.high Require Import resources crash_weakestpre post_crash_modality.
 
 Set Default Proof Using "Type".
 
-Notation pbundleG := recovery_weakestpre.pbundleG.
+(* Notation pbundleG := recovery_weakestpre.pbundleG. *)
 
-Notation perennialG := recovery_weakestpre.perennialG.
+(* Notation perennialG := recovery_weakestpre.perennialG. *)
 
 Definition get_crashG {Σ} (hD : nvmDeltaG Σ) :=
   @nvm_base_crashGS Σ (@nvm_delta_base Σ hD).
@@ -32,13 +32,13 @@ Definition get_crashG {Σ} (hD : nvmDeltaG Σ) :=
  This definition of the recovery weakest precondition is defined on top of our
  crash weakest precondition following the same pattern that is used in Perennial
  to define Perennial's wpr on top of Perennial's wpc. *)
-Definition wpr_pre `{nvmFixedG Σ} (s : stuckness) (k : nat)
+Definition wpr_pre `{nvmFixedG Σ} (s : stuckness)
     (wpr : nvmDeltaG Σ -d> coPset -d> expr -d> expr -d> (val -d> dPropO Σ) -d>
                      (nvmDeltaG Σ -d> val -d> dPropO Σ) -d> dPropO Σ) :
   nvmDeltaG Σ -d> coPset -d> expr -d> expr -d> (val -d> dPropO Σ) -d>
   (nvmDeltaG Σ -d> val -d> dPropO Σ) -d> dPropO Σ :=
   λ hGD E e e_rec Φ Φr,
-  (WPC e @ s ; k; E
+  (WPC e @ s ; E
     {{ Φ }}
     {{ ∀ σ mj D σ' (HC : crash_prim_step nvm_crash_lang σ σ') ns n, (* The [n] here actually doesn't matter. *)
       ⎡ (* interp -∗ *)
@@ -56,25 +56,25 @@ Definition wpr_pre `{nvmFixedG Σ} (s : stuckness) (k : nat)
           NC q ⎤
     }})%I.
 
-Local Instance wpr_pre_contractive `{nvmFixedG Σ} s k: Contractive (wpr_pre s k).
+Local Instance wpr_pre_contractive `{nvmFixedG Σ} s : Contractive (wpr_pre s).
 Proof.
   rewrite /wpr_pre. intros ??? Hwp ??????.
   apply wpc_ne; eauto;
   repeat (f_contractive || f_equiv). apply Hwp.
 Qed.
 
-Definition wpr_def `{nvmFixedG Σ} (s : stuckness) k := fixpoint (wpr_pre s k).
+Definition wpr_def `{nvmFixedG Σ} (s : stuckness) := fixpoint (wpr_pre s).
 Definition wpr_aux `{nvmFixedG Σ} : seal (@wpr_def Σ). by eexists. Qed.
 Definition wpr' `{nvmFixedG Σ} := (wpr_aux).(unseal).
 Definition wpr_eq `{nvmFixedG Σ} : wpr' = @wpr_def _ := wpr_aux.(seal_eq).
 (* Lemma wpr_eq `{nvmFixedG Σ} : @wpr' Σ = @wpr_def Σ. *)
 (* Proof. rewrite /wpr'. rewrite wpr_aux.(seal_eq). done. Qed. *)
 
-Lemma wpr_unfold `{nvmFixedG Σ, hGD : nvmDeltaG Σ} st k E e rec Φ Φc :
-  wpr' _ st k hGD E e rec Φ Φc ⊣⊢ wpr_pre st k (wpr' _ st k) hGD E e rec Φ Φc.
+Lemma wpr_unfold `{nvmFixedG Σ, hGD : nvmDeltaG Σ} st E e rec Φ Φc :
+  wpr' _ st hGD E e rec Φ Φc ⊣⊢ wpr_pre st (wpr' _ st) hGD E e rec Φ Φc.
 Proof.
   rewrite wpr_eq. rewrite /wpr_def.
-  apply (fixpoint_unfold (wpr_pre st k)).
+  apply (fixpoint_unfold (wpr_pre st)).
 Qed.
 
 (** If we have a map of points-to predicates prior to a crash and know what view
@@ -159,7 +159,7 @@ Proof.
   iFrame "newPts".
 Qed.
 
-Definition wpr `{nvmFixedG Σ, nvmDeltaG Σ} s k := wpr' _ s k _.
+Definition wpr `{nvmFixedG Σ, nvmDeltaG Σ} s := wpr' _ s _.
 
 Lemma or_lost_post_crash_ts `{nvmBaseFixedG Σ, hG : nvmBaseDeltaG Σ} CV ℓ P :
   crashed_at CV -∗
@@ -735,11 +735,11 @@ Section wpr.
   *)
 
   (* _The_ lemma for showing a recovery weakest precondition. *)
-  Lemma idempotence_wpr `{hGD : nvmDeltaG Σ} s k E1 e rec Φ Φr Φc `{∀ hG, Objective (Φc hG)} :
-    ⊢ WPC e @ s ; k ; E1 {{ Φ }} {{ Φc _ }} -∗
+  Lemma idempotence_wpr `{hGD : nvmDeltaG Σ} s E1 e rec Φ Φr Φc `{∀ hG, Objective (Φc hG)} :
+    ⊢ WPC e @ s ; E1 {{ Φ }} {{ Φc _ }} -∗
       (<obj> □ ∀ (hG' : nvmDeltaG Σ),
-            Φc hG' -∗ ▷ post_crash (λ hG', (WPC rec @ s ; k; E1 {{ Φr hG' }} {{ Φc hG' }}))) -∗
-      wpr s k E1 e rec Φ Φr.
+            Φc hG' -∗ ▷ post_crash (λ hG', (WPC rec @ s ; E1 {{ Φr hG' }} {{ Φc hG' }}))) -∗
+      wpr s E1 e rec Φ Φr.
   Proof.
     iStartProof (iProp _).
     iLöb as "IH" forall (e Φ hGD).

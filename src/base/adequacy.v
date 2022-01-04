@@ -73,7 +73,7 @@ Section base_adequacy.
   [φinv] and [Φinv]). This makes the statement a bit more complex and we do not
   actually need the invariant feature at all. Hence we also have a simpler
   variant below for the case where the invariant is alwasy true.  *)
-  Theorem base_recv_adequacy Σ `{hPre : !nvmBaseGpreS Σ} s k e r σ PV g φ φr φinv Φinv n :
+  Theorem base_recv_adequacy Σ `{hPre : !nvmBaseGpreS Σ} s e r σ PV g φ φr φinv Φinv n :
     valid_heap σ →
     (∀ `{Hheap : !nvmBaseFixedG Σ, hD : !nvmBaseDeltaG Σ},
       ⊢ pre_borrowN n -∗
@@ -82,11 +82,12 @@ Section base_adequacy.
         persisted PV -∗ (
           □ (∀ σ nt, state_interp σ nt -∗ |NC={⊤, ∅}=> ⌜ φinv σ ⌝) ∗
           □ (∀ hGD, Φinv hGD -∗ □ ∀ σ nt, state_interp σ nt -∗ |NC={⊤, ∅}=> ⌜ φinv σ ⌝) ∗
-          wpr s k ⊤ e r (λ v, ⌜φ v⌝) Φinv (λ _ v, ⌜φr v⌝))) →
+          wpr s ⊤ e r (λ v, ⌜φ v⌝) Φinv (λ _ v, ⌜φr v⌝))) →
     recv_adequate (CS := nvm_crash_lang) s e r (σ, PV) g (λ v _ _, φ v) (λ v _ _, φr v) (λ σ _, φinv σ).
   Proof.
     intros val Hwp.
-    eapply (wp_recv_adequacy_inv _ _ _ nvm_base_namesO _ _ _ _ _ _ _ _ _ _).
+    eapply (wp_recv_adequacy_inv _ _ _ _ _ _ _ _ _ _ _ _ _).
+    (* eapply (wp_recv_adequacy_inv _ _ _ nvm_base_namesO _ _ _ _ _ _ _ _ _ _). *)
     iIntros (???) "".
 
     iMod (credit_name_init (n * 4 + crash_borrow_ginv_number)) as
@@ -98,45 +99,34 @@ Section base_adequacy.
     iMod (allocate_state_interp Hinv Hc σ PV name_credit)
       as (hnames) "(interp & pts & validV & crashedAt & pers)"; first done.
 
-    iExists ({| pbundleT := hnames |}).
+    (* iExists ({| pbundleT := hnames |}). *)
     (* Build an nvmBaseFixedG. *)
     set (hG := nvm_build_base _ hPre Hinv name_credit).
     set (hGD := nvm_build_delta _ Hc hnames).
-    iExists
-      (λ t σ nt, let _ := nvm_base_delta_update_names hGD (@pbundleT _ _ t) in
-                state_interp σ nt)%I,
-      (λ t g ns κs, let _ := nvm_base_delta_update_names hGD (@pbundleT _ _ t) in
-                    global_state_interp g ns κs).
-    iExists _.
-    iExists _.
-    iExists _.
-    iExists _.
-    iExists _.
-    iExists _.
-    iExists _.
-    iExists (λ names0 _Hinv Hc names,
-              Φinv ({| nvm_base_crashGS := Hc;
-                        nvm_base_names' := (@pbundleT _ _ names) |} )).
-    rewrite /pre_borrowN in Hwp.
-    rewrite /pre_borrow in Hwp.
+
+    iExists state_interp, global_state_interp, fork_post.
+    iExists _, _.
+    iExists (
+      λ inv gen, ∃ nD', ⌜gen = nvmBase_generationGS (hGD := nD') ⌝ ∗ Φinv nD'
+    )%I. (* ϕinv *)
+    
     iDestruct (@cred_frag_to_pre_borrowN _ hG _ _ n with "Hpre") as "Hpre".
-    iDestruct (Hwp hG _ with "Hpre pts validV pers") as "(#H1 & #H2 & Hwp)".
+    iDestruct (Hwp hG hGD with "Hpre pts validV pers") as "(#H1 & #H2 & Hwp)".
+
     iModIntro.
     iSplitR.
-    { iModIntro. iIntros (??) "Hσ".
-      iApply ("H1" with "[Hσ]").
-      iExactEq "Hσ". do 2 f_equal. }
+    { iModIntro. iApply "H1". }
     iSplitR.
-    { iModIntro. iIntros (Hc' names') "H".
-      iDestruct ("H2" $! _ with "[H]") as "#H3".
-      { iExactEq "H". f_equal. }
-      iModIntro. iIntros (??) "H". iSpecialize ("H3" with "[H]"); eauto. }
+    { iModIntro. iIntros (Hg') "(%nD' & -> & inv)".
+      iDestruct ("H2" with "inv") as "$". }
     iFrame.
     iFrame "Hinv".
     iSplit. { iPureIntro. done. }
-    rewrite /hG. done.
-    Unshelve.
-    - exact 0.
+    rewrite /wpr.
+    iApply (recovery_weakestpre.wpr_strong_mono with "Hwp").
+    iSplit; first by auto.
+    iSplit; first by auto.
+    by iIntros (??) "(% & _ & $)".
   Qed.
 
   (* Similar to the [recv_adequate] in Perennial except that:
@@ -166,13 +156,13 @@ Section base_adequacy.
   Proof. intros [????]. split; try naive_solver. Qed.
 
   (* This is the simpler adequacy result. *)
-  Corollary base_recv_adequacy_simpl Σ `{hPre : !nvmBaseGpreS Σ} s k e r σ PV φ φr n :
+  Corollary base_recv_adequacy_simpl Σ `{hPre : !nvmBaseGpreS Σ} s e r σ PV φ φr n :
     valid_heap σ →
     (∀ `{Hheap : !nvmBaseFixedG Σ, hD : !nvmBaseDeltaG Σ},
       ⊢ pre_borrowN n -∗
         ([∗ map] l ↦ v ∈ σ, l ↦h v) -∗
         persisted PV -∗
-        wpr s k ⊤ e r (λ v, ⌜φ v⌝) (λ _, True) (λ _ v, ⌜φr v⌝)) →
+        wpr s ⊤ e r (λ v, ⌜φ v⌝) (λ _, True) (λ _ v, ⌜φr v⌝)) →
     recv_adequate s e r (σ, PV) (λ v _, φ v) (λ v _, φr v).
   Proof.
     intros val hyp.
