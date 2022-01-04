@@ -74,7 +74,9 @@ Section wp_at_rules.
     (* We open [interp]. *)
     iNamed 1.
 
-    (* iApply (wp_fupd (irisGS0 := (@nvmBase_irisGS _ _ _ (Build_extraStateInterp _ _)))). *)
+    (* We add this to prevent Coq from trying to use [highExtraStateInterp]. *)
+    set (extra := (Build_extraStateInterp _ _)).
+    iApply wp_fupd.
 
     iApply (wp_alloc (extra := {| extra_state_interp := True |})); first done.
     iNext.
@@ -86,9 +88,15 @@ Section wp_at_rules.
     { iDestruct (big_sepM_lookup with "ptsMap") as "pts'"; first done.
       iDestruct (mapsto_valid_2 with "pts pts'") as (?) "_".
       done. }
+
+    iDestruct (big_sepM2_dom with "predsHold") as %domEq.
+    iDestruct (big_sepM2_dom with "bumperSome") as %domEq2.
+    iDestruct (big_sepM2_dom with "predPostCrash") as %domEq3.
     
     (* We update ghost state. *)
-    iDestruct (own_all_preds_insert with "predicates") as "[predicates knowPred]".
+    iMod (own_all_preds_insert with "predicates") as "[predicates knowPred]".
+    { eapply map_dom_eq_lookup_None; last apply physHistsLook.
+      congruence. }
 
     (* Add the predicate to the ghost state of predicates. *)
 
@@ -106,7 +114,7 @@ Section wp_at_rules.
     (* We are done updating ghost. *)
     (* TODO *)
 
-    (* iModIntro. *)
+    iModIntro.
     rewrite -assoc. iSplit; first done.
     iSplitL "Φpost knowPred".
     { iApply "Φpost". iFrame "knowPred". admit. }

@@ -1,11 +1,11 @@
 From iris.algebra Require Import auth.
-From iris.base_logic Require Import ghost_map.
 From iris.proofmode Require Import reduction monpred tactics.
 
 From Perennial.Helpers Require Import ipm NamedProps.
 From Perennial.program_logic Require Import recovery_weakestpre.
 
 From self Require Import extra ipm_tactics.
+From self.algebra Require Import ghost_map.
 From self.base Require Import primitive_laws wpr_lifting.
 From self.base Require post_crash_modality.
 From self.high Require Import dprop resources monpred_simpl.

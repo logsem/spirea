@@ -1,10 +1,10 @@
 From iris.proofmode Require Import base tactics classes.
 From iris.algebra Require Import agree auth gset.
-From iris.base_logic Require Import ghost_map.
 From iris_named_props Require Import named_props.
 From Perennial.base_logic.lib Require Export ncfupd.
 From Perennial.program_logic Require crash_weakestpre.
 
+From self.algebra Require Import ghost_map.
 From self Require Import extra.
 From self.base Require Import primitive_laws class_instances.
 From self.high Require Export dprop resources lifted_modalities monpred_simpl

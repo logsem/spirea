@@ -1,11 +1,12 @@
 (* We define the resource algebras that we use in the interpretation of the
 high-level logic. *)
-From iris.base_logic.lib Require Import own ghost_map.
+From iris.base_logic.lib Require Import own.
 From iris.algebra Require Import gset gmap excl auth.
 From iris.proofmode Require Import reduction monpred tactics.
 From iris_named_props Require Import named_props.
 
 From self Require Import extra.
+From self.algebra Require Import ghost_map.
 From self.lang Require Import lang.
 From self.base Require Import primitive_laws.
 From self.high Require Import dprop abstract_state lifted_modalities.
@@ -37,7 +38,6 @@ associated with which locations. *)
 Definition predicateR {Σ} :=
   agreeR (positive -d> val -d> laterO (optionO (nvmDeltaG Σ -d> (dPropO Σ)))).
 Definition predicatesR {Σ} := authR (gmapUR loc (@predicateR Σ)).
-
 
 (* Definition bumpersR := *)
 (*   authR (gmapUR loc (agreeR (leibnizO (positive → option positive)))). *)
@@ -234,6 +234,25 @@ Section predicates.
     (* iRewrite "eq". Why this no work? *)
     rewrite /encode_predicate. rewrite decode_encode /=.
     done.
+  Qed.
+
+  Lemma own_all_preds_insert `{Countable ST} preds ℓ (ϕ : ST → val → nvmDeltaG Σ → dProp Σ) :
+    preds !! ℓ = None →
+    own predicates_name (● preds_to_ra preds) ==∗
+    own predicates_name (● preds_to_ra (<[ℓ := encode_predicate ϕ]>preds)) ∗
+    know_pred ℓ ϕ.
+  Proof.
+    iIntros (look) "A".
+    rewrite /know_pred.
+    rewrite comm.
+    iMod (own_update with "A") as "[H $]".
+    { apply auth_update_alloc.
+      apply alloc_local_update; last done.
+      rewrite /preds_to_ra. rewrite lookup_fmap. erewrite look. done. }
+    iModIntro.
+    rewrite /preds_to_ra.
+    rewrite fmap_insert.
+    iFrame.
   Qed.
 
 End predicates.

@@ -1,10 +1,11 @@
 (* Resource algebra to represent abstract histories. *)
 
 From iris.algebra Require Import auth gmap.
-From iris.base_logic.lib Require Import own ghost_map.
+From iris.base_logic.lib Require Import own.
 From iris.heap_lang Require Export locations.
 From iris.proofmode Require Import proofmode.
 
+From self.algebra Require Import ghost_map.
 From self.lang Require Import lang.
 From self Require Import extra.
 From self.high.resources Require Import auth_map_map.
@@ -37,7 +38,7 @@ Section abs_history_lemmas.
   (* If we own the full history then we own the authorative view of both the
   resource algebras. *)
   Definition own_full_history γ1 γ2 abs_hists : iProp Σ :=
-    ghost_map_auth γ1 1 abs_hists ∗
+    ghost_map_auth γ1 (DfracOwn 1) abs_hists ∗
     own γ2 (● (fmap_fmap_to_agree abs_hists) : know_abs_historiesR).
 
   Definition own_full_encoded_history_loc γ1 ℓ enc_abs_hist : iProp Σ :=

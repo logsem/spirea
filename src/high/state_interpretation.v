@@ -1,9 +1,9 @@
 From iris.proofmode Require Import base.
 From iris.algebra Require Import auth gset.
-From iris.base_logic.lib Require Import ghost_map.
 From iris_named_props Require Import named_props.
 
 From self Require Import extra.
+From self.algebra Require Import ghost_map.
 From self.base Require Import primitive_laws.
 From self.high Require Export dprop resources post_crash_modality increasing_map.
 
@@ -103,7 +103,7 @@ Section state_interpretation.
 
       (* Non-atomic locations. *)
       "%naViewsDom" ∷ ⌜ dom _ na_views = na_locs ⌝ ∗ (* NOTE: If this equality persists we could remove na_locs *)
-      "naView" ∷ ghost_map_auth non_atomic_views_gname 1 na_views ∗
+      "naView" ∷ ghost_map_auth non_atomic_views_gname (DfracOwn 1) na_views ∗
 
       (* Shared locations. *)
       "%mapShared" ∷ ⌜ shared_locs_inv (restrict at_locs phys_hists) ⌝ ∗

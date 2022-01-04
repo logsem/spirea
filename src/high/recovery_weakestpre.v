@@ -5,12 +5,12 @@ From Coq Require Import QArith Qcanon.
 From stdpp Require Import sets.
 From iris.proofmode Require Import tactics.
 From iris.algebra Require Import auth gset.
-From iris.base_logic Require Import ghost_map.
 From iris_named_props Require Import named_props.
 From Perennial.program_logic Require Import crash_weakestpre.
 From Perennial.program_logic Require Import recovery_weakestpre.
 From Perennial.program_logic Require Import recovery_adequacy.
 
+From self.algebra Require Import ghost_map.
 From self Require Import view extra ipm_tactics.
 From self.base Require Import primitive_laws wpr_lifting.
 From self.high Require Import dprop.

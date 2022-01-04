@@ -1,4 +1,4 @@
-From iris.base_logic.lib Require Import own ghost_map.
+From iris.base_logic.lib Require Import own.
 From iris.proofmode Require Import reduction monpred tactics.
 From iris_named_props Require Import named_props.
 

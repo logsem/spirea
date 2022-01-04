@@ -1,5 +1,5 @@
 From iris.algebra Require Import auth gmap.
-From iris.base_logic.lib Require Import own ghost_map.
+From iris.base_logic.lib Require Import own.
 From iris.proofmode Require Import proofmode.
 
 From self.lang Require Import lang.
