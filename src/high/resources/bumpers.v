@@ -1,9 +1,10 @@
 From iris.algebra Require Import gmap auth gmap_view.
-From iris.base_logic.lib Require Import own ghost_map.
+From iris.base_logic.lib Require Import own.
 From iris.heap_lang Require Export locations.
 From iris.proofmode Require Import proofmode.
 
 From self Require Import extra.
+From self.algebra Require Import ghost_map.
 From self.high Require Import abstract_state.
 
 Definition bumpersR :=
@@ -26,7 +27,7 @@ Section bumpers.
        (* own γ ((◯ {[ ℓ := to_agree encodedBumper ]}) : bumpersR). *)
 
   Definition own_all_bumpers γ encoded_bumpers :=
-    ghost_map_auth γ (1) encoded_bumpers.
+    ghost_map_auth γ (DfracOwn 1) encoded_bumpers.
     (* own γ (● (to_agree <$> encoded_bumpers) : bumpersR). *)
 
   (* Definition own_all_bumpers encoded_bumpers := *)
@@ -59,6 +60,16 @@ Section bumpers.
   (*   rewrite lookup_fmap look. *)
   (*   naive_solver. *)
   (* Qed. *)
+
+  Lemma own_all_bumpers_insert (bumpers : gmap loc _) ℓ γ (bumper : ST → ST)
+        `{!Proper ((⊑@{ST}) ==> (⊑))%signature bumper} :
+    bumpers !! ℓ = None →
+    own_all_bumpers γ bumpers ==∗
+    own_all_bumpers γ (<[ℓ := encode_bumper bumper]>bumpers) ∗ own_know_bumper γ ℓ bumper.
+  Proof.
+    rewrite /own_all_bumpers /own_know_bumper. iIntros (look) "A".
+    iMod (ghost_map_insert_persist with "A") as "[$ $]"; done.
+  Qed.
 
   Definition bumperO := leibnizO (positive → option positive).
 

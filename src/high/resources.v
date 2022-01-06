@@ -51,7 +51,7 @@ Class nvmHighFixedG Σ := {
   abs_histories :> ghost_mapG Σ loc (gmap time positive);
   phys_histories :> inG Σ (auth_map_mapR (leibnizO message));
   non_atomic_views :> ghost_mapG Σ loc view;
-  preordersG :> inG Σ preordersR;
+  preordersG :> ghost_mapG Σ loc (relation2 positive);
   shared_locsG :> inG Σ shared_locsR;
   exclusive_locsG :> inG Σ shared_locsR;
   nvm_bumpersG :> bumpersG Σ;

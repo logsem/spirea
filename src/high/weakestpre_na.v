@@ -11,13 +11,11 @@ From iris.program_logic Require weakestpre.
 From iris.heap_lang Require Import locations.
 From iris_named_props Require Import named_props.
 
-From self Require Export extra ipm_tactics encode_relation.
-From self.high Require Export dprop.
-From self Require Export view.
-From self.lang Require Export lang lemmas tactics.
+From self.algebra Require Import ghost_map.
+From self Require Export extra ipm_tactics encode_relation view.
+From self.lang Require Export lang lemmas tactics syntax.
 From self.base Require Import primitive_laws.
-From self.lang Require Import syntax.
-From self.high Require Import resources crash_weakestpre lifted_modalities
+From self.high Require Import dprop resources crash_weakestpre lifted_modalities
      monpred_simpl modalities protocol.
 
 Section wp_na_rules.
@@ -112,7 +110,7 @@ Section wp_na_rules.
     iDestruct (big_sepM2_lookup_acc with "predMap") as "[predHolds predMap]";
       first done.
     { rewrite lookup_fmap. rewrite lookS. done. }
-    iDestruct (ghost_map.ghost_map_lookup with "naView knowSV") as %->.
+    iDestruct (ghost_map_lookup with "naView knowSV") as %->.
     simpl.
     iDestruct (predicate_holds_phi with "predsEquiv predHolds") as "phi";
       first done.
@@ -196,7 +194,7 @@ Section wp_na_rules.
     iDestruct (own_all_preds_pred with "predicates knowPred")
       as (pred predsLook) "#predsEquiv".
 
-    iDestruct (own_all_preorders_singleton_frag with "allOrders knowPreorder")
+    iDestruct (ghost_map_lookup with "allOrders knowPreorder")
       as %ordersLook.
 
     iDestruct (own_full_history_agree with "history hist") as %absHistsLook.
@@ -238,9 +236,9 @@ Section wp_na_rules.
     iMod (auth_map_map_insert _ _ _ _ _ newMsg with "physHist") as "[physHist #physHistFrag]".
     { done. } { done. }
 
-    iDestruct (ghost_map.ghost_map_lookup with "naView knowSV") as %ℓnaView.
+    iDestruct (ghost_map_lookup with "naView knowSV") as %ℓnaView.
 
-    iMod (ghost_map.ghost_map_update (<[ℓ:=MaxNat tT]>SV') with "naView knowSV") as "[naView knowSV]".
+    iMod (ghost_map_update (<[ℓ:=MaxNat tT]>SV') with "naView knowSV") as "[naView knowSV]".
     (* iMod (ghost_map.ghost_map_update (SV ⊔ SV') with "naView knowSV") as "[naView knowSV]". *)
 
     rewrite /validV.

@@ -305,7 +305,7 @@ Section wpr.
       as (new_abs_history_name new_know_abs_history_name) "(hists' & #histFrags & knowHistories)".
 
     (* We freeze/persist the old authorative resource algebra. *)
-    iMod (own_all_preorders_persist with "allOrders") as "#allOrders".
+    iMod (ghost_map_auth_persist with "allOrders") as "#allOrders".
     iMod (own_update with "sharedLocs") as "sharedLocs".
     { apply auth_update_auth_persist. }
     iDestruct "sharedLocs" as "#sharedLocs".
@@ -366,8 +366,6 @@ Section wpr.
       ).
     iFrame "baseInterp".
     rewrite /nvm_heap_ctx.
-    (* rewrite /post_crash. simpl. *)
-    (* rewrite /base_post_crash. simpl. *)
     iDestruct ("Pg" $! _ (abs_hists) (store, _) _ with "persImpl map'") as "(map' & Pg)".
     iDestruct
       (map_points_to_to_new _ _ _ _ (MkNvmBaseDeltaG Σ Hcrash baseNames)
@@ -395,9 +393,9 @@ Section wpr.
         { iFrame "newCrashedAt". }
         iIntros (? look).
         rewrite /know_preorder_loc /preorders_name. simpl.
-        iDestruct (own_all_preorders_singleton_frag with "allOrders order")
+        iDestruct (ghost_map_lookup with "allOrders order")
           as %ordersLook.
-        iApply (orders_frag_lookup with "fragOrders").
+        iApply (big_sepM_lookup with "fragOrders").
         rewrite /newOrders.
         apply restrict_lookup_Some.
         split; first (simplify_eq; done).

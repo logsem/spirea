@@ -11,13 +11,11 @@ From iris.program_logic Require weakestpre.
 From iris.heap_lang Require Import locations.
 From iris_named_props Require Import named_props.
 
-From self Require Export extra ipm_tactics encode_relation.
-From self.high Require Export dprop.
-From self Require Export view.
-From self.lang Require Export lang lemmas tactics.
+From self.algebra Require Export ghost_map.
+From self Require Export extra ipm_tactics encode_relation view.
+From self.lang Require Export lang lemmas tactics syntax.
 From self.base Require Import primitive_laws.
-From self.lang Require Import syntax.
-From self.high Require Import resources crash_weakestpre lifted_modalities
+From self.high Require Export dprop resources crash_weakestpre lifted_modalities
      monpred_simpl modalities protocol.
 
 Section wp_at_rules.
@@ -81,6 +79,7 @@ Section wp_at_rules.
     iApply (wp_alloc (extra := {| extra_state_interp := True |})); first done.
     iNext.
     iIntros (ℓ CV') "(crashedAt' & % & pts)".
+    simpl.
     iFrame "val".
 
     (* The new location is not in the existing [phys_hist]. *)
@@ -94,19 +93,18 @@ Section wp_at_rules.
     iDestruct (big_sepM2_dom with "predPostCrash") as %domEq3.
     
     (* We update ghost state. *)
-    iMod (own_all_preds_insert with "predicates") as "[predicates knowPred]".
-    { eapply map_dom_eq_lookup_None; last apply physHistsLook.
-      congruence. }
 
     (* Add the predicate to the ghost state of predicates. *)
-
-    (* TODO *)
+    iMod (own_all_preds_insert with "predicates") as "[predicates knowPred]".
+    { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
 
     (* Allocate the abstract history for the location. *)
     (* TODO *)
     
     (* Add the bumper to the ghost state of bumper. *)
     (* TODO *)
+    iMod (own_all_bumpers_insert with "allBumpers") as "[allBumper knowBumper]".
+    { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
 
     (* Add the preorder to the ghost state of bumper. *)
     (* TODO *)
@@ -116,8 +114,8 @@ Section wp_at_rules.
 
     iModIntro.
     rewrite -assoc. iSplit; first done.
-    iSplitL "Φpost knowPred".
-    { iApply "Φpost". iFrame "knowPred". admit. }
+    iSplitL "Φpost knowPred knowBumper".
+    { iApply "Φpost". iFrame "knowPred knowBumper". admit. }
     repeat iExists _.
     iFrame "predicates".
     iFrame.
@@ -379,7 +377,7 @@ Section wp_at_rules.
       f_equiv.
       etrans; done. }
 
-    iDestruct (own_all_preorders_singleton_frag with "allOrders knowPreorder")
+    iDestruct (ghost_map_lookup with "allOrders knowPreorder")
       as %ordersLook.
 
     iFrame "valNew".
