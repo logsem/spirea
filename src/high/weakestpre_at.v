@@ -91,36 +91,105 @@ Section wp_at_rules.
     iDestruct (big_sepM2_dom with "predsHold") as %domEq.
     iDestruct (big_sepM2_dom with "bumperSome") as %domEq2.
     iDestruct (big_sepM2_dom with "predPostCrash") as %domEq3.
+    iDestruct (big_sepM2_dom with "bumpMono") as %domEq4.
     
     (* We update ghost state. *)
+
+    (* Update ghost state for physical history. *)
+    iMod (auth_map_map_insert_top with "physHist") as "[physHist doWeNeedThis]".
+    { done. }
 
     (* Add the predicate to the ghost state of predicates. *)
     iMod (own_all_preds_insert with "predicates") as "[predicates knowPred]".
     { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
 
     (* Allocate the abstract history for the location. *)
-    (* TODO *)
+    iMod (own_full_history_history_insert_loc _ _ _ _ {[0 := encode s]} with "history")
+      as "(history & ownHist & #fragHist)".
+    { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
     
     (* Add the bumper to the ghost state of bumper. *)
-    (* TODO *)
     iMod (own_all_bumpers_insert with "allBumpers") as "[allBumper knowBumper]".
     { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
 
     (* Add the preorder to the ghost state of bumper. *)
-    (* TODO *)
+    iMod (ghost_map_insert_persist with "allOrders") as "[allOrders #knowOrder]".
+    { eapply map_dom_eq_lookup_None; last apply physHistsLook.
+      rewrite /relation2. congruence. }
 
-    (* We are done updating ghost. *)
-    (* TODO *)
+    (* Add the allocated location to the set of atomic locations. *)
+    iMod (own_update with "sharedLocs") as "[sharedLocs fragSharedLocs]".
+    { apply auth_update_alloc. apply gset_local_update.
+      apply (union_subseteq_r {[ ℓ ]}). }
 
     iModIntro.
     rewrite -assoc. iSplit; first done.
-    iSplitL "Φpost knowPred knowBumper".
-    { iApply "Φpost". iFrame "knowPred knowBumper". admit. }
+    iSplitL "Φpost knowPred knowBumper knowOrder".
+    { iApply "Φpost". iFrame "knowPred knowBumper knowOrder".
+      iExists 0.
+      rewrite /know_frag_history_loc.
+      iPureGoal. { apply lookup_zero_gt_zero. }
+      rewrite /own_frag_history_loc.
+      iExists _.
+      iFrame "fragHist".
+      iPureIntro. by rewrite !map_fmap_singleton decode_encode. }
     repeat iExists _.
-    iFrame "predicates".
+    iFrame "physHist crashedAt history predicates allOrders exclusiveLocs
+      sharedLocs".
     iFrame.
     iFrame "#".
     iFrame "%".
+    (* We split up some of the big seps s.t. we can frame things away
+    immediately. *)
+    rewrite restrict_insert_union.
+    rewrite !big_sepM_insert; try done.
+    2: {
+      apply restrict_lookup_None_lookup.
+      eapply map_dom_eq_lookup_None; last apply physHistsLook. set_solver. }
+    rewrite !big_sepM2_insert;
+      try (eapply map_dom_eq_lookup_None; last apply physHistsLook;
+           rewrite /relation2; congruence).
+    iFrame "pts ptsMap ordered sharedLocsHistories ownHist bumperSome".
+    (* locsDisjoint *)
+    iSplit. {
+      iPureIntro.
+      assert (ℓ ∉ dom (gset loc) abs_hists).
+      { rewrite -domEq. apply not_elem_of_dom. done. }
+      set_solver. }
+    (* histDomLocs *)
+    iSplit. { iPureIntro. rewrite dom_insert_L. set_solver. }
+    (* mapShared *)
+    iSplit. {
+      iPureIntro.
+      rewrite restrict_insert_union.
+      rewrite /shared_locs_inv.
+      rewrite /map_map_Forall.
+      apply map_Forall_insert_2; last done.
+      rewrite /initial_history.
+      apply map_Forall_singleton.
+      simpl.
+      split.
+      { apply view_lookup_zero_empty. }
+      admit. (* FIXME: We need two different types of allocation. *) }
+    (* increasingMap *)
+    iSplit. { iPureIntro. apply increasing_map_singleton. }
+    (* predsHold *)
+    iSplitL.
+    { admit. }
+    (* bumpMono *)
+    iSplitL.
+    { admit. }
+    (* predPostCrash *)
+    iSplitL.
+    { admit. }
+    (* bumperBumpToValid *)
+    iSplitL.
+    { admit. }
+    (* bumperSome *)
+    iPureIntro.
+    apply map_Forall_singleton.
+    rewrite encode_bumper_encode.
+    done.
   Admitted.
 
   Lemma wp_load_at ℓ s Q ϕ `{!LocationProtocol ϕ} st E :

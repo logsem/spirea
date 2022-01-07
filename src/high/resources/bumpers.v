@@ -20,6 +20,10 @@ Section bumpers.
   Definition encode_bumper (bumper : ST → ST) :=
     λ e, encode <$> (bumper <$> decode e).
 
+  Lemma encode_bumper_encode (bumper : ST → ST) (s : ST) :
+    encode_bumper bumper (encode s) = Some (encode (bumper s)).
+  Proof. rewrite /encode_bumper. rewrite decode_encode. done. Qed.
+
   Definition own_know_bumper γ (ℓ : loc) (bumper : ST → ST) : iProp Σ :=
     let encodedBumper := encode_bumper bumper
     in ⌜∀ s1 s2, s1 ⊑ s2 → bumper s1 ⊑ bumper s2⌝ ∗

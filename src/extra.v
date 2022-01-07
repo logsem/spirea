@@ -374,10 +374,32 @@ Definition restrict `{FinMap K M, ElemOf K D, !RelDecision (∈@{D})} {A} (s : D
   filter (λ '(k, _), k ∈ s) m.
 
 Section restrict.
-  Context `{FinMapDom K M D}.
+  Context `{FinMap K M, ElemOf K D}.
+  (* Context `{FinMapDom K M D}. *)
   Context `{!RelDecision (∈@{D})}.
   Context {A : Type}.
   Implicit Types (s : D) (m : M A) (k : K).
+
+  Lemma restrict_lookup_elem_of k s m :
+    k ∈ s → restrict s m !! k = m !! k.
+  Proof.
+    intros elem.
+    destruct (m !! k) eqn:look.
+    - by apply map_filter_lookup_Some.
+    - apply map_filter_lookup_None. by left.
+  Qed.
+
+  Lemma restrict_lookup_not_elem_of k s m :
+    k ∉ s → restrict s m !! k = None.
+  Proof.
+    intros elem.
+    apply map_filter_lookup_None.
+    right. intros ??. done.
+  Qed.
+
+  Lemma restrict_lookup_None_lookup k s m :
+    m !! k = None → restrict s m !! k = None.
+  Proof. intros elem. apply map_filter_lookup_None. left. done. Qed.
 
   Lemma restrict_lookup_Some (s : D) (m : M A) (k : K) (x : A) :
     restrict s m !! k = Some x ↔ (m !! k = Some x) ∧ k ∈ s.
@@ -387,13 +409,60 @@ Section restrict.
     m !! k = Some x → k ∈ s → restrict s m !! k = Some x.
   Proof. by rewrite restrict_lookup_Some. Qed.
 
-  (* Upstreamed. *)
-  Lemma map_filter_subseteq f `{∀ (x : (K *A)), Decision (f x)} m :
-    filter f m ⊆ m.
-  Proof. apply map_subseteq_spec, map_filter_lookup_Some_1_1. Qed.
-
   Lemma restrict_subseteq s m : restrict s m ⊆ m.
   Proof. rewrite /restrict. apply map_filter_subseteq. Qed.
+
+  Lemma restrict_insert k s v m :
+    k ∈ s →
+    restrict s (<[k := v]>m) = <[k:= v]>(restrict s m).
+  Proof. intros elm. by apply map_filter_insert_True. Qed.
+
+End restrict.
+
+Section restrict_set.
+  Context `{FinMap K M, SemiSet K D}.
+  (* Context `{FinMapDom K M D}. *)
+  Context `{!RelDecision (∈@{D})}.
+  Context {A : Type}.
+  Implicit Types (s : D) (m : M A) (k : K).
+
+  Lemma restrict_lookup_union_eq l t s m :
+    l ∉ s →
+    restrict (s ∪ t) m !! l = restrict t m !! l.
+  Proof.
+    intros elem.
+    destruct (decide (l ∈ t)).
+    - rewrite !restrict_lookup_elem_of; auto with set_solver.
+    - rewrite !restrict_lookup_not_elem_of; auto with set_solver.
+  Qed.
+
+  Lemma restrict_empty (m : M A) : restrict (D := D) ∅ m = ∅.
+  Proof. apply map_filter_empty_iff. intros ???. set_solver. Qed.
+
+  Lemma restrict_insert_union k s v m :
+    restrict ({[k]} ∪ s) (<[k := v]>m) = <[k:= v]>(restrict s m).
+  Proof.
+    rewrite restrict_insert; last set_solver.
+    apply map_eq. intros l.
+    case (decide (k = l)); intros eq.
+    - subst. by rewrite !lookup_insert.
+    - rewrite !lookup_insert_ne; try apply eq.
+      eapply restrict_lookup_union_eq.
+      set_solver.
+  Qed.
+
+  Lemma restrict_insert_not_elem k s v m :
+    k ∉ s →
+    restrict s (<[ k := v ]>m) = restrict s m.
+  Proof. intros elm. by apply map_filter_insert_not. Qed.
+
+End restrict_set.
+
+Section restrict_dom.
+  Context `{FinMapDom K M D}.
+  Context `{!RelDecision (∈@{D})}.
+  Context {A : Type}.
+  Implicit Types (s : D) (m : M A) (k : K).
 
   Lemma restrict_intersection s m : dom _ (restrict s m) = s ∩ (dom _ m).
   Proof. Abort. (* This is true, but we haven't needed it yet. *)
@@ -419,20 +488,13 @@ Section restrict.
     s ⊆ dom _ m → dom _ (restrict s m) ≡ s.
   Proof. rewrite restrict_dom. set_solver. Qed.
 
-  Lemma restrict_empty (m : M A) : restrict (D := D) ∅ m = ∅.
-  Proof. apply map_filter_empty_iff. intros ???. set_solver. Qed.
+  (* Lemma restrict_insert_delete k v s m : *)
+  (*   <[k:=v]>(restrict s m) =  *)
+  (*   <[k:=v]>(restrict (s ∖ {[k]}) m). *)
+  (* Proof. *)
+  (* Admitted. *)
 
-  Lemma restrict_insert k s v m :
-    k ∈ s →
-    restrict s (<[ k := v ]>m) = <[ k:= v]>(restrict s m).
-  Proof. intros elm. by apply map_filter_insert_True. Qed.
-
-  Lemma restrict_insert_not_elem k s v m :
-    k ∉ s →
-    restrict s (<[ k := v ]>m) = restrict s m.
-  Proof. intros elm. by apply map_filter_insert_not. Qed.
-
-End restrict.
+End restrict_dom.
 
 Section restrict_leibniz.
   Context `{FinMapDom K M D}.

@@ -48,6 +48,7 @@ Section abs_history_lemmas.
     ℓ ↪[ γ1 ] (encode <$> abs_hist).
 
   Definition own_frag_encoded_history_loc γ2 ℓ enc_abs_hist : iProp Σ :=
+    (* (auth_map_map_frag γ2 {[ ℓ := enc_abs_hist ]}). *)
     own γ2 (◯ {[ ℓ := to_agree <$> enc_abs_hist ]}).
 
   (* In this definition we store that decoding the stored encoded histry is
@@ -241,6 +242,23 @@ Section abs_history_lemmas.
   (* Proof. w w *)
   (*   iIntros "O K". *)
   (* Admitted. *)
+
+  (* Insert a new location into an abstract history. *)
+  Lemma own_full_history_history_insert_loc γ1 γ2 abs_hists ℓ enc_abs_hist :
+    abs_hists !! ℓ = None →
+    own_full_history γ1 γ2 abs_hists ==∗
+    own_full_history γ1 γ2 (<[ℓ := enc_abs_hist]>abs_hists) ∗
+    own_full_encoded_history_loc γ1 ℓ enc_abs_hist ∗
+    own_frag_encoded_history_loc γ2 ℓ enc_abs_hist.
+  Proof.
+    iIntros (look) "[A B]".
+    iMod (ghost_map_insert with "A") as "[$ $]"; first done.
+    iMod (auth_map_map_insert_top with "B") as "[$ F]"; first done.
+    rewrite /own_frag_encoded_history_loc.
+    rewrite /auth_map_map_frag.
+    rewrite fmap_fmap_to_agree_singleton.
+    done.
+  Qed.
 
   (* Insert a new message into an abstract history. *)
   Lemma own_full_encoded_history_insert γ1 γ2 ℓ t enc_abs_hist abs_hists encS :

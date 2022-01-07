@@ -102,6 +102,24 @@ Section auth_map_map.
     { done. }
   Qed.
 
+  Lemma auth_map_map_insert_top `{!LeibnizEquiv A} γ m ℓ hist :
+    m !! ℓ = None →
+    auth_map_map_auth γ m ==∗
+    auth_map_map_auth γ (<[ℓ:=hist]> m) ∗
+    auth_map_map_frag γ {[ ℓ := hist ]}.
+  Proof.
+    iIntros (look).
+    rewrite -own_op.
+    iApply own_update.
+    apply auth_update_alloc.
+    rewrite /fmap_fmap_to_agree.
+    rewrite fmap_insert.
+    rewrite map_fmap_singleton.
+    apply alloc_local_update.
+    - rewrite lookup_fmap look. done.
+    - apply valid_to_agree_fmap.
+  Qed.
+
   (* NOTE: The requirement on leibniz equiv may not be strictly necessary, but
   it is convenient right now. *)
   Lemma auth_map_map_insert `{!LeibnizEquiv A} γ m ℓ t h a :
