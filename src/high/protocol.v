@@ -2,6 +2,7 @@ From iris.base_logic.lib Require Import own.
 From iris.proofmode Require Import reduction monpred tactics.
 From iris_named_props Require Import named_props.
 
+From self Require Import encode_relation.
 From self.high Require Import dprop resources modalities post_crash_modality monpred_simpl.
 From self.lang Require Import lang.
 
@@ -30,6 +31,19 @@ Definition know_protocol `{AbstractState ST, nvmFixedG Σ, nvmDeltaG Σ}
   "#knowPred" ∷ ⎡ know_pred ℓ ϕ ⎤ ∗
   "#knowPreorder" ∷ ⎡ know_preorder_loc ℓ (⊑@{ST}) ⎤ ∗
   "#knowBumper" ∷ ⎡ know_bumper ℓ bumper ⎤%I.
+
+Lemma encode_bumper_bump_mono `{LocationProtocol ST} (x y x' y' : positive) :
+  encode_bumper bumper x = Some x' →
+  encode_bumper bumper y = Some y' →
+  encode_relation (⊑@{ST}) x y →
+  encode_relation (⊑@{ST}) x' y'.
+Proof.
+  rewrite /encode_bumper. rewrite /encode_relation.
+  intros (sx & -> & <-)%encode_bumper_Some_decode.
+  intros (sy & -> & <-)%encode_bumper_Some_decode.
+  rewrite !decode_encode /=.
+  solve_proper.
+Qed.
 
 Section protocol.
   Context `{nvmFixedG Σ, nvmDeltaG Σ, AbstractState ST}.

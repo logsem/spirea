@@ -151,7 +151,7 @@ Section wp_at_rules.
     rewrite !big_sepM2_insert;
       try (eapply map_dom_eq_lookup_None; last apply physHistsLook;
            rewrite /relation2; congruence).
-    iFrame "pts ptsMap ordered sharedLocsHistories ownHist bumperSome".
+    iFrame "pts ptsMap ordered sharedLocsHistories ownHist bumperSome bumpMono".
     (* locsDisjoint *)
     iSplit. {
       iPureIntro.
@@ -209,7 +209,7 @@ Section wp_at_rules.
         iFrame. }
     (* bumpMono *)
     iSplitL.
-    { admit. }
+    { iPureIntro. simpl. apply encode_bumper_bump_mono. }
     (* predPostCrash *)
     iSplitL.
     { admit. }

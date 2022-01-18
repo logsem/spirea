@@ -14,15 +14,30 @@ Definition bumpersR :=
 Notation bumpersG Σ := (ghost_mapG Σ loc (positive → option positive)).
 
 Section bumpers.
-  Context `{bumpersG Σ}.
   Context `{AbstractState ST}.
 
   Definition encode_bumper (bumper : ST → ST) :=
     λ e, encode <$> (bumper <$> decode e).
 
+  Lemma encode_bumper_Some_decode (bumper : ST → ST) (x x' : positive) :
+    encode_bumper bumper x = Some x' →
+    ∃ (s : ST), decode x = Some s ∧ encode (bumper s) = x'.
+  Proof.
+    rewrite /encode_bumper => eq.
+    destruct (decode x) as [s|].
+    - exists s. inversion eq. done.
+    - inversion eq.
+  Qed.
+
   Lemma encode_bumper_encode (bumper : ST → ST) (s : ST) :
     encode_bumper bumper (encode s) = Some (encode (bumper s)).
   Proof. rewrite /encode_bumper. rewrite decode_encode. done. Qed.
+
+End bumpers.
+
+Section own_bumpers.
+  Context `{bumpersG Σ}.
+  Context `{AbstractState ST}.
 
   Definition own_know_bumper γ (ℓ : loc) (bumper : ST → ST) : iProp Σ :=
     let encodedBumper := encode_bumper bumper
@@ -86,4 +101,4 @@ Section bumpers.
     iDestruct (ghost_map_lookup with "A F") as "$".
   Qed.
 
-End bumpers.
+End own_bumpers.
