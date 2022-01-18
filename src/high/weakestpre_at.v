@@ -57,7 +57,8 @@ Section wp_at_rules.
   Lemma wp_alloc_at v s ϕ `{!LocationProtocol ϕ} st E :
     {{{ "phi" ∷ ϕ s v _ }}}
       ref_AT v @ st; E
-    {{{ ℓ, RET #ℓ; know_protocol ℓ ϕ ∗ know_store_lb ℓ s }}}.
+    {{{ ℓ, RET #ℓ;
+        know_protocol ℓ ϕ ∗ know_store_lb ℓ s ∗ ⎡ is_shared_loc ℓ ⎤ }}}.
   Proof.
     intros Φ. iStartProof (iProp _). iIntros (TV). iNamed 1.
     iIntros (TV' incl) "Φpost".
@@ -78,7 +79,7 @@ Section wp_at_rules.
 
     iApply (wp_alloc (extra := {| extra_state_interp := True |})); first done.
     iNext.
-    iIntros (ℓ CV') "(crashedAt' & % & pts)".
+    iIntros (ℓ CV') "(crashedAt' & % & % & pts)".
     simpl.
     iFrame "val".
 
@@ -121,11 +122,12 @@ Section wp_at_rules.
     iMod (own_update with "sharedLocs") as "[sharedLocs fragSharedLocs]".
     { apply auth_update_alloc. apply gset_local_update.
       apply (union_subseteq_r {[ ℓ ]}). }
+    iEval (rewrite -gset_op) in "fragSharedLocs". iDestruct "fragSharedLocs" as "[#isShared _]".
 
     iModIntro.
     rewrite -assoc. iSplit; first done.
     iSplitL "Φpost knowPred knowBumper knowOrder".
-    { iApply "Φpost". iFrame "knowPred knowBumper knowOrder".
+    { iApply "Φpost". iFrame "knowPred knowBumper knowOrder isShared".
       iExists 0.
       rewrite /know_frag_history_loc.
       iPureGoal. { apply lookup_zero_gt_zero. }
@@ -167,15 +169,44 @@ Section wp_at_rules.
       apply map_Forall_insert_2; last done.
       rewrite /initial_history.
       apply map_Forall_singleton.
-      simpl.
-      split.
-      { apply view_lookup_zero_empty. }
-      admit. (* FIXME: We need two different types of allocation. *) }
+      done. }
     (* increasingMap *)
     iSplit. { iPureIntro. apply increasing_map_singleton. }
     (* predsHold *)
-    iSplitL.
-    { admit. }
+    iSplitL "predsHold phi".
+    { iSplitL "phi".
+      - iExists _. rewrite lookup_insert.
+        iSplit; first done.
+        rewrite /initial_history.
+        simpl.
+        rewrite big_sepM2_singleton /=.
+        assert (na_views !! ℓ = None) as ->.
+        { apply not_elem_of_dom in physHistsLook.
+          apply not_elem_of_dom.
+          rewrite naViewsDom.
+          eapply not_elem_of_weaken; first apply physHistsLook.
+          rewrite domEq histDomLocs.
+          set_solver. }
+        simpl.
+        iDestruct (predicate_holds_phi with "[]") as "HH".
+        { done. }
+        { done. }
+        iApply "HH".
+        iDestruct (phi_nobuf with "phi") as "phi".
+        simpl.
+        iApply (monPred_mono with "phi").
+        destruct TV as [[??]?].
+        destruct TV' as [[??]?].
+        repeat split; last done.
+        * etrans; first apply incl. apply incl2.
+        * etrans; first apply incl. apply incl2.
+      - iApply (big_sepM2_impl with "predsHold").
+        iModIntro. iIntros (ℓ' ????) "(%pred & %look & ?)".
+        iExists (pred).
+        assert (ℓ ≠ ℓ') by congruence.
+        rewrite lookup_insert_ne; last done.
+        iSplit; first done.
+        iFrame. }
     (* bumpMono *)
     iSplitL.
     { admit. }

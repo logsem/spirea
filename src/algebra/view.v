@@ -86,6 +86,9 @@ Qed.
 Lemma lookup_zero_gt_zero V ℓ : 0 ≤ V !!0 ℓ.
 Proof. rewrite /lookup_zero. destruct (V !! ℓ); lia. Qed.
 
+Lemma lookup_zero_None_zero V ℓ : V !! ℓ = None -> V !!0 ℓ = 0.
+Proof. rewrite /lookup_zero. intros ->. done. Qed.
+
 (* A convenient condition for showing that one view is included in another. *)
 Lemma view_le_lookup V W :
   (∀ ℓ t, V !! ℓ = Some (MaxNat t) → ∃ t', W !! ℓ = Some (MaxNat t') ∧ t ≤ t') →
@@ -119,6 +122,9 @@ Proof.
   - rewrite eq. rewrite eq'.
     by intros ?%option_not_included_None.
 Qed.
+
+Lemma view_le_dom_subseteq V W : V ⊑ W → dom (gset _) V ⊆ dom _ W.
+Proof. rewrite subseteq_view_incl. intros ?. apply dom_included. done. Qed.
 
 Lemma view_le_look ℓ V W t :
   V !! ℓ = Some (MaxNat t) → V ⊑ W → ∃ t', W !! ℓ = Some (MaxNat t') ∧ t ≤ t'.

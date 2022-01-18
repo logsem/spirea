@@ -581,37 +581,42 @@ Section lifting.
     rewrite big_opM_singleton; iDestruct "Hvs" as "[$ Hvs]". by iApply "IH".
   Qed.
 
-  Lemma wp_allocN v a TV n s E :
+  Lemma wp_allocN v a SV FV BV n s E :
     (0 < n)%Z →
-    {{{ True }}}
-      (ThreadState (AllocN a #n v) TV) @ s; E
-    {{{ ℓ CV, RET (ThreadVal #ℓ TV);
+    {{{ validV SV }}}
+      AllocN a #n v `at` (SV, FV, BV) @ s; E
+    {{{ ℓ CV, RET (#ℓ `at` (SV, FV, BV));
       crashed_at CV ∗
       ([∗ list] i ∈ seq 0 (Z.to_nat n),
-        (ℓ +ₗ (i : nat)) ↦h initial_history a (store_view TV) (flush_view TV) v) ∗
+        (ℓ +ₗ (i : nat)) ↦h initial_history a SV FV v) ∗
+      ⌜ ∀ (i : Z), (0 ≤ i < n)%Z → SV !!0 (ℓ +ₗ i) = 0 ⌝ ∗
+      (* The allocated locations are not in the last view we crashed at. *)
       ([∗ list] i ∈ seq 0 (Z.to_nat n), (⌜ℓ +ₗ (i : nat) ∉ dom (gset _) CV⌝))
     }}}.
   Proof.
-    iIntros (Hn Φ) "_ HΦ".
+    iIntros (Hn Φ) "Hval HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
     iIntros ([??] [] ns mj D κ κs k) "[interp extra]". iNamed "interp".
     iIntros "? !>". iNamed "crash".
+    (* The time at the view is smaller than the time in the lub view (which is
+    the time of the most recent message *)
+    iDestruct (auth_frag_leq with "Hval lubauth") as %Vincl.
     iSplit.
     - (* We must show that [ref v] is can take some step. *)
        rewrite /head_reducible.
-       destruct TV as [[sv pv] bv].
+       (* destruct TV as [[sv pv] bv]. *)
        iExists [], _, _, _, _. simpl. iPureIntro.
        eapply impure_step.
-       * constructor. done.
+       * constructor. lia.
        * apply alloc_fresh. lia.
     - iNext. iIntros (e2 σ2 [] efs Hstep).
       whack_global.
       simpl in *.
       inv_impure_thread_step.
       iSplitR=>//.
-      assert (heap_array ℓ a SV PV (replicate (Z.to_nat n) v) ##ₘ g) as Hdisj.
+      assert (heap_array ℓ a SV FV (replicate (Z.to_nat n) v) ##ₘ g) as Hdisj.
       { apply heap_array_map_disjoint.
-        rewrite replicate_length Z2Nat.id; auto with lia. }
+        rewrite replicate_length. assumption. }
       iFrame "Hpers".
       (* We now update the [gen_heap] ghost state to include the allocated location. *)
       iMod (gen_heap_alloc_big with "Hσ") as "(Hσ & Hl & Hm)"; first apply Hdisj.
@@ -624,32 +629,38 @@ Section lifting.
       { apply Hdisj. }
       iModIntro.
       iPureGoal. { apply hist_inv_alloc; done. }
-      (* rewrite left_id. *)
       iFrame.
-      iDestruct ("HΦ" with "[Hl Hm]") as "$".
-      { iFrame "crashedAt".
-        iDestruct (heap_array_to_seq_mapsto with "Hl") as "$".
-        iApply big_sepL_forall. iIntros (?? [hi ho]%lookup_seq) "!%".
-        eapply not_elem_of_weaken; last done.
-        apply not_elem_of_dom.
-        apply H12; lia. }
-      iExists CV.
+      iDestruct ("HΦ" with "[Hl Hm]") as "$"; last first.
+      { iExists CV. iFrame "crashedAt". iPureIntro. set_solver. }
       iFrame "crashedAt".
-      iPureIntro. set_solver.
+      iDestruct (heap_array_to_seq_mapsto with "Hl") as "$".
+      iSplit.
+      { iPureIntro. intros i le.
+        apply lookup_zero_None_zero.
+        assert (g !! (ℓ +ₗ i) = None) by auto with lia.
+        apply not_elem_of_dom.
+        apply not_elem_of_dom in H0.
+        apply view_le_dom_subseteq in Vincl.
+        set_solver. }
+      iApply big_sepL_forall. iIntros (?? [hi ho]%lookup_seq) "!%".
+      eapply not_elem_of_weaken; last done.
+      apply not_elem_of_dom.
+      apply H14; lia.
   Qed.
 
-  Lemma wp_alloc s a E v TV :
-    {{{ True }}}
-      ThreadState (Alloc a (Val v)) TV @ s; E
-    {{{ ℓ CV, RET (ThreadVal (LitV (LitLoc ℓ)) TV);
-        crashed_at CV ∗ ⌜ℓ ∉ dom (gset _) CV⌝ ∗
-        ℓ ↦h initial_history a (store_view TV) (flush_view TV) v }}}.
+  Lemma wp_alloc s a E v SV FV BV :
+    {{{ validV SV }}}
+      ThreadState (Alloc a (Val v)) (SV, FV, BV) @ s; E
+    {{{ ℓ CV, RET (ThreadVal (LitV (LitLoc ℓ)) (SV, FV, BV));
+        crashed_at CV ∗ ⌜ℓ ∉ dom (gset _) CV⌝ ∗ ⌜ SV !!0 ℓ = 0 ⌝ ∗
+        ℓ ↦h initial_history a SV FV v }}}.
   Proof.
-    iIntros (Φ) "_ HΦ".
-    iApply wp_allocN; [lia|auto|].
+    iIntros (Φ) "#Hval HΦ".
+    iApply wp_allocN; [lia|auto|]; first iFrame.
     iNext.
-    iIntros (ℓ CV) "/= (? & hi & ho)". rewrite !right_id. rewrite loc_add_0.
+    iIntros (ℓ CV) "/= (? & ? & % & ?)". rewrite !right_id. rewrite loc_add_0.
     iApply "HΦ"; iFrame.
+    iPureIntro. rewrite -(loc_add_0 ℓ). auto with lia.
   Qed.
 
   (* Non-atomic load. *)
