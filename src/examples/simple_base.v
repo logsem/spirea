@@ -39,7 +39,7 @@ Section simple_increment.
   Qed.
 
   Definition alloc_load : expr :=
-    let: "ℓ" := ref #4
+    let: "ℓ" := ref_NA #4
     in !"ℓ".
 
   Lemma wp_load_store SV PV :

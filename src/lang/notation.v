@@ -62,10 +62,11 @@ Notation "e1 ≠ e2" := (UnOp NegOp (BinOp EqOp e1%E e2%E)) : expr_scope.
 Notation "~ e" := (UnOp NegOp e%E) (at level 75, right associativity) : expr_scope.
 
 (* Memory operations. *)
-Notation Alloc e := (AllocN (Val $ LitV $ LitInt 1) e) (only parsing).
+Notation Alloc a e := (AllocN a (Val $ LitV $ LitInt 1) e) (only parsing).
 Notation "! e" := (Load e%E) (at level 9, right associativity) : expr_scope.
 Notation "!{acq} e" := (LoadAcquire e%E) (at level 9, right associativity) : expr_scope.
-Notation "'ref' e" := (Alloc e%E) (at level 10) : expr_scope.
+Notation "'ref_NA' e" := (Alloc NA e%E) (at level 10) : expr_scope.
+Notation "'ref_AT' e" := (Alloc AT e%E) (at level 10) : expr_scope.
 Notation "e1 <- e2" := (Store e1%E e2%E) (at level 80) : expr_scope.
 Notation "e1 <-{rel} e2" := (StoreRelease e1%E e2%E) (at level 80) : expr_scope.
 Notation CAS l e1 e2 := (Snd (CmpXchg l e1 e2)) (only parsing).

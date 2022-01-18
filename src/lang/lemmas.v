@@ -2,11 +2,11 @@ From self.lang Require Import notation tactics.
 
 (* These lemmas can probably be simplified with extra lemmas and/or automation. *)
 
-Lemma prim_step_ref_no_fork (v : val) SV PV BV
+Lemma prim_step_ref_no_fork (a : memory_access) (v : val) SV PV BV
   (σ1 : state nvm_lang) (g1 : global_state nvm_lang) (κ : list (language.observation nvm_lang)) 
   (e2 : language.expr nvm_lang) (σ2 : state nvm_lang) (g2 : global_state nvm_lang) 
   (efs : list (language.expr nvm_lang)) :
-  prim_step (ref v `at` (SV, PV, BV)) σ1 g1 κ e2 σ2 g2 efs → efs = [].
+  prim_step (Alloc a v `at` (SV, PV, BV)) σ1 g1 κ e2 σ2 g2 efs → efs = [].
 Proof.
     intros [Ki [??] [??] ? ? step].
     subst.
@@ -30,7 +30,7 @@ Proof.
       destruct Ki using rev_ind; try done.
       { simpl in *. subst. inv_impure_thread_step; try done. }
       simpl in *.
-      rewrite fill_app in H1.
+      rewrite fill_app in H2.
       simpl in *.
       destruct x; try done.
     - simpl.
@@ -43,7 +43,7 @@ Proof.
       destruct Ki using rev_ind; try done.
       { simpl in *. subst. inv_impure_thread_step; try done. }
       simpl in *.
-      rewrite fill_app in H2.
+      rewrite fill_app in H3.
       simpl in *.
       destruct x; try done.
 Qed.

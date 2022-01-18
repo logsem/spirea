@@ -220,15 +220,15 @@ Proof.
 Qed.
 *)
 
-Lemma tac_wp_alloc Δ Δ' s E j K v TV Φ :
+Lemma tac_wp_alloc Δ Δ' s E j K a v TV Φ :
   MaybeIntoLaterNEnvs 1 Δ Δ' →
   (∀ l,
-    match envs_app false (Esnoc Enil j (l ↦h initial_history (flush_view TV) v)) Δ' with
+    match envs_app false (Esnoc Enil j (l ↦h initial_history a (store_view TV) (flush_view TV) v)) Δ' with
     | Some Δ'' =>
        envs_entails Δ'' (WP fill K (ThreadState (Val $ LitV l) TV) @ s; E {{ Φ }})
     | None => False
     end) →
-  envs_entails Δ (WP fill K (ThreadState (Alloc (Val v)) TV) @ s; E {{ Φ }}).
+  envs_entails Δ (WP fill K (ThreadState (Alloc a (Val v)) TV) @ s; E {{ Φ }}).
 Proof.
   rewrite envs_entails_eq=> ? HΔ.
   rewrite -wp_bind. eapply wand_apply; first exact: wp_alloc.

@@ -9,6 +9,8 @@ Module syntax.
 
   Definition proph_id := positive.
 
+  Inductive memory_access := NA | AT.
+
   (* Literals of the language. *)
   Inductive literal : Set :=
     | LitInt (n : Z) | LitBool (b : bool) | LitUnit | LitPoison
@@ -45,7 +47,7 @@ Module syntax.
     (* Concurrency *)
     | Fork (e : expr)
     (* Memory operations. *)
-    | AllocN (e1 e2 : expr)
+    | AllocN (a : memory_access) (e1 e2 : expr)
     | Load (e : expr)
     | LoadAcquire (e : expr)
     | Store (e1 e2 : expr)
@@ -126,6 +128,8 @@ Module syntax.
   Proof. solve_decision. Defined.
   Global Instance bin_op_eq_dec : EqDecision bin_op.
   Proof. solve_decision. Defined.
+  Global Instance memory_access_eq_dec : EqDecision memory_access.
+  Proof. solve_decision. Defined.
   Global Instance expr_eq_dec : EqDecision expr.
   Proof.
     refine (
@@ -150,8 +154,8 @@ Module syntax.
       | Case e0 e1 e2, Case e0' e1' e2' =>
           cast_if_and3 (decide (e0 = e0')) (decide (e1 = e1')) (decide (e2 = e2'))
       | Fork e, Fork e' => cast_if (decide (e = e'))
-      | AllocN e1 e2, AllocN e1' e2' =>
-          cast_if_and (decide (e1 = e1')) (decide (e2 = e2'))
+      | AllocN a e1 e2, AllocN a' e1' e2' =>
+          cast_if_and3 (decide (a = a')) (decide (e1 = e1')) (decide (e2 = e2'))
       | Load e, Load e' => cast_if (decide (e = e'))
       | LoadAcquire e, LoadAcquire e' => cast_if (decide (e = e'))
       | Store e1 e2, Store e1' e2' =>
@@ -222,6 +226,13 @@ Module syntax.
     | 10 => LeOp | 11 => LtOp | 12 => EqOp | _ => OffsetOp
     end) _); by intros [].
   Qed.
+  Global Instance memory_access_countable : Countable memory_access.
+  Proof.
+    refine
+      (inj_countable' (λ a, match a with NA => 0 | AT => 1 end)
+                      (λ n, match n with 0 => NA | _ => AT end) _).
+    intros []; done.
+  Qed.
   Global Instance expr_countable : Countable expr.
   Proof.
   set (enc :=
@@ -241,7 +252,8 @@ Module syntax.
       | InjR e => GenNode 10 [go e]
       | Case e0 e1 e2 => GenNode 11 [go e0; go e1; go e2]
       | Fork e => GenNode 12 [go e]
-      | AllocN e1 e2 => GenNode 13 [go e1; go e2]
+      | AllocN NA e1 e2 => GenNode 13 [go e1; go e2]
+      | AllocN AT e1 e2 => GenNode 26 [go e1; go e2]
       | Load e => GenNode 15 [go e]
       | LoadAcquire e => GenNode 16 [go e]
       | Store e1 e2 => GenNode 17 [go e1; go e2]
@@ -281,7 +293,8 @@ Module syntax.
       | GenNode 10 [e] => InjR (go e)
       | GenNode 11 [e0; e1; e2] => Case (go e0) (go e1) (go e2)
       | GenNode 12 [e] => Fork (go e)
-      | GenNode 13 [e1; e2] => AllocN (go e1) (go e2)
+      | GenNode 13 [e1; e2] => AllocN NA (go e1) (go e2)
+      | GenNode 26 [e1; e2] => AllocN AT (go e1) (go e2)
       | GenNode 15 [e] => Load (go e)
       | GenNode 16 [e] => LoadAcquire (go e)
       | GenNode 17 [e1; e2] => Store (go e1) (go e2)
@@ -307,8 +320,8 @@ Module syntax.
     for go).
   refine (inj_countable' enc dec _).
   refine (fix go (e : expr) {struct e} := _ with gov (v : val) {struct v} := _ for go).
-  - destruct e as [v| | | | | | | | | | | | | | | | | | | | | | | | |]; simpl; f_equal;
-      [exact (gov v)|done..].
+  - destruct e as [v| | | | | | | | | | | | | | [|] | | | | | | | | | | |]; simpl; f_equal;
+      [exact (gov v)| try done..].
   - destruct v; by f_equal.
   Qed.
   Global Instance val_countable : Countable val.

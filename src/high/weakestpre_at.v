@@ -56,7 +56,7 @@ Section wp_at_rules.
 
   Lemma wp_alloc_at v s ϕ `{!LocationProtocol ϕ} st E :
     {{{ "phi" ∷ ϕ s v _ }}}
-      ref v @ st; E
+      ref_AT v @ st; E
     {{{ ℓ, RET #ℓ; know_protocol ℓ ϕ ∗ know_store_lb ℓ s }}}.
   Proof.
     intros Φ. iStartProof (iProp _). iIntros (TV). iNamed 1.

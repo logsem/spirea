@@ -38,8 +38,8 @@ Module nvm_lang.
     | InjRCtx
     | CaseCtx (e1 : expr) (e2 : expr)
     (* Memory operations. *)
-    | AllocNLCtx (v2 : val)
-    | AllocNRCtx (e1 : expr)
+    | AllocNLCtx (a : memory_access) (v2 : val)
+    | AllocNRCtx (a : memory_access) (e1 : expr)
     | LoadCtx
     | LoadAcquireCtx
     | StoreLCtx (v2 : val)
@@ -69,8 +69,8 @@ Module nvm_lang.
     | InjLCtx => InjL e
     | InjRCtx => InjR e
     | CaseCtx e1 e2 => Case e e1 e2
-    | AllocNLCtx v2 => AllocN e (Val v2)
-    | AllocNRCtx e1 => AllocN e1 e
+    | AllocNLCtx a v2 => AllocN a e (Val v2)
+    | AllocNRCtx a e1 => AllocN a e1 e
     | LoadCtx => Load e
     | LoadAcquireCtx => LoadAcquire e
     | StoreLCtx v2 => Store e (Val v2)
@@ -102,7 +102,7 @@ Module nvm_lang.
     | InjR e => InjR (subst x v e)
     | Case e0 e1 e2 => Case (subst x v e0) (subst x v e1) (subst x v e2)
     | Fork e => Fork (subst x v e)
-    | AllocN e1 e2 => AllocN (subst x v e1) (subst x v e2)
+    | AllocN a e1 e2 => AllocN a (subst x v e1) (subst x v e2)
     | Load e => Load (subst x v e)
     | LoadAcquire e => LoadAcquire (subst x v e)
     | Store e1 e2 => Store (subst x v e1) (subst x v e2)
@@ -217,11 +217,11 @@ Module nvm_lang.
   | ForkS e :
      head_step (Fork e) None [] (Val $ LitV LitUnit) [e]
   (* Memory. *)
-  | AllocNS (n : Z) v ℓ :
+  | AllocNS a (n : Z) v ℓ :
      (0 < n)%Z →
      (* (∀ i, (0 ≤ i)%Z → (i < n)%Z → σ.(heap) !! (ℓ + i) = None) → *)
-     head_step (AllocN (Val $ LitV $ LitInt n) (Val v))
-               (Some $ MEvAllocN ℓ (Z.to_nat n) v)
+     head_step (AllocN a (Val $ LitV $ LitInt n) (Val v))
+               (Some $ MEvAllocN a ℓ (Z.to_nat n) v)
                []
                (Val $ LitV $ LitLoc ℓ)
                []

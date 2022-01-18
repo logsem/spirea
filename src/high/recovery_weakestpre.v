@@ -100,9 +100,9 @@ Proof.
     iExists _. iApply "impl"; done. }
   (* Throw away the points-to predicates that did not survive the crash. *)
   iDestruct (big_sepM_subseteq with "pts") as "pts".
-  { apply (restrict_subseteq (dom _ CV)). }
+  { apply (restrict_subseteq (dom (gset _) CV)). }
   iDestruct (big_sepM_subseteq with "map") as "map".
-  { apply (restrict_subseteq (dom _ (restrict (dom (gset _) CV) logHists))). }
+  { apply (restrict_subseteq (dom (gset _) (restrict (dom (gset _) CV) logHists))). }
   iDestruct (big_sepM2_sepM_2 with "pts map") as "map".
   { setoid_rewrite <- elem_of_dom.
     setoid_rewrite restrict_dom_subset at 2; first done.

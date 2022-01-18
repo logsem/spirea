@@ -70,7 +70,7 @@ Section atomic.
   Global Instance fork_atomic s e : AtomicBase s (Fork e).
   Proof. solve_atomic. Qed.
 
-  Global Instance alloc_atomic s v w : AtomicBase s (AllocN (Val v) (Val w)).
+  Global Instance alloc_atomic s a v w : AtomicBase s (AllocN a (Val v) (Val w)).
   Proof. solve_atomic. Qed.
   Global Instance load_atomic s v : AtomicBase s (Load (Val v)).
   Proof. solve_atomic. Qed.
