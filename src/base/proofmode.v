@@ -220,24 +220,24 @@ Proof.
 Qed.
 *)
 
-Lemma tac_wp_alloc Δ Δ' s E j K a v TV Φ :
-  MaybeIntoLaterNEnvs 1 Δ Δ' →
-  (∀ l,
-    match envs_app false (Esnoc Enil j (l ↦h initial_history a (store_view TV) (flush_view TV) v)) Δ' with
-    | Some Δ'' =>
-       envs_entails Δ'' (WP fill K (ThreadState (Val $ LitV l) TV) @ s; E {{ Φ }})
-    | None => False
-    end) →
-  envs_entails Δ (WP fill K (ThreadState (Alloc a (Val v)) TV) @ s; E {{ Φ }}).
-Proof.
-  rewrite envs_entails_eq=> ? HΔ.
-  rewrite -wp_bind. eapply wand_apply; first exact: wp_alloc.
-  rewrite left_id into_laterN_env_sound; apply later_mono, forall_intro=> l.
-  specialize (HΔ l).
-  destruct (envs_app _ _ _) as [Δ''|] eqn:HΔ'; [ | contradiction ].
-  rewrite envs_app_sound //; simpl.
-  iIntros "H" (?) "(_ & _ & pts)". iApply HΔ. iApply "H". iFrame.
-Qed.
+(* Lemma tac_wp_alloc Δ Δ' s E j K a v TV Φ : *)
+(*   MaybeIntoLaterNEnvs 1 Δ Δ' → *)
+(*   (∀ l, *)
+(*     match envs_app false (Esnoc Enil j (l ↦h initial_history a (store_view TV) (flush_view TV) v)) Δ' with *)
+(*     | Some Δ'' => *)
+(*        envs_entails Δ'' (WP fill K (ThreadState (Val $ LitV l) TV) @ s; E {{ Φ }}) *)
+(*     | None => False *)
+(*     end) → *)
+(*   envs_entails Δ (WP fill K (ThreadState (Alloc a (Val v)) TV) @ s; E {{ Φ }}). *)
+(* Proof. *)
+(*   rewrite envs_entails_eq=> ? HΔ. *)
+(*   rewrite -wp_bind. eapply wand_apply; first exact: wp_alloc. *)
+(*   rewrite left_id into_laterN_env_sound; apply later_mono, forall_intro=> l. *)
+(*   specialize (HΔ l). *)
+(*   destruct (envs_app _ _ _) as [Δ''|] eqn:HΔ'; [ | contradiction ]. *)
+(*   rewrite envs_app_sound //; simpl. *)
+(*   iIntros "H" (?) "(_ & _ & pts)". iApply HΔ. iApply "H". iFrame. *)
+(* Qed. *)
 
 (*
 Lemma tac_wp_free Δ Δ' s E i K l v Φ :
@@ -413,60 +413,60 @@ Tactic Notation "awp_apply" open_constr(lem) "without" constr(Hs) :=
   last iAuIntro.
 *)
 
-Tactic Notation "wp_alloc" ident(l) "as" constr(H) :=
-  let Htmp := iFresh in
-  let finish _ :=
-    first [intros l | fail 1 "wp_alloc:" l "not fresh"];
-    pm_reduce;
-    lazymatch goal with
-    | |- False => fail 1 "wp_alloc:" H "not fresh"
-    | _ => iDestructHyp Htmp as H; wp_finish
-    end in
-  wp_pures;
-  (** The code first tries to use allocation lemma for a single reference,
-     ie, [tac_wp_alloc] (respectively, [tac_twp_alloc]).
-     If that fails, it tries to use the lemma [tac_wp_allocN]
-     (respectively, [tac_twp_allocN]) for allocating an array.
-     Notice that we could have used the array allocation lemma also for single
-     references. However, that would produce the resource l ↦∗ [v] instead of
-     l ↦ v for single references. These are logically equivalent assertions
-     but are not equal. *)
-  lazymatch goal with
-  | |- envs_entails _ (wp ?s ?E (ThreadState ?e ?TV) ?Q) =>
-    let process_single _ :=
-        first
-          [reshape_expr e ltac:(fun K e' => eapply (tac_wp_alloc _ _ _ _ Htmp K))
-          |fail 1 "wp_alloc: cannot find 'Alloc' in" e];
-        [iSolveTC
-        |finish ()]
-    in
-    let process_array _ := fail 1 "Can not allocate arrays" (* FIXME: Fix this if we want to support array allocation. *)
-        (* first *)
-        (*   [reshape_expr e ltac:(fun K e' => eapply (tac_wp_allocN _ _ _ _ Htmp K)) *)
-        (*   |fail 1 "wp_alloc: cannot find 'Alloc' in" e]; *)
-        (* [idtac|iSolveTC *)
-        (*  |finish ()] *)
-    (* in (process_single ()) || (process_array ()) *)
-    in (process_single ())
-  (* | |- envs_entails _ (twp ?s ?E ?e ?Q) => *)
-  (*   let process_single _ := *)
-  (*       first *)
-  (*         [reshape_expr e ltac:(fun K e' => eapply (tac_twp_alloc _ _ _ Htmp K)) *)
-  (*         |fail 1 "wp_alloc: cannot find 'Alloc' in" e]; *)
-  (*       finish () *)
-  (*   in *)
-  (*   let process_array _ := *)
-  (*       first *)
-  (*         [reshape_expr e ltac:(fun K e' => eapply (tac_twp_allocN _ _ _ Htmp K)) *)
-  (*         |fail 1 "wp_alloc: cannot find 'Alloc' in" e]; *)
-  (*       [idtac *)
-  (*       |finish ()] *)
-  (*   in (process_single ()) || (process_array ()) *)
-  | _ => fail "wp_alloc: not a 'wp'"
-  end.
+(* Tactic Notation "wp_alloc" ident(l) "as" constr(H) := *)
+(*   let Htmp := iFresh in *)
+(*   let finish _ := *)
+(*     first [intros l | fail 1 "wp_alloc:" l "not fresh"]; *)
+(*     pm_reduce; *)
+(*     lazymatch goal with *)
+(*     | |- False => fail 1 "wp_alloc:" H "not fresh" *)
+(*     | _ => iDestructHyp Htmp as H; wp_finish *)
+(*     end in *)
+(*   wp_pures; *)
+(*   (** The code first tries to use allocation lemma for a single reference, *)
+(*      ie, [tac_wp_alloc] (respectively, [tac_twp_alloc]). *)
+(*      If that fails, it tries to use the lemma [tac_wp_allocN] *)
+(*      (respectively, [tac_twp_allocN]) for allocating an array. *)
+(*      Notice that we could have used the array allocation lemma also for single *)
+(*      references. However, that would produce the resource l ↦∗ [v] instead of *)
+(*      l ↦ v for single references. These are logically equivalent assertions *)
+(*      but are not equal. *) *)
+(*   lazymatch goal with *)
+(*   | |- envs_entails _ (wp ?s ?E (ThreadState ?e ?TV) ?Q) => *)
+(*     let process_single _ := *)
+(*         first *)
+(*           [reshape_expr e ltac:(fun K e' => eapply (tac_wp_alloc _ _ _ _ Htmp K)) *)
+(*           |fail 1 "wp_alloc: cannot find 'Alloc' in" e]; *)
+(*         [iSolveTC *)
+(*         |finish ()] *)
+(*     in *)
+(*     let process_array _ := fail 1 "Can not allocate arrays" (* FIXME: Fix this if we want to support array allocation. *) *)
+(*         (* first *) *)
+(*         (*   [reshape_expr e ltac:(fun K e' => eapply (tac_wp_allocN _ _ _ _ Htmp K)) *) *)
+(*         (*   |fail 1 "wp_alloc: cannot find 'Alloc' in" e]; *) *)
+(*         (* [idtac|iSolveTC *) *)
+(*         (*  |finish ()] *) *)
+(*     (* in (process_single ()) || (process_array ()) *) *)
+(*     in (process_single ()) *)
+(*   (* | |- envs_entails _ (twp ?s ?E ?e ?Q) => *) *)
+(*   (*   let process_single _ := *) *)
+(*   (*       first *) *)
+(*   (*         [reshape_expr e ltac:(fun K e' => eapply (tac_twp_alloc _ _ _ Htmp K)) *) *)
+(*   (*         |fail 1 "wp_alloc: cannot find 'Alloc' in" e]; *) *)
+(*   (*       finish () *) *)
+(*   (*   in *) *)
+(*   (*   let process_array _ := *) *)
+(*   (*       first *) *)
+(*   (*         [reshape_expr e ltac:(fun K e' => eapply (tac_twp_allocN _ _ _ Htmp K)) *) *)
+(*   (*         |fail 1 "wp_alloc: cannot find 'Alloc' in" e]; *) *)
+(*   (*       [idtac *) *)
+(*   (*       |finish ()] *) *)
+(*   (*   in (process_single ()) || (process_array ()) *) *)
+(*   | _ => fail "wp_alloc: not a 'wp'" *)
+(*   end. *)
 
-Tactic Notation "wp_alloc" ident(l) :=
-  wp_alloc l as "?".
+(* Tactic Notation "wp_alloc" ident(l) := *)
+(*   wp_alloc l as "?". *)
 
 (*
 Tactic Notation "wp_free" :=

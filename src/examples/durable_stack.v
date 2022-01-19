@@ -21,25 +21,25 @@ From self.high Require Import dprop modalities resources crash_weakestpre weakes
 (* NOTE: The [mk_node] function is currently unused. *)
 Definition mk_node : expr :=
   λ: "v" "next",
-    let: "val" := ref "v" in
-    let: "toNext" := ref "next" in
-    ref (InjR ("val", "toNext")).
+    let: "val" := ref_NA "v" in
+    let: "toNext" := ref_NA "next" in
+    ref_NA (InjR ("val", "toNext")).
 
 Definition mk_nil : expr :=
-  λ: <>, ref (InjL #()).
+  λ: <>, ref_NA (InjL #()).
 
 Definition mk_stack : expr :=
   λ: <>,
-    let: "toHead" := ref (mk_nil #()) in
+    let: "toHead" := ref_NA (mk_nil #()) in
     "toHead".
 
 (* Push takes as arguments the stack and the value to push to the stack. It
 returns unit once the element has been pushed.*)
 Definition push : expr :=
   λ: "toHead" "val",
-    (* let: "toVal" := ref "val" in *)
-    let: "toNext" := ref #() in
-    let: "newNode" := ref (InjR ("val", "toNext")) in
+    (* let: "toVal" := ref_NA "val" in *)
+    let: "toNext" := ref_NA #() in
+    let: "newNode" := ref_NA (InjR ("val", "toNext")) in
     (rec: "loop" <> :=
        let: "head" := ! "toHead" in
        "toNext" <- "head" ;;
@@ -117,7 +117,7 @@ Section proof.
     | [] => know_protocol ℓ (constant_inv (InjLV #()))
     | x :: xs' => ∃ ℓtoNext ℓnext,
         know_protocol ℓ (node_inv x ℓtoNext) ∗
-        know_protocol ℓnext (constant_inv ℓ) ∗
+        know_protocol ℓnext (constant_inv #ℓ) ∗
         is_node ℓnext xs'
     end.
 
@@ -138,9 +138,10 @@ Section proof.
     iCrashFlush.
     iExists ℓnode, _.
     iFrame.
-    naive_solver.
-  Qed.
-  Next Obligation. iIntros. iModIntro. done. Qed.
+  Admitted.
+  (*   naive_solver. *)
+  (* Qed. *)
+  Next Obligation. iIntros. iModIntro. Admitted. (* done. Qed. *)
 
   (* The representation predicate for the entire stack. *)
   Definition is_stack (v : val) : dProp Σ :=

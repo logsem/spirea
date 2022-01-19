@@ -174,7 +174,7 @@ The use of [open_constr] in this tactic is essential. It will convert all holes
 
 Tactic Notation "wpc_pure_later" tactic3(filter) "as" simple_intropattern(H) :=
   lazymatch goal with
-  | |- envs_entails _ (wpc ?s ?k ?E1 ?e ?Q ?Qc) =>
+  | |- envs_entails _ (wpc ?s ?E1 ?e ?Q ?Qc) =>
     let e := eval simpl in e in
     reshape_expr e ltac:(fun K e' =>
       filter e';
@@ -194,7 +194,7 @@ Tactic Notation "wpc_pure_later" tactic3(filter) "as" simple_intropattern(H) :=
 
 Tactic Notation "wpc_pure_no_later" tactic3(filter) "as" simple_intropattern(H) :=
   lazymatch goal with
-  | |- envs_entails _ (wpc ?s ?k ?E1 ?e ?Q ?Qc) =>
+  | |- envs_entails _ (wpc ?s ?E1 ?e ?Q ?Qc) =>
     let e := eval simpl in e in
     reshape_expr e ltac:(fun K e' =>
       filter e';
@@ -241,7 +241,7 @@ Ltac wpc_pures :=
   iStartProof;
   let Hcrash := fresh "Hcrash" in
   lazymatch goal with
-    | |- envs_entails ?envs (wpc ?s ?k ?E1 (Val _) ?Q ?Qc) => wpc_finish Hcrash
+    | |- envs_entails ?envs (wpc ?s ?E1 (Val _) ?Q ?Qc) => wpc_finish Hcrash
     | |- _ =>
       wpc_pure1 Hcrash;
       [try iFromCache .. | repeat (wpc_pure_no_later wp_pure_filter as Hcrash; []); clear Hcrash]
@@ -384,7 +384,7 @@ Ltac wpc_bind_core K :=
 Tactic Notation "wpc_bind" open_constr(efoc) :=
   iStartProof;
   lazymatch goal with
-  | |- envs_entails _ (wpc ?s ?k ?E1 ?e ?Q1 ?Q2) =>
+  | |- envs_entails _ (wpc ?s ?E1 ?e ?Q1 ?Q2) =>
     first [ reshape_expr e ltac:(fun K e' => unify e' efoc; wpc_bind_core K)
       | fail 1 "wpc_bind: cannot find" efoc "in" e ]
   | |- envs_entails _ (wp ?s ?E ?e ?Q) => fail "wpc_bind: 'wp', not a 'wpc'"
@@ -411,13 +411,13 @@ happens *after* [tac H] got executed. *)
 Tactic Notation "wpc_apply_core" open_constr(lem) tactic(tac) :=
   iPoseProofCore lem as false (fun H =>
     lazymatch goal with
-    | |- envs_entails _ (wpc ?s ?k ?E1 ?e ?Q ?Qc) =>
+    | |- envs_entails _ (wpc ?s ?E1 ?e ?Q ?Qc) =>
       reshape_expr e ltac:(fun K e' =>
         wpc_bind_core K; tac H) ||
       lazymatch iTypeOf H with
       | Some (_,?P) =>
         lazymatch P with
-        | wpc _ ?k' ?E1' ?e' _ _ =>
+        | wpc _ ?E1' ?e' _ _ =>
           first [ unify k k' | fail 1 "wpc_apply: cannot apply, k mismatch:" k' "≠" k ];
           first [ unify E1 E1' | fail 1 "wpc_apply: cannot apply E1 mismatch:" E1' "≠" E1 ];
           first [ unify e e' | fail 1 "wpc_apply: cannot apply" P ];

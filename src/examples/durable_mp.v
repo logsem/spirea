@@ -134,13 +134,13 @@ Section proof.
     iSplit;
     first iApply (left_crash_condition_impl with "yProt xProt yLb yShared xPts").
 
-  Lemma right_prog_spec s k E1 :
+  Lemma right_prog_spec s E1 :
     know_protocol y inv_y -∗
     know_protocol z inv_z -∗
     know_store_lb y false -∗
     ⎡ is_shared_loc y ⎤ -∗
     z ↦ₚ [false] -∗
-    WPC rightProg y z @ s; k; E1
+    WPC rightProg y z @ s; E1
     {{ v, z ↦ₚ [false; true] ∨ z ↦ₚ [false] }}
     {{ <PC> _, right_crash_condition }}.
   Proof.
@@ -191,15 +191,14 @@ Section proof.
     iLeft. iFrame.
   Qed.
 
-  Lemma prog_spec k :
+  Lemma prog_spec :
     ⎡ pre_borrow ⎤ ∗
     know_protocol x inv_x ∗ know_protocol y inv_y ∗ know_protocol z inv_z ∗
     x ↦ₚ [false] ∗
     know_store_lb y false ∗
     ⎡ is_shared_loc y ⎤ ∗
     z ↦ₚ [false] -∗
-    WPC  prog x y z
-    @ k; ⊤
+    WPC  prog x y z @ ⊤
     {{ v, True }}
     {{ <PC> _, crash_condition }}.
   Proof.
@@ -208,7 +207,7 @@ Section proof.
 
     (* We create a crash borrow in order to transfer resources to the forked
     thread. *)
-    iApply (wpc_crash_borrow_inits _ _ _ _ _ _ (<PC> _, right_crash_condition)%I
+    iApply (wpc_crash_borrow_inits _ _ _ _ _ (<PC> _, right_crash_condition)%I
              with "pb [zPts]").
     { iAccu. }
     { iModIntro. iIntros "zPts".
@@ -221,13 +220,14 @@ Section proof.
       iExists _. iFrame. }
     iIntros "cb".
 
-    iApply (wpc_crash_mono _ _ _ _ _ _ (<PC> _, left_crash_condition)%I).
+    iApply (wpc_crash_mono _ _ _ _ _ (<PC> _, left_crash_condition)%I).
     { iIntros "L R".
       iCrash.
       iDestruct "L"  as (?) "(H1 & H2 & H3 & xPts)".
-      iDestruct "R" as (?) "(? & ? & ? & ?)".
+      iDestruct "R" as (?) "(yProt & ySh & zProt & zPts)".
       iExists _, _.
-      iFrame. }
+      iFrame "H3".
+      iFrame "yProt ySh zProt xPts zPts". }
     Unshelve. 2: { apply _. }
 
     wpc_bind (Fork _)%E.
@@ -235,7 +235,8 @@ Section proof.
     - (* Show safety of the forked off thread. *)
       iApply (wpc_crash_borrow_open_modify with "cb"); first done.
       iNext. iSplit; first done.
-      iIntros "zPts". rewrite (left_id True%I (∗)%I).
+      iIntros "zPts".
+      (* rewrite (left_id True%I (∗)%I). *)
 
       iDestruct (right_prog_spec with "yProt zProt yLb yShared zPts") as "wp".
       iApply (wpc_mono' with "[] [] wp"); last naive_solver.

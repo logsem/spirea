@@ -12,7 +12,7 @@ From self.high Require Import dprop resources crash_weakestpre weakestpre
      weakestpre_na recovery_weakestpre lifted_modalities modalities
      post_crash_modality protocol no_buffer.
 
-Definition prog : expr := let: "l" := ref #1 in ! "l".
+Definition prog : expr := let: "l" := ref_NA #1 in ! "l".
 
 Definition pure : expr :=
   let: "a" := #1 in
@@ -110,7 +110,7 @@ Section simple_increment.
      "#bPred" ∷ know_protocol ℓb (ϕb ℓa) ∗
      "pts" ∷ ∃ (sa sb : list nat), "aPts" ∷ ℓa ↦ₚ sa ∗ "bPts" ∷ ℓb ↦ₚ sb)%I.
 
-  Lemma prove_crash_condition {hD : nvmDeltaG Σ} ℓa ssA ℓb ssB :
+  Lemma prove_crash_condition {hD : nvmDeltaG Σ} ℓa ℓb (ssA ssB : list nat) :
     know_protocol ℓa ϕa -∗
     know_protocol ℓb (ϕb ℓa) -∗
     ℓa ↦ₚ ssA -∗
@@ -129,12 +129,12 @@ Section simple_increment.
   (* NOTE: This example is currently broken since the crash condition used is
   not objective. We should use the post crash modality in the crash condition
   (maybe built in to WPC). *)
-  Lemma wp_incr ℓa ℓb s n E :
+  Lemma wp_incr ℓa ℓb s E :
     ⊢ know_protocol ℓa ϕa -∗
       know_protocol ℓb (ϕb ℓa) -∗
       ℓa ↦ₚ [0] -∗
       ℓb ↦ₚ [0] -∗
-      WPC (incr_both ℓa ℓb) @ s; n; E
+      WPC (incr_both ℓa ℓb) @ s; E
         {{ λ _, ℓa ↦ₚ [0; 1] ∗ ℓb ↦ₚ [0; 1] }}
         {{ <PC> _, crash_condition ℓa ℓb }}.
   Proof.
@@ -145,10 +145,10 @@ Section simple_increment.
     wpc_bind (_ <- _)%E.
     iApply wpc_atomic_no_mask.
     iSplit. { iApply (prove_crash_condition with "aPred bPred aPts bPts"). }
-    iApply (wp_store_na with "[$aPts]").
+    iApply (@wp_store_na with "[$aPts $aPred]").
     { reflexivity. }
     { suff leq : (0 ≤ 1); first apply leq. lia. }
-    { iFrame "aPred". done. }
+    { done. }
     simpl.
     iNext. iIntros "aPts".
     iSplit. { iModIntro. iApply (prove_crash_condition with "aPred bPred aPts bPts"). }
@@ -183,7 +183,7 @@ Section simple_increment.
     (* The last store *)
     iApply wpc_atomic_no_mask.
     iSplit. { iApply (prove_crash_condition with "aPred bPred aPts bPts"). }
-    iApply (wp_store_na with "[$bPts]").
+    iApply (wp_store_na _ _ _ _ _ _ (ϕb _) with "[$bPts]").
     { reflexivity. }
     { suff leq : (0 ≤ 1); first apply leq. lia. }
     { iFrame "#". iPureGoal; first done. naive_solver. }
@@ -194,10 +194,9 @@ Section simple_increment.
     iFrame "aPts bPts".
   Qed.
 
-  Lemma wpc_recover `{hD : nvmDeltaG Σ} ℓa ℓb s k E :
+  Lemma wpc_recover `{hD : nvmDeltaG Σ} ℓa ℓb s E :
     crash_condition ℓa ℓb -∗
-    WPC recover ℓa ℓb
-      @ s; k; E
+    WPC recover ℓa ℓb @ s; E
       {{ _, True }}
       {{ <PC> H0, crash_condition ℓa ℓb }}.
   Proof.
@@ -211,7 +210,7 @@ Section simple_increment.
     iApply wpc_atomic_no_mask.
     iSplit; first iApply (prove_crash_condition with "aPred bPred aPts bPts").
 
-    iApply (wp_load_na _ _ _ _ (λ v, ⌜v = #sA⌝)%I with "[$aPts $aPred]"); first done.
+    iApply (wp_load_na _ _ sa _ (λ v, ⌜v = #sA⌝)%I with "[$aPts $aPred]"); first done.
     { iModIntro. naive_solver. }
     iIntros "!>" (?) "[aPts ->]".
     iSplit.
@@ -225,7 +224,7 @@ Section simple_increment.
     wpc_bind (! _)%E.
     iApply wpc_atomic_no_mask.
     iSplit; first iApply (prove_crash_condition with "aPred bPred aPts bPts").
-    iApply (wp_load_na _ _ _ _ (λ v, ∃ sB', ⌜ sB ⊑ sB' ⌝ ∗ ⌜v = #sB⌝ ∗ know_flush_lb ℓa sB')%I
+    iApply (wp_load_na _ _ sb _ (λ v, ∃ sB', ⌜ sB ⊑ sB' ⌝ ∗ ⌜v = #sB⌝ ∗ know_flush_lb ℓa sB')%I
               with "[$bPts $bPred]"); first done.
     { iModIntro. iIntros (?) "(-> & (%sB' & % & #?))".
       iSplit. { iExists _. iFrame "#". naive_solver. }
@@ -258,18 +257,18 @@ Section simple_increment.
   (*   {{{ RET #(); (True : dProp Σ) }}} *)
   (*   {{{ (True : dProp Σ) }}}. *)
 
-  Lemma incr_safe s k E ℓa ℓb :
+  Lemma incr_safe s E ℓa ℓb :
     ⊢ know_protocol ℓa ϕa -∗
       know_protocol ℓb (ϕb ℓa) -∗
       ℓa ↦ₚ [0] -∗
       ℓb ↦ₚ [0] -∗
-      wpr s k E (incr_both ℓa ℓb) (recover ℓa ℓb)
+      wpr s E (incr_both ℓa ℓb) (recover ℓa ℓb)
         (λ _, ℓa ↦ₚ [0; 1] ∗ ℓb ↦ₚ [0; 1]) (λ _ _, True%I).
   Proof.
     iIntros "a b c d".
-    iApply (idempotence_wpr _ _ _ _ _ _ _ (λ _, <PC> _, crash_condition ℓa ℓb)%I
+    iApply (idempotence_wpr _ _ _ _ _ _ (λ _, <PC> _, crash_condition ℓa ℓb)%I
               with "[a b c d] []").
-    { iApply (wp_incr _ _ s k E with "a b c d"). }
+    { iApply (wp_incr _ _ s E with "a b c d"). }
     do 2 iModIntro.
     iIntros (hG') "R".
     iNext.
