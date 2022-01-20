@@ -7,19 +7,11 @@ From iris.proofmode Require Import reduction monpred tactics.
 From Perennial.program_logic Require Export crash_lang.
 From Perennial.Helpers Require Import ipm NamedProps.
 
-From self Require Import extra.
+From self Require Import extra if_non_zero.
 From self.lang Require Import lang.
 From self.base Require Import primitive_laws.
 
 Set Default Proof Using "Type".
-
-Lemma foo qp prf : (* Upstreamed *)
-  mk_Qp (Qp_to_Qc qp) prf = qp.
-Proof. by apply Qp_to_Qc_inj_iff. Qed.
-
-(* upstreamed *)
-Lemma Qp_to_Qc_add p q : (Qp_to_Qc p + Qp_to_Qc q = Qp_to_Qc (p + q))%Qc.
-Proof. by destruct p, q. Qed.
 
 (** This definition captures the resources and knowledge you gain _after_ a
 crash if you own a points-to predicate _prior to_ a crash. *)
@@ -58,129 +50,6 @@ Proof.
     iLeft. iExists _, _. iFrame "∗%".
 Qed.
 
-Section if_non_zero.
-  Context {Σ : gFunctors}.
-  Implicit Types (P : Qp → iProp Σ).
-
-  (* Definition Qc_to_Qp qc := *)
-  (*   match (decide (0 < q)%Qc) with *)
-  (*     left prf => P (mk_Qp q prf) *)
-  (*   | right prf => ⌜q = 0%Qc⌝ *)
-  (*   end. *)
-
-  Definition if_non_zero (q : Qc) P : iProp Σ :=
-    match (decide (0 < q)%Qc) with
-      left prf => P (mk_Qp q prf)
-    | right prf => ⌜q = 0%Qc⌝
-    end.
-
-  Lemma if_non_zero_cases q P :
-    if_non_zero q P
-      ⊣⊢ ⌜q = 0%Qc⌝ ∨ ∃ qp, ⌜(0 < q)%Qc⌝ ∗ ⌜q = Qp_to_Qc qp⌝ ∗ P qp.
-  Proof.
-    rewrite /if_non_zero.
-    iSplit.
-    - destruct (decide (0 < q)%Qc).
-      * iIntros. iRight. iExists _. iFrame. done.
-      * auto.
-    - iIntros "[->|H]"; first done.
-      iDestruct "H" as (qp) "(% & % & ?)".
-      rewrite decide_True_pi. simplify_eq. rewrite foo. iFrame.
-  Qed.
-
-  Lemma if_non_zero_ge_0 q P : if_non_zero q P -∗ ⌜(0 ≤ q)%Qc⌝.
-  Proof.
-    rewrite /if_non_zero. destruct (decide (0 < q)%Qc).
-    - iIntros. iPureIntro. apply Qclt_le_weak. done.
-    - iIntros (->). done.
-  Qed.
-
-  Lemma if_non_zero_add (P : Qp → iProp Σ) `{!Fractional P} p q :
-    ⊢ P p -∗ if_non_zero q P -∗ if_non_zero (q + (Qp_to_Qc p)) P.
-  Proof.
-    iIntros "P P'".
-    iApply if_non_zero_cases. iRight.
-    iDestruct (if_non_zero_cases with "P'") as "[-> | H]".
-    - iExists _. iFrame. iPureIntro.
-      rewrite Qcplus_0_l.
-      split; last done. apply Qp_prf.
-    - iDestruct "H" as (qp) "(%gt & %eq & P')".
-      iExists (p + qp)%Qp.
-      rewrite (fractional p qp).
-      iFrame.
-      iPureIntro.
-      subst.
-      rewrite -Qp_to_Qc_inj_add.
-      split.
-      * apply Qp_prf.
-      * rewrite (comm _ qp). done.
-  Qed.
-
-  Lemma if_non_zero_subtract (P : Qp → iProp Σ) `{!Fractional P} p q :
-    (Qp_to_Qc p ≤ q)%Qc →
-    ⊢ if_non_zero q P -∗ if_non_zero (q - Qp_to_Qc p) P ∗ P p.
-  Proof.
-    iIntros (le) "P".
-    iDestruct (if_non_zero_cases with "P") as "[-> | H]".
-    - exfalso.
-      apply Qcle_not_lt in le.
-      apply (le (Qp_prf _)).
-    - iDestruct "H" as (qp) "(%gt & %eq & P')".
-      rewrite /if_non_zero.
-      destruct (decide (0 < q - Qp_to_Qc p)%Qc).
-      * rewrite -fractional.
-        eassert (qp = _) as ->; last iFrame.
-        apply Qp_to_Qc_inj_iff.
-        rewrite -Qp_to_Qc_add.
-        simpl.
-        rewrite /Qcminus.
-        rewrite -Qcplus_assoc.
-        rewrite (Qcplus_comm _ (Qp_to_Qc _)).
-        rewrite Qcplus_opp_r.
-        rewrite Qcplus_0_r.
-        done.
-      * rewrite eq in n.
-        subst.
-        destruct (decide (qp = p)) as [eq|neq].
-        + subst.
-          erewrite <- Qcplus_opp_r.
-          naive_solver.
-        + exfalso.
-          apply n.
-          pose proof (Qp_prf p).
-          pose proof (Qp_prf qp).
-          apply (Qclt_minus_iff (Qp_to_Qc p)).
-          apply Qcle_lt_or_eq in le.
-          destruct le as [?|eq%Qp_to_Qc_inj_iff]; done.
-  Qed.
-
-  Lemma if_non_zero_exchange_1 (q1 q2 : Qc) p (P Q : Qp → iProp Σ)
-        `{!Fractional P, !Fractional Q}:
-    (Qp_to_Qc p ≤ q2)%Qc →
-    P p ∗ if_non_zero q1 P ∗ if_non_zero q2 Q ⊢
-    if_non_zero (q1 + Qp_to_Qc p)  P ∗ if_non_zero (q2 - Qp_to_Qc p) Q ∗ Q p.
-  Proof.
-    iIntros (le) "(P & ZP & ZQ)".
-    iDestruct (if_non_zero_subtract with "ZQ") as "[$ $]"; first done.
-    iApply (if_non_zero_add with "P [$]").
-  Qed.
-
-  Lemma mk_Qp_1 prf : mk_Qp 1 prf = 1%Qp.
-  Proof. apply Qp_to_Qc_inj_iff. simpl. by rewrite Z2Qc_inj_1. Qed.
-
-  (* Lemma mk_Qp_0 prf : mk_Qp 0 prf = 0%Qp. *)
-  (* Proof. apply Qp_to_Qc_inj_iff. simpl. by rewrite Z2Qc_inj_1. Qed. *)
-
-  Lemma if_non_zero_0 (P : Qp → iProp Σ) :
-    if_non_zero 0%Qc P = (⌜0 = 0⌝)%Qc%I.
-  Proof. done. Qed.
-
-  Lemma if_non_zero_1 (P : Qp → iProp Σ) :
-    if_non_zero 1%Qc P = P 1%Qp.
-  Proof. rewrite /if_non_zero. simpl. by rewrite mk_Qp_1. Qed.
-
-End if_non_zero.
-
 (* Note: The odd [let]s below are to manipulate the type class instance
 search. *)
 
@@ -194,10 +63,8 @@ Definition post_crash_map `{nvmBaseFixedG Σ} (σ__old : store)
       (let hG := hG in ℓ ↦h{dq} hist) -∗ ⌜σ__old !! ℓ = Some hist⌝) ∗
   (* The map used to the the exchange. *)
   [∗ map] ℓ ↦ hist ∈ σ__old,
-    ∃ (qc pc : Qc),
-      (if_non_zero qc (λ q, let hG := hG in ℓ ↦h{#q} hist)) ∗
-      (if_non_zero pc (λ p, mapsto_post_crash hG' ℓ p hist)) ∗
-      ⌜(qc + pc = 1)%Qc⌝.
+    soft_disj (λ q, let hG := hG in ℓ ↦h{#q} hist)
+              (λ p, mapsto_post_crash hG' ℓ p hist).
 
 Definition persisted_impl `{nvmBaseFixedG Σ} hGD hGD' : iProp Σ :=
   □ ∀ V, persisted (hGD := hGD) V -∗
@@ -223,54 +90,12 @@ Proof.
   iAssert (⌜σ__old !! ℓ = Some hist⌝)%I as %elemof.
   { iApply "look". iFrame. }
   iDestruct (big_sepM_lookup_acc with "map") as "[elm reIns]"; first done.
-  iDestruct "elm" as (qOld qNew) "(oldPts & new & %eq)".
 
-  iAssert (⌜Qp_to_Qc q ≤ qNew⌝)%Qc%I as %test.
-  {
-    iDestruct (if_non_zero_cases with "oldPts") as "[-> | H]".
-    - rewrite Qcplus_0_l in eq.
-      rewrite eq.
-      iDestruct (mapsto_valid with "pts") as "%le".
-      iPureIntro.
-      setoid_rewrite dfrac_valid_own in le.
-      apply Qp_to_Qc_inj_le in le.
-      apply le.
-    - iDestruct "H" as (qp) "(%gt & %eq' & P')".
-      iDestruct (mapsto_valid_2 with "pts P'") as "[%le _]".
-      iPureIntro.
-      rewrite dfrac_op_own in le.
-      setoid_rewrite dfrac_valid_own in le.
-      apply Qp_to_Qc_inj_le in le.
-      rewrite -Qp_to_Qc_add in le.
-      rewrite -eq' in le.
-      simpl in le.
-      assert (qNew = 1 - qOld)%Qc as ->.
-      { rewrite -eq.
-        rewrite Qcplus_comm.
-        rewrite /Qcminus.
-        rewrite -Qcplus_assoc.
-        rewrite Qcplus_opp_r.
-        by rewrite Qcplus_0_r. }
-      rewrite Qcplus_le_mono_r.
-      etrans; first apply le.
-      rewrite /Qcminus.
-      rewrite -Qcplus_assoc.
-      rewrite (Qcplus_comm _ qOld).
-      rewrite Qcplus_opp_r.
-      done. }
-  iDestruct (if_non_zero_exchange_1 with "[$oldPts $new $pts]") as "(? & ? & $)".
-  { done. }
-  iFrame.
-  iApply "reIns".
-  iExists _, _. iFrame. iPureIntro.
-  rewrite Qcplus_assoc.
-  rewrite (Qcplus_comm _ qNew).
-  rewrite -Qcplus_assoc.
-  rewrite -Qcplus_assoc.
-  rewrite (Qcplus_opp_r (Qp_to_Qc q)).
-  rewrite Qcplus_0_r.
-  rewrite Qcplus_comm.
-  done.
+  iDestruct (soft_disj_exchange_l with "[] elm pts") as "[elm new]".
+  { iModIntro. iIntros (?) "pts".
+    setoid_rewrite <- dfrac_valid_own.
+    iApply (mapsto_valid with "pts"). }
+  iFrame. iApply "reIns". iFrame.
 Qed.
 
 Section post_crash_prop.
