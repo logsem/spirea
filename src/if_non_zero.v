@@ -134,6 +134,12 @@ Section if_non_zero.
   Definition soft_disj (Q P : Qp → PROP) : PROP :=
     ∃ (q p : Qc), ⌜(q + p = 1)%Qc⌝ ∗ (if_non_zero q Q) ∗ (if_non_zero p P).
 
+  Lemma soft_disj_intro_r Q P : P 1%Qp -∗ soft_disj Q P.
+  Proof.
+    iIntros "P". iExists 0%Qc, 1%Qc.
+    rewrite if_non_zero_1 if_non_zero_0. naive_solver.
+  Qed.
+
   Lemma soft_disj_exchange_l Q P `{!Fractional P, !Fractional Q} q :
     (□ ∀ q, Q q -∗ ⌜q ≤ 1⌝)%Qp -∗
     (* (□ ∀ q, P q -∗ ⌜q ≤ 1⌝)%Qp -∗ *)

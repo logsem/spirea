@@ -11,7 +11,7 @@ From Perennial.program_logic Require Import recovery_weakestpre.
 From Perennial.program_logic Require Import recovery_adequacy.
 
 From self.algebra Require Import ghost_map.
-From self Require Import view extra ipm_tactics.
+From self Require Import view extra ipm_tactics if_non_zero.
 From self.base Require Import primitive_laws wpr_lifting.
 From self.high Require Import dprop.
 From self.high Require Import resources crash_weakestpre post_crash_modality.
@@ -99,38 +99,28 @@ Proof.
     iDestruct (big_sepM_lookup with "pts") as "pts"; first apply look.
     iExists _. iApply "impl"; done. }
   (* Throw away the points-to predicates that did not survive the crash. *)
+  iDestruct (big_sepM_subseteq with "map") as "map".
+  { apply sub. }
   iDestruct (big_sepM_subseteq with "pts") as "pts".
   { apply (restrict_subseteq (dom (gset _) CV)). }
   iDestruct (big_sepM_subseteq with "map") as "map".
-  { apply (restrict_subseteq (dom (gset _) (restrict (dom (gset _) CV) logHists))). }
-  iDestruct (big_sepM2_sepM_2 with "pts map") as "map".
-  { setoid_rewrite <- elem_of_dom.
-    setoid_rewrite restrict_dom_subset at 2; first done.
-    etrans; last apply histSubStore.
-    apply subseteq_dom.
-    apply restrict_subseteq. }
-  iDestruct (big_sepM2_alt with "map") as "[%fall map]".
+  { apply (restrict_subseteq (dom (gset _) CV)). }
+  iDestruct (big_sepM_sep_2 with "pts map") as "map".
   iDestruct (big_sepM_impl_dom_subseteq _ _ _ (slice_of_store _ _) with "map []") as "[$ _]".
   { rewrite /slice_of_store /slice_of_hist.
     rewrite dom_fmap.
     rewrite !map_zip_with_dom.
-    rewrite (restrict_dom_subset _ store).
-    2: { rewrite restrict_dom. set_solver. }
     rewrite restrict_dom.
     set_solver. }
-  iIntros "!>" (ℓ [? hist] hy look look') "[pts disj]".
-  iDestruct "disj" as (qc pc) "(left & right & %sum)".
-  simpl.
-  rewrite /post_crash_modality.if_non_zero.
-  destruct (decide (0 < qc)%Qc).
-  { by iDestruct (mapsto_ne with "pts left") as %Hi. }
-  iDestruct "left" as %->.
-  rewrite Qcplus_0_l in sum.
-  rewrite sum.
-  simpl.
-  rewrite /post_crash_modality.mapsto_post_crash.
+  iIntros "!>" (ℓ hist hy look look') "[pts disj]".
+
+  iDestruct (soft_disj_exchange_l with "[] disj pts") as "[disj right]".
+  { iIntros "!>" (?) "H".
+    setoid_rewrite <- dfrac_valid_own.
+    iApply (mapsto_valid with "H"). }
+
   iDestruct "right" as (CV') "[crashed [right | %left]]";
-    iDestruct (crashed_at_agree with "crashed rec") as %->.
+  iDestruct (crashed_at_agree with "crashed rec") as %->.
   2: {
     iExFalso.
     rewrite /slice_of_store /slice_of_hist map_fmap_zip_with in look'.
@@ -142,20 +132,16 @@ Proof.
     destruct look' as [[t] ?].
     simplify_eq. }
   iDestruct "right" as (t msg look'' lookm ?) "newPts".
-
-  rewrite post_crash_modality.mk_Qp_1.
-  apply map_lookup_zip_with_Some in look.
-  destruct look as (? & ? & [= <- <-] & ? & lookStore).
-  apply restrict_lookup_Some in lookStore.
-  destruct lookStore as [lookStore ?].
+  apply restrict_lookup_Some in look.
+  destruct look as [lookStore ?].
   rewrite /slice_of_store /slice_of_hist map_fmap_zip_with in look'.
   apply map_lookup_zip_with_Some in look'.
   destruct look' as ([t'] & physHist & eq & ?look & ?look).
 
   setoid_rewrite map_subseteq_spec in sub.
-  specialize (sub _ _ look0).
   simplify_eq.
-  rewrite lookm map_fmap_singleton.
+  rewrite lookm.
+  rewrite map_fmap_singleton.
   iFrame "newPts".
 Qed.
 
@@ -366,7 +352,7 @@ Section wpr.
       ).
     iFrame "baseInterp".
     rewrite /nvm_heap_ctx.
-    iDestruct ("Pg" $! _ (abs_hists) (store, _) _ with "persImpl map'") as "(map' & Pg)".
+    iDestruct ("Pg" $! _ (abs_hists) _ (store, _) _ with "persImpl map'") as "(map' & Pg)".
     iDestruct
       (map_points_to_to_new _ _ _ _ (MkNvmBaseDeltaG Σ Hcrash baseNames)
          with "newCrashedAt map' ptsMap") as "ptsMap"; first done.
@@ -486,34 +472,33 @@ Section wpr.
         split; first set_solver.
         apply elem_of_dom.
         naive_solver. }
-      (* [post_crash_na_view_impl] *)
+      (* [post_crash_na_view_map] *)
       iSplit. { admit. }
+      (* [post_crash_na_view_map] *)
+      iSplitL "". { admit. }
       (* We show that the bumpers survive a crash. *)
-      iSplit. {
-        rewrite /post_crash_bumper_impl.
-        iIntros "!>" (???? ℓ bumper) "knowBumper".
-        iApply (@or_lost_post_crash_ts with "[newCrashedAt] [knowBumper]").
-        { iFrame "newCrashedAt". }
-        iIntros (t look).
-        rewrite /know_bumper.
-        iDestruct "knowBumper" as "[$ knowBumper]".
+      (* rewrite /post_crash_bumper_impl. *)
+      (* iIntros "!>" (???? ℓ bumper) "knowBumper". *)
+      (* iApply (@or_lost_post_crash_ts with "[newCrashedAt] [knowBumper]"). *)
+      (* { iFrame "newCrashedAt". } *)
+      (* iIntros (t look). *)
+      (* rewrite /know_bumper. *)
+      (* iDestruct "knowBumper" as "[$ knowBumper]". *)
 
-        (* FIXME: Temporarily commented out. *)
-        (* iDestruct (own_valid_2 with "allBumpers knowBumper") as %V. *)
-        (* eapply auth_valid_to_agree_singleton_l in V. *)
+      (* FIXME: Temporarily commented out. *)
+      (* iDestruct (own_valid_2 with "allBumpers knowBumper") as %V. *)
+      (* eapply auth_valid_to_agree_singleton_l in V. *)
 
-        (* iApply (bumpers_frag_extract with "bumpersFrag"). *)
-        (* rewrite /newBumpers. *)
-        (* apply restrict_lookup_Some. *)
-        (* split; first (simplify_eq; done). *)
-        (* rewrite /newAbsHists. *)
-        (* rewrite new_abs_hist_dom. *)
-        (* rewrite domHistsEqOrders domOrdersEqBumpers. *)
-        (* apply elem_of_dom_2 in look. *)
-        (* apply elem_of_dom_2 in V. *)
-        (* set_solver. *)
-        admit.
-      }
+      (* iApply (bumpers_frag_extract with "bumpersFrag"). *)
+      (* rewrite /newBumpers. *)
+      (* apply restrict_lookup_Some. *)
+      (* split; first (simplify_eq; done). *)
+      (* rewrite /newAbsHists. *)
+      (* rewrite new_abs_hist_dom. *)
+      (* rewrite domHistsEqOrders domOrdersEqBumpers. *)
+      (* apply elem_of_dom_2 in look. *)
+      (* apply elem_of_dom_2 in V. *)
+      (* set_solver. *)
       admit.
     }
     iFrame "valView".
@@ -688,10 +673,10 @@ Section wpr.
         rewrite 2!restrict_dom.
         rewrite -domPredsEqBumpers.
         set_solver. } }
-    iSplitR "". {
-      iPureIntro.
-      eapply map_Forall_subseteq; last apply bumperBumpToValid.
-      apply restrict_subseteq. }
+    (* iSplitR "". { *)
+    (*   iPureIntro. *)
+    (*   eapply map_Forall_subseteq; last apply bumperBumpToValid. *)
+    (*   apply restrict_subseteq. } *)
     (* bumperSome *)
     { iApply big_sepM2_forall.
       iSplit.

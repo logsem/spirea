@@ -211,17 +211,37 @@ Section wp_at_rules.
     iSplitL.
     { iPureIntro. simpl. apply encode_bumper_bump_mono. }
     (* predPostCrash *)
+    iFrame "predPostCrash".
     iSplitL.
-    { admit. }
+    { iModIntro. iIntros (??????) "(%eq & %eq2 & P)".
+      rewrite /encode_predicate.
+      apply encode_bumper_Some_decode in eq.
+      destruct eq as (s3 & eq' & eq2').
+      rewrite -eq2'.
+      rewrite decode_encode.
+      iExists _.
+      iSplit. { iPureIntro. simpl. reflexivity. }
+      iDestruct (encode_predicate_extract with "P") as "phi".
+      { done. } { done. }
+      iApply (phi_condition with "phi"). }
     (* bumperBumpToValid *)
-    iSplitL.
-    { admit. }
+    (* iSplitL. *)
+    (* { rewrite map_Forall_insert; last first. *)
+    (*   { apply not_elem_of_dom. *)
+    (*     apply not_elem_of_dom in physHistsLook. *)
+    (*     rewrite -domEq2 -domEq. apply physHistsLook. } *)
+    (*   iPureIntro. split; last apply bumperBumpToValid. *)
+    (*   intros ?. *)
+
+    (*   apply bumperBumpToValid. *)
+    (*   eexists _. intros eq. *)
+    (* } *)
     (* bumperSome *)
     iPureIntro.
     apply map_Forall_singleton.
     rewrite encode_bumper_encode.
     done.
-  Admitted.
+  Qed.
 
   Lemma wp_load_at ℓ s Q ϕ `{!LocationProtocol ϕ} st E :
     {{{
@@ -693,7 +713,7 @@ Section wp_at_rules.
     iDestruct (big_sepM2_dom with "bumperSome") as %domEq.
 
     iFrame "predPostCrash".
-    iFrame (bumperBumpToValid).
+    (* iFrame (bumperBumpToValid). *)
 
     (* "bumperSome" *)
     iApply (big_sepM2_update_left with "bumperSome"); eauto.

@@ -24,13 +24,13 @@ Section wp_na_rules.
 
   Implicit Types (ℓ : loc) (s : ST) (ϕ : ST → val → nvmDeltaG Σ → dProp Σ).
 
-  Lemma wp_load_na ℓ (b : bool) ss s Q ϕ `{!LocationProtocol ϕ} positive E :
+  Lemma wp_load_na ℓ (b : bool) q ss s Q ϕ `{!LocationProtocol ϕ} positive E :
     last ss = Some s →
-    {{{ mapsto_ex b ℓ ss ∗
+    {{{ mapsto_na b ℓ q ss ∗
         know_protocol ℓ ϕ ∗
         (<obj> (∀ v, ϕ s v _ -∗ Q v ∗ ϕ s v _)) }}}
       Load (Val $ LitV $ LitLoc ℓ) @ positive; E
-    {{{ v, RET v; mapsto_ex b ℓ ss ∗ Q v }}}.
+    {{{ v, RET v; mapsto_na b ℓ q ss ∗ Q v }}}.
   Proof.
     intros sLast Φ.
     iStartProof (iProp _). iIntros (TV).
@@ -154,9 +154,9 @@ Section wp_na_rules.
   Lemma wp_store_na ℓ b ss v s__last s ϕ `{!LocationProtocol ϕ} st E :
     last ss = Some s__last →
     s__last ⊑ s →
-    {{{ mapsto_ex b ℓ ss ∗ know_protocol ℓ ϕ ∗ ϕ s v _ }}}
+    {{{ mapsto_na b ℓ 1 ss ∗ know_protocol ℓ ϕ ∗ ϕ s v _ }}}
       #ℓ <- v @ st; E
-    {{{ RET #(); mapsto_ex b ℓ (ss ++ [s]) }}}.
+    {{{ RET #(); mapsto_na b ℓ 1 (ss ++ [s]) }}}.
   Proof.
     intros last stateGt Φ.
     iStartProof (iProp _). iIntros (TV).

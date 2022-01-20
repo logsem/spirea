@@ -202,8 +202,8 @@ Section simple_increment.
   Proof.
     iNamed 1. iNamed "pts".
     rewrite /recover.
-    iDestruct (mapsto_ex_last with "aPts") as %[sA saEq].
-    iDestruct (mapsto_ex_last with "bPts") as %[sB sbEq].
+    iDestruct (mapsto_na_last with "aPts") as %[sA saEq].
+    iDestruct (mapsto_na_last with "bPts") as %[sB sbEq].
 
     (* Load [ℓa]. *)
     wpc_bind (! _)%E.
@@ -236,7 +236,7 @@ Section simple_increment.
     iModIntro.
     wpc_pures; first iApply (prove_crash_condition with "aPred bPred aPts bPts").
 
-    iDestruct (mapsto_ex_flush_lb_incl with "lub aPts") as %incl; first done.
+    iDestruct (mapsto_na_flush_lb_incl with "lub aPts") as %incl; first done.
     rewrite bool_decide_eq_false_2.
     2: { rewrite subseteq_nat_le in incl. rewrite subseteq_nat_le in incl2. lia. }
 

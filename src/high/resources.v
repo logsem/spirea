@@ -1,5 +1,6 @@
 (* We define the resource algebras that we use in the interpretation of the
 high-level logic. *)
+From iris.bi Require Import lib.fractional.
 From iris.base_logic.lib Require Import own.
 From iris.algebra Require Import gset gmap excl auth.
 From iris.proofmode Require Import reduction monpred tactics.
@@ -86,12 +87,12 @@ Section ownership_wrappers.
   Definition know_preorder_loc `{Countable A} ℓ (preorder : relation2 A) : iProp Σ :=
     own_know_preorder_loc preorders_name ℓ preorder.
 
-  Definition know_full_encoded_history_loc ℓ enc_abs_hist : iProp Σ :=
-    own_full_encoded_history_loc abs_history_name ℓ enc_abs_hist.
+  Definition know_full_encoded_history_loc ℓ q enc_abs_hist : iProp Σ :=
+    own_full_encoded_history_loc abs_history_name ℓ q enc_abs_hist.
 
   Definition know_full_history_loc `{Countable ST}
-             ℓ (abs_hist : gmap time ST) : iProp Σ :=
-    own_full_history_loc abs_history_name ℓ abs_hist.
+             ℓ q (abs_hist : gmap time ST) : iProp Σ :=
+    own_full_history_loc abs_history_name ℓ q abs_hist.
 
   Definition know_frag_encoded_history_loc ℓ enc_abs_hist : iProp Σ :=
     own_frag_encoded_history_loc know_abs_history_name ℓ enc_abs_hist.
@@ -100,8 +101,9 @@ Section ownership_wrappers.
              ℓ (abs_hist : gmap time ST) : iProp Σ :=
     own_frag_history_loc know_abs_history_name ℓ abs_hist.
 
-  Definition know_na_view ℓ (SV : view) : iProp Σ :=
-    ℓ ↪[non_atomic_views_gname] SV.
+  (* The storeview of the most recent write to a na location. *)
+  Definition know_na_view ℓ q (SV : view) : iProp Σ :=
+    ℓ ↪[non_atomic_views_gname]{#q} SV.
 
 End ownership_wrappers.
 
@@ -147,6 +149,14 @@ Section predicates.
       ℓ (ϕ : s → val → nvmDeltaG Σ → dProp Σ) : iProp Σ :=
     own predicates_name
         (◯ {[ ℓ := pred_to_ra (encode_predicate ϕ) ]}).
+
+  Lemma encode_predicate_extract `{Countable ST}
+        (ϕ : ST → val → nvmDeltaG Σ → dProp Σ) e s v P TV hG' :
+    decode e = Some s →
+    encode_predicate ϕ e v = Some P →
+    P hG' TV -∗
+    ϕ s v hG' TV.
+  Proof. rewrite /encode_predicate. by iIntros (-> [= ->]). Qed.
 
   Lemma know_predicates_alloc preds :
     ⊢ |==> ∃ γ,
@@ -394,35 +404,63 @@ Section points_to_shared.
 
   Definition is_shared_loc ℓ : iProp Σ := own shared_locs_name (◯ {[ ℓ ]}).
 
-  (* _Exclusive_ points-to predicate. This predcate says that we know that the
-  last events at [ℓ] corresponds to the *)
-  Program Definition mapsto_ex (persisted : bool) (ℓ : loc) (ss : list ST) : dProp Σ :=
-    (* MonPred (λ TV, *)
-      (∃ (tP tStore : time) SV (abs_hist : gmap time ST) (msg : message),
-        (* NOTE: Maybe we can actually remove [increasing_list]? It should be
-        covered by the fact that the list corresponds to [abs_hist] and that one
-        is sorted. *)
-        "%incrList" ∷ ⌜ increasing_list ss ⌝ ∗
-        "isExclusiveLoc" ∷ ⎡ is_exclusive_loc ℓ ⎤ ∗
-        "#order" ∷ ⎡ know_preorder_loc ℓ (abs_state_relation) ⎤ ∗
+  (* Points-to predicate for non-atomics. This predcate says that we know that the
+last events at [ℓ] corresponds to the *)
+  Program Definition mapsto_na (persisted : bool) (ℓ : loc) (q: frac) (ss : list ST) : dProp Σ :=
+    (∃ (tP tStore : time) SV (abs_hist : gmap time ST) (msg : message),
+      (* NOTE: Maybe we can actually remove [increasing_list]? It should be
+      covered by the fact that the list corresponds to [abs_hist] and that one
+      is sorted. *)
+      "%incrList" ∷ ⌜ increasing_list ss ⌝ ∗
+      "#isExclusiveLoc" ∷ ⎡ is_exclusive_loc ℓ ⎤ ∗
+      "#order" ∷ ⎡ know_preorder_loc ℓ (abs_state_relation) ⎤ ∗
 
-        (* [tStore] is the last message and it agrees with the last state in ss. *)
-        "%lookupV" ∷ ⌜ abs_hist !! tStore = last ss ⌝ ∗
-        "%nolater" ∷ ⌜ map_no_later abs_hist tStore ⌝ ∗
+      (* [tStore] is the last message and it agrees with the last state in ss. *)
+      "%lookupV" ∷ ⌜ abs_hist !! tStore = last ss ⌝ ∗
+      "%nolater" ∷ ⌜ map_no_later abs_hist tStore ⌝ ∗
 
-        (* Ownership over the abstract history. *)
-        "hist" ∷ ⎡ know_full_history_loc ℓ abs_hist ⎤ ∗
+      (* Ownership over the abstract history. *)
+      "hist" ∷ ⎡ know_full_history_loc ℓ q abs_hist ⎤ ∗
 
-        "knowSV" ∷ ⎡ know_na_view ℓ SV ⎤ ∗
-        "%slice" ∷ ⌜ map_slice abs_hist tP tStore ss ⌝ ∗
-        "#physMsg" ∷ ⎡ auth_map_map_frag_singleton know_phys_history_name ℓ tStore msg ⎤ ∗
-        (* "%msgViewIncluded" ∷ ⌜ msg_store_view msg ⊑ SV ⌝ ∗ *)
-        "#inThreadView" ∷ monPred_in (SV, msg_persisted_after_view msg, ∅) ∗
-        (* We have the [tStore] timestamp in our store view. *)
-        "%haveTStore" ∷ ⌜ tStore ≤ SV !!0 ℓ ⌝ ∗
-        (* "haveTStore" ∷ monPred_in ({[ ℓ := MaxNat tStore ]}, ∅, ∅) ∗ *)
+      "knowSV" ∷ ⎡ know_na_view ℓ q SV ⎤ ∗
+      "%slice" ∷ ⌜ map_slice abs_hist tP tStore ss ⌝ ∗
+      "#physMsg" ∷ ⎡ auth_map_map_frag_singleton know_phys_history_name ℓ tStore msg ⎤ ∗
+      (* "%msgViewIncluded" ∷ ⌜ msg_store_view msg ⊑ SV ⌝ ∗ *)
+      "#inThreadView" ∷ monPred_in (SV, msg_persisted_after_view msg, ∅) ∗
+      (* We have the [tStore] timestamp in our store view. *)
+      "%haveTStore" ∷ ⌜ tStore ≤ SV !!0 ℓ ⌝ ∗
+      (* "haveTStore" ∷ monPred_in ({[ ℓ := MaxNat tStore ]}, ∅, ∅) ∗ *)
 
-        "pers" ∷ if persisted then ⎡ persisted_loc ℓ tP ⎤ else ⌜ tP = 0 ⌝)%I.
+      "pers" ∷ if persisted then ⎡ persisted_loc ℓ tP ⎤ else ⌜ tP = 0 ⌝)%I.
+
+  Global Instance mapsto_na_fractional per ℓ ss : Fractional (λ q, mapsto_na per ℓ q ss).
+  Proof.
+    intros p q.
+    rewrite /mapsto_na.
+    iSplit.
+    - iNamed 1.
+      iDestruct "hist" as "[histP histQ]".
+      iDestruct "knowSV" as "[knowSVP knowSVQ]".
+      destruct per.
+      * iDestruct "pers" as "#pers".
+        iSplitL "histP knowSVP".
+        + iExists _, _, _, _, _.
+          iFrame "#∗%".
+        + iExists _, _, _, _, _.
+          iFrame "#∗%".
+      * iDestruct "pers" as "#pers".
+        iSplitL "histP knowSVP".
+        + iExists _, _, _, _, _.
+          iFrame "#∗%".
+        + iExists _, _, _, _, _.
+          iFrame "#∗%".
+    - iDestruct 1 as "[L R]".
+      iNamed "L".
+      iDestruct "R" as (?????) "(_ & _ & _ & _ & _ & histQ & SV & HIP & ?)".
+      iDestruct (ghost_map_elem_agree with "hist histQ") as %->%(inj (fmap _)).
+      iDestruct (ghost_map_elem_agree with "knowSV SV") as %->.
+      iExists _, _, _, _, _. iFrame "#∗%".
+  Qed.
 
   (* NOTE: This comment is out of date. *)
   (* This definition uses an existentially quantified [s']. We do this such that
@@ -539,40 +577,42 @@ Section points_to_shared.
     set_solver.
   Qed.
 
-  Lemma mapsto_ex_store_lb ℓ b ss s :
+  Lemma mapsto_na_store_lb ℓ b q ss s :
     last ss = Some s →
-    mapsto_ex b ℓ ss -∗
+    mapsto_na b ℓ q ss -∗
     know_store_lb ℓ s.
   Proof. Admitted.
 
-  Lemma mapsto_ex_last b ℓ ss : mapsto_ex b ℓ ss -∗ ⌜∃ s, last ss = Some s⌝.
+  Lemma mapsto_na_last b ℓ q ss : mapsto_na b ℓ q ss -∗ ⌜∃ s, last ss = Some s⌝.
   Proof.
-    rewrite /mapsto_ex.
+    rewrite /mapsto_na.
     iNamed 1.
     apply map_slice_lookup_hi_alt in slice.
     naive_solver.
   Qed.
 
-  Lemma mapsto_ex_store_lb_incl ℓ b ss s1 s2 :
+  Lemma mapsto_na_store_lb_incl ℓ q b ss s1 s2 :
     last ss = Some s1 →
     know_store_lb ℓ s2 -∗
-    mapsto_ex b ℓ ss -∗
+    mapsto_na b ℓ q ss -∗
     ⌜s2 ⊑ s1⌝.
   Proof. Admitted.
 
-  Lemma mapsto_ex_flush_lb_incl ℓ b ss s1 s2 :
+  Lemma mapsto_na_flush_lb_incl ℓ q b ss s1 s2 :
     last ss = Some s1 →
     know_flush_lb ℓ s2 -∗
-    mapsto_ex b ℓ ss -∗
+    mapsto_na b ℓ q ss -∗
     ⌜s2 ⊑ s1⌝.
   Proof. Admitted.
 
 End points_to_shared.
 
 (** Notation for the exclusive points-to predicate. *)
-Notation "l ↦ ss" := (mapsto_ex false l ss) (at level 20).
-Notation "l ↦ₚ ss" := (mapsto_ex true l ss) (at level 20).
-(* Notation "l ↦ xs ; ys | P" := (mapsto_ex l xs ys P) (at level 20). *)
+Notation "l ↦ ss" := (mapsto_na false l 1 ss) (at level 20).
+Notation "l ↦{ q } ss" := (mapsto_na false l q ss) (at level 20).
+Notation "l ↦ₚ ss" := (mapsto_na true l 1 ss) (at level 20).
+Notation "l ↦ₚ{ q } ss" := (mapsto_na true l q ss) (at level 20).
+(* Notation "l ↦ xs ; ys | P" := (mapsto_na l xs ys P) (at level 20). *)
 
 (** Notation for the shared points-to predicate. *)
 (* Notation "l ↦ ( s1 , s2 , s3 )  | P" := (mapsto_shared l s1 s2 s3 P) (at level 20). *)

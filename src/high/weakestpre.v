@@ -219,13 +219,13 @@ Section wp_rules.
         ℓ v (s : ST) (Φ : ST → val → dProp Σ) st E :
     {{{ Φ s v }}}
       ref v @ st; E
-    {{{ ι, RET ℓ; mapsto_ex ι ℓ [] [] s Φ }}}
+    {{{ ι, RET ℓ; mapsto_na ι ℓ [] [] s Φ }}}
   Proof.
 
   Lemma wp_load ℓ ι ℓ ss ss' ϕ s E :
-    {{{ mapsto_ex ι ℓ ss ss' s Φ }}}
+    {{{ mapsto_na ι ℓ ss ss' s Φ }}}
       !ℓ @ s; E
-    {{{ v, RET v; mapsto_ex ι ℓ ss ss' Φ ∗ ϕ s v }}}
+    {{{ v, RET v; mapsto_na ι ℓ ss ss' Φ ∗ ϕ s v }}}
   Proof.
   *)
 
@@ -236,14 +236,14 @@ Section wp_rules.
   Proof.
   Admitted.
 
-  Lemma wp_wb_ex ℓ b s ss st E :
+  Lemma wp_wb_ex ℓ b s q ss st E :
     last ss = Some s →
-    {{{ mapsto_ex b ℓ ss }}}
+    {{{ mapsto_na b ℓ q ss }}}
       WB #ℓ @ st; E
-    {{{ RET #(); mapsto_ex b ℓ ss ∗ <fence> know_flush_lb ℓ s }}}.
+    {{{ RET #(); mapsto_na b ℓ q ss ∗ <fence> know_flush_lb ℓ s }}}.
   Proof.
     iIntros (eq Φ) "pts".
-    iDestruct (mapsto_ex_store_lb with "pts") as "#lb"; first done.
+    iDestruct (mapsto_na_store_lb with "pts") as "#lb"; first done.
     iIntros "HP".
     iApply wp_wb_lb; first done.
     iNext.

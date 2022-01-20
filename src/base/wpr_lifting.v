@@ -7,7 +7,7 @@ From Perennial.algebra Require Import proph_map.
 From Perennial.program_logic Require Import recovery_weakestpre recovery_adequacy.
 (* From Perennial.goose_lang Require Import crash_modality typing adequacy lang. *)
 
-From self Require Import extra ipm_tactics.
+From self Require Import extra ipm_tactics if_non_zero.
 From self.lang Require Import lang.
 From self.base Require Import primitive_laws post_crash_modality.
 
@@ -192,10 +192,7 @@ Section wpr.
       iDestruct (big_sepM_impl_strong _ _ _ σ with "ptsMap []") as "[$ _]".
       iModIntro.
       iIntros (ℓ hist) "pts". iIntros (look).
-      (* Note: The first value below is just a fancy way of writing [0]. *)
-      iExists (Qcanon.Q2Qc (QArith_base.Qmake Z0 xH)), 1%Qc.
-      rewrite if_non_zero_1. simpl. rewrite if_non_zero_0. simpl.
-      iSplit; first done. iSplit; last done.
+      iApply soft_disj_intro_r.
       iExists _. iFrame "crashed".
       destruct (slice_of_store p' σ !! ℓ) as [?|] eqn:look'; last first.
       * iRight. iPureIntro.

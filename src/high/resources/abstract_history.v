@@ -41,14 +41,13 @@ Section abs_history_lemmas.
     ghost_map_auth γ1 (DfracOwn 1) abs_hists ∗
     own γ2 (● (fmap_fmap_to_agree abs_hists) : know_abs_historiesR).
 
-  Definition own_full_encoded_history_loc γ1 ℓ enc_abs_hist : iProp Σ :=
-    ℓ ↪[ γ1 ] enc_abs_hist.
+  Definition own_full_encoded_history_loc γ1 ℓ q enc_abs_hist : iProp Σ :=
+    ℓ ↪[ γ1 ]{#q} enc_abs_hist.
 
-  Definition own_full_history_loc γ1 ℓ abs_hist : iProp Σ :=
-    ℓ ↪[ γ1 ] (encode <$> abs_hist).
+  Definition own_full_history_loc γ1 ℓ q abs_hist : iProp Σ :=
+    ℓ ↪[ γ1 ]{#q} (encode <$> abs_hist).
 
   Definition own_frag_encoded_history_loc γ2 ℓ enc_abs_hist : iProp Σ :=
-    (* (auth_map_map_frag γ2 {[ ℓ := enc_abs_hist ]}). *)
     own γ2 (◯ {[ ℓ := to_agree <$> enc_abs_hist ]}).
 
   (* In this definition we store that decoding the stored encoded histry is
@@ -85,9 +84,9 @@ Section abs_history_lemmas.
     done.
   Qed.
 
-  Lemma own_full_equiv γ ℓ abs_hist :
-    own_full_history_loc γ ℓ abs_hist ⊣⊢
-      own_full_encoded_history_loc γ ℓ (encode <$> abs_hist).
+  Lemma own_full_equiv γ ℓ q abs_hist :
+    own_full_history_loc γ ℓ q abs_hist ⊣⊢
+      own_full_encoded_history_loc γ ℓ q (encode <$> abs_hist).
   Proof. done. Qed.
 
   Lemma own_frag_equiv γ ℓ abs_hist :
@@ -140,9 +139,9 @@ Section abs_history_lemmas.
 
   (** If you know the full history for a location and own the "all-knowing"
   resource, then those two will agree. *)
-  Lemma own_full_history_agree γ1 γ2 ℓ hist hists :
+  Lemma own_full_history_agree γ1 γ2 ℓ q hist hists :
     own_full_history γ1 γ2 hists -∗
-    own_full_history_loc γ1 ℓ hist -∗
+    own_full_history_loc γ1 ℓ q hist -∗
     ⌜hists !! ℓ = Some (encode <$> hist)⌝.
   Proof.
     iIntros "[A _] B".
@@ -248,7 +247,7 @@ Section abs_history_lemmas.
     abs_hists !! ℓ = None →
     own_full_history γ1 γ2 abs_hists ==∗
     own_full_history γ1 γ2 (<[ℓ := enc_abs_hist]>abs_hists) ∗
-    own_full_encoded_history_loc γ1 ℓ enc_abs_hist ∗
+    own_full_encoded_history_loc γ1 ℓ 1 enc_abs_hist ∗
     own_frag_encoded_history_loc γ2 ℓ enc_abs_hist.
   Proof.
     iIntros (look) "[A B]".
@@ -264,10 +263,10 @@ Section abs_history_lemmas.
   Lemma own_full_encoded_history_insert γ1 γ2 ℓ t enc_abs_hist abs_hists encS :
     enc_abs_hist !! t = None →
     own_full_history γ1 γ2 abs_hists -∗
-    own_full_encoded_history_loc γ1 ℓ enc_abs_hist ==∗
+    own_full_encoded_history_loc γ1 ℓ 1 enc_abs_hist ==∗
     let enc_abs_hist' := <[t := encS]>enc_abs_hist
     in own_full_history γ1 γ2 (<[ℓ := enc_abs_hist']>abs_hists) ∗
-       own_full_encoded_history_loc γ1 ℓ enc_abs_hist' ∗
+       own_full_encoded_history_loc γ1 ℓ 1 enc_abs_hist' ∗
        own_frag_encoded_history_loc γ2 ℓ {[ t := encS ]}.
   Proof.
     iIntros (look) "[M N] O".
@@ -284,10 +283,10 @@ Section abs_history_lemmas.
   Lemma own_full_history_insert γ1 γ2 ℓ t abs_hist abs_hists (s : ST) :
     abs_hist !! t = None →
     own_full_history γ1 γ2 abs_hists -∗
-    own_full_history_loc γ1 ℓ abs_hist ==∗
+    own_full_history_loc γ1 ℓ 1 abs_hist ==∗
     let abs_hist' := <[t := s]>abs_hist
     in own_full_history γ1 γ2 (<[ℓ := encode <$> abs_hist']>abs_hists) ∗
-       own_full_history_loc γ1 ℓ abs_hist' ∗
+       own_full_history_loc γ1 ℓ 1 abs_hist' ∗
        own_frag_history_loc γ2 ℓ {[ t := s ]}.
   Proof.
     iIntros (look) "??".
