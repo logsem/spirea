@@ -29,22 +29,22 @@ Section wp_at_rules.
   Lemma msg_persisted_views_eq
         (ℓ : loc) (hists : gmap loc (gmap time (message * positive)))
         (hist : gmap time (message * positive)) (msg : message)
-        (sharedLocs : gset loc) (t : time) (s' : positive) :
+        (atLocs : gset loc) (t : time) (s' : positive) :
     map_Forall
       (λ _ : loc,
         map_Forall
           (λ _ '(msg, _), msg_persist_view msg = msg_persisted_after_view msg))
-      (restrict sharedLocs hists) →
+      (restrict atLocs hists) →
     hists !! ℓ = Some hist →
     hist !! t = Some (msg, s') →
-    own shared_locs_name (● (sharedLocs : gsetUR loc)) -∗
+    own shared_locs_name (● (atLocs : gsetUR loc)) -∗
     own shared_locs_name (◯ {[ℓ]}) -∗
     ⌜msg.(msg_persist_view) = msg.(msg_persisted_after_view)⌝.
   Proof.
     iIntros (m look look') "A B".
     iDestruct (location_sets_singleton_included with "A B") as %V.
     iPureIntro.
-    assert (restrict sharedLocs hists !! ℓ = Some hist) as look2.
+    assert (restrict atLocs hists !! ℓ = Some hist) as look2.
     - apply restrict_lookup_Some. done.
     - setoid_rewrite map_Forall_lookup in m.
       specialize (m ℓ hist look2).
@@ -119,7 +119,7 @@ Section wp_at_rules.
       rewrite /relation2. congruence. }
 
     (* Add the allocated location to the set of atomic locations. *)
-    iMod (own_update with "sharedLocs") as "[sharedLocs fragSharedLocs]".
+    iMod (own_update with "atLocs") as "[atLocs fragSharedLocs]".
     { apply auth_update_alloc. apply gset_local_update.
       apply (union_subseteq_r {[ ℓ ]}). }
     iEval (rewrite -gset_op) in "fragSharedLocs". iDestruct "fragSharedLocs" as "[#isShared _]".
@@ -136,8 +136,8 @@ Section wp_at_rules.
       iFrame "fragHist".
       iPureIntro. by rewrite !map_fmap_singleton decode_encode. }
     repeat iExists _.
-    iFrame "physHist crashedAt history predicates allOrders exclusiveLocs
-      sharedLocs".
+    iFrame "physHist crashedAt history predicates allOrders naLocs
+      atLocs".
     iFrame.
     iFrame "#".
     iFrame "%".
@@ -151,7 +151,7 @@ Section wp_at_rules.
     rewrite !big_sepM2_insert;
       try (eapply map_dom_eq_lookup_None; last apply physHistsLook;
            rewrite /relation2; congruence).
-    iFrame "pts ptsMap ordered sharedLocsHistories ownHist bumperSome bumpMono".
+    iFrame "pts ptsMap ordered atLocsHistories ownHist bumperSome bumpMono".
     (* locsDisjoint *)
     iSplit. {
       iPureIntro.
@@ -294,7 +294,7 @@ Section wp_at_rules.
     { rewrite -elem_of_dom domPhysHistEqAbsHist elem_of_dom. done. }
 
     iDestruct (
-        location_sets_singleton_included with "sharedLocs isSharedLoc"
+        location_sets_singleton_included with "atLocs isSharedLoc"
       ) as %ℓSh.
 
     iDestruct (big_sepM2_lookup_acc with "predsHold") as "[predMap predsHold]".
@@ -378,8 +378,8 @@ Section wp_at_rules.
     iModIntro.
     (* We re-establish [interp]. *)
     iSplitR "ptsMap physHist allOrders ordered predsHold history predicates
-             crashedAt sharedLocs naView exclusiveLocs allBumpers bumpMono
-             predPostCrash sharedLocsHistories"; last first.
+             crashedAt atLocs naView naLocs allBumpers bumpMono
+             predPostCrash atLocsHistories"; last first.
     { repeat iExists _. iFrameNamed. }
     iSplit. { iPureIntro. repeat split; try done; apply view_le_l. }
     iSpecialize ("Φpost" $! sL v').
@@ -464,7 +464,7 @@ Section wp_at_rules.
     destruct look as (absHist & enc & absHistsLook & lookTS & decodeEnc).
 
     iDestruct (
-        location_sets_singleton_included with "sharedLocs isSharedLoc"
+        location_sets_singleton_included with "atLocs isSharedLoc"
       ) as %ℓSh.
 
     iDestruct (big_sepM2_dom with "predsHold") as %domPhysHistEqAbsHist.
@@ -508,12 +508,12 @@ Section wp_at_rules.
     history. Hence, we must accordingly insert a new state in the abstract
     history. *)
 
-    iDestruct (big_sepM_delete with "sharedLocsHistories") as
-      "(absHist & sharedLocsHistories)".
+    iDestruct (big_sepM_delete with "atLocsHistories") as
+      "(absHist & atLocsHistories)".
     { apply restrict_lookup_Some_2; done. }
 
-    (* iDestruct (big_sepM_delete with "sharedLocsHistories") as *)
-    (*   "[(%abs_hist' & %absHistLook' & absHist) sharedLocsHistories]"; first done. *)
+    (* iDestruct (big_sepM_delete with "atLocsHistories") as *)
+    (*   "[(%abs_hist' & %absHistLook' & absHist) atLocsHistories]"; first done. *)
     (* simplify_eq. *)
 
     iAssert (⌜ absHist !! t_t = None ⌝)%I as %absHistLook.
@@ -575,8 +575,8 @@ Section wp_at_rules.
 
     iDestruct (big_sepM_insert_delete with "[$ptsMap $pts]") as "ptsMap".
     repeat iExists _.
-    iFrame "ptsMap physHist crashedAt history predicates allOrders sharedLocs
-            exclusiveLocs naView allBumpers bumpMono".
+    iFrame "ptsMap physHist crashedAt history predicates allOrders atLocs
+            naLocs naView allBumpers bumpMono".
     iFrame (locsDisjoint naViewsDom).
 
     (* [histDomLocs] *)
@@ -598,8 +598,8 @@ Section wp_at_rules.
         done.
       - done. }
 
-    (* [sharedLocsHistories] *)
-    iSplitL "sharedLocsHistories absHist".
+    (* [atLocsHistories] *)
+    iSplitL "atLocsHistories absHist".
     {
       rewrite /know_full_encoded_history_loc.
       (* NOTE: This rewrite is mega-slow. *)

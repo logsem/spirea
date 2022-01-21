@@ -449,10 +449,10 @@ Proof.
   (* Allocate preorders. *)
   iMod (own_all_preorders_gname_alloc ∅) as (orders_name) "[orders #fragOrders]".
   (* Allocate set of shared locations.. *)
-  iMod (own_alloc (● (∅ : gsetUR _))) as (shared_locs_name) "sharedLocs".
+  iMod (own_alloc (● (∅ : gsetUR _))) as (shared_locs_name) "atLocs".
   { apply auth_auth_valid. done. }
   (* Allocate set of non-atomic locations.. *)
-  iMod (own_alloc (● (∅ : gsetUR _))) as (exclusive_locs_name) "exclusiveLocs".
+  iMod (own_alloc (● (∅ : gsetUR _))) as (exclusive_locs_name) "naLocs".
   { apply auth_auth_valid. done. }
   (* iMod ghost_map.ghost_map_alloc_empty as (na_views_name) "na_views". *)
   iMod (ghost_map.ghost_map_alloc (∅ : gmap loc view)) as (na_views_name) "(na_views & _)"; eauto.

@@ -98,8 +98,8 @@ Section state_interpretation.
       (* Seperation of locations. *)
       "%locsDisjoint" ∷ ⌜ na_locs ## at_locs ⌝ ∗
       "%histDomLocs" ∷ ⌜ dom _ abs_hists = na_locs ∪ at_locs ⌝ ∗
-      "exclusiveLocs" ∷ own exclusive_locs_name (● na_locs) ∗
-      "sharedLocs" ∷ own shared_locs_name (● at_locs) ∗
+      "naLocs" ∷ own exclusive_locs_name (● na_locs) ∗
+      "atLocs" ∷ own shared_locs_name (● at_locs) ∗
 
       (* Non-atomic locations. *)
       "%naViewsDom" ∷ ⌜ dom _ na_views = na_locs ⌝ ∗ (* NOTE: If this equality persists we could remove na_locs *)
@@ -108,7 +108,7 @@ Section state_interpretation.
       (* Shared locations. *)
       "%mapShared" ∷ ⌜ shared_locs_inv (restrict at_locs phys_hists) ⌝ ∗
       (* For shared locations [interp] owns the fragment for the full history. *)
-      "sharedLocsHistories" ∷
+      "atLocsHistories" ∷
         ([∗ map] ℓ ↦ abs_hist ∈ (restrict at_locs abs_hists),
           know_full_encoded_history_loc ℓ 1 abs_hist) ∗
 

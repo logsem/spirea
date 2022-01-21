@@ -292,12 +292,12 @@ Section wpr.
 
     (* We freeze/persist the old authorative resource algebra. *)
     iMod (ghost_map_auth_persist with "allOrders") as "#allOrders".
-    iMod (own_update with "sharedLocs") as "sharedLocs".
+    iMod (own_update with "atLocs") as "atLocs".
     { apply auth_update_auth_persist. }
-    iDestruct "sharedLocs" as "#sharedLocs".
-    iMod (own_update with "exclusiveLocs") as "exclusiveLocs".
+    iDestruct "atLocs" as "#atLocs".
+    iMod (own_update with "naLocs") as "naLocs".
     { apply auth_update_auth_persist. }
-    iDestruct "exclusiveLocs" as "#exclusiveLocs".
+    iDestruct "naLocs" as "#naLocs".
     (* FIXME: Temporarily commented out. *)
     (* iMod (own_all_bumpers_persist with "allBumpers") as "#allBumpers". *)
     iMod (own_update with "predicates") as "allPredicates".
@@ -317,15 +317,15 @@ Section wpr.
 
     set newSharedLocs := (dom (gset _) newAbsHists) ∩ at_locs.
     iMod (own_alloc (● (newSharedLocs : gsetUR _) ⋅ ◯ _))
-      as (new_shared_locs_name) "[newSharedLocs sharedLocsFrag]".
+      as (new_shared_locs_name) "[newSharedLocs atLocsFrag]".
     { apply auth_both_valid. done. }
-    iDestruct "sharedLocsFrag" as "#sharedLocsFrag".
+    iDestruct "atLocsFrag" as "#atLocsFrag".
 
     set newNaLocs := (dom (gset _) newAbsHists) ∩ na_locs.
     iMod (own_alloc (● (newNaLocs : gsetUR _) ⋅ ◯ _))
-      as (new_exclusive_locs_name) "[newNaLocs exclusiveLocsFrag]".
+      as (new_exclusive_locs_name) "[newNaLocs naLocsFrag]".
     { apply auth_both_valid. done. }
-    iDestruct "exclusiveLocsFrag" as "#exclusiveLocsFrag".
+    iDestruct "naLocsFrag" as "#naLocsFrag".
 
     (* Allocate the new map of bumpers. *)
     set newBumpers := restrict (dom (gset _) newAbsHists) bumpers.
@@ -416,9 +416,9 @@ Section wpr.
         { iFrame "newCrashedAt". }
         iIntros (t look).
         rewrite /is_shared_loc.
-        iDestruct (own_valid_2 with "sharedLocs sh")
+        iDestruct (own_valid_2 with "atLocs sh")
           as %[_ [elem _]]%auth_both_dfrac_valid_discrete.
-        iApply (own_mono with "sharedLocsFrag").
+        iApply (own_mono with "atLocsFrag").
         exists (◯ newSharedLocs).
         rewrite -auth_frag_op.
         rewrite gset_op.
@@ -448,9 +448,9 @@ Section wpr.
         { iFrame "newCrashedAt". }
         iIntros (t look).
         rewrite /is_exclusive_loc.
-        iDestruct (own_valid_2 with "exclusiveLocs sh")
+        iDestruct (own_valid_2 with "naLocs sh")
           as %[_ [elem _]]%auth_both_dfrac_valid_discrete.
-        iApply (own_mono with "exclusiveLocsFrag").
+        iApply (own_mono with "naLocsFrag").
         exists (◯ newNaLocs).
         rewrite -auth_frag_op.
         rewrite gset_op.
@@ -540,7 +540,7 @@ Section wpr.
     (* mapShared. We show that the shared location still satisfy that
     heir two persist-views are equal. *)
     iSplit. { iPureIntro. apply shared_locs_inv_slice_of_store. }
-    (* sharedLocsHistories *)
+    (* atLocsHistories *)
     iSplitR.
     { admit. }
     (* [ordered]: We show that the abstract states are still ordered. *)

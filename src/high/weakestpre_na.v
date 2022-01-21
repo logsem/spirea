@@ -24,6 +24,188 @@ Section wp_na_rules.
 
   Implicit Types (ℓ : loc) (s : ST) (ϕ : ST → val → nvmDeltaG Σ → dProp Σ).
 
+  Lemma wp_alloc_na v s ϕ `{!LocationProtocol ϕ} st E :
+    {{{ "phi" ∷ ϕ s v _ }}}
+      ref_NA v @ st; E
+    {{{ ℓ, RET #ℓ; know_protocol ℓ ϕ ∗ ℓ ↦ [s] }}}.
+  Proof.
+    intros Φ. iStartProof (iProp _). iIntros (TV). iNamed 1.
+    iIntros (TV' incl) "Φpost".
+
+    (* Unfold the wp *)
+    rewrite wp_eq /wp_def wpc_eq.
+    iIntros ([[SV PV] BV] incl2) "#val".
+    monPred_simpl.
+    iApply program_logic.crash_weakestpre.wp_wpc.
+
+    iApply wp_extra_state_interp. { done. } { by apply prim_step_ref_no_fork. }
+    (* We open [interp]. *)
+    iNamed 1.
+
+    (* We add this to prevent Coq from trying to use [highExtraStateInterp]. *)
+    set (extra := (Build_extraStateInterp _ _)).
+    iApply wp_fupd.
+
+    iApply (wp_alloc (extra := {| extra_state_interp := True |})); first done.
+    iNext.
+    iIntros (ℓ CV') "(crashedAt' & % & % & pts)".
+    simpl.
+    iFrame "val".
+
+    (* The new location is not in the existing [phys_hist]. *)
+    destruct (phys_hists !! ℓ) eqn:physHistsLook.
+    { iDestruct (big_sepM_lookup with "ptsMap") as "pts'"; first done.
+      iDestruct (mapsto_valid_2 with "pts pts'") as (?) "_".
+      done. }
+
+    iDestruct (big_sepM2_dom with "predsHold") as %domEq.
+    iDestruct (big_sepM2_dom with "bumperSome") as %domEq2.
+    iDestruct (big_sepM2_dom with "predPostCrash") as %domEq3.
+    iDestruct (big_sepM2_dom with "bumpMono") as %domEq4.
+
+    (* We update ghost state. *)
+
+    (* Update ghost state for physical history. *)
+    iMod (auth_map_map_insert_top with "physHist") as "[physHist ownPhysHist]".
+    { done. }
+
+    (* Add the predicate to the ghost state of predicates. *)
+    iMod (own_all_preds_insert with "predicates") as "[predicates knowPred]".
+    { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
+
+    (* Allocate the abstract history for the location. *)
+    iMod (own_full_history_history_insert_loc _ _ _ _ {[0 := encode s]} with "history")
+      as "(history & ownHist & #fragHist)".
+    { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
+
+    (* Add the bumper to the ghost state of bumper. *)
+    iMod (own_all_bumpers_insert with "allBumpers") as "[allBumper knowBumper]".
+    { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
+
+    (* Add the preorder to the ghost state of bumper. *)
+    iMod (ghost_map_insert_persist with "allOrders") as "[allOrders #knowOrder]".
+    { eapply map_dom_eq_lookup_None; last apply physHistsLook.
+      rewrite /relation2. congruence. }
+
+    assert (ℓ ∉ at_locs). {
+      setoid_rewrite <- not_elem_of_dom in physHistsLook.
+      eapply not_elem_of_weaken; first apply physHistsLook.
+      rewrite domEq. set_solver. }
+    assert (ℓ ∉ na_locs). {
+      setoid_rewrite <- not_elem_of_dom in physHistsLook.
+      eapply not_elem_of_weaken; first apply physHistsLook.
+      rewrite domEq. set_solver. }
+
+    (* Add the allocated location to the set of non-atomic locations. *)
+    iMod (own_update with "naLocs") as "[naLocs fragExclusiveLoc]".
+    { apply auth_update_alloc. apply gset_local_update.
+      apply (union_subseteq_r {[ ℓ ]}). }
+    iEval (rewrite -gset_op) in "fragExclusiveLoc".
+    iDestruct "fragExclusiveLoc" as "[#isExclusive _]".
+    (* Insert in na views *)
+    iMod (ghost_map_insert _ SV with "naView") as "[naView ownNaView]".
+    { rewrite -not_elem_of_dom.
+      setoid_rewrite <- not_elem_of_dom in physHistsLook.
+      eapply not_elem_of_weaken; first apply physHistsLook.
+      rewrite domEq. set_solver. }
+
+    iModIntro.
+    rewrite -assoc. iSplit; first done.
+    iSplitL "Φpost knowPred knowBumper knowOrder ownHist ownNaView ownPhysHist".
+    { iApply "Φpost". iFrame "knowPred knowBumper knowOrder isExclusive".
+      iExists _, _, _, _, (Msg v ∅ ∅ PV).
+      repeat iExists _.
+      rewrite -map_fmap_singleton. iFrame "ownHist".
+      iFrame "ownNaView".
+      iFrame "ownPhysHist".
+      simpl.
+      iSplitPure; first apply increasing_list_singleton.
+      iSplitPure; first apply lookup_singleton.
+      iSplitPure; first apply map_no_later_singleton.
+      iSplitPure; first (split; [apply lookup_singleton | reflexivity]).
+      iSplitPure; first repeat split; auto using view_empty_least.
+      iPureIntro. lia. }
+    repeat iExists _.
+    iFrame "physHist crashedAt history predicates allOrders naLocs
+      atLocs".
+    iFrame.
+    iFrame "#".
+    iFrame "%".
+    (* We split up some of the big seps s.t. we can frame things away
+    immediately. *)
+    rewrite !big_sepM_insert; try done.
+    rewrite !big_sepM2_insert;
+      try (eapply map_dom_eq_lookup_None; last apply physHistsLook;
+           rewrite /relation2; congruence).
+    rewrite !(restrict_insert_not_elem _ _ _ _ H3).
+    iFrame "pts ptsMap ordered bumperSome bumpMono".
+    iFrame (mapShared).
+    (* locsDisjoint *)
+    iSplit. {
+      iPureIntro.
+      assert (ℓ ∉ dom (gset loc) abs_hists).
+      { rewrite -domEq. apply not_elem_of_dom. done. }
+      set_solver. }
+    (* histDomLocs *)
+    iSplit. { iPureIntro. rewrite dom_insert_L. set_solver. }
+    (* naViewsDom *)
+    iSplitPure. { rewrite dom_insert_L. rewrite naViewsDom. done. }
+    iFrame "atLocsHistories".
+    (* increasingMap *)
+    iSplitPure; first apply increasing_map_singleton.
+    (* predsHold *)
+    iSplitL "predsHold phi".
+    { iSplitL "phi".
+      - iExists _. rewrite !lookup_insert.
+        iSplit; first done.
+        rewrite /initial_history.
+        simpl.
+        rewrite big_sepM2_singleton /=.
+        simpl.
+        iDestruct (predicate_holds_phi with "[]") as "HH".
+        { done. }
+        { done. }
+        iApply "HH".
+        iDestruct (phi_nobuf with "phi") as "phi".
+        simpl.
+        iApply (monPred_mono with "phi").
+        destruct TV as [[??]?].
+        destruct TV' as [[??]?].
+        repeat split; last done.
+        * etrans; first apply incl. apply incl2.
+        * etrans; first apply incl. apply incl2.
+      - iApply (big_sepM2_impl with "predsHold").
+        iModIntro. iIntros (ℓ' ????) "(%pred & %look & ?)".
+        iExists (pred).
+        assert (ℓ ≠ ℓ') by congruence.
+        rewrite lookup_insert_ne; last done.
+        rewrite lookup_insert_ne; last done.
+        iSplit; first done.
+        iFrame. }
+    (* bumpMono *)
+    iSplitL.
+    { iPureIntro. simpl. apply encode_bumper_bump_mono. }
+    (* predPostCrash *)
+    iFrame "predPostCrash".
+    iSplitL.
+    { iModIntro. iIntros (??????) "(%eq & %eq2 & P)".
+      rewrite /encode_predicate.
+      apply encode_bumper_Some_decode in eq.
+      destruct eq as (s3 & eq' & eq2').
+      rewrite -eq2'.
+      rewrite decode_encode.
+      iExists _.
+      iSplit. { iPureIntro. simpl. reflexivity. }
+      iDestruct (encode_predicate_extract with "P") as "phi".
+      { done. } { done. }
+      iApply (phi_condition with "phi"). }
+    (* bumperSome *)
+    iPureIntro.
+    apply map_Forall_singleton.
+    rewrite encode_bumper_encode.
+    done.
+  Qed.
+
   Lemma wp_load_na ℓ (b : bool) q ss s Q ϕ `{!LocationProtocol ϕ} positive E :
     last ss = Some s →
     {{{ mapsto_na b ℓ q ss ∗
@@ -126,8 +308,8 @@ Section wp_na_rules.
     iDestruct ("predsHold" with "[predMap]") as "predsHold". { naive_solver. }
 
     iSplitR "ptsMap physHist allOrders ordered predsHold history predicates
-             sharedLocs exclusiveLocs crashedAt allBumpers bumpMono predPostCrash
-             sharedLocsHistories naView"; last first.
+             atLocs naLocs crashedAt allBumpers bumpMono predPostCrash
+             atLocsHistories naView"; last first.
     { repeat iExists _. iFrameNamed. done. }
     iSplit; first done.
     iApply "Φpost".
@@ -224,7 +406,7 @@ Section wp_na_rules.
       rewrite -!not_elem_of_dom. rewrite domEq. rewrite dom_fmap. done. }
 
     iDestruct (
-        location_sets_singleton_included with "exclusiveLocs isExclusiveLoc"
+        location_sets_singleton_included with "naLocs isExclusiveLoc"
       ) as %ℓEx.
     assert (ℓ ∉ at_locs) as ℓnotSh by set_solver.
     (* Update the ghost state for the abstract history. *)
@@ -302,8 +484,8 @@ Section wp_na_rules.
     iSplit.
     { iPureIntro. setoid_rewrite restrict_insert_not_elem; done. }
 
-    (* [sharedLocsHistories] *)
-    iSplitL "sharedLocsHistories".
+    (* [atLocsHistories] *)
+    iSplitL "atLocsHistories".
     { setoid_rewrite restrict_insert_not_elem. done. done. }
 
     iSplit.

@@ -7,6 +7,8 @@ Proof. intros ?. rewrite bi.pure_True; last done. by rewrite left_id. Qed.
 Lemma pure_sep_r `{BiAffine PROP} (φ : Prop) (P : PROP) : φ → P ⊢ P ∗ ⌜φ⌝.
 Proof. intros ?. rewrite bi.pure_True; last done. by rewrite right_id. Qed.
 
+Ltac iSplitPure := iSplit; first iPureIntro.
+
 Ltac iPureGoal :=
   (setoid_rewrite <- pure_sep_l || setoid_rewrite <- pure_sep_r); last first.
 
