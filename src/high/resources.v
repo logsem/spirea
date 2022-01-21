@@ -81,7 +81,7 @@ after a crash in [post_crash_modality.v]. *)
 Section ownership_wrappers.
   Context `{nvmFixedG Σ, nD : nvmDeltaG Σ}.
 
-  Definition know_bumper `{AbstractState ST} ℓ bumper :=
+  Definition know_bumper `{AbstractState ST} ℓ (bumper : ST → ST) : iProp Σ :=
     own_know_bumper bumpers_name ℓ bumper.
 
   Definition know_preorder_loc `{Countable A} ℓ (preorder : relation2 A) : iProp Σ :=
@@ -413,7 +413,7 @@ last events at [ℓ] corresponds to the *)
       is sorted. *)
       "%incrList" ∷ ⌜ increasing_list ss ⌝ ∗
       "#isExclusiveLoc" ∷ ⎡ is_exclusive_loc ℓ ⎤ ∗
-      "#order" ∷ ⎡ know_preorder_loc ℓ (abs_state_relation) ⎤ ∗
+      "#order" ∷ ⎡ know_preorder_loc ℓ (abs_state_relation (ST := ST)) ⎤ ∗
 
       (* [tStore] is the last message and it agrees with the last state in ss. *)
       "%lookupV" ∷ ⌜ abs_hist !! tStore = last ss ⌝ ∗
@@ -482,7 +482,7 @@ last events at [ℓ] corresponds to the *)
         (* We have the persisted state in our store view. *)
         "%tPLe" ∷ ⌜ tP ≤ (store_view TV) !!0 ℓ ⌝ ∗
         "persisted" ∷ persisted_loc ℓ tP ∗
-        "order" ∷ know_preorder_loc ℓ abs_state_relation ∗
+        "order" ∷ know_preorder_loc ℓ (abs_state_relation (ST := ST)) ∗
         "knowFragHist" ∷ know_frag_history_loc ℓ {[ tP := sP ]})%I _.
   Next Obligation. solve_proper. Qed.
 
@@ -497,7 +497,7 @@ last events at [ℓ] corresponds to the *)
         (* ("%tFLe" ∷ ⌜ tF ≤ (flush_view TV) !!0 ℓ ⌝ ∨ *)
         (*            (⌜tF = 0⌝ ∗ persisted_loc ℓ 0)) ∗ *)
         (* (⌜ tF ≤ (flush_view TV) !!0 ℓ ⌝ ∨ ⌜tF = 0⌝ ∗ ) ∗ *)
-        "order" ∷ know_preorder_loc ℓ abs_state_relation ∗
+        "order" ∷ know_preorder_loc ℓ (abs_state_relation (ST := ST)) ∗
         "knowFragHist" ∷ know_frag_history_loc ℓ {[ tF := s ]}
     )%I _.
   Next Obligation. solve_proper. Qed.
@@ -506,7 +506,7 @@ last events at [ℓ] corresponds to the *)
     MonPred (λ TV,
       ∃ (tS : nat) (* (msg : message) *),
         "%tSLe" ∷ ⌜ tS ≤ (store_view TV) !!0 ℓ ⌝ ∗
-        "#order" ∷ know_preorder_loc ℓ abs_state_relation ∗
+        "#order" ∷ know_preorder_loc ℓ (abs_state_relation (ST := ST)) ∗
         "#knowFragHist" ∷ know_frag_history_loc ℓ {[ tS := s ]} (* ∗ *)
         (* "#knowFragPhysHist" ∷ *)
         (*   auth_map_map_frag_singleton know_phys_history_name ℓ tS msg ∗ *)

@@ -17,7 +17,6 @@ Section no_buffer.
   Context `{Σ : gFunctors}.
   Implicit Types (P : dProp Σ).
 
-
   Lemma no_buff_at_alt P SV PV BV : ((<nobuf> P) (SV, PV, BV) = P (SV, PV, ∅))%I.
   Proof. done. Qed.
 
@@ -109,7 +108,7 @@ Section no_buffer_rules.
     iDestruct 1 as (?) "HI". iExists _. iFrame.
   Qed.
 
-  Global Instance into_no_buffer_know_flush_lb  `{AbstractState ST} ℓ s :
+  Global Instance into_no_buffer_know_flush_lb `{AbstractState ST} ℓ (s : ST) :
     IntoNoBuffer (know_flush_lb ℓ s) (know_flush_lb ℓ s).
   Proof. rewrite /IntoNoBuffer. eauto using no_buffer_know_flush_lb. Qed.
 

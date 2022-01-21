@@ -127,9 +127,9 @@ Definition post_crash_history_impl `{hG : nvmFixedG Σ}
 Definition post_crash_preorder_impl `{nvmFixedG Σ}
            (nD nD' : nvmDeltaG Σ) : iProp Σ :=
   □ ∀ ST (_ : EqDecision ST) (_ : Countable ST) (_ : AbstractState ST) ℓ,
-    know_preorder_loc (nD := nD) ℓ abs_state_relation -∗
+    know_preorder_loc (nD := nD) ℓ (abs_state_relation (ST := ST)) -∗
     (or_lost_post_crash_no_t ℓ
-      (know_preorder_loc (nD := nD') ℓ abs_state_relation)).
+      (know_preorder_loc (nD := nD') ℓ (abs_state_relation (ST := ST)))).
 
 Definition post_crash_pred_impl `{nvmFixedG Σ}
            (nD nD' : nvmDeltaG Σ) : iProp Σ :=
@@ -389,8 +389,8 @@ Section post_crash_interact.
   Qed.
 
   Lemma post_crash_preorder ℓ :
-    ⎡ know_preorder_loc ℓ abs_state_relation ⎤ -∗
-    post_crash (λ hG', or_lost ℓ ⎡ know_preorder_loc ℓ abs_state_relation ⎤)%I.
+    ⎡ know_preorder_loc ℓ (abs_state_relation (ST := ST)) ⎤ -∗
+    post_crash (λ hG', or_lost ℓ ⎡ know_preorder_loc ℓ (abs_state_relation (ST := ST) ) ⎤)%I.
   Proof.
     iStartProof (iProp _). iIntros (TV') "HP".
     iIntrosPostCrash.
@@ -484,7 +484,7 @@ Section post_crash_interact.
     done.
   Qed.
 
-  Lemma post_crash_know_bumper `{AbstractState ST} ℓ bumper :
+  Lemma post_crash_know_bumper `{AbstractState ST} ℓ (bumper : ST → ST) :
     ⎡ know_bumper ℓ bumper ⎤ -∗ <PC> _, or_lost ℓ (⎡ know_bumper ℓ bumper ⎤).
   Proof.
     iStartProof (iProp _). iIntros (TV') "HP".
@@ -556,7 +556,7 @@ Section IntoCrash.
     iApply (post_crash_mono with "HΦ"). auto.
   Qed.
 
-  Ltac lift_into_crash lem := 
+  Tactic Notation "lift_into_crash" uconstr(lem) := 
     rewrite /IntoCrash; iIntros "P"; by iApply lem.
 
   (* Global Instance embed_into_crash P : *)
@@ -572,15 +572,12 @@ Section IntoCrash.
         ⎡ know_full_history_loc ℓ q {[ 0 := s ]} ⎤ ∗
         ⎡ know_frag_history_loc ℓ {[ 0 := s ]} ⎤ ∗
         ⎡ persisted_loc ℓ 0 ⎤ ))%I.
-  Proof.
-    rewrite /IntoCrash. iIntros "P".
-    by iApply post_crash_know_full_history_loc.
-  Qed.
+  Proof. lift_into_crash post_crash_know_full_history_loc. Qed.
 
   Global Instance into_crash_preorder `{AbstractState ST} ℓ :
     IntoCrash
-    (⎡ know_preorder_loc ℓ abs_state_relation ⎤)
-    (λ hG', or_lost ℓ (⎡know_preorder_loc ℓ abs_state_relation⎤))%I.
+    (⎡ know_preorder_loc ℓ (abs_state_relation (ST := ST)) ⎤)
+    (λ hG', or_lost ℓ (⎡know_preorder_loc ℓ (abs_state_relation (ST := ST))⎤))%I.
   Proof. lift_into_crash post_crash_preorder. Qed.
 
   Global Instance frag_history_into_crash `{AbstractState ST} ℓ t s :
@@ -597,7 +594,7 @@ Section IntoCrash.
     IntoCrash
       (⎡ know_pred ℓ ϕ ⎤)%I
       (λ hG', or_lost ℓ (⎡ know_pred ℓ ϕ ⎤))%I.
-  Proof. rewrite /IntoCrash. iIntros "P". by iApply post_crash_know_pred. Qed.
+  Proof. lift_into_crash post_crash_know_pred. Qed.
 
   Global Instance shared_loc_into_crash ℓ :
     IntoCrash
@@ -617,7 +614,7 @@ Section IntoCrash.
       (λ hG', or_lost ℓ (⎡ know_na_view ℓ q ∅ ⎤))%I.
   Proof. lift_into_crash post_crash_know_na_view. Qed.
 
-  Global Instance know_bumper_into_crash `{AbstractState ST} ℓ bumper :
+  Global Instance know_bumper_into_crash `{AbstractState ST} ℓ (bumper : ST → ST) :
     IntoCrash
       (⎡ know_bumper ℓ bumper ⎤)%I
       (λ hG', or_lost ℓ (⎡ know_bumper ℓ bumper ⎤))%I.
@@ -675,7 +672,7 @@ Section post_crash_derived.
         ⌜ s ⊑ s' ⌝ ∗
         ⌜ t ≤ t' ⌝ ∗
         ⌜ CV !! ℓ = Some (MaxNat t') ⌝ ∗
-        ⎡ know_preorder_loc (nD := nD') ℓ abs_state_relation ∗
+        ⎡ know_preorder_loc (nD := nD') ℓ (abs_state_relation (ST := ST)) ∗
           know_frag_history_loc ℓ {[ 0 := s' ]} ∗
           crashed_at CV ∗
           persisted {[ ℓ := MaxNat 0 ]} ⎤
@@ -726,7 +723,7 @@ Section post_crash_derived.
 
   (* NOTE: This rule should be changed once the "bump-back function" is
   introduced. *)
-  Lemma post_crash_mapsto_persisted_ex `{AbstractState ST} ℓ ss :
+  Lemma post_crash_mapsto_persisted_ex `{AbstractState ST} ℓ (ss : list ST) :
     ℓ ↦ₚ ss -∗ <PC> hG', ∃ s, ⌜s ∈ ss⌝ ∗ ℓ ↦ₚ [s] ∗ recovered_at ℓ s.
   Proof.
     iNamed 1.
@@ -755,7 +752,7 @@ Section post_crash_derived.
     - iExists _. iFrame "∗#". iPureIntro. apply elem_of_dom. naive_solver.
   Admitted.
 
-  Lemma post_crash_mapsto_na `{AbstractState ST} ℓ ss :
+  Lemma post_crash_mapsto_na `{AbstractState ST} ℓ (ss : list ST) :
     ℓ ↦ ss -∗
     post_crash (λ hG', (∃ s, ⌜s ∈ ss⌝ ∗ ℓ ↦ₚ [s] ∗ recovered_at ℓ s) ∨ lost ℓ).
   Proof.
@@ -792,13 +789,13 @@ Section post_crash_derived.
     - iRight. iExists CV. iFrame "∗#". iPureIntro. by rewrite not_elem_of_dom.
   Admitted.
 
-  Global Instance mapsto_na_into_crash `{AbstractState ST} ℓ ss :
+  Global Instance mapsto_na_into_crash `{AbstractState ST} ℓ (ss : list ST) :
     IntoCrash
       (ℓ ↦ ss)%I
       (λ hG', (∃ s, ⌜s ∈ ss⌝ ∗ ℓ ↦ₚ [s] ∗ recovered_at ℓ s) ∨ lost ℓ)%I.
   Proof. rewrite /IntoCrash. iIntros "P". by iApply post_crash_mapsto_na. Qed.
 
-  Global Instance mapsto_na_persisted_into_crash `{AbstractState ST} ℓ ss :
+  Global Instance mapsto_na_persisted_into_crash `{AbstractState ST} ℓ (ss : list ST) :
     IntoCrash (ℓ ↦ₚ ss)%I (λ hG', ∃ s, ⌜s ∈ ss⌝ ∗ ℓ ↦ₚ [s] ∗ recovered_at ℓ s)%I.
   Proof.
     rewrite /IntoCrash. iIntros "P". by iApply post_crash_mapsto_persisted_ex.

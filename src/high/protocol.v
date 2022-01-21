@@ -27,7 +27,7 @@ Class LocationProtocol `{AbstractState ST, nvmFixedG Σ} (ϕ : loc_pred ST) := {
 (** [know_protocol] represents the knowledge that a location is associated with a
 specific protocol. It's defined simply using more "primitive" assertions. *)
 Definition know_protocol `{AbstractState ST, nvmFixedG Σ, nvmDeltaG Σ}
-           ℓ ϕ `{!LocationProtocol ϕ} : dProp Σ :=
+           ℓ (ϕ : loc_pred ST) `{!LocationProtocol ϕ} : dProp Σ :=
   "#knowPred" ∷ ⎡ know_pred ℓ ϕ ⎤ ∗
   "#knowPreorder" ∷ ⎡ know_preorder_loc ℓ (⊑@{ST}) ⎤ ∗
   "#knowBumper" ∷ ⎡ know_bumper ℓ bumper ⎤%I.
@@ -47,6 +47,8 @@ Qed.
 
 Section protocol.
   Context `{nvmFixedG Σ, nvmDeltaG Σ, AbstractState ST}.
+
+  Implicit Types (ϕ : loc_pred ST).
 
   Lemma post_crash_know_protocol ℓ ϕ `{!LocationProtocol ϕ} :
     know_protocol ℓ ϕ -∗ <PC> hD, or_lost ℓ (know_protocol ℓ ϕ).

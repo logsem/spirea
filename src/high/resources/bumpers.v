@@ -35,6 +35,23 @@ Section bumpers.
 
 End bumpers.
 
+Section own_encoded_bumpers.
+  Context `{bumpersG Σ}.
+
+  Definition own_all_bumpers γ encoded_bumpers :=
+    ghost_map_auth γ (DfracOwn 1) encoded_bumpers.
+
+  Lemma own_all_bumpers_alloc bumpers :
+    ⊢ |==> ∃ γ, own_all_bumpers γ bumpers ∗
+                ([∗ map] ℓ ↦ bumper ∈ bumpers, ℓ ↪[γ]□ bumper).
+  Proof.
+    (* TODO: Add some more lemmas to ghost_map that will make this easy. *)
+  Admitted.
+  (*   (* iApply ghost_map_alloc. *) *)
+  (* Qed. *)
+
+End own_encoded_bumpers.
+
 Section own_bumpers.
   Context `{bumpersG Σ}.
   Context `{AbstractState ST}.
@@ -45,21 +62,10 @@ Section own_bumpers.
        ℓ ↪[γ]□ encodedBumper.
        (* own γ ((◯ {[ ℓ := to_agree encodedBumper ]}) : bumpersR). *)
 
-  Definition own_all_bumpers γ encoded_bumpers :=
-    ghost_map_auth γ (DfracOwn 1) encoded_bumpers.
     (* own γ (● (to_agree <$> encoded_bumpers) : bumpersR). *)
 
   (* Definition own_all_bumpers encoded_bumpers := *)
   (*   own_all_bumpers bumpers_name encoded_bumpers. *)
-
-  Lemma own_all_bumpers_alloc bumpers :
-    ⊢ |==> ∃ γ, own_all_bumpers γ bumpers ∗
-                ([∗ map] ℓ ↦ bumper ∈ bumpers, ℓ ↪[γ]□ bumper).
-  Proof.
-    (* TODO: Add some more lemmas to ghost_map that will make this easy. *)
-  Admitted.
-  (*   (* iApply ghost_map_alloc. *) *)
-  (* Qed. *)
 
   (* Lemma own_all_bumpers_persist γ encoded_bumpers : *)
   (*   own_all_bumpers γ encoded_bumpers ==∗ *)

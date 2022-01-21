@@ -54,7 +54,7 @@ Section wp_at_rules.
       done.
   Qed.
 
-  Lemma wp_alloc_at v s ϕ `{!LocationProtocol ϕ} st E :
+  Lemma wp_alloc_at v s (ϕ : loc_pred ST) `{!LocationProtocol ϕ} st E :
     {{{ "phi" ∷ ϕ s v _ }}}
       ref_AT v @ st; E
     {{{ ℓ, RET #ℓ;
@@ -110,7 +110,7 @@ Section wp_at_rules.
     { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
     
     (* Add the bumper to the ghost state of bumper. *)
-    iMod (own_all_bumpers_insert with "allBumpers") as "[allBumper knowBumper]".
+    iMod (own_all_bumpers_insert (ST := ST) with "allBumpers") as "[allBumper knowBumper]".
     { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
 
     (* Add the preorder to the ghost state of bumper. *)

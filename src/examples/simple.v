@@ -62,7 +62,7 @@ Section specs.
 End specs.
 
 Section simple_increment.
-  Context `{!nvmFixedG Σ, nvmDeltaG Σ}.
+  Context `{nvmFixedG Σ, nvmDeltaG Σ}.
 
   Definition incr_both (ℓa ℓb : loc) : expr :=
     #ℓa <- #1 ;;
@@ -183,7 +183,7 @@ Section simple_increment.
     (* The last store *)
     iApply wpc_atomic_no_mask.
     iSplit. { iApply (prove_crash_condition with "aPred bPred aPts bPts"). }
-    iApply (wp_store_na _ _ _ _ _ _ (ϕb _) with "[$bPts]").
+    iApply (wp_store_na with "[$bPts]").
     { reflexivity. }
     { suff leq : (0 ≤ 1); first apply leq. lia. }
     { iFrame "#". iPureGoal; first done. naive_solver. }
