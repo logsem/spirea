@@ -7,7 +7,7 @@ From self.high Require Import dprop resources modalities post_crash_modality mon
 From self.lang Require Import lang.
 
 (* A handy alias for the type of location predicates. *)
-Definition loc_pred {Σ} ST `{AbstractState ST} := ST → val → nvmDeltaG Σ → dProp Σ.
+Definition loc_pred `{nvmFixedG Σ} ST `{AbstractState ST} := ST → val → nvmDeltaG Σ → dProp Σ.
 
 (* A protocol consists of
   - A predicate [ϕ] that holds for each write and corresponding state of the

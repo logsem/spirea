@@ -45,6 +45,11 @@ Section wp.
     - iModIntro. done.
   Qed.
 
+  Lemma wp_bind K s E1 (e : expr) Φ :
+    WP e @ s; E1 {{ v, WP fill K (of_val v) @ s; E1 {{ Φ }} }}
+    ⊢ WP fill K e @ s; E1 {{ Φ }}.
+  Proof. rewrite wp_eq /wp_def. iIntros "H". iApply wpc_bind. done. Qed.
+
   Lemma wp_value_fupd s E Φ e v :
     IntoVal e v → (|NC={E}=> Φ v) ⊢ WP e @ s; E {{ Φ }}.
   Proof. intros <-. apply wp_value_fupd'. Qed.

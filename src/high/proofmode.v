@@ -238,28 +238,27 @@ Tactic Notation "wp_inj" := wp_pure (InjL _) || wp_pure (InjR _).
 Tactic Notation "wp_pair" := wp_pure (Pair _ _).
 Tactic Notation "wp_closure" := wp_pure (Rec _ _ _).
 
-(*
-Lemma tac_wp_bind `{!nvmBaseFixedG Σ, nvmBaseDeltaG Σ} K Δ s E Φ e f :
+Lemma tac_wp_bind `{!nvmFixedG Σ, nvmDeltaG Σ} K Δ s E Φ e f :
   f = (λ e, fill K e) → (* as an eta expanded hypothesis so that we can `simpl` it *)
   envs_entails Δ (WP e @ s; E {{ v, WP f (Val v) @ s; E {{ Φ }} }})%I →
   envs_entails Δ (WP fill K e @ s; E {{ Φ }}).
 Proof. rewrite envs_entails_eq=> -> ->. by apply: wp_bind. Qed.
-Lemma tac_twp_bind `{!nvmBaseFixedG Σ, nvmBaseDeltaG Σ} K Δ s E Φ e f :
-  f = (λ e, fill K e) → (* as an eta expanded hypothesis so that we can `simpl` it *)
-  envs_entails Δ (WP e @ s; E [{ v, WP f (Val v) @ s; E [{ Φ }] }])%I →
-  envs_entails Δ (WP fill K e @ s; E [{ Φ }]).
-Proof. rewrite envs_entails_eq=> -> ->. by apply: twp_bind. Qed.
+(* Lemma tac_twp_bind `{!nvmBaseFixedG Σ, nvmBaseDeltaG Σ} K Δ s E Φ e f : *)
+(*   f = (λ e, fill K e) → (* as an eta expanded hypothesis so that we can `simpl` it *) *)
+(*   envs_entails Δ (WP e @ s; E [{ v, WP f (Val v) @ s; E [{ Φ }] }])%I → *)
+(*   envs_entails Δ (WP fill K e @ s; E [{ Φ }]). *)
+(* Proof. rewrite envs_entails_eq=> -> ->. by apply: twp_bind. Qed. *)
 
 Ltac wp_bind_core K :=
   lazymatch eval hnf in K with
   | [] => idtac
   | _ => eapply (tac_wp_bind K); [simpl; reflexivity|reduction.pm_prettify]
   end.
-Ltac twp_bind_core K :=
-  lazymatch eval hnf in K with
-  | [] => idtac
-  | _ => eapply (tac_twp_bind K); [simpl; reflexivity|reduction.pm_prettify]
-  end.
+(* Ltac twp_bind_core K := *)
+(*   lazymatch eval hnf in K with *)
+(*   | [] => idtac *)
+(*   | _ => eapply (tac_twp_bind K); [simpl; reflexivity|reduction.pm_prettify] *)
+(*   end. *)
 
 Tactic Notation "wp_bind" open_constr(efoc) :=
   iStartProof;
@@ -267,12 +266,13 @@ Tactic Notation "wp_bind" open_constr(efoc) :=
   | |- envs_entails _ (wp ?s ?E ?e ?Q) =>
     first [ reshape_expr e ltac:(fun K e' => unify e' efoc; wp_bind_core K)
           | fail 1 "wp_bind: cannot find" efoc "in" e ]
-  | |- envs_entails _ (twp ?s ?E ?e ?Q) =>
-    first [ reshape_expr e ltac:(fun K e' => unify e' efoc; twp_bind_core K)
-          | fail 1 "wp_bind: cannot find" efoc "in" e ]
+  (* | |- envs_entails _ (twp ?s ?E ?e ?Q) => *)
+  (*   first [ reshape_expr e ltac:(fun K e' => unify e' efoc; twp_bind_core K) *)
+  (*         | fail 1 "wp_bind: cannot find" efoc "in" e ] *)
   | _ => fail "wp_bind: not a 'wp'"
   end.
 
+(*
 (** Heap tactics *)
 Section heap.
 Context `{!nvmBaseFixedG Σ, nvmBaseDeltaG Σ}.
