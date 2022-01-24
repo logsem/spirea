@@ -1,15 +1,23 @@
 From iris.proofmode Require Import tactics.
 From iris.bi Require Import bi.
 From iris.bi Require Import derived_laws.
+From iris.base_logic Require Import iprop.
 
-From self.high Require Import dprop resources crash_weakestpre weakestpre
-     recovery_weakestpre resources lifted_modalities modalities post_crash_modality protocol.
+From self.high Require Import dprop resources modalities.
+
+(* Class BufferFree {Σ} (P : dProp Σ) := buffer_free : P ⊢ <nobuf> P. *)
+(* Global Arguments BufferFree {_} _%I : simpl never. *)
+(* Global Arguments buffer_free {_} _%I {_}. *)
+(* Global Hint Mode BufferFree + ! : typeclass_instances. *)
+(* Global Instance: Params (@BufferFree) 1 := {}. *)
 
 Class IntoNoBuffer {Σ} (P : dProp Σ) (Q : dProp Σ) :=
   into_no_buffer : P ⊢ <nobuf> Q.
 Global Arguments IntoNoBuffer {_} _%I _%I.
 Global Arguments into_no_buffer {_} _%I _%I {_}.
 Global Hint Mode IntoNoBuffer + ! -  : typeclass_instances.
+
+Notation BufferFree p := (IntoNoBuffer p p).
 
 Ltac iModel := iStartProof (iProp _); iIntros (TV).
 
@@ -59,18 +67,18 @@ Section no_buffer.
   Definition modality_no_buffer :=
     Modality _ modality_no_buffer_mixin.
 
-  (* Lemma no_buffer_know_protocol ϕ *)
-  (*   know_flush_lb ℓa n -∗  *)
-
   Global Instance from_modal_no_buffer P :
     FromModal True (modality_no_buffer) (<nobuf> P) (<nobuf> P) P.
   Proof. by rewrite /FromModal. Qed.
 
-  Global Instance into_no_buffer_pure φ : IntoNoBuffer (⌜φ⌝ : dProp Σ)%I ⌜φ⌝.
-  Proof. rewrite /IntoNoBuffer. eauto using no_buffer_pure. Qed.
+  (* [BufferFree] instances *)
 
-  Global Instance into_no_buffer_embed (P : iProp Σ) : IntoNoBuffer ⎡P⎤ ⎡P⎤.
-  Proof. rewrite /IntoNoBuffer. eauto using no_buffer_embed. Qed.
+  Global Instance buffer_free_objective P : Objective P → BufferFree P.
+  Proof.
+    intros O.
+    rewrite /IntoNoBuffer. iModel. destruct TV as [[??]?].
+    rewrite no_buffer_at. simpl. iApply objective_at.
+  Qed.
 
   Global Instance into_no_buffer_if (b : bool) (P P' Q Q' : dProp Σ) :
     IntoNoBuffer P P' →
@@ -93,6 +101,27 @@ Section no_buffer.
     iModIntro. naive_solver.
   Qed.
 
+  Lemma into_no_buffer_at P Q SV FV BV `{!IntoNoBuffer P Q} :
+    P (SV, FV, BV) ⊢ Q (SV, FV, ∅).
+  Proof.
+    erewrite <- no_buff_at_alt.
+    apply into_no_buffer.
+    done.
+  Qed.
+
+  Lemma no_buffer_monPred_in SV FV PV :
+    monPred_in (SV, FV, PV) ⊢@{dPropI Σ} <nobuf> monPred_in (SV, FV, ∅).
+  Proof.
+    iModel.
+    iIntros (le). destruct TV as [[??]?]. rewrite no_buffer_at.
+    iApply monPred_at_in. iPureIntro.
+    repeat split; try apply le; done.
+  Qed.
+
+  Global Instance into_no_buffer_monPred_in SV FV PV :
+    IntoNoBuffer (monPred_in (SV, FV, PV) : dProp Σ) (monPred_in (SV, FV, ∅)).
+  Proof. apply no_buffer_monPred_in. Qed.
+
 End no_buffer.
 
 Section no_buffer_rules.
@@ -108,9 +137,26 @@ Section no_buffer_rules.
     iDestruct 1 as (?) "HI". iExists _. iFrame.
   Qed.
 
-  Global Instance into_no_buffer_know_flush_lb `{AbstractState ST} ℓ (s : ST) :
-    IntoNoBuffer (know_flush_lb ℓ s) (know_flush_lb ℓ s).
+  Global Instance buffer_free_know_flush_lb `{AbstractState ST} ℓ (s : ST) :
+    BufferFree (know_flush_lb ℓ s).
   Proof. rewrite /IntoNoBuffer. eauto using no_buffer_know_flush_lb. Qed.
+
+  Lemma no_buffer_know_store_lb `{AbstractState ST} ℓ (s : ST) :
+    know_store_lb ℓ s -∗ <nobuf> know_store_lb ℓ s.
+  Proof.
+    rewrite /know_store_lb.
+    iModel.
+    simpl.
+    iDestruct 1 as (?) "HI". iExists _. iFrame.
+  Qed.
+
+  Global Instance into_no_buffer_know_store_lb `{AbstractState ST} ℓ (s : ST) :
+    BufferFree (know_store_lb ℓ s).
+  Proof. rewrite /IntoNoBuffer. eauto using no_buffer_know_store_lb. Qed.
+
+  Global Instance mapsto_na_buffer_free `{AbstractState ST} b ℓ q (ss : list ST) :
+    BufferFree (mapsto_na b ℓ q ss).
+  Proof. apply _. Qed.
 
 End no_buffer_rules.
 

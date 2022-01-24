@@ -5,6 +5,7 @@ From iris_named_props Require Import named_props.
 From self Require Import encode_relation.
 From self.high Require Import dprop resources modalities post_crash_modality monpred_simpl.
 From self.lang Require Import lang.
+From self.high.modalities Require Import no_buffer.
 
 (* A handy alias for the type of location predicates. *)
 Definition loc_pred `{nvmFixedG Σ} ST `{AbstractState ST} := ST → val → nvmDeltaG Σ → dProp Σ.
@@ -20,8 +21,7 @@ Class LocationProtocol `{AbstractState ST, nvmFixedG Σ} (ϕ : loc_pred ST) := {
   phi_condition :
     (⊢ ∀ (hD : nvmDeltaG Σ) s v,
       ϕ s v hD -∗ <PCF> hD', ϕ (bumper s) v hD' : dProp Σ)%I;
-  phi_nobuf :
-    (⊢ ∀ (hD : nvmDeltaG Σ) s v, ϕ s v hD -∗ <nobuf> ϕ s v hD)%I
+  phi_nobuf :> (∀ hD s v, IntoNoBuffer (ϕ s v hD) (ϕ s v hD));
 }.
 
 (** [know_protocol] represents the knowledge that a location is associated with a

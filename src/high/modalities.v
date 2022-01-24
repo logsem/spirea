@@ -15,8 +15,6 @@ Program Definition post_fence {Σ} (P : dProp Σ) : dProp Σ :=
                     wb_buffer_view tv)) _.
   (* MonPred (λ '(s, p, b), P (s, (p ⊔ b), ∅)) _. *)
 Next Obligation.
-  (* FIXME: Figure out if there is a way to make [solve_proper] handle this,
-  perhaps by using [pointwise_relatio]. *)
   intros Σ P. intros [[??]?] [[??]?] [[??]?]. simpl.
   assert (g0 ⊔ g1 ⊑ g3 ⊔ g4). { solve_proper. }
   apply monPred_mono.
@@ -29,8 +27,6 @@ Notation "'<fence>' P" := (post_fence P) (at level 20, right associativity) : bi
 Program Definition no_buffer `{Σ : gFunctors} (P : dProp Σ) : dProp Σ :=
   MonPred (λ tv, P (store_view tv, flush_view tv, ∅)) _.
 Next Obligation.
-  (* FIXME: Figure out if there is a way to make [solve_proper] handle this,
-  perhaps by using [pointwise_relation]. *)
   intros Σ P. intros [[??]?] [[??]?] [[??]?]. simpl.
   apply monPred_mono.
   rewrite !subseteq_prod'.

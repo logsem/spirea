@@ -89,7 +89,6 @@ Section constant_alt.
 
   Global Program Instance constant_inv_prot v : LocationProtocol (constant_prot v) := { bumper n := n }.
   Next Obligation. iIntros. by iApply post_crash_flush_pure. Qed.
-  Next Obligation. iIntros (????) "? !> //". Qed.
 
 End constant_alt.
 
@@ -99,6 +98,10 @@ Section proof.
 
   Definition mapsto_na_flushed `{AbstractState ST} ℓ q (s : ST) : dProp Σ :=
     ∃ (ss : list ST), ⌜ last ss = Some s ⌝ ∗ ℓ ↦{q} ss ∗ know_flush_lb ℓ s.
+
+  Global Instance buffer_free_mapsto_na_flushed `{AbstractState ST} ℓ q (s : ST) :
+    BufferFree (mapsto_na_flushed ℓ q s).
+  Proof. apply _. Qed.
 
   (* We assume a per-element predicate. *)
   Context (ϕ : val → nvmDeltaG Σ → dProp Σ).
@@ -128,7 +131,7 @@ Section proof.
   Program Instance toNext_prot_prot :
     LocationProtocol toNext_prot := { bumper n := n }.
   Next Obligation. Admitted.
-  Next Obligation. Admitted.
+  Next Obligation. destruct s. apply _. Qed.
 
   Program Instance cons_node_prot_prot x ℓ :
     LocationProtocol (cons_node_prot x ℓ) := { bumper n := n }.
@@ -138,7 +141,6 @@ Section proof.
     iDestruct 1 as "[A B]".
     iCrashFlush. naive_solver.
   Qed.
-  Next Obligation. iIntros. iModIntro. done. Qed.
 
   (* Representation predicate for a node. *)
   Fixpoint is_node ℓnode (xs : list val) : dProp Σ :=
@@ -153,6 +155,13 @@ Section proof.
         (* know_protocol ℓnext (constant_prot #ℓnode) ∗ *)
         is_node ℓnext xs'
     end.
+
+  Global Instance into_no_buffer_is_node ℓnode xs :
+    IntoNoBuffer (is_node ℓnode xs) (is_node ℓnode xs).
+  Proof.
+    generalize dependent ℓnode.
+    induction xs as [|x xs]; apply _.
+  Qed.
 
   (* The invariant for the location that points to the first node in the
   stack. *)
@@ -174,7 +183,6 @@ Section proof.
   Admitted.
   (*   naive_solver. *)
   (* Qed. *)
-  Next Obligation. iIntros. iModIntro. Admitted. (* done. Qed. *)
 
   (* The representation predicate for the entire stack. *)
   Definition is_stack (v : val) : dProp Σ :=
@@ -193,6 +201,12 @@ Section proof.
     iDestruct (mapsto_na_store_lb with "nilPts") as "#storeLb"; first done.
     wp_pures.
     wp_apply (wp_wb_lb with "[$]").
+    assert (Persistent (<fence> know_flush_lb ℓnil ())). {
+      (* For some reason Coq is super slow to resolve this [Persistent] instance. *)
+      (* Set Typeclasses Debug. *)
+      (* Set Typeclasses Debug Verbosity 2. *)
+      apply post_fence_persistent.
+      apply _. }
     iIntros "#flushLb".
     wp_pures.
     wp_apply wp_fence.

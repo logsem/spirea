@@ -17,6 +17,7 @@ From self.lang Require Export lang lemmas tactics syntax.
 From self.base Require Import primitive_laws.
 From self.high Require Import dprop resources crash_weakestpre lifted_modalities
      monpred_simpl modalities protocol.
+From self.high.modalities Require Import no_buffer.
 
 Section wp_na_rules.
   Context `{AbstractState ST}.
@@ -166,11 +167,10 @@ Section wp_na_rules.
         { done. }
         { done. }
         iApply "HH".
-        iDestruct (phi_nobuf with "phi") as "phi".
-        simpl.
+        destruct TV as [[??]?]. destruct TV' as [[??]?].
+        iDestruct (into_no_buffer_at with "phi") as "phi".
+        { apply phi_nobuf. }
         iApply (monPred_mono with "phi").
-        destruct TV as [[??]?].
-        destruct TV' as [[??]?].
         repeat split; last done.
         * etrans; first apply incl. apply incl2.
         * etrans; first apply incl. apply incl2.
@@ -535,10 +535,10 @@ Section wp_na_rules.
       simpl. iFrame.
       iApply predicate_holds_phi; auto.
       rewrite lookup_insert /=.
-      iDestruct (phi_nobuf with "phi") as "phi".
-      simpl.
-      iApply (monPred_mono with "phi").
       destruct TV as [[??]?]. destruct TV' as [[??]?].
+      iDestruct (into_no_buffer_at with "phi") as "phi".
+      { apply phi_nobuf. }
+      iApply (monPred_mono with "phi").
       repeat split; last done.
       - simpl. etrans; first apply incl. etrans; first apply incl2.
         apply view_insert_le. lia.

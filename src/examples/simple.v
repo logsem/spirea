@@ -86,7 +86,6 @@ Section simple_increment.
 
   Program Instance : LocationProtocol ϕa := { bumper n := n }.
   Next Obligation. iIntros. by iApply post_crash_flush_pure. Qed.
-  Next Obligation. iIntros (????). iApply no_buffer_pure. done. Qed.
 
   (* Predicate used for the location [b]. *)
   Definition ϕb (ℓa : loc) : loc_pred (Σ := Σ) nat :=
@@ -101,9 +100,6 @@ Section simple_increment.
     iPureGoal; first done.
     iExists _. iFrame .
     iPureIntro. etrans; done.
-  Qed.
-  Next Obligation.
-    iIntros (????). iIntros "[? (% & H1 & H2)]". iModIntro. iFrame. naive_solver.
   Qed.
 
   Definition crash_condition {hD : nvmDeltaG Σ} ℓa ℓb : dProp Σ :=

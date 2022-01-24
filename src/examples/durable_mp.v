@@ -49,7 +49,6 @@ Section proof.
 
   Program Instance : LocationProtocol inv_x := { bumper n := n }.
   Next Obligation. iIntros. by iApply post_crash_flush_pure. Qed.
-  Next Obligation. iIntros (???) "? !> //". Qed.
 
   Definition inv_y (b : bool) (v : val) (hG : nvmDeltaG Σ) : dProp Σ :=
     match b with
@@ -65,9 +64,6 @@ Section proof.
       destruct s__pc; last done.
       iFrame "∗%".
     - iIntros "[% H]". iCrashFlush. iFrame. done.
-  Qed.
-  Next Obligation.
-    rewrite /inv_y. iIntros (???) "H". iModIntro. done.
   Qed.
 
   Definition inv_z := inv_y.
