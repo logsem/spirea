@@ -11,7 +11,9 @@ From self.algebra Require Import view.
 From self.base Require Import primitive_laws class_instances crash_borrow.
 From self.high Require Import proofmode wpc_proofmode.
 From self.high Require Import crash_weakestpre modalities weakestpre
-     weakestpre_na weakestpre_at recovery_weakestpre protocol crash_borrow no_buffer.
+     weakestpre_na weakestpre_at recovery_weakestpre protocol crash_borrow no_buffer
+     abstract_state_instances.
+From self.high.modalities Require Import fence no_buffer.
 
 Section program.
 
@@ -173,9 +175,8 @@ Section proof.
     { iApply (right_crash_condition_impl with "yProt zProt yLb yShared zPts"). }
     wpc_bind (Fence).
     iApply wpc_atomic_no_mask. whack_right_cc.
-    iApply (wp_fence with "disj").
-    iNext.
-    iDestruct 1 as "[[_ #xLb] | %]"; last congruence.
+    iApply wp_fence. do 2 iModIntro.
+    iDestruct "disj" as "[[_ #xLb] | %]"; last congruence.
     whack_right_cc.
     iModIntro.
     wpc_pures.
@@ -198,7 +199,7 @@ Section proof.
     know_store_lb y false ∗
     ⎡ is_shared_loc y ⎤ ∗
     z ↦ₚ [false] -∗
-    WPC  prog x y z @ ⊤
+    WPC prog x y z @ ⊤
     {{ v, True }}
     {{ <PC> _, crash_condition }}.
   Proof.
@@ -271,7 +272,7 @@ Section proof.
       whack_left_cc.
       iApply (wp_wb_ex with "xPts"); first reflexivity.
       iNext.
-      iIntros "[xPts afterFence]".
+      iIntros "[xPts #xLowerBound]".
       whack_left_cc.
       iModIntro.
       wpc_pures;
@@ -280,9 +281,7 @@ Section proof.
       (* The fence. *)
       wpc_bind (Fence)%E.
       iApply wpc_atomic_no_mask. whack_left_cc.
-      iApply (wp_fence with "afterFence").
-      iNext.
-      iIntros "#xLowerBound".
+      iApply wp_fence. do 2 iModIntro.
       whack_left_cc.
       iModIntro.
       wpc_pures;

@@ -15,6 +15,7 @@ From self.high Require Import proofmode wpc_proofmode.
 From self.high Require Import dprop abstract_state_instances modalities
      resources crash_weakestpre weakestpre weakestpre_na weakestpre_at
      recovery_weakestpre lifted_modalities protocol no_buffer.
+From self.high.modalities Require Import fence.
 
 (* TODO: Add the necessary fences in this example. *)
 
@@ -194,19 +195,18 @@ Section proof.
     iDestruct (mapsto_na_store_lb with "nilPts") as "#storeLb"; first done.
     wp_pures.
     wp_bind (WB _)%E.
-    iApply (wp_wb_lb with "[$]"). iIntros "!>". iIntros "flushLb".
+    iApply (wp_wb_lb with "[$]"). iIntros "!>". iIntros "#flushLb".
     wp_pures.
     wp_bind Fence.
-    iApply (wp_fence with "flushLb"). iIntros "!> #flushLb".
+    iApply wp_fence.
+    do 2 iModIntro.
     wp_pures.
-
     iApply (wp_alloc_at _ () toHead_prot with "[flushLb nilPts]"). {
       rewrite /toHead_prot.
       iExists _, [].
       iSplitPure; first reflexivity.
       iFrame "#".
       iExists _. iFrame. }
-
     iNext. iIntros (?) "(hi & ho & hip)".
     iApply "ϕpost".
     iExists _. naive_solver.

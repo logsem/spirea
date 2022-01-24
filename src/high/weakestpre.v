@@ -257,7 +257,28 @@ Section wp_rules.
     iFrame.
   Qed.
 
-  Lemma wp_fence P st E :
+  Lemma wp_fence (st : stuckness) (E : coPset) (Φ : val → dProp Σ) :
+         <fence> ▷ Φ #() -∗ WP Fence @ st; E {{ v, Φ v }}.
+  Proof.
+    iStartProof (iProp _). iIntros ([[sv pv] bv]).
+    iIntros "H".
+    rewrite wp_eq /wp_def.
+    rewrite wpc_eq.
+    iIntros ([[SV PV] BV] incl) "#val".
+    monPred_simpl.
+    iApply program_logic.crash_weakestpre.wp_wpc.
+    iApply (wp_fence with "[//]").
+    simpl.
+    iNext. iIntros (_).
+    cbn.
+    iFrame "#∗".
+    iSplit. { iPureIntro. repeat split; try done. apply view_le_l. }
+    iApply monPred_mono; last iApply "H".
+    repeat split; try apply incl.
+    f_equiv; apply incl.
+  Qed.
+
+  Lemma wp_fence_prop P st E :
     {{{ <fence> P }}}
       Fence @ st; E
     {{{ RET #(); P }}}.
@@ -272,7 +293,7 @@ Section wp_rules.
     iIntros ([[SV PV] BV] incl2) "#val".
     monPred_simpl. (* rewrite right_id. *)
     iApply program_logic.crash_weakestpre.wp_wpc.
-    iApply (wp_fence with "[//]").
+    iApply (primitive_laws.wp_fence with "[//]").
     iNext. iIntros (_).
     cbn.
     iFrame "#∗".
