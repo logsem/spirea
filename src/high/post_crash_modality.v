@@ -322,6 +322,16 @@ Section post_crash_interact.
       * iSplitL; iExists CV; iFrame "#%".
   Qed.
 
+  Lemma or_lost_mono {nD' : nvmDeltaG Σ} ℓ (P Q : dProp Σ) :
+    (P -∗ Q) -∗ or_lost ℓ P -∗ or_lost ℓ Q.
+  Proof.
+    rewrite /or_lost.
+    iIntros "pToQ (%CV & crashed & disj)".
+    iExists CV. iFrame "crashed". iDestruct "disj" as "[P | %lost]".
+    - iLeft. iApply "pToQ". iApply "P".
+    - iRight. iFrame (lost).
+  Qed.
+
   Lemma or_lost_embed {nD' : nvmDeltaG Σ} ℓ P TV :
     or_lost_post_crash_no_t ℓ P -∗ or_lost ℓ ⎡ P ⎤ TV.
   Proof.
@@ -547,6 +557,16 @@ Section IntoCrash.
     iIntros "$". done.
   Qed.
 
+  Global Instance sep_into_crash (P Q : dProp Σ) (P' Q' : _ → dProp Σ) :
+    IntoCrash P P' → IntoCrash Q Q' → IntoCrash (P ∗ Q)%I (λ hD, P' hD ∗ Q' hD)%I.
+  Proof.
+    rewrite /IntoCrash.
+    iIntros (Pi Qi) "[P Q]".
+    iDestruct (Pi with "P") as "P".
+    iDestruct (Qi with "Q") as "Q".
+    iApply (post_crash_sep). iFrame.
+  Qed.
+
   Global Instance exist_into_crash {A} Φ Ψ:
     (∀ x : A, IntoCrash (Φ x) (λ hG, Ψ hG x)) →
     IntoCrash (∃ x, Φ x)%I (λ hG, (∃ x, Ψ hG x)%I).
@@ -694,6 +714,7 @@ Section post_crash_derived.
     naive_solver.
   Qed.
 
+  (* NOTE: This rule is wrong as it does not take the bumper into account. *)
   Lemma post_crash_know_persist_lb (ℓ : loc) (s : ST) :
     know_persist_lb ℓ s -∗
     post_crash (λ hG, ∃ s', ⌜s ⊑ s'⌝ ∗
@@ -719,6 +740,39 @@ Section post_crash_derived.
     iSplit.
     - iExists 0. iFrame "#%". iPureIntro. naive_solver.
     - iExists 0. iFrame "#%". iPureIntro. lia. 
+  Qed.
+
+  Lemma post_crash_know_store_lb (ℓ : loc) (s : ST) :
+    know_store_lb ℓ s -∗
+    post_crash (λ hG, or_lost ℓ (∃ (s' : ST),
+      (* know_persist_lb ℓ s' ∗ *)
+      (* know_flush_lb ℓ s' ∗ *)
+      know_store_lb ℓ s')).
+  Proof.
+    iStartProof (iProp _). iIntros (TV).
+    iNamed 1.
+    iDestruct "order" as "-#order".
+    iDestruct "knowFragHist" as "-#knowFragHist".
+    iDestruct (post_crash_preorder with "order") as "order".
+    iDestruct (post_crash_frag_history with "knowFragHist") as "knowFragHist".
+    iDestruct (post_crash_sep with "[$order $knowFragHist]") as "H".
+    iApply (post_crash_mono with "H").
+    iStartProof (iProp _).
+    iIntros (hD' TV').
+    iIntros "[(%CV & crashed & disj) (%CV' & crashed' & disj2)]".
+    iDestruct (crashed_at_agree with "crashed crashed'") as %<-.
+    iExists (CV). iFrame "crashed".
+    iDestruct "disj" as "[order|%R]"; iDestruct "disj2" as "[L2|%R2]";
+      try (iRight; done).
+    iDestruct "L2" as (????? look) "hist".
+    iLeft.
+    iExists _, 0.
+    iFrame "order".
+    iSplitPure; first lia.
+    rewrite /know_frag_history_loc.
+    rewrite /own_frag_history_loc.
+    iExists _. iSplitPure. { apply look. }
+    iFrame "hist".
   Qed.
 
   (* NOTE: This rule should be changed once the "bump-back function" is
