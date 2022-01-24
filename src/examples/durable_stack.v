@@ -188,17 +188,14 @@ Section proof.
     iIntros (Φ) "_ ϕpost".
     rewrite /mk_stack.
     wp_pures.
-    wp_pures.
-    wp_bind (ref_NA _)%E.
-    iApply (wp_alloc_na _ () nil_node_prot with "[]"). { done. }
-    iNext. iIntros (ℓnil) "[#nilProt nilPts]".
+    wp_apply (wp_alloc_na _ () nil_node_prot with "[//]").
+    iIntros (ℓnil) "[#nilProt nilPts]".
     iDestruct (mapsto_na_store_lb with "nilPts") as "#storeLb"; first done.
     wp_pures.
-    wp_bind (WB _)%E.
-    iApply (wp_wb_lb with "[$]"). iIntros "!>". iIntros "#flushLb".
+    wp_apply (wp_wb_lb with "[$]").
+    iIntros "#flushLb".
     wp_pures.
-    wp_bind Fence.
-    iApply wp_fence.
+    wp_apply wp_fence.
     do 2 iModIntro.
     wp_pures.
     iApply (wp_alloc_at _ () toHead_prot with "[flushLb nilPts]"). {
