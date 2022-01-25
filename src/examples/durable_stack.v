@@ -2,6 +2,7 @@
 
 The stack is implemented as a linked list. *)
 
+From iris.bi Require Import lib.fractional.
 From iris.proofmode Require Import tactics.
 
 From self.base Require Import primitive_laws.
@@ -45,7 +46,7 @@ Definition push : expr :=
     let: "newNode" := ref_NA (InjR ("val", "toNext")) in
     WB "newNode" ;;
     (rec: "loop" <> :=
-       let: "head" := ! "toHead" in
+       let: "head" := !{acq} "toHead" in
        "toNext" <- "head" ;;
        WB "toNext" ;;
        Fence ;;
@@ -68,47 +69,84 @@ Definition pop : expr :=
         else "pop" "toHead"
     end.
 
-(* Section constant. *)
-(*   Context `{nvmFixedG Σ}. *)
-
-(*   Definition constant_prot (dv : discreteState val) (v : val) (hG : nvmDeltaG Σ) : dProp Σ := *)
-(*     ⌜ dv.(get_discrete) = v ⌝. *)
-
-(*   Program Instance : LocationProtocol constant_prot := { bumper n := n }. *)
-(*   Next Obligation. iIntros. by iApply post_crash_flush_pure. Qed. *)
-(*   Next Obligation. iIntros (???) "? !> //". Qed. *)
-
-(* End constant. *)
-
-Section constant_alt.
+Section constant_prot.
   Context `{Σ : gFunctors}.
   Context `{nvmFixedG Σ}.
 
-  Definition constant_prot `{nvmFixedG Σ} (v1 : val) (_ : unit) (v2 : val) (hG : nvmDeltaG Σ) : dProp Σ :=
+  Definition constant_prot `{nvmFixedG Σ} (v1 : val) (_ : unit) (v2 : val)
+             (hG : nvmDeltaG Σ) : dProp Σ :=
     ⌜ v1 = v2 ⌝.
 
-  Global Program Instance constant_inv_prot v : LocationProtocol (constant_prot v) := { bumper n := n }.
+  Global Program Instance constant_prot_prot v :
+    LocationProtocol (constant_prot v) := { bumper n := n }.
   Next Obligation. iIntros. by iApply post_crash_flush_pure. Qed.
 
-End constant_alt.
+End constant_prot.
 
-Section proof.
+Definition mapsto_na_flushed `{nvmFixedG Σ, nvmDeltaG Σ, AbstractState ST}
+           ℓ q (s : ST) : dProp Σ :=
+  ∃ (ss : list ST), ⌜ last ss = Some s ⌝ ∗ ℓ ↦{q} ss ∗ know_flush_lb ℓ s.
+
+Global Instance buffer_free_mapsto_na_flushed `{nvmFixedG Σ, nvmDeltaG Σ, AbstractState ST}
+       ℓ q (s : ST) :
+  BufferFree (mapsto_na_flushed ℓ q s).
+Proof. apply _. Qed.
+
+Lemma mapsto_na_flushed_agree `{nvmFixedG Σ, nvmDeltaG Σ, AbstractState ST}
+      ℓ q q' (s s' : ST) :
+  mapsto_na_flushed ℓ q s -∗ mapsto_na_flushed ℓ q' s' -∗ ⌜ s = s' ⌝.
+Proof.
+  rewrite /mapsto_na_flushed.
+  iDestruct 1 as (ss last) "[pts lb]".
+  iDestruct 1 as (ss' last') "[pts' lb']".
+  iNamed "pts".
+  iDestruct "pts'" as (?????) "(? & ? & ? & %look & %nolater' & ? & ? & ? & ? & ? & ? & ?)".
+  iDestruct (ghost_map_elem_agree with "hist [$]") as %<-%(inj _).
+  iPureIntro.
+  apply (inj Some).
+  rewrite -last -last' -lookupV -look.
+  f_equiv.
+  eapply map_no_later_Some_agree; try done.
+  - eexists _. rewrite lookupV. done.
+  - eexists _. rewrite look. done.
+Qed.
+
+Lemma mapsto_na_flushed_split `{nvmFixedG Σ, nvmDeltaG Σ, AbstractState ST} ℓ p q (s : ST) :
+  mapsto_na_flushed ℓ (p + q) s -∗
+  mapsto_na_flushed ℓ p s ∗ mapsto_na_flushed ℓ q s.
+Proof.
+  iDestruct 1 as (ss last) "[[pts1 pts2] #flushLb]".
+  iSplitL "pts1"; iFrame "flushLb"; iExists ss; iFrame (last) "∗".
+Qed.
+
+Global Instance mapsto_na_flushed_fractional
+       `{nvmFixedG Σ, nvmDeltaG Σ, AbstractState ST} ℓ (s : ST) :
+  Fractional (λ q, mapsto_na_flushed ℓ q s).
+Proof.
+  rewrite /Fractional.
+  intros p q.
+  iSplit.
+  - iApply mapsto_na_flushed_split.
+  - iIntros "[L R]".
+    iDestruct "R" as (ss last) "[[pts1 pts2] #flushLb]".
+    iDestruct "L" as (? ?) "[[pts1' pts2'] _]".
+    (* This direction is more annoying to show (not impossible) *)
+Abort.
+  
+(* Global Instance mapsto_na_flushed_as_fractional `{nvmFixedG Σ, nvmDeltaG Σ, AbstractState ST} per l q v : *)
+(*   AsFractional (mapsto_na per l q v) (λ q, mapsto_na per l q v)%I q. *)
+(* Proof. split; [done | apply _]. Qed. *)
+
+Section definitions.
   Implicit Types (ℓ : loc).
-  Context `{nvmFixedG Σ, nvmDeltaG Σ}.
-
-  Definition mapsto_na_flushed `{AbstractState ST} ℓ q (s : ST) : dProp Σ :=
-    ∃ (ss : list ST), ⌜ last ss = Some s ⌝ ∗ ℓ ↦{q} ss ∗ know_flush_lb ℓ s.
-
-  Global Instance buffer_free_mapsto_na_flushed `{AbstractState ST} ℓ q (s : ST) :
-    BufferFree (mapsto_na_flushed ℓ q s).
-  Proof. apply _. Qed.
+  Context `{nvmFixedG Σ}.
 
   (* We assume a per-element predicate. *)
   Context (ϕ : val → nvmDeltaG Σ → dProp Σ).
   (* The per-element predicate must be stable under the <PCF> modality and not
   use anything from the buffer. *)
   Context `{∀ a nD, IntoCrashFlush (ϕ a nD) (ϕ a),
-            ∀ a nD, IntoNoBuffer (ϕ a nD) (ϕ a nD)}.
+            ∀ a nD, BufferFree (ϕ a nD)}.
 
   (* There are four types of locations in the stack:
      * toHead - AT - The pointer to the first element in the stack.
@@ -118,14 +156,14 @@ Section proof.
        changed.
    *)
 
-  Definition toNext_prot : loc_pred (singl loc) :=
-    λ '(mk_singl ℓ) v _, ⌜ v = #ℓ ⌝%I.
+  Definition toNext_prot : loc_pred (singl val) :=
+    λ '(mk_singl v) v' _, ⌜ v = v' ⌝%I.
 
   Definition nil_node_prot := constant_prot (InjLV #()).
 
   Definition cons_node_prot (x : val) (ℓtoNext : loc) :=
     λ (_ : unit) (v : val) (hG : nvmDeltaG Σ),
-      (⌜ v = (x, #ℓtoNext)%V ⌝ ∗
+      (⌜ v = InjRV (x, #ℓtoNext)%V ⌝ ∗
        ϕ x hG)%I.
 
   Program Instance toNext_prot_prot :
@@ -143,7 +181,7 @@ Section proof.
   Qed.
 
   (* Representation predicate for a node. *)
-  Fixpoint is_node ℓnode (xs : list val) : dProp Σ :=
+  Fixpoint is_node `{nvmDeltaG Σ} ℓnode (xs : list val) : dProp Σ :=
     match xs with
     | [] =>
         ∃ q, ℓnode ↦{q} [()] ∗ know_protocol ℓnode nil_node_prot
@@ -156,23 +194,39 @@ Section proof.
         is_node ℓnext xs'
     end.
 
-  Global Instance into_no_buffer_is_node ℓnode xs :
+  Global Instance into_no_buffer_is_node `{nvmDeltaG Σ} ℓnode xs :
     IntoNoBuffer (is_node ℓnode xs) (is_node ℓnode xs).
   Proof.
     generalize dependent ℓnode.
     induction xs as [|x xs]; apply _.
   Qed.
 
+  Lemma is_node_split `{nvmDeltaG Σ} ℓnode xs :
+    is_node ℓnode xs -∗ is_node ℓnode xs ∗ is_node ℓnode xs.
+  Proof.
+    generalize dependent ℓnode.
+    induction xs as [|x xs IH]; iIntros (ℓnode).
+    - iDestruct 1 as (q) "([pts1 pts2] & #r)".
+      iSplitL "pts1"; iFrame "r"; naive_solver.
+    - iDestruct 1 as (? ? ? ?) "([pts1 pts2] & #? & #? & toNextPts & node)".
+      rewrite -(Qp_div_2 q2).
+      iDestruct (mapsto_na_flushed_split with "toNextPts") as "[toNextPts1 toNextPts2]".
+      iDestruct (IH with "node") as "[node1 node2]".
+      iSplitL "pts1 toNextPts1 node1".
+      + repeat iExists _. iFrame. iFrame "#".
+      + repeat iExists _. iFrame. iFrame "#".
+  Qed.
+
   (* The invariant for the location that points to the first node in the
   stack. *)
-  Definition toHead_prot (_ : unit) (v : val) (hG : nvmDeltaG Σ) : dProp Σ :=
+  Definition toHead_prot `{nvmDeltaG Σ} (_ : unit) (v : val) (hG : nvmDeltaG Σ) : dProp Σ :=
     ∃ (ℓnode : loc) xs,
       ⌜ v = #ℓnode ⌝ ∗
       is_node ℓnode xs ∗
       know_store_lb ℓnode () ∗
       know_flush_lb ℓnode ().
 
-  Program Instance stack_inv_prot : LocationProtocol (toHead_prot) := { bumper n := n }.
+  Program Instance stack_inv_prot `{nvmDeltaG Σ} : LocationProtocol (toHead_prot) := { bumper n := n }.
   Next Obligation.
     iIntros (???).
     rewrite /toHead_prot.
@@ -185,13 +239,54 @@ Section proof.
   (* Qed. *)
 
   (* The representation predicate for the entire stack. *)
-  Definition is_stack (v : val) : dProp Σ :=
-    ∃ (ℓtoHead : loc), ⌜ v = #ℓtoHead ⌝ ∗ know_protocol ℓtoHead toHead_prot.
+  Definition is_stack `{nvmDeltaG Σ} (v : val) : dProp Σ :=
+    ∃ (ℓtoHead : loc),
+      ⌜ v = #ℓtoHead ⌝ ∗
+      know_protocol ℓtoHead toHead_prot ∗
+      ⎡ is_shared_loc ℓtoHead ⎤ ∗
+      know_store_lb ℓtoHead ().
+
+End definitions.
+
+Section proof.
+  Implicit Types (ℓ : loc).
+  Context `{nvmFixedG Σ, nvmDeltaG Σ}.
+
+  Context (ϕ : val → nvmDeltaG Σ → dProp Σ).
+  (* The per-element predicate must be stable under the <PCF> modality and not
+  use anything from the buffer. *)
+  Context `{∀ a nD, IntoCrashFlush (ϕ a nD) (ϕ a),
+            ∀ a nD, BufferFree (ϕ a nD)}.
+
+  Lemma is_stack_post_crash ℓ :
+    is_stack ϕ #ℓ -∗ <PC> _, or_lost ℓ (is_stack ϕ #ℓ).
+  Proof.
+    rewrite /is_stack.
+    iDestruct 1 as (? [= <-]) "prot".
+    iDestruct "prot" as "(a & b & c)".
+    iDestruct (post_crash_know_store_lb with "c")  as "c".
+    iCrash.
+    iCombine "a b c" as "a".
+    rewrite 2!or_lost_sep.
+    iApply (or_lost_mono with "[] a").
+    iIntros "(a & b & (%u & c))". destruct u. iExists _. iSplitPure; first done.
+    iFrame.
+  Qed.
+
+  (* Lemma is_stack_post_crash_flushed ℓ : *)
+  (*   is_stack ϕ #ℓ -∗ <PCF> _, or_lost ℓ (is_stack ϕ #ℓ). *)
+  (* Proof. *)
+  (*   rewrite /is_stack. *)
+  (*   iDestruct 1 as (? [= <-]) "prot". *)
+  (*   iCrashFlush. *)
+  (*   iApply (or_lost_mono with "[] prot"). *)
+  (*   iIntros "prot". iExists _. iSplitPure; first done. iFrame "prot". *)
+  (* Qed. *)
 
   Lemma wp_mk_stack :
     {{{ True }}}
       mk_stack #()
-    {{{ v, RET v; is_stack v }}} .
+    {{{ v, RET v; is_stack ϕ v }}} .
   Proof.
     iIntros (Φ) "_ ϕpost".
     rewrite /mk_stack.
@@ -212,7 +307,7 @@ Section proof.
     wp_apply wp_fence.
     do 2 iModIntro.
     wp_pures.
-    iApply (wp_alloc_at _ () toHead_prot with "[flushLb nilPts]"). {
+    iApply (wp_alloc_at _ () (toHead_prot ϕ) with "[flushLb nilPts]"). {
       rewrite /toHead_prot.
       iExists _, [].
       iSplitPure; first reflexivity.
@@ -221,6 +316,36 @@ Section proof.
     iNext. iIntros (?) "(hi & ho & hip)".
     iApply "ϕpost".
     iExists _. naive_solver.
+  Qed.
+
+  Lemma wpc_push stack x s E :
+    {{{ is_stack ϕ stack ∗ ϕ x _ }}}
+      push stack x @ s ; E
+    {{{ RET #(); True }}}.
+  Proof.
+    iIntros (Φ) "[#(%ℓstack & -> & #(stackProt & stackSh & stackLb)) phi] ϕpost".
+    rewrite /push.
+    wp_pures.
+    wp_apply (wp_alloc_na _ (mk_singl _) toNext_prot with "[//]").
+    iIntros (ℓtoNext) "[#toNextProt toNextPts]".
+    wp_pures.
+    wp_apply (wp_alloc_na _ () (cons_node_prot ϕ x ℓtoNext) with "[phi]").
+    { rewrite /cons_node_prot. iFrame. done. }
+    iIntros (ℓnode) "[#nodeProt nodePts]".
+    wp_pures.
+    wp_apply (wp_wb_ex with "nodePts"); first reflexivity.
+    iIntros "[nodePts nodeFlushLb]".
+    wp_pures.
+    wp_apply (wp_load_at _ _ (λ _ v, (∃ (ℓhead : loc) xs, ⌜v = #ℓhead⌝ ∗ is_node ϕ ℓhead xs)%I) with "[]").
+    { iFrame "stackProt stackSh stackLb".
+      iModIntro.
+      iIntros ([] v le) "toHead".
+      iDestruct "toHead" as (???) "(node & #storeLb & #flushLb)".
+      iDestruct (is_node_split with "node") as "[node1 node2]".
+      iSplitL "node1".
+      { iExists _, _. iSplitPure; first done. iFrame "node1". }
+      repeat iExists _. iFrame "#". iFrame "node2". done. }
+    iIntros ([] v).
   Qed.
 
 End proof.

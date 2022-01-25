@@ -406,7 +406,7 @@ Section points_to_shared.
 
   (* Points-to predicate for non-atomics. This predcate says that we know that the
 last events at [ℓ] corresponds to the *)
-  Program Definition mapsto_na (persisted : bool) (ℓ : loc) (q: frac) (ss : list ST) : dProp Σ :=
+  Program Definition mapsto_na (persisted : bool) (ℓ : loc) (q : frac) (ss : list ST) : dProp Σ :=
     (∃ (tP tStore : time) SV (abs_hist : gmap time ST) (msg : message),
       (* NOTE: Maybe we can actually remove [increasing_list]? It should be
       covered by the fact that the list corresponds to [abs_hist] and that one
@@ -461,6 +461,9 @@ last events at [ℓ] corresponds to the *)
       iDestruct (ghost_map_elem_agree with "knowSV SV") as %->.
       iExists _, _, _, _, _. iFrame "#∗%".
   Qed.
+  Global Instance mapsto_na_as_fractional per l q v :
+    AsFractional (mapsto_na per l q v) (λ q, mapsto_na per l q v)%I q.
+  Proof. split; [done | apply _]. Qed.
 
   (* NOTE: This comment is out of date. *)
   (* This definition uses an existentially quantified [s']. We do this such that

@@ -164,6 +164,23 @@ Section nat_map.
       intros t ?. rewrite lookup_insert_ne; first done. lia.
   Qed.
 
+  Lemma map_no_later_Some_agree m t t' :
+    map_no_later m t →
+    map_no_later m t' →
+    is_Some (m !! t) →
+    is_Some (m !! t') →
+    t = t'.
+  Proof.
+    rewrite /map_no_later.
+    intros Hl1 Hl2 [? Hs1] [? Hs2].
+    destruct (Nat.le_gt_cases t t') as [le|lt].
+    - apply Nat.lt_eq_cases in le.
+      destruct le as [lt|]; last done.
+      apply Hl1 in lt.
+      congruence.
+    - apply Hl2 in lt. congruence.
+  Qed.
+
 End nat_map.
 
 Section map_no_later.
