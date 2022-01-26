@@ -50,7 +50,7 @@ Definition push : expr :=
        "toNext" <- "head" ;;
        WB "toNext" ;;
        Fence ;;
-       if: CAS "toHead" "head" "toNext"
+       if: CAS "toHead" "head" "newNode"
        then #()
        else "loop" #()
     ) #().
@@ -185,11 +185,11 @@ Section definitions.
     match xs with
     | [] =>
         ∃ q, ℓnode ↦{q} [()] ∗ know_protocol ℓnode nil_node_prot
-    | x :: xs' => ∃ ℓtoNext ℓnext q1 q2,
+    | x :: xs' => ∃ (ℓtoNext ℓnext : loc) q1 q2,
         ℓnode ↦{q1} [()] ∗
         know_protocol ℓnode (cons_node_prot x ℓtoNext) ∗
         know_protocol ℓtoNext toNext_prot ∗
-        mapsto_na_flushed ℓtoNext q2 (mk_singl ℓnext) ∗
+        mapsto_na_flushed ℓtoNext q2 (mk_singl #ℓnext) ∗
         (* know_protocol ℓnext (constant_prot #ℓnode) ∗ *)
         is_node ℓnext xs'
     end.
@@ -221,16 +221,16 @@ Section definitions.
   stack. *)
   Definition toHead_prot `{nvmDeltaG Σ} (_ : unit) (v : val) (hG : nvmDeltaG Σ) : dProp Σ :=
     ∃ (ℓnode : loc) xs,
-      ⌜ v = #ℓnode ⌝ ∗
-      is_node ℓnode xs ∗
-      know_store_lb ℓnode () ∗
-      know_flush_lb ℓnode ().
+      "%vEqNode" ∷ ⌜ v = #ℓnode ⌝ ∗
+      "isNode" ∷ is_node ℓnode xs ∗
+      "#nodeFlushLb" ∷ know_flush_lb ℓnode ().
 
   Program Instance stack_inv_prot `{nvmDeltaG Σ} : LocationProtocol (toHead_prot) := { bumper n := n }.
   Next Obligation.
-    iIntros (???).
+    iIntros (????).
     rewrite /toHead_prot.
-    iDestruct 1 as (??) "(A & B & stLb & flLb)".
+    iNamed 1.
+    iDestruct "nodeFlushLb" as "-#nodeFlushLb".
     iCrashFlush.
     iExists ℓnode, _.
     iFrame.
@@ -334,18 +334,66 @@ Section proof.
     iIntros (ℓnode) "[#nodeProt nodePts]".
     wp_pures.
     wp_apply (wp_wb_ex with "nodePts"); first reflexivity.
-    iIntros "[nodePts nodeFlushLb]".
+    iIntros "[nodePts #nodeFlushLb]".
+    wp_pure1. wp_pure1. wp_pure1.
+    iAssert (∃ xs x', ⌜ last xs = Some x' ⌝ ∗ ℓtoNext ↦ xs)%I with "[toNextPts]" as "toNextPts".
+    { iExists _, _. iFrame. done. }
+    iLöb as "IH".
+    iDestruct "toNextPts" as (xs' x' lastEq) "toNextPts".
     wp_pures.
+
+    (* The load of the pointer to the head. *)
     wp_apply (wp_load_at _ _ (λ _ v, (∃ (ℓhead : loc) xs, ⌜v = #ℓhead⌝ ∗ is_node ϕ ℓhead xs)%I) with "[]").
     { iFrame "stackProt stackSh stackLb".
       iModIntro.
       iIntros ([] v le) "toHead".
-      iDestruct "toHead" as (???) "(node & #storeLb & #flushLb)".
-      iDestruct (is_node_split with "node") as "[node1 node2]".
+      iNamed "toHead".
+      iDestruct (is_node_split with "isNode") as "[node1 node2]".
       iSplitL "node1".
       { iExists _, _. iSplitPure; first done. iFrame "node1". }
       repeat iExists _. iFrame "#". iFrame "node2". done. }
-    iIntros ([] v).
+    iIntros ([] v) "[storeLb fence]".
+
+    wp_pures.
+    wp_apply (wp_store_na _ _ _ _ _ (mk_singl v) with "[$toNextPts]").
+    { done. } { done. }
+    { iFrame "toNextProt". done. }
+    simpl.
+    iIntros "toNextPts".
+    wp_pures.
+    wp_apply (wp_wb_ex with "toNextPts"). { apply last_app. done. }
+    iIntros "[toNextPts #toNextPtsFl]".
+    wp_pures.
+    wp_apply wp_fence. do 2 iModIntro.
+    iDestruct "fence" as (ℓhead xs ->) "isNode".
+    wp_pures.
+
+    wp_apply (wp_cas_at (λ _, True)%I (λ _, True)%I with "[nodePts toNextPts isNode]").
+    { iFrame "stackProt stackSh stackLb".
+      iSplit.
+      { iIntros (??). iSplitL "". { iIntros "!> $". rewrite left_id. iAccu. }
+        simpl. iIntros "_". simpl. rewrite right_id.
+        rewrite /toHead_prot.
+        iExists _, (x :: xs).
+        iSplitPure; first done.
+        iFrame "nodeFlushLb".
+        simpl.
+        iExists _, _ , _, _.
+        iFrame "nodeProt".
+        iFrame "toNextProt".
+        iFrame "nodePts isNode".
+        iExists _. iFrame "toNextPts". iFrame "toNextPtsFl".
+        iPureIntro. apply last_app. done. }
+      iIntros (??).
+      iSplitL ""; first iIntros "!> $ //". iAccu. }
+    iIntros (b) "[(-> & H & lb)|(%s' & -> & le & _ & (nodePts & toNextPts & isNode))]".
+    (* The CAS succeeded. *)
+    - wp_pures. iModIntro. iApply "ϕpost". done.
+    (* The CAS failed. *)
+    - wp_pure _.
+      iApply ("IH" with "ϕpost nodePts [toNextPts]").
+      { iExists _, _. iFrame "toNextPts". iPureIntro. apply last_app. done. }
+    Unshelve. { apply (). }
   Qed.
 
 End proof.

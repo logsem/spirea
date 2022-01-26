@@ -721,21 +721,24 @@ Section wp_at_rules.
     rewrite /encode_bumper decode_encode. done.
   Qed.
 
-  Lemma wp_cas_at ℓ s_i v_i v_t ϕ R Q1 Q2 s_t st E :
+  (** [Q1] is the resource we want to extract in case of success and and [Q2] is
+  the resource we want to extract in case of failure. *)
+  Lemma wp_cas_at Q1 Q2 Q3 ℓ s_i v_i v_t `{!LocationProtocol ϕ} R s_t st E :
     {{{
-      "isSharedLoc" ∷ ⎡ is_shared_loc ℓ ⎤ ∗
-      "storeLB" ∷ know_store_lb ℓ s_i ∗
-      "phiSuccess" ∷ (* in case of success *)
+      know_protocol ℓ ϕ ∗
+      ⎡ is_shared_loc ℓ ⎤ ∗
+      know_store_lb ℓ s_i ∗
+      (* in case of success *)
+      ((∀ s_a, ⌜ s_i ⊑ s_a ⌝ -∗
+        (<obj> (ϕ s_a v_i _ -∗ ϕ s_a v_i _ ∗ R s_a)) ∗ (R s_a -∗ ϕ s_t v_t _ ∗ Q1 s_a)) ∧
+        (* in case of failure *)
         (∀ s_a, ⌜ s_i ⊑ s_a ⌝ -∗
-          (<obj> (ϕ s_a v_i _ -∗ ϕ s_a v_i _ ∗ R s_a)) ∗ (R s_a -∗ ϕ s_t v_t _ ∗ Q1 s_a)) ∗
-      "phiFail" ∷ (* in case of failure *)
-        (∀ s_a, ⌜ s_i ⊑ s_a ⌝ -∗
-          (<obj> (ϕ s_a v_i _ -∗ ϕ s_a v_i _ ∗ Q2 s_a)))
+          (<obj> (ϕ s_a v_i _ -∗ ϕ s_a v_i _ ∗ Q2 s_a)) ∗ Q3))
     }}}
       CAS #ℓ v_i v_t @ st; E
     {{{ b, RET #b;
       (⌜ b = true ⌝ ∗ Q1 s_t ∗ know_store_lb ℓ s_t) ∨
-      (∃ s_a, ⌜ b = false ⌝ ∗ ⌜ s_i ⊑ s_a ⌝ ∗ Q2 s_a)
+      (∃ s_a, ⌜ b = false ⌝ ∗ ⌜ s_i ⊑ s_a ⌝ ∗ Q2 s_a ∗ Q3)
     }}}.
   Proof.
   Admitted.
