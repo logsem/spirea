@@ -28,7 +28,7 @@ Section wp_na_rules.
   Lemma wp_alloc_na v s ϕ `{!LocationProtocol ϕ} st E :
     {{{ "phi" ∷ ϕ s v _ }}}
       ref_NA v @ st; E
-    {{{ ℓ, RET #ℓ; know_protocol ℓ ϕ ∗ ℓ ↦ [s] }}}.
+    {{{ ℓ, RET #ℓ; know_protocol ℓ ϕ ∗ ℓ ↦_{false} [s] }}}.
   Proof.
     intros Φ. iStartProof (iProp _). iIntros (TV). iNamed 1.
     iIntros (TV' incl) "Φpost".
@@ -113,8 +113,9 @@ Section wp_na_rules.
     iModIntro.
     rewrite -assoc. iSplit; first done.
     iSplitL "Φpost knowPred knowBumper knowOrder ownHist ownNaView ownPhysHist".
-    { iApply "Φpost". iFrame "knowPred knowBumper knowOrder isExclusive".
+    { iApply "Φpost". iFrame "knowPred knowOrder knowBumper".
       iExists _, _, _, _, (Msg v ∅ ∅ PV).
+      iFrame "isExclusive knowOrder".
       repeat iExists _.
       rewrite -map_fmap_singleton. iFrame "ownHist".
       iFrame "ownNaView".
@@ -219,6 +220,7 @@ Section wp_na_rules.
     (* We destruct the exclusive points-to predicate. *)
     iIntros "(pts & temp & pToQ)".
     iNamed "temp".
+    rewrite /mapsto_na.
     iDestruct "pts" as (?tP ?tS SV absHist msg) "pts". iNamed "pts".
     iDestruct "inThreadView" as %inThreadView.
     rewrite monPred_at_wand. simpl.
@@ -344,6 +346,7 @@ Section wp_na_rules.
     iStartProof (iProp _). iIntros (TV).
     iIntros "(pts & temp & phi)".
     iNamed "temp".
+    rewrite /mapsto_na.
     iDestruct "pts" as (?tP ?tS SV absHist msg) "pts". iNamed "pts".
     iDestruct "inThreadView" as %inThreadView.
 

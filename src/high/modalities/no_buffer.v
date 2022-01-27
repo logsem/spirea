@@ -156,7 +156,7 @@ Section no_buffer_rules.
 
   Global Instance mapsto_na_buffer_free `{AbstractState ST} b ℓ q (ss : list ST) :
     BufferFree (mapsto_na b ℓ q ss).
-  Proof. apply _. Qed.
+  Proof. rewrite /mapsto_na. apply _. Qed.
 
 End no_buffer_rules.
 

@@ -105,13 +105,13 @@ Section simple_increment.
   Definition crash_condition {hD : nvmDeltaG Σ} ℓa ℓb : dProp Σ :=
     ("#aPred" ∷ know_protocol ℓa ϕa ∗
      "#bPred" ∷ know_protocol ℓb (ϕb ℓa) ∗
-     "pts" ∷ ∃ (sa sb : list nat), "aPts" ∷ ℓa ↦ₚ sa ∗ "bPts" ∷ ℓb ↦ₚ sb)%I.
+     "pts" ∷ ∃ (sa sb : list nat), "aPts" ∷ ℓa ↦_{true} sa ∗ "bPts" ∷ ℓb ↦_{true} sb)%I.
 
   Lemma prove_crash_condition {hD : nvmDeltaG Σ} ℓa ℓb (ssA ssB : list nat) :
     know_protocol ℓa ϕa -∗
     know_protocol ℓb (ϕb ℓa) -∗
-    ℓa ↦ₚ ssA -∗
-    ℓb ↦ₚ ssB -∗
+    ℓa ↦_{true} ssA -∗
+    ℓb ↦_{true} ssB -∗
     <PC> hG, crash_condition ℓa ℓb.
   Proof.
     iIntros "aPred bPred aPts bPts".
@@ -129,10 +129,10 @@ Section simple_increment.
   Lemma wp_incr ℓa ℓb s E :
     ⊢ know_protocol ℓa ϕa -∗
       know_protocol ℓb (ϕb ℓa) -∗
-      ℓa ↦ₚ [0] -∗
-      ℓb ↦ₚ [0] -∗
+      ℓa ↦_{true} [0] -∗
+      ℓb ↦_{true} [0] -∗
       WPC (incr_both ℓa ℓb) @ s; E
-        {{ λ _, ℓa ↦ₚ [0; 1] ∗ ℓb ↦ₚ [0; 1] }}
+        {{ λ _, ℓa ↦_{true} [0; 1] ∗ ℓb ↦_{true} [0; 1] }}
         {{ <PC> _, crash_condition ℓa ℓb }}.
   Proof.
     iIntros "#aPred #bPred aPts bPts".
@@ -255,10 +255,10 @@ Section simple_increment.
   Lemma incr_safe s E ℓa ℓb :
     ⊢ know_protocol ℓa ϕa -∗
       know_protocol ℓb (ϕb ℓa) -∗
-      ℓa ↦ₚ [0] -∗
-      ℓb ↦ₚ [0] -∗
+      ℓa ↦_{true} [0] -∗
+      ℓb ↦_{true} [0] -∗
       wpr s E (incr_both ℓa ℓb) (recover ℓa ℓb)
-        (λ _, ℓa ↦ₚ [0; 1] ∗ ℓb ↦ₚ [0; 1]) (λ _ _, True%I).
+        (λ _, ℓa ↦_{true} [0; 1] ∗ ℓb ↦_{true} [0; 1]) (λ _ _, True%I).
   Proof.
     iIntros "a b c d".
     iApply (idempotence_wpr _ _ _ _ _ _ (λ _, <PC> _, crash_condition ℓa ℓb)%I

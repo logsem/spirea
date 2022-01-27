@@ -777,10 +777,10 @@ Section post_crash_derived.
 
   (* NOTE: This rule should be changed once the "bump-back function" is
   introduced. *)
-  Lemma post_crash_mapsto_persisted_ex `{AbstractState ST} ℓ (ss : list ST) :
-    ℓ ↦ₚ ss -∗ <PC> hG', ∃ s, ⌜s ∈ ss⌝ ∗ ℓ ↦ₚ [s] ∗ recovered_at ℓ s.
+  Lemma post_crash_mapsto_persisted_ex `{AbstractState ST} ℓ q (ss : list ST) :
+    ℓ ↦_{true}^{q} ss -∗ <PC> hG', ∃ s, ⌜s ∈ ss⌝ ∗ ℓ ↦_{true}^{q} [s] ∗ recovered_at ℓ s.
   Proof.
-    iNamed 1.
+    rewrite /mapsto_na. iNamed 1.
     iDestruct "isExclusiveLoc" as "-#isExclusiveLoc".
     iDestruct "order" as "-#order".
     iCrash.

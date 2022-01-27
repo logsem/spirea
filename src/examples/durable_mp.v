@@ -60,7 +60,7 @@ Section proof.
   Next Obligation.
     iIntros (? [|] ?); simpl.
     - iIntros "[% lb]". iCrashFlush.
-      iDestruct "lb" as "(% & %le & h & hi & _)".
+      iDestruct "lb" as "(% & %le & ? & ? & ? & ?)".
       destruct s__pc; last done.
       iFrame "∗%".
     - iIntros "[% H]". iCrashFlush. iFrame. done.
@@ -74,29 +74,29 @@ Section proof.
       "#yProt" ∷ or_lost y (know_protocol y inv_y) ∗
       "#yShared" ∷ or_lost y (⎡ is_shared_loc y ⎤) ∗
       "#zProt" ∷ know_protocol z inv_z ∗
-      x ↦ₚ sx ∗
-      z ↦ₚ sz.
+      x ↦_{true} sx ∗
+      z ↦_{true} sz.
 
   Definition right_crash_condition {hD : nvmDeltaG Σ} : dProp Σ :=
     ∃ (sz : list bool),
       "#yProt" ∷ or_lost y (know_protocol y inv_y) ∗
       "#yShared" ∷ or_lost y (⎡ is_shared_loc y ⎤) ∗
       "#zProt" ∷ know_protocol z inv_z ∗
-      z ↦ₚ sz.
+      z ↦_{true} sz.
 
   Definition left_crash_condition {hD : nvmDeltaG Σ} : dProp Σ :=
     ∃ (sx : list bool),
       "#yProt" ∷ or_lost y (know_protocol y inv_y) ∗
       "#yShared" ∷ or_lost y (⎡ is_shared_loc y ⎤) ∗
       "#xProt" ∷ know_protocol x inv_x ∗
-      x ↦ₚ sx.
+      x ↦_{true} sx.
 
   Lemma right_crash_condition_impl {hD : nvmDeltaG Σ} (ssZ : list bool) :
     know_protocol y inv_y -∗
     know_protocol z inv_z -∗
     know_store_lb y false -∗
     ⎡ is_shared_loc y ⎤ -∗
-    z ↦ₚ ssZ -∗
+    z ↦_{true} ssZ -∗
     <PC> hD, right_crash_condition.
   Proof.
     iIntros "yProt zProt yLb yShared zPts".
@@ -112,7 +112,7 @@ Section proof.
     know_protocol x inv_x -∗
     know_store_lb y false -∗
     ⎡ is_shared_loc y ⎤ -∗
-    x ↦ₚ ssX -∗
+    x ↦_{true} ssX -∗
     <PC> hD, left_crash_condition.
   Proof.
     iIntros "yProt xProt yLb yShared xPts".
@@ -137,9 +137,9 @@ Section proof.
     know_protocol z inv_z -∗
     know_store_lb y false -∗
     ⎡ is_shared_loc y ⎤ -∗
-    z ↦ₚ [false] -∗
+    z ↦_{true} [false] -∗
     WPC rightProg y z @ s; E1
-    {{ v, z ↦ₚ [false; true] ∨ z ↦ₚ [false] }}
+    {{ v, z ↦_{true} [false; true] ∨ z ↦_{true} [false] }}
     {{ <PC> _, right_crash_condition }}.
   Proof.
     iIntros "#yProt #zProt #yLb #yShared zPts".
@@ -191,10 +191,10 @@ Section proof.
   Lemma prog_spec :
     ⎡ pre_borrow ⎤ ∗
     know_protocol x inv_x ∗ know_protocol y inv_y ∗ know_protocol z inv_z ∗
-    x ↦ₚ [false] ∗
+    x ↦_{true} [false] ∗
     know_store_lb y false ∗
     ⎡ is_shared_loc y ⎤ ∗
-    z ↦ₚ [false] -∗
+    z ↦_{true} [false] -∗
     WPC prog x y z @ ⊤
     {{ v, True }}
     {{ <PC> _, crash_condition }}.
@@ -238,11 +238,11 @@ Section proof.
       iDestruct (right_prog_spec with "yProt zProt yLb yShared zPts") as "wp".
       iApply (wpc_mono' with "[] [] wp"); last naive_solver.
       iIntros (?) "[zPts | zPts]".
-      * iExists (z ↦ₚ (_ : list bool)). iFrame.
+      * iExists (z ↦_{true} (_ : list bool)). iFrame.
         iSplit; last naive_solver.
         iIntros "!> zPts".
         iApply (right_crash_condition_impl with "yProt zProt yLb yShared zPts").
-      * iExists (z ↦ₚ (_ : list bool)). iFrame.
+      * iExists (z ↦_{true} (_ : list bool)). iFrame.
         iSplit; last naive_solver.
         iIntros "!> zPts".
         iApply (right_crash_condition_impl with "yProt zProt yLb yShared zPts").

@@ -611,11 +611,16 @@ last events at [ℓ] corresponds to the *)
 End points_to_shared.
 
 (** Notation for the exclusive points-to predicate. *)
-Notation "l ↦ ss" := (mapsto_na false l 1 ss) (at level 20).
-Notation "l ↦{ q } ss" := (mapsto_na false l q ss) (at level 20).
-Notation "l ↦ₚ ss" := (mapsto_na true l 1 ss) (at level 20).
-Notation "l ↦ₚ{ q } ss" := (mapsto_na true l q ss) (at level 20).
+Notation "l ↦_{ p } ss" := (mapsto_na p l 1 ss) (at level 20).
+Notation "l ↦_{ p }^{ q } ss" := (mapsto_na p l q ss) (at level 20).
+(* Notation "l ↦^{ p } ss" := (mapsto_na p l 1 ss) (at level 20). *)
+(* Notation "l ↦ ss" := (mapsto_na false l 1 ss) (at level 20). *)
+(* Notation "l ↦{ q } ss" := (mapsto_na false l q ss) (at level 20). *)
+(* Notation "l ↦ₚ ss" := (mapsto_na true l 1 ss) (at level 20). *)
+(* Notation "l ↦ₚ{ q } ss" := (mapsto_na true l q ss) (at level 20). *)
 (* Notation "l ↦ xs ; ys | P" := (mapsto_na l xs ys P) (at level 20). *)
 
 (** Notation for the shared points-to predicate. *)
 (* Notation "l ↦ ( s1 , s2 , s3 )  | P" := (mapsto_shared l s1 s2 s3 P) (at level 20). *)
+
+Typeclasses Opaque mapsto_na.
