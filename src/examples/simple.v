@@ -96,7 +96,7 @@ Section simple_increment.
     iIntros (????) "[% lb]".
     iDestruct "lb" as (m ?) "lb".
     iCrashFlush.
-    iDestruct "lb" as (??) "(_ & H & _)".
+    iDestruct "lb" as (??) "(? & _ & H & _)".
     iPureGoal; first done.
     iExists _. iFrame .
     iPureIntro. etrans; done.

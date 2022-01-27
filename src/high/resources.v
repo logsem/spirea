@@ -580,6 +580,10 @@ last events at [ℓ] corresponds to the *)
     set_solver.
   Qed.
 
+  Lemma recovered_at_agree ℓ s s' :
+    recovered_at ℓ s -∗ recovered_at ℓ s' -∗ ⌜ s = s' ⌝.
+  Proof. Admitted.
+
   Lemma mapsto_na_store_lb ℓ b q ss s :
     last ss = Some s →
     mapsto_na b ℓ q ss -∗

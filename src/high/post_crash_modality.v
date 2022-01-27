@@ -806,10 +806,14 @@ Section post_crash_derived.
     - iExists _. iFrame "∗#". iPureIntro. apply elem_of_dom. naive_solver.
   Admitted.
 
-  Lemma post_crash_mapsto_na `{AbstractState ST} ℓ (ss : list ST) :
-    ℓ ↦ ss -∗
-    post_crash (λ hG', (∃ s, ⌜s ∈ ss⌝ ∗ ℓ ↦ₚ [s] ∗ recovered_at ℓ s) ∨ lost ℓ).
+  Lemma post_crash_mapsto_na `{AbstractState ST} ℓ p q (ss : list ST) :
+    ℓ ↦_{p}^{q} ss -∗
+    post_crash (λ hG', or_lost ℓ (∃ s, ⌜s ∈ ss⌝ ∗ ℓ ↦_{true}^{q} [s] ∗ recovered_at ℓ s)).
   Proof.
+    destruct p.
+    { iIntros "H".
+      iDestruct (post_crash_mapsto_persisted_ex with "H") as "H".
+      iCrash. iExists _. iFrame. admit. }
     rewrite /mapsto_na.
     iNamed 1.
     iDestruct "pers" as %tPeq.
@@ -821,7 +825,7 @@ Section post_crash_derived.
       iDestruct (or_lost_get with "crash isExclusiveLoc") as "isExclusiveLoc"; first done.
       iDestruct (or_lost_get with "crash order") as "order"; first done.
       iDestruct (or_lost_get with "crash knowSV") as "knowSV"; first done.
-      iLeft.
+      iExists CV. iFrame "crash". iLeft.
       iExists s.
       iSplit.
       { iPureIntro. apply: map_slice_lookup_between; try done.
@@ -840,17 +844,18 @@ Section post_crash_derived.
         simpl. iPureIntro. split_and!; try done.
         destruct i as [[??]?]; repeat split; apply view_empty_least.
       + iExists _. iFrame "∗#". iPureIntro. rewrite elem_of_dom. naive_solver.
-    - iRight. iExists CV. iFrame "∗#". iPureIntro. by rewrite not_elem_of_dom.
+    - iExists CV. iFrame "crash".
+      iRight. iPureIntro. done.
   Admitted.
 
-  Global Instance mapsto_na_into_crash `{AbstractState ST} ℓ (ss : list ST) :
+  Global Instance mapsto_na_into_crash `{AbstractState ST} ℓ p q (ss : list ST) :
     IntoCrash
-      (ℓ ↦ ss)%I
-      (λ hG', (∃ s, ⌜s ∈ ss⌝ ∗ ℓ ↦ₚ [s] ∗ recovered_at ℓ s) ∨ lost ℓ)%I.
+      (ℓ ↦_{p}^{q} ss)%I
+      (λ hG', or_lost ℓ (∃ s, ⌜s ∈ ss⌝ ∗ ℓ ↦_{true}^{q} [s] ∗ recovered_at ℓ s))%I.
   Proof. rewrite /IntoCrash. iIntros "P". by iApply post_crash_mapsto_na. Qed.
 
   Global Instance mapsto_na_persisted_into_crash `{AbstractState ST} ℓ (ss : list ST) :
-    IntoCrash (ℓ ↦ₚ ss)%I (λ hG', ∃ s, ⌜s ∈ ss⌝ ∗ ℓ ↦ₚ [s] ∗ recovered_at ℓ s)%I.
+    IntoCrash (ℓ ↦_{true} ss)%I (λ hG', ∃ s, ⌜s ∈ ss⌝ ∗ ℓ ↦_{true} [s] ∗ recovered_at ℓ s)%I.
   Proof.
     rewrite /IntoCrash. iIntros "P". by iApply post_crash_mapsto_persisted_ex.
   Qed.
@@ -990,9 +995,8 @@ Section post_crash_persisted.
         (ℓ : loc) (s : ST) :
     know_flush_lb ℓ s -∗
     <PCF> hG, ∃ s__pc, ⌜s ⊑ s__pc⌝ ∗ 
-      know_persist_lb ℓ s__pc ∗
-      know_flush_lb ℓ s__pc ∗
-      know_store_lb ℓ s__pc.
+      recovered_at ℓ s__pc ∗ know_persist_lb ℓ s__pc ∗
+      know_flush_lb ℓ s__pc ∗ know_store_lb ℓ s__pc.
   Proof.
     iStartProof (iProp _).
     iIntros (TV).
@@ -1038,6 +1042,8 @@ Section post_crash_persisted.
         done. }
       iExists s''.
       iSplit. { done. }
+      iSplit. { iExists CV. iFrame "crash knowFragHist". iPureIntro.
+                apply elem_of_dom. done. }
       iSplit. { iExists 0. iFrameNamed. iPureIntro. lia. }
       iSplit.
       { iExists 0.
@@ -1071,6 +1077,8 @@ Section post_crash_persisted.
         lia. }
       iExists s''.
       iSplit. { done. }
+      iSplit. { iExists CV. iFrame "crash knowFragHist". iPureIntro.
+                apply elem_of_dom. done. }
       iSplit.
       { iExists 0. iFrameNamed. iPureIntro. lia. }
       iSplit.
@@ -1106,6 +1114,7 @@ Section IntoCrashFlush.
 
   Global Instance know_flush_into_crash `{AbstractState ST} ℓ (s : ST) :
     IntoCrashFlush (know_flush_lb ℓ s) (λ _, ∃ s__pc, ⌜ s ⊑ s__pc ⌝ ∗
+      recovered_at ℓ s__pc ∗
       know_persist_lb ℓ s__pc ∗
       know_flush_lb ℓ s__pc ∗
       know_store_lb ℓ s__pc)%I.

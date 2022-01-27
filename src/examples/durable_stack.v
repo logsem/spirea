@@ -85,53 +85,91 @@ End constant_prot.
 
 Definition mapsto_na_flushed `{nvmFixedG Σ, nvmDeltaG Σ, AbstractState ST}
            ℓ q (s : ST) : dProp Σ :=
-  ∃ (ss : list ST), ⌜ last ss = Some s ⌝ ∗ ℓ ↦{q} ss ∗ know_flush_lb ℓ s.
+  ∃ p (ss : list ST),
+    "%lastEq" ∷ ⌜ last ss = Some s ⌝ ∗
+    "pts" ∷ ℓ ↦_{p}^{q} ss ∗
+    "#flushLb" ∷ know_flush_lb ℓ s.
 
-Global Instance buffer_free_mapsto_na_flushed `{nvmFixedG Σ, nvmDeltaG Σ, AbstractState ST}
-       ℓ q (s : ST) :
-  BufferFree (mapsto_na_flushed ℓ q s).
-Proof. apply _. Qed.
+Section mapsto_na_flushed.
+  Context `{nvmFixedG Σ, nvmDeltaG Σ, AbstractState ST}.
 
-Lemma mapsto_na_flushed_agree `{nvmFixedG Σ, nvmDeltaG Σ, AbstractState ST}
-      ℓ q q' (s s' : ST) :
-  mapsto_na_flushed ℓ q s -∗ mapsto_na_flushed ℓ q' s' -∗ ⌜ s = s' ⌝.
-Proof.
-  rewrite /mapsto_na_flushed.
-  iDestruct 1 as (ss last) "[pts lb]".
-  iDestruct 1 as (ss' last') "[pts' lb']".
-  iNamed "pts".
-  iDestruct "pts'" as (?????) "(? & ? & ? & %look & %nolater' & ? & ? & ? & ? & ? & ? & ?)".
-  iDestruct (ghost_map_elem_agree with "hist [$]") as %<-%(inj _).
-  iPureIntro.
-  apply (inj Some).
-  rewrite -last -last' -lookupV -look.
-  f_equiv.
-  eapply map_no_later_Some_agree; try done.
-  - eexists _. rewrite lookupV. done.
-  - eexists _. rewrite look. done.
-Qed.
+  Global Instance buffer_free_mapsto_na_flushed ℓ q (s : ST) :
+    BufferFree (mapsto_na_flushed ℓ q s).
+  Proof. apply _. Qed.
 
-Lemma mapsto_na_flushed_split `{nvmFixedG Σ, nvmDeltaG Σ, AbstractState ST} ℓ p q (s : ST) :
-  mapsto_na_flushed ℓ (p + q) s -∗
-  mapsto_na_flushed ℓ p s ∗ mapsto_na_flushed ℓ q s.
-Proof.
-  iDestruct 1 as (ss last) "[[pts1 pts2] #flushLb]".
-  iSplitL "pts1"; iFrame "flushLb"; iExists ss; iFrame (last) "∗".
-Qed.
+  Lemma mapsto_na_flushed_agree ℓ q q' (s s' : ST) :
+    mapsto_na_flushed ℓ q s -∗ mapsto_na_flushed ℓ q' s' -∗ ⌜ s = s' ⌝.
+  Proof.
+    rewrite /mapsto_na_flushed.
+    iNamed 1.
+    iDestruct 1 as (? ss' last') "[pts' lb']".
+    rewrite /mapsto_na. iNamed "pts".
+    iDestruct "pts'" as (?????) "(? & ? & ? & %look & %nolater' & ? & ? & ? & ? & ? & ? & ?)".
+    iDestruct (ghost_map_elem_agree with "hist [$]") as %<-%(inj _).
+    iPureIntro.
+    apply (inj Some).
+    rewrite -lastEq -last' -lookupV -look.
+    f_equiv.
+    eapply map_no_later_Some_agree; try done.
+    - eexists _. rewrite lookupV. done.
+    - eexists _. rewrite look. done.
+  Qed.
 
-Global Instance mapsto_na_flushed_fractional
-       `{nvmFixedG Σ, nvmDeltaG Σ, AbstractState ST} ℓ (s : ST) :
-  Fractional (λ q, mapsto_na_flushed ℓ q s).
-Proof.
-  rewrite /Fractional.
-  intros p q.
-  iSplit.
-  - iApply mapsto_na_flushed_split.
-  - iIntros "[L R]".
-    iDestruct "R" as (ss last) "[[pts1 pts2] #flushLb]".
-    iDestruct "L" as (? ?) "[[pts1' pts2'] _]".
-    (* This direction is more annoying to show (not impossible) *)
-Abort.
+  Lemma mapsto_na_flushed_split ℓ p q (s : ST) :
+    mapsto_na_flushed ℓ (p + q) s -∗
+    mapsto_na_flushed ℓ p s ∗ mapsto_na_flushed ℓ q s.
+  Proof.
+    iDestruct 1 as (? ss last) "[[pts1 pts2] #flushLb]".
+    iSplitL "pts1"; iFrame "flushLb"; iExists _, ss; iFrame (last) "∗".
+  Qed.
+
+  Global Instance mapsto_na_flushed_fractional ℓ (s : ST) :
+    Fractional (λ q, mapsto_na_flushed ℓ q s).
+  Proof.
+    rewrite /Fractional.
+    intros p q.
+    iSplit.
+    - iApply mapsto_na_flushed_split.
+    - iIntros "[L R]".
+      iNamed "R".
+      iDestruct "L" as (???) "[[pts1' pts2'] _]".
+      (* This direction is more annoying to show (not impossible) *)
+  Abort.
+
+  Lemma mapsto_na_increasing_list ℓ p q (ss : list ST) :
+    mapsto_na p ℓ q ss -∗ ⌜ increasing_list ss ⌝.
+  Proof. rewrite /mapsto_na. iNamed 1. iFrame (incrList). Qed.
+
+  (* Lemma foo (ss : list ST) s1 s2 : *)
+  (*   increasing_list ss → last ss = Some s1 → s2 ∈ ss → s2 ⊑ s1. *)
+  (* Proof. *)
+  (*   Admitted. *)
+
+  Global Instance mapsto_na_flushed_post_crash_flushed ℓ q (s : ST) :
+    IntoCrashFlush (mapsto_na_flushed ℓ q s)
+                   (λ _, mapsto_na_flushed ℓ q s ∗ recovered_at ℓ s)%I.
+  Proof.
+    rewrite /IntoCrashFlush.
+    iNamed 1.
+    (* iDestruct 1 as (? ss eq) "[pts lb]". *)
+    iDestruct "flushLb" as "-#flushLb".
+    (* We could leave out these two lines, but [iCrashFlush] takes a looong time
+    to find the [IntoCrashFlush] instance. *)
+    iDestruct (mapsto_na_increasing_list with "pts") as %incr.
+    iDestruct (post_crash_mapsto_na with "pts") as "pts".
+    iDestruct (post_crash_flush_post_crash with "pts") as "pts".
+    iCrashFlush.
+    iDestruct "flushLb" as (s' ?) "(#r & ? & ? & ?)".
+    iDestruct (recovered_at_or_lost with "r pts") as "(%s'' & ? & pts & ?)".
+    iDestruct (recovered_at_agree with "r [$]") as %<-.
+    (* We can't prove that with this approach, but it is (will be) true. *)
+  Admitted.
+  (*   assert (s = s'). { eapply anti_symm. first apply H3. apply foo. } *)
+  (*   iExists [s']. *)
+  (*   iFrame. *)
+  (* Qed. *)
+
+End mapsto_na_flushed.
   
 (* Global Instance mapsto_na_flushed_as_fractional `{nvmFixedG Σ, nvmDeltaG Σ, AbstractState ST} per l q v : *)
 (*   AsFractional (mapsto_na per l q v) (λ q, mapsto_na per l q v)%I q. *)
@@ -168,7 +206,7 @@ Section definitions.
 
   Program Instance toNext_prot_prot :
     LocationProtocol toNext_prot := { bumper n := n }.
-  Next Obligation. Admitted.
+  Next Obligation. iIntros (?[?]?) "H". iCrashFlush. done. Qed.
   Next Obligation. destruct s. apply _. Qed.
 
   Program Instance cons_node_prot_prot x ℓ :
@@ -183,11 +221,16 @@ Section definitions.
   (* Representation predicate for a node. *)
   Fixpoint is_node `{nvmDeltaG Σ} ℓnode (xs : list val) : dProp Σ :=
     match xs with
-    | [] =>
-        ∃ q, ℓnode ↦{q} [()] ∗ know_protocol ℓnode nil_node_prot
-    | x :: xs' => ∃ (ℓtoNext ℓnext : loc) q1 q2,
-        ℓnode ↦{q1} [()] ∗
+    | [] => ∃ q p,
+        ℓnode ↦_{p}^{q} [()] ∗
+        know_protocol ℓnode nil_node_prot ∗
+        know_flush_lb ℓnode ()
+    | x :: xs' => ∃ (ℓtoNext ℓnext : loc) p1 q1 q2,
+        (* ℓnode *)
+        ℓnode ↦_{p1}^{q1} [()] ∗
         know_protocol ℓnode (cons_node_prot x ℓtoNext) ∗
+        know_flush_lb ℓnode () ∗
+        (* ℓtoNext *)
         know_protocol ℓtoNext toNext_prot ∗
         mapsto_na_flushed ℓtoNext q2 (mk_singl #ℓnext) ∗
         (* know_protocol ℓnext (constant_prot #ℓnode) ∗ *)
@@ -201,14 +244,41 @@ Section definitions.
     induction xs as [|x xs]; apply _.
   Qed.
 
+  Global Instance into_crash_flushed_mapsto_na_flushed `{nvmDeltaG Σ} ℓnode xs :
+    IntoCrashFlush (is_node ℓnode xs) (λ _, is_node ℓnode xs).
+  Proof.
+    rewrite /IntoCrashFlush.
+    generalize dependent ℓnode.
+    induction xs as [|x xs IH]; iIntros (ℓnode).
+    - iDestruct 1 as (??) "(nodePts & prot & lb)".
+      iCrashFlush.
+      iDestruct "lb" as ([] le) "(#rec & ? & lb & ?)".
+      iDestruct (recovered_at_or_lost with "rec nodePts") as "nodePts".
+      iDestruct (recovered_at_or_lost with "rec prot") as "prot".
+      iDestruct "nodePts" as ([] elem) "(nodePts & ?)".
+      iExists _, _. iFrame "nodePts". iFrame.
+    - iDestruct 1 as (?????) "(nodePts & nodeProt & nodeFlushLb &
+                               toNextProt & toNextFlush & node)".
+      iApply IH in "node".
+      iCrashFlush.
+      iDestruct "nodeFlushLb" as ([]?) "(#nodeRec & ? & toNextFlushLb & ?)" .
+      iDestruct "toNextFlush" as "[toNextFlush toNextRec]".
+      iDestruct (recovered_at_or_lost with "toNextRec toNextProt") as "toNextProt".
+      iDestruct (recovered_at_or_lost with "nodeRec nodeProt") as "nodeProt".
+      iDestruct (recovered_at_or_lost with "nodeRec nodePts") as "nodePts".
+      iDestruct "nodePts" as ([]?) "[nodePts _]".
+      iExists _, _, _, _, q2.
+      iFrame.
+  Qed.
+
   Lemma is_node_split `{nvmDeltaG Σ} ℓnode xs :
     is_node ℓnode xs -∗ is_node ℓnode xs ∗ is_node ℓnode xs.
   Proof.
     generalize dependent ℓnode.
     induction xs as [|x xs IH]; iIntros (ℓnode).
-    - iDestruct 1 as (q) "([pts1 pts2] & #r)".
+    - iDestruct 1 as (q?) "([pts1 pts2] & #r)".
       iSplitL "pts1"; iFrame "r"; naive_solver.
-    - iDestruct 1 as (? ? ? ?) "([pts1 pts2] & #? & #? & toNextPts & node)".
+    - iDestruct 1 as (?????) "([pts1 pts2] & #? & #? & #? & toNextPts & node)".
       rewrite -(Qp_div_2 q2).
       iDestruct (mapsto_na_flushed_split with "toNextPts") as "[toNextPts1 toNextPts2]".
       iDestruct (IH with "node") as "[node1 node2]".
@@ -225,18 +295,18 @@ Section definitions.
       "isNode" ∷ is_node ℓnode xs ∗
       "#nodeFlushLb" ∷ know_flush_lb ℓnode ().
 
-  Program Instance stack_inv_prot `{nvmDeltaG Σ} : LocationProtocol (toHead_prot) := { bumper n := n }.
+  Program Instance stack_inv_prot `{nvmDeltaG Σ} :
+    LocationProtocol (toHead_prot) := { bumper n := n }.
   Next Obligation.
     iIntros (????).
     rewrite /toHead_prot.
     iNamed 1.
     iDestruct "nodeFlushLb" as "-#nodeFlushLb".
     iCrashFlush.
+    iDestruct "nodeFlushLb" as ([]?) "(? & ? & ? & ?)".
     iExists ℓnode, _.
-    iFrame.
-  Admitted.
-  (*   naive_solver. *)
-  (* Qed. *)
+    iFrame. done.
+  Qed.
 
   (* The representation predicate for the entire stack. *)
   Definition is_stack `{nvmDeltaG Σ} (v : val) : dProp Σ :=
@@ -312,7 +382,7 @@ Section proof.
       iExists _, [].
       iSplitPure; first reflexivity.
       iFrame "#".
-      iExists _. iFrame. }
+      iExists _, _. iFrame. }
     iNext. iIntros (?) "(hi & ho & hip)".
     iApply "ϕpost".
     iExists _. naive_solver.
@@ -336,7 +406,7 @@ Section proof.
     wp_apply (wp_wb_ex with "nodePts"); first reflexivity.
     iIntros "[nodePts #nodeFlushLb]".
     wp_pure1. wp_pure1. wp_pure1.
-    iAssert (∃ xs x', ⌜ last xs = Some x' ⌝ ∗ ℓtoNext ↦ xs)%I with "[toNextPts]" as "toNextPts".
+    iAssert (∃ xs x', ⌜ last xs = Some x' ⌝ ∗ ℓtoNext ↦_{false} xs)%I with "[toNextPts]" as "toNextPts".
     { iExists _, _. iFrame. done. }
     iLöb as "IH".
     iDestruct "toNextPts" as (xs' x' lastEq) "toNextPts".
@@ -382,7 +452,7 @@ Section proof.
         iFrame "nodeProt".
         iFrame "toNextProt".
         iFrame "nodePts isNode".
-        iExists _. iFrame "toNextPts". iFrame "toNextPtsFl".
+        iExists _, _, _. iFrame "toNextPts". iFrame "toNextPtsFl".
         iPureIntro. apply last_app. done. }
       iIntros (??).
       iSplitL ""; first iIntros "!> $ //". iAccu. }
