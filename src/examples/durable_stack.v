@@ -59,13 +59,14 @@ Definition push : expr :=
 none if the stack is empty. *)
 Definition pop : expr :=
   rec: "pop" "toHead" :=
-    let: "head" := ! "toHead" in
+    let: "head" := !{acq} "toHead" in
+    Fence ;;
     match: ! "head" with
       NONE => NONE
     | SOME "pair" =>
         let: "nextNode" := ! (Snd "pair") in
         if: CAS "toHead" "head" "nextNode"
-        then SOME (! (Fst "pair"))
+        then SOME (Fst "pair")
         else "pop" "toHead"
     end.
 
@@ -170,7 +171,7 @@ Section mapsto_na_flushed.
   (* Qed. *)
 
 End mapsto_na_flushed.
-  
+
 (* Global Instance mapsto_na_flushed_as_fractional `{nvmFixedG Σ, nvmDeltaG Σ, AbstractState ST} per l q v : *)
 (*   AsFractional (mapsto_na per l q v) (λ q, mapsto_na per l q v)%I q. *)
 (* Proof. split; [done | apply _]. Qed. *)
@@ -292,8 +293,8 @@ Section definitions.
   Definition toHead_prot `{nvmDeltaG Σ} (_ : unit) (v : val) (hG : nvmDeltaG Σ) : dProp Σ :=
     ∃ (ℓnode : loc) xs,
       "%vEqNode" ∷ ⌜ v = #ℓnode ⌝ ∗
-      "isNode" ∷ is_node ℓnode xs ∗
-      "#nodeFlushLb" ∷ know_flush_lb ℓnode ().
+      "isNode" ∷ is_node ℓnode xs.
+      (* "#nodeFlushLb" ∷ know_flush_lb ℓnode (). *)
 
   Program Instance stack_inv_prot `{nvmDeltaG Σ} :
     LocationProtocol (toHead_prot) := { bumper n := n }.
@@ -301,9 +302,7 @@ Section definitions.
     iIntros (????).
     rewrite /toHead_prot.
     iNamed 1.
-    iDestruct "nodeFlushLb" as "-#nodeFlushLb".
     iCrashFlush.
-    iDestruct "nodeFlushLb" as ([]?) "(? & ? & ? & ?)".
     iExists ℓnode, _.
     iFrame. done.
   Qed.
@@ -464,6 +463,82 @@ Section proof.
       iApply ("IH" with "ϕpost nodePts [toNextPts]").
       { iExists _, _. iFrame "toNextPts". iPureIntro. apply last_app. done. }
     Unshelve. { apply (). }
+  Qed.
+
+  Lemma wpc_pop stack s E :
+    {{{ is_stack ϕ stack }}}
+      pop stack @ s ; E
+    {{{ v, RET v;
+        (⌜ v = NONEV ⌝) ∨ (∃ x, ⌜ v = InjRV x ⌝ ∗ ϕ x _) }}}.
+  Proof.
+    iIntros (Φ) "#(%ℓstack & -> & #(stackProt & stackSh & stackLb)) ϕpost".
+    rewrite /pop.
+    wp_pures.
+    wp_apply (wp_load_at _ _ (λ _ v, (∃ (ℓhead : loc) xs, ⌜v = #ℓhead⌝ ∗ is_node ϕ ℓhead xs)%I) with "[]").
+    { iFrame "stackProt stackSh stackLb".
+      iModIntro.
+      iIntros ([] v le) "toHead".
+      iNamed "toHead".
+      iDestruct (is_node_split with "isNode") as "[node1 node2]".
+      iSplitL "node1".
+      { iExists _, _. iSplitPure; first done. iFrame "node1". }
+      repeat iExists _. iFrame "#". iFrame "node2". done. }
+    iIntros ([] v) "[storeLb fence]".
+    wp_pures.
+    wp_apply wp_fence. do 2 iModIntro.
+    iDestruct "fence" as (ℓhead xs ->) "node".
+    wp_pures.
+    destruct xs as [|x xs]; simpl.
+    - (* The queue is empty. *)
+      iDestruct "node" as (??) "(headPts & #headProt & #headLb)".
+      wp_apply (wp_load_na with "[$headPts $headProt]").
+      { done. }
+      { iModIntro. iIntros (?). rewrite /constant_prot. iIntros "#eq".
+        iFrame "eq". iDestruct "eq" as "-#eq". rewrite right_id. iAccu. }
+      iIntros (v) "(headPts & <-)".
+      wp_pures.
+      iModIntro.
+      iApply "ϕpost". iLeft. done.
+    - (* The queue is non-empty. *)
+      iDestruct "node" as (?????)
+        "(headPts & #headProt & #headFlushLb & #toNextProt & toNextPts & node)".
+      wp_apply (wp_load_na with "[$headPts $headProt]").
+      { done. }
+      { iModIntro. iIntros (?). rewrite /cons_node_prot. iIntros "[#eq $]".
+        iFrame "eq". iDestruct "eq" as "-#eq". rewrite right_id. iAccu. }
+      simpl.
+      iIntros (v) "[headPts ->]".
+      wp_pures.
+      iNamed "toNextPts".
+      wp_apply (wp_load_na with "[$pts $toNextProt]").
+      { done. }
+      { iModIntro. iIntros (?). rewrite /toNext_prot. iIntros "#eq".
+        iFrame "eq". iDestruct "eq" as "-#eq". rewrite right_id. iAccu. }
+      simpl.
+      iIntros (?) "(toNextPts & <-)".
+      wp_pures.
+
+      wp_apply (wp_cas_at (λ _, True)%I (λ _, True)%I with "[node]").
+      { iFrame "stackProt stackSh stackLb".
+        iSplit.
+        { iIntros (??). iSplitL "". { iIntros "!> $". rewrite left_id. iAccu. }
+          simpl. iIntros "_". simpl. rewrite right_id.
+          rewrite /toHead_prot.
+          iExists _, xs.
+          iSplitPure; first done.
+          iFrame "node". }
+        iIntros (??).
+        iSplitL ""; first iIntros "!> $ //". iAccu. }
+      iIntros (b) "[(-> & H & lb)|HI]".
+      (* The CAS succeeded. *)
+      * wp_pures.
+        (* Now we just need to load the value. *)
+        iModIntro. iApply "ϕpost". iRight. done.
+      (* The CAS failed. *)
+      - wp_pure _.
+        iApply ("IH" with "ϕpost nodePts [toNextPts]").
+        { iExists _, _. iFrame "toNextPts". iPureIntro. apply last_app. done. }
+      Unshelve. { apply (). }
   Qed.
 
 End proof.
