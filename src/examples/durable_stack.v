@@ -200,10 +200,10 @@ Section definitions.
 
   Definition nil_node_prot := constant_prot (InjLV #()).
 
-  Definition cons_node_prot (x : val) (ℓtoNext : loc) :=
+  Definition cons_node_prot (x : val) (ℓtoNext : loc) : loc_pred unit :=
     λ (_ : unit) (v : val) (hG : nvmDeltaG Σ),
-      (⌜ v = InjRV (x, #ℓtoNext)%V ⌝ ∗
-       ϕ x hG)%I.
+      (⌜ v = InjRV (x, #ℓtoNext)%V ⌝)%I.
+    (* ∗ ϕ x hG)%I. *)
 
   Program Instance toNext_prot_prot :
     LocationProtocol toNext_prot := { bumper n := n }.
@@ -215,7 +215,8 @@ Section definitions.
   Next Obligation.
     iIntros (?????).
     rewrite /cons_node_prot.
-    iDestruct 1 as "[A B]".
+    iIntros "?".
+    (* iDestruct 1 as "[A B]". *)
     iCrashFlush. naive_solver.
   Qed.
 
@@ -293,7 +294,8 @@ Section definitions.
   Definition toHead_prot `{nvmDeltaG Σ} (_ : unit) (v : val) (hG : nvmDeltaG Σ) : dProp Σ :=
     ∃ (ℓnode : loc) xs,
       "%vEqNode" ∷ ⌜ v = #ℓnode ⌝ ∗
-      "isNode" ∷ is_node ℓnode xs.
+      "isNode" ∷ is_node ℓnode xs ∗
+      "#phis" ∷ ([∗ list] x ∈ xs, ϕ x _).
       (* "#nodeFlushLb" ∷ know_flush_lb ℓnode (). *)
 
   Program Instance stack_inv_prot `{nvmDeltaG Σ} :
@@ -325,7 +327,8 @@ Section proof.
   (* The per-element predicate must be stable under the <PCF> modality and not
   use anything from the buffer. *)
   Context `{∀ a nD, IntoCrashFlush (ϕ a nD) (ϕ a),
-            ∀ a nD, BufferFree (ϕ a nD)}.
+            ∀ a nD, BufferFree (ϕ a nD),
+            ∀ a nD, Persistent (ϕ a nD)}.
 
   Lemma is_stack_post_crash ℓ :
     is_stack ϕ #ℓ -∗ <PC> _, or_lost ℓ (is_stack ϕ #ℓ).
@@ -341,16 +344,6 @@ Section proof.
     iIntros "(a & b & (%u & c))". destruct u. iExists _. iSplitPure; first done.
     iFrame.
   Qed.
-
-  (* Lemma is_stack_post_crash_flushed ℓ : *)
-  (*   is_stack ϕ #ℓ -∗ <PCF> _, or_lost ℓ (is_stack ϕ #ℓ). *)
-  (* Proof. *)
-  (*   rewrite /is_stack. *)
-  (*   iDestruct 1 as (? [= <-]) "prot". *)
-  (*   iCrashFlush. *)
-  (*   iApply (or_lost_mono with "[] prot"). *)
-  (*   iIntros "prot". iExists _. iSplitPure; first done. iFrame "prot". *)
-  (* Qed. *)
 
   Lemma wp_mk_stack :
     {{{ True }}}
@@ -380,7 +373,7 @@ Section proof.
       rewrite /toHead_prot.
       iExists _, [].
       iSplitPure; first reflexivity.
-      iFrame "#".
+      simpl. iFrame "#".
       iExists _, _. iFrame. }
     iNext. iIntros (?) "(hi & ho & hip)".
     iApply "ϕpost".
@@ -392,14 +385,15 @@ Section proof.
       push stack x @ s ; E
     {{{ RET #(); True }}}.
   Proof.
-    iIntros (Φ) "[#(%ℓstack & -> & #(stackProt & stackSh & stackLb)) phi] ϕpost".
+    iIntros (Φ)
+      "[#(%ℓstack & -> & #(stackProt & stackSh & stackLb)) #phi] ϕpost".
     rewrite /push.
     wp_pures.
     wp_apply (wp_alloc_na _ (mk_singl _) toNext_prot with "[//]").
     iIntros (ℓtoNext) "[#toNextProt toNextPts]".
     wp_pures.
-    wp_apply (wp_alloc_na _ () (cons_node_prot ϕ x ℓtoNext) with "[phi]").
-    { rewrite /cons_node_prot. iFrame. done. }
+    wp_apply (wp_alloc_na _ () (cons_node_prot x ℓtoNext)).
+    { done. } (* rewrite /cons_node_prot. iFrame. done. } *)
     iIntros (ℓnode) "[#nodeProt nodePts]".
     wp_pures.
     wp_apply (wp_wb_ex with "nodePts"); first reflexivity.
@@ -412,14 +406,15 @@ Section proof.
     wp_pures.
 
     (* The load of the pointer to the head. *)
-    wp_apply (wp_load_at _ _ (λ _ v, (∃ (ℓhead : loc) xs, ⌜v = #ℓhead⌝ ∗ is_node ϕ ℓhead xs)%I) with "[]").
+    wp_apply (wp_load_at _ _ (λ _ v, (∃ (ℓhead : loc) xs, ⌜v = #ℓhead⌝ ∗ is_node ℓhead xs ∗ _)%I) with "[]").
     { iFrame "stackProt stackSh stackLb".
       iModIntro.
       iIntros ([] v le) "toHead".
       iNamed "toHead".
       iDestruct (is_node_split with "isNode") as "[node1 node2]".
       iSplitL "node1".
-      { iExists _, _. iSplitPure; first done. iFrame "node1". }
+      { iExists _, _. iSplitPure; first done. iFrame "node1". rewrite left_id.
+        iDestruct "phis" as "-#phis". iAccu. }
       repeat iExists _. iFrame "#". iFrame "node2". done. }
     iIntros ([] v) "[storeLb fence]".
 
@@ -434,24 +429,29 @@ Section proof.
     iIntros "[toNextPts #toNextPtsFl]".
     wp_pures.
     wp_apply wp_fence. do 2 iModIntro.
-    iDestruct "fence" as (ℓhead xs ->) "isNode".
+    iDestruct "fence" as (ℓhead xs ->) "[isNode #phis]".
     wp_pures.
 
     wp_apply (wp_cas_at (λ _, True)%I (λ _, True)%I with "[nodePts toNextPts isNode]").
     { iFrame "stackProt stackSh stackLb".
       iSplit.
-      { iIntros (??). iSplitL "". { iIntros "!> $". rewrite left_id. iAccu. }
+      { iIntros (??).
+        iSplitL "".
+        { iIntros "!>". iNamed 1. iSplitL "isNode".
+          - repeat iExists _. iFrame "∗#". done.
+          - iAccu. }
         simpl. iIntros "_". simpl. rewrite right_id.
         rewrite /toHead_prot.
-        iExists _, (x :: xs).
+        iExists _, (x :: xs). (* FIXME! *)
         iSplitPure; first done.
-        iFrame "nodeFlushLb".
-        simpl.
+        iFrame "phi phis".
+        (* iFrame "nodeFlushLb". *)
         iExists _, _ , _, _.
+        iFrame "isNode".
         iFrame "nodeProt".
         iFrame "toNextProt".
-        iFrame "nodePts isNode".
-        iExists _, _, _. iFrame "toNextPts". iFrame "toNextPtsFl".
+        iFrame "nodePts nodeFlushLb".
+        iExists _, _, _. iFrame "toNextPts toNextPtsFl".
         iPureIntro. apply last_app. done. }
       iIntros (??).
       iSplitL ""; first iIntros "!> $ //". iAccu. }
@@ -473,20 +473,24 @@ Section proof.
   Proof.
     iIntros (Φ) "#(%ℓstack & -> & #(stackProt & stackSh & stackLb)) ϕpost".
     rewrite /pop.
+    wp_pure1.
+    iLöb as "IH".
     wp_pures.
-    wp_apply (wp_load_at _ _ (λ _ v, (∃ (ℓhead : loc) xs, ⌜v = #ℓhead⌝ ∗ is_node ϕ ℓhead xs)%I) with "[]").
+    wp_apply (wp_load_at _ _
+         (λ _ v, (∃ (ℓhead : loc) xs, ⌜v = #ℓhead⌝ ∗ is_node ℓhead xs ∗ _)%I) with "[]").
     { iFrame "stackProt stackSh stackLb".
       iModIntro.
       iIntros ([] v le) "toHead".
       iNamed "toHead".
       iDestruct (is_node_split with "isNode") as "[node1 node2]".
       iSplitL "node1".
-      { iExists _, _. iSplitPure; first done. iFrame "node1". }
+      { iExists _, _. iSplitPure; first done. iFrame "node1". rewrite left_id.
+        iDestruct "phis" as "-#phis". iAccu. }
       repeat iExists _. iFrame "#". iFrame "node2". done. }
     iIntros ([] v) "[storeLb fence]".
     wp_pures.
     wp_apply wp_fence. do 2 iModIntro.
-    iDestruct "fence" as (ℓhead xs ->) "node".
+    iDestruct "fence" as (ℓhead xs ->) "[node #phis]".
     wp_pures.
     destruct xs as [|x xs]; simpl.
     - (* The queue is empty. *)
@@ -500,12 +504,13 @@ Section proof.
       iModIntro.
       iApply "ϕpost". iLeft. done.
     - (* The queue is non-empty. *)
+      iDestruct "phis" as "[phi phis]".
       iDestruct "node" as (?????)
         "(headPts & #headProt & #headFlushLb & #toNextProt & toNextPts & node)".
       wp_apply (wp_load_na with "[$headPts $headProt]").
       { done. }
-      { iModIntro. iIntros (?). rewrite /cons_node_prot. iIntros "[#eq $]".
-        iFrame "eq". iDestruct "eq" as "-#eq". rewrite right_id. iAccu. }
+      { iModIntro. iIntros (?) "#eq". iFrame "eq". iDestruct "eq" as "-#eq". 
+        rewrite right_id. iAccu. }
       simpl.
       iIntros (v) "[headPts ->]".
       wp_pures.
@@ -521,24 +526,25 @@ Section proof.
       wp_apply (wp_cas_at (λ _, True)%I (λ _, True)%I with "[node]").
       { iFrame "stackProt stackSh stackLb".
         iSplit.
-        { iIntros (??). iSplitL "". { iIntros "!> $". rewrite left_id. iAccu. }
+        { iIntros (??).
+          iSplitL "".
+          { iIntros "!> $". naive_solver. }
           simpl. iIntros "_". simpl. rewrite right_id.
           rewrite /toHead_prot.
           iExists _, xs.
           iSplitPure; first done.
-          iFrame "node". }
+          iFrame "node phis". }
         iIntros (??).
         iSplitL ""; first iIntros "!> $ //". iAccu. }
-      iIntros (b) "[(-> & H & lb)|HI]".
+      iIntros (b) "[(-> & H & lb)|(%h & -> & ?)]".
       (* The CAS succeeded. *)
       * wp_pures.
         (* Now we just need to load the value. *)
-        iModIntro. iApply "ϕpost". iRight. done.
+        iModIntro. iApply "ϕpost". iRight. iExists _. iFrame "phi". done.
       (* The CAS failed. *)
-      - wp_pure _.
-        iApply ("IH" with "ϕpost nodePts [toNextPts]").
-        { iExists _, _. iFrame "toNextPts". iPureIntro. apply last_app. done. }
-      Unshelve. { apply (). }
+      * wp_pure _.
+        iApply ("IH" with "ϕpost").
+        Unshelve. { apply (). }
   Qed.
 
 End proof.
