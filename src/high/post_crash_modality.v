@@ -248,6 +248,15 @@ Section post_crash_prop.
     done.
   Qed.
 
+  Lemma post_crash_emp : emp ⊢ post_crash (λ _, emp).
+  Proof.
+    iStartProof (iProp _). iIntros (TV') "HP".
+    iIntrosPostCrash.
+    post_crash_modality.iCrash.
+    iIntros "$".
+    iFrame.
+  Qed.
+
   Lemma post_crash_sep P Q :
     post_crash P ∗ post_crash Q -∗ <PC> hG, P hG ∗ Q hG.
   Proof.
@@ -557,6 +566,12 @@ Section IntoCrash.
     iIntros "$". done.
   Qed.
 
+  Tactic Notation "lift_into_crash" uconstr(lem) :=
+    rewrite /IntoCrash; iIntros "P"; by iApply lem.
+
+  Global Instance emp_into_crash : IntoCrash emp (λ hD, emp)%I.
+  Proof. lift_into_crash post_crash_emp. Qed.
+
   Global Instance sep_into_crash (P Q : dProp Σ) (P' Q' : _ → dProp Σ) :
     IntoCrash P P' → IntoCrash Q Q' → IntoCrash (P ∗ Q)%I (λ hD, P' hD ∗ Q' hD)%I.
   Proof.
@@ -575,9 +590,6 @@ Section IntoCrash.
     iIntros (Hc) "H". iDestruct "H" as (?) "HΦ". iPoseProof (Hc with "[$]") as "HΦ".
     iApply (post_crash_mono with "HΦ"). auto.
   Qed.
-
-  Tactic Notation "lift_into_crash" uconstr(lem) := 
-    rewrite /IntoCrash; iIntros "P"; by iApply lem.
 
   (* Global Instance embed_into_crash P : *)
   (*   IntoCrash (⎡ P ⎤%I) (λ _, ⎡ P ⎤%I). *)
@@ -739,8 +751,53 @@ Section post_crash_derived.
     (* We show the local persist lower bound. *)
     iSplit.
     - iExists 0. iFrame "#%". iPureIntro. naive_solver.
-    - iExists 0. iFrame "#%". iPureIntro. lia. 
+    - iExists 0. iFrame "#%". iPureIntro. lia.
   Qed.
+
+  Lemma post_crash_know_flush_lb (ℓ : loc) (s : ST) :
+    know_flush_lb ℓ s -∗
+    post_crash (λ hG, or_lost ℓ (∃ (s' : ST),
+      know_persist_lb ℓ s' ∗
+      know_flush_lb ℓ s' ∗
+      know_store_lb ℓ s')).
+  Proof.
+    iStartProof (iProp _). iIntros (TV).
+    iNamed 1.
+    iDestruct "order" as "-#order".
+    iDestruct "knowFragHist" as "-#knowFragHist".
+    iDestruct (post_crash_preorder with "order") as "order".
+    iDestruct (post_crash_frag_history with "knowFragHist") as "knowFragHist".
+    iDestruct (post_crash_sep with "[$order $knowFragHist]") as "H".
+    iApply (post_crash_mono with "H").
+    iStartProof (iProp _).
+    iIntros (hD' TV').
+    iIntros "[(%CV & #crashed & disj) (%CV' & crashed' & disj2)]".
+    iDestruct (crashed_at_agree with "crashed crashed'") as %<-.
+    iExists (CV). iFrame "crashed".
+    iDestruct "disj" as "[#order|%R]"; iDestruct "disj2" as "[L2|%R2]";
+      try (iRight; done).
+    iDestruct "L2" as (????? look) "#hist".
+    iLeft.
+    iExists _.
+    iSplitL "".
+    { admit. }
+    iSplitL "".
+    { rewrite /know_flush_lb /=.
+      iExists 0.
+      iFrame "order".
+      iSplitL "". { iRight. admit. }
+      rewrite /know_frag_history_loc.
+      rewrite /own_frag_history_loc.
+      iExists _. iSplitPure. { apply look. }
+      iFrame "hist". }
+    iExists 0.
+    iFrame "order".
+    iSplitPure; first lia.
+    rewrite /know_frag_history_loc.
+    rewrite /own_frag_history_loc.
+    iExists _. iSplitPure. { apply look. }
+    iFrame "hist".
+  Admitted.
 
   Lemma post_crash_know_store_lb (ℓ : loc) (s : ST) :
     know_store_lb ℓ s -∗
@@ -994,7 +1051,7 @@ Section post_crash_persisted.
   Lemma post_crash_flush_know_flush_lb `{AbstractState ST}
         (ℓ : loc) (s : ST) :
     know_flush_lb ℓ s -∗
-    <PCF> hG, ∃ s__pc, ⌜s ⊑ s__pc⌝ ∗ 
+    <PCF> hG, ∃ s__pc, ⌜s ⊑ s__pc⌝ ∗
       recovered_at ℓ s__pc ∗ know_persist_lb ℓ s__pc ∗
       know_flush_lb ℓ s__pc ∗ know_store_lb ℓ s__pc.
   Proof.
@@ -1123,6 +1180,18 @@ Section IntoCrashFlush.
     by iApply post_crash_flush_know_flush_lb.
   Qed.
 
+  Global Instance sep_into_crash_flush (P Q : dProp Σ) (P' Q' : _ → dProp Σ) :
+    IntoCrashFlush P P' →
+    IntoCrashFlush Q Q' →
+    IntoCrashFlush (P ∗ Q)%I (λ hD, P' hD ∗ Q' hD)%I.
+  Proof.
+    rewrite /IntoCrashFlush.
+    iIntros (Pi Qi) "[P Q]".
+    iDestruct (Pi with "P") as "P".
+    iDestruct (Qi with "Q") as "Q".
+    iApply (post_crash_flush_sep). iFrame.
+  Qed.
+
   Global Instance exist_into_crash_flush {A} Φ Ψ:
     (∀ x : A, IntoCrashFlush (Φ x) (λ hG, Ψ hG x)) →
     IntoCrashFlush (∃ x, Φ x)%I (λ hG, (∃ x, Ψ hG x)%I).
@@ -1131,6 +1200,11 @@ Section IntoCrashFlush.
     iIntros (Hc) "H". iDestruct "H" as (?) "HΦ". iPoseProof (Hc with "[$]") as "HΦ".
     iApply (post_crash_flush_mono with "HΦ"). auto.
   Qed.
+
+  Global Instance big_sepL_into_crash_flush {A} ϕ ψ l :
+    (∀ k (x : A), IntoCrashFlush (ϕ k x) (ψ k x)) →
+    IntoCrashFlush ([∗ list] k↦x ∈ l, ϕ k x)%I (λ hG, [∗ list] k↦x ∈ l, ψ k x _)%I.
+  Proof. revert ϕ ψ. induction l as [|x l IH]=> Φ ψ ? /=; apply _. Qed.
 
 End IntoCrashFlush.
 

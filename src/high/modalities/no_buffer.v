@@ -86,6 +86,10 @@ Section no_buffer.
     IntoNoBuffer (if b then P else Q) (if b then P' else Q').
   Proof. rewrite /IntoNoBuffer. destruct b; naive_solver. Qed.
 
+  Global Instance into_no_buffer_emp :
+    IntoNoBuffer (emp : dProp Σ)%I (emp)%I.
+  Proof. rewrite /IntoNoBuffer. apply no_buffer_emp. Qed.
+
   Global Instance into_no_buffer_sep (P P' Q Q' : dProp Σ) :
     IntoNoBuffer P P' → IntoNoBuffer Q Q' → IntoNoBuffer (P ∗ Q)%I (P' ∗ Q')%I.
   Proof. rewrite /IntoNoBuffer no_buffer_sep. by intros <- <-. Qed.
@@ -121,6 +125,13 @@ Section no_buffer.
   Global Instance into_no_buffer_monPred_in SV FV PV :
     IntoNoBuffer (monPred_in (SV, FV, PV) : dProp Σ) (monPred_in (SV, FV, ∅)).
   Proof. apply no_buffer_monPred_in. Qed.
+
+  Global Instance big_sepL_nil_no_buffer {A} (Φ : _ → A → dProp Σ) :
+    BufferFree ([∗ list] k↦x ∈ [], Φ k x).
+  Proof. simpl; apply _. Qed.
+  Global Instance big_sepL_no_buffer {A} (Φ : _ → A → dProp Σ) l :
+    (∀ k x, BufferFree (Φ k x)) → BufferFree ([∗ list] k↦x ∈ l, Φ k x).
+  Proof. revert Φ. induction l as [|x l IH]=> Φ ? /=; try apply _. Qed.
 
 End no_buffer.
 

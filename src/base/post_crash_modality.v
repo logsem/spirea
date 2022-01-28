@@ -132,6 +132,10 @@ Section post_crash_prop.
     by iApply Hmono.
   Qed.
 
+  Lemma post_crash_emp :
+    emp ⊢ post_crash (λ _, emp).
+  Proof. iIntros "emp". iIntrosPostCrash. iFrame. Qed.
+
   (* This lemma seems to not hold for our post crash modality.. *)
   (* Lemma post_crash_pers P Q : *)
   (*   (P -∗ post_crash Q) → *)
