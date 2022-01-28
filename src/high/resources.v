@@ -628,3 +628,6 @@ Notation "l ↦_{ p }^{ q } ss" := (mapsto_na p l q ss) (at level 20).
 (* Notation "l ↦ ( s1 , s2 , s3 )  | P" := (mapsto_shared l s1 s2 s3 P) (at level 20). *)
 
 Typeclasses Opaque mapsto_na.
+Typeclasses Opaque know_store_lb.
+Typeclasses Opaque know_flush_lb.
+Typeclasses Opaque know_persist_lb.

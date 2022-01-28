@@ -735,7 +735,7 @@ Section post_crash_derived.
       know_store_lb ℓ s').
   Proof.
     iStartProof (iProp _). iIntros (TV).
-    iNamed 1.
+    rewrite /know_persist_lb. iNamed 1.
     iDestruct (post_crash_know_frag_history_loc with "[$]") as "HI".
     iApply (post_crash_mono with "HI").
     iStartProof (iProp _).
@@ -762,7 +762,7 @@ Section post_crash_derived.
       know_store_lb ℓ s')).
   Proof.
     iStartProof (iProp _). iIntros (TV).
-    iNamed 1.
+    rewrite /know_flush_lb. iNamed 1.
     iDestruct "order" as "-#order".
     iDestruct "knowFragHist" as "-#knowFragHist".
     iDestruct (post_crash_preorder with "order") as "order".
@@ -807,7 +807,7 @@ Section post_crash_derived.
       know_store_lb ℓ s')).
   Proof.
     iStartProof (iProp _). iIntros (TV).
-    iNamed 1.
+    rewrite /know_store_lb. iNamed 1.
     iDestruct "order" as "-#order".
     iDestruct "knowFragHist" as "-#knowFragHist".
     iDestruct (post_crash_preorder with "order") as "order".
@@ -1242,3 +1242,6 @@ Section post_crash_flush_test.
   Qed.
 
 End post_crash_flush_test.
+
+Typeclasses Opaque post_crash.
+Typeclasses Opaque post_crash_flush.

@@ -358,12 +358,6 @@ Section proof.
     iDestruct (mapsto_na_store_lb with "nilPts") as "#storeLb"; first done.
     wp_pures.
     wp_apply (wp_wb_lb with "[$]").
-    assert (Persistent (<fence> know_flush_lb ℓnil ())). {
-      (* For some reason Coq is super slow to resolve this [Persistent] instance. *)
-      (* Set Typeclasses Debug. *)
-      (* Set Typeclasses Debug Verbosity 2. *)
-      apply post_fence_persistent.
-      apply _. }
     iIntros "#flushLb".
     wp_pures.
     wp_apply wp_fence.
@@ -537,12 +531,12 @@ Section proof.
         iIntros (??).
         iSplitL ""; first iIntros "!> $ //". iAccu. }
       iIntros (b) "[(-> & H & lb)|(%h & -> & ?)]".
-      (* The CAS succeeded. *)
-      * wp_pures.
+      * (* The CAS succeeded. *)
+        wp_pures.
         (* Now we just need to load the value. *)
         iModIntro. iApply "ϕpost". iRight. iExists _. iFrame "phi". done.
-      (* The CAS failed. *)
-      * wp_pure _.
+      * (* The CAS failed. *)
+        wp_pure _.
         iApply ("IH" with "ϕpost").
         Unshelve. { apply (). }
   Qed.

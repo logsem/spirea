@@ -187,7 +187,8 @@ Section wp_na_rules.
     iSplitL.
     { iPureIntro. simpl. apply encode_bumper_bump_mono. }
     (* predPostCrash *)
-    iFrame "predPostCrash".
+
+    rewrite /post_crash_flush /post_crash. iFrame "predPostCrash".
     iSplitL.
     { iModIntro. iIntros (??????) "(%eq & %eq2 & P)".
       rewrite /encode_predicate.
@@ -312,7 +313,9 @@ Section wp_na_rules.
     iSplitR "ptsMap physHist allOrders ordered predsHold history predicates
              atLocs naLocs crashedAt allBumpers bumpMono predPostCrash
              atLocsHistories naView"; last first.
-    { repeat iExists _. iFrameNamed. done. }
+    { repeat iExists _. iFrameNamed.
+      rewrite /post_crash_flush /post_crash.
+      iFrame "predPostCrash". done. }
     iSplit; first done.
     iApply "Φpost".
     iSplitR "Q".
@@ -479,6 +482,7 @@ Section wp_na_rules.
       apply view_insert_le. lia. }
     repeat iExists _.
     iFrame "history". iFrame "ptsMap". iFrame "#". iFrame"naView". iFrameNamed.
+    rewrite /post_crash_flush /post_crash. iFrame "predPostCrash".
     iSplit. { iPureIntro. set_solver. }
     (* [naViewsDom] *)
     iSplit.

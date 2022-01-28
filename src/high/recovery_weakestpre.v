@@ -351,8 +351,8 @@ Section wpr.
                    |})
       ).
     iFrame "baseInterp".
-    rewrite /nvm_heap_ctx.
-    iDestruct ("Pg" $! _ (abs_hists) _ (store, _) _ with "persImpl map'") as "(map' & Pg)".
+    rewrite /nvm_heap_ctx. rewrite /post_crash.
+    iDestruct ("Pg" $! _ abs_hists _ (store, _) _ with "persImpl map'") as "(map' & Pg)".
     iDestruct
       (map_points_to_to_new _ _ _ _ (MkNvmBaseDeltaG Σ Hcrash baseNames)
          with "newCrashedAt map' ptsMap") as "ptsMap"; first done.

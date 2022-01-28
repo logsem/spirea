@@ -127,11 +127,12 @@ Section wp_at_rules.
 
     iModIntro.
     rewrite -assoc. iSplit; first done.
-    iSplitL "Φpost knowPred knowBumper knowOrder".
-    { iApply "Φpost". iFrame "knowPred knowBumper knowOrder isShared".
-      iExists 0.
-      rewrite /know_frag_history_loc.
+    iSplitL "Φpost knowPred knowBumper".
+    { iApply "Φpost".
+      iFrame "knowPred knowBumper isShared knowOrder".
+      iExists 0. iFrame "knowOrder".
       iPureGoal. { apply lookup_zero_gt_zero. }
+      rewrite /know_frag_history_loc.
       rewrite /own_frag_history_loc.
       iExists _.
       iFrame "fragHist".
@@ -210,7 +211,7 @@ Section wp_at_rules.
     iSplitL.
     { iPureIntro. simpl. apply encode_bumper_bump_mono. }
     (* predPostCrash *)
-    iFrame "predPostCrash".
+    rewrite /post_crash_flush. rewrite /post_crash. iFrame "predPostCrash".
     iSplitL.
     { iModIntro. iIntros (??????) "(%eq & %eq2 & P)".
       rewrite /encode_predicate.
@@ -258,7 +259,7 @@ Section wp_at_rules.
     iStartProof (iProp _). iIntros (TV).
     iNamed 1.
     iDestruct "knowProt" as "(knowPred & _ & _)".
-    iNamed "storeLB".
+    rewrite /know_store_lb. iNamed "storeLB".
 
     (* We unfold the WP. *)
     iIntros (TV' incl) "Φpost".
@@ -285,7 +286,7 @@ Section wp_at_rules.
     [interp].  We want to look up the points-to predicate in [ptsMap]. To this
     end, we combine our fragment of the history with the authorative element. *)
     iDestruct (
-        own_frag_history_agree_singleton with "history knowFragHist") as %look.
+      own_frag_history_agree_singleton with "history knowFragHist") as %look.
     destruct look as (absHist & enc & absHistLook & lookTS & decodeEnc).
 
     iDestruct (big_sepM2_dom with "predsHold") as %domPhysHistEqAbsHist.
@@ -379,7 +380,9 @@ Section wp_at_rules.
     iSplitR "ptsMap physHist allOrders ordered predsHold history predicates
              crashedAt atLocs naView naLocs allBumpers bumpMono
              predPostCrash atLocsHistories"; last first.
-    { repeat iExists _. iFrameNamed. }
+    { repeat iExists _. iFrameNamed.
+      rewrite /post_crash_flush /post_crash.
+      iFrame "predPostCrash". }
     iSplit. { iPureIntro. repeat split; try done; apply view_le_l. }
     iSpecialize ("Φpost" $! sL v').
     monPred_simpl.
@@ -431,7 +434,7 @@ Section wp_at_rules.
     intros Φ. iStartProof (iProp _). iIntros (TV). iNamed 1.
 
     iNamed "knowProt".
-    iDestruct "storeLB" as (t_i) "temp". iNamed "temp".
+    rewrite /know_store_lb. iDestruct "storeLB" as (t_i) "temp". iNamed "temp".
     (* We unfold the WP. *)
     iIntros (TV' incl) "Φpost".
     rewrite wp_eq /wp_def wpc_eq.
