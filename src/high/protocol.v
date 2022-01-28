@@ -24,17 +24,22 @@ Class LocationProtocol `{AbstractState ST, nvmFixedG Σ} (ϕ : loc_pred ST) := {
   phi_nobuf :> (∀ hD s v, IntoNoBuffer (ϕ s v hD) (ϕ s v hD));
 }.
 
+Global Arguments bumper {_} {_} {_} {_} {_} {_} _ {_} _.
+
+Global Hint Mode LocationProtocol ! ! ! ! ! ! +  : typeclass_instances.
+(* Global Hint Mode LocationProtocol - - - - - - +  : typeclass_instances. *)
+
 (** [know_protocol] represents the knowledge that a location is associated with a
 specific protocol. It's defined simply using more "primitive" assertions. *)
 Definition know_protocol `{AbstractState ST, nvmFixedG Σ, nvmDeltaG Σ}
            ℓ (ϕ : loc_pred ST) `{!LocationProtocol ϕ} : dProp Σ :=
   "#knowPred" ∷ ⎡ know_pred ℓ ϕ ⎤ ∗
   "#knowPreorder" ∷ ⎡ know_preorder_loc ℓ (⊑@{ST}) ⎤ ∗
-  "#knowBumper" ∷ ⎡ know_bumper ℓ bumper ⎤%I.
+  "#knowBumper" ∷ ⎡ know_bumper ℓ (bumper ϕ) ⎤%I.
 
 Lemma encode_bumper_bump_mono `{LocationProtocol ST} (x y x' y' : positive) :
-  encode_bumper bumper x = Some x' →
-  encode_bumper bumper y = Some y' →
+  encode_bumper (bumper ϕ) x = Some x' →
+  encode_bumper (bumper ϕ) y = Some y' →
   encode_relation (⊑@{ST}) x y →
   encode_relation (⊑@{ST}) x' y'.
 Proof.

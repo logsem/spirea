@@ -80,7 +80,7 @@ Section wp_na_rules.
     { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
 
     (* Add the bumper to the ghost state of bumper. *)
-    iMod (own_all_bumpers_insert (ST := ST) with "allBumpers") as "[allBumper knowBumper]".
+    iMod (own_all_bumpers_insert _ _ _ (bumper ϕ) with "allBumpers") as "[allBumper knowBumper]".
     { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
 
     (* Add the preorder to the ghost state of bumper. *)
