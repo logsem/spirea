@@ -19,6 +19,28 @@ Global Hint Mode IntoNoBuffer + ! -  : typeclass_instances.
 
 Notation BufferFree p := (IntoNoBuffer p p).
 
+(* Import uPred. *)
+(* Arguments uPred_holds _ !_.  *)
+
+(* Lemma bar {M} : ⊢@{uPredI M} ∃ n, ▷^n False. *)
+(* Proof. *)
+(*   iLöb as "IH". *)
+(*   iDestruct "IH" as (n) "H". *)
+(*   iExists (S n). iApply "H". *)
+(* Qed. *)
+
+(* Lemma iLob :  *)
+
+(* Lemma foo {M} (P Q1 Q2 : uPred M) : *)
+(*   (P -∗ Q1 ∗ Q2) ⊢ (P -∗ Q1) ∗ (P -∗ Q2). *)
+(* Proof. *)
+(*   unseal. *)
+(*   constructor. *)
+(*   simpl. *)
+(*   intros n x Hx H. *)
+(*   specialize (H 0 ε). *)
+(* Qed. *)
+
 Ltac iModel := iStartProof (iProp _); iIntros (TV).
 
 Section no_buffer.
@@ -71,7 +93,9 @@ Section no_buffer.
     FromModal True (modality_no_buffer) (<nobuf> P) (<nobuf> P) P.
   Proof. by rewrite /FromModal. Qed.
 
-  (* [BufferFree] instances *)
+  (* [BufferFree] instances. In this file we only declare instances for
+  assertions that exist in Iris, instances for the assertions in our logic are
+  added at their definitions. *)
 
   Global Instance buffer_free_objective P : Objective P → BufferFree P.
   Proof.
@@ -135,41 +159,13 @@ Section no_buffer.
 
 End no_buffer.
 
+(*
 Section no_buffer_rules.
   (* Some less "basic" rules for <nobuf>. *)
   Context `{nvmFixedG Σ, hGD : nvmDeltaG Σ}.
 
-  Lemma no_buffer_know_flush_lb `{AbstractState ST} ℓ (s : ST) :
-    know_flush_lb ℓ s -∗ <nobuf> know_flush_lb ℓ s.
-  Proof.
-    rewrite /know_flush_lb.
-    iModel.
-    simpl.
-    iDestruct 1 as (?) "HI". iExists _. iFrame.
-  Qed.
-
-  Global Instance buffer_free_know_flush_lb `{AbstractState ST} ℓ (s : ST) :
-    BufferFree (know_flush_lb ℓ s).
-  Proof. rewrite /IntoNoBuffer. eauto using no_buffer_know_flush_lb. Qed.
-
-  Lemma no_buffer_know_store_lb `{AbstractState ST} ℓ (s : ST) :
-    know_store_lb ℓ s -∗ <nobuf> know_store_lb ℓ s.
-  Proof.
-    rewrite /know_store_lb.
-    iModel.
-    simpl.
-    iDestruct 1 as (?) "HI". iExists _. iFrame.
-  Qed.
-
-  Global Instance into_no_buffer_know_store_lb `{AbstractState ST} ℓ (s : ST) :
-    BufferFree (know_store_lb ℓ s).
-  Proof. rewrite /IntoNoBuffer. eauto using no_buffer_know_store_lb. Qed.
-
-  Global Instance mapsto_na_buffer_free `{AbstractState ST} b ℓ q (ss : list ST) :
-    BufferFree (mapsto_na b ℓ q ss).
-  Proof. rewrite /mapsto_na. apply _. Qed.
-
 End no_buffer_rules.
+*)
 
 Section no_buffer_test.
 

@@ -16,14 +16,15 @@ From self Require Export extra ipm_tactics encode_relation view.
 From self.lang Require Export lang lemmas tactics syntax.
 From self.base Require Import primitive_laws.
 From self.high Require Export dprop resources crash_weakestpre lifted_modalities
-     monpred_simpl modalities protocol.
+     monpred_simpl modalities protocol locations.
+From self.high Require Import locations protocol.
 From self.high.modalities Require Import no_buffer.
 
 Section wp_at_rules.
   Context `{AbstractState ST}.
   Context `{!nvmFixedG Σ, hG : nvmDeltaG Σ}.
 
-  Implicit Types (ℓ : loc) (s : ST) (ϕ : ST → val → nvmDeltaG Σ → dProp Σ).
+  Implicit Types (ℓ : loc) (s : ST) (prot : LocationProtocol ST).
 
   (** * Shared points-to predicate *)
 
@@ -55,13 +56,13 @@ Section wp_at_rules.
       done.
   Qed.
 
-  Lemma wp_alloc_at v s (ϕ : loc_pred ST) `{!LocationProtocol ϕ} st E :
-    {{{ "phi" ∷ ϕ s v _ }}}
+  Lemma wp_alloc_at v s prot st E :
+    {{{ prot.(pred) s v _ }}}
       ref_AT v @ st; E
     {{{ ℓ, RET #ℓ;
-        know_protocol ℓ ϕ ∗ know_store_lb ℓ s ∗ ⎡ is_shared_loc ℓ ⎤ }}}.
+        know_store_lb ℓ prot s ∗ ⎡ is_at_loc ℓ ⎤ }}}.
   Proof.
-    intros Φ. iStartProof (iProp _). iIntros (TV). iNamed 1.
+    intros Φ. iStartProof (iProp _). iIntros (TV). iIntros "phi".
     iIntros (TV' incl) "Φpost".
 
     (* Unfold the wp *)
@@ -111,7 +112,7 @@ Section wp_at_rules.
     { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
     
     (* Add the bumper to the ghost state of bumper. *)
-    iMod (own_all_bumpers_insert _ _ _ (bumper ϕ) with "allBumpers") as "[allBumper knowBumper]".
+    iMod (own_all_bumpers_insert _ _ _ (prot.(bumper)) with "allBumpers") as "[allBumper knowBumper]".
     { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
 
     (* Add the preorder to the ghost state of bumper. *)
@@ -128,9 +129,9 @@ Section wp_at_rules.
     iModIntro.
     rewrite -assoc. iSplit; first done.
     iSplitL "Φpost knowPred knowBumper".
-    { iApply "Φpost".
+    { iApply "Φpost". simpl. rewrite /know_protocol.
       iFrame "knowPred knowBumper isShared knowOrder".
-      iExists 0. iFrame "knowOrder".
+      iExists 0.
       iPureGoal. { apply lookup_zero_gt_zero. }
       rewrite /know_frag_history_loc.
       rewrite /own_frag_history_loc.
@@ -209,7 +210,7 @@ Section wp_at_rules.
         iFrame. }
     (* bumpMono *)
     iSplitL.
-    { iPureIntro. simpl. apply encode_bumper_bump_mono. }
+    { iPureIntro. simpl. apply encode_bumper_bump_mono. apply bumper_mono. }
     (* predPostCrash *)
     rewrite /post_crash_flush. rewrite /post_crash. iFrame "predPostCrash".
     iSplitL.
@@ -223,42 +224,35 @@ Section wp_at_rules.
       iSplit. { iPureIntro. simpl. reflexivity. }
       iDestruct (encode_predicate_extract with "P") as "phi".
       { done. } { done. }
-      iApply (phi_condition with "phi"). }
-    (* bumperBumpToValid *)
-    (* iSplitL. *)
-    (* { rewrite map_Forall_insert; last first. *)
-    (*   { apply not_elem_of_dom. *)
-    (*     apply not_elem_of_dom in physHistsLook. *)
-    (*     rewrite -domEq2 -domEq. apply physHistsLook. } *)
-    (*   iPureIntro. split; last apply bumperBumpToValid. *)
-    (*   intros ?. *)
-
-    (*   apply bumperBumpToValid. *)
-    (*   eexists _. intros eq. *)
-    (* } *)
-    (* bumperSome *)
+      iApply (pred_condition with "phi"). }
     iPureIntro.
     apply map_Forall_singleton.
     rewrite encode_bumper_encode.
     done.
   Qed.
 
-  Lemma wp_load_at ℓ s Q ϕ `{!LocationProtocol ϕ} st E :
+  Lemma store_lb_protocol ℓ prot s :
+    know_store_lb ℓ prot s -∗ ⎡ know_protocol ℓ prot ⎤.
+  Proof.
+    iStartProof (iProp _). iIntros (TV). simpl. iNamed 1.
+    iFrame "locationProtocol".
+  Qed.
+
+  Lemma wp_load_at ℓ s Q prot st E :
     {{{
-      "knowProt" ∷ know_protocol ℓ ϕ ∗
-      "isSharedLoc" ∷ ⎡ is_shared_loc ℓ ⎤ ∗
-      "storeLB" ∷ know_store_lb ℓ s ∗
-      "pToQ" ∷ <obj> (∀ s' v, ⌜ s ⊑ s' ⌝ -∗ ϕ s' v _ -∗ Q s' v ∗ ϕ s' v _)
+      ⎡ is_at_loc ℓ ⎤ ∗
+      know_store_lb ℓ prot s ∗
+      <obj> (∀ s' v, ⌜ s ⊑ s' ⌝ -∗ prot.(pred) s' v _ -∗ Q s' v ∗ prot.(pred) s' v _)
     }}}
       !{acq} #ℓ @ st; E
     {{{ s' v, RET v;
-      "storeLB" ∷ know_store_lb ℓ s' ∗
+      know_store_lb ℓ prot s' ∗
       post_fence (Q s' v) }}}.
   Proof.
     intros Φ.
     iStartProof (iProp _). iIntros (TV).
-    iNamed 1.
-    iDestruct "knowProt" as "(knowPred & _ & _)".
+    iDestruct 1 as "(isSharedLoc & storeLB & pToQ)".
+    iDestruct (store_lb_protocol with "storeLB") as "#temp". iNamed "temp".
     rewrite /know_store_lb. iNamed "storeLB".
 
     (* We unfold the WP. *)
@@ -337,7 +331,7 @@ Section wp_at_rules.
     iDestruct (big_sepM2_lookup_l with "ordered")
       as (order) "[%ordersLook %increasingMap]".
     { apply absHistLook. }
-    iDestruct (orders_lookup with "allOrders order") as %orderEq;
+    iDestruct (orders_lookup with "allOrders knowPreorder") as %orderEq;
       first apply ordersLook.
     epose proof (increasingMap tS t' (encode s) encSL) as hihi.
     assert (order enc encSL) as orderRelated.
@@ -410,13 +404,13 @@ Section wp_at_rules.
   Qed.
 
   (* Rule for store on an atomic. *)
-  Lemma wp_store_at ℓ s_i s_t v_t ϕ `{!LocationProtocol ϕ} st E :
+  Lemma wp_store_at ℓ s_i s_t v_t (prot : LocationProtocol ST) st E :
     {{{
        "%targetGt" ∷ ⌜ s_i ⊑ s_t ⌝ ∗
-      "knowProt" ∷ know_protocol ℓ ϕ ∗
-      "isSharedLoc" ∷ ⎡ is_shared_loc ℓ ⎤ ∗
-      "storeLB" ∷ know_store_lb ℓ s_i ∗
-      "phi" ∷ <nobuf> (ϕ s_t v_t _) ∗
+      (* "knowProt" ∷ know_protocol ℓ ϕ ∗ *)
+      "isSharedLoc" ∷ ⎡ is_at_loc ℓ ⎤ ∗
+      "storeLB" ∷ know_store_lb ℓ prot s_i ∗
+      "phi" ∷ <nobuf> (prot.(pred) s_t v_t _) ∗
       (* NOTE: This does _not_ work. *)
       (* "phi" ∷ (∀ v_i, ϕ s_i v_i _ -∗ ϕ s_t v_t _ ∗ ϕ s_i v_i _) ∗ *)
       (* NOTE: This should work and be more general. *)
@@ -424,16 +418,15 @@ Section wp_at_rules.
       (* The new state must be greater than the possible current states. *)
       "greater" ∷
         (∀ v_i s_c v_c,
-          ϕ s_i v_i _ ∗ ϕ s_t v_t _ ∗ ϕ s_c v_c _ -∗ ⌜ s_t ⊑ s_c ∧ s_c ⊑ s_t ⌝)
+          prot.(pred) s_i v_i _ ∗ prot.(pred) s_t v_t _ ∗ prot.(pred) s_c v_c _ -∗
+            ⌜ s_t ⊑ s_c ∧ s_c ⊑ s_t ⌝)
     }}}
       #ℓ <-{rel} v_t @ st; E
-    {{{ RET #();
-      know_store_lb ℓ s_t
-    }}}.
+    {{{ RET #(); know_store_lb ℓ prot s_t }}}.
   Proof.
     intros Φ. iStartProof (iProp _). iIntros (TV). iNamed 1.
+    iDestruct (store_lb_protocol with "storeLB") as "#temp". iNamed "temp".
 
-    iNamed "knowProt".
     rewrite /know_store_lb. iDestruct "storeLB" as (t_i) "temp". iNamed "temp".
     (* We unfold the WP. *)
     iIntros (TV' incl) "Φpost".
@@ -456,7 +449,7 @@ Section wp_at_rules.
     do this before such that the later that arrises is stripped off when we take
     the step. *)
     iDestruct (own_all_preds_pred with "predicates knowPred")
-      as (pred predsLook) "#predsEquiv".
+      as (predi predsLook) "#predsEquiv".
 
     (* We need to get the points-to predicate for [ℓ] which is is inside
     [interp]. We want to look up the points-to predicate in [ptsMap]. To this
@@ -476,7 +469,7 @@ Section wp_at_rules.
     iDestruct (big_sepM2_delete with "predsHold") as "[predMap predsHold]".
     { done. } { done. }
     iDestruct "predMap" as (pred' predsLook') "predMap".
-    assert (pred = pred') as <-. { apply (inj Some). rewrite -predsLook. done. }
+    assert (predi = pred') as <-. { apply (inj Some). rewrite -predsLook. done. }
     clear predsLook'.
 
     (* We can now get the points-to predicate and execute the load. *)
@@ -490,7 +483,6 @@ Section wp_at_rules.
     assert (t_i < t_t) as tILtTt.
     { destruct TV as [[??]?].
       destruct TV' as [[??]?].
-      (* rewrite /store_view in tSLe, gt. *)
       simpl in tSLe. simpl in gt.
       destruct incl as [[??]?].
       destruct incl2 as [[??]?].
@@ -549,7 +541,7 @@ Section wp_at_rules.
       - iExists _.
         iDestruct (own_frag_equiv _ _ {[ t_t := s_t ]} with "[histFrag]") as "histFrag".
         { rewrite map_fmap_singleton. iFrame "histFrag". }
-        iFrame "histFrag knowPreorder".
+        iFrame "histFrag knowPreorder knowPred knowBumper".
         iPureIntro.
         (* rewrite /store_view. simpl. *)
         rewrite /lookup_zero.
@@ -689,14 +681,14 @@ Section wp_at_rules.
       iApply (big_sepM2_update with "predsHold"); [done|done|].
       simpl.
       iDestruct 1 as (pred' predsLook') "H".
-      assert (pred = pred') as <-. { apply (inj Some). rewrite -predsLook. done. }
+      assert (predi = pred') as <-. { apply (inj Some). rewrite -predsLook. done. }
       clear predsLook'.
       iExists _.
       iSplit; first done.
       iApply (big_sepM2_insert_2 with "[phi] H").
       rewrite /msg_to_tv.  (* /store_view. simpl. *)
       rewrite /encoded_predicate_holds.
-      iExists (ϕ s_t v_t).
+      iExists (prot.(pred) s_t v_t).
       iSplit.
       { iApply pred_encode_Some. done. }
       assert (na_views !! ℓ = None) as ->. { apply not_elem_of_dom. set_solver. }
@@ -726,21 +718,20 @@ Section wp_at_rules.
 
   (** [Q1] is the resource we want to extract in case of success and and [Q2] is
   the resource we want to extract in case of failure. *)
-  Lemma wp_cas_at Q1 Q2 Q3 ℓ s_i v_i v_t `{!LocationProtocol ϕ} R s_t st E :
+  Lemma wp_cas_at Q1 Q2 Q3 ℓ prot s_i v_i v_t R s_t st E :
     {{{
-      know_protocol ℓ ϕ ∗
-      ⎡ is_shared_loc ℓ ⎤ ∗
-      know_store_lb ℓ s_i ∗
+      ⎡ is_at_loc ℓ ⎤ ∗
+      know_store_lb ℓ prot s_i ∗
       (* in case of success *)
       ((∀ s_a, ⌜ s_i ⊑ s_a ⌝ -∗
-        (<obj> (ϕ s_a v_i _ -∗ ϕ s_a v_i _ ∗ R s_a)) ∗ (R s_a -∗ ϕ s_t v_t _ ∗ Q1 s_a)) ∧
+        (<obj> (prot.(pred) s_a v_i _ -∗ prot.(pred) s_a v_i _ ∗ R s_a)) ∗ (R s_a -∗ prot.(pred) s_t v_t _ ∗ Q1 s_a)) ∧
         (* in case of failure *)
         (∀ s_a, ⌜ s_i ⊑ s_a ⌝ -∗
-          (<obj> (ϕ s_a v_i _ -∗ ϕ s_a v_i _ ∗ Q2 s_a)) ∗ Q3))
+          (<obj> (prot.(pred) s_a v_i _ -∗ prot.(pred) s_a v_i _ ∗ Q2 s_a)) ∗ Q3))
     }}}
       CAS #ℓ v_i v_t @ st; E
     {{{ b, RET #b;
-      (⌜ b = true ⌝ ∗ Q1 s_t ∗ know_store_lb ℓ s_t) ∨
+      (⌜ b = true ⌝ ∗ Q1 s_t ∗ know_store_lb ℓ prot s_t) ∨
       (∃ s_a, ⌜ b = false ⌝ ∗ ⌜ s_i ⊑ s_a ⌝ ∗ Q2 s_a ∗ Q3)
     }}}.
   Proof.

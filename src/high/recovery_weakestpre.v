@@ -415,7 +415,7 @@ Section wpr.
         iApply (@or_lost_post_crash_ts with "[newCrashedAt] [sh]").
         { iFrame "newCrashedAt". }
         iIntros (t look).
-        rewrite /is_shared_loc.
+        rewrite /is_at_loc.
         iDestruct (own_valid_2 with "atLocs sh")
           as %[_ [elem _]]%auth_both_dfrac_valid_discrete.
         iApply (own_mono with "atLocsFrag").
@@ -447,7 +447,7 @@ Section wpr.
         iApply (@or_lost_post_crash_ts with "[newCrashedAt] [sh]").
         { iFrame "newCrashedAt". }
         iIntros (t look).
-        rewrite /is_exclusive_loc.
+        rewrite /is_na_loc.
         iDestruct (own_valid_2 with "naLocs sh")
           as %[_ [elem _]]%auth_both_dfrac_valid_discrete.
         iApply (own_mono with "naLocsFrag").

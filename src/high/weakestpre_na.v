@@ -16,21 +16,21 @@ From self Require Export extra ipm_tactics encode_relation view.
 From self.lang Require Export lang lemmas tactics syntax.
 From self.base Require Import primitive_laws.
 From self.high Require Import dprop resources crash_weakestpre lifted_modalities
-     monpred_simpl modalities protocol.
+     monpred_simpl modalities locations protocol.
 From self.high.modalities Require Import no_buffer.
 
 Section wp_na_rules.
   Context `{AbstractState ST}.
   Context `{!nvmFixedG Σ, hG : nvmDeltaG Σ}.
 
-  Implicit Types (ℓ : loc) (s : ST) (ϕ : ST → val → nvmDeltaG Σ → dProp Σ).
+  Implicit Types (ℓ : loc) (s : ST) (prot : LocationProtocol ST).
 
-  Lemma wp_alloc_na v s ϕ `{!LocationProtocol ϕ} st E :
-    {{{ "phi" ∷ ϕ s v _ }}}
+  Lemma wp_alloc_na v s prot st E :
+    {{{ prot.(pred) s v _ }}}
       ref_NA v @ st; E
-    {{{ ℓ, RET #ℓ; know_protocol ℓ ϕ ∗ ℓ ↦_{false} [s] }}}.
+    {{{ ℓ, RET #ℓ; ℓ ↦_{prot} [s] }}}.
   Proof.
-    intros Φ. iStartProof (iProp _). iIntros (TV). iNamed 1.
+    intros Φ. iStartProof (iProp _). iIntros (TV). iIntros "phi".
     iIntros (TV' incl) "Φpost".
 
     (* Unfold the wp *)
@@ -80,7 +80,7 @@ Section wp_na_rules.
     { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
 
     (* Add the bumper to the ghost state of bumper. *)
-    iMod (own_all_bumpers_insert _ _ _ (bumper ϕ) with "allBumpers") as "[allBumper knowBumper]".
+    iMod (own_all_bumpers_insert _ _ _ (prot.(bumper)) with "allBumpers") as "[allBumper knowBumper]".
     { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
 
     (* Add the preorder to the ghost state of bumper. *)
@@ -113,9 +113,9 @@ Section wp_na_rules.
     iModIntro.
     rewrite -assoc. iSplit; first done.
     iSplitL "Φpost knowPred knowBumper knowOrder ownHist ownNaView ownPhysHist".
-    { iApply "Φpost". iFrame "knowPred knowOrder knowBumper".
+    { iApply "Φpost".
       iExists _, _, _, _, (Msg v ∅ ∅ PV).
-      iFrame "isExclusive knowOrder".
+      iFrame "knowPred knowOrder knowBumper isExclusive".
       repeat iExists _.
       rewrite -map_fmap_singleton. iFrame "ownHist".
       iFrame "ownNaView".
@@ -170,7 +170,6 @@ Section wp_na_rules.
         iApply "HH".
         destruct TV as [[??]?]. destruct TV' as [[??]?].
         iDestruct (into_no_buffer_at with "phi") as "phi".
-        { apply phi_nobuf. }
         iApply (monPred_mono with "phi").
         repeat split; last done.
         * etrans; first apply incl. apply incl2.
@@ -185,7 +184,7 @@ Section wp_na_rules.
         iFrame. }
     (* bumpMono *)
     iSplitL.
-    { iPureIntro. simpl. apply encode_bumper_bump_mono. }
+    { iPureIntro. simpl. apply encode_bumper_bump_mono. apply bumper_mono. }
     (* predPostCrash *)
 
     rewrite /post_crash_flush /post_crash. iFrame "predPostCrash".
@@ -200,7 +199,7 @@ Section wp_na_rules.
       iSplit. { iPureIntro. simpl. reflexivity. }
       iDestruct (encode_predicate_extract with "P") as "phi".
       { done. } { done. }
-      iApply (phi_condition with "phi"). }
+      iApply (pred_condition with "phi"). }
     (* bumperSome *)
     iPureIntro.
     apply map_Forall_singleton.
@@ -208,21 +207,22 @@ Section wp_na_rules.
     done.
   Qed.
 
-  Lemma wp_load_na ℓ (b : bool) q ss s Q ϕ `{!LocationProtocol ϕ} positive E :
+  Lemma wp_load_na ℓ (b : bool) q ss s Q prot positive E :
     last ss = Some s →
-    {{{ mapsto_na b ℓ q ss ∗
-        know_protocol ℓ ϕ ∗
-        (<obj> (∀ v, ϕ s v _ -∗ Q v ∗ ϕ s v _)) }}}
+    {{{ mapsto_na ℓ prot q ss ∗
+        (<obj> (∀ v, prot.(pred) s v _ -∗ Q v ∗ prot.(pred) s v _)) }}}
       Load (Val $ LitV $ LitLoc ℓ) @ positive; E
-    {{{ v, RET v; mapsto_na b ℓ q ss ∗ Q v }}}.
+    {{{ v, RET v; mapsto_na ℓ prot q ss ∗ Q v }}}.
   Proof.
     intros sLast Φ.
     iStartProof (iProp _). iIntros (TV).
     (* We destruct the exclusive points-to predicate. *)
-    iIntros "(pts & temp & pToQ)".
-    iNamed "temp".
+    iIntros "(pts & pToQ)".
+    (* rewrite /mapsto_na. simpl. *)
+    (* iNamed "pts". *)
     rewrite /mapsto_na.
     iDestruct "pts" as (?tP ?tS SV absHist msg) "pts". iNamed "pts".
+    iNamed "locationProtocol".
     iDestruct "inThreadView" as %inThreadView.
     rewrite monPred_at_wand. simpl.
     iIntros (TV' incl) "Φpost".
@@ -332,25 +332,23 @@ Section wp_na_rules.
       - apply view_empty_least. }
     iExists _, _, _, _, _.
     iFrameNamed.
-    iSplit.
-    { iPureIntro. etrans. eassumption. etrans. eassumption. eassumption. }
-    iApply monPred_mono; last iApply "pers".
-    by etrans.
+    iSplit. { iFrame "knowPred knowPreorder knowBumper". }
+    iPureIntro. etrans. eassumption. etrans. eassumption. eassumption.
   Qed.
 
-  Lemma wp_store_na ℓ b ss v s__last s ϕ `{!LocationProtocol ϕ} st E :
+  Lemma wp_store_na ℓ prot ss v s__last s st E :
     last ss = Some s__last →
     s__last ⊑ s →
-    {{{ mapsto_na b ℓ 1 ss ∗ know_protocol ℓ ϕ ∗ ϕ s v _ }}}
+    {{{ mapsto_na ℓ prot 1 ss ∗ prot.(pred) s v _ }}}
       #ℓ <- v @ st; E
-    {{{ RET #(); mapsto_na b ℓ 1 (ss ++ [s]) }}}.
+    {{{ RET #(); mapsto_na ℓ prot 1 (ss ++ [s]) }}}.
   Proof.
     intros last stateGt Φ.
     iStartProof (iProp _). iIntros (TV).
-    iIntros "(pts & temp & phi)".
-    iNamed "temp".
+    iIntros "(pts & phi)".
     rewrite /mapsto_na.
     iDestruct "pts" as (?tP ?tS SV absHist msg) "pts". iNamed "pts".
+    iNamed "locationProtocol".
     iDestruct "inThreadView" as %inThreadView.
 
     rewrite monPred_at_wand. simpl.
@@ -412,7 +410,7 @@ Section wp_na_rules.
       rewrite -!not_elem_of_dom. rewrite domEq. rewrite dom_fmap. done. }
 
     iDestruct (
-        location_sets_singleton_included with "naLocs isExclusiveLoc"
+        location_sets_singleton_included with "naLocs isNaLoc"
       ) as %ℓEx.
     assert (ℓ ∉ at_locs) as ℓnotSh by set_solver.
     (* Update the ghost state for the abstract history. *)
@@ -436,7 +434,7 @@ Section wp_na_rules.
     iSplit.
     { iPureIntro. repeat split; [|done|done]. apply view_insert_le. simpl. lia. }
     simpl.
-    iSplitL "Φpost isExclusiveLoc pers hist knowSV".
+    iSplitL "Φpost isNaLoc hist knowSV".
     { iEval (monPred_simpl) in "Φpost".
       iApply "Φpost".
       { iPureIntro. etrans; first done.
@@ -473,13 +471,7 @@ Section wp_na_rules.
         - done.
         - apply view_empty_least. }
       (* [haveTSore] *)
-      iSplit. { iPureIntro. by rewrite lookup_zero_insert. }
-      (* "pers" *)
-      iApply monPred_mono; last iApply "pers".
-      etrans; first done.
-      etrans; first done.
-      repeat split; [|done|done].
-      apply view_insert_le. lia. }
+      iPureIntro. by rewrite lookup_zero_insert. }
     repeat iExists _.
     iFrame "history". iFrame "ptsMap". iFrame "#". iFrame"naView". iFrameNamed.
     rewrite /post_crash_flush /post_crash. iFrame "predPostCrash".
@@ -544,7 +536,6 @@ Section wp_na_rules.
       rewrite lookup_insert /=.
       destruct TV as [[??]?]. destruct TV' as [[??]?].
       iDestruct (into_no_buffer_at with "phi") as "phi".
-      { apply phi_nobuf. }
       iApply (monPred_mono with "phi").
       repeat split; last done.
       - simpl. etrans; first apply incl. etrans; first apply incl2.

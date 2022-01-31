@@ -72,7 +72,7 @@ Section proof.
     ∃ (sx sz : list bool),
       "#xProt" ∷ know_protocol x inv_x ∗
       "#yProt" ∷ or_lost y (know_protocol y inv_y) ∗
-      "#yShared" ∷ or_lost y (⎡ is_shared_loc y ⎤) ∗
+      "#yShared" ∷ or_lost y (⎡ is_at_loc y ⎤) ∗
       "#zProt" ∷ know_protocol z inv_z ∗
       x ↦_{true} sx ∗
       z ↦_{true} sz.
@@ -80,14 +80,14 @@ Section proof.
   Definition right_crash_condition {hD : nvmDeltaG Σ} : dProp Σ :=
     ∃ (sz : list bool),
       "#yProt" ∷ or_lost y (know_protocol y inv_y) ∗
-      "#yShared" ∷ or_lost y (⎡ is_shared_loc y ⎤) ∗
+      "#yShared" ∷ or_lost y (⎡ is_at_loc y ⎤) ∗
       "#zProt" ∷ know_protocol z inv_z ∗
       z ↦_{true} sz.
 
   Definition left_crash_condition {hD : nvmDeltaG Σ} : dProp Σ :=
     ∃ (sx : list bool),
       "#yProt" ∷ or_lost y (know_protocol y inv_y) ∗
-      "#yShared" ∷ or_lost y (⎡ is_shared_loc y ⎤) ∗
+      "#yShared" ∷ or_lost y (⎡ is_at_loc y ⎤) ∗
       "#xProt" ∷ know_protocol x inv_x ∗
       x ↦_{true} sx.
 
@@ -95,7 +95,7 @@ Section proof.
     know_protocol y inv_y -∗
     know_protocol z inv_z -∗
     know_store_lb y false -∗
-    ⎡ is_shared_loc y ⎤ -∗
+    ⎡ is_at_loc y ⎤ -∗
     z ↦_{true} ssZ -∗
     <PC> hD, right_crash_condition.
   Proof.
@@ -111,7 +111,7 @@ Section proof.
     know_protocol y inv_y -∗
     know_protocol x inv_x -∗
     know_store_lb y false -∗
-    ⎡ is_shared_loc y ⎤ -∗
+    ⎡ is_at_loc y ⎤ -∗
     x ↦_{true} ssX -∗
     <PC> hD, left_crash_condition.
   Proof.
@@ -136,7 +136,7 @@ Section proof.
     know_protocol y inv_y -∗
     know_protocol z inv_z -∗
     know_store_lb y false -∗
-    ⎡ is_shared_loc y ⎤ -∗
+    ⎡ is_at_loc y ⎤ -∗
     z ↦_{true} [false] -∗
     WPC rightProg y z @ s; E1
     {{ v, z ↦_{true} [false; true] ∨ z ↦_{true} [false] }}
@@ -193,7 +193,7 @@ Section proof.
     know_protocol x inv_x ∗ know_protocol y inv_y ∗ know_protocol z inv_z ∗
     x ↦_{true} [false] ∗
     know_store_lb y false ∗
-    ⎡ is_shared_loc y ⎤ ∗
+    ⎡ is_at_loc y ⎤ ∗
     z ↦_{true} [false] -∗
     WPC prog x y z @ ⊤
     {{ v, True }}

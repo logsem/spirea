@@ -19,7 +19,7 @@ From self Require Export lang.
 From self.base Require Import primitive_laws.
 From self.lang Require Import syntax tactics.
 From self.high Require Import resources crash_weakestpre lifted_modalities
-     monpred_simpl modalities protocol.
+     monpred_simpl modalities protocol locations.
 
 Section wp.
   Context `{!nvmFixedG Σ, nvmDeltaG Σ}.
@@ -234,18 +234,18 @@ Section wp_rules.
   Proof.
   *)
 
-  Lemma wp_wb_lb ℓ s st E :
-    {{{ know_store_lb ℓ s }}}
+  Lemma wp_wb_lb ℓ prot s st E :
+    {{{ know_store_lb ℓ prot s }}}
       WB #ℓ @ st; E
-    {{{ RET #(); <fence> know_flush_lb ℓ s }}}.
+    {{{ RET #(); <fence> know_flush_lb ℓ prot s }}}.
   Proof.
   Admitted.
 
-  Lemma wp_wb_ex ℓ b s q ss st E :
+  Lemma wp_wb_ex ℓ prot s q ss st E :
     last ss = Some s →
-    {{{ mapsto_na b ℓ q ss }}}
+    {{{ mapsto_na ℓ prot q ss }}}
       WB #ℓ @ st; E
-    {{{ RET #(); mapsto_na b ℓ q ss ∗ <fence> know_flush_lb ℓ s }}}.
+    {{{ RET #(); mapsto_na ℓ prot q ss ∗ <fence> know_flush_lb ℓ prot s }}}.
   Proof.
     iIntros (eq Φ) "pts".
     iDestruct (mapsto_na_store_lb with "pts") as "#lb"; first done.

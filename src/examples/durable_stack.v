@@ -314,7 +314,7 @@ Section definitions.
     ∃ (ℓtoHead : loc),
       ⌜ v = #ℓtoHead ⌝ ∗
       know_protocol ℓtoHead toHead_prot ∗
-      ⎡ is_shared_loc ℓtoHead ⎤ ∗
+      ⎡ is_at_loc ℓtoHead ⎤ ∗
       know_store_lb ℓtoHead ().
 
 End definitions.

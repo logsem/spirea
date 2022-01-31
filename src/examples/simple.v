@@ -10,7 +10,7 @@ From self.base Require Import primitive_laws class_instances.
 From self.high Require Import proofmode wpc_proofmode.
 From self.high Require Import dprop resources crash_weakestpre weakestpre
      weakestpre_na recovery_weakestpre lifted_modalities modalities
-     post_crash_modality protocol no_buffer abstract_state_instances.
+     post_crash_modality protocol no_buffer abstract_state_instances locations protocol.
 From self.high.modalities Require Import fence.
 
 Definition prog : expr := let: "l" := ref_NA #1 in ! "l".
@@ -82,39 +82,35 @@ Section simple_increment.
     else #().
 
   (* Predicate used for the location [a]. *)
-  Definition ϕa : loc_pred (Σ := Σ) nat := λ n v _, ⌜v = #n⌝%I.
-
-  Program Instance : LocationProtocol ϕa := { bumper n := n }.
+  Program Definition ϕa : LocationProtocol nat :=
+    {| pred := λ n v _, ⌜v = #n⌝%I;
+        bumper n := n |}.
   Next Obligation. iIntros. by iApply post_crash_flush_pure. Qed.
 
   (* Predicate used for the location [b]. *)
-  Definition ϕb (ℓa : loc) : loc_pred (Σ := Σ) nat :=
-    λ n v _, (⌜v = #n⌝ ∗ ∃ m, ⌜ n ≤ m ⌝ ∗ know_flush_lb ℓa m)%I.
-
-  Program Instance protocol_b ℓa : LocationProtocol (ϕb ℓa) := { bumper n := n }.
+  Program Definition ϕb ℓa : LocationProtocol nat :=
+    {| pred := λ n v _, (⌜v = #n⌝ ∗ ∃ m, ⌜ n ≤ m ⌝ ∗ know_flush_lb ℓa ϕa m)%I;
+       bumper n := n |}.
   Next Obligation.
     iIntros (????) "[% lb]".
     iDestruct "lb" as (m ?) "lb".
     iCrashFlush.
-    iDestruct "lb" as (??) "(? & _ & H & _)".
+    iDestruct "lb" as (??) "(? & H)".
     iPureGoal; first done.
-    iExists _. iFrame .
+    iExists _.
+    iDestruct (persist_lb_to_flush_lb with "H") as "$".
     iPureIntro. etrans; done.
   Qed.
 
   Definition crash_condition {hD : nvmDeltaG Σ} ℓa ℓb : dProp Σ :=
-    ("#aPred" ∷ know_protocol ℓa ϕa ∗
-     "#bPred" ∷ know_protocol ℓb (ϕb ℓa) ∗
-     "pts" ∷ ∃ (sa sb : list nat), "aPts" ∷ ℓa ↦_{true} sa ∗ "bPts" ∷ ℓb ↦_{true} sb)%I.
+    ("pts" ∷ ∃ (sa sb : list nat), "aPts" ∷ ℓa ↦_{ϕa} sa ∗ "bPts" ∷ ℓb ↦_{ϕb ℓa} sb)%I.
 
   Lemma prove_crash_condition {hD : nvmDeltaG Σ} ℓa ℓb (ssA ssB : list nat) :
-    know_protocol ℓa ϕa -∗
-    know_protocol ℓb (ϕb ℓa) -∗
-    ℓa ↦_{true} ssA -∗
-    ℓb ↦_{true} ssB -∗
+    ℓa ↦_{ϕa} ssA -∗
+    ℓb ↦_{ϕb ℓa} ssB -∗
     <PC> hG, crash_condition ℓa ℓb.
   Proof.
-    iIntros "aPred bPred aPts bPts".
+    iIntros "aPts bPts".
     iCrash.
     iDestruct "aPts" as (sA ?) "[aPts recA]".
     iDestruct "bPts" as (sB ?) "[bPts recB]".
