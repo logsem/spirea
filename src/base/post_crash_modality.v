@@ -55,7 +55,7 @@ search. *)
 
 (** This map is used to exchange points-to predicates valid prior to a crash
 into points-to predicates valid after the crash. *)
-Definition post_crash_map `{nvmBaseFixedG Σ} (σ__old : store)
+Definition post_crash_mapsto_map `{nvmBaseFixedG Σ} (σ__old : store)
            (hG hG' : nvmBaseDeltaG Σ) : iProp Σ :=
   (* Used to conclude that the locations owned are included in the heap in
   question. *)
@@ -75,14 +75,14 @@ Definition post_crash `{nvmBaseFixedG Σ, hDG : nvmBaseDeltaG Σ}
            (P : nvmBaseDeltaG Σ → iProp Σ) : iProp Σ :=
   (∀ (σ : mem_config) hDG',
     persisted_impl hDG hDG' -∗
-    post_crash_map σ.1 hDG hDG' -∗
-    (post_crash_map σ.1 hDG hDG' ∗ P hDG')).
+    post_crash_mapsto_map σ.1 hDG hDG' -∗
+    (post_crash_mapsto_map σ.1 hDG hDG' ∗ P hDG')).
 
 Lemma post_crash_map_exchange `{nvmBaseFixedG Σ} σ__old
       (hG hG' : nvmBaseDeltaG Σ) ℓ q hist :
-  post_crash_map σ__old hG hG' -∗
+  post_crash_mapsto_map σ__old hG hG' -∗
   (let hG := hG in ℓ ↦h{#q} hist) -∗
-    post_crash_map σ__old hG hG' ∗
+    post_crash_mapsto_map σ__old hG hG' ∗
     mapsto_post_crash hG' ℓ q hist.
 Proof.
   iDestruct 1 as "[look map]".

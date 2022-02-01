@@ -90,6 +90,10 @@ End location.
 Section ownership_wrappers.
   Context `{nvmFixedG Σ, nD : nvmDeltaG Σ}.
 
+  Definition know_encoded_bumper (ℓ : loc)
+             (encoded_bumper : positive → option positive) : iProp Σ :=
+    ℓ ↪[bumpers_name]□ encoded_bumper.
+
   Definition know_bumper `{AbstractState ST} ℓ (bumper : ST → ST) : iProp Σ :=
     own_know_bumper bumpers_name ℓ bumper.
 

@@ -83,7 +83,7 @@ heap. *)
 Lemma map_points_to_to_new `{nvmBaseFixedG Σ} logHists store CV (hG hG' : nvmBaseDeltaG Σ) :
   consistent_cut CV store →
   own (@crashed_at_view_name (@nvm_base_names' _ hG')) (to_agree CV) -∗
-  base.post_crash_modality.post_crash_map store hG hG' -∗
+  base.post_crash_modality.post_crash_mapsto_map store hG hG' -∗
   ([∗ map] ℓ ↦ hist ∈ logHists, let hG := hG in ℓ ↦h hist) -∗
   ([∗ map] ℓ ↦ hist ∈ (slice_of_store CV logHists), let hG := hG' in ℓ ↦h hist).
 Proof.
@@ -356,7 +356,7 @@ Section wpr.
     iDestruct
       (map_points_to_to_new _ _ _ _ (MkNvmBaseDeltaG Σ Hcrash baseNames)
          with "newCrashedAt map' ptsMap") as "ptsMap"; first done.
-    rewrite /post_crash_map.
+    rewrite /post_crash_mapsto_map.
     (* We show the assumption for the post crash modality. *)
     iDestruct ("Pg" with "[history knowHistories]") as "[$ WHAT]".
     { simpl.

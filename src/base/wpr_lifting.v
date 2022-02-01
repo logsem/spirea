@@ -152,7 +152,7 @@ Section wpr.
       ==∗
       ∃ names : nvm_base_names,
         validV (hGD := MkNvmBaseDeltaG Σ Hcrash names) ∅ ∗
-        post_crash_map σ _ (MkNvmBaseDeltaG Σ Hcrash names) ∗
+        post_crash_mapsto_map σ _ (MkNvmBaseDeltaG Σ Hcrash names) ∗
         nvm_heap_ctx (hGD := MkNvmBaseDeltaG Σ Hcrash names)
                      (slice_of_store p' σ, view_to_zero p') ∗
         persisted_impl _ (MkNvmBaseDeltaG _ Hcrash names) ∗
@@ -185,7 +185,7 @@ Section wpr.
     iFrame "crashed".
     (* We show the ghost crash relation. *)
     iSplitL "ptsMap heapIntrp".
-    { rewrite /post_crash_map.
+    { rewrite /post_crash_mapsto_map.
       iSplitL "heapIntrp".
       { iIntros (???) "pts".
         iApply (gen_heap_valid with "heapIntrp pts"). }
@@ -239,7 +239,7 @@ Section wpr.
     ⊢ nvm_heap_ctx σ -∗
       post_crash Pg ==∗
       ∃ names : nvm_base_names,
-        post_crash_map σ.1 _ (MkNvmBaseDeltaG Σ Hcrash names) ∗
+        post_crash_mapsto_map σ.1 _ (MkNvmBaseDeltaG Σ Hcrash names) ∗
         nvm_heap_ctx (hGD := MkNvmBaseDeltaG Σ Hcrash names) σ' ∗
         Pg (MkNvmBaseDeltaG Σ Hcrash names).
   Proof.
