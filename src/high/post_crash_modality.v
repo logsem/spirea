@@ -9,88 +9,13 @@ From self Require Import extra ipm_tactics if_non_zero.
 From self.algebra Require Import ghost_map.
 From self.base Require Import primitive_laws wpr_lifting.
 From self.base Require post_crash_modality.
-From self.high Require Import dprop resources monpred_simpl.
+From self.high Require Import dprop resources monpred_simpl or_lost.
 
 Set Default Proof Using "Type".
 
 Notation base_post_crash := post_crash_modality.post_crash.
 
 (** We define the post crash modality. *)
-
-Definition or_lost_post_crash `{nvmBaseFixedG Σ, nD : nvmBaseDeltaG Σ}
-           ℓ (P : nat → iProp Σ) :=
-  (∃ (CV : view),
-    crashed_at CV ∗
-    ((∃ t, ⌜CV !! ℓ = Some (MaxNat t)⌝ ∗ P t) ∨ ⌜CV !! ℓ = None⌝))%I.
-
-Instance or_lost_post_crash_proper `{nvmBaseFixedG Σ, nD : nvmBaseDeltaG Σ} ℓ :
-  Proper (pointwise_relation _ (⊣⊢) ==> (⊣⊢)) (or_lost_post_crash ℓ).
-Proof. solve_proper. Qed.
-
-Definition or_lost_post_crash_no_t `{nvmBaseFixedG Σ, nD : nvmBaseDeltaG Σ}
-           ℓ (P : iProp Σ) :=
-  or_lost_post_crash ℓ (λ _, P).
-
-Section or_lost_post_crash.
-  Context `{nvmBaseFixedG Σ, nD: nvmBaseDeltaG Σ}.
-
-  Lemma or_lost_post_crash_lookup (CV : view) ℓ t P :
-    CV !! ℓ = Some (MaxNat t) →
-    crashed_at CV -∗
-    or_lost_post_crash ℓ P -∗
-    P t.
-  Proof.
-    iIntros (look) "crash".
-    iIntros "(% & crash' & [l|%])";
-      iDestruct (crashed_at_agree with "crash crash'") as %<-;
-      last congruence.
-    iDestruct "l" as (t' eq) "P".
-    by simplify_eq.
-  Qed.
-
-  (* Lemma or_lost_post_crash_no_t_lookup (CV : view) ℓ t P : *)
-  (*   CV !! ℓ = Some (MaxNat t) → *)
-  (*   crashed_at CV -∗ *)
-  (*   or_lost_post_crash_no_t ℓ P -∗ *)
-  (*   P. *)
-  (* Proof. apply or_lost_post_crash_lookup. Qed. *)
-
-  Lemma or_lost_post_crash_sep `{nvmBaseFixedG Σ, nvmBaseDeltaG Σ} ℓ P Q :
-    or_lost_post_crash ℓ (λ t, P t ∗ Q t) ⊣⊢
-    or_lost_post_crash ℓ (λ t, P t) ∗ or_lost_post_crash ℓ (λ t, Q t).
-  Proof.
-    iSplit.
-    - iDestruct 1 as (?) "(#CV & [(%t & %look & P & Q)|%look])".
-      * iSplitL "P"; iExists _; naive_solver.
-      * iSplitL; iExists _; naive_solver.
-    - iIntros "[(%CV & cr1 & [(%t1 & %look1 & P)|%look1])
-                (%CV' & cr2 & [(%t2 & %look2 & Q)|%look2])]";
-        iDestruct (crashed_at_agree with "cr1 cr2") as %eq;
-        simplify_eq.
-      * iExists _. iFrame. iLeft. iExists _. iFrame "∗#%".
-      * iExists _. iFrame. iRight. done.
-  Qed.
-
-  Global Instance or_lost_post_crash_fractional ℓ P :
-    (∀ t, Fractional (P t)) →
-    Fractional (λ q, or_lost_post_crash ℓ (λ t, P t q)).
-  Proof.
-    intros F q p.
-    rewrite -or_lost_post_crash_sep.
-    setoid_rewrite fractional.
-    done.
-  Qed.
-
-End or_lost_post_crash.
-
-(* Lemma or_lost_post_crash_no_t_alt `{nvmFixedG Σ, nD : nvmDeltaG Σ} *)
-(*            ℓ (P : iProp Σ) : *)
-(*   (∃ (CV : view), *)
-(*     crashed_at CV ∗ *)
-(*     ((⌜ℓ ∈ dom (gset _) CV⌝ ∗ P) ∨ ⌜CV !! ℓ = None⌝)) -∗ *)
-(*   or_lost_post_crash_no_t ℓ P. *)
-(* Proof. *)
-(* Admitted.   *)
 
 (* The three implications for the things stored for a protocolt. *)
 Definition post_crash_pred_impl `{nvmFixedG Σ}
@@ -142,9 +67,7 @@ Definition know_history_post_crash `{nvmFixedG Σ}
       ⌜hist !! t = Some sOld⌝ ∗
       ⌜bumper sOld = Some sNew⌝ ∗
       know_full_encoded_history_loc ℓ q ({[ 0 := sNew ]}) ∗
-      know_frag_encoded_history_loc ℓ ({[ 0 := sNew ]}) ∗
-      (* Remove this last thing if [persisted] is added to [crashed_at]. *)
-      persisted_loc ℓ 0)%I.
+      know_frag_encoded_history_loc ℓ ({[ 0 := sNew ]}))%I.
 
 Instance know_history_post_crash_fractional `{nvmFixedG Σ} hG ℓ bumper hist :
   Fractional (λ q, know_history_post_crash hG ℓ q bumper hist).
@@ -152,9 +75,9 @@ Proof.
   apply or_lost_post_crash_fractional.
   iIntros (t p q).
   iSplit.
-  - iDestruct 1 as (????) "([L R] & #? & #?)".
+  - iDestruct 1 as (????) "([L R] & #?)".
     iSplitL "L"; iExists _, _; naive_solver.
-  - iDestruct 1 as "[(% & % & % & % & L & #? & #?) (% & % & % & % & R & #? & #?)]".
+  - iDestruct 1 as "[(% & % & % & % & L & #?) (% & % & % & % & R & #?)]".
     simplify_eq. iCombine "L R" as "F". iExists _, _. naive_solver.
 Qed.
 
@@ -315,85 +238,13 @@ Section post_crash_interact.
 
   How the post crash modality interacts with the assertions in the logic. *)
 
-  Definition or_lost_with_t {nD' : nvmDeltaG Σ} ℓ (P : time → dProp Σ) : dProp Σ :=
-    ∃ CV, ⎡crashed_at CV⎤ ∗ ((∃ t, ⌜CV !! ℓ = Some (MaxNat t)⌝ ∗ P t)
-                          ∨ ⌜CV !! ℓ = None⌝).
-
-  (* The predicate [P] holds for [ℓ] or [ℓ] has been lost. *)
-  Definition or_lost {nD' : nvmDeltaG Σ} ℓ (P : dProp Σ) : dProp Σ :=
-    or_lost_with_t ℓ (λ _, P).
-
-  (* Lemma or_lost_to_with_t ℓ P : or_lost ℓ P ⊣⊢ or_lost_with_t ℓ (λ _, P). *)
-  (* Proof. rewrite /or_lost. done. Qed. *)
-
-  Lemma or_lost_with_t_sep {nD' : nvmDeltaG Σ} ℓ (P Q : _ → dProp Σ) :
-    or_lost_with_t ℓ P ∗ or_lost_with_t ℓ Q ⊣⊢ or_lost_with_t ℓ (λ t, P t ∗ Q t)%I.
-  Proof.
-    iSplit.
-    - iIntros "[(%CV & crash & MP) (%CV' & crash' & MQ)]".
-      iDestruct (crashed_at_agree with "crash crash'") as %<-.
-      iExists CV. iFrame.
-      iDestruct "MP" as "[(% & % & P)|%]"; iDestruct "MQ" as "[(% & % & Q)|%]";
-        try (by iRight).
-      simplify_eq.
-      iLeft. iExists _. iFrame. done.
-    - iIntros "(%CV & #crash & [(% & % & [P Q])|%])".
-      * iSplitL "P".
-        + iExists CV. iFrame "#". iLeft. iExists _. iFrame. done.
-        + iExists CV. iFrame "#". iLeft. iExists _. iFrame. done.
-      * iSplitL; iExists CV; iFrame "#%".
-  Qed.
-
-  Lemma or_lost_sep {nD' : nvmDeltaG Σ} ℓ (P Q : dProp Σ) :
-    or_lost ℓ P ∗ or_lost ℓ Q ⊣⊢ or_lost ℓ (P ∗ Q)%I.
-  Proof. rewrite /or_lost. apply or_lost_with_t_sep. Qed.
-
-  Lemma or_lost_with_t_mono {nD' : nvmDeltaG Σ} ℓ (P Q : _ → dProp Σ) :
-    (∀ t, P t -∗ Q t) -∗ or_lost_with_t ℓ P -∗ or_lost_with_t ℓ Q.
-  Proof.
-    iIntros "pToQ (%CV & crashed & disj)".
-    iExists CV. iFrame "crashed". iDestruct "disj" as "[(% & % & P) | %lost]".
-    - iLeft. iExists _. iSplitPure; first done. iApply "pToQ". iApply "P".
-    - iRight. iFrame (lost).
-  Qed.
-
-  Lemma or_lost_mono {nD' : nvmDeltaG Σ} ℓ (P Q : dProp Σ) :
-    (P -∗ Q) -∗ or_lost ℓ P -∗ or_lost ℓ Q.
-  Proof. iIntros "I". iApply or_lost_with_t_mono. iIntros (_). done. Qed.
-
-  Lemma or_lost_embed {nD' : nvmDeltaG Σ} ℓ P TV :
-    or_lost_post_crash_no_t ℓ P -∗ or_lost ℓ ⎡ P ⎤ TV.
-  Proof.
-    iDestruct 1 as (CV) "[crash disj]". iExists _. iFrame "crash". done.
-  Qed.
-
-  Lemma or_lost_get `{nvmDeltaG Σ} CV ℓ P :
-    is_Some (CV !! ℓ) → ⎡ crashed_at CV ⎤ -∗ or_lost ℓ P -∗ P.
-  Proof.
-    iIntros ([[t] look]) "crash (%CV' & crash' & [(% & ? & $)|%look'])".
-    iDestruct (crashed_at_agree with "crash crash'") as %<-.
-    congruence.
-  Qed.
-
-  Lemma or_lost_with_t_get `{nvmDeltaG Σ} CV ℓ t P :
-    CV !! ℓ = Some (MaxNat t) → ⎡ crashed_at CV ⎤ -∗ or_lost_with_t ℓ P -∗ P t.
-  Proof.
-    rewrite /or_lost_with_t.
-    iIntros (look) "crash (%CV' & crash' & [(%t' & %look' & P)|%look'])";
-    iDestruct (crashed_at_agree with "crash crash'") as %<-.
-    - simplify_eq. iFrame "P".
-    - congruence.
-  Qed.
-
   Lemma post_crash_know_full_history_loc ℓ q (abs_hist : gmap time ST) (bumper : ST → ST) :
     ⎡ know_bumper ℓ bumper ⎤ ∗ ⎡ know_full_history_loc ℓ q abs_hist ⎤ -∗
     <PC> _, or_lost_with_t ℓ (λ t, ∃ (s : ST),
         ⌜abs_hist !! t = Some s⌝ ∗
         ⎡ know_bumper ℓ bumper ⎤ ∗
         ⎡ know_full_history_loc ℓ q {[ 0 := bumper s ]} ⎤ ∗
-        ⎡ know_frag_history_loc ℓ {[ 0 := bumper s ]} ⎤ ∗
-        (* Remove this last thing if [persisted] is added to [crashed_at]. *)
-        ⎡ persisted_loc ℓ 0 ⎤).
+        ⎡ know_frag_history_loc ℓ {[ 0 := bumper s ]} ⎤).
   Proof.
     iStartProof (iProp _).
     iIntros (TV1) "[bumper hist]".
@@ -423,16 +274,16 @@ Section post_crash_interact.
     iSplitL "newHist newBumper".
     { iDestruct "newHist" as (CV) "[#crashed [H|H]]"; iExists (CV);
         iFrame "crashed"; [iLeft|iRight; done].
-      iDestruct "H" as (t) "[%cvLook (% & % & %look & %bump & hist & frag & per)]".
+      iDestruct "H" as (t) "(%cvLook & #per & (% & % & %look & %bump & hist & frag))".
       iDestruct (or_lost_post_crash_lookup with "crashed newBumper") as "bumper";
         first done.
       apply lookup_fmap_Some in look as [st [eq ?]].
       apply encode_bumper_Some_decode in bump as (sn & decEq & encEq).
       simplify_eq.
       rewrite decode_encode in decEq.
-      iExists t. iFrame (cvLook). iExists st.
+      iExists t. iFrame (cvLook) "per". iExists st.
       iSplitPure; first assumption.
-      iFrame "bumper per".
+      iFrame "bumper".
       rewrite /own_full_history_loc /know_full_encoded_history_loc. rewrite map_fmap_singleton.
       simplify_eq. iFrame "hist".
       iExists _. iFrame "frag". iPureIntro. rewrite !map_fmap_singleton.
@@ -475,16 +326,14 @@ Section post_crash_interact.
     rewrite /post_crash_resource.
     iFrameNamed.
     iDestruct "bumper" as "#bumper".
-    iDestruct ("post_crash_frag_history_impl" with "hist bumper") as (CV) "[#crash [hi|?]]";
-      iExists CV; iFrame "crash".
-    2: { iRight. done. }
-    iLeft. iDestruct "hi" as (????) "hist".
+    iDestruct ("post_crash_frag_history_impl" with "hist bumper") as "hist".
     iDestruct ("post_crash_bumper_impl" with "bumper") as "newBumper".
-    iDestruct (or_lost_post_crash_lookup with "crash newBumper") as "newBumper'";
-      first done.
-    iExists _.
-    iSplitPure; first done.
-    iExists _. iSplitPure; first done. iFrame. iFrame "newBumper'".
+    iCombine "hist newBumper" as "H".
+    rewrite -or_lost_post_crash_sep.
+    iApply or_lost_with_t_at.
+    iApply (or_lost_post_crash_mono with "[] H").
+    iIntros (?) "_".
+    iDestruct 1 as "[(% & ? & ?) ?]". iExists _. iFrame.
   Qed.
 
   Lemma post_crash_know_pred `{Countable ST'} ℓ (ϕ : ST' → val → nvmDeltaG Σ → dProp Σ) :
@@ -650,8 +499,7 @@ Section IntoCrash.
         ⌜abs_hist !! t = Some s⌝ ∗
         ⎡ know_bumper ℓ bumper ⎤ ∗
         ⎡ know_full_history_loc ℓ q {[ 0 := bumper s ]} ⎤ ∗
-        ⎡ know_frag_history_loc ℓ {[ 0 := bumper s ]} ⎤ ∗
-        ⎡ persisted_loc ℓ 0 ⎤ ))%I.
+        ⎡ know_frag_history_loc ℓ {[ 0 := bumper s ]} ⎤))%I.
   Proof.
     lift_into_crash post_crash_know_full_history_loc.
   Qed.

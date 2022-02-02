@@ -122,7 +122,7 @@ Qed.
 (* The state interpretation for the base logic. *)
 Definition nvm_heap_ctx `{hG : !nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ} σ : iProp Σ :=
   "Hσ" ∷ gen_heap_interp σ.1 ∗ (* The interpretation of the heap. This is standard,
-  except the heap store historie and not plain values. *)
+  except that the heap stores histories and not plain values. *)
   "lubauth" ∷ own store_view_name (● (max_view σ.1)) ∗
   "%Hop" ∷ ⌜valid_heap σ.1⌝ ∗
   "Hpers" ∷ own persist_view_name (● σ.2) ∗
@@ -217,7 +217,7 @@ Definition persisted_loc `{nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ}
            ℓ t : iProp Σ :=
   persisted {[ ℓ := MaxNat t ]}.
 
-(* Expresses that the view [rv] was recovered after the last crash. *)
+(* Expresses that the view [CV] was recovered after the last crash. *)
 Definition crashed_at {Σ} `{nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ}
            (CV : view) : iProp Σ :=
   own crashed_at_view_name (to_agree CV).
