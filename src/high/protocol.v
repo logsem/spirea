@@ -3,7 +3,8 @@ From iris.proofmode Require Import reduction monpred tactics.
 From iris_named_props Require Import named_props.
 
 From self Require Import encode_relation.
-From self.high Require Import dprop resources modalities post_crash_modality monpred_simpl.
+From self.high Require Import dprop resources modalities post_crash_modality
+      monpred_simpl or_lost.
 From self.lang Require Import lang.
 From self.high.modalities Require Import no_buffer.
 

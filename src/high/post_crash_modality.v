@@ -48,6 +48,14 @@ Definition post_crash_exclusive_loc_impl `{nvmFixedG Σ}
   □ ∀ ℓ, is_na_loc (nD := nD) ℓ -∗
     or_lost_post_crash_no_t ℓ (is_na_loc (nD := nD') ℓ).
 
+Definition map_map_phys_history_impl `{nvmFixedG Σ}
+           (nD nD' : nvmDeltaG Σ) : iProp Σ :=
+  □ ∀ ℓ tStore msg,
+    know_phys_hist_msg (nD := nD) ℓ tStore msg -∗
+      or_lost_post_crash_no_t ℓ (
+        ∃ v, know_phys_hist_msg (nD := nD') ℓ 0 (Msg v ∅ ∅ ∅)
+      ).
+
 Definition post_crash_na_view_map `{nvmFixedG Σ}
            (na_views : gmap loc view) (nD nD' : nvmDeltaG Σ) : iProp Σ :=
   (∀ ℓ q SV, know_na_view (nD := nD) ℓ q SV -∗ ⌜ na_views !! ℓ = Some SV ⌝) ∗
@@ -116,8 +124,8 @@ Definition post_crash_resource `{nvmFixedG Σ}
   "#post_crash_pred_impl" ∷ post_crash_pred_impl nD nD' ∗
   "#post_crash_shared_loc_impl" ∷ post_crash_shared_loc_impl nD nD' ∗
   "#post_crash_exclusive_loc_impl" ∷ post_crash_exclusive_loc_impl nD nD' ∗
+  "#post_crash_map_map_phys_history_impl" ∷ map_map_phys_history_impl nD nD' ∗
   "#post_crash_bumper_impl" ∷ post_crash_bumper_impl nD nD' ∗
-  (* "#post_crash_exclusive_loc_impl" ∷ post_crash_exclusive_loc_impl nD nD' ∗ *)
   "post_crash_na_view_map" ∷ post_crash_na_view_map na_views nD nD' ∗
   "post_crash_full_history_map" ∷ post_crash_full_history_map hh bb nD nD'.
 
@@ -198,6 +206,23 @@ Section post_crash_prop.
     iIntros "M".
     iDestruct ("HP" with "M") as "[$ M]".
     iDestruct ("HQ" with "M") as "[$ $]".
+  Qed.
+
+  Lemma post_crash_disj P Q :
+    post_crash P ∨ post_crash Q -∗ <PC> hG, P hG ∨ Q hG.
+  Proof.
+    iStartProof (iProp _). iIntros (TV).
+    iIntros "[HP | HQ]".
+    - iIntrosPostCrash.
+      iDestruct ("HP" $! hG' hh bb na_views) as "HP".
+      post_crash_modality.iCrash.
+      iIntros "M".
+      iDestruct ("HP" with "M") as "[$ $]".
+    - iIntrosPostCrash.
+      iDestruct ("HQ" $! hG' hh bb na_views) as "HQ".
+      post_crash_modality.iCrash.
+      iIntros "M".
+      iDestruct ("HQ" with "M") as "[$ $]".
   Qed.
 
   Lemma post_crash_pure (P : Prop) : P → ⊢ <PC> _, ⌜P⌝.
@@ -358,10 +383,10 @@ Section post_crash_interact.
     iDestruct (post_crash_modality.post_crash_nodep with "HP") as "HP".
     post_crash_modality.iCrash.
     iNamed 1.
-    rewrite /post_crash_resource. iFrameNamed.
+    rewrite /post_crash_resource.
     iDestruct ("post_crash_shared_loc_impl" with "HP") as "H".
     rewrite -or_lost_embed.
-    done.
+    iFrame. iFrame "#".
   Qed.
 
   Lemma post_crash_exclusive_loc ℓ :
@@ -376,6 +401,25 @@ Section post_crash_interact.
     iDestruct ("post_crash_exclusive_loc_impl" with "HP") as "H".
     rewrite -or_lost_embed.
     done.
+  Qed.
+
+  Lemma post_crash_know_phys_hist_msg ℓ t msg :
+    ⎡ know_phys_hist_msg ℓ t msg ⎤ -∗ <PC> _, or_lost ℓ (∃ v,
+      ⎡ know_phys_hist_msg ℓ 0 (Msg v ∅ ∅ ∅) ⎤
+    ).
+  Proof.
+    iStartProof (iProp _). iIntros (TV') "HP".
+    iIntrosPostCrash.
+    iDestruct (post_crash_modality.post_crash_nodep with "HP") as "HP".
+    post_crash_modality.iCrash.
+    iNamed 1.
+    rewrite /post_crash_resource. iFrameNamed.
+    (*  *)
+    iDestruct ("post_crash_map_map_phys_history_impl" with "HP") as "H".
+    rewrite /or_lost.
+    iApply or_lost_with_t_at.
+    iApply (or_lost_post_crash_mono with "[] H").
+    naive_solver.
   Qed.
 
   Lemma post_crash_know_na_view ℓ q SV :
@@ -478,6 +522,21 @@ Section IntoCrash.
     iApply (post_crash_sep). iFrame.
   Qed.
 
+  Global Instance disj_into_crash (P Q : dProp Σ) (P' Q' : _ → dProp Σ) :
+    IntoCrash P P' → IntoCrash Q Q' → IntoCrash (P ∨ Q)%I (λ hD, P' hD ∨ Q' hD)%I.
+  Proof.
+    rewrite /IntoCrash.
+    iIntros (Pi Qi) "[P|Q]".
+    - iDestruct (Pi with "P") as "P".
+      iApply post_crash_disj.
+      iLeft.
+      iFrame.
+    - iDestruct (Qi with "Q") as "Q".
+      iApply post_crash_disj.
+      iRight.
+      iFrame.
+  Qed.
+
   Global Instance exist_into_crash {A} Φ Ψ:
     (∀ x : A, IntoCrash (Φ x) (λ hG, Ψ hG x)) →
     IntoCrash (∃ x, Φ x)%I (λ hG, (∃ x, Ψ hG x)%I).
@@ -537,6 +596,12 @@ Section IntoCrash.
       (⎡ is_na_loc ℓ ⎤)%I
       (λ hG', or_lost ℓ (⎡ is_na_loc ℓ ⎤))%I.
   Proof. lift_into_crash post_crash_exclusive_loc. Qed.
+
+  Global Instance know_phys_hist_msg_into_crash ℓ t msg :
+    IntoCrash
+      (⎡ know_phys_hist_msg ℓ t msg ⎤)%I
+      (λ hG', or_lost ℓ (∃ v, ⎡ know_phys_hist_msg ℓ 0 (Msg v ∅ ∅ ∅) ⎤))%I.
+  Proof. lift_into_crash post_crash_know_phys_hist_msg. Qed.
 
   Global Instance exclusive_know_na_view_crash ℓ q SV :
     IntoCrash

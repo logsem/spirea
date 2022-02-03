@@ -1,18 +1,12 @@
-From iris.algebra Require Import auth.
 From iris.bi Require Import fractional.
-From iris.proofmode Require Import reduction monpred tactics.
 
 From Perennial.Helpers Require Import ipm NamedProps.
-From Perennial.program_logic Require Import recovery_weakestpre.
 
 From self Require Import extra ipm_tactics.
-From self.algebra Require Import ghost_map.
 From self.base Require Import primitive_laws wpr_lifting.
-From self.high Require Import dprop resources monpred_simpl.
+From self.high Require Import dprop monpred_simpl.
 
 Set Default Proof Using "Type".
-
-Notation base_post_crash := post_crash_modality.post_crash.
 
 Section or_lost_post_crash.
   Context `{nvmBaseFixedG Σ, nD: nvmBaseDeltaG Σ}.
@@ -133,13 +127,17 @@ Section or_lost_post_crash.
   Proof. rewrite /or_lost. apply or_lost_with_t_sep. Qed.
 
   Lemma or_lost_with_t_mono_strong ℓ (P Q : _ → dProp Σ) :
-    (∀ t, ("#per" ∷ ⎡ persisted_loc ℓ 0 ⎤) -∗ P t -∗ Q t) -∗
+    (∀ t CV,
+       ("%look" ∷ ⌜ CV !! ℓ = Some (MaxNat t) ⌝ ∗
+        "#per" ∷ ⎡ persisted_loc ℓ 0 ⎤ ∗
+        "#crashed" ∷ ⎡ crashed_at CV ⎤) -∗
+      P t -∗ Q t) -∗
     or_lost_with_t ℓ P -∗ or_lost_with_t ℓ Q.
   Proof.
-    iIntros "pToQ (%CV & crashed & disj)".
+    iIntros "pToQ (%CV & #crashed & disj)".
     iExists CV. iFrame "crashed". iDestruct "disj" as "[(% & % & #per & P) | %lost]".
-    - iLeft. iExists _. iFrame "#". iSplitPure; first done.
-      iApply ("pToQ" with "[$] P").
+    - iLeft. iExists _. iFrame "#%". (* iSplitPure; first done. *)
+      iApply ("pToQ" with "[] P"); first by iFrame "#%".
     - iRight. iFrame (lost).
   Qed.
 
@@ -161,7 +159,7 @@ Section or_lost_post_crash.
     iDestruct 1 as (CV) "[crash disj]". iExists _. iFrame "crash". done.
   Qed.
 
-  Lemma or_lost_get `{nvmDeltaG Σ} CV ℓ P :
+  Lemma or_lost_get CV ℓ P :
     is_Some (CV !! ℓ) → ⎡ crashed_at CV ⎤ -∗ or_lost ℓ P -∗ P.
   Proof.
     iIntros ([[t] look]) "crash (%CV' & crash' & [(% & ? & #per & $)|%look'])".
@@ -169,7 +167,7 @@ Section or_lost_post_crash.
     congruence.
   Qed.
 
-  Lemma or_lost_with_t_get `{nvmDeltaG Σ} CV ℓ t P :
+  Lemma or_lost_with_t_get CV ℓ t P :
     CV !! ℓ = Some (MaxNat t) → ⎡ crashed_at CV ⎤ -∗ or_lost_with_t ℓ P -∗ P t.
   Proof.
     rewrite /or_lost_with_t.

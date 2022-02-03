@@ -90,6 +90,10 @@ End location.
 Section ownership_wrappers.
   Context `{nvmFixedG Σ, nD : nvmDeltaG Σ}.
 
+  (* We have these wrappers partly to avoid having to spell out the global ghost
+  names, and partly such that we can conveniently swap them out by giving the
+  named type class instance [nD] *)
+
   Definition know_encoded_bumper (ℓ : loc)
              (encoded_bumper : positive → option positive) : iProp Σ :=
     ℓ ↪[bumpers_name]□ encoded_bumper.
@@ -117,6 +121,9 @@ Section ownership_wrappers.
   (* The storeview of the most recent write to a na location. *)
   Definition know_na_view ℓ q (SV : view) : iProp Σ :=
     ℓ ↪[non_atomic_views_gname]{#q} SV.
+
+  Definition know_phys_hist_msg ℓ t msg : iProp Σ :=
+    auth_map_map_frag_singleton know_phys_history_name ℓ t msg.
 
 End ownership_wrappers.
 
