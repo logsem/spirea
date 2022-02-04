@@ -13,8 +13,8 @@ From Perennial.program_logic Require Import recovery_adequacy.
 From self.algebra Require Import ghost_map.
 From self Require Import view extra ipm_tactics if_non_zero.
 From self.base Require Import primitive_laws wpr_lifting.
-From self.high Require Import dprop.
-From self.high Require Import resources crash_weakestpre post_crash_modality.
+From self.high Require Import dprop resources crash_weakestpre
+     post_crash_modality or_lost.
 
 Set Default Proof Using "Type".
 
@@ -147,17 +147,25 @@ Qed.
 
 Definition wpr `{nvmFixedG Σ, nvmDeltaG Σ} s := wpr' _ s _.
 
-Lemma or_lost_post_crash_ts `{nvmBaseFixedG Σ, hG : nvmBaseDeltaG Σ} CV ℓ P :
-  crashed_at CV -∗
-  (∀ t, ⌜CV !! ℓ = Some (MaxNat t)⌝ -∗ P t) -∗
-  or_lost_post_crash ℓ P.
+Lemma view_to_zero_lookup V ℓ x :
+  V !! ℓ = Some x → (view_to_zero V) !! ℓ = Some (MaxNat 0).
 Proof.
-  iIntros "crash impl".
+  intros look. rewrite /view_to_zero. rewrite lookup_fmap. rewrite look. done.
+Qed.
+
+Lemma or_lost_post_crash_full `{nvmBaseFixedG Σ, hG : nvmBaseDeltaG Σ} CV :
+  crashed_at CV -∗
+  persisted (view_to_zero CV) -∗
+  ∀ ℓ P, (∀ t, ⌜CV !! ℓ = Some (MaxNat t)⌝ -∗ P t) -∗ or_lost_post_crash ℓ P.
+Proof.
+  iIntros "crash pers" (ℓ P) "impl".
   iExists _. iFrame "crash".
   destruct (CV !! ℓ) as [[m]|] eqn:lookP'; last naive_solver.
   iLeft.
   iExists _. iSplit; first done.
-  by iApply "impl".
+  iDestruct (persisted_persisted_loc with "pers") as "$".
+  { eapply view_to_zero_lookup. done. }
+  iApply "impl". done.
 Qed.
 
 Section wpr.
@@ -274,10 +282,14 @@ Section wpr.
       iDestruct (big_sepM_lookup with "ptsMap") as "pts"; first eassumption.
       iApply (gen_heap_valid with "Hσ pts"). }
 
-    (* We need to first re-create the ghost state for the base interpretation. *)
+    (* We need to first re-create the ghost state for the base
+    interpretation. *)
     iMod (nvm_heap_reinit _ _ _ _ _ Hcrash with "Hσ Hpers")
-      as (baseNames) "(valView & map' & baseInterp & #persImpl & #newCrashedAt)";
+      as (baseNames hGD') "(% & valView & map' & baseInterp & #persImpl & #pers &
+                            #newCrashedAt)";
       try done.
+
+    iDestruct (or_lost_post_crash_full with "newCrashedAt pers") as "#orLost".
 
     iDestruct (big_sepM2_dom with "ordered") as %domHistsEqOrders.
     iDestruct (big_sepM2_dom with "bumpMono") as %domOrdersEqBumpers.
@@ -340,7 +352,8 @@ Section wpr.
     iModIntro.
     iExists (
         NvmDeltaG _
-                  (MkNvmBaseDeltaG _ Hcrash baseNames)
+                  (* (MkNvmBaseDeltaG _ Hcrash baseNames) *)
+                  hGD'
                   ({| abs_history_name := new_abs_history_name;
                       know_abs_history_name := new_know_abs_history_name;
                       predicates_name := _;
@@ -350,34 +363,30 @@ Section wpr.
                       bumpers_name := new_bumpers_name;
                    |})
       ).
+
     iFrame "baseInterp".
     rewrite /nvm_heap_ctx. rewrite /post_crash.
-    iDestruct ("Pg" $! _ abs_hists _ (store, _) _ with "persImpl map'") as "(map' & Pg)".
+    iEval (simpl) in "Pg".
+    iDestruct ("Pg" $! _ abs_hists bumpers _ (store, _) _ with "persImpl map'") as "(map' & Pg)".
     iDestruct
-      (map_points_to_to_new _ _ _ _ (MkNvmBaseDeltaG Σ Hcrash baseNames)
+      (map_points_to_to_new _ _ _ _ hGD'
          with "newCrashedAt map' ptsMap") as "ptsMap"; first done.
-    rewrite /post_crash_mapsto_map.
     (* We show the assumption for the post crash modality. *)
     iDestruct ("Pg" with "[history knowHistories]") as "[$ WHAT]".
-    { simpl.
-      (* We show that fragments of the histories may survive a crash. *)
-      rewrite /post_crash_resource.
-      (* History implication. *)
+    { rewrite /post_crash_resource.
+      (* "post_crash_frag_history_impl" - Fragmental history implication. *)
       iSplit.
-      { iModIntro.
-        iIntros (? ? ? ? ℓ t s) "frag".
-        iApply (@or_lost_post_crash_ts with "[newCrashedAt] [frag]").
-        { iFrame "newCrashedAt". }
-        iIntros (? look).
+      { (* We show that fragments of the histories may survive a crash. *)
+        iModIntro.
+        iIntros (???? ℓ t s ?) "frag bumper".
+        iApply "orLost". iIntros (? look).
         admit. }
       (* The preorder implication. We show that the preorders may survive a
       crash. *)
       iSplit. {
         iModIntro.
         iIntros (? ? ? ? ?) "order".
-        iApply (@or_lost_post_crash_ts with "[newCrashedAt] [order]").
-        { iFrame "newCrashedAt". }
-        iIntros (? look).
+        iApply "orLost". iIntros (t look).
         rewrite /know_preorder_loc /preorders_name. simpl.
         iDestruct (ghost_map_lookup with "allOrders order")
           as %ordersLook.
@@ -400,9 +409,7 @@ Section wpr.
       iSplit. {
         rewrite /post_crash_pred_impl.
         iModIntro. iIntros (??? ℓ ϕ) "knowPred".
-        iApply (@or_lost_post_crash_ts with "[newCrashedAt] [knowPred]").
-        { iFrame "newCrashedAt". }
-        iIntros (t look).
+        iApply "orLost". iIntros (t look).
         iDestruct (own_all_preds_pred with "allPredicates knowPred") as (? predsLook) "H".
         iApply (predicates_frag_lookup with "newPredsFrag").
         rewrite /newPreds.
@@ -412,9 +419,7 @@ Section wpr.
       iSplit. {
         rewrite /post_crash_shared_loc_impl.
         iIntros "!>" (ℓ) "sh".
-        iApply (@or_lost_post_crash_ts with "[newCrashedAt] [sh]").
-        { iFrame "newCrashedAt". }
-        iIntros (t look).
+        iApply "orLost". iIntros (t look).
         rewrite /is_at_loc.
         iDestruct (own_valid_2 with "atLocs sh")
           as %[_ [elem _]]%auth_both_dfrac_valid_discrete.
@@ -444,9 +449,7 @@ Section wpr.
       iSplit. {
         rewrite /post_crash_exclusive_loc_impl.
         iIntros "!>" (ℓ) "sh".
-        iApply (@or_lost_post_crash_ts with "[newCrashedAt] [sh]").
-        { iFrame "newCrashedAt". }
-        iIntros (t look).
+        iApply "orLost". iIntros (t look).
         rewrite /is_na_loc.
         iDestruct (own_valid_2 with "naLocs sh")
           as %[_ [elem _]]%auth_both_dfrac_valid_discrete.
@@ -479,8 +482,7 @@ Section wpr.
       (* We show that the bumpers survive a crash. *)
       (* rewrite /post_crash_bumper_impl. *)
       (* iIntros "!>" (???? ℓ bumper) "knowBumper". *)
-      (* iApply (@or_lost_post_crash_ts with "[newCrashedAt] [knowBumper]"). *)
-      (* { iFrame "newCrashedAt". } *)
+      (* iApply "orLost". iIntros (t look). *)
       (* iIntros (t look). *)
       (* rewrite /know_bumper. *)
       (* iDestruct "knowBumper" as "[$ knowBumper]". *)
@@ -502,7 +504,7 @@ Section wpr.
       admit.
     }
     iFrame "valView".
-    iSplit; first done.
+    iSplitPure. { subst. done. }
     (* We show the state interpretation for the high-level logic. *)
     iExists _.
     repeat iExists _.
@@ -627,8 +629,8 @@ Section wpr.
         assert (physHist = tempHist) as <- by eauto using map_subseteq_lookup_eq.
       (*   apply map_lookup_zip_with_Some. *)
       (*   exists (MaxNat tt), physHist. *)
-        rewrite -lookup_fmap in H1.
-        apply lookup_fmap_Some in H1.
+        rewrite -lookup_fmap in H2.
+        apply lookup_fmap_Some in H2.
         (* destruct H1 as (msg' & eq' & eq2). *)
         admit.
         (* eapply slice_of_store_lookup_Some in newPhysHistsLook. *)
@@ -640,7 +642,7 @@ Section wpr.
         (* simpl. *)
         (* congruence. } *)
       }
-      rewrite H0.
+      rewrite H1.
       rewrite big_sepM2_singleton.
 
       (* We look up the relevant predicate in [encs]. *)
