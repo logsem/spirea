@@ -146,7 +146,7 @@ Section or_lost_post_crash.
   Proof.
     iIntros "pToQ".
     iApply (or_lost_with_t_mono_strong).
-    iIntros (?) "_". iApply "pToQ".
+    iIntros (??) "_". iApply "pToQ".
   Qed.
 
   Lemma or_lost_mono ℓ (P Q : dProp Σ) :

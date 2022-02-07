@@ -232,6 +232,13 @@ the last events at [ℓ] corresponds to the *)
     "storeLB" ∷ know_store_lb ℓ s3.
   *)
 
+  Lemma store_lb_protocol ℓ prot s :
+    know_store_lb ℓ prot s -∗ ⎡ know_protocol ℓ prot ⎤.
+  Proof.
+    iStartProof (iProp _). iIntros (TV). simpl. iNamed 1.
+    iFrame "locationProtocol".
+  Qed.
+
   Global Instance know_store_lb_persistent
          ℓ prot (s : ST) : Persistent (know_store_lb ℓ prot s).
   Proof. apply _. Qed.
@@ -379,7 +386,8 @@ Section points_to_at_more.
   Lemma post_crash_know_persist_lb (ℓ : loc) prot (s : ST) :
     know_persist_lb ℓ prot s -∗
     post_crash (λ hG, ∃ s', ⌜s ⊑ s'⌝ ∗
-      know_persist_lb ℓ prot (prot.(bumper) s')).
+      know_persist_lb ℓ prot (prot.(bumper) s') ∗
+      recovered_at ℓ (prot.(bumper) s')).
   Proof.
     iNamed 1.
     rewrite /know_protocol. rewrite 2!embed_sep.
@@ -395,11 +403,17 @@ Section points_to_at_more.
     iDestruct (or_lost_get with "[$] order") as "order"; first done.
     iExists s'.
     iSplitPure; first intuition.
-    iExists 0.
-    iFrame "∗#".
-    iDestruct (have_SV_0) as "$".
-    iDestruct (have_FV_0) as "$".
+    iSplit.
+    { iExists 0.
+      iFrame "∗#".
+      iDestruct (have_SV_0) as "$".
+      iDestruct (have_FV_0) as "$". }
+    rewrite /recovered_at.
+    iExists _. iFrame "#∗". iPureIntro. apply elem_of_dom. done.
   Qed.
+
+  Global Instance know_persist_lb_into_crash ℓ prot s : IntoCrash _ _ :=
+    post_crash_know_persist_lb ℓ prot s.
 
   Lemma post_crash_know_flush_lb (ℓ : loc) prot (s : ST) :
     know_flush_lb ℓ prot s -∗
@@ -425,6 +439,9 @@ Section points_to_at_more.
     iDestruct (have_FV_0) as "$".
   Qed.
 
+  Global Instance know_flush_lb_into_crash ℓ prot s : IntoCrash _ _ :=
+    post_crash_know_flush_lb ℓ prot s.
+
   Lemma post_crash_know_store_lb (ℓ : loc) prot (s : ST) :
     know_store_lb ℓ prot s -∗
     post_crash (λ hG, or_lost ℓ (∃ (s' : ST),
@@ -448,6 +465,9 @@ Section points_to_at_more.
     iDestruct (have_SV_0) as "$".
     iDestruct (have_FV_0) as "$".
   Qed.
+
+  Global Instance know_store_lb_into_crash ℓ prot s : IntoCrash _ _ :=
+    post_crash_know_store_lb ℓ prot s.
 
   (* NOTE: This rule should be changed once the "bump-back function" is
   introduced. *)
@@ -535,11 +555,16 @@ Section points_to_at_more.
       iPureIntro. rewrite elem_of_dom. naive_solver.
   Qed.
 
-  Global Instance mapsto_na_into_crash `{AbstractState ST} ℓ prot q (ss : list ST) :
+  Global Instance mapsto_na_into_crash ℓ prot q (ss : list ST) :
     IntoCrash
       (ℓ ↦_{prot}^{q} ss)%I
-      (λ hG', or_lost ℓ (∃ s, ⌜s ∈ ss⌝ ∗ ℓ ↦_{prot}^{q} [s] ∗ recovered_at ℓ s))%I.
+      (λ hG', or_lost ℓ (∃ s, ⌜s ∈ ss⌝ ∗ ℓ ↦_{prot}^{q} [bumper prot s] ∗
+                              recovered_at ℓ (bumper prot s)))%I.
   Proof. rewrite /IntoCrash. iIntros "P". by iApply post_crash_mapsto_na. Qed.
+
+  Global Instance mapsto_na_into_crash_flush ℓ prot q (ss : list ST) :
+    IntoCrashFlush _ _ :=
+    (into_crash_into_crash_flushed _ _ (post_crash_mapsto_na ℓ prot q ss)).
 
   Lemma post_crash_flush_know_flush_lb (ℓ : loc) prot (s : ST) :
     know_flush_lb ℓ prot s -∗

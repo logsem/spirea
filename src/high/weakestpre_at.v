@@ -126,18 +126,28 @@ Section wp_at_rules.
       apply (union_subseteq_r {[ ℓ ]}). }
     iEval (rewrite -gset_op) in "fragSharedLocs". iDestruct "fragSharedLocs" as "[#isShared _]".
 
+    iAssert (know_protocol ℓ prot) as "#prot".
+    { rewrite /know_protocol. iFrame "knowPred knowBumper knowOrder". }
+
     iModIntro.
     rewrite -assoc. iSplit; first done.
     iSplitL "Φpost knowPred knowBumper".
-    { iApply "Φpost". simpl. rewrite /know_protocol.
-      iFrame "knowPred knowBumper isShared knowOrder".
+    { iApply "Φpost".
+      iFrame "isShared".
+      rewrite /know_store_lb.
+      (* simpl. rewrite /know_protocol. *)
+      (* iFrame "knowPred knowBumper isShared knowOrder". *)
       iExists 0.
-      iPureGoal. { apply lookup_zero_gt_zero. }
-      rewrite /know_frag_history_loc.
-      rewrite /own_frag_history_loc.
-      iExists _.
-      iFrame "fragHist".
-      iPureIntro. by rewrite !map_fmap_singleton decode_encode. }
+      iFrame "prot".
+      iSplit.
+      { rewrite /know_frag_history_loc.
+        rewrite /own_frag_history_loc.
+        iExists _.
+        iFrame "fragHist".
+        iPureIntro. by rewrite !map_fmap_singleton decode_encode. }
+      iPureIntro.
+      apply lookup_zero_gt_zero. }
+
     repeat iExists _.
     iFrame "physHist crashedAt history predicates allOrders naLocs
       atLocs".
@@ -231,13 +241,6 @@ Section wp_at_rules.
     done.
   Qed.
 
-  Lemma store_lb_protocol ℓ prot s :
-    know_store_lb ℓ prot s -∗ ⎡ know_protocol ℓ prot ⎤.
-  Proof.
-    iStartProof (iProp _). iIntros (TV). simpl. iNamed 1.
-    iFrame "locationProtocol".
-  Qed.
-
   Lemma wp_load_at ℓ s Q prot st E :
     {{{
       ⎡ is_at_loc ℓ ⎤ ∗
@@ -253,7 +256,8 @@ Section wp_at_rules.
     iStartProof (iProp _). iIntros (TV).
     iDestruct 1 as "(isSharedLoc & storeLB & pToQ)".
     iDestruct (store_lb_protocol with "storeLB") as "#temp". iNamed "temp".
-    rewrite /know_store_lb. iNamed "storeLB".
+    rewrite /know_store_lb.
+    iDestruct "storeLB" as (tS) "(#prot & #hist & %tSLe)".
 
     (* We unfold the WP. *)
     iIntros (TV' incl) "Φpost".
@@ -280,7 +284,7 @@ Section wp_at_rules.
     [interp].  We want to look up the points-to predicate in [ptsMap]. To this
     end, we combine our fragment of the history with the authorative element. *)
     iDestruct (
-      own_frag_history_agree_singleton with "history knowFragHist") as %look.
+      own_frag_history_agree_singleton with "history hist") as %look.
     destruct look as (absHist & enc & absHistLook & lookTS & decodeEnc).
 
     iDestruct (big_sepM2_dom with "predsHold") as %domPhysHistEqAbsHist.
@@ -407,7 +411,6 @@ Section wp_at_rules.
   Lemma wp_store_at ℓ s_i s_t v_t (prot : LocationProtocol ST) st E :
     {{{
        "%targetGt" ∷ ⌜ s_i ⊑ s_t ⌝ ∗
-      (* "knowProt" ∷ know_protocol ℓ ϕ ∗ *)
       "isSharedLoc" ∷ ⎡ is_at_loc ℓ ⎤ ∗
       "storeLB" ∷ know_store_lb ℓ prot s_i ∗
       "phi" ∷ <nobuf> (prot.(pred) s_t v_t _) ∗
@@ -427,7 +430,8 @@ Section wp_at_rules.
     intros Φ. iStartProof (iProp _). iIntros (TV). iNamed 1.
     iDestruct (store_lb_protocol with "storeLB") as "#temp". iNamed "temp".
 
-    rewrite /know_store_lb. iDestruct "storeLB" as (t_i) "temp". iNamed "temp".
+    rewrite /know_store_lb.
+    iDestruct "storeLB" as (t_i) "(#prot & #hist & %tSLe)".
     (* We unfold the WP. *)
     iIntros (TV' incl) "Φpost".
     rewrite wp_eq /wp_def wpc_eq.
@@ -455,7 +459,7 @@ Section wp_at_rules.
     [interp]. We want to look up the points-to predicate in [ptsMap]. To this
     end, we combine our fragment of the history with the authorative element. *)
     iDestruct (
-        own_frag_history_agree_singleton with "history knowFragHist") as %look.
+        own_frag_history_agree_singleton with "history hist") as %look.
     destruct look as (absHist & enc & absHistsLook & lookTS & decodeEnc).
 
     iDestruct (
@@ -550,7 +554,7 @@ Section wp_at_rules.
 
     (* Maybe add a lemma for this lookup *)
     iDestruct (
-        own_frag_history_agree_singleton with "history knowFragHist") as %look'.
+        own_frag_history_agree_singleton with "history hist") as %look'.
     destruct look' as (hist' & enc' & absHistsLook' & hip & hop).
     rewrite lookup_insert in absHistsLook'.
     apply (inj Some) in absHistsLook'.

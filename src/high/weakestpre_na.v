@@ -126,7 +126,8 @@ Section wp_na_rules.
       iSplitPure; first apply map_no_later_singleton.
       iSplitPure; first (split; [apply lookup_singleton | reflexivity]).
       iSplitPure; first repeat split; auto using view_empty_least.
-      iPureIntro. lia. }
+      iSplitPure; first lia.
+      iRight. done. }
     repeat iExists _.
     iFrame "physHist crashedAt history predicates allOrders naLocs
       atLocs".
@@ -207,7 +208,7 @@ Section wp_na_rules.
     done.
   Qed.
 
-  Lemma wp_load_na ℓ (b : bool) q ss s Q prot positive E :
+  Lemma wp_load_na ℓ q ss s Q prot positive E :
     last ss = Some s →
     {{{ mapsto_na ℓ prot q ss ∗
         (<obj> (∀ v, prot.(pred) s v _ -∗ Q v ∗ prot.(pred) s v _)) }}}

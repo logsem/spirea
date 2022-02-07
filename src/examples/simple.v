@@ -62,6 +62,7 @@ Section specs.
 
 End specs.
 
+(* This is a simple example with a flush and a fence. *)
 Section simple_increment.
   Context `{nvmFixedG Σ, nvmDeltaG Σ}.
 
@@ -84,7 +85,7 @@ Section simple_increment.
   (* Predicate used for the location [a]. *)
   Program Definition ϕa : LocationProtocol nat :=
     {| pred := λ n v _, ⌜v = #n⌝%I;
-        bumper n := n |}.
+       bumper n := n |}.
   Next Obligation. iIntros. by iApply post_crash_flush_pure. Qed.
 
   (* Predicate used for the location [b]. *)
@@ -103,84 +104,93 @@ Section simple_increment.
   Qed.
 
   Definition crash_condition {hD : nvmDeltaG Σ} ℓa ℓb : dProp Σ :=
-    ("pts" ∷ ∃ (sa sb : list nat), "aPts" ∷ ℓa ↦_{ϕa} sa ∗ "bPts" ∷ ℓb ↦_{ϕb ℓa} sb)%I.
+    ("pts" ∷ ∃ (na nb : nat),
+     "aPer" ∷ know_persist_lb ℓa ϕa na ∗
+     "bPer" ∷ know_persist_lb ℓb (ϕb ℓa) nb ∗
+     "aPts" ∷ ℓa ↦_{ϕa} [na] ∗
+     "bPts" ∷ ℓb ↦_{ϕb ℓa} [nb])%I.
 
-  Lemma prove_crash_condition {hD : nvmDeltaG Σ} ℓa ℓb (ssA ssB : list nat) :
+  Lemma prove_crash_condition {hD : nvmDeltaG Σ} ℓa ℓb na nb (ssA ssB : list nat) :
+    know_persist_lb ℓa ϕa na -∗
+    know_persist_lb ℓb (ϕb ℓa) nb -∗
     ℓa ↦_{ϕa} ssA -∗
     ℓb ↦_{ϕb ℓa} ssB -∗
     <PC> hG, crash_condition ℓa ℓb.
   Proof.
-    iIntros "aPts bPts".
+    iIntros "perA perB aPts bPts".
     iCrash.
-    iDestruct "aPts" as (sA ?) "[aPts recA]".
-    iDestruct "bPts" as (sB ?) "[bPts recB]".
-    iDestruct (recovered_at_or_lost with "recA aPred") as "aPred".
-    iDestruct (recovered_at_or_lost with "recB bPred") as "bPred".
-    iFrame "aPred bPred". iExists [sA], [sB]. iFrame "aPts bPts".
+    iDestruct "perA" as (na' ?) "[perA #recA]".
+    iDestruct "perB" as (nb' ?) "[perB #recB]".
+    iDestruct (recovered_at_or_lost with "recA aPts") as (??) "[ptsA recA']".
+    iDestruct (recovered_at_agree with "recA recA'") as %<-.
+    iDestruct (recovered_at_or_lost with "recB bPts") as (??) "[ptsB recB']".
+    iDestruct (recovered_at_agree with "recB recB'") as %<-.
+    iExists na', nb'.
+    iFrame.
   Qed.
 
   (* NOTE: This example is currently broken since the crash condition used is
   not objective. We should use the post crash modality in the crash condition
   (maybe built in to WPC). *)
   Lemma wp_incr ℓa ℓb s E :
-    ⊢ know_protocol ℓa ϕa -∗
-      know_protocol ℓb (ϕb ℓa) -∗
-      ℓa ↦_{true} [0] -∗
-      ℓb ↦_{true} [0] -∗
+    ⊢ know_persist_lb ℓa ϕa 0 -∗
+      know_persist_lb ℓb (ϕb ℓa) 0 -∗
+      ℓa ↦_{ϕa} [0] -∗
+      ℓb ↦_{ϕb ℓa} [0] -∗
       WPC (incr_both ℓa ℓb) @ s; E
-        {{ λ _, ℓa ↦_{true} [0; 1] ∗ ℓb ↦_{true} [0; 1] }}
+        {{ λ _, ℓa ↦_{ϕa} [0; 1] ∗ ℓb ↦_{ϕb ℓa} [0; 1] }}
         {{ <PC> _, crash_condition ℓa ℓb }}.
   Proof.
-    iIntros "#aPred #bPred aPts bPts".
+    iIntros "#aPer #bPer aPts bPts".
     rewrite /incr_both.
 
     (* The first store *)
     wpc_bind (_ <- _)%E.
     iApply wpc_atomic_no_mask.
-    iSplit. { iApply (prove_crash_condition with "aPred bPred aPts bPts"). }
-    iApply (@wp_store_na with "[$aPts $aPred]").
+    iSplit. { iApply (prove_crash_condition with "aPer bPer aPts bPts"). }
+    iApply (@wp_store_na with "[$aPts]").
     { reflexivity. }
     { suff leq : (0 ≤ 1); first apply leq. lia. }
     { done. }
     simpl.
     iNext. iIntros "aPts".
-    iSplit. { iModIntro. iApply (prove_crash_condition with "aPred bPred aPts bPts"). }
+    iSplit. { iModIntro. iApply (prove_crash_condition with "aPer bPer aPts bPts"). }
     iModIntro.
     wpc_pures.
-    { iApply (prove_crash_condition with "aPred bPred aPts bPts"). }
+    { iApply (prove_crash_condition with "aPer bPer aPts bPts"). }
 
     (* The write back *)
     wpc_bind (WB _)%E.
     iApply wpc_atomic_no_mask.
-    iSplit. { iApply (prove_crash_condition with "aPred bPred aPts bPts"). }
+    iSplit. { iApply (prove_crash_condition with "aPer bPer aPts bPts"). }
     iApply (wp_wb_ex with "aPts"); first reflexivity.
     iNext.
     iIntros "[aPts #pLowerBound]".
-    iSplit; first iApply (prove_crash_condition with "aPred bPred aPts bPts").
+    iSplit; first iApply (prove_crash_condition with "aPer bPer aPts bPts").
     iModIntro.
     wpc_pures.
-    { iApply (prove_crash_condition with "aPred bPred aPts bPts"). }
+    { iApply (prove_crash_condition with "aPer bPer aPts bPts"). }
 
     (* The fence. *)
     wpc_bind (Fence)%E.
     iApply wpc_atomic_no_mask.
-    iSplit; first iApply (prove_crash_condition with "aPred bPred aPts bPts").
+    iSplit; first iApply (prove_crash_condition with "aPer bPer aPts bPts").
     iApply wp_fence. iModIntro. iModIntro.
     iSplit. {
-      iModIntro. iApply (prove_crash_condition with "aPred bPred aPts bPts"). }
+      iModIntro. iApply (prove_crash_condition with "aPer bPer aPts bPts"). }
     iModIntro.
-    wpc_pures. { iApply (prove_crash_condition with "aPred bPred aPts bPts"). }
+    wpc_pures. { iApply (prove_crash_condition with "aPer bPer aPts bPts"). }
 
     (* The last store *)
     iApply wpc_atomic_no_mask.
-    iSplit. { iApply (prove_crash_condition with "aPred bPred aPts bPts"). }
+    iSplit. { iApply (prove_crash_condition with "aPer bPer aPts bPts"). }
     iApply (wp_store_na with "[$bPts]").
     { reflexivity. }
     { suff leq : (0 ≤ 1); first apply leq. lia. }
     { iFrame "#". iPureGoal; first done. naive_solver. }
     iNext. iIntros "bPts".
     iSplit.
-    { iModIntro. iApply (prove_crash_condition with "aPred bPred aPts bPts"). }
+    { iModIntro. iApply (prove_crash_condition with "aPer bPer aPts bPts"). }
     iModIntro.
     iFrame "aPts bPts".
   Qed.
@@ -191,7 +201,7 @@ Section simple_increment.
       {{ _, True }}
       {{ <PC> H0, crash_condition ℓa ℓb }}.
   Proof.
-    iNamed 1. iNamed "pts".
+    iNamed 1. (* iNamed "pts". *)
     rewrite /recover.
     iDestruct (mapsto_na_last with "aPts") as %[sA saEq].
     iDestruct (mapsto_na_last with "bPts") as %[sB sbEq].
@@ -199,39 +209,39 @@ Section simple_increment.
     (* Load [ℓa]. *)
     wpc_bind (! _)%E.
     iApply wpc_atomic_no_mask.
-    iSplit; first iApply (prove_crash_condition with "aPred bPred aPts bPts").
+    iSplit; first iApply (prove_crash_condition with "aPer bPer aPts bPts").
 
-    iApply (wp_load_na _ _ _ sa _ (λ v, ⌜v = #sA⌝)%I with "[$aPts $aPred]"); first done.
+    iApply (wp_load_na _ _ _ _ (λ v, ⌜v = #sA⌝)%I with "[$aPts]"); first done.
     { iModIntro. naive_solver. }
     iIntros "!>" (?) "[aPts ->]".
     iSplit.
-    { iModIntro. iApply (prove_crash_condition with "aPred bPred aPts bPts"). }
+    { iModIntro. iApply (prove_crash_condition with "aPer bPer aPts bPts"). }
 
     iModIntro.
     wpc_pures.
-    { iApply (prove_crash_condition with "aPred bPred aPts bPts"). }
+    { iApply (prove_crash_condition with "aPer bPer aPts bPts"). }
 
     (* Load [ℓb]. *)
     wpc_bind (! _)%E.
     iApply wpc_atomic_no_mask.
-    iSplit; first iApply (prove_crash_condition with "aPred bPred aPts bPts").
-    iApply (wp_load_na _ _ _ sb _ (λ v, ∃ sB', ⌜ sB ⊑ sB' ⌝ ∗ ⌜v = #sB⌝ ∗ know_flush_lb ℓa sB')%I
-              with "[$bPts $bPred]"); first done.
+    iSplit; first iApply (prove_crash_condition with "aPer bPer aPts bPts").
+    iApply (wp_load_na _ _ _ _ (λ v, ∃ sB', ⌜ sB ⊑ sB' ⌝ ∗ ⌜v = #sB⌝ ∗ know_flush_lb ℓa _ sB')%I
+              with "[$bPts]"); first done.
     { iModIntro. iIntros (?) "(-> & (%sB' & % & #?))".
       iSplit. { iExists _. iFrame "#". naive_solver. }
       rewrite /ϕb. iFrame "#". naive_solver. }
     iIntros "!>" (?) "(bPts & (%sB' & %incl2 & -> & lub))".
     iSplit.
-    { iModIntro. iApply (prove_crash_condition with "aPred bPred aPts bPts"). }
+    { iModIntro. iApply (prove_crash_condition with "aPer bPer aPts bPts"). }
 
     iModIntro.
-    wpc_pures; first iApply (prove_crash_condition with "aPred bPred aPts bPts").
+    wpc_pures; first iApply (prove_crash_condition with "aPer bPer aPts bPts").
 
     iDestruct (mapsto_na_flush_lb_incl with "lub aPts") as %incl; first done.
     rewrite bool_decide_eq_false_2.
     2: { rewrite subseteq_nat_le in incl. rewrite subseteq_nat_le in incl2. lia. }
 
-    wpc_pures; first iApply (prove_crash_condition with "aPred bPred aPts bPts").
+    wpc_pures; first iApply (prove_crash_condition with "aPer bPer aPts bPts").
 
     by iModIntro.
   Qed.
@@ -249,12 +259,12 @@ Section simple_increment.
   (*   {{{ (True : dProp Σ) }}}. *)
 
   Lemma incr_safe s E ℓa ℓb :
-    ⊢ know_protocol ℓa ϕa -∗
-      know_protocol ℓb (ϕb ℓa) -∗
-      ℓa ↦_{true} [0] -∗
-      ℓb ↦_{true} [0] -∗
+    ⊢ know_persist_lb ℓa ϕa 0 -∗
+      know_persist_lb ℓb (ϕb ℓa) 0 -∗
+      ℓa ↦_{ϕa} [0] -∗
+      ℓb ↦_{ϕb ℓa} [0] -∗
       wpr s E (incr_both ℓa ℓb) (recover ℓa ℓb)
-        (λ _, ℓa ↦_{true} [0; 1] ∗ ℓb ↦_{true} [0; 1]) (λ _ _, True%I).
+        (λ _, ℓa ↦_{ϕa} [0; 1] ∗ ℓb ↦_{ϕb ℓa} [0; 1]) (λ _ _, True%I).
   Proof.
     iIntros "a b c d".
     iApply (idempotence_wpr _ _ _ _ _ _ (λ _, <PC> _, crash_condition ℓa ℓb)%I

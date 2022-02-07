@@ -1,3 +1,13 @@
+(* This is the classic message passing example except with some differences.
+   The sending thread ([leftProg] below) ensures that it only sends [x] after
+   having flushed and fenced it. The receieving thread ([rightProg] below) saves
+   and acknowledgement to [z] and with a fence ensures that it is only persisted
+   after the send values is persisted.
+
+   The recovery code ([recovery] below) relies on this being true and crashes
+   otherwise. Hence showing safety of the recovery code ensures that the
+   intuitive property that we expect to hold does indeed hold. *)
+
 From iris.proofmode Require Import tactics.
 From iris.algebra Require Import excl.
 From Perennial.program_logic Require Import staged_invariant.
@@ -12,7 +22,7 @@ From self.base Require Import primitive_laws class_instances crash_borrow.
 From self.high Require Import proofmode wpc_proofmode.
 From self.high Require Import crash_weakestpre modalities weakestpre
      weakestpre_na weakestpre_at recovery_weakestpre protocol crash_borrow no_buffer
-     abstract_state_instances.
+     abstract_state_instances locations protocol or_lost.
 From self.high.modalities Require Import fence no_buffer.
 
 Section program.
@@ -44,110 +54,101 @@ Section proof.
 
   Context (x y z : loc) (γ__ex : gname).
 
-  Definition inv_x (b : bool) (v : val) (hG : nvmDeltaG Σ) : dProp Σ :=
-    ⌜v = #b⌝.
-
-  Program Instance : LocationProtocol inv_x := { bumper n := n }.
+  Program Definition inv_x : LocationProtocol bool :=
+    {| pred (b : bool) v _ :=  ⌜v = #b⌝%I;
+       bumper b := b; |}.
   Next Obligation. iIntros. by iApply post_crash_flush_pure. Qed.
 
-  Definition inv_y (b : bool) (v : val) (hG : nvmDeltaG Σ) : dProp Σ :=
-    match b with
-      false => ⌜ v = #false ⌝ ∗ ⎡ own γ__ex (Excl ()) ⎤
-    | true => ⌜ v = #true ⌝ ∗ know_flush_lb x true
-    end.
-
-  Program Instance : LocationProtocol inv_y := { bumper n := n }.
+  Program Definition inv_y :=
+    {| pred (b : bool) (v : val) (hG : nvmDeltaG Σ) :=
+        match b with
+          false => ⌜ v = #false ⌝ ∗ ⎡ own γ__ex (Excl ()) ⎤
+        | true => ⌜ v = #true ⌝ ∗ know_flush_lb x inv_x true
+        end%I;
+      bumper b := b; |}.
   Next Obligation.
     iIntros (? [|] ?); simpl.
     - iIntros "[% lb]". iCrashFlush.
-      iDestruct "lb" as "(% & %le & ? & ? & ? & ?)".
+      iDestruct "lb" as "(% & %le & ? & ?)".
       destruct s__pc; last done.
-      iFrame "∗%".
+      iFrame "%".
+      iApply persist_lb_to_flush_lb. iFrame.
     - iIntros "[% H]". iCrashFlush. iFrame. done.
   Qed.
+  Next Obligation. intros ? [|]; apply _. Qed.
 
   Definition inv_z := inv_y.
 
+  (* Note: The recovery code does not use the [y] location, hence the crash
+  condition does not mention [y] as we don't need it to be available after a
+  crash. *)
   Definition crash_condition {hD : nvmDeltaG Σ} : dProp Σ :=
-    ∃ (sx sz : list bool),
-      "#xProt" ∷ know_protocol x inv_x ∗
-      "#yProt" ∷ or_lost y (know_protocol y inv_y) ∗
-      "#yShared" ∷ or_lost y (⎡ is_at_loc y ⎤) ∗
-      "#zProt" ∷ know_protocol z inv_z ∗
-      x ↦_{true} sx ∗
-      z ↦_{true} sz.
-
-  Definition right_crash_condition {hD : nvmDeltaG Σ} : dProp Σ :=
-    ∃ (sz : list bool),
-      "#yProt" ∷ or_lost y (know_protocol y inv_y) ∗
-      "#yShared" ∷ or_lost y (⎡ is_at_loc y ⎤) ∗
-      "#zProt" ∷ know_protocol z inv_z ∗
-      z ↦_{true} sz.
+    ∃ (bx bz : bool),
+      "#xPer" ∷ know_persist_lb x inv_x bx ∗
+      "#zPer" ∷ know_persist_lb z inv_z bz ∗
+      x ↦_{inv_x} [bx] ∗
+      z ↦_{inv_z} [bz].
 
   Definition left_crash_condition {hD : nvmDeltaG Σ} : dProp Σ :=
-    ∃ (sx : list bool),
-      "#yProt" ∷ or_lost y (know_protocol y inv_y) ∗
-      "#yShared" ∷ or_lost y (⎡ is_at_loc y ⎤) ∗
-      "#xProt" ∷ know_protocol x inv_x ∗
-      x ↦_{true} sx.
+    ∃ (bx : bool),
+      "#xPer" ∷ know_persist_lb x inv_x bx ∗
+      "xPts" ∷ x ↦_{inv_x} [bx].
 
-  Lemma right_crash_condition_impl {hD : nvmDeltaG Σ} (ssZ : list bool) :
-    know_protocol y inv_y -∗
-    know_protocol z inv_z -∗
-    know_store_lb y false -∗
-    ⎡ is_at_loc y ⎤ -∗
-    z ↦_{true} ssZ -∗
-    <PC> hD, right_crash_condition.
-  Proof.
-    iIntros "yProt zProt yLb yShared zPts".
-    iCrash.
-    iDestruct "zPts" as (??) "[zPts zRec]".
-    iExists _.
-    iDestruct (recovered_at_or_lost with "zRec zProt") as "zProt".
-    iFrame.
-  Qed.
+  Definition right_crash_condition {hD : nvmDeltaG Σ} : dProp Σ :=
+    ∃ (bz : bool),
+      "#zPer" ∷ know_persist_lb z inv_z bz ∗
+      "zPts" ∷ z ↦_{inv_z} [bz].
 
-  Lemma left_crash_condition_impl {hD : nvmDeltaG Σ} (ssX : list bool) :
-    know_protocol y inv_y -∗
-    know_protocol x inv_x -∗
-    know_store_lb y false -∗
-    ⎡ is_at_loc y ⎤ -∗
-    x ↦_{true} ssX -∗
+  Lemma left_crash_condition_impl {hD : nvmDeltaG Σ} (sx : list bool) :
+    know_persist_lb x inv_x false -∗
+    x ↦_{inv_x} sx -∗
     <PC> hD, left_crash_condition.
   Proof.
-    iIntros "yProt xProt yLb yShared xPts".
+    iIntros "xPer xPts".
     iCrash.
-    iDestruct "xPts" as (??) "[xPts xRec]".
-    iExists _.
-    iDestruct (recovered_at_or_lost with "xRec xProt") as "xProt".
-    iFrame.
+    iDestruct "xPer" as (??) "[xPer #xRec]".
+    iDestruct (recovered_at_or_lost with "xRec xPts") as (??) "[xPts xRec']".
+    iDestruct (recovered_at_agree with "xRec xRec'") as %->.
+    iExists _. iFrame "∗#".
+  Qed.
+
+  Lemma right_crash_condition_impl {hD : nvmDeltaG Σ} (sz : list bool) :
+    know_persist_lb z inv_z false -∗
+    z ↦_{inv_z} sz -∗
+    <PC> hD, right_crash_condition.
+  Proof.
+    iIntros "zPer zPts".
+    iCrash.
+    iDestruct "zPer" as (??) "[zPer #zRec]".
+    iDestruct (recovered_at_or_lost with "zRec zPts") as (??) "[zPts zRec']".
+    iDestruct (recovered_at_agree with "zRec zRec'") as %->.
+    iExists _. iFrame "∗#".
   Qed.
 
   (* Prove right crash condition. *)
   Ltac whack_right_cc :=
     iSplit;
-    first iApply (right_crash_condition_impl with "yProt zProt yLb yShared zPts").
+    first iApply (right_crash_condition_impl with "zPer zPts").
 
   Ltac whack_left_cc :=
     iSplit;
-    first iApply (left_crash_condition_impl with "yProt xProt yLb yShared xPts").
+    first iApply (left_crash_condition_impl with "xPer xPts").
 
   Lemma right_prog_spec s E1 :
-    know_protocol y inv_y -∗
-    know_protocol z inv_z -∗
-    know_store_lb y false -∗
+    know_store_lb y inv_y false -∗
     ⎡ is_at_loc y ⎤ -∗
-    z ↦_{true} [false] -∗
+    know_persist_lb z inv_z false -∗
+    z ↦_{inv_z} [false] -∗
     WPC rightProg y z @ s; E1
-    {{ v, z ↦_{true} [false; true] ∨ z ↦_{true} [false] }}
+    {{ v, z ↦_{inv_z} [false; true] ∨ z ↦_{inv_z} [false] }}
     {{ <PC> _, right_crash_condition }}.
   Proof.
-    iIntros "#yProt #zProt #yLb #yShared zPts".
+    iIntros "#yLb #yShared #zPer zPts".
     (* Evaluate the first load. *)
     rewrite /rightProg.
     wpc_bind (!{acq} _)%E.
     iApply wpc_atomic_no_mask. whack_right_cc.
-    iApply (wp_load_at _ _ (λ s v, (⌜v = #true⌝ ∗ know_flush_lb x true) ∨ ⌜v = #false⌝)%I inv_y with "[$yProt $yShared $yLb]").
+    iApply (wp_load_at _ _ (λ s v, (⌜v = #true⌝ ∗ know_flush_lb x inv_x true) ∨ ⌜v = #false⌝)%I inv_y with "[$yShared $yLb]").
     { iModIntro. iIntros (?? incl) "a". rewrite /inv_y.
       destruct s'.
       - iDestruct "a" as "[% #?]". iFrame "#". naive_solver.
@@ -161,14 +162,14 @@ Section proof.
       whack_right_cc.
       iModIntro.
       wpc_pures.
-      { iApply (right_crash_condition_impl with "yProt zProt yLb yShared zPts"). }
+      { iApply (right_crash_condition_impl with "zPer zPts"). }
       iModIntro.
       iRight. iFrame. }
     (* We loaded [true]. *)
     whack_right_cc.
     iModIntro.
     wpc_pures.
-    { iApply (right_crash_condition_impl with "yProt zProt yLb yShared zPts"). }
+    { iApply (right_crash_condition_impl with "zPer zPts"). }
     wpc_bind (Fence).
     iApply wpc_atomic_no_mask. whack_right_cc.
     iApply wp_fence. do 2 iModIntro.
@@ -176,10 +177,10 @@ Section proof.
     whack_right_cc.
     iModIntro.
     wpc_pures.
-    { iApply (right_crash_condition_impl with "yProt zProt yLb yShared zPts"). }
+    { iApply (right_crash_condition_impl with "zPer zPts"). }
 
     iApply wpc_atomic_no_mask. whack_right_cc.
-    iApply (wp_store_na _ _ _ _ _ true inv_z with "[$zPts $zProt]"); eauto.
+    iApply (wp_store_na _ inv_z _ _ _ true with "[$zPts]"); eauto.
     { simpl. iFrame "xLb". done. }
 
     iIntros "!> zPts /=".
@@ -190,16 +191,18 @@ Section proof.
 
   Lemma prog_spec :
     ⎡ pre_borrow ⎤ ∗
-    know_protocol x inv_x ∗ know_protocol y inv_y ∗ know_protocol z inv_z ∗
-    x ↦_{true} [false] ∗
-    know_store_lb y false ∗
+    (* know_protocol x inv_x ∗ know_protocol y inv_y ∗ know_protocol z inv_z ∗ *)
+    know_persist_lb x inv_x false ∗
+    x ↦_{inv_x} [false] ∗
+    know_store_lb y inv_y false ∗
     ⎡ is_at_loc y ⎤ ∗
-    z ↦_{true} [false] -∗
+    know_persist_lb z inv_z false ∗
+    z ↦_{inv_z} [false] -∗
     WPC prog x y z @ ⊤
     {{ v, True }}
     {{ <PC> _, crash_condition }}.
   Proof.
-    iIntros "(pb & #xProt & #yProt & #zProt & xPts & #yLb & #yShared & zPts)".
+    iIntros "(pb & #xPer & xPts & #yLb & #yShared & #zPer & zPts)".
     rewrite /prog.
 
     (* We create a crash borrow in order to transfer resources to the forked
@@ -208,23 +211,16 @@ Section proof.
              with "pb [zPts]").
     { iAccu. }
     { iModIntro. iIntros "zPts".
-      iDestruct "zProt" as "-#zProt".
-      iDestruct "yProt" as "-#yProt".
-      iDestruct "yShared" as "-#yShared".
-      iCrash.
-      iDestruct "zPts" as (??) "[zPts zRec]".
-      iDestruct (recovered_at_or_lost with "zRec zProt") as "zProt".
-      iExists _. iFrame. }
+      iApply (right_crash_condition_impl with "zPer zPts"). }
     iIntros "cb".
 
     iApply (wpc_crash_mono _ _ _ _ _ (<PC> _, left_crash_condition)%I).
     { iIntros "L R".
       iCrash.
-      iDestruct "L"  as (?) "(H1 & H2 & H3 & xPts)".
-      iDestruct "R" as (?) "(yProt & ySh & zProt & zPts)".
+      iNamed "L".
+      iNamed "R".
       iExists _, _.
-      iFrame "H3".
-      iFrame "yProt ySh zProt xPts zPts". }
+      iFrame "∗#". }
     Unshelve. 2: { apply _. }
 
     wpc_bind (Fork _)%E.
@@ -233,26 +229,25 @@ Section proof.
       iApply (wpc_crash_borrow_open_modify with "cb"); first done.
       iNext. iSplit; first done.
       iIntros "zPts".
-      (* rewrite (left_id True%I (∗)%I). *)
 
-      iDestruct (right_prog_spec with "yProt zProt yLb yShared zPts") as "wp".
+      iDestruct (right_prog_spec with "yLb yShared zPer zPts") as "wp".
       iApply (wpc_mono' with "[] [] wp"); last naive_solver.
       iIntros (?) "[zPts | zPts]".
-      * iExists (z ↦_{true} (_ : list bool)). iFrame.
+      * iExists (z ↦_{_} (_ : list bool)). iFrame.
         iSplit; last naive_solver.
         iIntros "!> zPts".
-        iApply (right_crash_condition_impl with "yProt zProt yLb yShared zPts").
-      * iExists (z ↦_{true} (_ : list bool)). iFrame.
+        iApply (right_crash_condition_impl with "zPer zPts").
+      * iExists (z ↦_{_} (_ : list bool)). iFrame.
         iSplit; last naive_solver.
         iIntros "!> zPts".
-        iApply (right_crash_condition_impl with "yProt zProt yLb yShared zPts").
+        iApply (right_crash_condition_impl with "zPer zPts").
     - whack_left_cc. iNext.
       wpc_pures.
-      { iApply (left_crash_condition_impl with "yProt xProt yLb yShared xPts"). }
+      { iApply (left_crash_condition_impl with "xPer xPts"). }
       rewrite /leftProg.
       wpc_bind (_ <- _)%E.
       iApply wpc_atomic_no_mask. whack_left_cc.
-      iApply (wp_store_na x _ _ _ _ true with "[$xProt $xPts]").
+      iApply (wp_store_na x _ _ _ _ true with "[$xPts]").
       { reflexivity. } { done. }
       { rewrite /inv_x. done. }
       simpl.
@@ -260,7 +255,7 @@ Section proof.
       whack_left_cc.
       iModIntro.
       wpc_pures;
-      first iApply (left_crash_condition_impl with "yProt xProt yLb yShared xPts").
+        first iApply (left_crash_condition_impl with "xPer xPts").
 
       (* WB *)
       wpc_bind (WB _)%E.
@@ -272,7 +267,7 @@ Section proof.
       whack_left_cc.
       iModIntro.
       wpc_pures;
-      first iApply (left_crash_condition_impl with "yProt xProt yLb yShared xPts").
+        first iApply (left_crash_condition_impl with "xPer xPts").
 
       (* The fence. *)
       wpc_bind (Fence)%E.
@@ -281,7 +276,7 @@ Section proof.
       whack_left_cc.
       iModIntro.
       wpc_pures;
-      first iApply (left_crash_condition_impl with "yProt xProt yLb yShared xPts").
+        first iApply (left_crash_condition_impl with "xPer xPts").
 
       wpc_bind (_ <-{rel} _)%E.
       iApply wpc_atomic_no_mask. whack_left_cc.
