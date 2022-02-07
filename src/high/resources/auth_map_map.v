@@ -13,8 +13,9 @@ Definition fmap_fmap_to_agree_ol (m : gmap loc (gmap time positive)) : gmapUR lo
 
 Section fmap_fmap_to_agree.
   Context {A : ofe}.
+  Implicit Types (m : gmap loc (gmap time A)).
 
-  Definition fmap_fmap_to_agree (m : gmap loc (gmap time A)) : gmap loc (gmap time (agreeR A)) :=
+  Definition fmap_fmap_to_agree m : gmap loc (gmap time (agreeR A)) :=
     (λ n : gmap _ _, (to_agree) <$> n) <$> m.
 
   Lemma fmap_fmap_to_agree_valid m : ✓ fmap_fmap_to_agree m.
@@ -26,6 +27,40 @@ Section fmap_fmap_to_agree.
     simpl.
     apply Some_valid.
     apply valid_to_agree_fmap.
+  Qed.
+
+  Lemma fmap_fmap_to_agree_mono m1 m2 :
+    m1 ⊆ m2 → fmap_fmap_to_agree m1 ≼ fmap_fmap_to_agree m2.
+  Proof.
+    rewrite map_subseteq_spec.
+    intros sub.
+    rewrite /fmap_fmap_to_agree.
+    rewrite lookup_included.
+    setoid_rewrite lookup_fmap.
+    intros i.
+    destruct (m1 !! i) eqn:eq.
+    2: { eexists _. rewrite left_id. reflexivity. }
+    rewrite (sub i g); last done.
+    done.
+  Qed.
+
+  Lemma fmap_fmap_to_agree_singleton_included_l `{!LeibnizEquiv A}
+        m (i : loc) (x : gmap time A) :
+    fmap_fmap_to_agree {[ i := x ]} ≼ fmap_fmap_to_agree m →
+    (∃ (y : gmap _ _), m !! i ≡ Some y ∧ x ⊆ y).
+  Proof.
+    rewrite /fmap_fmap_to_agree.
+    rewrite map_fmap_singleton.
+    rewrite singleton_included_l.
+    rewrite lookup_fmap.
+    intros [agh [equiv incl]].
+    apply fmap_Some_equiv in equiv as [h [look equiv]].
+    exists h.
+    split; first by rewrite look. 
+    move: incl.
+    rewrite Some_included_total.
+    rewrite equiv.
+    rewrite -to_agree_fmap. done.
   Qed.
 
   Lemma fmap_fmap_to_agree_incl `{!LeibnizEquiv A} m m' :
@@ -64,6 +99,9 @@ Section auth_map_map.
 
   Definition auth_map_map_auth γ m :=
     own γ (● (fmap_fmap_to_agree m)).
+
+  Definition auth_map_map_auth_dq γ dq m :=
+    own γ (●{dq} (fmap_fmap_to_agree m)).
 
   Definition auth_map_map_frag γ m :=
     own γ (◯ (fmap_fmap_to_agree m)).
@@ -157,6 +195,46 @@ Section auth_map_map.
           reflexivity. }
   Qed.
 
+  Lemma auth_map_map_auth_frag `{!OfeDiscrete A} `{!LeibnizEquiv A} γ dq m ℓ t a :
+    auth_map_map_auth_dq γ dq m -∗
+    auth_map_map_frag_singleton γ ℓ t a -∗
+    ⌜ ∃ h, m !! ℓ = Some h ∧ h !! t = Some a ⌝.
+  Proof.
+    iIntros "O F".
+    iDestruct (own_valid_2 with "O F") as %V.
+    iPureIntro.
+    apply auth_both_dfrac_valid_discrete in V as (_ & incl & _).
+    apply fmap_fmap_to_agree_singleton_included_l in incl.
+    destruct incl as (h & equiv & sub).
+    exists h.
+    split. { apply leibniz_equiv. apply equiv. }
+    apply map_singleton_subseteq_l. done.
+  Qed.
+
+  Lemma auth_map_map_frag_lookup `{!LeibnizEquiv A} γ m ℓ h t a :
+    m !! ℓ = Some h →
+    h !! t = Some a →
+    auth_map_map_frag γ m -∗
+    auth_map_map_frag_singleton γ ℓ t a.
+  Proof.
+    iIntros (mLook hLook).
+    rewrite /auth_map_map_frag.
+    rewrite /auth_map_map_frag_singleton.
+    rewrite /auth_map_map_frag.
+    f_equiv.
+    simpl.
+    apply auth_frag_mono.
+    rewrite /fmap_fmap_to_agree.
+    rewrite map_fmap_singleton.
+    apply singleton_included_l.
+    eexists _.
+    split. { rewrite lookup_fmap. rewrite mLook. simpl. reflexivity. }
+    apply Some_included_total.
+    apply to_agree_fmap.
+    apply map_singleton_subseteq_l.
+    done.
+  Qed.
+
   Lemma auth_map_map_lookup_agree `{!OfeDiscrete A} `{!LeibnizEquiv A} γ m ℓ h t a a' :
     m !! ℓ = Some h →
     h !! t = Some a →
@@ -165,17 +243,8 @@ Section auth_map_map.
     ⌜ a = a' ⌝.
   Proof.
     iIntros (mLook hLook) "O F".
-    rewrite /auth_map_map_auth.
-    rewrite /auth_map_map_frag_singleton /auth_map_map_frag.
-    rewrite /fmap_fmap_to_agree.
-    (* iDestruct (own_valid_2 with "F O") as %[incl _]%auth_both_valid_discrete. *)
-    iDestruct (own_valid_2 with "O F") as %V.
-    iPureIntro.
-    apply auth_both_valid_discrete in V.
-    destruct V as [incl _].
-    move: incl.
-    rewrite map_fmap_singleton.
-    rewrite singleton_included_l.
-  Admitted.
+    iDestruct (auth_map_map_auth_frag with "O F") as %(? & ? & ?).
+    iPureIntro. congruence.
+  Qed.
 
 End auth_map_map.
