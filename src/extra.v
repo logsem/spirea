@@ -267,6 +267,17 @@ Proof.
   by apply Some_included_2.
 Qed.
 
+Lemma map_Forall_subseteq `{Countable K} {A} (m1 m2 : gmap K A) (P : K → A → Prop) :
+  m1 ⊆ m2 → map_Forall P m2 → map_Forall P m1.
+Proof.
+  rewrite map_subseteq_spec.
+  rewrite /map_Forall.
+  intros sub all2 i x ?.
+  apply all2.
+  apply sub.
+  done.
+Qed.
+
 Lemma map_Forall_singleton `{FinMap K M} {A} (j : K) (y : A) (P : K → A → Prop) :
   P j y ↔
   map_Forall P ({[j := y]} : M A).
@@ -338,6 +349,19 @@ End big_sepM.
 
 Section map_zip_with.
   Context `{FinMap K M}.
+
+  Lemma map_zip_with_mono {A B C}
+        (f : A → B → C) (mx1 mx2 : M A) (my1 my2 : M B) :
+    mx1 ⊆ mx2 →
+    my1 ⊆ my2 →
+    map_zip_with f mx1 my1 ⊆ map_zip_with f mx2 my2.
+  Proof.
+    rewrite !map_subseteq_spec => sub1 sub2 k x.
+    rewrite !map_lookup_zip_with_Some.
+    intros (? & ? & ? & ? & ?).
+    eexists _, _.
+    split_and!; try naive_solver.
+  Qed.
 
   (* Upstream this. *)
   Lemma map_zip_with_dom_fst `{FinMapDom K M D} {A B C}
