@@ -67,10 +67,10 @@ Section own_bumpers.
   (* Definition own_all_bumpers encoded_bumpers := *)
   (*   own_all_bumpers bumpers_name encoded_bumpers. *)
 
-  (* Lemma own_all_bumpers_persist γ encoded_bumpers : *)
-  (*   own_all_bumpers γ encoded_bumpers ==∗ *)
-  (*   own γ (●□ ((to_agree <$> encoded_bumpers) : gmapUR _ (agreeR _))). *)
-  (* Proof. iApply own_update. apply auth_update_auth_persist. Qed. *)
+  Lemma own_all_bumpers_persist γ encoded_bumpers :
+    own_all_bumpers γ encoded_bumpers ==∗
+    ghost_map_auth γ DfracDiscarded encoded_bumpers.
+  Proof. apply ghost_map_auth_persist. Qed.
 
   (* Lemma bumpers_frag_extract γ (bumpers : gmap loc (positive → option positive)) *)
   (*       (ℓ : loc) (bumper : positive → option positive) : *)

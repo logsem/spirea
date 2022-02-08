@@ -39,7 +39,7 @@ Section abs_history_lemmas.
   resource algebras. *)
   Definition own_full_history γ1 γ2 abs_hists : iProp Σ :=
     ghost_map_auth γ1 (DfracOwn 1) abs_hists ∗
-    own γ2 (● (fmap_fmap_to_agree abs_hists) : know_abs_historiesR).
+    auth_map_map_auth γ2 abs_hists.
 
   Definition own_full_encoded_history_loc γ1 ℓ q enc_abs_hist : iProp Σ :=
     ℓ ↪[ γ1 ]{#q} enc_abs_hist.
@@ -48,7 +48,7 @@ Section abs_history_lemmas.
     ℓ ↪[ γ1 ]{#q} (encode <$> abs_hist).
 
   Definition own_frag_encoded_history_loc γ2 ℓ enc_abs_hist : iProp Σ :=
-    own γ2 (◯ {[ ℓ := to_agree <$> enc_abs_hist ]}).
+    auth_map_map_frag γ2 {[ ℓ := enc_abs_hist ]}.
 
   (* In this definition we store that decoding the stored encoded histry is
   equal to our abstract history. This is weaker than strong the other way
@@ -66,7 +66,7 @@ Section abs_history_lemmas.
   Lemma own_full_history_alloc h :
     ⊢ |==> ∃ γ1 γ2,
         own_full_history γ1 γ2 h ∗
-        own γ2 (◯ ((λ m : gmap _ _, to_agree <$> m) <$> h) : know_abs_historiesR) ∗
+        auth_map_map_frag γ2 h ∗
         [∗ map] k↦v ∈ h, k ↪[γ1] v.
   Proof.
     iMod (ghost_map_alloc h) as (new_abs_history_name) "[A B]".
@@ -158,23 +158,12 @@ Section abs_history_lemmas.
     iIntros "[O A]".
     iDestruct 1 as (enc) "[%eq K]".
     iDestruct (own_valid_2 with "A K") as %[incl _]%auth_both_valid_discrete.
-    apply singleton_included_l in incl.
+    apply fmap_fmap_to_agree_singleton_included_l in incl.
     destruct incl as [hist' [look incl]].
-    rewrite lookup_fmap in look.
-    destruct (hists !! ℓ) as [hist|] eqn:eq'.
-    2: { rewrite eq' in look. inversion look. }
-    rewrite eq' in look.
-    simpl in look.
-    iExists hist.
-    iSplit; first done.
-    rewrite <- eq.
-    move: incl.
-    rewrite <- look.
-    rewrite Some_included_total.
-    rewrite -to_agree_fmap.
-    intros incl.
     iPureIntro.
-    by apply map_fmap_mono.
+    exists hist'.
+    split. { apply leibniz_equiv. done. }
+    rewrite -eq. apply map_fmap_mono. done.
   Qed.
 
   Lemma own_frag_history_agree_singleton γ1 γ2 ℓ t (s : ST) hists :
@@ -208,10 +197,7 @@ Section abs_history_lemmas.
     iIntros "[M N]".
     iMod (auth_map_map_lookup with "N") as "[N hip]"; try done.
     iFrame.
-    rewrite /auth_map_map_frag_singleton.
-    rewrite /auth_map_map_frag.
-    rewrite fmap_fmap_to_agree_singleton.
-    by iFrame.
+    done.
   Qed.
 
   Lemma own_full_history_alloc_frag γ1 γ2 ℓ t encS (s : ST) hists hist :
@@ -273,10 +259,6 @@ Section abs_history_lemmas.
     iDestruct (ghost_map_lookup with "M O") as %hips.
     iMod (ghost_map_update with "M O") as "[$ $]".
     iMod (auth_map_map_insert with "N") as "[$ h]"; try done.
-    rewrite /auth_map_map_frag_singleton.
-    rewrite /auth_map_map_frag.
-    rewrite fmap_fmap_to_agree_singleton.
-    by iFrame.
   Qed.
 
   (* Insert a new message into an abstract history. *)

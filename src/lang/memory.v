@@ -8,10 +8,14 @@ From self Require Import extra.
 From self.algebra Require Export view.
 From self.lang Require Import syntax.
 
+(** A valid slice of a history is a view that for each location specifies a
+timestamp that exists in the history. Note that in this definition the view may
+contain more locations than the history and vice versa. The requirement only
+applies to locations present in both. *)
 Definition valid_slice {A} (V : view) (σ : gmap loc (gmap time A)) :=
-  map_Forall (λ ℓ hist, ∃ t, V !! ℓ = Some (MaxNat t) ∧ is_Some (hist !! t)) σ.
+  map_Forall (λ ℓ '(MaxNat t, hist), is_Some (hist !! t)) (map_zip V σ).
 
-(* For each location in [p] pick the message in the store that it specifies. *)
+(* For each location in [V] pick the message in the store that it specifies. *)
 Definition slice_of_hist {A} (V : view) (σ : gmap loc (gmap time A)) :
   gmap loc (gmap time A) :=
   map_zip_with
@@ -26,6 +30,19 @@ Section slice_of_hist_props.
   Context {A : Type}.
   Implicit Types (hists : gmap loc (gmap time A)).
 
+  Lemma valid_slice_lookup V ℓ t hists hist :
+    valid_slice V hists →
+    V !! ℓ = Some (MaxNat t) →
+    hists !! ℓ = Some hist →
+    is_Some (hist !! t).
+  Proof.
+    rewrite /valid_slice.
+    intros val vLook histsLook.
+    eapply map_Forall_lookup_1 in val.
+    2: { apply map_lookup_zip_with_Some. eexists _, _. done. }
+    done.
+  Qed.
+
   Lemma slice_of_hist_dom_subset p hists :
     dom (gset loc) (slice_of_hist p hists) ⊆ dom (gset loc) hists.
   Proof.
@@ -36,6 +53,45 @@ Section slice_of_hist_props.
     apply map_lookup_zip_with_Some in look.
     destruct look as (? & ? & ? & ? & ?).
     eexists _. done.
+  Qed.
+
+  Lemma slice_of_hist_lookup_Some CV hists hist ℓ t s :
+    CV !! ℓ = Some (MaxNat t) →
+    hists !! ℓ = Some hist →
+    hist !! t = Some s →
+    slice_of_hist CV hists !! ℓ = Some {[0 := s]}.
+  Proof.
+    intros ?? eq.
+    rewrite /slice_of_hist.
+    apply map_lookup_zip_with_Some.
+    eexists (MaxNat _), _.
+    split_and!; try done.
+    rewrite eq.
+    done.
+  Qed.
+
+  Lemma valid_slice_mono_l V hists1 hists2 :
+    hists1 ⊆ hists2 → valid_slice V hists2 → valid_slice V hists1.
+  Proof.
+    intros sub.
+    apply map_Forall_subseteq.
+    apply map_zip_with_mono; done.
+  Qed.
+
+  Lemma valid_slice_transfer {B} V hists1 (hists2 : gmap loc (gmap time B)) :
+    dom (gset _) hists1 = dom _ hists2 →
+    (∀ ℓ h1 h2, hists1 !! ℓ = Some h1 → hists2 !! ℓ = Some h2 → dom (gset _) h1 = dom _ h2) →
+    valid_slice V hists1 → valid_slice V hists2.
+  Proof.
+    intros eq look val.
+    intros ℓ [[t] hist2].
+    intros [vLook ?]%map_lookup_zip_Some.
+    assert (is_Some (hists1 !! ℓ)) as [hist1 ?].
+    { apply elem_of_dom. rewrite eq. apply elem_of_dom. done. }
+    apply elem_of_dom.
+    erewrite <- look; try done.
+    apply elem_of_dom.
+    eapply valid_slice_lookup in val; done.
   Qed.
 
 End slice_of_hist_props.
@@ -67,6 +123,104 @@ Notation history := (gmap time message).
 Notation store := (gmap loc history).
 
 Definition mem_config : Type := store * view.
+
+Section consistent_cut.
+
+  (* Removes all messages from [hist] after [t]. *)
+  Definition cut_history t (hist : history) : history :=
+    filter (λ '(t', ev), t' ≤ t) hist.
+
+  Definition discard_msg_views (msg : message) : message :=
+    Msg msg.(msg_val) ∅ ∅ ∅.
+
+  (* For each location in [p] pick the message in the store that it specifies. *)
+  Definition slice_of_store (p : view) (σ : store) : store :=
+    (λ (hist : gmap _ _), discard_msg_views <$> hist) <$> (slice_of_hist p σ).
+
+  Definition consistent_cut (CV : view) (σ : store) : Prop :=
+    map_Forall
+      (λ ℓ '(MaxNat t),
+       ∃ hist msg, σ !! ℓ = Some hist ∧
+                   hist !! t = Some msg ∧
+                   map_Forall (λ _ msg', msg'.(msg_persisted_after_view) ⊑ CV)
+                              (cut_history t hist))
+      CV.
+
+  (* Consisten cut is stronger than [valid_slice]. *)
+  Lemma consistent_cut_valid_slice CV σ :
+    consistent_cut CV σ → valid_slice CV σ.
+  Proof.
+    rewrite /valid_slice /consistent_cut.
+    intros cut.
+    intros ℓ [[t] hist].
+    intros [cvLook storeLook]%map_lookup_zip_Some.
+    eapply map_Forall_lookup_1 in cut as temp; last done.
+    destruct temp as (? & ? & ? & ? & ?).
+    simplify_eq.
+    done.
+  Qed.
+
+  (* if [p] is a consistent cut of [σ] then the domain of [p] is included in
+  [σ]. Intuitively, the recovered locations where all in the heap. *)
+  Lemma consistent_cut_subseteq_dom p σ :
+    consistent_cut p σ → dom (gset _) p ⊆ dom _ σ.
+  Proof.
+    rewrite /consistent_cut.
+    intros map.
+    intros ?. rewrite !elem_of_dom. intros [[t] ?].
+    eapply map_Forall_lookup_1 in map; last done.
+    naive_solver.
+  Qed.
+
+  Lemma consistent_cut_lookup_slice CV σ ℓ :
+    consistent_cut CV σ → slice_of_store CV σ !! ℓ = None → CV !! ℓ = None.
+  Proof.
+    rewrite -!not_elem_of_dom. rewrite /slice_of_store.
+    rewrite dom_fmap.
+    rewrite /slice_of_hist.
+    rewrite map_zip_with_dom.
+    intros ?%consistent_cut_subseteq_dom. set_solver.
+  Qed.
+
+  Lemma slice_of_store_lookup_Some CV store ℓ msg hist t :
+    slice_of_store CV store !! ℓ = Some hist →
+    hist !! t = Some msg →
+    exists t' hist' msg',
+      CV !! ℓ = Some (MaxNat t') ∧
+      t = 0 ∧
+      store !! ℓ = Some hist' ∧
+      hist' !! t' = Some msg' ∧
+      msg = discard_msg_views msg' ∧
+      hist = {[0 := discard_msg_views msg']}.
+  Proof.
+    rewrite /slice_of_store /slice_of_hist map_fmap_zip_with.
+    intros ([t'] & h & -> & ? & ?)%map_lookup_zip_with_Some histLook.
+    exists t', h.
+    destruct (h !! t') as [m|]; last naive_solver.
+    exists m.
+    rewrite map_fmap_singleton.
+    rewrite map_fmap_singleton in histLook.
+    apply lookup_singleton_Some in histLook.
+    naive_solver.
+  Qed.
+
+  Lemma slice_of_store_lookup_Some_singleton CV store ℓ msg :
+    slice_of_store CV store !! ℓ = Some {[0 := discard_msg_views msg]} →
+    exists t h, CV !! ℓ = Some (MaxNat t) ∧
+           store !! ℓ = Some h ∧
+           (msg_val <$> h !! t) = Some (msg_val msg).
+  Proof.
+    rewrite /slice_of_store /slice_of_hist map_fmap_zip_with.
+    intros ([t] & h & eq & ? & ?)%map_lookup_zip_with_Some.
+    exists t, h.
+    split_and!; [done | done |].
+    destruct (h !! t) as [m|]; last done.
+    rewrite map_fmap_singleton in eq.
+    destruct msg, m.
+    by simplify_eq.
+  Qed.
+
+End consistent_cut.
 
 Section memory.
 
@@ -219,27 +373,6 @@ Section memory.
               MEvFenceSync
               (σ, p ⊔ BV) (SV, PV ⊔ BV, BV).
 
-  (* Removes all messages from [hist] after [t]. *)
-  Definition cut_history t (hist : history) : history :=
-    filter (λ '(t', ev), t' ≤ t) hist.
-
-  Definition discard_msg_views (msg : message) : message :=
-    Msg msg.(msg_val) ∅ ∅ ∅.
-
-  (* For each location in [p] pick the message in the store that it specifies. *)
-  Definition slice_of_store (p : view) (σ : store) : store :=
-    (λ (hist : gmap _ _), discard_msg_views <$> hist) <$> (slice_of_hist p σ).
-
-  (* Note: This could be defined with the help of [valid_slice]. *)
-  Definition consistent_cut (p : view) (σ : store) : Prop :=
-    map_Forall
-      (λ ℓ '(MaxNat t),
-       ∃ hist msg, σ !! ℓ = Some hist ∧
-                   hist !! t = Some msg ∧
-                   map_Forall (λ _ msg', msg'.(msg_persisted_after_view) ⊑ p)
-                              (cut_history t hist))
-      p.
-
   (* The crash step is different from the other steps in that it does not depend
   on any current thread. We therefore define it as a separate type. *)
   Inductive crash_step : mem_config → mem_config → Prop :=
@@ -259,66 +392,6 @@ Section memory.
     intros. apply MStepAllocN; first done.
     intros. apply not_elem_of_dom.
     by apply fresh_locs_fresh.
-  Qed.
-
-  (* if [p] is a consistent cut of [σ] then the domain of [p] is included in
-  [σ]. Intuitively, the recovered locations where all in the heap. *)
-  Lemma consistent_cut_subseteq_dom p σ :
-    consistent_cut p σ → dom (gset _) p ⊆ dom _ σ.
-  Proof.
-    rewrite /consistent_cut.
-    intros map.
-    intros ?. rewrite !elem_of_dom. intros [[t] ?].
-    eapply map_Forall_lookup_1 in map; last done.
-    naive_solver.
-  Qed.
-
-  Lemma consistent_cut_lookup_slice CV σ ℓ :
-    consistent_cut CV σ → slice_of_store CV σ !! ℓ = None → CV !! ℓ = None.
-  Proof.
-    rewrite -!not_elem_of_dom. rewrite /slice_of_store.
-    rewrite dom_fmap.
-    rewrite /slice_of_hist.
-    rewrite map_zip_with_dom.
-    intros ?%consistent_cut_subseteq_dom. set_solver.
-  Qed.
-
-  Lemma slice_of_store_lookup_Some CV store ℓ msg hist t :
-    slice_of_store CV store !! ℓ = Some hist →
-    hist !! t = Some msg →
-    exists t' hist' msg',
-      CV !! ℓ = Some (MaxNat t') ∧
-      t = 0 ∧
-      store !! ℓ = Some hist' ∧
-      hist' !! t' = Some msg' ∧
-      msg = discard_msg_views msg' ∧
-      hist = {[0 := discard_msg_views msg']}.
-  Proof.
-    rewrite /slice_of_store /slice_of_hist map_fmap_zip_with.
-    intros ([t'] & h & -> & ? & ?)%map_lookup_zip_with_Some histLook.
-    exists t', h.
-    destruct (h !! t') as [m|]; last naive_solver.
-    exists m.
-    rewrite map_fmap_singleton.
-    rewrite map_fmap_singleton in histLook.
-    apply lookup_singleton_Some in histLook.
-    naive_solver.
-  Qed.
-
-  Lemma slice_of_store_lookup_Some_singleton CV store ℓ msg :
-    slice_of_store CV store !! ℓ = Some {[0 := discard_msg_views msg]} →
-    exists t h, CV !! ℓ = Some (MaxNat t) ∧
-           store !! ℓ = Some h ∧
-           (msg_val <$> h !! t) = Some (msg_val msg).
-  Proof.
-    rewrite /slice_of_store /slice_of_hist map_fmap_zip_with.
-    intros ([t] & h & eq & ? & ?)%map_lookup_zip_with_Some.
-    exists t, h.
-    split_and!; [done | done |].
-    destruct (h !! t) as [m|]; last done.
-    rewrite map_fmap_singleton in eq.
-    destruct msg, m.
-    by simplify_eq.
   Qed.
 
 End memory.

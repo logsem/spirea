@@ -187,7 +187,7 @@ Section wpr.
     (dom _ abs_hists ∩ dom _ CV ∩ dom _ bumpers).
   Proof. rewrite 2!map_zip_with_dom. set_solver. Qed.
 
-  Lemma new_abs_hist_lookup abs_hists CV bumpers ℓ hist :
+  Lemma new_abs_hist_lookup_simpl_inv abs_hists CV bumpers ℓ hist :
     (new_abs_hist abs_hists CV bumpers) !! ℓ = Some hist →
     hist = ∅ ∨ ∃ s, hist = {[ 0 := s ]}.
   Proof.
@@ -197,6 +197,33 @@ Section wpr.
     destruct (hist' !! t).
     - right. eexists _. apply map_fmap_singleton.
     - left. apply fmap_empty.
+  Qed.
+
+  Lemma new_abs_hist_lookup CV ℓ t abs_hists hist bumpers bumper :
+    map_Forall (λ _ e, is_Some (bumper e)) hist →
+    valid_slice CV abs_hists →
+    CV !! ℓ = Some (MaxNat t) →
+    abs_hists !! ℓ = Some hist →
+    bumpers !! ℓ = Some bumper →
+    ∃ s' e,
+      hist !! t = Some s' ∧
+      bumper s' = Some e ∧
+      new_abs_hist abs_hists CV bumpers !! ℓ = Some {[ 0 := e ]}.
+  Proof.
+    intros bumperToValid val CVlook absHistLook bumpersLook.
+    eapply map_Forall_lookup_1 in val.
+    2: { apply map_lookup_zip_with_Some. eexists _, _. done. }
+    destruct val as [s histLook].
+    eapply map_Forall_lookup_1 in bumperToValid as [bumped eq]; last done.
+    exists s, bumped.
+    split_and!; try done.
+    rewrite /new_abs_hist.
+    apply map_lookup_zip_with_Some.
+    eexists {[0 := s]}, _.
+    simpl.
+    split_and!; try done.
+    { rewrite map_fmap_singleton. simpl. rewrite eq. done. }
+    eapply slice_of_hist_lookup_Some; done.
   Qed.
 
   Lemma holo (CV : view) ℓ t (σ : store) :
@@ -268,7 +295,7 @@ Section wpr.
         nvm_heap_ctx (hG := _) σ' ∗
         Pg hD' (∅, ∅, ∅).
   Proof.
-    iIntros ([store p CV pIncl cut]).
+    iIntros ([store PV CV pIncl cut]).
     iIntros "[H1 H2] Pg".
     iNamed "H1". iNamed "H2".
     (* iIntros "(heap & authStor & %inv & pers & recov) Pg". *)
@@ -295,12 +322,14 @@ Section wpr.
     iDestruct (big_sepM2_dom with "bumpMono") as %domOrdersEqBumpers.
     iDestruct (big_sepM2_dom with "bumperSome") as %domHistsEqBumpers.
     iDestruct (big_sepM2_dom with "predPostCrash") as %domPredsEqBumpers.
+    iDestruct (big_sepM2_dom with "predsHold") as %domPhysHistsEqAbsHists.
 
     (* Allocate new ghost state for the logical histories. *)
     rewrite /interp.
     set (newAbsHists := new_abs_hist abs_hists CV bumpers).
     iMod (own_full_history_alloc newAbsHists)
-      as (new_abs_history_name new_know_abs_history_name) "(hists' & #histFrags & knowHistories)".
+      as (new_abs_history_name new_know_abs_history_name)
+           "(hists' & #histFrags & knowHistories)".
 
     (* We freeze/persist the old authorative resource algebra. *)
     iMod (ghost_map_auth_persist with "allOrders") as "#allOrders".
@@ -310,11 +339,15 @@ Section wpr.
     iMod (own_update with "naLocs") as "naLocs".
     { apply auth_update_auth_persist. }
     iDestruct "naLocs" as "#naLocs".
-    (* FIXME: Temporarily commented out. *)
-    (* iMod (own_all_bumpers_persist with "allBumpers") as "#allBumpers". *)
+    iMod (own_all_bumpers_persist with "allBumpers") as "#oldBumpers".
     iMod (own_update with "predicates") as "allPredicates".
     { apply auth_update_auth_persist. }
     iDestruct "allPredicates" as "#allPredicates".
+    iDestruct "history" as "[fullHist1 fullHist2]".
+    iMod (ghost_map_auth_persist with "fullHist1") as "#oldFullHist1".
+    iMod (own_update with "fullHist2") as "oldFullHist2".
+    { apply auth_update_auth_persist. }
+    iDestruct "oldFullHist2" as "#oldFullHist2".
 
     (* Some locations may be lost after a crash. For these we need to
     forget/throw away the predicate and preorder that was choosen for the
@@ -347,12 +380,32 @@ Section wpr.
     iMod (auth_map_map_alloc (A := leibnizO _) (slice_of_store CV phys_hists))
       as (new_phys_hist_name) "[newPhysHist H]".
 
+    (* We show a few results that will be useful below. *)
+    iAssert (
+        □ ∀ `(AbstractState ST) ℓ (bumper : ST → ST), ⌜ is_Some (CV !! ℓ) ⌝ -∗
+                      know_bumper ℓ bumper -∗
+                      ℓ ↪[new_bumpers_name]□ bumper)%I as "#bumperImpl".
+    { iIntros "!>" (ℓ bumper). admit. }
+    (* The physical and abstract history has the same timestamps for all
+    locations. We will need this when we apply [valid_slice_transfer] below. *)
+    iAssert (
+      ⌜(∀ ℓ h1 h2, phys_hists !! ℓ = Some h1 → abs_hists !! ℓ = Some h2 → dom (gset _) h1 = dom _ h2)⌝
+    )%I as %physAbsHistTimestamps.
+    { iIntros (?????).
+      iDestruct (big_sepM2_lookup with "predsHold") as (??) "sep"; try eassumption.
+      iApply (big_sepM2_dom with "sep"). }
+
+    (* [CV] is a valid slice of the abstract history. *)
+    iAssert (⌜ valid_slice CV abs_hists ⌝)%I as %cvSlicesAbsHists.
+    { apply consistent_cut_valid_slice in cut.
+      eapply valid_slice_mono_l in cut; last apply physHistsSubStore.
+      eapply valid_slice_transfer in cut; done. }
+
     (* We are done allocating ghost state and can now present a new bundle of
     ghost names. *)
     iModIntro.
     iExists (
         NvmDeltaG _
-                  (* (MkNvmBaseDeltaG _ Hcrash baseNames) *)
                   hGD'
                   ({| abs_history_name := new_abs_history_name;
                       know_abs_history_name := new_know_abs_history_name;
@@ -372,15 +425,47 @@ Section wpr.
       (map_points_to_to_new _ _ _ _ hGD'
          with "newCrashedAt map' ptsMap") as "ptsMap"; first done.
     (* We show the assumption for the post crash modality. *)
-    iDestruct ("Pg" with "[history knowHistories]") as "[$ WHAT]".
+    iDestruct ("Pg" with "[knowHistories]") as "[$ WHAT]".
     { rewrite /post_crash_resource.
       (* "post_crash_frag_history_impl" - Fragmental history implication. *)
       iSplit.
       { (* We show that fragments of the histories may survive a crash. *)
         iModIntro.
-        iIntros (???? ℓ t s ?) "frag bumper".
+        iIntros (???? ℓ t s ?) "frag oldBumper".
         iApply "orLost". iIntros (? look).
-        admit. }
+        iDestruct "frag" as (temp eq) "oldFrag".
+        rewrite map_fmap_singleton in eq.
+        apply map_fmap_singleton_inv in eq.
+        destruct eq as (encX & decEq & ->).
+        iDestruct (ghost_map_lookup with "oldBumpers [oldBumper]") as %bumpersLook.
+        { rewrite /know_bumper /own_know_bumper.
+          iDestruct "oldBumper" as "[_ $]". }
+        iDestruct (auth_map_map_auth_frag with "oldFullHist2 oldFrag")
+          as %(h & lookH & hLook).
+
+        iDestruct ("bumperImpl" $! ST with "[//] oldBumper") as "newBumper".
+
+        iDestruct (big_sepM2_lookup with "bumperSome") as %?; try done.
+
+        eassert _ as temp; first (apply new_abs_hist_lookup; done).
+        destruct temp as (recEncS & ? & ? & encBumper & newHistLook).
+
+        apply encode_bumper_Some_decode in encBumper as (recS & hi & <-).
+        iExists recS.
+        iSplit.
+        { (* We need info about ordered. *)
+          (* iDestruct (big_sepM2_lookup with "ordered") as %?; try done. *)
+          admit. }
+        rewrite /know_frag_history_loc.
+        rewrite /own_frag_history_loc.
+        iExists {[ 0 := encode (bumper recS) ]}.
+        iSplitPure. {
+          rewrite 2!map_fmap_singleton.
+          rewrite decode_encode.
+          done. }
+        iDestruct (auth_map_map_frag_lookup with "histFrags") as "$".
+        { done. }
+        { apply lookup_singleton. } }
       (* The preorder implication. We show that the preorders may survive a
       crash. *)
       iSplit. {
@@ -404,7 +489,6 @@ Section wpr.
       iIntros.
       rewrite /know_full_encoded_history_loc.
       rewrite /own_full_history.
-      iDestruct "history" as "[left right]".
       (* We show that the predicates survives a crash. *)
       iSplit. {
         rewrite /post_crash_pred_impl.
@@ -555,7 +639,7 @@ Section wpr.
         rewrite new_abs_hist_dom.
         set_solver.
       - iModIntro.
-        iIntros (ℓ hist order [->|[? ->]]%new_abs_hist_lookup slice) "!%".
+        iIntros (ℓ hist order [->|[? ->]]%new_abs_hist_lookup_simpl_inv slice) "!%".
         * apply increasing_map_empty.
         * apply increasing_map_singleton. }
     (* [predsHold] We show that the encoded predicates still hold for the new abstract
@@ -688,7 +772,7 @@ Section wpr.
         rewrite restrict_dom_subset_L; first done.
         rewrite new_abs_hist_dom.
         set_solver. }
-      (* iIntros (ℓ hist bumper [empty | (s' & histEq)]%new_abs_hist_lookup look2). *)
+      (* iIntros (ℓ hist bumper [empty | (s' & histEq)]%new_abs_hist_lookup_simpl_inv look2). *)
       iIntros (ℓ hist bumper look look2).
       apply new_abs_hist_lookup_inv in look.
       destruct look as (? & ? & ? & ? & hist' & ? & ? & ? & ? & ? & histEq).
