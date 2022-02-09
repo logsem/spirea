@@ -382,10 +382,45 @@ Section wpr.
 
     (* We show a few results that will be useful below. *)
     iAssert (
-        □ ∀ `(AbstractState ST) ℓ (bumper : ST → ST), ⌜ is_Some (CV !! ℓ) ⌝ -∗
-                      know_bumper ℓ bumper -∗
-                      ℓ ↪[new_bumpers_name]□ bumper)%I as "#bumperImpl".
-    { iIntros "!>" (ℓ bumper). admit. }
+      □ ∀ `(AbstractState ST) ℓ (bumper : ST → ST), ⌜ is_Some (CV !! ℓ) ⌝ -∗
+        know_bumper ℓ bumper -∗
+        ⌜ bumpers !! ℓ = Some _ ⌝ ∗
+        own_know_bumper new_bumpers_name ℓ bumper)%I as "#bumperImpl".
+    { iIntros "!>" (???? ℓ bumper (t & cvLook)) "[mono pts]".
+      iFrame "mono".
+      iDestruct (ghost_map_lookup with "oldBumpers pts") as %bumpersLook.
+      iFrame (bumpersLook).
+      iApply (big_sepM_lookup with "bumpersFrag").
+      apply restrict_lookup_Some.
+      split; first done.
+      rewrite new_abs_hist_dom.
+      apply elem_of_dom_2 in cvLook.
+      apply elem_of_dom_2 in bumpersLook.
+      rewrite !elem_of_intersection.
+      rewrite domHistsEqBumpers.
+      split_and!; done. }
+
+    iAssert (
+      □ ∀ `(AbstractState ST) ℓ,
+        ⌜ is_Some (CV !! ℓ) ⌝ -∗
+        know_preorder_loc ℓ (abs_state_relation (ST := ST)) -∗
+        ⌜ orders !! ℓ = Some _ ⌝ ∗
+        own_know_preorder_loc new_orders_name ℓ (abs_state_relation (ST := ST)))%I
+      as "#orderImpl".
+    { iIntros "!>" (???? ℓ (t & cvLook)) "order".
+      iDestruct (ghost_map_lookup with "allOrders order") as %ordersLook.
+      iFrame (ordersLook).
+      iApply (big_sepM_lookup with "fragOrders").
+      apply restrict_lookup_Some.
+      split; first done.
+      rewrite new_abs_hist_dom.
+      apply elem_of_dom_2 in cvLook.
+      apply elem_of_dom_2 in ordersLook.
+      rewrite !elem_of_intersection.
+      rewrite -domHistsEqBumpers.
+      rewrite domHistsEqOrders.
+      split_and!; done. }
+
     (* The physical and abstract history has the same timestamps for all
     locations. We will need this when we apply [valid_slice_transfer] below. *)
     iAssert (
@@ -431,31 +466,48 @@ Section wpr.
       iSplit.
       { (* We show that fragments of the histories may survive a crash. *)
         iModIntro.
-        iIntros (???? ℓ t s ?) "frag oldBumper".
+        iIntros (???? ℓ t s ?) "order oldBumper frag".
         iApply "orLost". iIntros (? look).
         iDestruct "frag" as (temp eq) "oldFrag".
         rewrite map_fmap_singleton in eq.
         apply map_fmap_singleton_inv in eq.
         destruct eq as (encX & decEq & ->).
-        iDestruct (ghost_map_lookup with "oldBumpers [oldBumper]") as %bumpersLook.
-        { rewrite /know_bumper /own_know_bumper.
-          iDestruct "oldBumper" as "[_ $]". }
+
+        iDestruct ("bumperImpl" $! ST with "[//] oldBumper")
+          as "[%bumpersLook newBumper]".
+        iDestruct ("orderImpl" $! ST with "[//] order")
+          as "[%ordersLook newOrder]".
+
         iDestruct (auth_map_map_auth_frag with "oldFullHist2 oldFrag")
           as %(h & lookH & hLook).
-
-        iDestruct ("bumperImpl" $! ST with "[//] oldBumper") as "newBumper".
 
         iDestruct (big_sepM2_lookup with "bumperSome") as %?; try done.
 
         eassert _ as temp; first (apply new_abs_hist_lookup; done).
         destruct temp as (recEncS & ? & ? & encBumper & newHistLook).
 
-        apply encode_bumper_Some_decode in encBumper as (recS & hi & <-).
+        apply encode_bumper_Some_decode in encBumper as (recS & decEq2 & <-).
         iExists recS.
+        iFrame "newOrder newBumper".
         iSplit.
         { (* We need info about ordered. *)
-          (* iDestruct (big_sepM2_lookup with "ordered") as %?; try done. *)
-          admit. }
+          iDestruct (big_sepM2_lookup with "ordered") as %incr; try done.
+          iPureIntro.
+          rewrite /increasing_map in incr.
+          intros [lt | ->]%le_lt_or_eq.
+          2: {
+            assert (s = recS) as ->; last reflexivity.
+            apply (inj Some).
+            rewrite -decEq2.
+            rewrite decEq.
+            f_equiv.
+            (* Why congruence no solve this? :'( *)
+            apply (inj Some).
+            rewrite -H5.
+            rewrite -hLook.
+            done. }
+          eapply encode_relation.encode_relation_decode_iff_1; try done.
+          eapply incr; done. }
         rewrite /know_frag_history_loc.
         rewrite /own_frag_history_loc.
         iExists {[ 0 := encode (bumper recS) ]}.
