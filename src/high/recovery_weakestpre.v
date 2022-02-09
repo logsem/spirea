@@ -348,6 +348,10 @@ Section wpr.
     iMod (own_update with "fullHist2") as "oldFullHist2".
     { apply auth_update_auth_persist. }
     iDestruct "oldFullHist2" as "#oldFullHist2".
+    (* Ghost state for physical history. *)
+    iMod (own_update with "physHist") as "oldPhysHist".
+    { apply auth_update_auth_persist. }
+    iDestruct "oldPhysHist" as "#oldPhysHist".
 
     (* Some locations may be lost after a crash. For these we need to
     forget/throw away the predicate and preorder that was choosen for the
@@ -378,7 +382,7 @@ Section wpr.
          as (new_bumpers_name) "[newBumpers #bumpersFrag]".
 
     iMod (auth_map_map_alloc (A := leibnizO _) (slice_of_store CV phys_hists))
-      as (new_phys_hist_name) "[newPhysHist H]".
+      as (new_phys_hist_name) "[newPhysHist #newPhysHistFrag]".
 
     (* We show a few results that will be useful below. *)
     iAssert (
@@ -430,11 +434,13 @@ Section wpr.
       iDestruct (big_sepM2_lookup with "predsHold") as (??) "sep"; try eassumption.
       iApply (big_sepM2_dom with "sep"). }
 
-    (* [CV] is a valid slice of the abstract history. *)
-    iAssert (⌜ valid_slice CV abs_hists ⌝)%I as %cvSlicesAbsHists.
+    (* [CV] is a valid slice of the physical and abstract history. *)
+    assert (valid_slice CV phys_hists) as cvSlicesPhysHists.
     { apply consistent_cut_valid_slice in cut.
       eapply valid_slice_mono_l in cut; last apply physHistsSubStore.
-      eapply valid_slice_transfer in cut; done. }
+      done. }
+    assert (valid_slice CV abs_hists) as cvSlicesAbsHists.
+    { eapply valid_slice_transfer; done. }
 
     (* We are done allocating ghost state and can now present a new bundle of
     ghost names. *)
@@ -444,10 +450,11 @@ Section wpr.
                   hGD'
                   ({| abs_history_name := new_abs_history_name;
                       know_abs_history_name := new_know_abs_history_name;
+                      know_phys_history_name := new_phys_hist_name;
                       predicates_name := _;
                       preorders_name := new_orders_name;
-                      shared_locs_name := new_shared_locs_name;
                       exclusive_locs_name := new_exclusive_locs_name;
+                      shared_locs_name := new_shared_locs_name;
                       bumpers_name := new_bumpers_name;
                    |})
       ).
@@ -462,6 +469,7 @@ Section wpr.
     (* We show the assumption for the post crash modality. *)
     iDestruct ("Pg" with "[knowHistories]") as "[$ WHAT]".
     { rewrite /post_crash_resource.
+
       (* "post_crash_frag_history_impl" - Fragmental history implication. *)
       iSplit.
       { (* We show that fragments of the histories may survive a crash. *)
@@ -518,40 +526,27 @@ Section wpr.
         iDestruct (auth_map_map_frag_lookup with "histFrags") as "$".
         { done. }
         { apply lookup_singleton. } }
+
       (* The preorder implication. We show that the preorders may survive a
       crash. *)
-      iSplit. {
-        iModIntro.
+      iSplit.
+      { iModIntro.
         iIntros (? ? ? ? ?) "order".
         iApply "orLost". iIntros (t look).
-        rewrite /know_preorder_loc /preorders_name. simpl.
-        iDestruct (ghost_map_lookup with "allOrders order")
-          as %ordersLook.
-        iApply (big_sepM_lookup with "fragOrders").
-        rewrite /newOrders.
-        apply restrict_lookup_Some.
-        split; first (simplify_eq; done).
-        rewrite /newAbsHists.
-        rewrite new_abs_hist_dom.
-        rewrite !elem_of_intersection.
-        apply elem_of_dom_2 in look.
-        apply elem_of_dom_2 in ordersLook.
-        rewrite -domHistsEqBumpers domHistsEqOrders.
-        set_solver. }
-      iIntros.
-      rewrite /know_full_encoded_history_loc.
-      rewrite /own_full_history.
-      (* We show that the predicates survives a crash. *)
-      iSplit. {
-        rewrite /post_crash_pred_impl.
+        iDestruct ("orderImpl" $! ST with "[//] order") as "[_ $]". }
+
+      (* "post_crash_pred_impl" - We show that the predicates survives a
+      crash. *)
+      iSplit.
+      { rewrite /post_crash_pred_impl.
         iModIntro. iIntros (??? ℓ ϕ) "knowPred".
         iApply "orLost". iIntros (t look).
-        iDestruct (own_all_preds_pred with "allPredicates knowPred") as (? predsLook) "H".
+        iDestruct (own_all_preds_pred with "allPredicates knowPred") as (? predsLook) "#H".
         iApply (predicates_frag_lookup with "newPredsFrag").
         rewrite /newPreds.
         (* FIXME: There is a later in the way. *)
         admit. }
-      (* Shared locations. *)
+      (* "post_crash_shared_loc_impl" - Shared locations. *)
       iSplit. {
         rewrite /post_crash_shared_loc_impl.
         iIntros "!>" (ℓ) "sh".
@@ -581,7 +576,7 @@ Section wpr.
         split; first set_solver.
         apply elem_of_dom.
         naive_solver. }
-      (* Exclusive locations. *)
+      (* "post_crash_exclusive_loc_impl" - Exclusive locations. *)
       iSplit. {
         rewrite /post_crash_exclusive_loc_impl.
         iIntros "!>" (ℓ) "sh".
@@ -611,8 +606,24 @@ Section wpr.
         split; first set_solver.
         apply elem_of_dom.
         naive_solver. }
-      (* [post_crash_na_view_map] *)
-      iSplit. { admit. }
+      (* "post_crash_map_map_phys_history_impl" *)
+      iSplit. {
+        rewrite /map_map_phys_history_impl.
+        iIntros "!>" (ℓ tStore msg) "oldPhysHistMsg".
+        iApply "orLost". iIntros (t cvLook).
+        (* We need the old fragment to conclude that the location is in
+        [phys_hist]. *)
+        iDestruct (auth_map_map_auth_frag with "oldPhysHist oldPhysHistMsg")
+          as (hist physHistLook) "%histLook".
+        eapply slice_of_hist_Some in cvSlicesPhysHists as ([v ?] & look & sliceLook); try done.
+        (* [msg] is of course not neccessarily the recovered message. Let' find
+        that one. *)
+        iDestruct (auth_map_map_frag_lookup with "newPhysHistFrag") as "frag".
+        { rewrite /slice_of_store. rewrite lookup_fmap.
+          erewrite sliceLook. simpl. rewrite map_fmap_singleton. reflexivity. }
+        { apply lookup_singleton. }
+        iExists v.
+        iFrame "frag". }
       (* [post_crash_na_view_map] *)
       iSplitL "". { admit. }
       (* We show that the bumpers survive a crash. *)
@@ -882,6 +893,13 @@ Section wpr.
     iDestruct ("Hidemp" with "phiC") as "idemp'".
     iIntros "state global".
     iModIntro (|={E1}=> _)%I.
+
+    (* iDestruct (nvm_reinit _ _ _ _ _ _ _ _ with "state idemp'") *)
+    (*   as (names) "HI". *)
+    (* { apply step. } *)
+    (* iApply bi.later_forall_2. iIntros (?). *)
+    (* iApply bi.later_forall_2. iIntros (?). *)
+    (* iApply bi.later_wand. *)
     iNext.
     iIntros (??) "NC".
 
@@ -892,7 +910,7 @@ Section wpr.
 
     iDestruct "global" as "($ & Hc & $ & $)".
     assert (exists k, ns + k = step_count_next ns) as [k' eq].
-    { simpl. eexists _. simpl. rewrite -assoc. reflexivity. }
+    { simpl. eexists _. rewrite -assoc. reflexivity. }
     iMod (cred_frag.cred_interp_incr_k _ k' with "Hc") as "(Hc & _)".
     rewrite eq.
 
@@ -901,10 +919,9 @@ Section wpr.
     iSplit; first done.
     iFrame.
     monPred_simpl.
-    iSpecialize ("IH" $! _ _ names (∅, ∅, ∅) with "[idemp] [Hidemp]").
-    { done. }
+    iSpecialize ("IH" $! _ _ names (∅, ∅, ∅) with "idemp [Hidemp]").
     { monPred_simpl. done. }
     iApply "IH".
-  Admitted.
+  Qed.
 
 End wpr.

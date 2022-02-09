@@ -70,6 +70,19 @@ Section slice_of_hist_props.
     done.
   Qed.
 
+  Lemma slice_of_hist_Some V hists ℓ t hist :
+    valid_slice V hists →
+    V !! ℓ = Some (MaxNat t) →
+    hists !! ℓ = Some hist →
+    ∃ (a : A), hist !! t = Some a ∧
+      slice_of_hist V hists !! ℓ = Some {[ 0 := a ]}.
+  Proof.
+    intros val vLook histsLook.
+    eapply valid_slice_lookup in val as [a look]; try done.
+    exists a. split; first done.
+    eapply slice_of_hist_lookup_Some; done.
+  Qed.
+
   Lemma valid_slice_mono_l V hists1 hists2 :
     hists1 ⊆ hists2 → valid_slice V hists2 → valid_slice V hists1.
   Proof.
