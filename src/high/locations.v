@@ -392,15 +392,14 @@ Section points_to_at_more.
     iNamed 1.
     rewrite /know_protocol. rewrite 2!embed_sep.
     iDestruct "locationProtocol" as "(-#pred & -#order & -#bumper)".
-    iDestruct (post_crash_frag_history with "[$bumper $knowFragHist]") as "H".
+    iDestruct (post_crash_frag_history with "[$order $bumper $knowFragHist]") as "H".
     iCrash.
 
     (* rewrite embed_sep. *)
     iDestruct "persisted" as "(persisted & (% & % & [% %] & #crashed))".
-    iDestruct (or_lost_with_t_get with "[$] H") as "(% & % & bumper & hist)";
+    iDestruct (or_lost_with_t_get with "[$] H") as "(% & % & order & bumper & hist)";
       first done.
     iDestruct (or_lost_get with "[$] pred") as "pred"; first done.
-    iDestruct (or_lost_get with "[$] order") as "order"; first done.
     iExists s'.
     iSplitPure; first intuition.
     iSplit.
@@ -424,12 +423,12 @@ Section points_to_at_more.
     rewrite /know_protocol. rewrite 2!embed_sep.
     iDestruct "locationProtocol" as "(-#pred & -#order & -#bumper)".
     (* iNamed "locationProtocol". *)
-    iDestruct (post_crash_frag_history with "[$bumper $knowFragHist]") as "H".
+    iDestruct (post_crash_frag_history with "[$order $bumper $knowFragHist]") as "H".
     iCrash.
-    iCombine "pred order H" as "H".
-    rewrite 2!or_lost_with_t_sep.
+    iCombine "pred H" as "H".
+    rewrite !or_lost_with_t_sep.
     iApply (or_lost_with_t_mono_strong with "[] H").
-    iIntros (??). iNamed 1. iIntros "(pred & order & (% & H & bump & hist))".
+    iIntros (??). iNamed 1. iIntros "(pred & (% & _ & order & bump & hist))".
     iExists (bumper prot s').
     rewrite /know_persist_lb.
     iExists 0.
@@ -451,12 +450,12 @@ Section points_to_at_more.
     rewrite /know_protocol. rewrite 2!embed_sep.
     iDestruct "locationProtocol" as "(-#pred & -#order & -#bumper)".
     (* iNamed "locationProtocol". *)
-    iDestruct (post_crash_frag_history with "[$bumper $knowFragHist]") as "H".
+    iDestruct (post_crash_frag_history with "[$order $bumper $knowFragHist]") as "H".
     iCrash.
-    iCombine "pred order H" as "H".
-    rewrite 2!or_lost_with_t_sep.
+    iCombine "pred H" as "H".
+    rewrite !or_lost_with_t_sep.
     iApply (or_lost_with_t_mono_strong with "[] H").
-    iIntros (??). iNamed 1. iIntros "(pred & order & (% & H & bump & hist))".
+    iIntros (??). iNamed 1. iIntros "(pred & (% & H & order & bump & hist))".
     iExists (bumper prot s').
     rewrite /know_persist_lb.
     iExists 0.

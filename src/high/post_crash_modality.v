@@ -93,11 +93,14 @@ Definition post_crash_frag_history_impl `{hG : nvmFixedG Σ}
            (nD nD' : nvmDeltaG Σ) : iProp Σ :=
   □ ∀ ST (_ : EqDecision ST) (_ : Countable ST) (_ : AbstractState ST)
     ℓ (t : nat) (s : ST) (bumper : ST → ST),
-    know_frag_history_loc (nD := nD) ℓ {[ t := s ]} -∗
-    know_bumper (nD := nD) ℓ bumper -∗
-    (or_lost_post_crash ℓ (λ t', ∃ s',
-      ⌜t ≤ t' ↔ s ⊑ s'⌝ ∗
-      know_frag_history_loc (nD := nD') ℓ {[ 0 := bumper s' ]})).
+      know_preorder_loc (nD := nD) ℓ (abs_state_relation (ST := ST)) -∗
+      know_bumper (nD := nD) ℓ bumper -∗
+      know_frag_history_loc (nD := nD) ℓ {[ t := s ]} -∗
+      (or_lost_post_crash ℓ (λ t', ∃ s',
+        ⌜t ≤ t' → s ⊑ s'⌝ ∗
+        know_preorder_loc (nD := nD') ℓ (abs_state_relation (ST := ST)) ∗
+        know_bumper (nD := nD') ℓ bumper ∗
+        know_frag_history_loc (nD := nD') ℓ {[ 0 := bumper s' ]})).
 
 (** This map is used to exchange [know_full_history_loc] valid prior to a crash
 into a version valid after the crash. *)
@@ -333,32 +336,31 @@ Section post_crash_interact.
   Qed.
 
   Lemma post_crash_frag_history ℓ t bumper (s : ST) :
+    ⎡ know_preorder_loc ℓ (abs_state_relation (ST := ST)) ⎤ ∗
     ⎡ know_bumper ℓ bumper ⎤ ∗
     ⎡ know_frag_history_loc ℓ {[ t := s ]} ⎤ -∗
     post_crash (λ hG',
       (or_lost_with_t ℓ (λ t', ∃ s',
-        ⌜t ≤ t' ↔ s ⊑ s'⌝ ∗
+        ⌜t ≤ t' → s ⊑ s'⌝ ∗
+        ⎡ know_preorder_loc ℓ (abs_state_relation (ST := ST)) ⎤ ∗
         ⎡ know_bumper ℓ bumper ⎤ ∗
         ⎡ know_frag_history_loc ℓ {[ 0 := bumper s' ]} ⎤))).
   Proof.
     iStartProof (iProp _).
-    iIntros (?) "[bumper hist]".
+    iIntros (?) "(order & bumper & hist)".
     iIntrosPostCrash.
+    iDestruct (post_crash_modality.post_crash_nodep with "order") as "order".
     iDestruct (post_crash_modality.post_crash_nodep with "bumper") as "bumper".
     iDestruct (post_crash_modality.post_crash_nodep with "hist") as "hist".
     post_crash_modality.iCrash.
     iNamed 1.
     rewrite /post_crash_resource.
     iFrameNamed.
-    iDestruct "bumper" as "#bumper".
-    iDestruct ("post_crash_frag_history_impl" with "hist bumper") as "hist".
-    iDestruct ("post_crash_bumper_impl" with "bumper") as "newBumper".
-    iCombine "hist newBumper" as "H".
-    rewrite -or_lost_post_crash_sep.
+    iDestruct ("post_crash_frag_history_impl" with "order bumper hist") as "hist".
     iApply or_lost_with_t_at.
-    iApply (or_lost_post_crash_mono with "[] H").
+    iApply (or_lost_post_crash_mono with "[] hist").
     iIntros (?) "_".
-    iDestruct 1 as "[(% & ? & ?) ?]". iExists _. iFrame.
+    iDestruct 1 as (?) "(% & ? & ? & ?)". iExists _. iFrame. done.
   Qed.
 
   Lemma post_crash_know_pred `{Countable ST'} ℓ (ϕ : ST' → val → nvmDeltaG Σ → dProp Σ) :
@@ -569,14 +571,9 @@ Section IntoCrash.
     (λ hG', or_lost ℓ (⎡know_preorder_loc ℓ (abs_state_relation (ST := ST))⎤))%I.
   Proof. lift_into_crash post_crash_preorder. Qed.
 
-  Global Instance frag_history_into_crash `{AbstractState ST} ℓ bumper t s :
-    IntoCrash
-      (⎡ know_bumper ℓ bumper ⎤ ∗ ⎡ know_frag_history_loc ℓ {[ t := s ]} ⎤)
-      (λ hG', or_lost_with_t ℓ (λ t', ∃ (s' : ST),
-              ⌜t ≤ t' ↔ s ⊑ s'⌝ ∗
-              ⎡ know_bumper ℓ bumper ⎤ ∗
-              ⎡ know_frag_history_loc ℓ {[ 0 := bumper s' ]} ⎤))%I.
-  Proof. lift_into_crash post_crash_frag_history. Qed.
+  Global Instance frag_history_into_crash `{AbstractState ST}
+         ℓ bumper t (s : ST) : IntoCrash _ _ :=
+    post_crash_frag_history ℓ bumper t s.
 
   Global Instance know_pred_into_crash `{AbstractState ST}
          ℓ (ϕ : ST → val → _ → dProp Σ) :
@@ -820,6 +817,8 @@ Arguments IntoCrashFlush {_} {_} {_} _%I _%I.
 Section IntoCrashFlush.
   Context `{nvmFixedG Σ, nvmDeltaG Σ}.
 
+  (* This is not an instance as it would probably have a negative impact on the
+  performance of type class resolution. *)
   Lemma into_crash_into_crash_flushed P Q :
     IntoCrash P Q →
     IntoCrashFlush P Q.
