@@ -191,7 +191,7 @@ Section consistent_cut.
     rewrite -!not_elem_of_dom. rewrite /slice_of_store.
     rewrite dom_fmap.
     rewrite /slice_of_hist.
-    rewrite map_zip_with_dom.
+    rewrite dom_map_zip_with.
     intros ?%consistent_cut_subseteq_dom. set_solver.
   Qed.
 

@@ -364,40 +364,40 @@ Section map_zip_with.
   Qed.
 
   (* Upstream this. *)
-  Lemma map_zip_with_dom_fst `{FinMapDom K M D} {A B C}
+  Lemma dom_map_zip_with_fst `{FinMapDom K M D} {A B C}
         (f : A → B → C) (ma : M A) (mb : M B) : dom D (map_zip_with f ma mb) ⊆ dom D ma.
   Proof.
     intros ?. rewrite 2!elem_of_dom. intros [? ?%map_lookup_zip_with_Some].
     naive_solver.
   Qed.
 
-  Lemma map_zip_with_dom_snd `{FinMapDom K M D} {A B C}
+  Lemma dom_map_zip_with_snd `{FinMapDom K M D} {A B C}
         (f : A → B → C) (ma : M A) (mb : M B) : dom D (map_zip_with f ma mb) ⊆ dom D mb.
-  Proof. rewrite map_zip_with_flip. apply map_zip_with_dom_fst. Qed.
+  Proof. rewrite map_zip_with_flip. apply dom_map_zip_with_fst. Qed.
 
-  (* upstreamed *)
-  Lemma map_zip_with_dom `{FinMapDom K M D} {A B C}
-        (f : A → B → C) (ma : M A) (mb : M B) :
-    dom D (map_zip_with f ma mb) ≡ dom D ma ∩ dom D mb.
-  Proof.
-    rewrite set_equiv=> x.
-    rewrite elem_of_intersection.
-    rewrite !elem_of_dom.
-    rewrite map_lookup_zip_with.
-    destruct (ma !! x), (mb !! x); rewrite !is_Some_alt; naive_solver.
-  Qed.
+  (* (* upstreamed *) *)
+  (* Lemma dom_map_zip_with `{FinMapDom K M D} {A B C} *)
+  (*       (f : A → B → C) (ma : M A) (mb : M B) : *)
+  (*   dom D (map_zip_with f ma mb) ≡ dom D ma ∩ dom D mb. *)
+  (* Proof. *)
+  (*   rewrite set_equiv=> x. *)
+  (*   rewrite elem_of_intersection. *)
+  (*   rewrite !elem_of_dom. *)
+  (*   rewrite map_lookup_zip_with. *)
+  (*   destruct (ma !! x), (mb !! x); rewrite !is_Some_alt; naive_solver. *)
+  (* Qed. *)
 
-  Lemma map_zip_with_dom_eq_l `{FinMapDom K M D} {A B C}
+  Lemma dom_map_zip_with_eq_l `{FinMapDom K M D} {A B C}
         (f : A → B → C) (ma : M A) (mb : M B) :
     dom D ma ⊆ dom D mb →
     dom D (map_zip_with f ma mb) ≡ dom D ma.
-  Proof. rewrite map_zip_with_dom. set_solver. Qed.
+  Proof. rewrite dom_map_zip_with. set_solver. Qed.
 
-  Lemma map_zip_with_dom_eq_r `{FinMapDom K M D} {A B C}
+  Lemma dom_map_zip_with_eq_r `{FinMapDom K M D} {A B C}
         (f : A → B → C) (ma : M A) (mb : M B) :
     dom D mb ⊆ dom D ma →
     dom D (map_zip_with f ma mb) ≡ dom D mb.
-  Proof. rewrite map_zip_with_dom. set_solver. Qed.
+  Proof. rewrite dom_map_zip_with. set_solver. Qed.
 
   Lemma dom_eq_alt `{FinMapDom K M D} {A B} (m1 : M A) (m2 : M B) :
     (∀ k : K, is_Some (m1 !! k) ↔ is_Some (m2 !! k)) ↔
@@ -593,7 +593,7 @@ Section big_sepM2.
     { rewrite set_eq. setoid_rewrite elem_of_dom. done. }
     iSplit. { iPureIntro. intros k. rewrite -!elem_of_dom domEq. done. }
     iDestruct (big_sepM_impl_dom_subseteq with "sep []") as "[$ H]".
-    { etrans; first apply map_zip_with_dom_fst.
+    { etrans; first apply dom_map_zip_with_fst.
       rewrite dom_map_zip_with. rewrite -domEq2. set_solver. }
     { iModIntro.
       iIntros (? [??] [??]).
@@ -614,7 +614,7 @@ Section big_sepM2.
     iSplit.
     - setoid_rewrite <- elem_of_dom. rewrite -set_equiv. done.
     - iDestruct (big_sepM_impl_dom_subseteq with "map []") as "[$ temp]".
-      { rewrite 2!map_zip_with_dom.
+      { rewrite 2!dom_map_zip_with.
         apply subseteq_dom in sub.
         apply subseteq_dom in sub'.
         set_solver. }

@@ -109,7 +109,7 @@ Proof.
   iDestruct (big_sepM_impl_dom_subseteq _ _ _ (slice_of_store _ _) with "map []") as "[$ _]".
   { rewrite /slice_of_store /slice_of_hist.
     rewrite dom_fmap.
-    rewrite !map_zip_with_dom.
+    rewrite !dom_map_zip_with.
     rewrite restrict_dom.
     set_solver. }
   iIntros "!>" (ℓ hist hy look look') "[pts disj]".
@@ -125,7 +125,7 @@ Proof.
     iExFalso.
     rewrite /slice_of_store /slice_of_hist map_fmap_zip_with in look'.
     apply elem_of_dom_2 in look'.
-    setoid_rewrite map_zip_with_dom in look'.
+    setoid_rewrite dom_map_zip_with in look'.
     setoid_rewrite elem_of_intersection in look'.
     destruct look' as [look' _].
     apply elem_of_dom in look'.
@@ -183,9 +183,9 @@ Section wpr.
       bumpers.
 
   Lemma new_abs_hist_dom abs_hists CV bumpers :
-    dom (gset loc) (new_abs_hist abs_hists CV bumpers) ≡
+    dom (gset loc) (new_abs_hist abs_hists CV bumpers) =
     (dom _ abs_hists ∩ dom _ CV ∩ dom _ bumpers).
-  Proof. rewrite 2!map_zip_with_dom. set_solver. Qed.
+  Proof. rewrite 2!dom_map_zip_with_L. set_solver. Qed.
 
   Lemma new_abs_hist_lookup_simpl_inv abs_hists CV bumpers ℓ hist :
     (new_abs_hist abs_hists CV bumpers) !! ℓ = Some hist →
@@ -324,12 +324,21 @@ Section wpr.
     iDestruct (big_sepM2_dom with "predPostCrash") as %domPredsEqBumpers.
     iDestruct (big_sepM2_dom with "predsHold") as %domPhysHistsEqAbsHists.
 
-    (* Allocate new ghost state for the logical histories. *)
-    rewrite /interp.
+    (* A name for the set of recovered locations. Per the above equalities this
+    set could be expressed in a number of other ways (for instance by using
+    [phys_hists] instead of [abs_hists].)*)
+    set (recLocs := dom (gset _) CV ∩ dom _ abs_hists).
+
     set (newAbsHists := new_abs_hist abs_hists CV bumpers).
     iMod (own_full_history_alloc newAbsHists)
       as (new_abs_history_name new_know_abs_history_name)
            "(hists' & #histFrags & knowHistories)".
+    assert (recLocs = (dom (gset _) newAbsHists)) as domNewAbsHists.
+    { rewrite new_abs_hist_dom.
+      rewrite -domHistsEqBumpers.
+      set_solver. }
+    (* Allocate new ghost state for the logical histories. *)
+    rewrite /interp.
 
     (* We freeze/persist the old authorative resource algebra. *)
     iMod (ghost_map_auth_persist with "allOrders") as "#allOrders".
@@ -357,21 +366,21 @@ Section wpr.
     (* Some locations may be lost after a crash. For these we need to
     forget/throw away the predicate and preorder that was choosen for the
     location. *)
-    set newOrders := restrict (dom (gset _) newAbsHists) orders.
+    set newOrders := restrict recLocs orders.
     iMod (own_all_preorders_gname_alloc newOrders)
       as (new_orders_name) "[newOrders #fragOrders]".
 
-    set newPreds := restrict (dom (gset _) newAbsHists) predicates.
+    set newPreds := restrict recLocs predicates.
     iMod (know_predicates_alloc newPreds) as
       (new_predicates_name) "[newPreds #newPredsFrag]".
 
-    set newSharedLocs := (dom (gset _) newAbsHists) ∩ at_locs.
+    set newSharedLocs := recLocs ∩ at_locs.
     iMod (own_alloc (● (newSharedLocs : gsetUR _) ⋅ ◯ _))
       as (new_shared_locs_name) "[newSharedLocs atLocsFrag]".
     { apply auth_both_valid. done. }
     iDestruct "atLocsFrag" as "#atLocsFrag".
 
-    set newNaLocs := (dom (gset _) newAbsHists) ∩ na_locs.
+    set newNaLocs := recLocs ∩ na_locs.
     iMod (own_alloc (● (newNaLocs : gsetUR _) ⋅ ◯ _))
       as (new_exclusive_locs_name) "[newNaLocs naLocsFrag]".
     { apply auth_both_valid. done. }
@@ -381,7 +390,7 @@ Section wpr.
     iMod (ghost_map_alloc newNaViews) as (new_na_views_name) "[naView naViewPts]".
 
     (* Allocate the new map of bumpers. *)
-    set newBumpers := restrict (dom (gset _) newAbsHists) bumpers.
+    set newBumpers := restrict recLocs bumpers.
     iMod (own_all_bumpers_alloc newBumpers)
          as (new_bumpers_name) "[newBumpers #bumpersFrag]".
 
@@ -401,12 +410,12 @@ Section wpr.
       iApply (big_sepM_lookup with "bumpersFrag").
       apply restrict_lookup_Some.
       split; first done.
-      rewrite new_abs_hist_dom.
+
       apply elem_of_dom_2 in cvLook.
       apply elem_of_dom_2 in bumpersLook.
-      rewrite !elem_of_intersection.
+      apply elem_of_intersection.
       rewrite domHistsEqBumpers.
-      split_and!; done. }
+      split; done. }
 
     iAssert (
       □ ∀ `(AbstractState ST) ℓ,
@@ -421,13 +430,11 @@ Section wpr.
       iApply (big_sepM_lookup with "fragOrders").
       apply restrict_lookup_Some.
       split; first done.
-      rewrite new_abs_hist_dom.
       apply elem_of_dom_2 in cvLook.
       apply elem_of_dom_2 in ordersLook.
-      rewrite !elem_of_intersection.
-      rewrite -domHistsEqBumpers.
+      rewrite elem_of_intersection.
       rewrite domHistsEqOrders.
-      split_and!; done. }
+      split; done. }
 
     (* The physical and abstract history has the same timestamps for all
     locations. We will need this when we apply [valid_slice_transfer] below. *)
@@ -571,13 +578,9 @@ Section wpr.
         apply elem_of_intersection.
         split; last set_solver.
         rewrite /newAbsHists.
-        rewrite new_abs_hist_dom.
-        rewrite -domHistsEqBumpers.
         apply elem_of_intersection.
         split; last first.
-        { set_solver. }
-        apply elem_of_intersection.
-        split; first set_solver.
+        { rewrite histDomLocs. set_solver+ elem. }
         apply elem_of_dom.
         naive_solver. }
       (* "post_crash_exclusive_loc_impl" - Exclusive locations. *)
@@ -599,17 +602,9 @@ Section wpr.
         rewrite /newNaLocs.
         apply elem_of_subseteq_singleton.
         apply elem_of_intersection.
-        split; last set_solver.
-        rewrite /newAbsHists.
-        rewrite new_abs_hist_dom.
-        rewrite -domHistsEqBumpers.
-        apply elem_of_intersection.
-        split; last first.
-        { set_solver. }
-        apply elem_of_intersection.
-        split; first set_solver.
-        apply elem_of_dom.
-        naive_solver. }
+        split; last set_solver + elem.
+        apply elem_of_dom_2 in look.
+        set_solver+ look histDomLocs elem. }
       (* "post_crash_map_map_phys_history_impl" *)
       iSplit. {
         rewrite /map_map_phys_history_impl.
@@ -679,22 +674,7 @@ Section wpr.
     { iPureIntro. set_solver. }
     (* [histDomLocs] *)
     iSplit.
-    { iPureIntro.
-      Set Nested Proofs Allowed.
-      Lemma useful_fact `{Countable V} (A B C A' B' C' : gset V) :
-        B ## C →
-        A = B ∪ C →
-        A' ⊆ A →
-        B' = A' ∩ B →
-        C' = A' ∩ C →
-        A' = B' ∪ C'.
-      Proof. set_solver. Qed.
-      Unset Nested Proofs Allowed.
-      assert (dom _ newAbsHists ⊆ dom (gset _) abs_hists) as Hipso.
-      { rewrite new_abs_hist_dom. set_solver. }
-      (* We could use [set_solver] here but that is very slow, so instead we use
-      a useful fact. *)
-      eapply useful_fact; done. }
+    { iPureIntro. rewrite -domNewAbsHists. set_solver+ histDomLocs. }
     (* [naView] *)
     iSplitR. { admit. }
     (* [naPredsHold] *)
@@ -712,8 +692,7 @@ Section wpr.
         apply set_eq.
         rewrite restrict_dom_subset_L; first done.
         rewrite -domHistsEqOrders.
-        rewrite new_abs_hist_dom.
-        set_solver.
+        set_solver+.
       - iModIntro.
         iIntros (ℓ hist order [->|[? ->]]%new_abs_hist_lookup_simpl_inv slice) "!%".
         * apply increasing_map_empty.
@@ -769,10 +748,12 @@ Section wpr.
       (*   rewrite map_fmap_singleton. *)
       (*   simpl. *)
       (*   congruence. } *)
-      iPureGoal. {
-        rewrite /newPreds.
+      iPureGoal.
+      { rewrite /newPreds.
         apply restrict_lookup_Some_2; first done.
-        apply elem_of_dom. done. }
+        apply elem_of_dom_2 in CVLook.
+        apply elem_of_dom_2 in absHistsLook.
+        set_solver+ CVLook absHistsLook. }
       rewrite histEq.
       iDestruct (big_sepM2_dom with "encs") as %domEq.
       assert (newPhysHist = {[ 0 := discard_msg_views msg ]}).
@@ -835,10 +816,6 @@ Section wpr.
         rewrite 2!restrict_dom.
         rewrite -domPredsEqBumpers.
         set_solver. } }
-    (* iSplitR "". { *)
-    (*   iPureIntro. *)
-    (*   eapply map_Forall_subseteq; last apply bumperBumpToValid. *)
-    (*   apply restrict_subseteq. } *)
     (* bumperSome *)
     { iApply big_sepM2_forall.
       iSplit.
@@ -846,8 +823,9 @@ Section wpr.
         setoid_rewrite <- elem_of_dom.
         apply set_eq.
         rewrite restrict_dom_subset_L; first done.
-        rewrite new_abs_hist_dom.
-        set_solver. }
+        rewrite /recLocs.
+        rewrite domHistsEqBumpers.
+        set_solver+. }
       (* iIntros (ℓ hist bumper [empty | (s' & histEq)]%new_abs_hist_lookup_simpl_inv look2). *)
       iIntros (ℓ hist bumper look look2).
       apply new_abs_hist_lookup_inv in look.

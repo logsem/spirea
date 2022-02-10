@@ -225,7 +225,7 @@ Section wpr.
       (* TODO: Factor this out into a lemma (needs [cut] only). *)
       apply consistent_cut_subseteq_dom in cut.
       rewrite /slice_of_store /slice_of_hist map_fmap_zip_with.
-      rewrite map_zip_with_dom_eq_l; try done.
+      rewrite dom_map_zip_with_eq_l; try done.
     * iModIntro.
       iIntros (V) "pers".
       rewrite /persisted.
