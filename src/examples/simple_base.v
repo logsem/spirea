@@ -65,7 +65,7 @@ Section simple_increment.
 
   Definition incr_both (ℓ1 ℓ2 : loc) : expr :=
     #ℓ1 <- #1 ;;
-    WB #ℓ1 ;;
+    Flush #ℓ1 ;;
     Fence ;;
     #ℓ2 <- #1.
 
@@ -107,8 +107,8 @@ Section simple_increment.
     wpc_pures. rewrite /thread_fill_item. simpl.
     wpc_pures.
 
-    (* WB *)
-    wpc_bind (WB _)%E.
+    (* Flush *)
+    wpc_bind (Flush _)%E.
     iApply wpc_atomic_no_mask.
     iSplit. { iFromCache. }
     iApply (wp_wb with "ℓ1pts").

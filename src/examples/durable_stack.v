@@ -34,7 +34,7 @@ From self.high.modalities Require Import fence.
 Definition mk_stack : expr :=
   λ: <>,
     let: "node" := ref_NA (InjL #()) in
-    WB "node" ;;
+    Flush "node" ;;
     Fence ;;
     ref_AT "node".
 
@@ -44,11 +44,11 @@ Definition push : expr :=
   λ: "toHead" "val",
     let: "toNext" := ref_NA #() in
     let: "newNode" := ref_NA (InjR ("val", "toNext")) in
-    WB "newNode" ;;
+    Flush "newNode" ;;
     (rec: "loop" <> :=
        let: "head" := !{acq} "toHead" in
        "toNext" <- "head" ;;
-       WB "toNext" ;;
+       Flush "toNext" ;;
        Fence ;;
        if: CAS "toHead" "head" "newNode"
        then #()

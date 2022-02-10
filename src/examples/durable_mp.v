@@ -29,7 +29,7 @@ Section program.
 
   Definition leftProg (x y : loc) : expr :=
     #x <- #true ;;
-    WB #x ;;
+    Flush #x ;;
     Fence ;;
     #y <-{rel} #true.
 
@@ -257,8 +257,8 @@ Section proof.
       wpc_pures;
         first iApply (left_crash_condition_impl with "xPer xPts").
 
-      (* WB *)
-      wpc_bind (WB _)%E.
+      (* Flush *)
+      wpc_bind (Flush _)%E.
       iApply wpc_atomic_no_mask.
       whack_left_cc.
       iApply (wp_wb_ex with "xPts"); first reflexivity.

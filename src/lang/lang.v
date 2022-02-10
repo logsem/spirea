@@ -107,7 +107,7 @@ Module nvm_lang.
     | LoadAcquire e => LoadAcquire (subst x v e)
     | Store e1 e2 => Store (subst x v e1) (subst x v e2)
     | StoreRelease e1 e2 => StoreRelease (subst x v e1) (subst x v e2)
-    | WB e => WB (subst x v e)
+    | Flush e => Flush (subst x v e)
     | Fence => Fence
     | FenceSync => FenceSync
     | CmpXchg e0 e1 e2 => CmpXchg (subst x v e0) (subst x v e1) (subst x v e2)
@@ -249,9 +249,9 @@ Module nvm_lang.
                []
                (Val $ LitV LitUnit)
                []
-  | WBS ℓ :
-     head_step (WB (Val $ LitV $ LitLoc ℓ))
-               (Some $ MEvWB ℓ)
+  | FlushS ℓ :
+     head_step (Flush (Val $ LitV $ LitLoc ℓ))
+               (Some $ MEvFlush ℓ)
                []
                (Val $ LitV LitUnit)
                []

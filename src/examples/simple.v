@@ -68,7 +68,7 @@ Section simple_increment.
 
   Definition incr_both (ℓa ℓb : loc) : expr :=
     #ℓa <- #1 ;;
-    WB #ℓa ;;
+    Flush #ℓa ;;
     Fence ;;
     #ℓb <- #1.
 
@@ -160,7 +160,7 @@ Section simple_increment.
     { iApply (prove_crash_condition with "aPer bPer aPts bPts"). }
 
     (* The write back *)
-    wpc_bind (WB _)%E.
+    wpc_bind (Flush _)%E.
     iApply wpc_atomic_no_mask.
     iSplit. { iApply (prove_crash_condition with "aPer bPer aPts bPts"). }
     iApply (wp_wb_ex with "aPts"); first reflexivity.

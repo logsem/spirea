@@ -80,7 +80,7 @@ Section atomic.
   Proof. solve_atomic. Qed.
   Global Instance store_release_atomic s v1 v2 : AtomicBase s (StoreRelease (Val v1) (Val v2)).
   Proof. solve_atomic. Qed.
-  Global Instance wb_atomic s v : AtomicBase s (WB (Val v)).
+  Global Instance wb_atomic s v : AtomicBase s (Flush (Val v)).
   Proof. solve_atomic. Qed.
   Global Instance wb_fence s : AtomicBase s Fence.
   Proof. solve_atomic. Qed.

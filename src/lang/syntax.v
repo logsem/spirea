@@ -52,7 +52,7 @@ Module syntax.
     | LoadAcquire (e : expr)
     | Store (e1 e2 : expr)
     | StoreRelease (e1 e2 : expr)
-    | WB (e1 : expr)
+    | Flush (e1 : expr)
     | Fence
     | FenceSync
     (* RMW memory operations. *)
@@ -162,7 +162,7 @@ Module syntax.
           cast_if_and (decide (e1 = e1')) (decide (e2 = e2'))
       | StoreRelease e1 e2, StoreRelease e1' e2' =>
           cast_if_and (decide (e1 = e1')) (decide (e2 = e2'))
-      | WB e, WB e' => cast_if (decide (e = e'))
+      | Flush e, Flush e' => cast_if (decide (e = e'))
       | Fence, Fence => left _
       | FenceSync, FenceSync => left _
       | CmpXchg e0 e1 e2, CmpXchg e0' e1' e2' =>
@@ -258,7 +258,7 @@ Module syntax.
       | LoadAcquire e => GenNode 16 [go e]
       | Store e1 e2 => GenNode 17 [go e1; go e2]
       | StoreRelease e1 e2 => GenNode 18 [go e1; go e2]
-      | WB e => GenNode 19 [go e]
+      | Flush e => GenNode 19 [go e]
       | Fence => GenNode 20 []
       | FenceSync => GenNode 21 []
       | CmpXchg e0 e1 e2 => GenNode 22 [go e0; go e1; go e2]
@@ -299,7 +299,7 @@ Module syntax.
       | GenNode 16 [e] => LoadAcquire (go e)
       | GenNode 17 [e1; e2] => Store (go e1) (go e2)
       | GenNode 18 [e1; e2] => StoreRelease (go e1) (go e2)
-      | GenNode 19 [e] => WB (go e)
+      | GenNode 19 [e] => Flush (go e)
       | GenNode 20 [] => Fence
       | GenNode 21 [] => FenceSync
       | GenNode 22 [e0; e1; e2] => CmpXchg (go e0) (go e1) (go e2)

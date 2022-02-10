@@ -250,7 +250,7 @@ Section memory.
   | MEvRMW ℓ (vExp vNew : val) (* read-modify-write *)
   | MEvLoadEx ℓ (vExp : val) (* for failed RMWs *)
   (* Persistent memory specific. *)
-  | MEvWB ℓ
+  | MEvFlush ℓ
   | MEvFence
   | MEvFenceSync.
 
@@ -369,11 +369,11 @@ Section memory.
               (MEvLoadEx ℓ v)
               (σ, p) (SV ⊔ MV, PV, BV ⊔ MP) (* An acquire incorporates both the store view and the persistent view. *)
   (* Write-back instruction. *)
-  | MStepWB σ SV PV BV ℓ t p :
+  | MStepFlush σ SV PV BV ℓ t p :
      (* σ !! ℓ = Some h → *)
      (SV !!0 ℓ) = t → (* An equality here is fine, the timestamps are only lower bounds anyway. *)
      mem_step (σ, p) (SV, PV, BV)
-              (MEvWB ℓ)
+              (MEvFlush ℓ)
               (σ, p) (SV, PV, {[ℓ := MaxNat t]} ⊔ BV)
   (* Asynchronous fence. *)
   | MStepFence σ SV PV BV p :
