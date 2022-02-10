@@ -55,7 +55,7 @@ Section abs_history_lemmas.
   around, namely that encoding our history is equal to the stored encoded
   history. Storing this weaker fact makes the definition easier to show. This is
   important for the load lemma where, when we load some state and we want to
-  return [know_store_lb] for the returned state. At that point we can
+  return [store_lb] for the returned state. At that point we can
   conclude that decoding the encoding gives a result but not that the encoding
   is an encoding of some state. *)
   Definition own_frag_history_loc γ ℓ (abs_hist : gmap time ST) : iProp Σ :=

@@ -86,7 +86,7 @@ Definition mapsto_na_flushed `{nvmFixedG Σ, nvmDeltaG Σ, AbstractState ST}
   ∃ (ss : list ST),
     "%lastEq" ∷ ⌜ last ss = Some s ⌝ ∗
     "pts" ∷ ℓ ↦_{prot}^{q} ss ∗
-    "#flushLb" ∷ know_flush_lb ℓ prot s.
+    "#flushLb" ∷ flush_lb ℓ prot s.
 
 Section mapsto_na_flushed.
   Context `{nvmFixedG Σ, nvmDeltaG Σ, AbstractState ST}.
@@ -231,12 +231,12 @@ Section definitions.
     | [] => ∃ q,
         ℓnode ↦_{nil_node_prot}^{q} [()] ∗
         (* know_protocol ℓnode nil_node_prot ∗ *)
-        know_flush_lb ℓnode nil_node_prot ()
+        flush_lb ℓnode nil_node_prot ()
     | x :: xs' => ∃ (ℓtoNext ℓnext : loc) q1 q2,
         (* ℓnode *)
         ℓnode ↦_{cons_node_prot x ℓtoNext}^{q1} [()] ∗
         (* know_protocol ℓnode (cons_node_prot x ℓtoNext) ∗ *)
-        know_flush_lb ℓnode (cons_node_prot x ℓtoNext) () ∗
+        flush_lb ℓnode (cons_node_prot x ℓtoNext) () ∗
         (* ℓtoNext *)
         (* know_protocol ℓtoNext toNext_prot ∗ *)
         mapsto_na_flushed ℓtoNext toNext_prot q2 (mk_singl #ℓnext) ∗
@@ -317,7 +317,7 @@ Section definitions.
     ∃ (ℓtoHead : loc),
       ⌜ v = #ℓtoHead ⌝ ∗
       ⎡ is_at_loc ℓtoHead ⎤ ∗
-      know_store_lb ℓtoHead toHead_prot ().
+      store_lb ℓtoHead toHead_prot ().
 
 End definitions.
 
@@ -338,7 +338,7 @@ Section proof.
     rewrite /is_stack.
     iDestruct 1 as (? [= <-]) "prot".
     iDestruct "prot" as "(a & c)".
-    iDestruct (post_crash_know_store_lb with "c")  as "c".
+    iDestruct (post_crash_store_lb with "c")  as "c".
     iCrash.
     iCombine "a c" as "a".
     rewrite !or_lost_sep.

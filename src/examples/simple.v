@@ -90,7 +90,7 @@ Section simple_increment.
 
   (* Predicate used for the location [b]. *)
   Program Definition ϕb ℓa : LocationProtocol nat :=
-    {| pred := λ n v _, (⌜v = #n⌝ ∗ ∃ m, ⌜ n ≤ m ⌝ ∗ know_flush_lb ℓa ϕa m)%I;
+    {| pred := λ n v _, (⌜v = #n⌝ ∗ ∃ m, ⌜ n ≤ m ⌝ ∗ flush_lb ℓa ϕa m)%I;
        bumper n := n |}.
   Next Obligation.
     iIntros (????) "[% lb]".
@@ -105,14 +105,14 @@ Section simple_increment.
 
   Definition crash_condition {hD : nvmDeltaG Σ} ℓa ℓb : dProp Σ :=
     ("pts" ∷ ∃ (na nb : nat),
-     "aPer" ∷ know_persist_lb ℓa ϕa na ∗
-     "bPer" ∷ know_persist_lb ℓb (ϕb ℓa) nb ∗
+     "aPer" ∷ persist_lb ℓa ϕa na ∗
+     "bPer" ∷ persist_lb ℓb (ϕb ℓa) nb ∗
      "aPts" ∷ ℓa ↦_{ϕa} [na] ∗
      "bPts" ∷ ℓb ↦_{ϕb ℓa} [nb])%I.
 
   Lemma prove_crash_condition {hD : nvmDeltaG Σ} ℓa ℓb na nb (ssA ssB : list nat) :
-    know_persist_lb ℓa ϕa na -∗
-    know_persist_lb ℓb (ϕb ℓa) nb -∗
+    persist_lb ℓa ϕa na -∗
+    persist_lb ℓb (ϕb ℓa) nb -∗
     ℓa ↦_{ϕa} ssA -∗
     ℓb ↦_{ϕb ℓa} ssB -∗
     <PC> hG, crash_condition ℓa ℓb.
@@ -133,8 +133,8 @@ Section simple_increment.
   not objective. We should use the post crash modality in the crash condition
   (maybe built in to WPC). *)
   Lemma wp_incr ℓa ℓb s E :
-    ⊢ know_persist_lb ℓa ϕa 0 -∗
-      know_persist_lb ℓb (ϕb ℓa) 0 -∗
+    ⊢ persist_lb ℓa ϕa 0 -∗
+      persist_lb ℓb (ϕb ℓa) 0 -∗
       ℓa ↦_{ϕa} [0] -∗
       ℓb ↦_{ϕb ℓa} [0] -∗
       WPC (incr_both ℓa ℓb) @ s; E
@@ -225,7 +225,7 @@ Section simple_increment.
     wpc_bind (! _)%E.
     iApply wpc_atomic_no_mask.
     iSplit; first iApply (prove_crash_condition with "aPer bPer aPts bPts").
-    iApply (wp_load_na _ _ _ _ (λ v, ∃ sB', ⌜ sB ⊑ sB' ⌝ ∗ ⌜v = #sB⌝ ∗ know_flush_lb ℓa _ sB')%I
+    iApply (wp_load_na _ _ _ _ (λ v, ∃ sB', ⌜ sB ⊑ sB' ⌝ ∗ ⌜v = #sB⌝ ∗ flush_lb ℓa _ sB')%I
               with "[$bPts]"); first done.
     { iModIntro. iIntros (?) "(-> & (%sB' & % & #?))".
       iSplit. { iExists _. iFrame "#". naive_solver. }
@@ -259,8 +259,8 @@ Section simple_increment.
   (*   {{{ (True : dProp Σ) }}}. *)
 
   Lemma incr_safe s E ℓa ℓb :
-    ⊢ know_persist_lb ℓa ϕa 0 -∗
-      know_persist_lb ℓb (ϕb ℓa) 0 -∗
+    ⊢ persist_lb ℓa ϕa 0 -∗
+      persist_lb ℓb (ϕb ℓa) 0 -∗
       ℓa ↦_{ϕa} [0] -∗
       ℓb ↦_{ϕb ℓa} [0] -∗
       wpr s E (incr_both ℓa ℓb) (recover ℓa ℓb)

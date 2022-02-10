@@ -60,7 +60,7 @@ Section wp_at_rules.
     {{{ prot.(pred) s v _ }}}
       ref_AT v @ st; E
     {{{ ℓ, RET #ℓ;
-        know_store_lb ℓ prot s ∗ ⎡ is_at_loc ℓ ⎤ }}}.
+        store_lb ℓ prot s ∗ ⎡ is_at_loc ℓ ⎤ }}}.
   Proof.
     intros Φ. iStartProof (iProp _). iIntros (TV). iIntros "phi".
     iIntros (TV' incl) "Φpost".
@@ -134,7 +134,7 @@ Section wp_at_rules.
     iSplitL "Φpost knowPred knowBumper".
     { iApply "Φpost".
       iFrame "isShared".
-      rewrite /know_store_lb.
+      rewrite /store_lb.
       (* simpl. rewrite /know_protocol. *)
       (* iFrame "knowPred knowBumper isShared knowOrder". *)
       iExists 0.
@@ -244,19 +244,19 @@ Section wp_at_rules.
   Lemma wp_load_at ℓ s Q prot st E :
     {{{
       ⎡ is_at_loc ℓ ⎤ ∗
-      know_store_lb ℓ prot s ∗
+      store_lb ℓ prot s ∗
       <obj> (∀ s' v, ⌜ s ⊑ s' ⌝ -∗ prot.(pred) s' v _ -∗ Q s' v ∗ prot.(pred) s' v _)
     }}}
       !{acq} #ℓ @ st; E
     {{{ s' v, RET v;
-      know_store_lb ℓ prot s' ∗
+      store_lb ℓ prot s' ∗
       post_fence (Q s' v) }}}.
   Proof.
     intros Φ.
     iStartProof (iProp _). iIntros (TV).
     iDestruct 1 as "(isSharedLoc & storeLB & pToQ)".
     iDestruct (store_lb_protocol with "storeLB") as "#temp". iNamed "temp".
-    rewrite /know_store_lb.
+    rewrite /store_lb.
     iDestruct "storeLB" as (tS) "(#prot & #hist & %tSLe)".
 
     (* We unfold the WP. *)
@@ -412,7 +412,7 @@ Section wp_at_rules.
     {{{
        "%targetGt" ∷ ⌜ s_i ⊑ s_t ⌝ ∗
       "isSharedLoc" ∷ ⎡ is_at_loc ℓ ⎤ ∗
-      "storeLB" ∷ know_store_lb ℓ prot s_i ∗
+      "storeLB" ∷ store_lb ℓ prot s_i ∗
       "phi" ∷ <nobuf> (prot.(pred) s_t v_t _) ∗
       (* NOTE: This does _not_ work. *)
       (* "phi" ∷ (∀ v_i, ϕ s_i v_i _ -∗ ϕ s_t v_t _ ∗ ϕ s_i v_i _) ∗ *)
@@ -425,12 +425,12 @@ Section wp_at_rules.
             ⌜ s_t ⊑ s_c ∧ s_c ⊑ s_t ⌝)
     }}}
       #ℓ <-{rel} v_t @ st; E
-    {{{ RET #(); know_store_lb ℓ prot s_t }}}.
+    {{{ RET #(); store_lb ℓ prot s_t }}}.
   Proof.
     intros Φ. iStartProof (iProp _). iIntros (TV). iNamed 1.
     iDestruct (store_lb_protocol with "storeLB") as "#temp". iNamed "temp".
 
-    rewrite /know_store_lb.
+    rewrite /store_lb.
     iDestruct "storeLB" as (t_i) "(#prot & #hist & %tSLe)".
     (* We unfold the WP. *)
     iIntros (TV' incl) "Φpost".
@@ -725,7 +725,7 @@ Section wp_at_rules.
   Lemma wp_cas_at Q1 Q2 Q3 ℓ prot s_i v_i v_t R s_t st E :
     {{{
       ⎡ is_at_loc ℓ ⎤ ∗
-      know_store_lb ℓ prot s_i ∗
+      store_lb ℓ prot s_i ∗
       (* in case of success *)
       ((∀ s_a, ⌜ s_i ⊑ s_a ⌝ -∗
         (<obj> (prot.(pred) s_a v_i _ -∗ prot.(pred) s_a v_i _ ∗ R s_a)) ∗ (R s_a -∗ prot.(pred) s_t v_t _ ∗ Q1 s_a)) ∧
@@ -735,7 +735,7 @@ Section wp_at_rules.
     }}}
       CAS #ℓ v_i v_t @ st; E
     {{{ b, RET #b;
-      (⌜ b = true ⌝ ∗ Q1 s_t ∗ know_store_lb ℓ prot s_t) ∨
+      (⌜ b = true ⌝ ∗ Q1 s_t ∗ store_lb ℓ prot s_t) ∨
       (∃ s_a, ⌜ b = false ⌝ ∗ ⌜ s_i ⊑ s_a ⌝ ∗ Q2 s_a ∗ Q3)
     }}}.
   Proof.

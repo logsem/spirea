@@ -235,9 +235,9 @@ Section wp_rules.
   *)
 
   Lemma wp_wb_lb ℓ prot s st E :
-    {{{ know_store_lb ℓ prot s }}}
+    {{{ store_lb ℓ prot s }}}
       Flush #ℓ @ st; E
-    {{{ RET #(); <fence> know_flush_lb ℓ prot s }}}.
+    {{{ RET #(); <fence> flush_lb ℓ prot s }}}.
   Proof.
   Admitted.
 
@@ -245,7 +245,7 @@ Section wp_rules.
     last ss = Some s →
     {{{ mapsto_na ℓ prot q ss }}}
       Flush #ℓ @ st; E
-    {{{ RET #(); mapsto_na ℓ prot q ss ∗ <fence> know_flush_lb ℓ prot s }}}.
+    {{{ RET #(); mapsto_na ℓ prot q ss ∗ <fence> flush_lb ℓ prot s }}}.
   Proof.
     iIntros (eq Φ) "pts".
     iDestruct (mapsto_na_store_lb with "pts") as "#lb"; first done.

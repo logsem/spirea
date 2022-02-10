@@ -63,7 +63,7 @@ Section proof.
     {| pred (b : bool) (v : val) (hG : nvmDeltaG Σ) :=
         match b with
           false => ⌜ v = #false ⌝ ∗ ⎡ own γ__ex (Excl ()) ⎤
-        | true => ⌜ v = #true ⌝ ∗ know_flush_lb x inv_x true
+        | true => ⌜ v = #true ⌝ ∗ flush_lb x inv_x true
         end%I;
       bumper b := b; |}.
   Next Obligation.
@@ -84,23 +84,23 @@ Section proof.
   crash. *)
   Definition crash_condition {hD : nvmDeltaG Σ} : dProp Σ :=
     ∃ (bx bz : bool),
-      "#xPer" ∷ know_persist_lb x inv_x bx ∗
-      "#zPer" ∷ know_persist_lb z inv_z bz ∗
+      "#xPer" ∷ persist_lb x inv_x bx ∗
+      "#zPer" ∷ persist_lb z inv_z bz ∗
       x ↦_{inv_x} [bx] ∗
       z ↦_{inv_z} [bz].
 
   Definition left_crash_condition {hD : nvmDeltaG Σ} : dProp Σ :=
     ∃ (bx : bool),
-      "#xPer" ∷ know_persist_lb x inv_x bx ∗
+      "#xPer" ∷ persist_lb x inv_x bx ∗
       "xPts" ∷ x ↦_{inv_x} [bx].
 
   Definition right_crash_condition {hD : nvmDeltaG Σ} : dProp Σ :=
     ∃ (bz : bool),
-      "#zPer" ∷ know_persist_lb z inv_z bz ∗
+      "#zPer" ∷ persist_lb z inv_z bz ∗
       "zPts" ∷ z ↦_{inv_z} [bz].
 
   Lemma left_crash_condition_impl {hD : nvmDeltaG Σ} (sx : list bool) :
-    know_persist_lb x inv_x false -∗
+    persist_lb x inv_x false -∗
     x ↦_{inv_x} sx -∗
     <PC> hD, left_crash_condition.
   Proof.
@@ -113,7 +113,7 @@ Section proof.
   Qed.
 
   Lemma right_crash_condition_impl {hD : nvmDeltaG Σ} (sz : list bool) :
-    know_persist_lb z inv_z false -∗
+    persist_lb z inv_z false -∗
     z ↦_{inv_z} sz -∗
     <PC> hD, right_crash_condition.
   Proof.
@@ -135,9 +135,9 @@ Section proof.
     first iApply (left_crash_condition_impl with "xPer xPts").
 
   Lemma right_prog_spec s E1 :
-    know_store_lb y inv_y false -∗
+    store_lb y inv_y false -∗
     ⎡ is_at_loc y ⎤ -∗
-    know_persist_lb z inv_z false -∗
+    persist_lb z inv_z false -∗
     z ↦_{inv_z} [false] -∗
     WPC rightProg y z @ s; E1
     {{ v, z ↦_{inv_z} [false; true] ∨ z ↦_{inv_z} [false] }}
@@ -148,7 +148,7 @@ Section proof.
     rewrite /rightProg.
     wpc_bind (!{acq} _)%E.
     iApply wpc_atomic_no_mask. whack_right_cc.
-    iApply (wp_load_at _ _ (λ s v, (⌜v = #true⌝ ∗ know_flush_lb x inv_x true) ∨ ⌜v = #false⌝)%I inv_y with "[$yShared $yLb]").
+    iApply (wp_load_at _ _ (λ s v, (⌜v = #true⌝ ∗ flush_lb x inv_x true) ∨ ⌜v = #false⌝)%I inv_y with "[$yShared $yLb]").
     { iModIntro. iIntros (?? incl) "a". rewrite /inv_y.
       destruct s'.
       - iDestruct "a" as "[% #?]". iFrame "#". naive_solver.
@@ -192,11 +192,11 @@ Section proof.
   Lemma prog_spec :
     ⎡ pre_borrow ⎤ ∗
     (* know_protocol x inv_x ∗ know_protocol y inv_y ∗ know_protocol z inv_z ∗ *)
-    know_persist_lb x inv_x false ∗
+    persist_lb x inv_x false ∗
     x ↦_{inv_x} [false] ∗
-    know_store_lb y inv_y false ∗
+    store_lb y inv_y false ∗
     ⎡ is_at_loc y ⎤ ∗
-    know_persist_lb z inv_z false ∗
+    persist_lb z inv_z false ∗
     z ↦_{inv_z} [false] -∗
     WPC prog x y z @ ⊤
     {{ v, True }}

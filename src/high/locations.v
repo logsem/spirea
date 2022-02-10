@@ -154,13 +154,13 @@ the last events at [ℓ] corresponds to the *)
   Lemma have_FV_0 ℓ : ⊢ have_FV ℓ 0.
   Proof. iModel. iPureIntro. lia. Qed.
 
-  Definition know_store_lb ℓ prot (s : ST) : dProp Σ :=
+  Definition store_lb ℓ prot (s : ST) : dProp Σ :=
     ∃ (tS : nat),
       "#locationProtocol" ∷ ⎡ know_protocol ℓ prot ⎤ ∗
       "#knowFragHist" ∷ ⎡ know_frag_history_loc ℓ {[ tS := s ]} ⎤ ∗
       "#tSLe" ∷ have_SV ℓ tS.
 
-  (* Program Definition know_store_lb ℓ prot (s : ST) : dProp Σ := *)
+  (* Program Definition store_lb ℓ prot (s : ST) : dProp Σ := *)
   (*   MonPred (λ TV, *)
   (*     ∃ (tS : nat) (* (msg : message) *), *)
   (*       "#locationProtocol" ∷ know_protocol ℓ prot ∗ *)
@@ -169,7 +169,7 @@ the last events at [ℓ] corresponds to the *)
   (*   )%I _. *)
   (* Next Obligation. solve_proper. Qed. *)
 
-  Definition know_flush_lb ℓ prot (s : ST) : dProp Σ :=
+  Definition flush_lb ℓ prot (s : ST) : dProp Σ :=
     ∃ (tF : nat),
       "#locationProtocol" ∷ ⎡ know_protocol ℓ prot ⎤ ∗
       "knowFragHist" ∷ ⎡ know_frag_history_loc ℓ {[ tF := s ]} ⎤ ∗
@@ -186,7 +186,7 @@ the last events at [ℓ] corresponds to the *)
                     ⌜tF = 0⌝ ∗ ⎡ persisted_loc ℓ 0 ⎤ )%I.
   (* Next Obligation. solve_proper. Qed. *)
 
-  Program Definition know_persist_lb ℓ prot (sP : ST) : dProp Σ :=
+  Program Definition persist_lb ℓ prot (sP : ST) : dProp Σ :=
     ∃ tP,
       "#locationProtocol" ∷ ⎡ know_protocol ℓ prot ⎤ ∗
       "knowFragHist" ∷ ⎡ know_frag_history_loc ℓ {[ tP := sP ]} ⎤ ∗
@@ -195,7 +195,7 @@ the last events at [ℓ] corresponds to the *)
       "#tPLe" ∷ have_FV ℓ tP ∗
       "persisted" ∷ ⎡ persisted_loc ℓ tP ⎤.
 
-  (* Program Definition know_persist_lb ℓ prot (sP : ST) : dProp Σ := *)
+  (* Program Definition persist_lb ℓ prot (sP : ST) : dProp Σ := *)
   (*   MonPred (λ TV, *)
   (*     ∃ tP, *)
   (*       "#locationProtocol" ∷ know_protocol ℓ prot ∗ *)
@@ -227,32 +227,32 @@ the last events at [ℓ] corresponds to the *)
   Definition mapsto_shared ℓ s1 s2 s3 ϕ : dProp Σ :=
     "knowPred" ∷ ⎡ know_pred ℓ ϕ ⎤ ∗
     "isSharedLoc" ∷ ⎡ own shared_locs_name (◯ {[ ℓ ]}) ⎤ ∗
-    "globalPerLB" ∷ know_persist_lb ℓ s1 ∗
-    "persistLB" ∷ know_flush_lb ℓ s2 ∗
-    "storeLB" ∷ know_store_lb ℓ s3.
+    "globalPerLB" ∷ persist_lb ℓ s1 ∗
+    "persistLB" ∷ flush_lb ℓ s2 ∗
+    "storeLB" ∷ store_lb ℓ s3.
   *)
 
   Lemma store_lb_protocol ℓ prot s :
-    know_store_lb ℓ prot s -∗ ⎡ know_protocol ℓ prot ⎤.
+    store_lb ℓ prot s -∗ ⎡ know_protocol ℓ prot ⎤.
   Proof.
     iStartProof (iProp _). iIntros (TV). simpl. iNamed 1.
     iFrame "locationProtocol".
   Qed.
 
-  Global Instance know_store_lb_persistent
-         ℓ prot (s : ST) : Persistent (know_store_lb ℓ prot s).
+  Global Instance store_lb_persistent
+         ℓ prot (s : ST) : Persistent (store_lb ℓ prot s).
   Proof. apply _. Qed.
 
-  Global Instance know_flush_lb_persistent
-         ℓ prot (s : ST) : Persistent (know_flush_lb ℓ prot s).
+  Global Instance flush_lb_persistent
+         ℓ prot (s : ST) : Persistent (flush_lb ℓ prot s).
   Proof. apply _. Qed.
 
-  Global Instance know_persist_lb_persistent
-         ℓ prot (s : ST) : Persistent (know_persist_lb ℓ prot s).
+  Global Instance persist_lb_persistent
+         ℓ prot (s : ST) : Persistent (persist_lb ℓ prot s).
   Proof. apply _. Qed.
 
   Lemma persist_lb_to_flush_lb ℓ prot s :
-    know_persist_lb ℓ prot s -∗ know_flush_lb ℓ prot s.
+    persist_lb ℓ prot s -∗ flush_lb ℓ prot s.
   Proof.
     iNamed 1. iExists _. iFrame "∗#".
     destruct (decide (tP = 0)) as [->|neq].
@@ -261,29 +261,29 @@ the last events at [ℓ] corresponds to the *)
   Qed.
 
   Lemma flush_lb_to_store_lb ℓ prot s :
-    know_flush_lb ℓ prot s -∗ know_store_lb ℓ prot s.
+    flush_lb ℓ prot s -∗ store_lb ℓ prot s.
   Proof. iNamed 1. iExists _. iFrame "∗#". Qed.
 
   Lemma persist_lb_to_store_lb ℓ prot s :
-    know_persist_lb ℓ prot s -∗ know_store_lb ℓ prot s.
+    persist_lb ℓ prot s -∗ store_lb ℓ prot s.
   Proof. iNamed 1. iExists _. iFrame "∗#". Qed.
   
-  (* Lemma know_flush_lb_at_zero ℓ (s s' : ST) : *)
+  (* Lemma flush_lb_at_zero ℓ (s s' : ST) : *)
   (*   s ⊑ s' → *)
   (*   ⎡ know_frag_history_loc ℓ {[0 := s']} ⎤ -∗ *)
   (*   ⎡ know_preorder_loc ℓ abs_state_relation ⎤ -∗ *)
-  (*   know_flush_lb ℓ s. *)
+  (*   flush_lb ℓ s. *)
   (* Proof. *)
   (*   iStartProof (iProp _). iIntros (incl ?) "?". *)
   (*   iIntros (? ?) "?". iExists 0, s'. iFrame "%∗". iPureIntro. lia. *)
   (* Qed. *)
 
   (*
-  Lemma know_store_lb_at_zero ℓ (s s' : ST) :
+  Lemma store_lb_at_zero ℓ (s s' : ST) :
     s ⊑ s' →
     ⎡ know_frag_history_loc ℓ {[0 := s']} ⎤ -∗
     ⎡ know_preorder_loc ℓ abs_state_relation ⎤ -∗
-    know_store_lb ℓ s.
+    store_lb ℓ s.
   Proof.
     iStartProof (iProp _). iIntros (incl ?) "?".
     iIntros (? ?) "?". iExists 0, s'. iFrame "%∗". iPureIntro. lia.
@@ -305,7 +305,7 @@ the last events at [ℓ] corresponds to the *)
   Lemma mapsto_na_store_lb ℓ prot q ss s :
     last ss = Some s →
     mapsto_na ℓ prot q ss -∗
-    know_store_lb ℓ prot s.
+    store_lb ℓ prot s.
   Proof. Admitted.
 
   Lemma mapsto_na_last ℓ prot q ss : mapsto_na ℓ prot q ss -∗ ⌜∃ s, last ss = Some s⌝.
@@ -318,45 +318,45 @@ the last events at [ℓ] corresponds to the *)
 
   Lemma mapsto_na_store_lb_incl ℓ prot q ss s1 s2 :
     last ss = Some s1 →
-    know_store_lb ℓ prot s2 -∗
+    store_lb ℓ prot s2 -∗
     mapsto_na ℓ prot q ss -∗
     ⌜s2 ⊑ s1⌝.
   Proof. Admitted.
 
   Lemma mapsto_na_flush_lb_incl ℓ prot q ss s1 s2 :
     last ss = Some s1 →
-    know_flush_lb ℓ prot s2 -∗
+    flush_lb ℓ prot s2 -∗
     mapsto_na ℓ prot q ss -∗
     ⌜s2 ⊑ s1⌝.
   Proof. Admitted.
 
   (* Instances. *)
 
-  Lemma no_buffer_know_flush_lb ℓ prot (s : ST) :
-    know_flush_lb ℓ prot s -∗ <nobuf> know_flush_lb ℓ prot s.
+  Lemma no_buffer_flush_lb ℓ prot (s : ST) :
+    flush_lb ℓ prot s -∗ <nobuf> flush_lb ℓ prot s.
   Proof.
-    rewrite /know_flush_lb.
+    rewrite /flush_lb.
     iModel.
     simpl.
     iDestruct 1 as (?) "HI". iExists _. iFrame.
   Qed.
 
-  Global Instance buffer_free_know_flush_lb ℓ prot (s : ST) :
-    BufferFree (know_flush_lb ℓ prot s).
-  Proof. rewrite /IntoNoBuffer. eauto using no_buffer_know_flush_lb. Qed.
+  Global Instance buffer_free_flush_lb ℓ prot (s : ST) :
+    BufferFree (flush_lb ℓ prot s).
+  Proof. rewrite /IntoNoBuffer. eauto using no_buffer_flush_lb. Qed.
 
-  Lemma no_buffer_know_store_lb ℓ prot (s : ST) :
-    know_store_lb ℓ prot s -∗ <nobuf> know_store_lb ℓ prot s.
+  Lemma no_buffer_store_lb ℓ prot (s : ST) :
+    store_lb ℓ prot s -∗ <nobuf> store_lb ℓ prot s.
   Proof.
-    rewrite /know_store_lb.
+    rewrite /store_lb.
     iModel.
     simpl.
     iDestruct 1 as (?) "HI". iExists _. iFrame.
   Qed.
 
-  Global Instance into_no_buffer_know_store_lb ℓ prot (s : ST) :
-    BufferFree (know_store_lb ℓ prot s).
-  Proof. rewrite /IntoNoBuffer. eauto using no_buffer_know_store_lb. Qed.
+  Global Instance into_no_buffer_store_lb ℓ prot (s : ST) :
+    BufferFree (store_lb ℓ prot s).
+  Proof. rewrite /IntoNoBuffer. eauto using no_buffer_store_lb. Qed.
 
   Global Instance mapsto_na_buffer_free ℓ prot q (ss : list ST) :
     BufferFree (mapsto_na ℓ prot q ss).
@@ -383,10 +383,10 @@ Section points_to_at_more.
   Implicit Types (e : expr) (ℓ : loc) (s : ST)
            (ss : list ST) (prot : LocationProtocol ST).
 
-  Lemma post_crash_know_persist_lb (ℓ : loc) prot (s : ST) :
-    know_persist_lb ℓ prot s -∗
+  Lemma post_crash_persist_lb (ℓ : loc) prot (s : ST) :
+    persist_lb ℓ prot s -∗
     post_crash (λ hG, ∃ s', ⌜s ⊑ s'⌝ ∗
-      know_persist_lb ℓ prot (prot.(bumper) s') ∗
+      persist_lb ℓ prot (prot.(bumper) s') ∗
       recovered_at ℓ (prot.(bumper) s')).
   Proof.
     iNamed 1.
@@ -411,13 +411,13 @@ Section points_to_at_more.
     iExists _. iFrame "#∗". iPureIntro. apply elem_of_dom. done.
   Qed.
 
-  Global Instance know_persist_lb_into_crash ℓ prot s : IntoCrash _ _ :=
-    post_crash_know_persist_lb ℓ prot s.
+  Global Instance persist_lb_into_crash ℓ prot s : IntoCrash _ _ :=
+    post_crash_persist_lb ℓ prot s.
 
-  Lemma post_crash_know_flush_lb (ℓ : loc) prot (s : ST) :
-    know_flush_lb ℓ prot s -∗
+  Lemma post_crash_flush_lb (ℓ : loc) prot (s : ST) :
+    flush_lb ℓ prot s -∗
     post_crash (λ hG,
-                  or_lost ℓ (∃ (s' : ST), know_persist_lb ℓ prot s')).
+                  or_lost ℓ (∃ (s' : ST), persist_lb ℓ prot s')).
   Proof.
     iNamed 1.
     rewrite /know_protocol. rewrite 2!embed_sep.
@@ -430,7 +430,7 @@ Section points_to_at_more.
     iApply (or_lost_with_t_mono_strong with "[] H").
     iIntros (??). iNamed 1. iIntros "(pred & (% & _ & order & bump & hist))".
     iExists (bumper prot s').
-    rewrite /know_persist_lb.
+    rewrite /persist_lb.
     iExists 0.
     rewrite /know_protocol. iEval (rewrite 2!embed_sep).
     iFrame "∗#".
@@ -438,13 +438,13 @@ Section points_to_at_more.
     iDestruct (have_FV_0) as "$".
   Qed.
 
-  Global Instance know_flush_lb_into_crash ℓ prot s : IntoCrash _ _ :=
-    post_crash_know_flush_lb ℓ prot s.
+  Global Instance flush_lb_into_crash ℓ prot s : IntoCrash _ _ :=
+    post_crash_flush_lb ℓ prot s.
 
-  Lemma post_crash_know_store_lb (ℓ : loc) prot (s : ST) :
-    know_store_lb ℓ prot s -∗
+  Lemma post_crash_store_lb (ℓ : loc) prot (s : ST) :
+    store_lb ℓ prot s -∗
     post_crash (λ hG, or_lost ℓ (∃ (s' : ST),
-      know_persist_lb ℓ prot s')).
+      persist_lb ℓ prot s')).
   Proof.
     iNamed 1.
     rewrite /know_protocol. rewrite 2!embed_sep.
@@ -457,7 +457,7 @@ Section points_to_at_more.
     iApply (or_lost_with_t_mono_strong with "[] H").
     iIntros (??). iNamed 1. iIntros "(pred & (% & H & order & bump & hist))".
     iExists (bumper prot s').
-    rewrite /know_persist_lb.
+    rewrite /persist_lb.
     iExists 0.
     rewrite /know_protocol. iEval (rewrite 2!embed_sep).
     iFrame "∗#".
@@ -465,8 +465,8 @@ Section points_to_at_more.
     iDestruct (have_FV_0) as "$".
   Qed.
 
-  Global Instance know_store_lb_into_crash ℓ prot s : IntoCrash _ _ :=
-    post_crash_know_store_lb ℓ prot s.
+  Global Instance store_lb_into_crash ℓ prot s : IntoCrash _ _ :=
+    post_crash_store_lb ℓ prot s.
 
   (* NOTE: This rule should be changed once the "bump-back function" is
   introduced. *)
@@ -565,14 +565,14 @@ Section points_to_at_more.
     IntoCrashFlush _ _ :=
     (into_crash_into_crash_flushed _ _ (post_crash_mapsto_na ℓ prot q ss)).
 
-  Lemma post_crash_flush_know_flush_lb (ℓ : loc) prot (s : ST) :
-    know_flush_lb ℓ prot s -∗
+  Lemma post_crash_flush_flush_lb (ℓ : loc) prot (s : ST) :
+    flush_lb ℓ prot s -∗
     <PCF> hG, ∃ s__pc, ⌜s ⊑ s__pc⌝ ∗
-      recovered_at ℓ s__pc ∗ know_persist_lb ℓ prot s__pc.
+      recovered_at ℓ s__pc ∗ persist_lb ℓ prot s__pc.
   Proof.
     iStartProof (iProp _).
     iIntros (TV).
-    rewrite /know_flush_lb.
+    rewrite /flush_lb.
     simpl.
     iNamed 1.
     iIntros (???).
@@ -661,11 +661,11 @@ Section points_to_at_more.
   Admitted.
 
   Global Instance know_flush_into_crash ℓ prot (s : ST) :
-    IntoCrashFlush (know_flush_lb ℓ prot s) (λ _, ∃ s__pc, ⌜ s ⊑ s__pc ⌝ ∗
-      recovered_at ℓ s__pc ∗ know_persist_lb ℓ prot s__pc)%I.
+    IntoCrashFlush (flush_lb ℓ prot s) (λ _, ∃ s__pc, ⌜ s ⊑ s__pc ⌝ ∗
+      recovered_at ℓ s__pc ∗ persist_lb ℓ prot s__pc)%I.
   Proof.
     rewrite /IntoCrashFlush. iIntros "P".
-    by iApply post_crash_flush_know_flush_lb.
+    by iApply post_crash_flush_flush_lb.
   Qed.
   (* Global Instance mapsto_na_persisted_into_crash `{AbstractState ST} ℓ (ss : list ST) : *)
   (*   IntoCrash (ℓ ↦_{true} ss)%I (λ hG', ∃ s, ⌜s ∈ ss⌝ ∗ ℓ ↦_{true} [s] ∗ recovered_at ℓ s)%I. *)
@@ -685,6 +685,6 @@ Section points_to_at_more.
 End points_to_at_more.
 
 Typeclasses Opaque mapsto_na.
-Typeclasses Opaque know_store_lb.
-Typeclasses Opaque know_flush_lb.
-Typeclasses Opaque know_persist_lb.
+Typeclasses Opaque store_lb.
+Typeclasses Opaque flush_lb.
+Typeclasses Opaque persist_lb.
