@@ -352,6 +352,7 @@ Section wpr.
     iMod (own_update with "physHist") as "oldPhysHist".
     { apply auth_update_auth_persist. }
     iDestruct "oldPhysHist" as "#oldPhysHist".
+    iMod (ghost_map_auth_persist with "naView") as "#oldNaView".
 
     (* Some locations may be lost after a crash. For these we need to
     forget/throw away the predicate and preorder that was choosen for the
@@ -375,6 +376,9 @@ Section wpr.
       as (new_exclusive_locs_name) "[newNaLocs naLocsFrag]".
     { apply auth_both_valid. done. }
     iDestruct "naLocsFrag" as "#naLocsFrag".
+
+    set (newNaViews := gset_to_gmap (∅ : view) newNaLocs).
+    iMod (ghost_map_alloc newNaViews) as (new_na_views_name) "[naView naViewPts]".
 
     (* Allocate the new map of bumpers. *)
     set newBumpers := restrict (dom (gset _) newAbsHists) bumpers.
@@ -445,29 +449,29 @@ Section wpr.
     (* We are done allocating ghost state and can now present a new bundle of
     ghost names. *)
     iModIntro.
-    iExists (
-        NvmDeltaG _
-                  hGD'
-                  ({| abs_history_name := new_abs_history_name;
-                      know_abs_history_name := new_know_abs_history_name;
-                      know_phys_history_name := new_phys_hist_name;
-                      predicates_name := _;
-                      preorders_name := new_orders_name;
-                      exclusive_locs_name := new_exclusive_locs_name;
-                      shared_locs_name := new_shared_locs_name;
-                      bumpers_name := new_bumpers_name;
-                   |})
-      ).
+    set (hD' := {|
+      abs_history_name := new_abs_history_name;
+      know_abs_history_name := new_know_abs_history_name;
+      know_phys_history_name := new_phys_hist_name;
+      non_atomic_views_gname := new_na_views_name;
+      predicates_name := new_predicates_name;
+      preorders_name := new_orders_name;
+      exclusive_locs_name := new_exclusive_locs_name;
+      shared_locs_name := new_shared_locs_name;
+      bumpers_name := new_bumpers_name;
+    |}).
+    iExists (NvmDeltaG _ hGD' hD').
 
     iFrame "baseInterp".
     rewrite /nvm_heap_ctx. rewrite /post_crash.
     iEval (simpl) in "Pg".
-    iDestruct ("Pg" $! _ abs_hists bumpers _ (store, _) _ with "persImpl map'") as "(map' & Pg)".
+    iDestruct ("Pg" $! _ abs_hists bumpers na_views (store, _) _
+                with "persImpl map'") as "(map' & Pg)".
     iDestruct
       (map_points_to_to_new _ _ _ _ hGD'
          with "newCrashedAt map' ptsMap") as "ptsMap"; first done.
     (* We show the assumption for the post crash modality. *)
-    iDestruct ("Pg" with "[knowHistories]") as "[$ WHAT]".
+    iDestruct ("Pg" with "[knowHistories naViewPts]") as "[$ WHAT]".
     { rewrite /post_crash_resource.
 
       (* "post_crash_frag_history_impl" - Fragmental history implication. *)
@@ -624,32 +628,41 @@ Section wpr.
         { apply lookup_singleton. }
         iExists v.
         iFrame "frag". }
-      (* [post_crash_na_view_map] *)
-      iSplitL "". { admit. }
-      (* We show that the bumpers survive a crash. *)
-      (* rewrite /post_crash_bumper_impl. *)
-      (* iIntros "!>" (???? ℓ bumper) "knowBumper". *)
-      (* iApply "orLost". iIntros (t look). *)
-      (* iIntros (t look). *)
-      (* rewrite /know_bumper. *)
-      (* iDestruct "knowBumper" as "[$ knowBumper]". *)
-
-      (* FIXME: Temporarily commented out. *)
-      (* iDestruct (own_valid_2 with "allBumpers knowBumper") as %V. *)
-      (* eapply auth_valid_to_agree_singleton_l in V. *)
-
-      (* iApply (bumpers_frag_extract with "bumpersFrag"). *)
-      (* rewrite /newBumpers. *)
-      (* apply restrict_lookup_Some. *)
-      (* split; first (simplify_eq; done). *)
-      (* rewrite /newAbsHists. *)
-      (* rewrite new_abs_hist_dom. *)
-      (* rewrite domHistsEqOrders domOrdersEqBumpers. *)
-      (* apply elem_of_dom_2 in look. *)
-      (* apply elem_of_dom_2 in V. *)
-      (* set_solver. *)
-      admit.
-    }
+      (* "post_crash_bumper_impl" *)
+      iSplitL "".
+      { iIntros "!>" (? ? ? ? ℓ bumper) "oldBumper".
+        iApply "orLost". iIntros (t cvLook).
+        iDestruct ("bumperImpl" $! ST with "[//] oldBumper")
+          as "[%bumpersLook newBumper]".
+        iFrame "newBumper". }
+      iSplitL "naViewPts".
+      { rewrite /post_crash_na_view_map.
+        iSplitL "".
+        { iIntros (ℓ q SV). iApply (ghost_map_lookup with "oldNaView"). }
+        iDestruct (big_sepM_impl_strong with "naViewPts []") as "[$ H]".
+        iIntros "!>" (ℓ V).
+        destruct (newNaViews !! ℓ) as [newV|] eqn:eq.
+        - iIntros "newPts look".
+          rewrite /newNaViews in eq.
+          apply lookup_gset_to_gmap_Some in eq as [hup <-].
+          iApply soft_disj_intro_r.
+          iApply "orLost". iIntros (t look).
+          iApply "newPts".
+        - iIntros "_ %naViewsLook".
+          iApply soft_disj_intro_r.
+          iExists _. iFrame "newCrashedAt".
+          iRight. iPureIntro.
+          move: eq.
+          rewrite /newNaViews.
+          rewrite lookup_gset_to_gmap_None.
+          rewrite /newNaLocs.
+          rewrite not_elem_of_intersection.
+          intros [elem|elem].
+          2: { exfalso. apply elem. rewrite -naViewsDom. eapply elem_of_dom_2.
+               apply naViewsLook. }
+          rewrite /newAbsHists in elem.
+          admit. }
+      admit. }
     iFrame "valView".
     iSplitPure. { subst. done. }
     (* We show the state interpretation for the high-level logic. *)
