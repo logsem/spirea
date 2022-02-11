@@ -70,17 +70,19 @@ Section recovery_adequacy.
     | n :: ns =>
       (||={⊤|⊤,∅|∅}=> ||▷=>^(steps_sum (num_laters_per_step) (step_count_next)
                                       ncurrent (S n)) ||={∅|∅, ⊤|⊤}=>
-      ||={⊤|⊤,∅|∅}=> ||▷=>^2 ||={∅|∅, ⊤|⊤}=>
-        ∀ Hc', NC 1 ={⊤}=∗ (∃ hD' : nvmDeltaG Σ,
-          ⌜ Hc' = get_crashG hD' ⌝ ∗
-          step_fupdN_fresh ((Nat.iter (S n) step_count_next ncurrent)) ns Hc' hD' P))%I
+      ||={⊤|⊤,∅|∅}=> ||▷=>^1 ||={∅|∅, ⊤|⊤}=>
+      ∀ Hc', NC 1 -∗
+      ||={⊤|⊤,∅|∅}=> ||▷=>^1 ||={∅|∅, ⊤|⊤}=>
+      |={⊤}=> (∃ hD' : nvmDeltaG Σ,
+        ⌜ Hc' = get_crashG hD' ⌝ ∗
+        step_fupdN_fresh ((Nat.iter (S n) step_count_next ncurrent)) ns Hc' hD' P))%I
     end.
 
-  Lemma step_fupdN_fresh_wand `{!nvmFixedG Σ} ncurr1 ncurr2 (ns : list nat) Hc0 hD Q Q' :
+  Lemma step_fupdN_fresh_wand `{!nvmFixedG Σ} ncurr1 ncurr2 (ns : list nat) Hc0 hD P Q :
     ncurr1 = ncurr2 →
-    step_fupdN_fresh ncurr1 (ns) Hc0 hD Q -∗
-    (∀ hD, Q hD -∗ Q' hD) -∗
-    step_fupdN_fresh ncurr2 ns Hc0 hD Q'.
+    step_fupdN_fresh ncurr1 (ns) Hc0 hD P -∗
+    (∀ hD, P hD -∗ Q hD) -∗
+    step_fupdN_fresh ncurr2 ns Hc0 hD Q.
   Proof.
     revert Hc0 hD ncurr1 ncurr2.
     induction ns => ?????.
@@ -89,9 +91,13 @@ Section recovery_adequacy.
       iApply (step_fupd2N_inner_wand with "H"); try auto.
       { subst. auto. }
       iIntros "H".
-      iMod "H". iModIntro. iApply (step_fupd2N_wand with "H"). iIntros "H".
+      iMod "H". iModIntro.
+      iApply (step_fupd2N_wand with "H"). iIntros "H".
       iMod "H". iModIntro.
       iIntros (Hc') "HNC". iSpecialize ("H" $! Hc' with "[$]").
+      iMod "H". iModIntro.
+      iApply (step_fupd2N_wand with "H"). iIntros "H".
+      iMod "H". iModIntro.
       iMod "H" as (?) "[? H]".
       iExists _. iModIntro. iFrame. iApply (IHns with "H"). { congruence. }
       iFrame.
@@ -151,15 +157,17 @@ Section recovery_adequacy.
     iDestruct "HI" as "(_ & _ & $)".
   Qed.
 
-  Lemma wptp_recv_strong_crash_adequacy `{!nvmFixedG Σ} Φ Φr κs' s t ncurr mj D (ns : list nat) n r1 e1
+  Lemma wptp_recv_strong_crash_adequacy `{!nvmFixedG Σ}
+        Φ Φr κs' s t ncurr mj D (ns : list nat) n r1 e1
         TV1 t1 κs t2 σ1 g1 σ2 g2 :
     nrsteps (r1 `at` ⊥) (ns ++ [n]) ((e1 `at` TV1)%E :: t1, (σ1, g1)) κs (t2, (σ2, g2)) Crashed →
     state_interp σ1 (length t1) -∗
     global_state_interp g1 ncurr mj D (κs ++ κs') -∗
     (* crash_weakestpre.interp -∗ *)
     validV (store_view TV1) -∗
-    ((wpr s (* Hc t *) ⊤ e1 r1 Φ Φr) ⊥) -∗
-    wptp s t1 -∗ NC 1 -∗
+    (wpr s ⊤ e1 r1 Φ Φr) ⊥ -∗
+    wptp s t1 -∗
+    NC 1 -∗
     step_fupdN_fresh ncurr ns _ t (λ hD,
       let ntot := (steps_sum num_laters_per_step step_count_next
                             (Nat.iter (sum_crash_steps ns) step_count_next ncurr )
@@ -210,22 +218,30 @@ Section recovery_adequacy.
     (* iDestruct "H" as "[interp H]". *)
     iEval (repeat setoid_rewrite monPred_at_forall) in "H".
     iEval (setoid_rewrite monPred_at_embed) in "H".
-    iMod ("H" $! _ _ _ _ step _ 0 with "Hσ Hg") as "H".
+    iDestruct ("H" $! _ _ _ _ step _ 0 with "Hσ Hg") as "H".
     iMod (fupd2_mask_subseteq ∅ ∅) as "Hclo";
       [apply empty_subseteq | apply empty_subseteq|].
-    do 2 iModIntro. iNext.
     iModIntro.
     iMod ("Hclo") as "_".
+    iModIntro.
+    iIntros (Hc') "HNC".
+    iMod ("H" $! Hc' with "[$]") as (hD') "(-> & Hσ & Hg & Hv & Hr & HNC)".
+    iMod (fupd2_mask_subseteq ∅ ∅) as "Hclo";
+      [apply empty_subseteq | apply empty_subseteq|].
+    iModIntro.
+    iModIntro.
+    iNext.
+    iModIntro.
+    iMod ("Hclo") as "_".
+    iModIntro.
     iModIntro.
 
     destruct s0. (* Could we do induction on [ns'] instead? *)
     - (* The remaining execution also crashed. *)
-      iIntros (Hc') "HNC".
-      iMod ("H" $! Hc' with "[$]") as (hD') "(-> & Hσ & Hg & Hv & Hr & HNC)".
       iPoseProof (IH with "Hσ Hg [Hv] Hr [//] HNC") as "H".
       { eauto. }
       { eauto. }
-      iExists _. iModIntro.
+      iExists _. (* iModIntro. *)
       rewrite /sum_crash_steps.
       rewrite Nat_iter_S.
       iSplit; first done.
@@ -255,12 +271,10 @@ Section recovery_adequacy.
         f_equal. lia. }
       iModIntro; done.
     - (* The remaining execution did not crash. This is a "base case" of sorts. *)
-      iIntros (Hc') "HNC".
-      iMod ("H" $! Hc' with "[$]") as (hD') "(-> & Hσ & Hg & Hv & Hr & HNC)".
       iExists hD'.
       assert (ns' = []) as ->; first by (eapply nrsteps_normal_empty_prefix; auto).
       iDestruct (wptp_recv_strong_normal_adequacy with "Hσ Hg [Hv] Hr [] HNC") as "H"; eauto.
-      iModIntro.
+      (* iModIntro. *)
       iSplit; first done.
       rewrite /sum_crash_steps.
       rewrite plus_0_r.
@@ -330,6 +344,17 @@ Section recovery_adequacy.
 
 End recovery_adequacy.
 
+Lemma step_fupdN_fresh_pattern_fupd' `{H: invGS Σ} n (Q Q': iProp Σ):
+  (||={⊤|⊤,∅|∅}=> ||▷=>^n ||={∅|∅, ⊤|⊤}=> Q) -∗ (Q -∗ ||={⊤|⊤, ⊤|⊤}=> Q') -∗
+  (||={⊤|⊤,∅|∅}=> ||▷=>^n ||={∅|∅, ⊤|⊤}=> Q').
+Proof.
+  iIntros "H Hwand". simpl.
+  iApply (step_fupd2N_wand with "H").
+  iIntros "H".
+  iMod "H".
+  by iApply "Hwand".
+Qed.
+
 (* If you can prove a plain proposition [P] under [step_fupdN_fresh] then the *)
 (* proposition holds under only under a number of laters. *)
 Lemma step_fupdN_fresh_plain `{!nvmFixedG Σ, hD : nvmDeltaG Σ} P `{!Plain P} ns ncurr k :
@@ -347,23 +372,34 @@ Proof.
     iDestruct (step_fupdN_fresh_pattern_fupd _ _ _ (▷^ (S _) P)%I with "H [IH NC]") as "H".
     { iIntros "H".
       iSpecialize ("H" with "NC").
-      iMod "H". iDestruct "H" as (hD' eq) "H".
-      rewrite eq.
-      iMod ("IH" with "H") as "H".
-      iModIntro.
-      simpl.
+      set (num := (k +
+             fresh_later_count num_laters_per_step step_count_next
+               (Nat.iter (S n') step_count_next ncurr) ns)).
+      iDestruct (step_fupdN_fresh_pattern_fupd' _ _ (▷^ (S num) P)%I with "H [IH]") as "H".
+      { iIntros "H".
+        iMod "H".
+        iDestruct "H" as (hD' eq) "H".
+        rewrite eq.
+        iMod ("IH" with "H") as "H".
+        iModIntro.
+        iApply "H". }
+      iPoseProof (step_fupd2N_inner_plain with "H") as "H".
+      iMod "H". iModIntro.
+      rewrite -?laterN_plus.
+      iNext.
+      rewrite -later_laterN.
+      rewrite -later_laterN.
       iApply "H". }
     rewrite step_fupd2N_inner_plus.
     iPoseProof (step_fupd2N_inner_plain with "H") as "H".
-    simpl.
     iMod "H". iModIntro.
     rewrite -?laterN_later.
     rewrite -?laterN_plus.
     iNext.
-    rewrite -later_laterN.
     iApply (laterN_le with "H").
-    { lia. }
-Qed.
+    { admit. }
+    (* { lia. } *)
+Admitted.
 
 Lemma step_fupdN_fresh_soundness `{!nvmGpreS Σ} φ ns ncurr k k2 :
   (⊢ ∀ (Hi : invGS Σ),

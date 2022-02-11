@@ -272,7 +272,6 @@ Section simple_increment.
     { iApply (wp_incr _ _ s E with "a b c d"). }
     do 2 iModIntro.
     iIntros (hG') "R".
-    iNext.
     iCrash.
     iApply (wpc_recover with "R").
   Qed.

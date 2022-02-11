@@ -43,16 +43,16 @@ Definition wpr_pre `{nvmFixedG Σ} (s : stuckness)
     {{ ∀ σ mj D σ' (HC : crash_prim_step nvm_crash_lang σ σ') ns n, (* The [n] here actually doesn't matter. *)
       ⎡ (* interp -∗ *)
         state_interp σ n -∗
-        global_state_interp (Λ := nvm_lang) () ns mj D []
-      ={E}=∗ ▷ ∀ (Hc1 : crashGS Σ) q, NC q ={E}=∗
-        ∃ (hD' : nvmDeltaG Σ), (* Maybe state that [hD'] contains [Hc1] *)
+        global_state_interp (Λ := nvm_lang) () ns mj D [] -∗
+      ∀ (Hc1 : crashGS Σ) q, NC q ={E}=∗
+        ∃ (hD' : nvmDeltaG Σ),
           ⌜ Hc1 = get_crashG hD' ⌝ ∗
           (* let hG := (nvm_update Σ hG _ Hc1 names) in *)
           (* interp ∗ *)
           state_interp σ' 0 ∗
           global_state_interp (Λ := nvm_lang) () (step_count_next ns) mj D [] ∗
           validV ∅ ∗
-          (monPred_at (wpr hD' E e_rec e_rec (λ v, Φr hD' v) Φr) (∅, ∅, ∅)) ∗
+          ▷ (monPred_at (wpr hD' E e_rec e_rec (λ v, Φr hD' v) Φr) (∅, ∅, ∅)) ∗
           NC q ⎤
     }})%I.
 
@@ -885,7 +885,7 @@ Section wpr.
   Lemma idempotence_wpr `{hGD : nvmDeltaG Σ} s E1 e rec Φ Φr Φc `{∀ hG, Objective (Φc hG)} :
     ⊢ WPC e @ s ; E1 {{ Φ }} {{ Φc _ }} -∗
       (<obj> □ ∀ (hG' : nvmDeltaG Σ),
-            Φc hG' -∗ ▷ post_crash (λ hG', (WPC rec @ s ; E1 {{ Φr hG' }} {{ Φc hG' }}))) -∗
+            Φc hG' -∗ post_crash (λ hG', (WPC rec @ s ; E1 {{ Φr hG' }} {{ Φc hG' }}))) -∗
       wpr s E1 e rec Φ Φr.
   Proof.
     iStartProof (iProp _).
@@ -907,22 +907,11 @@ Section wpr.
     iIntros (???? step ns ?).
     iDestruct ("Hidemp" with "phiC") as "idemp'".
     iIntros "state global".
-    iModIntro (|={E1}=> _)%I.
-
-    (* iDestruct (nvm_reinit _ _ _ _ _ _ _ _ with "state idemp'") *)
-    (*   as (names) "HI". *)
-    (* { apply step. } *)
-    (* iApply bi.later_forall_2. iIntros (?). *)
-    (* iApply bi.later_forall_2. iIntros (?). *)
-    (* iApply bi.later_wand. *)
-    iNext.
     iIntros (??) "NC".
-
     (* Allocate the new ghost state. *)
     iMod (nvm_reinit _ _ _ _ _ _ _ _ with "state idemp'")
       as (names) "(% & val & stateInterp & HIHI & idemp)".
     { apply step. }
-
     iDestruct "global" as "($ & Hc & $ & $)".
     assert (exists k, ns + k = step_count_next ns) as [k' eq].
     { simpl. eexists _. rewrite -assoc. reflexivity. }
@@ -936,8 +925,7 @@ Section wpr.
     monPred_simpl.
     iSpecialize ("IH" $! _ _ names (∅, ∅, ∅) with "idemp [Hidemp]").
     { monPred_simpl. done. }
-  Admitted.
-    (* iApply "IH". *)
-  (* Qed. *)
+    iApply "IH".
+  Qed.
 
 End wpr.
