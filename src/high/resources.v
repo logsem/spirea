@@ -152,9 +152,19 @@ Section predicates.
     (@predicateR Σ) :=
     to_agree ((λ a b, Next (pred a b))).
 
+  Global Instance pred_to_ra_ne :
+    ∀ n, Proper (@dist predO _ n ==> dist n) pred_to_ra.
+  Proof.
+    intros ??? eq.
+    rewrite /pred_to_ra.
+    apply (@to_agree_ne (positive -d> val -d> laterO (optionO (nvmDeltaG Σ -d> (dPropO Σ))))).
+    intros ??.
+    apply contractive_ne; first apply _.
+    apply: eq.
+  Qed.
+
   Definition preds_to_ra
-             (preds : gmap loc
-                               (positive → val → option (nvmDeltaG Σ → dProp Σ)))
+        (preds : gmap loc (positive → val → option (nvmDeltaG Σ → dProp Σ)))
     : gmapUR loc (@predicateR Σ) := pred_to_ra <$> preds.
 
   Definition own_all_preds dq preds :=

@@ -282,23 +282,20 @@ Section wpr.
 
   (* Given the state interpretations _before_ a crash we reestablish the
   interpretations _after_ a crash. *)
-  Lemma nvm_reinit (hGD : nvmDeltaG Σ) n Pg tv σ σ' (Hinv : invGS Σ) (Hcrash : crashGS Σ) :
+  Lemma nvm_reinit (hGD : nvmDeltaG Σ) n P TV σ σ' (Hinv : invGS Σ) (Hcrash : crashGS Σ) :
     crash_step σ σ' →
-    ⊢ (* interp -∗ *)
-      state_interp σ n -∗
-      (post_crash Pg) tv ==∗
+    ⊢ state_interp σ n -∗
+      ((post_crash P) TV) ==∗
       ∃ (hD' : nvmDeltaG Σ),
-        (* let hG := nvm_update Σ hG' Hinv Hcrash names in *)
         ⌜ Hcrash = get_crashG hD' ⌝ ∗
         validV ∅ ∗
         interp (hGD := hD') ∗
         nvm_heap_ctx (hG := _) σ' ∗
-        Pg hD' (∅, ∅, ∅).
+        ▷ P hD' (∅, ∅, ∅).
   Proof.
     iIntros ([store PV CV pIncl cut]).
-    iIntros "[H1 H2] Pg".
+    iIntros "[H1 H2] P".
     iNamed "H1". iNamed "H2".
-    (* iIntros "(heap & authStor & %inv & pers & recov) Pg". *)
 
     (* Our [phys_hist] may contain only a subset of all the locations in
     [store]. But, those that are in [phys_hist] agree with what is in
@@ -471,14 +468,17 @@ Section wpr.
 
     iFrame "baseInterp".
     rewrite /nvm_heap_ctx. rewrite /post_crash.
-    iEval (simpl) in "Pg".
-    iDestruct ("Pg" $! _ abs_hists bumpers na_views (store, _) _
-                with "persImpl map'") as "(map' & Pg)".
+    iEval (simpl) in "P".
+    (* iDestruct ("P" $! _ abs_hists bumpers na_views (store, _) _ *)
+    (*             with "[$persImpl] [$map']") as "(map' & P)". *)
+    iDestruct ("P" $! _ abs_hists bumpers na_views (store, _) _
+                with "persImpl map'") as "(map' & P)".
     iDestruct
       (map_points_to_to_new _ _ _ _ hGD'
          with "newCrashedAt map' ptsMap") as "ptsMap"; first done.
+    (* iDestruct (bi.later_wand with "[$P] [knowHistories naViewPts]") as "[$ what]". *)
     (* We show the assumption for the post crash modality. *)
-    iDestruct ("Pg" with "[knowHistories naViewPts]") as "[$ WHAT]".
+    iDestruct ("P" with "[knowHistories naViewPts]") as "[$ WHAT]".
     { rewrite /post_crash_resource.
 
       (* "post_crash_frag_history_impl" - Fragmental history implication. *)
@@ -548,15 +548,31 @@ Section wpr.
 
       (* "post_crash_pred_impl" - We show that the predicates survives a
       crash. *)
-      iSplit.
+      iSplitL "".
       { rewrite /post_crash_pred_impl.
-        iModIntro. iIntros (??? ℓ ϕ) "knowPred".
+        iModIntro.
+        iIntros (??? ℓ ϕ) "oldPred".
         iApply "orLost". iIntros (t look).
-        iDestruct (own_all_preds_pred with "allPredicates knowPred") as (? predsLook) "#H".
-        iApply (predicates_frag_lookup with "newPredsFrag").
-        rewrite /newPreds.
-        (* FIXME: There is a later in the way. *)
-        admit. }
+        iDestruct (own_all_preds_pred with "allPredicates oldPred")
+          as (encPred predsLook) "#equiv".
+        iNext.
+        rewrite /know_pred.
+        iDestruct (predicates_frag_lookup with "newPredsFrag") as "newPred".
+        { rewrite /newPreds.
+          apply restrict_lookup_Some.
+          split; try done.
+          apply elem_of_dom_2 in look.
+          apply elem_of_dom_2 in predsLook.
+          rewrite /recLocs.
+          rewrite domHistsEqBumpers -domPredsEqBumpers.
+          set_solver+ look predsLook. }
+        rewrite /predicates_name. simpl.
+        iApply (
+          internal_eq_rewrite _ _
+            (λ (r : predO),
+              own new_predicates_name (◯ {[ℓ := pred_to_ra r]})) with "equiv");
+          last done.
+        solve_proper. }
       (* "post_crash_shared_loc_impl" - Shared locations. *)
       iSplit. {
         rewrite /post_crash_shared_loc_impl.
@@ -630,6 +646,7 @@ Section wpr.
         iDestruct ("bumperImpl" $! ST with "[//] oldBumper")
           as "[%bumpersLook newBumper]".
         iFrame "newBumper". }
+      (* "post_crash_na_view_map" *)
       iSplitL "naViewPts".
       { rewrite /post_crash_na_view_map.
         iSplitL "".
@@ -655,8 +672,15 @@ Section wpr.
           intros [elem|elem].
           2: { exfalso. apply elem. rewrite -naViewsDom. eapply elem_of_dom_2.
                apply naViewsLook. }
-          rewrite /newAbsHists in elem.
-          admit. }
+          rewrite /recLocs in elem.
+          apply not_elem_of_dom.
+          apply elem_of_dom_2 in naViewsLook.
+          rewrite histDomLocs in elem.
+          rewrite naViewsDom in naViewsLook.
+          set_solver+ elem naViewsLook. }
+      (* "post_crash_full_history_map" *)
+      iSplitL "".
+      { iIntros (ℓ q hist). iApply (ghost_map_lookup with "oldFullHist1"). }
       admit. }
     iFrame "valView".
     iSplitPure. { subst. done. }
@@ -795,7 +819,7 @@ Section wpr.
       iSpecialize ("hi" $! s (msg_val msg)).
 
       rewrite /encoded_predicate_holds.
-      iDestruct "flip" as (P) "[eq PHolds]".
+      iDestruct "flip" as (?P) "[eq PHolds]".
 
       admit. }
 
@@ -841,16 +865,16 @@ Section wpr.
   Admitted.
 
   (*
-  Lemma nvm_reinit' (hG' : nvmFixedG Σ, nvmDeltaG Σ) n σ σ' (Hinv : invGS Σ) (Hcrash : crashGS Σ) Pg :
+  Lemma nvm_reinit' (hG' : nvmFixedG Σ, nvmDeltaG Σ) n σ σ' (Hinv : invGS Σ) (Hcrash : crashGS Σ) P :
     crash_step σ σ' →
     ⊢ ⎡interp⎤ -∗
       ⎡state_interp σ n⎤ -∗
-      post_crash Pg ==∗
+      post_crash P ==∗
       ∃ names : nvm_names,
         let hG := nvm_update Σ hG' Hinv Hcrash names in
           ⎡interp (hG := hG)⎤ ∗
           ⎡nvm_heap_ctx (hG := _) σ'⎤ ∗
-          Pg hG.
+          P hG.
   Proof.
     iIntros (step) "interp baseInterp".
     iMod (nvm_heap_reinit_alt _ _ _ _ Hcrash _ step with "baseInterp []") as (hnames) "(map & baseInterp & idemp)".
@@ -912,7 +936,8 @@ Section wpr.
     monPred_simpl.
     iSpecialize ("IH" $! _ _ names (∅, ∅, ∅) with "idemp [Hidemp]").
     { monPred_simpl. done. }
-    iApply "IH".
-  Qed.
+  Admitted.
+    (* iApply "IH". *)
+  (* Qed. *)
 
 End wpr.

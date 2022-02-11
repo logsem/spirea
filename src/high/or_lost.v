@@ -31,9 +31,17 @@ Section or_lost_post_crash.
       ((∃ t, ⌜CV !! ℓ = Some (MaxNat t)⌝ ∗ ⎡ persisted_loc ℓ 0 ⎤ ∗ P t) ∨
         ⌜CV !! ℓ = None⌝).
 
+  Global Instance or_lost_with_t_proper ℓ :
+    Proper (pointwise_relation _ (⊣⊢) ==> (⊣⊢)) (or_lost_with_t ℓ).
+  Proof. solve_proper. Qed.
+
   (* The predicate [P] holds for [ℓ] or [ℓ] has been lost. *)
   Definition or_lost ℓ (P : dProp Σ) : dProp Σ :=
     or_lost_with_t ℓ (λ _, P).
+
+  Global Instance or_lost_proper ℓ :
+    Proper ((⊣⊢) ==> (⊣⊢)) (or_lost ℓ).
+  Proof. solve_proper. Qed.
 
   Lemma or_lost_post_crash_lookup (CV : view) ℓ t P :
     CV !! ℓ = Some (MaxNat t) →
@@ -179,5 +187,5 @@ Section or_lost_post_crash.
 
 End or_lost_post_crash.
 
-Opaque or_lost.
+Opaque or_lost_with_t.
 Opaque or_lost_post_crash.

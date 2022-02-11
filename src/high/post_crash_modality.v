@@ -22,7 +22,7 @@ Definition post_crash_pred_impl `{nvmFixedG Σ}
            (nD nD' : nvmDeltaG Σ) : iProp Σ :=
   □ ∀ ST (_ : EqDecision ST) (_ : Countable ST) ℓ (ϕ : ST → val → nvmDeltaG Σ → dProp Σ),
     know_pred (hGD := nD) ℓ ϕ -∗
-    or_lost_post_crash_no_t ℓ (know_pred (hGD := nD') ℓ ϕ).
+    or_lost_post_crash_no_t ℓ (▷ know_pred (hGD := nD') ℓ ϕ).
 
 Definition post_crash_preorder_impl `{nvmFixedG Σ}
            (nD nD' : nvmDeltaG Σ) : iProp Σ :=
@@ -139,7 +139,7 @@ Program Definition post_crash `{nvmFixedG Σ, nD : nvmDeltaG Σ}
       base_post_crash (λ nD',
         let nD' := NvmDeltaG _ nD' hhGD'
         in (post_crash_resource hh bb na_views nD nD') -∗
-          P nD' (∅, ∅, ∅) ∗
+          ▷ P nD' (∅, ∅, ∅) ∗
           (post_crash_resource hh bb na_views nD nD')))%I
     _.
 (* Next Obligation. solve_proper. Qed. *)
@@ -373,8 +373,10 @@ Section post_crash_interact.
     iNamed 1.
     rewrite /post_crash_resource. iFrameNamed.
     iDestruct ("post_crash_pred_impl" with "HP") as "H".
-    rewrite -or_lost_embed.
-    done.
+    rewrite /or_lost /or_lost_with_t.
+    iNext.
+    iDestruct "H" as (CV) "H".
+    iExists _. iFrame "H".
   Qed.
 
   Lemma post_crash_shared_loc ℓ :
@@ -576,11 +578,8 @@ Section IntoCrash.
     post_crash_frag_history ℓ bumper t s.
 
   Global Instance know_pred_into_crash `{AbstractState ST}
-         ℓ (ϕ : ST → val → _ → dProp Σ) :
-    IntoCrash
-      (⎡ know_pred ℓ ϕ ⎤)%I
-      (λ hG', or_lost ℓ (⎡ know_pred ℓ ϕ ⎤))%I.
-  Proof. lift_into_crash post_crash_know_pred. Qed.
+         ℓ (ϕ : ST → _ → _ → dProp Σ) :
+    IntoCrash _ _ := post_crash_know_pred ℓ ϕ.
 
   Global Instance shared_loc_into_crash ℓ :
     IntoCrash
@@ -710,7 +709,7 @@ Program Definition post_crash_flush {Σ} `{nvmFixedG Σ, nvmDeltaG Σ}
         (* ⎡ persisted (flush_view TV) ⎤ -∗ *)
         ⎡ persisted (view_to_zero (flush_view TV)) ⎤ ∗
         ⎡ crashed_at CV ⎤ -∗
-        P nD') (∅, ∅, ∅))%I _.
+        ▷ P nD') (∅, ∅, ∅))%I _.
 Next Obligation. intros ???????. apply post_crash_mono. solve_proper. Qed.
 
 (*
@@ -743,6 +742,7 @@ Section post_crash_persisted.
     iApply (base.post_crash_modality.post_crash_mono with "P").
     iIntros (?) "A R".
     iDestruct ("A" with "R") as "[P $]".
+    iNext.
     monPred_simpl.
     iIntros (???) "_".
     iApply monPred_mono; done.
@@ -769,9 +769,11 @@ Section post_crash_persisted.
     iSpecialize ("H" $! CV).
     iSpecialize ("H1" $! CV).
     monPred_simpl.
+    iNext.
     iIntros (TV'' le) "(%flushLe & #pers & #crashedAt)".
     iSpecialize ("H" $! TV'' le with "[$pers $crashedAt //]").
     iSpecialize ("H1" $! TV'' le with "[$pers $crashedAt //]").
+    iNext.
     iFrame.
   Qed.
 
@@ -787,11 +789,13 @@ Section post_crash_persisted.
     (* rewrite /post_crash_impl. *)
     iIntros "P M".
     iDestruct ("P" with "M") as "[P $]".
+    iNext.
     iIntros (CV).
     iSpecialize ("P" $! CV).
     monPred_simpl.
     iIntros (TV'' le) "(%flushLe & pers & crashedAt)".
     iSpecialize ("P" $! TV'' le with "[$pers $crashedAt //]").
+    iNext.
     iDestruct (Hmono with "P") as "H".
     done.
   Qed.
