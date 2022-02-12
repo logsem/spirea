@@ -355,6 +355,25 @@ Proof.
   by iApply "Hwand".
 Qed.
 
+(* [step_fupd2N_inner_fupd] from Perennial gives [P] under [k + 1] laters. This
+version add an except zero instead of a later which is better and neccessary for
+our use case. *)
+Lemma step_fupd2N_inner_plain_better `{H: invGS Σ} (k: nat) P D `{PLAIN: !Plain P} :
+  (||={⊤|D, ∅|∅}=> ||▷=>^k ||={∅|∅, ⊤|D}=> P) -∗
+  ||={⊤|D, ⊤|D}=> ▷^k ◇ P.
+Proof.
+  iInduction k as [| k] "IH" forall (P PLAIN).
+  - rewrite //=. iIntros "H".
+    iApply fupd2_plain_mask. do 2 iMod "H".
+    by iModIntro.
+  - iIntros "H".
+    iApply fupd2_plain_mask.
+    iMod "H".
+    iMod (step_fupd2N_plain with "H") as "H".
+    iModIntro. rewrite -!later_laterN !laterN_later.
+    iNext. iNext. by iMod "H".
+Qed.
+
 (* If you can prove a plain proposition [P] under [step_fupdN_fresh] then the *)
 (* proposition holds under only under a number of laters. *)
 Lemma step_fupdN_fresh_plain `{!nvmFixedG Σ, hD : nvmDeltaG Σ} P `{!Plain P} ns ncurr k :
@@ -366,16 +385,18 @@ Proof.
   iInduction ns as [|n' ns] "IH" forall (ncurr hD).
   - rewrite /step_fupdN_fresh Nat.add_0_r.
     by iApply step_fupd2N_inner_plain.
-  -
-    iMod NC_alloc as (Hc') "NC".
+  - iMod NC_alloc as (Hc') "NC".
     rewrite /step_fupdN_fresh -/step_fupdN_fresh.
-    iDestruct (step_fupdN_fresh_pattern_fupd _ _ _ (▷^ (S _) P)%I with "H [IH NC]") as "H".
+    set (num :=
+        k + fresh_later_count num_laters_per_step step_count_next
+                      (Nat.iter (S n') step_count_next ncurr) ns).
+    iDestruct (step_fupdN_fresh_pattern_fupd _ _ _ (▷ ▷^(S num) P)%I with "H [IH NC]") as "H".
     { iIntros "H".
       iSpecialize ("H" with "NC").
-      set (num := (k +
+      set (num2 := (k +
              fresh_later_count num_laters_per_step step_count_next
                (Nat.iter (S n') step_count_next ncurr) ns)).
-      iDestruct (step_fupdN_fresh_pattern_fupd' _ _ (▷^ (S num) P)%I with "H [IH]") as "H".
+      iDestruct (step_fupdN_fresh_pattern_fupd' _ _ (▷^ (S num2) P)%I with "H [IH]") as "H".
       { iIntros "H".
         iMod "H".
         iDestruct "H" as (hD' eq) "H".
@@ -383,23 +404,21 @@ Proof.
         iMod ("IH" with "H") as "H".
         iModIntro.
         iApply "H". }
-      iPoseProof (step_fupd2N_inner_plain with "H") as "H".
+      iPoseProof (step_fupd2N_inner_plain_better with "H") as "H".
       iMod "H". iModIntro.
-      rewrite -?laterN_plus.
-      iNext.
-      rewrite -later_laterN.
+      rewrite except_0_later.
       rewrite -later_laterN.
       iApply "H". }
     rewrite step_fupd2N_inner_plus.
-    iPoseProof (step_fupd2N_inner_plain with "H") as "H".
+    iPoseProof (step_fupd2N_inner_plain_better with "H") as "H".
     iMod "H". iModIntro.
+    rewrite except_0_later.
     rewrite -?laterN_later.
     rewrite -?laterN_plus.
-    iNext.
+    rewrite -later_laterN.
     iApply (laterN_le with "H").
-    { admit. }
-    (* { lia. } *)
-Admitted.
+    { rewrite /num. simpl. lia. }
+Qed.
 
 Lemma step_fupdN_fresh_soundness `{!nvmGpreS Σ} φ ns ncurr k k2 :
   (⊢ ∀ (Hi : invGS Σ),
