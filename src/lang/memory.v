@@ -70,6 +70,24 @@ Section slice_of_hist_props.
     done.
   Qed.
 
+  Lemma slice_of_hist_lookup_inv CV hists h ℓ :
+    valid_slice CV hists →
+    slice_of_hist CV hists !! ℓ = Some h →
+    ∃ t hist m,
+      CV !! ℓ = Some (MaxNat t) ∧
+      hists !! ℓ = Some hist ∧
+      hist !! t = Some m ∧
+      h = {[ 0 := m ]} .
+  Proof.
+    rewrite /slice_of_hist.
+    intros val ([t] & hist & hl & cvLook & histsLook)%map_lookup_zip_with_Some.
+    eapply map_Forall_lookup_1 in val.
+    2: { apply map_lookup_zip_with_Some. eexists _, _. done. }
+    destruct val as [a histLook].
+    rewrite histLook in hl.
+    naive_solver.
+  Qed.
+
   Lemma slice_of_hist_Some V hists ℓ t hist :
     valid_slice V hists →
     V !! ℓ = Some (MaxNat t) →

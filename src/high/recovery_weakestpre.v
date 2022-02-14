@@ -237,26 +237,41 @@ Section wpr.
   Admitted.
 
   (* FIXME: This lemmas needs more assumptions. *)
-  Lemma new_abs_hist_lookup_inv abs_hists CV bumpers ℓ hist :
-    (new_abs_hist abs_hists CV bumpers) !! ℓ = Some hist →
-    ∃ t s s' bumper abs_hist,
+  Lemma new_abs_hist_lookup_Some abs_hists CV bumpers ℓ hist :
+    valid_slice CV abs_hists →
+    new_abs_hist abs_hists CV bumpers !! ℓ = Some hist →
+    ∃ t s bumper abs_hist,
       CV !! ℓ = Some (MaxNat t) ∧
       abs_hists !! ℓ = Some abs_hist ∧
       abs_hist !! t = Some s ∧
       bumpers !! ℓ = Some bumper ∧
-      bumper s = Some s' ∧
-      hist = {[ 0 := s' ]}.
+      (* bumper s = Some s' ∧ *)
+      hist = {[ 0 := default 1%positive (bumper s) ]}.
   Proof.
+    intros val.
     rewrite /new_abs_hist.
     rewrite map_lookup_zip_with_Some.
-    intros (newHist & bumper & hi & ho & hip).
-    (* slice_of_hist lemma *)
-    rewrite /slice_of_hist in ho.
-    setoid_rewrite map_lookup_zip_with_Some in ho.
-    destruct ho as ([t] & ? & ? & ? & ?).
-  Admitted.
+    intros (newHist & bumper & hi & sliceLook & bumpersLook).
+    apply slice_of_hist_lookup_inv in sliceLook
+      as (t & ? & ? & ? & ? & ? & newHistEq); last done.
+    rewrite newHistEq in hi.
+    rewrite map_fmap_singleton in hi.
+    simpl in hi.
+    naive_solver.
+  Qed.
 
-  (* TODO: Could maybe be upstreamed. *)
+  Lemma new_abs_hist_lookup_None abs_hists CV bumpers bumper ℓ hist :
+    abs_hists !! ℓ = Some hist →
+    bumpers !! ℓ = Some bumper →
+    new_abs_hist abs_hists CV bumpers !! ℓ = None →
+    CV !! ℓ = None.
+  Proof.
+    intros absHistLook bumpersLook.
+    rewrite /new_abs_hist.
+    intros [look|?]%map_lookup_zip_with_None; last congruence.
+    apply map_lookup_zip_with_None in look as [?|?]; congruence.
+  Qed.
+
   Lemma map_subseteq_lookup_eq (m1 m2 : store) v1 v2 k :
     m1 ⊆ m2 → m1 !! k = Some v1 → m2 !! k = Some v2 → v1 = v2.
   Proof. rewrite map_subseteq_spec. naive_solver. Qed.
@@ -681,7 +696,38 @@ Section wpr.
       (* "post_crash_full_history_map" *)
       iSplitL "".
       { iIntros (ℓ q hist). iApply (ghost_map_lookup with "oldFullHist1"). }
-      admit. }
+      iSplitL "".
+      { iIntros (ℓ bumper). iApply (ghost_map_lookup with "oldBumpers"). }
+      iEval (rewrite big_sepM2_alt).
+      iSplit. { iPureIntro. apply dom_eq_alt. rewrite domHistsEqBumpers. done. }
+      iDestruct (big_sepM_impl_strong with "knowHistories []") as "[$ H]".
+      iIntros "!>" (ℓ ?).
+      destruct (newAbsHists !! ℓ) as [newHist|] eqn:eq.
+      - iIntros "pts" ((hist & bumper & -> & absHistsLook & bumpersLook
+                       )%map_lookup_zip_with_Some).
+        iApply soft_disj_intro_r.
+        iApply "orLost". iIntros (t look).
+        iEval (simpl).
+        pose proof eq as eq2.
+        apply new_abs_hist_lookup_Some in eq
+          as (?t' & s & bumper' & ? & ? & ? & ? & ? & ?); last done.
+        simplify_eq.
+        iDestruct (big_sepM2_lookup with "bumperSome") as %bv; [done|done|].
+        destruct (bv t' s H3) as [sBumped eq].
+        rewrite eq.
+        iExists s, sBumped.
+        iSplit; first done.
+        iSplit; first done.
+        iFrame "pts".
+        iDestruct (auth_map_map_frag_lookup with "histFrags") as "$".
+        { done. }
+        { rewrite eq. apply lookup_singleton. }
+      - iIntros "_" ((hist & bumper & -> & absHistsLook & bumpersLook
+                     )%map_lookup_zip_with_Some).
+        iApply soft_disj_intro_r.
+        iExists _. iFrame "newCrashedAt".
+        iRight. iPureIntro.
+        eapply new_abs_hist_lookup_None; try done. }
     iFrame "valView".
     iSplitPure. { subst. done. }
     (* We show the state interpretation for the high-level logic. *)
@@ -737,9 +783,9 @@ Section wpr.
                absHistLook newPhysHistsLook newAbsHistLook).
       (* iIntros (ℓ encHist newEncHist absHistLook newAbsHistLook). *)
 
-      pose proof (new_abs_hist_lookup_inv _ _ _ _ _ newAbsHistLook)
-        as (t & s & s' & bumper & hist & CVLook & absHistsLook & histLook &
-            bumpersLook & bumperAp & histEq).
+      apply new_abs_hist_lookup_Some in newAbsHistLook
+        as (t & s & bumper & hist & CVLook & absHistsLook & histLook &
+            bumpersLook & histEq); try done.
       (* Can we avoid introducing [encHist] altogether? *)
       assert (encHist = hist) as -> by congruence.
 
@@ -852,8 +898,8 @@ Section wpr.
         set_solver+. }
       (* iIntros (ℓ hist bumper [empty | (s' & histEq)]%new_abs_hist_lookup_simpl_inv look2). *)
       iIntros (ℓ hist bumper look look2).
-      apply new_abs_hist_lookup_inv in look.
-      destruct look as (? & ? & ? & ? & hist' & ? & ? & ? & ? & ? & histEq).
+      apply new_abs_hist_lookup_Some in look; last done.
+      destruct look as (? & ? & ? & hist' & ? & ? & ? & ? & histEq).
       (* We handle the empty case here, but we should be able to rule it out. *)
       (* { rewrite empty. iPureIntro. apply map_Forall_empty. } *)
       rewrite histEq.
