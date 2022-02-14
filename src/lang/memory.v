@@ -213,6 +213,36 @@ Section consistent_cut.
     intros ?%consistent_cut_subseteq_dom. set_solver.
   Qed.
 
+  Lemma slice_of_store_dom_subset CV σ :
+    dom (gset _) (slice_of_store CV σ) ⊆ dom _ σ.
+  Proof. rewrite /slice_of_store dom_fmap. apply slice_of_hist_dom_subset. Qed.
+
+  Lemma slice_of_store_lookup_Some_subseteq m1 m2 CV a ℓ :
+    m1 ⊆ m2 →
+    slice_of_store CV m1 !! ℓ = Some a →
+    slice_of_store CV m2 !! ℓ = Some a.
+  Proof. Abort.
+
+  Lemma slice_of_store_lookup_inv CV store h ℓ :
+    valid_slice CV store →
+    slice_of_store CV store !! ℓ = Some h →
+    ∃ t hist m,
+      CV !! ℓ = Some (MaxNat t) ∧
+      store !! ℓ = Some hist ∧
+      hist !! t = Some m ∧
+      h = {[ 0 := discard_msg_views m ]}.
+  Proof.
+    rewrite /slice_of_store.
+    intros val (hist & eq & sliceLook)%lookup_fmap_Some.
+    apply slice_of_hist_lookup_inv in sliceLook
+        as (t & hist' & m & bungo & ? & ? & ?); last done.
+    eexists _, _, _.
+    split_and!; try done.
+    simplify_eq.
+    rewrite map_fmap_singleton.
+    done.
+  Qed.
+
   Lemma slice_of_store_lookup_Some CV store ℓ msg hist t :
     slice_of_store CV store !! ℓ = Some hist →
     hist !! t = Some msg →

@@ -508,7 +508,7 @@ Section wpr.
     iDestruct "knowHistories" as "[naHistories atHistories]".
 
     (* We show the assumption for the post crash modality. *)
-    iDestruct ("P" with "[atLocsHistories naHistories naViewPts]") as "[$ WHAT]".
+    iDestruct ("P" with "[atLocsHistories naHistories naViewPts]") as "[$ pcRes]".
     { rewrite /post_crash_resource.
 
       (* "post_crash_frag_history_impl" - Fragmental history implication. *)
@@ -814,97 +814,53 @@ Section wpr.
         iIntros (ℓ hist order [->|[? ->]]%new_abs_hist_lookup_simpl_inv slice) "!%".
         * apply increasing_map_empty.
         * apply increasing_map_singleton. }
+
     (* [predsHold] We show that the encoded predicates still hold for the new abstract
     history. *)
-    iSplitR "". {
+    iSplitR "pcRes". {
       (* We use the old predsHold to show the new predsHold. There are more
       locations in the old abstract state so the new predsHold is over a subset
       of locations. *)
       iDestruct (big_sepM2_impl_dom_subseteq with "predsHold []") as "$".
-      { admit. (* Lemma for this. *) }
+      { apply slice_of_store_dom_subset. }
       { admit. }
-      (* iDestruct (big_sepM_impl_dom_subseteq with "predsHold []") as "[$ temp]". *)
-      (* { rewrite new_abs_hist_dom. set_solver. } *)
       iModIntro.
       iIntros (ℓ physHist encHist newPhysHist newAbsHist physHistsLook
-               absHistLook newPhysHistsLook newAbsHistLook).
-      (* iIntros (ℓ encHist newEncHist absHistLook newAbsHistLook). *)
+               absHistsLook newPhysHistsLook newAbsHistLook).
 
+      (* Infer what we can from the lookup in the new physical history. *)
+      apply slice_of_store_lookup_inv in newPhysHistsLook
+          as (t & hist & msg & cvLook & ? & ? & cat);
+        last done.
+
+      (* Infer what we can from the lookup in the new abstract history. *)
       apply new_abs_hist_lookup_Some in newAbsHistLook
-        as (t & s & bumper & hist & CVLook & absHistsLook & histLook &
-            bumpersLook & histEq); try done.
-      (* Can we avoid introducing [encHist] altogether? *)
-      assert (encHist = hist) as -> by congruence.
+        as (? & s & bumper & ? & ? & ? & histLook &
+            bumpersLook & ->); last done.
+      simplify_eq.
 
-      (* iIntros "(%pred & %physHist & %physHistLook & %predsLook & encs)". *)
       iIntros "(%pred & %predsLook & encs)".
-      (* assert (is_Some (CV !! ℓ)) as [[t] CVLook]. *)
-      (* { apply elem_of_dom_2 in newAbsHistLook. *)
-      (*   rewrite /newAbsHists in newAbsHistLook. *)
-      (*   setoid_rewrite new_abs_hist_dom in newAbsHistLook. *)
-      (*   apply elem_of_dom. *)
-      (*   set_solver. } *)
-      epose proof (holo _ _ _ _ CVLook cut) as (msg & physHist' & storeLook & hi & ho).
-      (* FIXME: Can we avoid introducting [physHist] altogether? *)
-      assert (physHist = physHist') as <- by eauto using map_subseteq_lookup_eq.
-      (* iExists pred, {[ 0 := discard_msg_views msg]}. *)
       iExists pred.
-      (* iPureGoal. { *)
-      (*   rewrite /slice_of_store /slice_of_hist map_fmap_zip_with. *)
-      (*   apply slice_of_store_lookup_Some_singleton in ho. *)
-      (*   destruct ho as (tt & ?tempHist & eq & ? & ?). *)
-      (*   assert (physHist = tempHist) as <- by eauto using map_subseteq_lookup_eq. *)
-      (*   apply map_lookup_zip_with_Some. *)
-      (*   exists (MaxNat tt), physHist. *)
-      (*   rewrite -lookup_fmap in H1. *)
-      (*   apply lookup_fmap_Some in H1. *)
-      (*   destruct H1 as (msg' & eq' & ->). *)
-      (*   split_and!; [| done | done]. *)
-      (*   destruct msg, msg'. rewrite /discard_msg_views. simpl. *)
-      (*   simpl in eq'. *)
-      (*   rewrite map_fmap_singleton. *)
-      (*   simpl. *)
-      (*   congruence. } *)
-      iPureGoal.
+      iSplitPure.
       { rewrite /newPreds.
         apply restrict_lookup_Some_2; first done.
-        apply elem_of_dom_2 in CVLook.
+        apply elem_of_dom_2 in cvLook.
         apply elem_of_dom_2 in absHistsLook.
-        set_solver+ CVLook absHistsLook. }
-      rewrite histEq.
-      iDestruct (big_sepM2_dom with "encs") as %domEq.
-      assert (newPhysHist = {[ 0 := discard_msg_views msg ]}).
-      {
-        (* apply (inj Some). *)
-        (* rewrite -ho. *)
-        (* rewrite -newPhysHistsLook. *)
-        (* done. *)
-        assert (is_Some (physHist !! t)) as [msg' physHistLook].
-        { apply elem_of_dom. rewrite domEq. apply elem_of_dom. naive_solver. }
-        (* eapply slice_of_store_lookup_Some in newPhysHistsLook. *)
-        apply slice_of_store_lookup_Some_singleton in ho.
-        destruct ho as (tt & ?tempHist & eq & ? & ?).
-        assert (physHist = tempHist) as <- by eauto using map_subseteq_lookup_eq.
-      (*   apply map_lookup_zip_with_Some. *)
-      (*   exists (MaxNat tt), physHist. *)
-        rewrite -lookup_fmap in H2.
-        apply lookup_fmap_Some in H2.
-        (* destruct H1 as (msg' & eq' & eq2). *)
-        admit.
-        (* eapply slice_of_store_lookup_Some in newPhysHistsLook. *)
-        (* 2: { done. } *)
-        (* split_and!; [| done | done]. *)
-        (* destruct msg, msg'. rewrite /discard_msg_views. simpl. *)
-        (* simpl in eq'. *)
-        (* rewrite map_fmap_singleton. *)
-        (* simpl. *)
-        (* congruence. } *)
-      }
-      rewrite H1.
+        set_solver+ cvLook absHistsLook. }
       rewrite big_sepM2_singleton.
 
       (* We look up the relevant predicate in [encs]. *)
       iDestruct (big_sepM2_lookup with "encs") as "flip"; [done | done | ].
+
+      iDestruct (big_sepM2_lookup with "bumperSome") as %map; [done|done|].
+      destruct (map t s histLook) as [bumpedS bumperEq].
+      rewrite bumperEq.
+      iEval (simpl).
+      assert (default ∅ (newNaViews !! ℓ) = ∅) as ->.
+      { rewrite /newNaViews.
+        destruct (gset_to_gmap ∅ newNaLocs !! ℓ) eqn:eq.
+        - apply lookup_gset_to_gmap_Some in eq as [_ ->]. done.
+        - done. }
 
       (* We now looks up in [predPostCrash]. *)
       iDestruct (big_sepM2_lookup with "predPostCrash") as "#hi";
@@ -912,8 +868,18 @@ Section wpr.
       iSpecialize ("hi" $! s (msg_val msg)).
 
       rewrite /encoded_predicate_holds.
-      iDestruct "flip" as (?P) "[eq PHolds]".
+      iDestruct "flip" as (?P) "[#eq PHolds]".
+      iDestruct ("hi" with "[$PHolds]") as (?pred) "[%eq2 pred]".
+      { iSplitPure; first done. admit. (* We have an equivalence and need an equality. *) }
+      iExists _.
+      iSplit. { rewrite eq2. done. }
 
+      rewrite /post_crash_flush /post_crash.
+      iEval (simpl) in "pred".
+      iDestruct ("pred" $! _ _ bumpers na_views (store, _) _
+                  with "persImpl []") as "(map' & pred)".
+      { admit. }
+      (* iDestruct ("pred" with "pcRes") as "[H pcRes]". *)
       admit. }
 
     (* Show that the bumpers are still monotone. *)
