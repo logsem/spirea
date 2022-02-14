@@ -114,7 +114,8 @@ Definition post_crash_full_history_map `{nvmFixedG Σ}
   (∀ ℓ b,
      know_encoded_bumper (nD := nD) ℓ b -∗ ⌜bb !! ℓ = Some b⌝) ∗
   (* The map used to perform the exchange. *)
-  [∗ map] ℓ ↦ hist; bumper ∈ hh; bb,
+  [∗ map] ℓ ↦ hist ∈ hh, ∃ bumper,
+    ⌜ bb !! ℓ = Some bumper ⌝ ∗
     soft_disj
       (λ q, know_full_encoded_history_loc (nD := nD) ℓ q hist)
       (λ q, know_history_post_crash nD' ℓ q bumper hist).
@@ -291,14 +292,16 @@ Section post_crash_interact.
     { iApply ("inB" with "[bumper]").
       rewrite /know_bumper /own_know_bumper.
       iDestruct "bumper" as "[_ $]". }
-    iDestruct (big_sepM2_lookup_acc with "M") as "[H reIns]";
-      first done; first done.
+    iDestruct (big_sepM_lookup_acc with "M") as
+      "[(%bumper' & %bumpersLook & H) reIns]"; first done.
+    simplify_eq.
     iDestruct (soft_disj_exchange_l with "[] H [$]") as "[H newHist]".
     { iIntros "!>" (?) "H".
       setoid_rewrite <- dfrac_valid_own.
       iApply (ghost_map_elem_valid with "H"). }
     (* iFrame "#∗". *)
-    iDestruct ("reIns" with "H") as "M".
+    iDestruct ("reIns" with "[H]") as "M".
+    { iExists _. iSplitPure; done. }
     iSplitL "newHist newBumper".
     { iDestruct "newHist" as (CV) "[#crashed [H|H]]"; iExists (CV);
         iFrame "crashed"; [iLeft|iRight; done].

@@ -416,7 +416,6 @@ Definition restrict `{FinMap K M, ElemOf K D, !RelDecision (∈@{D})} {A} (s : D
 
 Section restrict.
   Context `{FinMap K M, ElemOf K D}.
-  (* Context `{FinMapDom K M D}. *)
   Context `{!RelDecision (∈@{D})}.
   Context {A : Type}.
   Implicit Types (s : D) (m : M A) (k : K).
@@ -505,17 +504,6 @@ Section restrict_dom.
   Context {A : Type}.
   Implicit Types (s : D) (m : M A) (k : K).
 
-  Lemma restrict_intersection s m : dom _ (restrict s m) = s ∩ (dom _ m).
-  Proof. Abort. (* This is true, but we haven't needed it yet. *)
-
-  (*
-  Lemma restrict_superset_id (s : D) (m : M A) :
-    dom _ m ⊆ s → restrict s m = m.
-  Proof.
-    intros Hsub.
-  Admitted.
-  *)
-
   Lemma restrict_dom s m : dom _ (restrict s m) ≡ s ∩ dom _ m.
   Proof.
     apply dom_filter => i.
@@ -524,6 +512,50 @@ Section restrict_dom.
     rewrite /is_Some.
     naive_solver.
   Qed.
+
+  Lemma restrict_dom_subseteq s m : dom _ (restrict s m) ⊆ s.
+  Proof. rewrite restrict_dom. set_solver. Qed.
+
+  Lemma restrict_superset_id (s : D) (m : M A) :
+    dom _ m ⊆ s → restrict s m = m.
+  Proof.
+    rewrite /restrict.
+    intros Hsub.
+    apply map_filter_id.
+    intros i x look%elem_of_dom_2.
+    set_solver.
+  Qed.
+
+  Lemma restrict_union (s1 s2 : D) (m : M A) :
+    restrict s1 m ∪ restrict s2 m = restrict (s1 ∪ s2) m.
+  Proof.
+    rewrite /restrict. apply map_eq. intros i.
+    destruct (filter (λ '(k, _), k ∈ s1 ∪ s2) m !! i) eqn:look.
+    - apply map_filter_lookup_Some in look as [ha elem].
+      destruct (decide (i ∈ s1)).
+      + apply lookup_union_Some_l. apply map_filter_lookup_Some. naive_solver.
+      + apply lookup_union_Some_raw. right.
+        split.
+        * apply map_filter_lookup_None_2. right. intros _ _. done.
+        * apply map_filter_lookup_Some_2; first done. set_solver.
+    - apply map_filter_lookup_None in look as [look|notElem].
+      + apply lookup_union_None.
+        split; apply map_filter_lookup_None_2; by left.
+      + apply lookup_union_None.
+        split; apply map_filter_lookup_None; right; set_solver.
+  Qed.
+
+  Lemma disjoint_weaken s1 s1' s2 s2' :
+    s1' ## s2' → s1 ⊆ s1' → s2 ⊆ s2' → s1 ## s2.
+  Proof. intros disj sub1 sub2. set_solver. Qed.
+
+  Lemma restrict_disjoint s1 s2 m : s1 ## s2 → restrict s1 m ##ₘ restrict s2 m.
+  Proof.
+    intros dis.
+    apply map_disjoint_dom_2.
+    eapply disjoint_weaken; first apply dis; rewrite restrict_dom; set_solver.
+  Qed.
+
 
   Lemma restrict_dom_subset (s : D) (m : M A) :
     s ⊆ dom _ m → dom _ (restrict s m) ≡ s.

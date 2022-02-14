@@ -386,9 +386,9 @@ Section wpr.
     iMod (know_predicates_alloc newPreds) as
       (new_predicates_name) "[newPreds #newPredsFrag]".
 
-    set newSharedLocs := recLocs ∩ at_locs.
-    iMod (own_alloc (● (newSharedLocs : gsetUR _) ⋅ ◯ _))
-      as (new_shared_locs_name) "[newSharedLocs atLocsFrag]".
+    set newAtLocs := recLocs ∩ at_locs.
+    iMod (own_alloc (● (newAtLocs : gsetUR _) ⋅ ◯ _))
+      as (new_shared_locs_name) "[newAtLocs atLocsFrag]".
     { apply auth_both_valid. done. }
     iDestruct "atLocsFrag" as "#atLocsFrag".
 
@@ -483,17 +483,32 @@ Section wpr.
 
     iFrame "baseInterp".
     rewrite /nvm_heap_ctx. rewrite /post_crash.
-    iEval (simpl) in "P".
-    (* iDestruct ("P" $! _ abs_hists bumpers na_views (store, _) _ *)
-    (*             with "[$persImpl] [$map']") as "(map' & P)". *)
-    iDestruct ("P" $! _ abs_hists bumpers na_views (store, _) _
+    iDestruct ("P" $! _ (restrict na_locs abs_hists) bumpers na_views (store, _) _
                 with "persImpl map'") as "(map' & P)".
     iDestruct
       (map_points_to_to_new _ _ _ _ hGD'
          with "newCrashedAt map' ptsMap") as "ptsMap"; first done.
-    (* iDestruct (bi.later_wand with "[$P] [knowHistories naViewPts]") as "[$ what]". *)
+
+    assert (newNaLocs ## newAtLocs) as newLocsDisjoint.
+    { rewrite /newNaLocs /newAtLocs. set_solver+ locsDisjoint. }
+    assert (dom _ newAbsHists = newNaLocs ∪ newAtLocs) as newHistDomLocs.
+    { rewrite /newAbsHists /newNaLocs /newAtLocs /recLocs.
+      rewrite -domNewAbsHists.
+      rewrite /recLocs.
+      rewrite histDomLocs.
+      set_solver+. }
+    assert (newAbsHists = restrict newNaLocs newAbsHists ∪
+                          restrict newAtLocs newAbsHists) as split.
+    { rewrite restrict_union.
+      rewrite -newHistDomLocs.
+      rewrite restrict_superset_id; done. }
+    iEval (rewrite split) in "knowHistories".
+    rewrite big_sepM_union.
+    2: { apply restrict_disjoint. done. }
+    iDestruct "knowHistories" as "[naHistories atHistories]".
+
     (* We show the assumption for the post crash modality. *)
-    iDestruct ("P" with "[knowHistories naViewPts]") as "[$ WHAT]".
+    iDestruct ("P" with "[atLocsHistories naHistories naViewPts]") as "[$ WHAT]".
     { rewrite /post_crash_resource.
 
       (* "post_crash_frag_history_impl" - Fragmental history implication. *)
@@ -597,14 +612,14 @@ Section wpr.
         iDestruct (own_valid_2 with "atLocs sh")
           as %[_ [elem _]]%auth_both_dfrac_valid_discrete.
         iApply (own_mono with "atLocsFrag").
-        exists (◯ newSharedLocs).
+        exists (◯ newAtLocs).
         rewrite -auth_frag_op.
         rewrite gset_op.
         f_equiv.
         apply gset_included in elem.
         symmetry.
         eapply subseteq_union_1.
-        rewrite /newSharedLocs.
+        rewrite /newAtLocs.
         apply elem_of_subseteq_singleton.
         apply elem_of_intersection.
         split; last set_solver.
@@ -694,26 +709,51 @@ Section wpr.
           rewrite naViewsDom in naViewsLook.
           set_solver+ elem naViewsLook. }
       (* "post_crash_full_history_map" *)
-      iSplitL "".
-      { iIntros (ℓ q hist). iApply (ghost_map_lookup with "oldFullHist1"). }
+      rewrite /post_crash_full_history_map.
+      iSplitL "atLocsHistories".
+      { iIntros (ℓ q hist) "hist".
+        iDestruct (ghost_map_lookup with "oldFullHist1 hist") as %look.
+        destruct (decide (ℓ ∈ at_locs)) as [?|notElem].
+        { iDestruct (big_sepM_lookup with "atLocsHistories") as "H".
+          { apply restrict_lookup_Some; done. }
+          iDestruct (ghost_map_elem_valid_2 with "hist H") as "[%val _]".
+          iPureIntro. exfalso.
+          eapply (Qp_not_add_le_r _ 1).
+          rewrite dfrac_op_own in val.
+          simpl in val.
+          setoid_rewrite dfrac_valid_own in val.
+          apply val. }
+        iPureIntro.
+        apply restrict_lookup_Some.
+        split; first done.
+        apply elem_of_dom_2 in look.
+        set_solver+ notElem histDomLocs look. }
       iSplitL "".
       { iIntros (ℓ bumper). iApply (ghost_map_lookup with "oldBumpers"). }
-      iEval (rewrite big_sepM2_alt).
-      iSplit. { iPureIntro. apply dom_eq_alt. rewrite domHistsEqBumpers. done. }
-      iDestruct (big_sepM_impl_strong with "knowHistories []") as "[$ H]".
+      (* iEval (rewrite big_sepM2_alt). *)
+      (* iSplit. { iPureIntro. apply dom_eq_alt. rewrite domHistsEqBumpers. done. } *)
+      iDestruct (big_sepM_impl_strong with "naHistories []") as "[$ H]".
       iIntros "!>" (ℓ ?).
       destruct (newAbsHists !! ℓ) as [newHist|] eqn:eq.
-      - iIntros "pts" ((hist & bumper & -> & absHistsLook & bumpersLook
-                       )%map_lookup_zip_with_Some).
+      - pose proof eq as eq2.
+        apply new_abs_hist_lookup_Some in eq
+          as (?t' & s & bumper' & ? & cvLook & absHistsLook & ? & ? & ?); last done.
+        iIntros "pts".
+        iIntros ([? elem]%restrict_lookup_Some).
+        simplify_eq.
+        rewrite restrict_lookup_elem_of.
+        2: { rewrite /newNaLocs.
+          apply elem_of_dom_2 in cvLook.
+          apply elem_of_dom_2 in absHistsLook.
+          set_solver+ elem cvLook absHistsLook. }
+        iEval (rewrite eq2) in "pts".
+        iExists _. iSplitPure; first done.
         iApply soft_disj_intro_r.
         iApply "orLost". iIntros (t look).
-        iEval (simpl).
-        pose proof eq as eq2.
-        apply new_abs_hist_lookup_Some in eq
-          as (?t' & s & bumper' & ? & ? & ? & ? & ? & ?); last done.
         simplify_eq.
+        iEval (simpl).
         iDestruct (big_sepM2_lookup with "bumperSome") as %bv; [done|done|].
-        destruct (bv t' s H3) as [sBumped eq].
+        destruct (bv t' s H1) as [sBumped eq].
         rewrite eq.
         iExists s, sBumped.
         iSplit; first done.
@@ -722,8 +762,17 @@ Section wpr.
         iDestruct (auth_map_map_frag_lookup with "histFrags") as "$".
         { done. }
         { rewrite eq. apply lookup_singleton. }
-      - iIntros "_" ((hist & bumper & -> & absHistsLook & bumpersLook
-                     )%map_lookup_zip_with_Some).
+      - iIntros "_".
+        iIntros ([absHistsLook elem]%restrict_lookup_Some).
+        (* ((hist & bumper & -> & absHistsLook & bumpersLook *)
+        (*              )%map_lookup_zip_with_Some). *)
+        assert (is_Some (bumpers !! ℓ)) as [bumper ?].
+        { apply elem_of_dom.
+          rewrite -domHistsEqBumpers.
+          apply elem_of_dom.
+          eexists _. apply absHistsLook. }
+        iExists bumper.
+        iSplitPure; first done.
         iApply soft_disj_intro_r.
         iExists _. iFrame "newCrashedAt".
         iRight. iPureIntro.
@@ -735,10 +784,11 @@ Section wpr.
     repeat iExists _.
     rewrite /own_full_history.
     iFrame "ptsMap".
-    iFrame "newOrders newPreds hists' newSharedLocs newCrashedAt".
+    iFrame "newOrders newPreds hists' newAtLocs newCrashedAt".
     iFrame "newNaLocs".
     iFrame "newPhysHist".
     iFrame "newBumpers".
+    iFrame "naView".
     (* [locsDisjoint] *)
     iSplit.
     { iPureIntro. set_solver. }
@@ -746,15 +796,12 @@ Section wpr.
     iSplit.
     { iPureIntro. rewrite -domNewAbsHists. set_solver+ histDomLocs. }
     (* [naView] *)
-    iSplitR. { admit. }
-    (* [naPredsHold] *)
-    iSplitR. { admit. }
+    iSplitPure. { rewrite /newNaViews. apply dom_gset_to_gmap. }
     (* mapShared. We show that the shared location still satisfy that
     heir two persist-views are equal. *)
-    iSplit. { iPureIntro. apply shared_locs_inv_slice_of_store. }
+    iSplitPure. { apply shared_locs_inv_slice_of_store. }
     (* atLocsHistories *)
-    iSplitR.
-    { admit. }
+    iFrame "atHistories".
     (* [ordered]: We show that the abstract states are still ordered. *)
     iSplitR.
     { iApply big_sepM2_intro.
