@@ -141,7 +141,7 @@ Section wp_na_rules.
       try (eapply map_dom_eq_lookup_None; last apply physHistsLook;
            rewrite /relation2; congruence).
     rewrite !(restrict_insert_not_elem _ _ _ _ H3).
-    iFrame "pts ptsMap ordered bumperSome bumpMono".
+    iFrame "pts ptsMap ordered bumpMono".
     iFrame (mapShared).
     (* locsDisjoint *)
     iSplit. {
@@ -187,7 +187,6 @@ Section wp_na_rules.
     iSplitL.
     { iPureIntro. simpl. apply encode_bumper_bump_mono. apply bumper_mono. }
     (* predPostCrash *)
-
     rewrite /post_crash_flush /post_crash. iFrame "predPostCrash".
     iSplitL.
     { iModIntro. iIntros (??????) "(%eq & %eq2 & P)".
@@ -201,7 +200,14 @@ Section wp_na_rules.
       iDestruct (encode_predicate_extract with "P") as "phi".
       { done. } { done. }
       iApply (pred_condition with "phi"). }
+    (* bumperBumpToValid *)
+    iSplitPure.
+    { rewrite map_Forall_insert.
+      2: { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
+      split; last done.
+      apply encode_bumper_bump_to_valid. }
     (* bumperSome *)
+    iFrame "bumperSome".
     iPureIntro.
     apply map_Forall_singleton.
     rewrite encode_bumper_encode.

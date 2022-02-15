@@ -226,17 +226,6 @@ Section wpr.
     eapply slice_of_hist_lookup_Some; done.
   Qed.
 
-  Lemma holo (CV : view) ℓ t (σ : store) :
-    CV !! ℓ = Some $ MaxNat t →
-    consistent_cut CV σ →
-    ∃ (msg : message) (hist : history),
-      σ !! ℓ = Some hist ∧
-      hist !! t = Some msg ∧
-      slice_of_store CV σ !! ℓ = Some {[ 0 := discard_msg_views msg ]}.
-  Proof.
-  Admitted.
-
-  (* FIXME: This lemmas needs more assumptions. *)
   Lemma new_abs_hist_lookup_Some abs_hists CV bumpers ℓ hist :
     valid_slice CV abs_hists →
     new_abs_hist abs_hists CV bumpers !! ℓ = Some hist →
@@ -245,7 +234,6 @@ Section wpr.
       abs_hists !! ℓ = Some abs_hist ∧
       abs_hist !! t = Some s ∧
       bumpers !! ℓ = Some bumper ∧
-      (* bumper s = Some s' ∧ *)
       hist = {[ 0 := default 1%positive (bumper s) ]}.
   Proof.
     intros val.
@@ -882,7 +870,7 @@ Section wpr.
       (* iDestruct ("pred" with "pcRes") as "[H pcRes]". *)
       admit. }
 
-    (* Show that the bumpers are still monotone. *)
+    (* [bumpMono] - Show that the bumpers are still monotone. *)
     iSplitR "".
     { iApply (big_sepM2_impl_subseteq with "bumpMono").
       { apply restrict_subseteq. }
@@ -890,7 +878,7 @@ Section wpr.
       { rewrite /newOrders /newBumpers.
         rewrite 2!restrict_dom.
         rewrite -domOrdersEqBumpers.
-        set_solver. } }
+        done. } }
     iSplitR "". {
       iApply (big_sepM2_impl_subseteq with "predPostCrash").
       { apply restrict_subseteq. }
@@ -899,28 +887,32 @@ Section wpr.
         rewrite 2!restrict_dom.
         rewrite -domPredsEqBumpers.
         set_solver. } }
+    (* bumperBumpToValid *)
+    iSplitPure.
+    { eapply map_Forall_subseteq; last done.
+      apply restrict_subseteq. }
     (* bumperSome *)
     { iApply big_sepM2_forall.
-      iSplit.
-      { iPureIntro.
-        setoid_rewrite <- elem_of_dom.
-        apply set_eq.
+      iSplitPure.
+      { apply dom_eq_alt_L.
         rewrite restrict_dom_subset_L; first done.
         rewrite /recLocs.
         rewrite domHistsEqBumpers.
         set_solver+. }
-      (* iIntros (ℓ hist bumper [empty | (s' & histEq)]%new_abs_hist_lookup_simpl_inv look2). *)
       iIntros (ℓ hist bumper look look2).
       apply new_abs_hist_lookup_Some in look; last done.
-      destruct look as (? & ? & ? & hist' & ? & ? & ? & ? & histEq).
-      (* We handle the empty case here, but we should be able to rule it out. *)
-      (* { rewrite empty. iPureIntro. apply map_Forall_empty. } *)
-      rewrite histEq.
+      destruct look as (t & s & bumper' & hist' & ? & ? & ? & ? & histEq).
+      simplify_eq.
+      assert (bumper = bumper') as <-.
+      { eapply lookup_weaken_inv; [done| |done]. apply restrict_subseteq. }
       iEval (rewrite -map_Forall_singleton).
-      assert (bumpers !! ℓ = Some bumper). { admit. }
       iDestruct (big_sepM2_lookup with "bumperSome") as %i; [done|done|].
-      (* Note: We probably have to use [bumpMono] as well. *)
-      admit. }
+      eapply map_Forall_lookup_1 in i as [bumpedS eq]; last done.
+      rewrite eq.
+      simpl.
+      eapply map_Forall_lookup_1 in bumperBumpToValid as [spa equi]; last done; first done.
+      rewrite equi.
+      done. }
   Admitted.
 
   (*

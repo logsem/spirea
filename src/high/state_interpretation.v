@@ -47,6 +47,55 @@ Section map_map_Forall.
 
 End map_map_Forall.
 
+(* This could be defined for any monad, but who cares. *)
+Fixpoint iter_option {A} (n : nat) (f : A → option A) (a : A) : option A :=
+  match n with
+  | O => f a
+  | S m => f a ≫= iter_option m f
+  end.
+
+Section iter_option.
+  Context {A : Type}.
+  Implicit Types (a : A).
+
+  (* Lemma iter_option_Some_S n f a : *)
+  (*   is_Some (iter_option (S n) f a) → *)
+  (*   ∃ b, f a = Some b ∧ *)
+  (*   is_Some (iter_option n f a). *)
+  (* Proof. *)
+  (* Admitted. *)
+
+  Lemma iter_option_Some_S n f a c :
+    iter_option (S n) f a = Some c →
+    ∃ b, f a = Some b ∧ iter_option n f b = Some c.
+  Proof. apply bind_Some. Qed.
+
+  (* Lemma iter_option_is_Some_S n f a : *)
+  (*   is_Some (iter_option (S n) f a) → *)
+  (*   ∃ b, f a = Some b ∧ *)
+  (*   is_Some (iter_option n f b). *)
+  (* Proof. *)
+  (*   simpl. *)
+  (*   (* intros [c eq]. *) *)
+  (*   intros [c eq%bind_Some]. *)
+  (* Admitted. *)
+
+  Lemma iter_option_forall f a :
+    (∀ n, is_Some (iter_option n f a)) →
+    ∃ b, f a = Some b ∧ (∀ n, is_Some (iter_option n f b)).
+  Proof.
+    intros H.
+    pose proof (H 0) as (b & Hip).
+    exists b.
+    split; first apply Hip.
+    intros n.
+    pose proof (H (S n)) as [c eq].
+    apply iter_option_Some_S in eq as (b' & eq' & ?).
+    naive_solver.
+  Qed.
+
+End iter_option.
+
 Definition shared_locs_inv (locs : gmap loc (gmap time message)) :=
   map_map_Forall
     (λ (ℓ : loc) (t : time) (msg : message),
@@ -142,12 +191,14 @@ Section state_interpretation.
           ∃ P', ⌜pred e' v = Some P'⌝ ∗ ((post_crash_flush P') TV))) ∗
       (* Bumpers map valid input to valid output. *)
       (* NOTE: We probably need something to this effect, but for now it is commented out. *)
-      (* "%bumperBumpToValid" ∷ *)
-      (*   ⌜map_Forall (λ _ bumper, ∀ e e', bumper e = Some e' → *)
-      (*                                       is_Some (bumper e')) bumpers⌝ ∗ *)
+      "%bumperBumpToValid" ∷
+        ⌜ map_Forall
+            (λ _ bumper, ∀ e e', bumper e = Some e' → is_Some (bumper e'))
+            bumpers⌝ ∗
       (* All the abstract state are "valid" inputs to the bumpers. *)
       "#bumperSome" ∷ ([∗ map] ℓ ↦ abs_hist; bumper ∈ abs_hists; bumpers,
-        ⌜map_Forall (λ _ e, is_Some (bumper e)) abs_hist⌝)).
+        (* ⌜ map_Forall (λ _ e,  ∀ n, is_Some (iter_option n bumper e)) abs_hist ⌝)). *)
+        ⌜ map_Forall (λ _ e, is_Some (bumper e)) abs_hist ⌝)).
 
   Global Instance highExtraStateInterp : extraStateInterp Σ := {
     extra_state_interp := interp;

@@ -149,8 +149,7 @@ Section wp_at_rules.
       apply lookup_zero_gt_zero. }
 
     repeat iExists _.
-    iFrame "physHist crashedAt history predicates allOrders naLocs
-      atLocs".
+    iFrame "physHist crashedAt history predicates allOrders naLocs atLocs".
     iFrame.
     iFrame "#".
     iFrame "%".
@@ -164,7 +163,7 @@ Section wp_at_rules.
     rewrite !big_sepM2_insert;
       try (eapply map_dom_eq_lookup_None; last apply physHistsLook;
            rewrite /relation2; congruence).
-    iFrame "pts ptsMap ordered atLocsHistories ownHist bumperSome bumpMono".
+    iFrame "pts ptsMap ordered atLocsHistories ownHist bumpMono".
     (* locsDisjoint *)
     iSplit. {
       iPureIntro.
@@ -219,8 +218,8 @@ Section wp_at_rules.
         iSplit; first done.
         iFrame. }
     (* bumpMono *)
-    iSplitL.
-    { iPureIntro. simpl. apply encode_bumper_bump_mono. apply bumper_mono. }
+    iSplitPure.
+    { simpl. apply encode_bumper_bump_mono. apply bumper_mono. }
     (* predPostCrash *)
     rewrite /post_crash_flush. rewrite /post_crash. iFrame "predPostCrash".
     iSplitL.
@@ -235,6 +234,13 @@ Section wp_at_rules.
       iDestruct (encode_predicate_extract with "P") as "phi".
       { done. } { done. }
       iApply (pred_condition with "phi"). }
+    (* bumperBumpToValid *)
+    iSplitPure.
+    { rewrite map_Forall_insert.
+      2: { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
+      split; last done.
+      apply encode_bumper_bump_to_valid. }
+    iFrame "bumperSome".
     iPureIntro.
     apply map_Forall_singleton.
     rewrite encode_bumper_encode.
@@ -711,7 +717,7 @@ Section wp_at_rules.
     iDestruct (big_sepM2_dom with "bumperSome") as %domEq.
 
     iFrame "predPostCrash".
-    (* iFrame (bumperBumpToValid). *)
+    iFrame (bumperBumpToValid).
 
     (* "bumperSome" *)
     iApply (big_sepM2_update_left with "bumperSome"); eauto.
