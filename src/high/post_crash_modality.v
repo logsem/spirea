@@ -712,7 +712,7 @@ Program Definition post_crash_flush {Σ} `{nvmFixedG Σ, nvmDeltaG Σ}
         (* ⎡ persisted (flush_view TV) ⎤ -∗ *)
         ⎡ persisted (view_to_zero (flush_view TV)) ⎤ ∗
         ⎡ crashed_at CV ⎤ -∗
-        ▷ P nD') (∅, ∅, ∅))%I _.
+        P nD') (∅, ∅, ∅))%I _.
 Next Obligation. intros ???????. apply post_crash_mono. solve_proper. Qed.
 
 (*
@@ -776,7 +776,6 @@ Section post_crash_persisted.
     iIntros (TV'' le) "(%flushLe & #pers & #crashedAt)".
     iSpecialize ("H" $! TV'' le with "[$pers $crashedAt //]").
     iSpecialize ("H1" $! TV'' le with "[$pers $crashedAt //]").
-    iNext.
     iFrame.
   Qed.
 
@@ -798,7 +797,6 @@ Section post_crash_persisted.
     monPred_simpl.
     iIntros (TV'' le) "(%flushLe & pers & crashedAt)".
     iSpecialize ("P" $! TV'' le with "[$pers $crashedAt //]").
-    iNext.
     iDestruct (Hmono with "P") as "H".
     done.
   Qed.

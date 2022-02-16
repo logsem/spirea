@@ -213,6 +213,22 @@ Section consistent_cut.
     intros ?%consistent_cut_subseteq_dom. set_solver.
   Qed.
 
+  Lemma consistent_cut_extract CV store ℓ t hist msg :
+    consistent_cut CV store →
+    CV !! ℓ = Some (MaxNat t) →
+    store !! ℓ = Some hist →
+    hist !! t = Some msg →
+    msg_persisted_after_view msg ⊑ CV.
+  Proof.
+    rewrite /consistent_cut.
+    intros cut cvLook storeLook histLook.
+    destruct (cut ℓ (MaxNat t) cvLook) as (? & ? & ? & ? & map).
+    apply (map t msg).
+    rewrite /cut_history.
+    apply map_filter_lookup_Some.
+    naive_solver.
+  Qed.
+
   Lemma slice_of_store_dom_subset CV σ :
     dom (gset _) (slice_of_store CV σ) ⊆ dom _ σ.
   Proof. rewrite /slice_of_store dom_fmap. apply slice_of_hist_dom_subset. Qed.

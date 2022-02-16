@@ -329,24 +329,6 @@ Proof.
     done.
 Qed.
 
-Section big_sepM.
-  Context {PROP : bi}.
-  Context `{BiAffine PROP}.
-  Context `{Countable K} {A : Type}.
-  Implicit Types m : gmap K A.
-  Implicit Types Φ Ψ : K → A → PROP.
-
-  Lemma big_sepM_impl Φ Ψ m :
-    ([∗ map] k↦x ∈ m, Φ k x) -∗
-    □ (∀ k x, ⌜m !! k = Some x⌝ → Φ k x -∗ Ψ k x) -∗
-    [∗ map] k↦x ∈ m, Ψ k x.
-  Proof.
-    apply wand_intro_l. rewrite big_sepM_intro -big_sepM_sep.
-    by setoid_rewrite wand_elim_l.
-  Qed.
-
-End big_sepM.
-
 Section map_zip_with.
   Context `{FinMap K M}.
 
@@ -585,6 +567,94 @@ Lemma valid_to_agree_fmap `{Countable K} {B : ofe} (m : gmap K B) :
   ✓ (to_agree <$> m : gmapUR _ _).
 Proof. intros ℓ. rewrite lookup_fmap. by case (m !! ℓ). Qed.
 
+Section big_sepM.
+  Context {PROP : bi}.
+  (* Context `{BiAffine PROP}. *)
+  Context `{Countable K} {A : Type}.
+  Implicit Types m : gmap K A.
+  Implicit Types Φ Ψ : K → A → PROP.
+
+  (* Lemma big_sepM_impl Φ Ψ m : *)
+  (*   ([∗ map] k↦x ∈ m, Φ k x) -∗ *)
+  (*   □ (∀ k x, ⌜m !! k = Some x⌝ → Φ k x -∗ Ψ k x) -∗ *)
+  (*   [∗ map] k↦x ∈ m, Ψ k x. *)
+  (* Proof. *)
+  (*   apply wand_intro_l. rewrite big_sepM_intro -big_sepM_sep. *)
+  (*   by setoid_rewrite wand_elim_l. *)
+  (* Qed. *)
+
+  Lemma big_sepM_thread_resource Φ m R :
+    R ∗ ([∗ map] k↦x ∈ m, R -∗ R ∗ Φ k x) ⊣⊢ R ∗ ([∗ map] k↦x ∈ m, Φ k x).
+  Proof.
+    induction m as [|i x m ? IH] using map_ind.
+    - rewrite 2!big_sepM_empty. naive_solver.
+    - rewrite big_sepM_insert; last done.
+      rewrite assoc.
+      rewrite (comm _ R).
+      rewrite -assoc.
+      rewrite IH.
+      rewrite big_sepM_insert; last done.
+      apply (anti_symm _).
+      * rewrite assoc.
+        rewrite wand_elim_l.
+        rewrite -assoc.
+        done.
+      * rewrite assoc.
+        rewrite (comm _ R).
+        rewrite -assoc.
+        apply sep_mono_l.
+        apply wand_intro_r.
+        done.
+  Qed.
+
+  Lemma big_sepM_thread_resource_1 Φ m R :
+    R -∗ ([∗ map] k↦x ∈ m, R -∗ R ∗ Φ k x) -∗ R ∗ ([∗ map] k↦x ∈ m, Φ k x).
+  Proof. apply wand_intro_r. rewrite big_sepM_thread_resource. done. Qed.
+
+  Lemma big_sepM_thread_resource_2 Φ m R :
+    R -∗ ([∗ map] k↦x ∈ m, Φ k x) -∗ R ∗ ([∗ map] k↦x ∈ m, R -∗ R ∗ Φ k x).
+  Proof. apply wand_intro_r. rewrite big_sepM_thread_resource. done. Qed.
+
+  (* Lemma big_sepM_impl_with_resource Φ Ψ m R : *)
+  (*   R -∗ *)
+  (*   ([∗ map] k↦x ∈ m, Φ k x) -∗ *)
+  (*   □ (∀ (k : K) (x : A), ⌜m !! k = Some x⌝ → R -∗ Φ k x -∗ Ψ k x ∗ R) -∗ *)
+  (*   ([∗ map] k↦x ∈ m, Ψ k x) ∗ R. *)
+  (* Proof. *)
+  (*   (* revert Φ. *) *)
+  (*   induction m as [|i x m ? IH] using map_ind. *)
+  (*   - naive_solver. *)
+  (*   - iIntros "R map #impl". *)
+  (* Admitted. *)
+  (* Qed. *)
+
+End big_sepM.
+
+Lemma big_sepM_impl_dom_subseteq_with_resource {PROP : bi} `{Countable K} {A B : Type}
+    R (Φ : K → A → PROP) (Ψ : K → B → PROP) (m1 : gmap K A) (m2 : gmap K B) :
+  dom (gset _) m2 ⊆ dom _ m1 →
+  R -∗
+  ([∗ map] k↦x ∈ m1, Φ k x) -∗
+  □ (∀ (k : K) (x : A) (y : B),
+      ⌜m1 !! k = Some x⌝ → ⌜m2 !! k = Some y⌝ →
+      R -∗ Φ k x -∗ R ∗ Ψ k y) -∗
+  R ∗
+  ([∗ map] k↦y ∈ m2, Ψ k y) ∗
+  ([∗ map] k↦x ∈ filter (λ '(k, _), m2 !! k = None) m1, Φ k x).
+Proof.
+  iIntros (sub) "R map #impl".
+  iDestruct (big_sepM_thread_resource_2 with "R map") as "[R map]".
+  rewrite assoc.
+  rewrite -(big_sepM_thread_resource _ _ R).
+  rewrite -assoc.
+  iDestruct (big_sepM_impl_dom_subseteq with "map []") as "[$ B]".
+  { done. }
+  { iIntros "!>" (k x y look1 look2) "w R".
+    iDestruct ("w" with "R") as "[R H]".
+    iApply ("impl" $! _ _ _ look1 look2 with "R H"). }
+  iApply (big_sepM_thread_resource_1 with "R B").
+Qed.
+
 Section big_sepM2.
   Context {PROP : bi}.
   Context `{Countable K} {A B : Type}.
@@ -604,6 +674,41 @@ Section big_sepM2.
     a !! k = None.
   Proof.
     intros domEq look. rewrite -not_elem_of_dom domEq not_elem_of_dom. done.
+  Qed.
+
+  (* Lemma big_sepM2_thread_resource Φ m1 m2 R : *)
+  (*   R ∗ ([∗ map] k↦x1;x2 ∈ m1;m2, R -∗ Φ k x1 x2 ∗ R) ⊣⊢ *)
+  (*   R ∗ ([∗ map] k↦x1;x2 ∈ m1;m2, Φ k x1 x2). *)
+  (* Proof. *)
+  (*   rewrite 2!big_sepM2_alt. *)
+  (*   iSplit. *)
+  (*   - iIntros "R [$ M]". *)
+  (*   rewrit (big_sepM_thread_resource with "R M"). *)
+  (*   iApply (big_sepM_thread_resource with "R M"). *)
+  (* Qed. *)
+
+  Lemma big_sepM2_impl_dom_subseteq_with_resource `{!BiAffine PROP}
+        Φ Ψ m1 m2 n1 n2 R :
+    dom (gset _) n1 ⊆ dom (gset _) m1 →
+    dom (gset _) n1 = dom (gset _) n2 →
+    R -∗
+    ([∗ map] k↦x1;x2 ∈ m1;m2, Φ k x1 x2) -∗
+    □ (∀ (k : K) x1 x2 y1 y2,
+        ⌜m1 !! k = Some x1⌝ → ⌜m2 !! k = Some x2⌝ →
+        ⌜n1 !! k = Some y1⌝ → ⌜n2 !! k = Some y2⌝ → R -∗ Φ k x1 x2 -∗ R ∗ Ψ k y1 y2) -∗
+    ([∗ map] k↦y1;y2 ∈ n1;n2, Ψ k y1 y2).
+  Proof.
+    iIntros (sub1 domEq).
+    rewrite !big_sepM2_alt.
+    iIntros "R [%impl sep] #impl".
+    apply dom_eq_alt_L in impl.
+    iSplit. { iPureIntro. apply dom_eq_alt_L. congruence. }
+    iDestruct (big_sepM_impl_dom_subseteq_with_resource with "R sep []")
+      as "(A & $ & C)".
+    { rewrite 2!dom_map_zip_with. rewrite -domEq -impl. set_solver. }
+    iIntros "!>" (k [??] [??] [l1 l2]%map_lookup_zip_Some [l3 l4]%map_lookup_zip_Some) "R phi".
+    simpl in *.
+    iApply ("impl" with "[//] [//] [//] [//] R phi").
   Qed.
 
   (* This could be upstreamed but we'd need to drop the affine requirement and

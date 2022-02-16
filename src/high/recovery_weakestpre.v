@@ -82,67 +82,34 @@ we crashed at, then we can get a map of points-to predicates for the new
 heap. *)
 Lemma map_points_to_to_new `{nvmBaseFixedG Σ} logHists store CV (hG hG' : nvmBaseDeltaG Σ) :
   consistent_cut CV store →
-  own (@crashed_at_view_name (@nvm_base_names' _ hG')) (to_agree CV) -∗
+  crashed_at (hGD := hG') CV -∗
   base.post_crash_modality.post_crash_mapsto_map store hG hG' -∗
   ([∗ map] ℓ ↦ hist ∈ logHists, let hG := hG in ℓ ↦h hist) -∗
+  base.post_crash_modality.post_crash_mapsto_map store hG hG' ∗
   ([∗ map] ℓ ↦ hist ∈ (slice_of_store CV logHists), let hG := hG' in ℓ ↦h hist).
 Proof.
-  iIntros (cut) "#rec [impl map] pts".
+  iIntros (cut) "#crashed map pts".
   iAssert (⌜logHists ⊆ store⌝)%I as %sub.
-  { rewrite map_subseteq_spec.
+  { iDestruct "map" as "[impl _]".
+    rewrite map_subseteq_spec.
     iIntros (ℓ msg look).
     iApply "impl".
-    iApply (big_sepM_lookup with "pts"); first done. }
-  iAssert (⌜dom (gset _) logHists ⊆ dom _ store⌝)%I as %histSubStore.
-  { rewrite elem_of_subseteq. iIntros (ℓ).
-    rewrite !elem_of_dom. iIntros ([hist look]).
-    iDestruct (big_sepM_lookup with "pts") as "pts"; first apply look.
-    iExists _. iApply "impl"; done. }
-  (* Throw away the points-to predicates that did not survive the crash. *)
-  iDestruct (big_sepM_subseteq with "map") as "map".
-  { apply sub. }
-  iDestruct (big_sepM_subseteq with "pts") as "pts".
-  { apply (restrict_subseteq (dom (gset _) CV)). }
-  iDestruct (big_sepM_subseteq with "map") as "map".
-  { apply (restrict_subseteq (dom (gset _) CV)). }
-  iDestruct (big_sepM_sep_2 with "pts map") as "map".
-  iDestruct (big_sepM_impl_dom_subseteq _ _ _ (slice_of_store _ _) with "map []") as "[$ _]".
-  { rewrite /slice_of_store /slice_of_hist.
-    rewrite dom_fmap.
-    rewrite !dom_map_zip_with.
-    rewrite restrict_dom.
-    set_solver. }
-  iIntros "!>" (ℓ hist hy look look') "[pts disj]".
-
-  iDestruct (soft_disj_exchange_l with "[] disj pts") as "[disj right]".
-  { iIntros "!>" (?) "H".
-    setoid_rewrite <- dfrac_valid_own.
-    iApply (mapsto_valid with "H"). }
-
-  iDestruct "right" as (CV') "[crashed [right | %left]]";
-  iDestruct (crashed_at_agree with "crashed rec") as %->.
+    iApply (big_sepM_lookup with "pts"). done. }
+  iDestruct (big_sepM_impl_dom_subseteq_with_resource with "map pts []") as "($ & $ & H)".
+  { apply slice_of_store_dom_subset. }
+  iIntros "!>" (ℓ oldHist newHist look1 look2) "map pts".
+  iDestruct (post_crash_modality.post_crash_map_exchange with "map pts") as "[$ pts]".
+  apply slice_of_store_lookup_inv in look2 as (? & ? & ? & ? & ? & ? & ?).
   2: {
-    iExFalso.
-    rewrite /slice_of_store /slice_of_hist map_fmap_zip_with in look'.
-    apply elem_of_dom_2 in look'.
-    setoid_rewrite dom_map_zip_with in look'.
-    setoid_rewrite elem_of_intersection in look'.
-    destruct look' as [look' _].
-    apply elem_of_dom in look'.
-    destruct look' as [[t] ?].
-    simplify_eq. }
+    eapply valid_slice_mono_l; first done.
+    apply consistent_cut_valid_slice.
+    done. }
+  iDestruct "pts" as (CV') "[crashed' [right | %left]]";
+    iDestruct (crashed_at_agree with "crashed' crashed") as %->;
+    last congruence.
   iDestruct "right" as (t msg look'' lookm ?) "newPts".
-  apply restrict_lookup_Some in look.
-  destruct look as [lookStore ?].
-  rewrite /slice_of_store /slice_of_hist map_fmap_zip_with in look'.
-  apply map_lookup_zip_with_Some in look'.
-  destruct look' as ([t'] & physHist & eq & ?look & ?look).
-
-  setoid_rewrite map_subseteq_spec in sub.
   simplify_eq.
-  rewrite lookm.
-  rewrite map_fmap_singleton.
-  iFrame "newPts".
+  iFrame.
 Qed.
 
 Definition wpr `{nvmFixedG Σ, nvmDeltaG Σ} s := wpr' _ s _.
@@ -312,7 +279,7 @@ Section wpr.
     (* We need to first re-create the ghost state for the base
     interpretation. *)
     iMod (nvm_heap_reinit _ _ _ _ _ Hcrash with "Hσ Hpers")
-      as (baseNames hGD') "(% & valView & map' & baseInterp & #persImpl & #pers &
+      as (baseNames hGD') "(% & valView & baseMap & baseInterp & #persImpl & #pers &
                             #newCrashedAt)";
       try done.
 
@@ -469,14 +436,6 @@ Section wpr.
     |}).
     iExists (NvmDeltaG _ hGD' hD').
 
-    iFrame "baseInterp".
-    rewrite /nvm_heap_ctx. rewrite /post_crash.
-    iDestruct ("P" $! _ (restrict na_locs abs_hists) bumpers na_views (store, _) _
-                with "persImpl map'") as "(map' & P)".
-    iDestruct
-      (map_points_to_to_new _ _ _ _ hGD'
-         with "newCrashedAt map' ptsMap") as "ptsMap"; first done.
-
     assert (newNaLocs ## newAtLocs) as newLocsDisjoint.
     { rewrite /newNaLocs /newAtLocs. set_solver+ locsDisjoint. }
     assert (dom _ newAbsHists = newNaLocs ∪ newAtLocs) as newHistDomLocs.
@@ -494,6 +453,14 @@ Section wpr.
     rewrite big_sepM_union.
     2: { apply restrict_disjoint. done. }
     iDestruct "knowHistories" as "[naHistories atHistories]".
+
+    iFrame "baseInterp".
+    rewrite /nvm_heap_ctx. rewrite /post_crash.
+    iDestruct ("P" $! _ (restrict na_locs abs_hists) bumpers na_views (store, _) _
+                with "persImpl baseMap") as "(baseMap & P)".
+    iDestruct
+      (map_points_to_to_new _ _ _ _ hGD'
+         with "newCrashedAt baseMap ptsMap") as "[baseMap ptsMap]"; first done.
 
     (* We show the assumption for the post crash modality. *)
     iDestruct ("P" with "[atLocsHistories naHistories naViewPts]") as "[$ pcRes]".
@@ -805,16 +772,29 @@ Section wpr.
 
     (* [predsHold] We show that the encoded predicates still hold for the new abstract
     history. *)
-    iSplitR "pcRes". {
+    iSplitL "predsHold baseMap pcRes". {
       (* We use the old predsHold to show the new predsHold. There are more
       locations in the old abstract state so the new predsHold is over a subset
       of locations. *)
-      iDestruct (big_sepM2_impl_dom_subseteq with "predsHold []") as "$".
+      iDestruct (big_sepM2_impl_dom_subseteq_with_resource with "[baseMap pcRes] predsHold []") as "$".
       { apply slice_of_store_dom_subset. }
-      { admit. }
+      { rewrite -domNewAbsHists.
+        rewrite /slice_of_store. (* FIXME: Lemma for this. *)
+        rewrite /slice_of_hist.
+        rewrite dom_fmap_L.
+        rewrite dom_map_zip_with_L.
+        rewrite /recLocs.
+        rewrite domPhysHistsEqAbsHists.
+        set_solver+. }
+      { iAccu. }
+
+      (* iDestruct (big_sepM2_impl_dom_subseteq with "predsHold []") as "$". *)
+      (* { apply slice_of_store_dom_subset. } *)
+      (* { admit. } *)
       iModIntro.
       iIntros (ℓ physHist encHist newPhysHist newAbsHist physHistsLook
                absHistsLook newPhysHistsLook newAbsHistLook).
+      iIntros "[baseMap pcRes]".
 
       (* Infer what we can from the lookup in the new physical history. *)
       apply slice_of_store_lookup_inv in newPhysHistsLook
@@ -828,13 +808,18 @@ Section wpr.
       simplify_eq.
 
       iIntros "(%pred & %predsLook & encs)".
+
+      rewrite bi.sep_exist_l.
       iExists pred.
-      iSplitPure.
+
+      iPureGoal.
+      (* iSplitPure. *)
       { rewrite /newPreds.
         apply restrict_lookup_Some_2; first done.
         apply elem_of_dom_2 in cvLook.
         apply elem_of_dom_2 in absHistsLook.
         set_solver+ cvLook absHistsLook. }
+
       rewrite big_sepM2_singleton.
 
       (* We look up the relevant predicate in [encs]. *)
@@ -859,17 +844,34 @@ Section wpr.
       iDestruct "flip" as (?P) "[#eq PHolds]".
       iDestruct ("hi" with "[$PHolds]") as (?pred) "[%eq2 pred]".
       { iSplitPure; first done. admit. (* We have an equivalence and need an equality. *) }
+      rewrite bi.sep_exist_l.
       iExists _.
-      iSplit. { rewrite eq2. done. }
 
-      rewrite /post_crash_flush /post_crash.
+      (* iSplit. { rewrite eq2. done. } *)
+
+      rewrite /post_crash_flush. rewrite /post_crash.
       iEval (simpl) in "pred".
       iDestruct ("pred" $! _ _ bumpers na_views (store, _) _
-                  with "persImpl []") as "(map' & pred)".
-      { admit. }
-      (* iDestruct ("pred" with "pcRes") as "[H pcRes]". *)
-      admit. }
+                  with "persImpl baseMap") as "(baseMap & pred)".
+      iDestruct ("pred" with "pcRes") as "[H pcRes]".
 
+      iFrame "baseMap pcRes".
+      iSplit. { rewrite eq2. done. }
+      iAssert (▷ (
+        pred0
+        {| nvm_delta_base := {| nvm_base_crashGS := Hcrash; nvm_base_names' := baseNames |};
+          nvm_delta_high := hD' |} (∅, ∅, ∅)))%I with "[H]" as "P".
+      { iNext.
+        iApply "H".
+        iFrame "newCrashedAt".
+        assert (msg_persisted_after_view msg ⊑ CV).
+        { eapply consistent_cut_extract; try done. eapply lookup_weaken; done. }
+        iSplitPure; first done.
+        iApply (persisted_weak with "pers").
+        f_equiv.
+        done. }
+      (* FIXME: There is a later in the way. *)
+      admit. }
     (* [bumpMono] - Show that the bumpers are still monotone. *)
     iSplitR "".
     { iApply (big_sepM2_impl_subseteq with "bumpMono").
