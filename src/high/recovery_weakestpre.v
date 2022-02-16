@@ -49,7 +49,7 @@ Definition wpr_pre `{nvmFixedG Σ} (s : stuckness)
           ⌜ Hc1 = get_crashG hD' ⌝ ∗
           (* let hG := (nvm_update Σ hG _ Hc1 names) in *)
           (* interp ∗ *)
-          state_interp σ' 0 ∗
+          ▷ state_interp σ' 0 ∗
           global_state_interp (Λ := nvm_lang) () (step_count_next ns) mj D [] ∗
           validV ∅ ∗
           ▷ (monPred_at (wpr hD' E e_rec e_rec (λ v, Φr hD' v) Φr) (∅, ∅, ∅)) ∗
@@ -259,7 +259,7 @@ Section wpr.
       ∃ (hD' : nvmDeltaG Σ),
         ⌜ Hcrash = get_crashG hD' ⌝ ∗
         validV ∅ ∗
-        interp (hGD := hD') ∗
+        ▷ interp (hGD := hD') ∗
         nvm_heap_ctx (hG := _) σ' ∗
         ▷ P hD' (∅, ∅, ∅).
   Proof.
@@ -773,6 +773,7 @@ Section wpr.
     (* [predsHold] We show that the encoded predicates still hold for the new abstract
     history. *)
     iSplitL "predsHold baseMap pcRes". {
+      iApply big_sepM2_later_2.
       (* We use the old predsHold to show the new predsHold. There are more
       locations in the old abstract state so the new predsHold is over a subset
       of locations. *)
@@ -809,21 +810,19 @@ Section wpr.
 
       iIntros "(%pred & %predsLook & encs)".
 
+      rewrite -bi.later_exist_2.
       rewrite bi.sep_exist_l.
       iExists pred.
-
       iPureGoal.
-      (* iSplitPure. *)
       { rewrite /newPreds.
         apply restrict_lookup_Some_2; first done.
         apply elem_of_dom_2 in cvLook.
         apply elem_of_dom_2 in absHistsLook.
         set_solver+ cvLook absHistsLook. }
-
       rewrite big_sepM2_singleton.
 
       (* We look up the relevant predicate in [encs]. *)
-      iDestruct (big_sepM2_lookup with "encs") as "flip"; [done | done | ].
+      iDestruct (big_sepM2_lookup with "encs") as "predHolds"; [done|done|].
 
       iDestruct (big_sepM2_lookup with "bumperSome") as %map; [done|done|].
       destruct (map t s histLook) as [bumpedS bumperEq].
@@ -836,18 +835,16 @@ Section wpr.
         - done. }
 
       (* We now looks up in [predPostCrash]. *)
-      iDestruct (big_sepM2_lookup with "predPostCrash") as "#hi";
+      iDestruct (big_sepM2_lookup with "predPostCrash") as "#postCrash";
         [apply predsLook | apply bumpersLook | ].
-      iSpecialize ("hi" $! s (msg_val msg)).
+      iSpecialize ("postCrash" $! s (msg_val msg)).
 
       rewrite /encoded_predicate_holds.
-      iDestruct "flip" as (?P) "[#eq PHolds]".
-      iDestruct ("hi" with "[$PHolds]") as (?pred) "[%eq2 pred]".
-      { iSplitPure; first done. admit. (* We have an equivalence and need an equality. *) }
+      iDestruct "predHolds" as (?P) "[#eq PHolds]".
+      iDestruct ("postCrash" with "[$PHolds $eq //]") as (?pred) "[%eq2 pred]".
+      rewrite -bi.later_exist_2.
       rewrite bi.sep_exist_l.
       iExists _.
-
-      (* iSplit. { rewrite eq2. done. } *)
 
       rewrite /post_crash_flush. rewrite /post_crash.
       iEval (simpl) in "pred".
@@ -857,21 +854,15 @@ Section wpr.
 
       iFrame "baseMap pcRes".
       iSplit. { rewrite eq2. done. }
-      iAssert (▷ (
-        pred0
-        {| nvm_delta_base := {| nvm_base_crashGS := Hcrash; nvm_base_names' := baseNames |};
-          nvm_delta_high := hD' |} (∅, ∅, ∅)))%I with "[H]" as "P".
-      { iNext.
-        iApply "H".
-        iFrame "newCrashedAt".
-        assert (msg_persisted_after_view msg ⊑ CV).
-        { eapply consistent_cut_extract; try done. eapply lookup_weaken; done. }
-        iSplitPure; first done.
-        iApply (persisted_weak with "pers").
-        f_equiv.
-        done. }
-      (* FIXME: There is a later in the way. *)
-      admit. }
+      iNext.
+      iApply "H".
+      iFrame "newCrashedAt".
+      assert (msg_persisted_after_view msg ⊑ CV).
+      { eapply consistent_cut_extract; try done. eapply lookup_weaken; done. }
+      iSplitPure; first done.
+      iApply (persisted_weak with "pers").
+      f_equiv.
+      done. }
     (* [bumpMono] - Show that the bumpers are still monotone. *)
     iSplitR "".
     { iApply (big_sepM2_impl_subseteq with "bumpMono").
@@ -915,7 +906,7 @@ Section wpr.
       eapply map_Forall_lookup_1 in bumperBumpToValid as [spa equi]; last done; first done.
       rewrite equi.
       done. }
-  Admitted.
+  Qed.
 
   (*
   Lemma nvm_reinit' (hG' : nvmFixedG Σ, nvmDeltaG Σ) n σ σ' (Hinv : invGS Σ) (Hcrash : crashGS Σ) P :

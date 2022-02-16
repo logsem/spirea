@@ -181,6 +181,23 @@ Section predicates.
         (◯ {[ ℓ := pred_to_ra (encode_predicate ϕ) ]}).
 
   Lemma encode_predicate_extract `{Countable ST}
+        (ϕ : ST → val → nvmDeltaG Σ → dProp Σ) e s v (P : nvmDeltaG Σ -d> dPropO Σ) TV hG' :
+    decode e = Some s →
+    (encode_predicate ϕ e v : optionO (nvmDeltaG Σ -d> dPropO Σ)) ≡ Some P -∗
+    P hG' TV -∗
+    ϕ s v hG' TV.
+  Proof.
+    rewrite /encode_predicate.
+    iIntros (->) "equiv".
+    simpl.
+    rewrite option_equivI.
+    iEval (setoid_rewrite discrete_fun_equivI) in "equiv".
+    iSpecialize ("equiv" $! hG').
+    iRewrite "equiv".
+    iIntros "$".
+  Qed.
+
+  Lemma encode_predicate_extract_L `{Countable ST}
         (ϕ : ST → val → nvmDeltaG Σ → dProp Σ) e s v P TV hG' :
     decode e = Some s →
     encode_predicate ϕ e v = Some P →

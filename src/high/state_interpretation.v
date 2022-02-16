@@ -186,8 +186,8 @@ Section state_interpretation.
                          ⌜order e1 e2⌝ → ⌜order e1' e2'⌝) ∗
       (* The predicate holds after a crash for the bumped state. *)
       "#predPostCrash" ∷ ([∗ map] ℓ ↦ pred; bump ∈ predicates; bumpers,
-        □ (∀ (e : positive) (v : val) (hG : nvmDeltaG Σ) TV (P : nvmDeltaG Σ → dProp _) e',
-          ⌜bump e = Some e'⌝ ∗ ⌜pred e v = Some P⌝ ∗ P hG TV -∗
+        □ (∀ (e : positive) (v : val) (hG : nvmDeltaG Σ) TV (P : nvmDeltaG Σ -d> dPropO Σ) e',
+          ⌜bump e = Some e'⌝ ∗ pred e v ≡ Some P ∗ P hG TV -∗
           ∃ P', ⌜pred e' v = Some P'⌝ ∗ ((post_crash_flush P') TV))) ∗
       (* Bumpers map valid input to valid output. *)
       (* NOTE: We probably need something to this effect, but for now it is commented out. *)

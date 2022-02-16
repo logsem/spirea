@@ -104,7 +104,8 @@ Section wp_at_rules.
 
     (* Add the predicate to the ghost state of predicates. *)
     iMod (own_all_preds_insert with "predicates") as "[predicates knowPred]".
-    { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
+    { eapply map_dom_eq_lookup_None; last apply physHistsLook.
+      rewrite domEq3. congruence. }
 
     (* Allocate the abstract history for the location. *)
     iMod (own_full_history_history_insert_loc _ _ _ _ {[0 := encode s]} with "history")
@@ -223,16 +224,16 @@ Section wp_at_rules.
     (* predPostCrash *)
     rewrite /post_crash_flush. rewrite /post_crash. iFrame "predPostCrash".
     iSplitL.
-    { iModIntro. iIntros (??????) "(%eq & %eq2 & P)".
-      rewrite /encode_predicate.
+    { iModIntro. iIntros (??????) "(%eq & eq2 & P)".
+      iEval (rewrite /encode_predicate).
       apply encode_bumper_Some_decode in eq.
       destruct eq as (s3 & eq' & eq2').
       rewrite -eq2'.
       rewrite decode_encode.
       iExists _.
       iSplit. { iPureIntro. simpl. reflexivity. }
-      iDestruct (encode_predicate_extract with "P") as "phi".
-      { done. } { done. }
+      iDestruct (encode_predicate_extract with "eq2 P") as "phi".
+      { done. }
       iApply (pred_condition with "phi"). }
     (* bumperBumpToValid *)
     iSplitPure.
