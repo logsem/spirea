@@ -40,21 +40,21 @@ Section lifted_fupd_level.
 
   Global Instance except_0_fupd_level' E1 E2 k P :
     IsExcept0 (|k={E1,E2}=> P).
-  Proof. Admitted. (* by rewrite /IsExcept0 except_0_fupd_level. Qed. *)
+  Proof. Abort. (* by rewrite /IsExcept0 except_0_fupd_level. Qed. *)
 
   Global Instance from_modal_fupd_level E k P :
     FromModal True modality_id (|k={E}=> P) (|k={E}=> P) P.
-  Proof. Admitted. (* by rewrite /FromModal True /= -fupd_level_intro. Qed. *)
+  Proof. Abort. (* by rewrite /FromModal True /= -fupd_level_intro. Qed. *)
 
   Global Instance elim_modal_bupd_fupd_level p E1 E2 k P Q :
     ElimModal True p false (|==> P) P (|k={E1,E2}=> Q) (|k={E1,E2}=> Q) | 10.
-  Proof. Admitted.
+  Proof. Abort.
   (*   by rewrite /ElimModal intuitionistically_if_elim *)
   (*     (bupd_fupd_level E1 k) fupd_level_frame_r wand_elim_r fupd_level_trans. *)
   (* Qed. *)
   Global Instance elim_modal_fupd_level_fupd_level p E1 E2 E3 k P Q :
     ElimModal True p false (|k={E1,E2}=> P) P (|k={E1,E3}=> Q) (|k={E2,E3}=> Q).
-  Proof. Admitted.
+  Proof. Abort.
   (*   by rewrite /ElimModal intuitionistically_if_elim *)
   (*     fupd_level_frame_r wand_elim_r fupd_level_trans. *)
   (* Qed. *)
@@ -120,33 +120,84 @@ Section lifted_modalities.
     iIntros "$". rewrite ncfupd.ncfupd_eq. iIntros (q) "$". done.
   Qed.
 
+  Lemma ncfupd_unfold_at E1 E2 P TV :
+    (ncfupd E1 E2 P) TV = ncfupd.ncfupd E1 E2 (P TV).
+  Proof. rewrite ncfupd_eq /ncfupd_def. reflexivity. Qed.
+
   Global Instance elim_modal_bupd_ncfupd p E1 E2 P Q :
     ElimModal True p false (|==> P) P (|NC={E1,E2}=> Q) (|NC={E1,E2}=> Q) | 10.
   Proof.
-    rewrite /ElimModal. rewrite bi.intuitionistically_if_elim.
-  Admitted.
-  (*   rewrite (bupd_ncfupd E1). ncfupd_frame_r wand_elim_r ncfupd_trans. *)
-  (* Qed. *)
+    rewrite /ElimModal.
+    iStartProof (iProp _). iIntros (_ TV).
+    rewrite ncfupd_eq.
+    monPred_simpl. simpl.
+    rewrite bi.intuitionistically_if_elim (bupd_ncfupd E1).
+    rewrite ncfupd_frame_r.
+    iIntros "H".
+    iDestruct (ncfupd.ncfupd_mono with "H") as "H".
+    { iIntros "[P i]". iSpecialize ("i" with "[] P"); first done. iApply "i". }
+    iApply ncfupd_trans.
+    done.
+  Qed.
+
+  Lemma ncfupd_frame_r E1 E2 P R:
+    (|NC={E1,E2}=> P) ∗ R ⊢ |NC={E1,E2}=> P ∗ R.
+  Proof.
+    iStartProof (iProp _). iIntros (TV).
+    rewrite 2!ncfupd_unfold_at.
+    rewrite monPred_at_sep.
+    iApply ncfupd_frame_r.
+  Qed.
+
+  Lemma ncfupd_trans E1 E2 E3 P : (|NC={E1,E2}=> |NC={E2,E3}=> P) ⊢ |NC={E1,E3}=> P.
+  Proof.
+    iStartProof (iProp _). iIntros (TV).
+    rewrite 3!ncfupd_unfold_at.
+    iApply ncfupd_trans.
+  Qed.
+
+  Global Instance ncfupd_ne E1 E2 :
+    NonExpansive (ncfupd E1 E2).
+  Proof. rewrite ncfupd_eq. split. intros TV. solve_proper. Qed.
+
+  Global Instance ncfupd_proper E1 E2 :
+    Proper ((≡) ==> (≡)) (ncfupd E1 E2) := ne_proper _.
+
+  Lemma ncfupd_mono E1 E2 P Q : (P ⊢ Q) → (|NC={E1,E2}=> P) ⊢ |NC={E1,E2}=> Q.
+  Proof.
+    iStartProof (iProp _). iIntros (I TV).
+    rewrite 2!ncfupd_unfold_at.
+    iApply ncfupd_mono.
+    iApply I.
+  Qed.
+
+  Global Instance ncfupd_mono' E1 E2 : Proper ((⊢) ==> (⊢)) (ncfupd E1 E2).
+  Proof. intros P Q; apply ncfupd_mono. Qed.
+  Global Instance ncfupd_flip_mono' E1 E2 :
+    Proper (flip (⊢) ==> flip (⊢)) (ncfupd E1 E2).
+  Proof. intros P Q; apply ncfupd_mono. Qed.
+
   Global Instance elim_modal_ncfupd_ncfupd p E1 E2 E3 P Q :
     ElimModal True p false (|NC={E1,E2}=> P) P (|NC={E1,E3}=> Q) (|NC={E2,E3}=> Q).
   Proof.
-  Admitted.
-  (*   by rewrite /ElimModal intuitionistically_if_elim *)
-  (*     ncfupd_frame_r wand_elim_r ncfupd_trans. *)
-  (* Qed. *)
+    rewrite /ElimModal. rewrite bi.intuitionistically_if_elim.
+    rewrite ncfupd_frame_r. rewrite bi.wand_elim_r. rewrite ncfupd_trans.
+    done.
+  Qed.
+
+  Lemma fupd_ncfupd E1 E2 P : (|={E1,E2}=> P) ⊢ |NC={E1,E2}=> P.
+  Proof.
+    iStartProof (iProp _). iIntros (TV).
+    rewrite ncfupd_unfold_at.
+    iApply fupd_ncfupd.
+  Qed.
 
   Global Instance elim_modal_fupd_ncfupd p E1 E2 E3 P Q :
     ElimModal True p false (|={E1,E2}=> P) P (|NC={E1,E3}=> Q) (|NC={E2,E3}=> Q).
   Proof.
-    rewrite /ElimModal => ?.
-  Admitted.
-  (*   rewrite (fupd_ncfupd _ _) intuitionistically_if_elim *)
-  (*     ncfupd_frame_r wand_elim_r ncfupd_trans //=. *)
-  (* Qed. *)
-
-  Lemma ncfupd_unfold_at E1 E2 P TV :
-    (ncfupd E1 E2 P) TV = ncfupd.ncfupd E1 E2 (P TV).
-  Proof. rewrite ncfupd_eq /ncfupd_def. reflexivity. Qed.
+    rewrite /ElimModal => ?. rewrite (fupd_ncfupd _ _) bi.intuitionistically_if_elim
+      ncfupd_frame_r bi.wand_elim_r ncfupd_trans //=.
+  Qed.
 
   (*** cfupd *)
 

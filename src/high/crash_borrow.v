@@ -80,7 +80,7 @@ Section crash_borrow_high.
     { iApply (monPred_mono with "P"). etrans; done. }
   Qed.
 
-  Lemma wpc_crash_borrow_open_modify E1 e Φ Φc P Pc `{!Objective Pc} :
+  Lemma wpc_crash_borrow_open_modify E1 e Φ Φc P Pc `{!Objective Φc, !Objective Pc} :
     to_val e = None →
     crash_borrow P Pc -∗
     (Φc ∧
@@ -89,7 +89,41 @@ Section crash_borrow_high.
                   {{ Φc ∗ Pc }})) -∗
     WPC e @ E1 {{ Φ }} {{ Φc }}.
   Proof.
-  Admitted.
+    iStartProof (iProp _). iIntros (Hnv).
+    iIntros (?) "cb".
+    monPred_simpl. iIntros (? ?) "wp".
+    rewrite wpc_eq /wpc_def. simpl.
+    iIntros (??) "#val".
+    iApply (wpc_crash_borrow_open_modify with "[cb]").
+    { simpl. rewrite /thread_to_val. rewrite Hnv. done. }
+    { iDestruct "cb" as "[_ $]". }
+    iSplit.
+    { iApply objective_at. iDestruct "wp" as "[$ _]". }
+    iIntros "P".
+    iDestruct "wp" as "[_ wp]".
+    monPred_simpl.
+    iSpecialize ("wp" with "[%] [P] [] val").
+    { reflexivity. }
+    { iFrame "P". }
+    { done. }
+    monPred_simpl.
+    iApply (program_logic.crash_weakestpre.wpc_mono with "wp"); last done.
+    iIntros ([v vTV]) "(% & Hi & (%P' & ? & #impl & H))".
+    iExists (P' vTV).
+    iFrame.
+    iSplitL "impl".
+    { iIntros "!> P'".
+      iApply objective_at.
+      iApply "impl"; done. }
+    iIntros "Hip".
+    iEval (monPred_simpl) in "H".
+    iSpecialize ("H" $! vTV with "[//] [Hip]").
+    { simpl. iFrame.
+      rewrite monPred_at_intuitionistically. iModIntro. iApply "impl". }
+    iSplit.
+    - iApply objective_at. iDestruct "H" as "[$ _]".
+    - iDestruct "H" as "[_ $]". done.
+  Qed.
 
   Lemma wpc_crash_borrow_open E1 e Φ Φc P Pc `{!Objective Φc, !Objective Pc} :
     to_val e = None →

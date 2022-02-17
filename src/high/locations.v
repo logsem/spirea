@@ -22,32 +22,55 @@ From self.high.modalities Require Export no_buffer.
 Definition increasing_list `{SqSubsetEq ST} (ss : list ST) :=
   ∀ i j s s', i < j → (ss !! i = Some s) → (ss !! j = Some s') → s ⊑ s'.
 
-Lemma increasing_list_singleton `{SqSubsetEq ST} (s : ST) : increasing_list [s].
-Proof. intros [|][|]?????; try naive_solver. simplify_eq. lia. Qed.
+Section increasing_list.
+  Context `{SqSubsetEq ST, !PreOrder (⊑@{ST})}.
+  Implicit Types (s : ST).
 
-Lemma lookup_snoc_Some {A} (l : list A) x x2 i :
-  (l ++ [x]) !! i = Some x2 →
-  (l !! i = Some x2) ∨ (length l = i ∧ x = x2).
-Proof.
-  intros [look|[? [??]%list_lookup_singleton_Some]]%lookup_app_Some.
-  - left. apply look.
-  - right. auto with lia.
-Qed.
+  Lemma increasing_list_singleton s : increasing_list [s].
+  Proof. intros [|][|]?????; try naive_solver. Qed.
 
-Lemma increasing_list_snoc `{SqSubsetEq ST} xs xs__last (x : ST) :
-  (last xs) = Some xs__last →
-  xs__last ⊑ x →
-  increasing_list xs → increasing_list (xs ++ [x]).
-Proof.
-  intros last incl incr.
-  intros ?????.
-  intros [?|[??]]%lookup_snoc_Some; intros [look|[??]]%lookup_snoc_Some.
-  * eapply incr; done.
-  * simplify_eq.
-    admit.
-  * apply lookup_lt_Some in look. lia.
-  * lia.
-Admitted.
+  Lemma lookup_snoc_Some {A} (l : list A) x x2 i :
+    (l ++ [x]) !! i = Some x2 →
+    (l !! i = Some x2) ∨ (length l = i ∧ x = x2).
+  Proof.
+    intros [look|[? [??]%list_lookup_singleton_Some]]%lookup_app_Some.
+    - left. apply look.
+    - right. auto with lia.
+  Qed.
+
+  Lemma increasing_list_last_greatest ss s i s' :
+    increasing_list ss →
+    last ss = Some s →
+    ss !! i = Some s' →
+    s' ⊑ s.
+  Proof.
+    rewrite last_lookup.
+    rewrite /increasing_list.
+    intros incr lookLast look.
+    destruct (decide (i = pred (length ss))).
+    { simplify_eq. reflexivity. }
+    eapply incr; try done.
+    apply lookup_lt_Some in look.
+    lia.
+  Qed.
+
+  Lemma increasing_list_snoc xs xs__last (x : ST) :
+    (last xs) = Some xs__last →
+    xs__last ⊑ x →
+    increasing_list xs → increasing_list (xs ++ [x]).
+  Proof.
+    intros last incl incr.
+    intros ?????.
+    intros [?|[??]]%lookup_snoc_Some; intros [look|[??]]%lookup_snoc_Some.
+    * eapply incr; done.
+    * simplify_eq.
+      etrans; last apply incl.
+      eapply increasing_list_last_greatest; done.
+    * apply lookup_lt_Some in look. lia.
+    * lia.
+  Qed.
+
+End increasing_list.
 
 Section points_to_at.
   Context `{nvmFixedG Σ, hGD : nvmDeltaG Σ, AbstractState ST}.
