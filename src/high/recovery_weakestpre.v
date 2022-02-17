@@ -908,23 +908,6 @@ Section wpr.
       done. }
   Qed.
 
-  (*
-  Lemma nvm_reinit' (hG' : nvmFixedG Σ, nvmDeltaG Σ) n σ σ' (Hinv : invGS Σ) (Hcrash : crashGS Σ) P :
-    crash_step σ σ' →
-    ⊢ ⎡interp⎤ -∗
-      ⎡state_interp σ n⎤ -∗
-      post_crash P ==∗
-      ∃ names : nvm_names,
-        let hG := nvm_update Σ hG' Hinv Hcrash names in
-          ⎡interp (hG := hG)⎤ ∗
-          ⎡nvm_heap_ctx (hG := _) σ'⎤ ∗
-          P hG.
-  Proof.
-    iIntros (step) "interp baseInterp".
-    iMod (nvm_heap_reinit_alt _ _ _ _ Hcrash _ step with "baseInterp []") as (hnames) "(map & baseInterp & idemp)".
-  Admitted.
-  *)
-
   (* _The_ lemma for showing a recovery weakest precondition. *)
   Lemma idempotence_wpr `{hGD : nvmDeltaG Σ} s E1 e rec Φ Φr Φc `{∀ hG, Objective (Φc hG)} :
     ⊢ WPC e @ s ; E1 {{ Φ }} {{ Φc _ }} -∗

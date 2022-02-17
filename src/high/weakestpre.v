@@ -60,7 +60,7 @@ Section wp.
   Proof. iIntros "H". iApply wp_value_fupd'. iModIntro. iFrame. Qed.
 
   (* Lemma wp_fupd s E e Φ : WP e @ s; E {{ v, fupd E E (Φ v) }} ⊢ WP e @ s; E {{ Φ }}. *)
-  (* Proof. Admitted. *)
+  (* Proof. *)
   (*   (* iIntros "H". iApply (wp_strong_mono s s E with "H"); auto. by iIntros (v) ">H". Qed. *) *)
 
   Notation PureExecBase P nsteps e1 e2 :=

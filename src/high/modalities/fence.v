@@ -34,7 +34,9 @@ Section post_fence.
     iApply monPred_mono. repeat split; auto.
     rewrite -assoc.
     f_equiv.
-  Admitted.
+    rewrite view_join_id.
+    reflexivity.
+  Qed.
 
   Lemma post_fence_intro P : P ⊢ <fence> P.
   Proof.

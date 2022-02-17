@@ -538,16 +538,9 @@ Section restrict_dom.
     eapply disjoint_weaken; first apply dis; rewrite restrict_dom; set_solver.
   Qed.
 
-
   Lemma restrict_dom_subset (s : D) (m : M A) :
     s ⊆ dom _ m → dom _ (restrict s m) ≡ s.
   Proof. rewrite restrict_dom. set_solver. Qed.
-
-  (* Lemma restrict_insert_delete k v s m : *)
-  (*   <[k:=v]>(restrict s m) =  *)
-  (*   <[k:=v]>(restrict (s ∖ {[k]}) m). *)
-  (* Proof. *)
-  (* Admitted. *)
 
 End restrict_dom.
 
@@ -614,19 +607,6 @@ Section big_sepM.
   Lemma big_sepM_thread_resource_2 Φ m R :
     R -∗ ([∗ map] k↦x ∈ m, Φ k x) -∗ R ∗ ([∗ map] k↦x ∈ m, R -∗ R ∗ Φ k x).
   Proof. apply wand_intro_r. rewrite big_sepM_thread_resource. done. Qed.
-
-  (* Lemma big_sepM_impl_with_resource Φ Ψ m R : *)
-  (*   R -∗ *)
-  (*   ([∗ map] k↦x ∈ m, Φ k x) -∗ *)
-  (*   □ (∀ (k : K) (x : A), ⌜m !! k = Some x⌝ → R -∗ Φ k x -∗ Ψ k x ∗ R) -∗ *)
-  (*   ([∗ map] k↦x ∈ m, Ψ k x) ∗ R. *)
-  (* Proof. *)
-  (*   (* revert Φ. *) *)
-  (*   induction m as [|i x m ? IH] using map_ind. *)
-  (*   - naive_solver. *)
-  (*   - iIntros "R map #impl". *)
-  (* Admitted. *)
-  (* Qed. *)
 
 End big_sepM.
 
@@ -763,19 +743,18 @@ Section big_sepM2.
       naive_solver.
   Qed.
 
-  Lemma big_sepM2_insert_override Φ m1 m2 i x1 x2 x1' x2' :
-    m1 !! i = Some x1 →
-    m2 !! i = Some x2 →
-    (Φ i x1 x2 ⊣⊢ Φ i x1' x2') →
-    ([∗ map] k↦y1;y2 ∈ <[i:=x1']>m1; <[i:=x2']>m2, Φ k y1 y2) ⊣⊢
-      ([∗ map] k↦y1;y2 ∈ m1;m2, Φ k y1 y2).
-  Proof.
-    intros Hm1 Hm2 Hp. rewrite big_sepM2_eq /big_sepM2_def -map_insert_zip_with.
-    rewrite big_sepM_insert_override.
-    2: { by rewrite map_lookup_zip_with Hm1 Hm2. }
-    2: { done. }
-    apply (anti_symm _).
-  Admitted.
+  (* Lemma big_sepM2_insert_override Φ m1 m2 i x1 x2 x1' x2' : *)
+  (*   m1 !! i = Some x1 → *)
+  (*   m2 !! i = Some x2 → *)
+  (*   (Φ i x1 x2 ⊣⊢ Φ i x1' x2') → *)
+  (*   ([∗ map] k↦y1;y2 ∈ <[i:=x1']>m1; <[i:=x2']>m2, Φ k y1 y2) ⊣⊢ *)
+  (*     ([∗ map] k↦y1;y2 ∈ m1;m2, Φ k y1 y2). *)
+  (* Proof. *)
+  (*   intros Hm1 Hm2 Hp. rewrite big_sepM2_eq /big_sepM2_def -map_insert_zip_with. *)
+  (*   rewrite big_sepM_insert_override. *)
+  (*   2: { by rewrite map_lookup_zip_with Hm1 Hm2. } *)
+  (*   2: { done. } *)
+  (*   apply (anti_symm _). *)
   (*   - rewrite pure_intro. *)
   (*   -  *)
   (*   split. *)

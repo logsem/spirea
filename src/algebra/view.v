@@ -146,10 +146,8 @@ Proof.
     intros [?|[? [? (_ & ? & _)]]]; done.
 Qed.
 
-Lemma view_lt_lookup ℓ V V' t t' : V ⊑ V' → V !!0 ℓ = t → V' !!0 ℓ ≤ t' → t ≤ t'.
-Proof. Admitted.
-
-Lemma option_max_nat_included (on on' om : option max_nat) : on ≼ om → on' ≼ om → on ⋅ on' ≼ om.
+Lemma option_max_nat_included (on on' om : option max_nat) :
+  on ≼ om → on' ≼ om → on ⋅ on' ≼ om.
 Proof.
   destruct on, on', om; auto.
   - rewrite !Some_included_total.
@@ -157,6 +155,14 @@ Proof.
     rewrite max_nat_op !max_nat_included. simpl. lia.
   - rewrite option_included.
     intros [[=]|(? & ? & _ & [=] & _)].
+Qed.
+
+Lemma view_join_id V : V ⊔ V = V.
+Proof.
+  apply map_eq. intros ℓ.
+  rewrite lookup_op.
+  case (V !! ℓ) as [[t]|] eqn:eq; rewrite eq; last done.
+  rewrite -Some_op. rewrite max_nat_op. rewrite Nat.max_id. done.
 Qed.
 
 Lemma view_le_l V W : V ⊑ V ⊔ W.

@@ -58,27 +58,10 @@ Section iter_option.
   Context {A : Type}.
   Implicit Types (a : A).
 
-  (* Lemma iter_option_Some_S n f a : *)
-  (*   is_Some (iter_option (S n) f a) → *)
-  (*   ∃ b, f a = Some b ∧ *)
-  (*   is_Some (iter_option n f a). *)
-  (* Proof. *)
-  (* Admitted. *)
-
   Lemma iter_option_Some_S n f a c :
     iter_option (S n) f a = Some c →
     ∃ b, f a = Some b ∧ iter_option n f b = Some c.
   Proof. apply bind_Some. Qed.
-
-  (* Lemma iter_option_is_Some_S n f a : *)
-  (*   is_Some (iter_option (S n) f a) → *)
-  (*   ∃ b, f a = Some b ∧ *)
-  (*   is_Some (iter_option n f b). *)
-  (* Proof. *)
-  (*   simpl. *)
-  (*   (* intros [c eq]. *) *)
-  (*   intros [c eq%bind_Some]. *)
-  (* Admitted. *)
 
   Lemma iter_option_forall f a :
     (∀ n, is_Some (iter_option n f a)) →

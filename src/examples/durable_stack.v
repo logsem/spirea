@@ -138,11 +138,6 @@ Section mapsto_na_flushed.
     mapsto_na p ℓ q ss -∗ ⌜ increasing_list ss ⌝.
   Proof. rewrite /mapsto_na. iNamed 1. iFrame (incrList). Qed.
 
-  (* Lemma foo (ss : list ST) s1 s2 : *)
-  (*   increasing_list ss → last ss = Some s1 → s2 ∈ ss → s2 ⊑ s1. *)
-  (* Proof. *)
-  (*   Admitted. *)
-
   Global Instance mapsto_na_flushed_post_crash_flushed ℓ prot q (s : ST) :
     IntoCrashFlush (mapsto_na_flushed ℓ prot q s)
                    (λ _, mapsto_na_flushed ℓ prot q s ∗ recovered_at ℓ s)%I.

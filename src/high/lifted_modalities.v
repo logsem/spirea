@@ -8,8 +8,6 @@ From Perennial.program_logic Require Import crash_weakestpre cfupd.
 
 From self.high Require Import dprop monpred_simpl.
 
-(* fupd_level *)
-
 Program Definition uPred_fupd_split_level_def `{!invGS Σ}
            (E1 E2 : coPset) (k : nat) mj (P : dProp Σ) : dProp Σ :=
   MonPred (λ TV, uPred_fupd_split_level_def E1 E2 k mj (P TV))%I _.

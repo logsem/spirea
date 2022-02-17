@@ -317,12 +317,11 @@ Section max_view.
         done.
   Qed.
 
-  Lemma max_view_included_union σ σ' : σ ##ₘ σ' → max_view σ ⊑ max_view (σ ∪ σ').
-  Proof.
-    intros disj.
-    rewrite -max_view_union; last done.
-    apply view_le_l.
-  Qed.
+  Lemma max_view_included_union_l σ σ' : σ ##ₘ σ' → max_view σ ⊑ max_view (σ ∪ σ').
+  Proof. intros disj. rewrite -max_view_union; last done. apply view_le_l. Qed.
+
+  Lemma max_view_included_union_r σ σ' : σ ##ₘ σ' → max_view σ ⊑ max_view (σ' ∪ σ).
+  Proof. intros disj. rewrite -max_view_union; last done. apply view_le_r. Qed.
 
   (* Lemma max_view_insert V (ℓ : loc) (t : time) (msg : message) (hist : history) (heap : store) : *)
   (*   (V !!0 ℓ) < t → *)
@@ -499,7 +498,7 @@ Section lifting.
     iIntros (disj) "H".
     iMod (auth_auth_view_grow_incl with "H") as "$"; last done.
     rewrite map_union_comm; last done.
-    apply max_view_included_union. done.
+    apply max_view_included_union_l. done.
   Qed.
 
   Lemma message_included_in_max_view ℓ (hist : history) heap t v MV MP MPP :
@@ -514,29 +513,31 @@ Section lifting.
     done.
   Qed.
 
-  Lemma hist_inv_alloc ℓ SV PV PAV v0 n heap :
-    (* SV ⊑ max_view heap → *)
-    heap_array ℓ SV PV PAV (replicate (Z.to_nat n) v0) ##ₘ heap →
+  Lemma hist_inv_alloc ℓ a SV PV v0 n heap :
+    SV ⊑ max_view heap →
+    heap_array ℓ a SV PV (replicate (Z.to_nat n) v0) ##ₘ heap →
     valid_heap heap →
-    valid_heap (heap_array ℓ SV PV PAV (replicate (Z.to_nat n) v0) ∪ heap).
+    valid_heap (heap_array ℓ a SV PV (replicate (Z.to_nat n) v0) ∪ heap).
   Proof.
     rewrite /valid_heap /valid_heap_lub.
-    intros disj val.
+    intros incl disj val.
     apply map_Forall_union; first done. split.
     - intros ? ? (j & w & ? & Hjl & eq & mo)%heap_array_lookup.
       rewrite eq.
       split. { rewrite lookup_singleton. naive_solver. }
-      apply map_Forall_singleton. simpl. admit. (* apply view_empty_least. *)
+      apply map_Forall_singleton. simpl.
+      destruct a.
+      * apply view_empty_least.
+      * etrans; last apply max_view_included_union_r; done.
     - eapply map_Forall_impl; first apply val.
       intros ℓ' hist [??].
       split; first done.
       eapply map_Forall_impl; first done.
       simpl. intros ???.
-      rewrite -max_view_union; last done.
       etrans; first done.
-      apply view_le_r.
-  Admitted.
-  (* Qed. *)
+      apply max_view_included_union_r.
+      done.
+  Qed.
 
   Ltac whack_global :=
     iMod (global_state_interp_le (Λ := nvm_lang) _ _ () _ _ _ with "[$]") as "$";

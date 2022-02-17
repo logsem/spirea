@@ -54,11 +54,7 @@ Section own_encoded_bumpers.
   Lemma own_all_bumpers_alloc bumpers :
     ⊢ |==> ∃ γ, own_all_bumpers γ bumpers ∗
                 ([∗ map] ℓ ↦ bumper ∈ bumpers, ℓ ↪[γ]□ bumper).
-  Proof.
-    (* TODO: Add some more lemmas to ghost_map that will make this easy. *)
-  Admitted.
-  (*   (* iApply ghost_map_alloc. *) *)
-  (* Qed. *)
+  Proof. iApply ghost_map_alloc_persistent. Qed.
 
 End own_encoded_bumpers.
 
