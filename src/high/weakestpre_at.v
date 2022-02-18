@@ -291,7 +291,7 @@ Section wp_at_rules.
     [interp].  We want to look up the points-to predicate in [ptsMap]. To this
     end, we combine our fragment of the history with the authorative element. *)
     iDestruct (
-      own_frag_history_agree_singleton with "history hist") as %look.
+      own_full_history_frag_singleton_agreee with "history hist") as %look.
     destruct look as (absHist & enc & absHistLook & lookTS & decodeEnc).
 
     iDestruct (big_sepM2_dom with "predsHold") as %domPhysHistEqAbsHist.
@@ -466,7 +466,7 @@ Section wp_at_rules.
     [interp]. We want to look up the points-to predicate in [ptsMap]. To this
     end, we combine our fragment of the history with the authorative element. *)
     iDestruct (
-        own_frag_history_agree_singleton with "history hist") as %look.
+        own_full_history_frag_singleton_agreee with "history hist") as %look.
     destruct look as (absHist & enc & absHistsLook & lookTS & decodeEnc).
 
     iDestruct (
@@ -561,7 +561,7 @@ Section wp_at_rules.
 
     (* Maybe add a lemma for this lookup *)
     iDestruct (
-        own_frag_history_agree_singleton with "history hist") as %look'.
+        own_full_history_frag_singleton_agreee with "history hist") as %look'.
     destruct look' as (hist' & enc' & absHistsLook' & hip & hop).
     rewrite lookup_insert in absHistsLook'.
     apply (inj Some) in absHistsLook'.

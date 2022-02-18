@@ -58,7 +58,7 @@ Section abs_history_lemmas.
   return [store_lb] for the returned state. At that point we can
   conclude that decoding the encoding gives a result but not that the encoding
   is an encoding of some state. *)
-  Definition own_frag_history_loc γ ℓ (abs_hist : gmap time ST) : iProp Σ :=
+  Definition own_frag_history_loc γ ℓ abs_hist : iProp Σ :=
     ∃ enc,
       ⌜decode <$> enc = Some <$> abs_hist⌝ ∗
       own_frag_encoded_history_loc γ ℓ enc.
@@ -166,7 +166,7 @@ Section abs_history_lemmas.
     rewrite -eq. apply map_fmap_mono. done.
   Qed.
 
-  Lemma own_frag_history_agree_singleton γ1 γ2 ℓ t (s : ST) hists :
+  Lemma own_full_history_frag_singleton_agreee γ1 γ2 ℓ t (s : ST) hists :
     own_full_history γ1 γ2 hists -∗
     own_frag_history_loc γ2 ℓ {[ t := s ]} -∗
     ⌜∃ hist enc,
@@ -198,6 +198,29 @@ Section abs_history_lemmas.
     iMod (auth_map_map_lookup with "N") as "[N hip]"; try done.
     iFrame.
     done.
+  Qed.
+
+  Lemma own_frag_history_singleton_agreee γ2 ℓ t s1 s2 :
+    own_frag_history_loc γ2 ℓ {[ t := s1 ]} -∗
+    own_frag_history_loc γ2 ℓ {[ t := s2 ]} -∗
+    ⌜ s1 = s2 ⌝.
+  Proof.
+    rewrite /own_frag_history_loc.
+    rewrite !map_fmap_singleton.
+    iDestruct 1 as (enc (e & deq & encEq)%map_fmap_singleton_inv) "K".
+    iDestruct 1 as (enc' (e' & deq' & encEq')%map_fmap_singleton_inv) "K'".
+    rewrite encEq.
+    rewrite encEq'.
+    iDestruct (own_valid_2 with "K K'") as %val%auth_frag_op_valid_1.
+    iPureIntro. move: val.
+    rewrite 2!fmap_fmap_to_agree_singleton.
+    rewrite 2!map_fmap_singleton.
+    rewrite singleton_op.
+    rewrite singleton_valid.
+    rewrite singleton_op.
+    rewrite singleton_valid.
+    intros eq%to_agree_op_inv_L.
+    congruence.
   Qed.
 
   Lemma own_full_history_alloc_frag γ1 γ2 ℓ t encS (s : ST) hists hist :

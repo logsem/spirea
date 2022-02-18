@@ -133,19 +133,6 @@ the last events at [ℓ] corresponds to the *)
           iFrame "#∗%".
         + iExists _, _, _, _, _.
           iFrame "#∗%".
-      (* destruct per. *)
-      (* * iDestruct "pers" as "#pers". *)
-      (*   iSplitL "histP knowSVP". *)
-      (*   + iExists _, _, _, _, _. *)
-      (*     iFrame "#∗%". *)
-      (*   + iExists _, _, _, _, _. *)
-      (*     iFrame "#∗%". *)
-      (* * iDestruct "pers" as "#pers". *)
-      (*   iSplitL "histP knowSVP". *)
-      (*   + iExists _, _, _, _, _. *)
-      (*     iFrame "#∗%". *)
-      (*   + iExists _, _, _, _, _. *)
-      (*     iFrame "#∗%". *)
     - iDestruct 1 as "[L R]".
       iNamed "L".
       iDestruct "R" as (?????) "(_ & _ & _ & _ & _ & histQ & SV & HIP & ?)".
@@ -233,7 +220,7 @@ the last events at [ℓ] corresponds to the *)
   (* The location [ℓ] was recovered in the abstract state [s]. *)
   Definition recovered_at ℓ s : dProp Σ :=
     ∃ CV,
-      "#knowFragHist" ∷ ⎡know_frag_history_loc ℓ {[ 0 := s ]}⎤ ∗
+      "#knowFragHist" ∷ ⎡ know_frag_history_loc ℓ {[ 0 := s ]} ⎤ ∗
       "#crashed" ∷ ⎡ crashed_at CV⎤ ∗
       "%inCV" ∷ ⌜ℓ ∈ dom (gset _) CV⌝.
 
@@ -323,13 +310,21 @@ the last events at [ℓ] corresponds to the *)
 
   Lemma recovered_at_agree ℓ s s' :
     recovered_at ℓ s -∗ recovered_at ℓ s' -∗ ⌜ s = s' ⌝.
-  Proof. Admitted.
+  Proof.
+    iNamed 1. iIntros "(%CV' & hist & crashed' & pizz)".
+    iDestruct (own_frag_history_singleton_agreee with "[$] [$]") as %->.
+    done.
+  Qed.
 
   Lemma mapsto_na_store_lb ℓ prot q ss s :
     last ss = Some s →
     mapsto_na ℓ prot q ss -∗
     store_lb ℓ prot s.
-  Proof. Admitted.
+  Proof.
+    iIntros (last). iNamed 1.
+    iExists (tStore).
+    iFrame "#".
+  Admitted.
 
   Lemma mapsto_na_last ℓ prot q ss : mapsto_na ℓ prot q ss -∗ ⌜∃ s, last ss = Some s⌝.
   Proof.
