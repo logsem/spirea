@@ -165,21 +165,11 @@ Section auth_map_map.
     h !! t = None →
     auth_map_map_auth γ m ==∗
     auth_map_map_auth γ (<[ℓ:=<[t:=a]> h]> m) ∗
+      auth_map_map_frag γ ({[ ℓ:=<[t:=a]> h ]}) ∗
       auth_map_map_frag_singleton γ ℓ t a.
   Proof.
     iIntros (mLook hLook) "N".
-    iMod (own_update with "N ") as "H".
-    2: {
-      iMod (own_update with "H") as "[$ $]".
-      { apply: auth_update_dfrac_alloc.
-        rewrite /fmap_fmap_to_agree.
-        rewrite -> fmap_insert.
-        rewrite map_fmap_singleton.
-        apply singleton_included_insert.
-        apply to_agree_fmap.
-        apply map_singleton_subseteq_l.
-        apply lookup_insert. }
-      done. }
+    iMod (own_update _ _ (● fmap_fmap_to_agree (<[ℓ:=<[t:=a]> h]> m)) with "N ") as "H".
     { apply auth_auth_grow.
       { apply fmap_fmap_to_agree_valid. }
       apply fmap_fmap_to_agree_incl.
@@ -193,6 +183,25 @@ Section auth_map_map.
         + rewrite lookup_insert_ne in look2; last done.
           simplify_eq.
           reflexivity. }
+    rewrite assoc. rewrite comm.
+    iMod (own_update with "H") as "[H $]".
+    { apply: auth_update_dfrac_alloc.
+      rewrite /fmap_fmap_to_agree.
+      rewrite -> fmap_insert.
+      rewrite map_fmap_singleton.
+      apply singleton_included_insert.
+      apply to_agree_fmap.
+      apply map_singleton_subseteq_l.
+      apply lookup_insert. }
+    iMod (own_update with "H") as "[$ $]".
+    { apply: auth_update_dfrac_alloc.
+      rewrite /fmap_fmap_to_agree.
+      rewrite -> fmap_insert.
+      rewrite map_fmap_singleton.
+      apply singleton_included_insert.
+      apply to_agree_fmap.
+      reflexivity. }
+    done.
   Qed.
 
   Lemma auth_map_map_auth_frag `{!OfeDiscrete A} `{!LeibnizEquiv A} γ dq m ℓ t a :

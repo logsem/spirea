@@ -666,10 +666,10 @@ Section wpr.
       (* "post_crash_full_history_map" *)
       rewrite /post_crash_full_history_map.
       iSplitL "atLocsHistories".
-      { iIntros (ℓ q hist) "hist".
+      { iIntros (ℓ q hist) "[hist frag]".
         iDestruct (ghost_map_lookup with "oldFullHist1 hist") as %look.
         destruct (decide (ℓ ∈ at_locs)) as [?|notElem].
-        { iDestruct (big_sepM_lookup with "atLocsHistories") as "H".
+        { iDestruct (big_sepM_lookup with "atLocsHistories") as "[H _]".
           { apply restrict_lookup_Some; done. }
           iDestruct (ghost_map_elem_valid_2 with "hist H") as "[%val _]".
           iPureIntro. exfalso.

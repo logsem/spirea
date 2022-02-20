@@ -126,7 +126,7 @@ the last events at [ℓ] corresponds to the *)
     rewrite /mapsto_na.
     iSplit.
     - iNamed 1.
-      iDestruct "hist" as "[histP histQ]".
+      iDestruct "hist" as "[[histP histQ] #fragHist]".
       iDestruct "knowSV" as "[knowSVP knowSVQ]".
         iSplitL "histP knowSVP".
         + iExists _, _, _, _, _.
@@ -135,7 +135,8 @@ the last events at [ℓ] corresponds to the *)
           iFrame "#∗%".
     - iDestruct 1 as "[L R]".
       iNamed "L".
-      iDestruct "R" as (?????) "(_ & _ & _ & _ & _ & histQ & SV & HIP & ?)".
+      iDestruct "hist" as "[hist frag]".
+      iDestruct "R" as (?????) "(_ & _ & _ & _ & _ & [histQ _] & SV & HIP & ?)".
       iDestruct (ghost_map_elem_agree with "hist histQ") as %->%(inj (fmap _)).
       iDestruct (ghost_map_elem_agree with "knowSV SV") as %->.
       iExists _, _, _, _, _. iFrame "#∗%".
@@ -316,6 +317,23 @@ the last events at [ℓ] corresponds to the *)
     done.
   Qed.
 
+  Lemma own_frag_encoded_history_loc_lookup γ2 ℓ abs_hist t h :
+    abs_hist !! t = Some h →
+    own_frag_encoded_history_loc γ2 ℓ abs_hist -∗
+    own_frag_encoded_history_loc γ2 ℓ {[ t := h ]}.
+  Proof.
+    Admitted.
+
+  Lemma monPred_in_have_SV SV PV BV ℓ t :
+    t ≤ SV !!0 ℓ →
+    monPred_in (SV, PV, BV) -∗
+    have_SV ℓ t.
+  Proof.
+    intros le.
+    iStartProof (iProp _). iPureIntro. intros [[SV' ?] ?] [[incl ?]?].
+    etrans; first done. f_equiv. done.
+  Qed.
+
   Lemma mapsto_na_store_lb ℓ prot q ss s :
     last ss = Some s →
     mapsto_na ℓ prot q ss -∗
@@ -323,8 +341,16 @@ the last events at [ℓ] corresponds to the *)
   Proof.
     iIntros (last). iNamed 1.
     iExists (tStore).
+    iDestruct "hist" as "[a #frag]".
     iFrame "#".
-  Admitted.
+    iSplit.
+    - iExists _.
+      iDestruct (own_frag_encoded_history_loc_lookup with "frag") as "$".
+      { rewrite lookup_fmap. erewrite lookupV. rewrite last. reflexivity. }
+      iPureIntro.
+      rewrite 2!map_fmap_singleton. rewrite decode_encode. done.
+    - iApply monPred_in_have_SV; done.
+  Qed.
 
   Lemma mapsto_na_last ℓ prot q ss : mapsto_na ℓ prot q ss -∗ ⌜∃ s, last ss = Some s⌝.
   Proof.

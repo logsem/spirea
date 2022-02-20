@@ -28,8 +28,9 @@ Lemma subseteq_nat_le (n m : nat) : n ⊑ m = (n ≤ m).
 Proof. done. Qed.
 
 (* Abstract state where all elements are included in each other. *)
-Inductive singl (A : Type) := mk_singl : A → singl A.
+Record singl (A : Type) := mk_singl { get_singl : A }.
 Arguments mk_singl {A}.
+Arguments get_singl {A}.
 
 Instance sqsubseteq_singl A : SqSubsetEq (singl A) := λ u1 u2, True.
 
@@ -42,7 +43,10 @@ Proof.
 Qed.
 
 Instance singl_countable A `{Countable A} : Countable (singl A).
-Proof. Admitted.
+Proof.
+  refine (inj_countable' get_singl mk_singl _).
+  intros [x]. reflexivity.
+Qed.
 
 Instance singl_abstract_state A `{Countable A} : AbstractState (singl A).
 Proof. esplit; apply _. Defined.

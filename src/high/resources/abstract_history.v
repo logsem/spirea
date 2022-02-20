@@ -1,5 +1,6 @@
 (* Resource algebra to represent abstract histories. *)
 
+From iris.bi Require Import lib.fractional.
 From iris.algebra Require Import auth gmap.
 From iris.base_logic.lib Require Import own.
 From iris.heap_lang Require Export locations.
@@ -41,27 +42,43 @@ Section abs_history_lemmas.
     ghost_map_auth γ1 (DfracOwn 1) abs_hists ∗
     auth_map_map_auth γ2 abs_hists.
 
-  Definition own_full_encoded_history_loc γ1 ℓ q enc_abs_hist : iProp Σ :=
-    ℓ ↪[ γ1 ]{#q} enc_abs_hist.
-
-  Definition own_full_history_loc γ1 ℓ q abs_hist : iProp Σ :=
-    ℓ ↪[ γ1 ]{#q} (encode <$> abs_hist).
-
   Definition own_frag_encoded_history_loc γ2 ℓ enc_abs_hist : iProp Σ :=
     auth_map_map_frag γ2 {[ ℓ := enc_abs_hist ]}.
 
   (* In this definition we store that decoding the stored encoded histry is
-  equal to our abstract history. This is weaker than strong the other way
+  equal to our abstract history. This is weaker than strogin the other way
   around, namely that encoding our history is equal to the stored encoded
   history. Storing this weaker fact makes the definition easier to show. This is
   important for the load lemma where, when we load some state and we want to
-  return [store_lb] for the returned state. At that point we can
-  conclude that decoding the encoding gives a result but not that the encoding
-  is an encoding of some state. *)
+  return [store_lb] for the returned state. At that point we can conclude that
+  decoding the encoding gives a result but not that the encoding is an encoding
+  of some state. *)
   Definition own_frag_history_loc γ ℓ abs_hist : iProp Σ :=
     ∃ enc,
       ⌜decode <$> enc = Some <$> abs_hist⌝ ∗
       own_frag_encoded_history_loc γ ℓ enc.
+
+  Definition own_full_encoded_history_loc γ1 γ2 ℓ q enc_abs_hist : iProp Σ :=
+    ℓ ↪[ γ1 ]{#q} enc_abs_hist ∗
+    own_frag_encoded_history_loc γ2 ℓ enc_abs_hist.
+
+  Definition own_full_history_loc γ1 γ2 ℓ q abs_hist : iProp Σ :=
+    own_full_encoded_history_loc γ1 γ2 ℓ q (encode <$> abs_hist).
+
+  Global Instance own_full_encoded_history_fractional γ1 γ2 ℓ enc_abs_hist :
+    Fractional (λ q, own_full_encoded_history_loc γ1 γ2 ℓ q enc_abs_hist).
+  Proof.
+    intros p q.
+    rewrite /own_full_encoded_history_loc.
+    iSplit.
+    - iIntros "[[$$] #?]". iFrame "#".
+    - iIntros "[[$ $] [$ _]]".
+  Qed.
+  Global Instance own_full_encoded_history_as_fractional γ1 γ2 ℓ q enc_abs_hist :
+    AsFractional
+      (own_full_encoded_history_loc γ1 γ2 ℓ q enc_abs_hist)
+      (λ q, own_full_encoded_history_loc γ1 γ2 ℓ q enc_abs_hist)%I q.
+  Proof. split; [done | apply _]. Qed.
 
   Lemma own_full_history_alloc h :
     ⊢ |==> ∃ γ1 γ2,
@@ -84,9 +101,9 @@ Section abs_history_lemmas.
     done.
   Qed.
 
-  Lemma own_full_equiv γ ℓ q abs_hist :
-    own_full_history_loc γ ℓ q abs_hist ⊣⊢
-      own_full_encoded_history_loc γ ℓ q (encode <$> abs_hist).
+  Lemma own_full_equiv γ1 γ2 ℓ q abs_hist :
+    own_full_history_loc γ1 γ2 ℓ q abs_hist ⊣⊢
+      own_full_encoded_history_loc γ1 γ2 ℓ q (encode <$> abs_hist).
   Proof. done. Qed.
 
   Lemma own_frag_equiv γ ℓ abs_hist :
@@ -141,10 +158,10 @@ Section abs_history_lemmas.
   resource, then those two will agree. *)
   Lemma own_full_history_agree γ1 γ2 ℓ q hist hists :
     own_full_history γ1 γ2 hists -∗
-    own_full_history_loc γ1 ℓ q hist -∗
+    own_full_history_loc γ1 γ2 ℓ q hist -∗
     ⌜hists !! ℓ = Some (encode <$> hist)⌝.
   Proof.
-    iIntros "[A _] B".
+    iIntros "[A _] [B _]".
     iApply (ghost_map_lookup with "[$] [$]").
   Qed.
 
@@ -242,22 +259,13 @@ Section abs_history_lemmas.
     done.
   Qed.
 
-  (* This lemma seems false :'( *)
-  (* Lemma own_frag_history_agree ℓ part_hist hists : *)
-  (*   own_full_history hists -∗ *)
-  (*   know_frag_history_loc ℓ part_hist -∗ *)
-  (*   ⌜∃ hist, hists !! ℓ = Some (encode <$> hist) ∧ part_hist ⊆ hist⌝. *)
-  (* Proof. w w *)
-  (*   iIntros "O K". *)
-  (* Admitted. *)
-
   (* Insert a new location into an abstract history. *)
   Lemma own_full_history_history_insert_loc γ1 γ2 abs_hists ℓ enc_abs_hist :
     abs_hists !! ℓ = None →
     own_full_history γ1 γ2 abs_hists ==∗
     own_full_history γ1 γ2 (<[ℓ := enc_abs_hist]>abs_hists) ∗
-    own_full_encoded_history_loc γ1 ℓ 1 enc_abs_hist ∗
-    own_frag_encoded_history_loc γ2 ℓ enc_abs_hist.
+    own_full_encoded_history_loc γ1 γ2 ℓ 1 enc_abs_hist.
+    (* own_frag_encoded_history_loc γ2 ℓ enc_abs_hist. *)
   Proof.
     iIntros (look) "[A B]".
     iMod (ghost_map_insert with "A") as "[$ $]"; first done.
@@ -272,13 +280,13 @@ Section abs_history_lemmas.
   Lemma own_full_encoded_history_insert γ1 γ2 ℓ t enc_abs_hist abs_hists encS :
     enc_abs_hist !! t = None →
     own_full_history γ1 γ2 abs_hists -∗
-    own_full_encoded_history_loc γ1 ℓ 1 enc_abs_hist ==∗
+    own_full_encoded_history_loc γ1 γ2 ℓ 1 enc_abs_hist ==∗
     let enc_abs_hist' := <[t := encS]>enc_abs_hist
     in own_full_history γ1 γ2 (<[ℓ := enc_abs_hist']>abs_hists) ∗
-       own_full_encoded_history_loc γ1 ℓ 1 enc_abs_hist' ∗
+       own_full_encoded_history_loc γ1 γ2 ℓ 1 enc_abs_hist' ∗
        own_frag_encoded_history_loc γ2 ℓ {[ t := encS ]}.
   Proof.
-    iIntros (look) "[M N] O".
+    iIntros (look) "[M N] [O P]".
     iDestruct (ghost_map_lookup with "M O") as %hips.
     iMod (ghost_map_update with "M O") as "[$ $]".
     iMod (auth_map_map_insert with "N") as "[$ h]"; try done.
@@ -288,18 +296,18 @@ Section abs_history_lemmas.
   Lemma own_full_history_insert γ1 γ2 ℓ t abs_hist abs_hists (s : ST) :
     abs_hist !! t = None →
     own_full_history γ1 γ2 abs_hists -∗
-    own_full_history_loc γ1 ℓ 1 abs_hist ==∗
+    own_full_history_loc γ1 γ2 ℓ 1 abs_hist ==∗
     let abs_hist' := <[t := s]>abs_hist
     in own_full_history γ1 γ2 (<[ℓ := encode <$> abs_hist']>abs_hists) ∗
-       own_full_history_loc γ1 ℓ 1 abs_hist' ∗
+       own_full_history_loc γ1 γ2 ℓ 1 abs_hist' ∗
        own_frag_history_loc γ2 ℓ {[ t := s ]}.
   Proof.
     iIntros (look) "??".
-    iMod (own_full_encoded_history_insert with "[$] [$]") as "(H & HU & HI)".
+    iMod (own_full_encoded_history_insert with "[$] [$]") as "(H1 & H2 & H3)".
     { rewrite lookup_fmap. apply fmap_None. done. }
     iModIntro.
     rewrite /own_full_history_loc /own_frag_history_loc fmap_insert.
-    iFrame.
+    iFrame "H1 H2".
     iExists _. iFrame.
     rewrite !map_fmap_singleton. by rewrite decode_encode.
   Qed.

@@ -105,11 +105,11 @@ Section ownership_wrappers.
     own_know_preorder_loc preorders_name ℓ preorder.
 
   Definition know_full_encoded_history_loc ℓ q enc_abs_hist : iProp Σ :=
-    own_full_encoded_history_loc abs_history_name ℓ q enc_abs_hist.
+    own_full_encoded_history_loc abs_history_name know_abs_history_name ℓ q enc_abs_hist.
 
   Definition know_full_history_loc `{Countable ST}
              ℓ q (abs_hist : gmap time ST) : iProp Σ :=
-    own_full_history_loc abs_history_name ℓ q abs_hist.
+    own_full_history_loc abs_history_name know_abs_history_name ℓ q abs_hist.
 
   Definition know_frag_encoded_history_loc ℓ enc_abs_hist : iProp Σ :=
     own_frag_encoded_history_loc know_abs_history_name ℓ enc_abs_hist.

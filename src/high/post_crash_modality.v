@@ -83,10 +83,10 @@ Proof.
   apply or_lost_post_crash_fractional.
   iIntros (t p q).
   iSplit.
-  - iDestruct 1 as (????) "([L R] & #?)".
-    iSplitL "L"; iExists _, _; naive_solver.
-  - iDestruct 1 as "[(% & % & % & % & L & #?) (% & % & % & % & R & #?)]".
-    simplify_eq. iCombine "L R" as "F". iExists _, _. naive_solver.
+  - iDestruct 1 as (????) "([[L R] #?] & #?)".
+    iSplitL "L"; iExists _, _; iFrame "#%∗".
+  - iDestruct 1 as "[(% & % & % & % & [L #?] & #?) (% & % & % & % & [R #?] & #?)]".
+    simplify_eq. iCombine "L R" as "F". iExists _, _. iFrame "∗#%".
 Qed.
 
 Definition post_crash_frag_history_impl `{hG : nvmFixedG Σ}
@@ -296,7 +296,7 @@ Section post_crash_interact.
       "[(%bumper' & %bumpersLook & H) reIns]"; first done.
     simplify_eq.
     iDestruct (soft_disj_exchange_l with "[] H [$]") as "[H newHist]".
-    { iIntros "!>" (?) "H".
+    { iIntros "!>" (?) "[H _]".
       setoid_rewrite <- dfrac_valid_own.
       iApply (ghost_map_elem_valid with "H"). }
     (* iFrame "#∗". *)
