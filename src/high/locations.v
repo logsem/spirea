@@ -317,13 +317,6 @@ the last events at [ℓ] corresponds to the *)
     done.
   Qed.
 
-  Lemma own_frag_encoded_history_loc_lookup γ2 ℓ abs_hist t h :
-    abs_hist !! t = Some h →
-    own_frag_encoded_history_loc γ2 ℓ abs_hist -∗
-    own_frag_encoded_history_loc γ2 ℓ {[ t := h ]}.
-  Proof.
-    Admitted.
-
   Lemma monPred_in_have_SV SV PV BV ℓ t :
     t ≤ SV !!0 ℓ →
     monPred_in (SV, PV, BV) -∗
@@ -341,15 +334,11 @@ the last events at [ℓ] corresponds to the *)
   Proof.
     iIntros (last). iNamed 1.
     iExists (tStore).
-    iDestruct "hist" as "[a #frag]".
+    iDestruct (own_full_history_loc_to_frag with "hist") as "hist".
+    iDestruct (own_frag_history_loc_lookup with "hist") as "$".
+    { congruence. }
     iFrame "#".
-    iSplit.
-    - iExists _.
-      iDestruct (own_frag_encoded_history_loc_lookup with "frag") as "$".
-      { rewrite lookup_fmap. erewrite lookupV. rewrite last. reflexivity. }
-      iPureIntro.
-      rewrite 2!map_fmap_singleton. rewrite decode_encode. done.
-    - iApply monPred_in_have_SV; done.
+    iApply monPred_in_have_SV; done.
   Qed.
 
   Lemma mapsto_na_last ℓ prot q ss : mapsto_na ℓ prot q ss -∗ ⌜∃ s, last ss = Some s⌝.

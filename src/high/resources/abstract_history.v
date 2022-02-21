@@ -91,6 +91,41 @@ Section abs_history_lemmas.
     done.
   Qed.
 
+  Lemma own_full_history_loc_to_frag γ1 γ2 ℓ q abs_hist :
+    own_full_history_loc γ1 γ2 ℓ q abs_hist -∗
+    own_frag_history_loc γ2 ℓ abs_hist.
+  Proof.
+    iIntros "[_ H]". iExists _. iFrame "H".
+    iPureIntro.
+    apply map_eq. intros t.
+    rewrite 3!lookup_fmap.
+    destruct (abs_hist !! t); last done.
+    simpl. rewrite decode_encode. done.
+  Qed.
+
+  Lemma own_frag_history_loc_lookup γ2 ℓ abs_hist t h :
+    abs_hist !! t = Some h →
+    own_frag_history_loc γ2 ℓ abs_hist -∗
+    own_frag_history_loc γ2 ℓ {[ t := h ]}.
+  Proof.
+    iIntros (look).
+    iIntros "(%m & %eq & H)".
+    setoid_rewrite map_eq_iff in eq.
+    specialize (eq t).
+    rewrite 2!lookup_fmap in eq.
+    rewrite look in eq.
+    simpl in eq.
+    rewrite -lookup_fmap in eq.
+    apply lookup_fmap_Some in eq as (e & dec & mLook).
+    iExists ({[ t := e ]}).
+    iDestruct (auth_map_map_frag_lookup_singleton with "H") as "$".
+    { rewrite lookup_singleton. done. }
+    { done. }
+    iPureIntro.
+    rewrite !map_fmap_singleton.
+    congruence.
+  Qed.
+
   Lemma own_full_history_alloc h :
     ⊢ |==> ∃ γ1 γ2,
         own_full_history γ1 γ2 h ∗
