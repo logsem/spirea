@@ -183,6 +183,7 @@ Section wp_at_rules.
       rewrite /initial_history.
       apply map_Forall_singleton.
       done. }
+    iFrame "fragHist".
     (* increasingMap *)
     iSplit. { iPureIntro. apply increasing_map_singleton. }
     (* predsHold *)

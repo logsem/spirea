@@ -220,7 +220,27 @@ Section auth_map_map.
     apply map_singleton_subseteq_l. done.
   Qed.
 
-  Lemma auth_map_map_frag_lookup `{!LeibnizEquiv A} γ m ℓ h t a :
+  Lemma auth_map_map_frag_lookup `{!LeibnizEquiv A} γ m ℓ h :
+    m !! ℓ = Some h →
+    auth_map_map_frag γ m -∗
+    auth_map_map_frag γ {[ ℓ := h ]}.
+  Proof.
+    iIntros (mLook).
+    rewrite /auth_map_map_frag.
+    rewrite /auth_map_map_frag_singleton.
+    rewrite /auth_map_map_frag.
+    f_equiv.
+    simpl.
+    apply auth_frag_mono.
+    rewrite /fmap_fmap_to_agree.
+    rewrite map_fmap_singleton.
+    apply singleton_included_l.
+    eexists _.
+    split. { rewrite lookup_fmap. rewrite mLook. simpl. reflexivity. }
+    done.
+  Qed.
+
+  Lemma auth_map_map_frag_lookup_singleton `{!LeibnizEquiv A} γ m ℓ h t a :
     m !! ℓ = Some h →
     h !! t = Some a →
     auth_map_map_frag γ m -∗

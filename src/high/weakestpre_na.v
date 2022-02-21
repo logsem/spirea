@@ -121,6 +121,7 @@ Section wp_na_rules.
       rewrite -map_fmap_singleton. iFrame "ownHist".
       iFrame "ownNaView".
       iFrame "ownPhysHist".
+      iFrame "fragHist".
       simpl.
       iSplitPure; first apply increasing_list_singleton.
       iSplitPure; first apply lookup_singleton.
@@ -427,13 +428,13 @@ Section wp_na_rules.
 
     (* Update ghost state. *)
     set (newMsg := Msg v ∅ ∅ PV).
-    iMod (auth_map_map_insert _ _ _ _ _ newMsg with "physHist") as "[physHist #physHistFrag]".
+    iMod (auth_map_map_insert _ _ _ _ _ newMsg with "physHist")
+      as "(physHist & _ & #physHistFrag)".
     { done. } { done. }
 
     iDestruct (ghost_map_lookup with "naView knowSV") as %ℓnaView.
 
     iMod (ghost_map_update (<[ℓ:=MaxNat tT]>SV') with "naView knowSV") as "[naView knowSV]".
-    (* iMod (ghost_map.ghost_map_update (SV ⊔ SV') with "naView knowSV") as "[naView knowSV]". *)
 
     rewrite /validV.
     iModIntro.
@@ -448,15 +449,20 @@ Section wp_na_rules.
       { iPureIntro. etrans; first done.
         repeat split; try done.
         apply view_insert_le. lia. }
-      iExists _, _, _, _, _.
+      iExists _, tT, _, _, _.
+      iSplitL "". { iFrame "#". }
+      iFrame "physHistFrag".
+      (* rewrite /know_full_history_loc. *)
+      (* rewrite /own_full_history_loc. *)
+      (* rewrite /own_full_encoded_history_loc. *)
       iFrame "∗#".
       (* [incrList] *)
-      iSplit. { iPureIntro. eapply increasing_list_snoc; eauto. }
+      iSplitPure. { eapply increasing_list_snoc; eauto. }
       (* [lookupV] *)
-      iSplit. { iPureIntro. by rewrite lookup_insert last_snoc. }
+      iSplitPure. { rewrite lookup_insert last_snoc. done. }
       (* [nolater] *)
-      iSplit. {
-        iPureIntro. eapply map_no_later_insert; last done.
+      iSplitPure. {
+        eapply map_no_later_insert; last done.
         etrans; first apply haveTStore.
         apply Nat.lt_le_incl. eapply Nat.le_lt_trans; last apply gt.
         f_equiv.

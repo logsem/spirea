@@ -519,7 +519,7 @@ Section wpr.
           rewrite 2!map_fmap_singleton.
           rewrite decode_encode.
           done. }
-        iDestruct (auth_map_map_frag_lookup with "histFrags") as "$".
+        iDestruct (auth_map_map_frag_lookup_singleton with "histFrags") as "$".
         { done. }
         { apply lookup_singleton. } }
 
@@ -618,7 +618,7 @@ Section wpr.
         eapply slice_of_hist_Some in cvSlicesPhysHists as ([v ?] & look & sliceLook); try done.
         (* [msg] is of course not neccessarily the recovered message. Let' find
         that one. *)
-        iDestruct (auth_map_map_frag_lookup with "newPhysHistFrag") as "frag".
+        iDestruct (auth_map_map_frag_lookup_singleton with "newPhysHistFrag") as "frag".
         { rewrite /slice_of_store. rewrite lookup_fmap.
           erewrite sliceLook. simpl. rewrite map_fmap_singleton. reflexivity. }
         { apply lookup_singleton. }
@@ -714,7 +714,7 @@ Section wpr.
         iSplit; first done.
         iSplit; first done.
         iFrame "pts".
-        iDestruct (auth_map_map_frag_lookup with "histFrags") as "$".
+        iDestruct (auth_map_map_frag_lookup_singleton with "histFrags") as "$".
         { done. }
         { rewrite eq. apply lookup_singleton. }
       - iIntros "_".
@@ -756,7 +756,13 @@ Section wpr.
     heir two persist-views are equal. *)
     iSplitPure. { apply shared_locs_inv_slice_of_store. }
     (* atLocsHistories *)
-    iFrame "atHistories".
+    iSplitL "atHistories".
+    { iNext.
+      iApply (big_sepM_impl with "atHistories").
+      iIntros "!>" (ℓ ? [??]%restrict_lookup_Some) "$".
+      rewrite /own_frag_encoded_history_loc.
+      iApply (auth_map_map_frag_lookup with "histFrags").
+      done. }
     (* [ordered]: We show that the abstract states are still ordered. *)
     iSplitR.
     { iApply big_sepM2_intro.

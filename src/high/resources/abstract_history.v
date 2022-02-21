@@ -80,6 +80,17 @@ Section abs_history_lemmas.
       (λ q, own_full_encoded_history_loc γ1 γ2 ℓ q enc_abs_hist)%I q.
   Proof. split; [done | apply _]. Qed.
 
+  Lemma own_full_history_loc_agree γ1 γ2 ℓ q p abs_hist1 abs_hist2 :
+    own_full_history_loc γ1 γ2 ℓ q abs_hist1 -∗
+    own_full_history_loc γ1 γ2 ℓ p abs_hist2 -∗
+    ⌜ abs_hist1 = abs_hist2 ⌝.
+  Proof.
+    iIntros "[A _]".
+    iIntros "[B _]".
+    iDestruct (ghost_map_elem_agree with "A B") as %<-%(inj _).
+    done.
+  Qed.
+
   Lemma own_full_history_alloc h :
     ⊢ |==> ∃ γ1 γ2,
         own_full_history γ1 γ2 h ∗
