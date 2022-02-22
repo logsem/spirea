@@ -12,12 +12,13 @@ From iris.program_logic Require weakestpre.
 From iris.heap_lang Require Import locations.
 From iris_named_props Require Import named_props.
 
+From self.algebra Require Export ghost_map.
 From self Require Export extra ipm_tactics.
 From self.high Require Export dprop.
 From self Require Export view.
 From self Require Export lang.
 From self.base Require Import primitive_laws.
-From self.lang Require Import syntax tactics.
+From self.lang Require Import syntax tactics lemmas.
 From self.high Require Import resources crash_weakestpre lifted_modalities
      monpred_simpl modalities protocol locations.
 
@@ -234,14 +235,74 @@ Section wp_rules.
   Proof.
   *)
 
-  Lemma wp_wb_lb ℓ prot s st E :
+  Lemma wp_flush_lb ℓ prot s st E :
     {{{ store_lb ℓ prot s }}}
       Flush #ℓ @ st; E
     {{{ RET #(); <fence> flush_lb ℓ prot s }}}.
   Proof.
-  Admitted.
+    intros Φ.
+    iStartProof (iProp _).
+    iIntros ([[sv pv] bv]) "lb".
+    rewrite /store_lb.
+    iDestruct "lb" as (?) "H". iNamed "H".
+    iDestruct "tSLe" as %tSLe.
 
-  Lemma wp_wb_ex ℓ prot s q ss st E :
+    iIntros ([[??]?] ?) "HΦ".
+    rewrite wp_eq /wp_def wpc_eq. simpl.
+    iIntros ([[SV PV] BV] incl) "#val".
+    iEval (monPred_simpl).
+    iApply program_logic.crash_weakestpre.wp_wpc.
+
+    iApply wp_extra_state_interp. { done. } { by apply prim_step_flush_no_fork. }
+    (* We open [interp]. *)
+    iNamed 1.
+
+    (* Get the points-to predicate. *)
+    iDestruct (know_protocol_extract with "locationProtocol")
+      as "(_ & order & _)".
+    iDestruct (ghost_map_lookup with "allOrders order") as %look.
+    iDestruct (big_sepM2_dom with "ordered") as %domEq.
+    iDestruct (big_sepM2_dom with "predsHold") as %domEq2.
+    assert (is_Some (phys_hists !! ℓ)) as [physHist ?].
+    { apply elem_of_dom. rewrite domEq2 domEq. apply elem_of_dom. naive_solver. }
+    iDestruct (big_sepM_lookup_acc with "ptsMap") as "[pts ptsMap]"; first done.
+
+    iApply (wp_flush (extra := {| extra_state_interp := True |}) with "pts").
+    iNext. iIntros "pts".
+    iDestruct ("ptsMap" with "pts") as "ptsMap".
+
+    assert (tS ≤ SV !!0 ℓ) as tSLe2.
+    { etrans; first apply tSLe.
+      f_equiv. etrans; first apply H1. apply incl. }
+    rewrite -assoc.
+    iSplitPure.
+    { repeat split; try done. apply view_le_lub_r. done. }
+    iFrame "val".
+    iSplitL "HΦ".
+    { monPred_simpl. iApply "HΦ".
+      - iPureIntro.
+        repeat split.
+        * apply incl.
+        * apply incl.
+        * etrans; first apply incl. apply view_le_lub_r. done.
+      - simpl.
+        rewrite /flush_lb.
+        iExists _.
+        iFrame "locationProtocol".
+        iFrame "knowFragHist".
+        iSplitPure; first done.
+        iLeft. iPureIntro.
+        simpl.
+        rewrite !lookup_zero_lub.
+        etrans; last apply Nat.le_max_r.
+        etrans; last apply Nat.le_max_l.
+        rewrite lookup_zero_singleton.
+        done. }
+    repeat iExists _.
+    iFrame "#∗%".
+  Qed.
+
+  Lemma wp_flush_ex ℓ prot s q ss st E :
     last ss = Some s →
     {{{ mapsto_na ℓ prot q ss }}}
       Flush #ℓ @ st; E
@@ -250,7 +311,7 @@ Section wp_rules.
     iIntros (eq Φ) "pts".
     iDestruct (mapsto_na_store_lb with "pts") as "#lb"; first done.
     iIntros "HP".
-    iApply wp_wb_lb; first done.
+    iApply wp_flush_lb; first done.
     iNext.
     iIntros "lb'".
     iApply "HP".
@@ -258,7 +319,7 @@ Section wp_rules.
   Qed.
 
   Lemma wp_fence (st : stuckness) (E : coPset) (Φ : val → dProp Σ) :
-         <fence> ▷ Φ #() -∗ WP Fence @ st; E {{ v, Φ v }}.
+    <fence> ▷ Φ #() -∗ WP Fence @ st; E {{ v, Φ v }}.
   Proof.
     iStartProof (iProp _). iIntros ([[sv pv] bv]).
     iIntros "H".

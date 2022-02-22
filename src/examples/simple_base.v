@@ -111,7 +111,7 @@ Section simple_increment.
     wpc_bind (Flush _)%E.
     iApply wpc_atomic_no_mask.
     iSplit. { iFromCache. }
-    iApply (wp_wb with "ℓ1pts").
+    iApply (wp_flush with "ℓ1pts").
     iNext. iIntros "ℓ1pts".
     iSplit.
     { iDestruct "Φpost" as "[Φpost _]". iModIntro. by iApply "Φpost". }

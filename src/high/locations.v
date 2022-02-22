@@ -171,31 +171,15 @@ the last events at [ℓ] corresponds to the *)
       "#knowFragHist" ∷ ⎡ know_frag_history_loc ℓ {[ tS := s ]} ⎤ ∗
       "#tSLe" ∷ have_SV ℓ tS.
 
-  (* Program Definition store_lb ℓ prot (s : ST) : dProp Σ := *)
-  (*   MonPred (λ TV, *)
-  (*     ∃ (tS : nat) (* (msg : message) *), *)
-  (*       "#locationProtocol" ∷ know_protocol ℓ prot ∗ *)
-  (*       "#knowFragHist" ∷ know_frag_history_loc ℓ {[ tS := s ]} ∗ *)
-  (*       "%tSLe" ∷ ⌜ tS ≤ (store_view TV) !!0 ℓ ⌝ *)
-  (*   )%I _. *)
-  (* Next Obligation. solve_proper. Qed. *)
-
   Definition flush_lb ℓ prot (s : ST) : dProp Σ :=
     ∃ (tF : nat),
       "#locationProtocol" ∷ ⎡ know_protocol ℓ prot ⎤ ∗
       "knowFragHist" ∷ ⎡ know_frag_history_loc ℓ {[ tF := s ]} ⎤ ∗
-      (* "%tSLe" ∷ ⌜ tF ≤ (store_view TV) !!0 ℓ ⌝ ∗ *)
       "#tSLe" ∷ have_SV ℓ tF ∗
       (* Either the location is persisted or we have something in the flush
       view. The later case is for use after a crash where we don't have
       anything in the flush view. *)
-      (* Note: I think the below should be changed to: (∃ t, flush_view TV !!
-        ℓ = Some t ∧ tF ≤ t ∨ persisted_loc ℓ tF) Otherwise we wouldn't be
-        able to show the [wp_wb] rule for a freshly allocated location with a
-        message at 0. *)
-      "viewFact" ∷ (⌜tF ≠ 0⌝ ∗ have_FV ℓ tF ∨
-                    ⌜tF = 0⌝ ∗ ⎡ persisted_loc ℓ 0 ⎤ )%I.
-  (* Next Obligation. solve_proper. Qed. *)
+      "viewFact" ∷ (have_FV ℓ tF ∨ (⌜tF = 0⌝ ∗ ⎡ persisted_loc ℓ 0 ⎤))%I.
 
   Program Definition persist_lb ℓ prot (sP : ST) : dProp Σ :=
     ∃ tP,
@@ -205,18 +189,6 @@ the last events at [ℓ] corresponds to the *)
       "#tSLe" ∷ have_SV ℓ tP ∗
       "#tPLe" ∷ have_FV ℓ tP ∗
       "persisted" ∷ ⎡ persisted_loc ℓ tP ⎤.
-
-  (* Program Definition persist_lb ℓ prot (sP : ST) : dProp Σ := *)
-  (*   MonPred (λ TV, *)
-  (*     ∃ tP, *)
-  (*       "#locationProtocol" ∷ know_protocol ℓ prot ∗ *)
-  (*       "knowFragHist" ∷ know_frag_history_loc ℓ {[ tP := sP ]} ∗ *)
-  (*       (* We have the persisted state in our store view. *) *)
-  (*       "%tSLe" ∷ ⌜ tP ≤ (store_view TV) !!0 ℓ ⌝ ∗ *)
-  (*       "%tPLe" ∷ ⌜ tP ≤ (flush_view TV) !!0 ℓ ⌝ ∗ *)
-  (*       "persisted" ∷ persisted_loc ℓ tP *)
-  (*   )%I _. *)
-  (* Next Obligation. solve_proper. Qed. *)
 
   (* The location [ℓ] was recovered in the abstract state [s]. *)
   Definition recovered_at ℓ s : dProp Σ :=
@@ -264,12 +236,7 @@ the last events at [ℓ] corresponds to the *)
 
   Lemma persist_lb_to_flush_lb ℓ prot s :
     persist_lb ℓ prot s -∗ flush_lb ℓ prot s.
-  Proof.
-    iNamed 1. iExists _. iFrame "∗#".
-    destruct (decide (tP = 0)) as [->|neq].
-    - iRight. iFrame. done.
-    - iLeft. done.
-  Qed.
+  Proof. iNamed 1. iExists _. iFrame "∗#". Qed.
 
   Lemma flush_lb_to_store_lb ℓ prot s :
     flush_lb ℓ prot s -∗ store_lb ℓ prot s.
@@ -361,7 +328,11 @@ the last events at [ℓ] corresponds to the *)
     flush_lb ℓ prot s2 -∗
     mapsto_na ℓ prot q ss -∗
     ⌜s2 ⊑ s1⌝.
-  Proof. Admitted.
+  Proof.
+    iIntros (lastSome) "flushLb".
+    iNamed 1.
+    iDestruct "flushLb" as (t) "(_ & B & C & D)".
+  Admitted.
 
   (* Instances. *)
 

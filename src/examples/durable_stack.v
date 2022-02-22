@@ -355,7 +355,7 @@ Section proof.
     iIntros (ℓnil) "nilPts".
     iDestruct (mapsto_na_store_lb with "nilPts") as "#storeLb"; first done.
     wp_pures.
-    wp_apply (wp_wb_lb with "[$]").
+    wp_apply (wp_flush_lb with "[$]").
     iIntros "#flushLb".
     wp_pures.
     wp_apply wp_fence.
@@ -389,7 +389,7 @@ Section proof.
     { done. } (* rewrite /cons_node_prot. iFrame. done. } *)
     iIntros (ℓnode) "nodePts".
     wp_pures.
-    wp_apply (wp_wb_ex with "nodePts"); first reflexivity.
+    wp_apply (wp_flush_ex with "nodePts"); first reflexivity.
     iIntros "[nodePts #nodeFlushLb]".
     wp_pure1. wp_pure1. wp_pure1.
     iAssert (∃ xs x', ⌜ last xs = Some x' ⌝ ∗ ℓtoNext ↦_{_} xs)%I with "[toNextPts]" as "toNextPts".
@@ -418,7 +418,7 @@ Section proof.
     simpl.
     iIntros "toNextPts".
     wp_pures.
-    wp_apply (wp_wb_ex with "toNextPts"). { apply last_app. done. }
+    wp_apply (wp_flush_ex with "toNextPts"). { apply last_app. done. }
     iIntros "[toNextPts #toNextPtsFl]".
     wp_pures.
     wp_apply wp_fence. do 2 iModIntro.

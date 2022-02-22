@@ -78,4 +78,11 @@ Section protocol.
     rewrite /IntoCrash. iIntros "P". by iApply post_crash_know_protocol.
   Qed.
 
+  Lemma know_protocol_extract ℓ prot :
+    know_protocol ℓ prot -∗
+      know_pred ℓ prot.(pred) ∗
+      know_preorder_loc ℓ (⊑@{ST}) ∗
+      know_bumper ℓ prot.(bumper).
+  Proof. iNamed 1. iFrame "#". Qed.
+
 End protocol.

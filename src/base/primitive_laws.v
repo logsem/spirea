@@ -863,7 +863,7 @@ Section lifting.
 
   (* Lemma wp_faa  *)
 
-  Lemma wp_wb SV FV BV ℓ (hist : history) s E :
+  Lemma wp_flush SV FV BV ℓ (hist : history) s E :
     {{{ ℓ ↦h hist }}}
       (ThreadState (Flush #ℓ) (SV, FV, BV)) @ s; E
     {{{ RET ThreadVal #() (SV, FV, {[ℓ := MaxNat (SV !!0 ℓ)]} ⊔ BV); ℓ ↦h hist }}}.

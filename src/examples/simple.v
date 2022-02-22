@@ -163,7 +163,7 @@ Section simple_increment.
     wpc_bind (Flush _)%E.
     iApply wpc_atomic_no_mask.
     iSplit. { iApply (prove_crash_condition with "aPer bPer aPts bPts"). }
-    iApply (wp_wb_ex with "aPts"); first reflexivity.
+    iApply (wp_flush_ex with "aPts"); first reflexivity.
     iNext.
     iIntros "[aPts #pLowerBound]".
     iSplit; first iApply (prove_crash_condition with "aPer bPer aPts bPts").

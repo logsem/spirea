@@ -261,7 +261,7 @@ Section proof.
       wpc_bind (Flush _)%E.
       iApply wpc_atomic_no_mask.
       whack_left_cc.
-      iApply (wp_wb_ex with "xPts"); first reflexivity.
+      iApply (wp_flush_ex with "xPts"); first reflexivity.
       iNext.
       iIntros "[xPts #xLowerBound]".
       whack_left_cc.
