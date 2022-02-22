@@ -120,18 +120,27 @@ Definition post_crash_full_history_map `{nvmFixedG Σ}
       (λ q, know_full_encoded_history_loc (nD := nD) ℓ q hist)
       (λ q, know_history_post_crash nD' ℓ q bumper hist).
 
-Definition post_crash_resource `{nvmFixedG Σ}
-           (hh : gmap loc (gmap time positive)) (bb : gmap loc (positive → option positive))
-           (na_views : gmap loc view) (nD nD' : nvmDeltaG Σ) : iProp Σ :=
+Definition post_crash_resource_persistent `{nvmFixedG Σ}
+           (nD nD' : nvmDeltaG Σ) : iProp Σ :=
   "#post_crash_frag_history_impl" ∷ post_crash_frag_history_impl nD nD' ∗
   "#post_crash_preorder_impl" ∷ post_crash_preorder_impl nD nD' ∗
   "#post_crash_pred_impl" ∷ post_crash_pred_impl nD nD' ∗
   "#post_crash_shared_loc_impl" ∷ post_crash_shared_loc_impl nD nD' ∗
   "#post_crash_exclusive_loc_impl" ∷ post_crash_exclusive_loc_impl nD nD' ∗
   "#post_crash_map_map_phys_history_impl" ∷ map_map_phys_history_impl nD nD' ∗
-  "#post_crash_bumper_impl" ∷ post_crash_bumper_impl nD nD' ∗
+  "#post_crash_bumper_impl" ∷ post_crash_bumper_impl nD nD'.
+
+Definition post_crash_resource_ephmeral `{nvmFixedG Σ}
+           (hh : gmap loc (gmap time positive)) (bb : gmap loc (positive → option positive))
+           (na_views : gmap loc view) (nD nD' : nvmDeltaG Σ) : iProp Σ :=
   "post_crash_na_view_map" ∷ post_crash_na_view_map na_views nD nD' ∗
   "post_crash_full_history_map" ∷ post_crash_full_history_map hh bb nD nD'.
+
+Definition post_crash_resource `{nvmFixedG Σ}
+           (hh : gmap loc (gmap time positive)) bb
+           (na_views : gmap loc view) (nD nD' : nvmDeltaG Σ) : iProp Σ :=
+  post_crash_resource_persistent nD nD' ∗
+  post_crash_resource_ephmeral hh bb na_views nD nD'.
 
 Program Definition post_crash `{nvmFixedG Σ, nD : nvmDeltaG Σ}
         (P : nvmDeltaG Σ → dProp Σ) : dProp Σ :=
@@ -141,7 +150,7 @@ Program Definition post_crash `{nvmFixedG Σ, nD : nvmDeltaG Σ}
         let nD' := NvmDeltaG _ nD' hhGD'
         in (post_crash_resource hh bb na_views nD nD') -∗
           ▷ P nD' (∅, ∅, ∅) ∗
-          (post_crash_resource hh bb na_views nD nD')))%I
+          (post_crash_resource_ephmeral hh bb na_views nD nD')))%I
     _.
 (* Next Obligation. solve_proper. Qed. *)
 
@@ -194,8 +203,7 @@ Section post_crash_prop.
     iStartProof (iProp _). iIntros (TV') "HP".
     iIntrosPostCrash.
     post_crash_modality.iCrash.
-    iIntros "$".
-    iFrame.
+    iIntros "[_ $]". done.
   Qed.
 
   Lemma post_crash_sep P Q :
@@ -207,9 +215,9 @@ Section post_crash_prop.
     iDestruct ("HP" $! hG' hh bb na_views) as "HP".
     iDestruct ("HQ" $! hG' hh bb na_views) as "HQ".
     post_crash_modality.iCrash.
-    iIntros "M".
-    iDestruct ("HP" with "M") as "[$ M]".
-    iDestruct ("HQ" with "M") as "[$ $]".
+    iIntros "[#M1 M2]".
+    iDestruct ("HP" with "[$M1 $M2]") as "[$ M2]".
+    iDestruct ("HQ" with "[$M1 $M2]") as "[$ $]".
   Qed.
 
   Lemma post_crash_disj P Q :
@@ -235,7 +243,7 @@ Section post_crash_prop.
     iStartProof (iProp _). iIntros (TV').
     iIntrosPostCrash.
     iApply post_crash_modality.post_crash_for_all.
-    iIntros (hG0) "$".
+    iIntros (hG0) "[H $]".
     iApply monPred_at_pure.
     iFrame "%".
   Qed.
@@ -246,7 +254,7 @@ Section post_crash_prop.
     iStartProof (iProp _). iIntros (TV') "P".
     iIntrosPostCrash.
     iApply post_crash_modality.post_crash_for_all.
-    iIntros (hG0) "$".
+    iIntros (hG0) "[H $]".
     iApply monPred_at_embed.
     iFrame.
   Qed.
@@ -281,7 +289,7 @@ Section post_crash_interact.
     iDestruct (post_crash_modality.post_crash_nodep with "bumper") as "bumper".
     iDestruct (post_crash_modality.post_crash_nodep with "hist") as "hist".
     post_crash_modality.iCrash.
-    iNamed 1.
+    iIntros "[Ha Hb]". iNamed "Ha". iNamed "Hb".
     (* iFrame "post_crash_preorder_impl". *)
     (* Get the new bumper. *)
     iDestruct ("post_crash_bumper_impl" with "bumper") as "#newBumper".
@@ -320,7 +328,7 @@ Section post_crash_interact.
       iExists _. iFrame "frag". iPureIntro. rewrite !map_fmap_singleton.
       rewrite decode_encode. done. }
     rewrite /post_crash_resource.
-    iFrame "#∗".
+    iFrame "post_crash_na_view_map". iFrame.
   Qed.
 
   Lemma post_crash_preorder ℓ :
@@ -331,11 +339,10 @@ Section post_crash_interact.
     iIntrosPostCrash.
     iDestruct (post_crash_modality.post_crash_nodep with "HP") as "HP".
     post_crash_modality.iCrash.
-    iNamed 1.
-    rewrite /post_crash_resource. iFrameNamed.
+    iIntros "[Ha $]". iNamed "Ha".
     iDestruct ("post_crash_preorder_impl" with "HP") as "H".
     rewrite -or_lost_embed.
-    done.
+    iNext. iFrame "H".
   Qed.
 
   Lemma post_crash_frag_history ℓ t bumper (s : ST) :
@@ -356,9 +363,7 @@ Section post_crash_interact.
     iDestruct (post_crash_modality.post_crash_nodep with "bumper") as "bumper".
     iDestruct (post_crash_modality.post_crash_nodep with "hist") as "hist".
     post_crash_modality.iCrash.
-    iNamed 1.
-    rewrite /post_crash_resource.
-    iFrameNamed.
+    iIntros "[Ha $]". iNamed "Ha".
     iDestruct ("post_crash_frag_history_impl" with "order bumper hist") as "hist".
     iApply or_lost_with_t_at.
     iApply (or_lost_post_crash_mono with "[] hist").
@@ -373,7 +378,7 @@ Section post_crash_interact.
     iIntrosPostCrash.
     iDestruct (post_crash_modality.post_crash_nodep with "HP") as "HP".
     post_crash_modality.iCrash.
-    iNamed 1.
+    iIntros "[Ha $]". iNamed "Ha".
     rewrite /post_crash_resource. iFrameNamed.
     iDestruct ("post_crash_pred_impl" with "HP") as "H".
     rewrite /or_lost /or_lost_with_t.
@@ -389,11 +394,11 @@ Section post_crash_interact.
     iIntrosPostCrash.
     iDestruct (post_crash_modality.post_crash_nodep with "HP") as "HP".
     post_crash_modality.iCrash.
-    iNamed 1.
+    iIntros "[Ha $]". iNamed "Ha".
     rewrite /post_crash_resource.
     iDestruct ("post_crash_shared_loc_impl" with "HP") as "H".
     rewrite -or_lost_embed.
-    iFrame. iFrame "#".
+    iFrame "H".
   Qed.
 
   Lemma post_crash_exclusive_loc ℓ :
@@ -403,11 +408,11 @@ Section post_crash_interact.
     iIntrosPostCrash.
     iDestruct (post_crash_modality.post_crash_nodep with "HP") as "HP".
     post_crash_modality.iCrash.
-    iNamed 1.
+    iIntros "[Ha $]". iNamed "Ha".
     rewrite /post_crash_resource. iFrameNamed.
     iDestruct ("post_crash_exclusive_loc_impl" with "HP") as "H".
     rewrite -or_lost_embed.
-    done.
+    iFrame "H".
   Qed.
 
   Lemma post_crash_know_phys_hist_msg ℓ t msg :
@@ -419,9 +424,8 @@ Section post_crash_interact.
     iIntrosPostCrash.
     iDestruct (post_crash_modality.post_crash_nodep with "HP") as "HP".
     post_crash_modality.iCrash.
-    iNamed 1.
+    iIntros "[Ha $]". iNamed "Ha".
     rewrite /post_crash_resource. iFrameNamed.
-    (*  *)
     iDestruct ("post_crash_map_map_phys_history_impl" with "HP") as "H".
     rewrite /or_lost.
     iApply or_lost_with_t_at.
@@ -436,7 +440,7 @@ Section post_crash_interact.
     iIntrosPostCrash.
     iDestruct (post_crash_modality.post_crash_nodep with "HP") as "HP".
     post_crash_modality.iCrash.
-    iNamed 1.
+    iIntros "[Ha Hb]". iNamed "Ha". iNamed "Hb".
     iDestruct "post_crash_na_view_map" as "[in M]".
     iAssert (⌜ na_views !! _ = Some _ ⌝)%I as %HI. { iApply ("in" with "HP"). }
     iDestruct (big_sepM_lookup_acc with "M") as "[H reIns]"; first done.
@@ -444,10 +448,11 @@ Section post_crash_interact.
     { iIntros "!>" (?) "H".
       setoid_rewrite <- dfrac_valid_own.
       iApply (ghost_map_elem_valid with "H"). }
-    iFrame "#∗".
-    iDestruct ("reIns" with "H") as "$".
     rewrite -or_lost_embed.
-    done.
+    iFrame "HP".
+    iFrame "post_crash_full_history_map".
+    iDestruct ("reIns" with "H") as "$".
+    iFrame "in".
   Qed.
 
   Lemma post_crash_know_bumper `{AbstractState ST} ℓ (bumper : ST → ST) :
@@ -457,11 +462,11 @@ Section post_crash_interact.
     iIntrosPostCrash.
     iDestruct (post_crash_modality.post_crash_nodep with "HP") as "HP".
     post_crash_modality.iCrash.
-    iNamed 1.
+    iIntros "[Ha $]". iNamed "Ha".
     rewrite /post_crash_resource. iFrameNamed.
     iDestruct ("post_crash_bumper_impl" with "HP") as "H".
     rewrite -or_lost_embed.
-    done.
+    iFrame "H".
   Qed.
 
   (*
@@ -510,7 +515,7 @@ Section IntoCrash.
     iIntros (??) "?".
     iIntrosPostCrash.
     post_crash_modality.iCrash.
-    iIntros "$". done.
+    iIntros "[_ $]". done.
   Qed.
 
   Tactic Notation "lift_into_crash" uconstr(lem) :=
@@ -765,9 +770,9 @@ Section post_crash_persisted.
     iDestruct ("HP" $! hG' hh bb na_views) as "HP".
     iDestruct ("HQ" $! hG' hh bb na_views) as "HQ".
     base.post_crash_modality.iCrash.
-    iIntros "M".
-    iDestruct ("HP" with "M") as "[H M]".
-    iDestruct ("HQ" with "M") as "[H1 $]".
+    iIntros "[#M1 M2]".
+    iDestruct ("HP" with "[$M1 $M2]") as "[H M2]".
+    iDestruct ("HQ" with "[$M1 $M2]") as "[H1 $]".
     iIntros (CV).
     iSpecialize ("H" $! CV).
     iSpecialize ("H1" $! CV).

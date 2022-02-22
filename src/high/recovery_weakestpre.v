@@ -462,12 +462,10 @@ Section wpr.
       (map_points_to_to_new _ _ _ _ hGD'
          with "newCrashedAt baseMap ptsMap") as "[baseMap ptsMap]"; first done.
 
-    (* We show the assumption for the post crash modality. *)
-    iDestruct ("P" with "[atLocsHistories naHistories naViewPts]") as "[$ pcRes]".
-    { rewrite /post_crash_resource.
-
-      (* "post_crash_frag_history_impl" - Fragmental history implication. *)
-      iSplit.
+    iAssert (
+      post_crash_resource_persistent hGD {| nvm_delta_base := hGD'; nvm_delta_high := hD' |}
+    ) as "#pcResPers".
+    { iSplit.
       { (* We show that fragments of the histories may survive a crash. *)
         iModIntro.
         iIntros (???? ℓ t s ?) "order oldBumper frag".
@@ -584,7 +582,6 @@ Section wpr.
         { rewrite histDomLocs. set_solver+ elem. }
         apply elem_of_dom.
         naive_solver. }
-      (* "post_crash_exclusive_loc_impl" - Exclusive locations. *)
       iSplit. {
         rewrite /post_crash_exclusive_loc_impl.
         iIntros "!>" (ℓ) "sh".
@@ -625,12 +622,16 @@ Section wpr.
         iExists v.
         iFrame "frag". }
       (* "post_crash_bumper_impl" *)
-      iSplitL "".
       { iIntros "!>" (? ? ? ? ℓ bumper) "oldBumper".
         iApply "orLost". iIntros (t cvLook).
         iDestruct ("bumperImpl" $! ST with "[//] oldBumper")
           as "[%bumpersLook newBumper]".
-        iFrame "newBumper". }
+        iFrame "newBumper". } }
+
+    (* We show the assumption for the post crash modality. *)
+    iDestruct ("P" with "[atLocsHistories naHistories naViewPts]") as "[$ pcRes]".
+    { rewrite /post_crash_resource.
+      iFrame "pcResPers".
       (* "post_crash_na_view_map" *)
       iSplitL "naViewPts".
       { rewrite /post_crash_na_view_map.
@@ -856,8 +857,7 @@ Section wpr.
       iEval (simpl) in "pred".
       iDestruct ("pred" $! _ _ bumpers na_views (store, _) _
                   with "persImpl baseMap") as "(baseMap & pred)".
-      iDestruct ("pred" with "pcRes") as "[H pcRes]".
-
+      iDestruct ("pred" with "[$pcResPers $pcRes]") as "[H pcRes]".
       iFrame "baseMap pcRes".
       iSplit. { rewrite eq2. done. }
       iNext.
