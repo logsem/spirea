@@ -297,7 +297,7 @@ Section wpr.
     set (recLocs := dom (gset _) CV ∩ dom _ abs_hists).
 
     set (newAbsHists := new_abs_hist abs_hists CV bumpers).
-    iMod (own_full_history_alloc newAbsHists)
+    iMod (history_full_map_alloc newAbsHists)
       as (new_abs_history_name new_know_abs_history_name)
            "(hists' & #histFrags & knowHistories)".
     assert (recLocs = (dom (gset _) newAbsHists)) as domNewAbsHists.
@@ -511,7 +511,7 @@ Section wpr.
           eapply encode_relation.encode_relation_decode_iff_1; try done.
           eapply incr; done. }
         rewrite /know_frag_history_loc.
-        rewrite /own_frag_history_loc.
+        rewrite /history_frag_entry_unenc.
         iExists {[ 0 := encode (bumper recS) ]}.
         iSplitPure. {
           rewrite 2!map_fmap_singleton.
@@ -738,7 +738,7 @@ Section wpr.
     (* We show the state interpretation for the high-level logic. *)
     iExists _.
     repeat iExists _.
-    rewrite /own_full_history.
+    rewrite /history_full_map.
     iFrame "ptsMap".
     iFrame "newOrders newPreds hists' newAtLocs newCrashedAt".
     iFrame "newNaLocs".
@@ -761,7 +761,7 @@ Section wpr.
     { iNext.
       iApply (big_sepM_impl with "atHistories").
       iIntros "!>" (ℓ ? [??]%restrict_lookup_Some) "$".
-      rewrite /own_frag_encoded_history_loc.
+      rewrite /history_frag_entry.
       iApply (auth_map_map_frag_lookup with "histFrags").
       done. }
     (* [ordered]: We show that the abstract states are still ordered. *)

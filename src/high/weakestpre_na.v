@@ -76,7 +76,7 @@ Section wp_na_rules.
       rewrite domEq3. congruence. }
 
     (* Allocate the abstract history for the location. *)
-    iMod (own_full_history_history_insert_loc _ _ _ _ {[0 := encode s]} with "history")
+    iMod (history_full_map_history_insert_loc _ _ _ _ {[0 := encode s]} with "history")
       as "(history & ownHist & #fragHist)".
     { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
 
@@ -249,7 +249,7 @@ Section wp_na_rules.
     iNamed 1.
     iDestruct (own_all_preds_pred with "predicates knowPred") as
       (pred predsLook) "#predsEquiv".
-    iDestruct (own_full_history_agree with "[$] [$]") as %absHistlook.
+    iDestruct (history_full_map_agree with "[$] [$]") as %absHistlook.
 
     iDestruct (big_sepM2_dom with "predsHold") as %domPhysHistEqAbsHist.
     assert (is_Some (phys_hists !! ℓ)) as [physHist physHistsLook].
@@ -392,7 +392,7 @@ Section wp_na_rules.
     iDestruct (ghost_map_lookup with "allOrders knowPreorder")
       as %ordersLook.
 
-    iDestruct (own_full_history_agree with "history hist") as %absHistsLook.
+    iDestruct (history_full_map_agree with "history hist") as %absHistsLook.
 
     iDestruct (big_sepM2_dom with "predsHold") as %domPhysHistEqAbsHist.
 
@@ -423,7 +423,7 @@ Section wp_na_rules.
       ) as %ℓEx.
     assert (ℓ ∉ at_locs) as ℓnotSh by set_solver.
     (* Update the ghost state for the abstract history. *)
-    iMod (own_full_history_insert _ _ _ _ _ _ s with "history hist")
+    iMod (history_full_map_insert _ _ _ _ _ _ s with "history hist")
       as "(history & hist & histFrag)"; first done.
 
     (* Update ghost state. *)
@@ -453,7 +453,7 @@ Section wp_na_rules.
       iSplitL "". { iFrame "#". }
       iFrame "physHistFrag".
       (* rewrite /know_full_history_loc. *)
-      (* rewrite /own_full_history_loc. *)
+      (* rewrite /history_full_map_loc. *)
       (* rewrite /own_full_encoded_history_loc. *)
       iFrame "∗#".
       (* [incrList] *)

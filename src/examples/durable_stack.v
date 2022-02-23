@@ -103,7 +103,7 @@ Section mapsto_na_flushed.
     iDestruct 1 as (ss' last') "[pts' lb']".
     rewrite /mapsto_na. iNamed "pts".
     iDestruct "pts'" as (?????) "(? & ? & ? & %look & %nolater' & ? & ? & ? & ? & ? & ? & ?)".
-    iDestruct (own_full_history_loc_agree with "hist [$]") as %<-.
+    iDestruct (history_full_map_loc_agree with "hist [$]") as %<-.
     iPureIntro.
     apply (inj Some).
     rewrite -lastEq -last' -lookupV -look.

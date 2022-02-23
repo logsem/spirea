@@ -323,7 +323,7 @@ Section post_crash_interact.
       iExists t. iFrame (cvLook) "per". iExists st.
       iSplitPure; first assumption.
       iFrame "bumper".
-      rewrite /own_full_history_loc /know_full_encoded_history_loc. rewrite map_fmap_singleton.
+      rewrite /history_full_map_loc /know_full_encoded_history_loc. rewrite map_fmap_singleton.
       simplify_eq. iFrame "hist".
       iExists _. iFrame "frag". iPureIntro. rewrite !map_fmap_singleton.
       rewrite decode_encode. done. }

@@ -497,7 +497,7 @@ Proof.
   iExists (fixed).
   (* Unshelve. *)
   (* Allocate abstract history. *)
-  iMod (own_full_history_alloc ∅)
+  iMod (history_full_map_alloc ∅)
     as (abs_history_name know_abs_history_name) "(hists' & #histFrags & knowHistories)".
   (* Allocate predicates. *)
   iMod (know_predicates_alloc ∅) as (predicates_name) "[preds #predsFrag]".

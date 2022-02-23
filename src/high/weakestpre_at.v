@@ -108,7 +108,7 @@ Section wp_at_rules.
       rewrite domEq3. congruence. }
 
     (* Allocate the abstract history for the location. *)
-    iMod (own_full_history_history_insert_loc _ _ _ _ {[0 := encode s]} with "history")
+    iMod (history_full_map_history_insert_loc _ _ _ _ {[0 := encode s]} with "history")
       as "(history & ownHist & #fragHist)".
     { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
     
@@ -142,7 +142,7 @@ Section wp_at_rules.
       iFrame "prot".
       iSplit.
       { rewrite /know_frag_history_loc.
-        rewrite /own_frag_history_loc.
+        rewrite /history_frag_entry_unenc.
         iExists _.
         iFrame "fragHist".
         iPureIntro. by rewrite !map_fmap_singleton decode_encode. }
@@ -292,7 +292,7 @@ Section wp_at_rules.
     [interp].  We want to look up the points-to predicate in [ptsMap]. To this
     end, we combine our fragment of the history with the authorative element. *)
     iDestruct (
-      own_full_history_frag_singleton_agreee with "history hist") as %look.
+      history_full_map_frag_singleton_agreee with "history hist") as %look.
     destruct look as (absHist & enc & absHistLook & lookTS & decodeEnc).
 
     iDestruct (big_sepM2_dom with "predsHold") as %domPhysHistEqAbsHist.
@@ -380,7 +380,7 @@ Section wp_at_rules.
     iDestruct ("predsHold" with "[predMap]") as "predsHold".
     { iExists _. naive_solver. }
 
-    iMod (own_full_history_alloc_frag with "history") as "[history histS]"; try done.
+    iMod (history_full_map_alloc_frag with "history") as "[history histS]"; try done.
     iModIntro.
     (* We re-establish [interp]. *)
     iSplitR "ptsMap physHist allOrders ordered predsHold history predicates
@@ -467,7 +467,7 @@ Section wp_at_rules.
     [interp]. We want to look up the points-to predicate in [ptsMap]. To this
     end, we combine our fragment of the history with the authorative element. *)
     iDestruct (
-        own_full_history_frag_singleton_agreee with "history hist") as %look.
+        history_full_map_frag_singleton_agreee with "history hist") as %look.
     destruct look as (absHist & enc & absHistsLook & lookTS & decodeEnc).
 
     iDestruct (
@@ -562,7 +562,7 @@ Section wp_at_rules.
 
     (* Maybe add a lemma for this lookup *)
     iDestruct (
-        own_full_history_frag_singleton_agreee with "history hist") as %look'.
+        history_full_map_frag_singleton_agreee with "history hist") as %look'.
     destruct look' as (hist' & enc' & absHistsLook' & hip & hop).
     rewrite lookup_insert in absHistsLook'.
     apply (inj Some) in absHistsLook'.

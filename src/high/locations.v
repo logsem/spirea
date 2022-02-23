@@ -97,7 +97,7 @@ the last events at [ℓ] corresponds to the *)
       (* NOTE: Maybe we can actually remove [increasing_list]? It should be
       covered by the fact that the list corresponds to [abs_hist] and that one
       is sorted. *)
-      "%incrList" ∷ ⌜ increasing_list ss⌝ ∗
+      "%incrList" ∷ ⌜ increasing_list ss ⌝ ∗
       "#isNaLoc" ∷ ⎡ is_na_loc ℓ ⎤ ∗
 
       (* [tStore] is the last message and it agrees with the last state in ss. *)
@@ -301,8 +301,8 @@ the last events at [ℓ] corresponds to the *)
   Proof.
     iIntros (last). iNamed 1.
     iExists (tStore).
-    iDestruct (own_full_history_loc_to_frag with "hist") as "hist".
-    iDestruct (own_frag_history_loc_lookup with "hist") as "$".
+    iDestruct (history_full_map_loc_to_frag with "hist") as "hist".
+    iDestruct (history_frag_entry_unenc_lookup with "hist") as "$".
     { congruence. }
     iFrame "#".
     iApply monPred_in_have_SV; done.

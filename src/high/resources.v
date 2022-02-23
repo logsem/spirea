@@ -7,7 +7,7 @@ From iris.proofmode Require Import reduction monpred tactics.
 From iris_named_props Require Import named_props.
 
 From self Require Import extra.
-From self.algebra Require Import ghost_map.
+From self.algebra Require Import ghost_map ghost_map_map.
 From self.lang Require Import lang.
 From self.base Require Import primitive_laws.
 From self.high Require Import dprop abstract_state lifted_modalities.
@@ -18,7 +18,7 @@ Class nvmHighDeltaG := MkNvmHighDeltaG {
   (* "Global" ghost names *)
   (* For abstract history *)
   abs_history_name : gname;
-  know_abs_history_name : gname;
+  (* know_abs_history_name : gname; *)
   (* For physical history *)
   know_phys_history_name : gname;
   non_atomic_views_gname : gname;
@@ -48,8 +48,9 @@ Definition shared_locsR := authR (gsetUR loc).
 
 Class nvmHighFixedG Σ := {
   predicates_inG :> inG Σ (@predicatesR Σ);
-  ra_inG' :> inG Σ know_abs_historiesR;
-  abs_histories :> ghost_mapG Σ loc (gmap time positive);
+  (* ra_inG' :> inG Σ know_abs_historiesR; *)
+  abs_histories :> ghost_map_mapG Σ loc time positive;
+  (* abs_histories :> ghost_mapG Σ loc (gmap time positive); *)
   phys_histories :> inG Σ (auth_map_mapR (leibnizO message));
   non_atomic_views :> ghost_mapG Σ loc view;
   preordersG :> ghost_mapG Σ loc (relation2 positive);
@@ -109,14 +110,14 @@ Section ownership_wrappers.
 
   Definition know_full_history_loc `{Countable ST}
              ℓ q (abs_hist : gmap time ST) : iProp Σ :=
-    own_full_history_loc abs_history_name know_abs_history_name ℓ q abs_hist.
+    history_full_map_loc abs_history_name know_abs_history_name ℓ q abs_hist.
 
   Definition know_frag_encoded_history_loc ℓ enc_abs_hist : iProp Σ :=
-    own_frag_encoded_history_loc know_abs_history_name ℓ enc_abs_hist.
+    history_frag_entry know_abs_history_name ℓ enc_abs_hist.
 
   Definition know_frag_history_loc `{Countable ST}
              ℓ (abs_hist : gmap time ST) : iProp Σ :=
-    own_frag_history_loc know_abs_history_name ℓ abs_hist.
+    history_frag_entry_unenc know_abs_history_name ℓ abs_hist.
 
   (* The storeview of the most recent write to a na location. *)
   Definition know_na_view ℓ q (SV : view) : iProp Σ :=
