@@ -656,6 +656,38 @@ Section big_sepM2.
     intros domEq look. rewrite -not_elem_of_dom domEq not_elem_of_dom. done.
   Qed.
 
+  Lemma big_sepM2_empty_either m1 m2 Φ :
+    m1 = ∅ ∨ m2 = ∅ →
+    ([∗ map] k↦y1;y2 ∈ m1;m2, Φ k y1 y2) ⊢ emp.
+  Proof.
+    intros disj.
+    rewrite big_sepM2_eq /big_sepM2_def. apply pure_elim_l => Hl.
+
+  Admitted.
+
+  Lemma big_sepM_exist_r Φ m1 :
+    ([∗ map] k ↦ x1 ∈ m1, ∃ x2, Φ k x1 x2) ⊣⊢
+      ∃ m2, ([∗ map] k ↦ x1; x2 ∈ m1;m2, Φ k x1 x2).
+  Proof.
+    induction m1 as [|i x m ? IH] using map_ind.
+    - rewrite big_sepM_empty.
+      apply (anti_symm _).
+      * rewrite -(exist_intro ∅). rewrite big_sepM2_empty. done.
+      * apply exist_elim.
+        intros m2. apply big_sepM2_empty_either. left. done.
+    - rewrite big_sepM_insert; last done.
+      rewrite IH.
+      apply (anti_symm _).
+      * rewrite sep_exist_r. apply exist_elim => b.
+        rewrite sep_exist_l. apply exist_elim => m2'.
+        rewrite -(exist_intro (<[i:=b]>m2')).
+        rewrite big_sepM2_insert.
+        done.
+        done.
+        admit.
+      * apply exist_elim => m2.
+  Admitted.
+
   (* Lemma big_sepM2_thread_resource Φ m1 m2 R : *)
   (*   R ∗ ([∗ map] k↦x1;x2 ∈ m1;m2, R -∗ Φ k x1 x2 ∗ R) ⊣⊢ *)
   (*   R ∗ ([∗ map] k↦x1;x2 ∈ m1;m2, Φ k x1 x2). *)
@@ -798,6 +830,12 @@ Section big_sepM2.
   Qed.
 
 End big_sepM2.
+
+Lemma big_sepM_exist_l {PROP : bi} {K A B} `{Countable K}
+      (Φ : K → A → B → PROP) (m2 : gmap K B) :
+  ([∗ map] k ↦ x2 ∈ m2, ∃ x1, Φ k x1 x2) ⊣⊢
+    ∃ m1, ([∗ map] k ↦ x1; x2 ∈ m1;m2, Φ k x1 x2).
+Proof. setoid_rewrite big_sepM2_flip. apply big_sepM_exist_r. Qed.
 
 (* Applicative notation. *)
 Definition mapply {A B} `{MBind M, FMap M} (mf : M (A → B)) (a : M A) :=
