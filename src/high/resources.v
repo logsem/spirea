@@ -106,18 +106,17 @@ Section ownership_wrappers.
     own_know_preorder_loc preorders_name ℓ preorder.
 
   Definition know_full_encoded_history_loc ℓ q enc_abs_hist : iProp Σ :=
-    own_full_encoded_history_loc abs_history_name know_abs_history_name ℓ q enc_abs_hist.
+    history_full_entry_encoded abs_history_name ℓ q enc_abs_hist.
 
   Definition know_full_history_loc `{Countable ST}
              ℓ q (abs_hist : gmap time ST) : iProp Σ :=
-    history_full_map_loc abs_history_name know_abs_history_name ℓ q abs_hist.
+    history_full_map_loc abs_history_name ℓ q abs_hist.
 
-  Definition know_frag_encoded_history_loc ℓ enc_abs_hist : iProp Σ :=
-    history_frag_entry know_abs_history_name ℓ enc_abs_hist.
+  Definition know_frag_encoded_history_loc ℓ t e : iProp Σ :=
+    history_frag_entry abs_history_name ℓ t e.
 
-  Definition know_frag_history_loc `{Countable ST}
-             ℓ (abs_hist : gmap time ST) : iProp Σ :=
-    history_frag_entry_unenc know_abs_history_name ℓ abs_hist.
+  Definition know_frag_history_loc `{Countable ST} ℓ t (s : ST) : iProp Σ :=
+    history_frag_entry_unenc abs_history_name ℓ t s.
 
   (* The storeview of the most recent write to a na location. *)
   Definition know_na_view ℓ q (SV : view) : iProp Σ :=

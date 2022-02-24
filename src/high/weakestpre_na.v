@@ -454,7 +454,7 @@ Section wp_na_rules.
       iFrame "physHistFrag".
       (* rewrite /know_full_history_loc. *)
       (* rewrite /history_full_map_loc. *)
-      (* rewrite /own_full_encoded_history_loc. *)
+      (* rewrite /history_full_entry_encoded. *)
       iFrame "∗#".
       (* [incrList] *)
       iSplitPure. { eapply increasing_list_snoc; eauto. }

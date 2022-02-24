@@ -10,7 +10,7 @@ From Perennial.program_logic Require Import crash_weakestpre.
 From Perennial.program_logic Require Import recovery_weakestpre.
 From Perennial.program_logic Require Import recovery_adequacy.
 
-From self.algebra Require Import ghost_map.
+From self.algebra Require Import ghost_map ghost_map_map.
 From self Require Import view extra ipm_tactics if_non_zero.
 From self.base Require Import primitive_laws wpr_lifting.
 From self.high Require Import dprop resources crash_weakestpre
@@ -298,8 +298,7 @@ Section wpr.
 
     set (newAbsHists := new_abs_hist abs_hists CV bumpers).
     iMod (history_full_map_alloc newAbsHists)
-      as (new_abs_history_name new_know_abs_history_name)
-           "(hists' & #histFrags & knowHistories)".
+      as (new_abs_history_name) "(hists' & knowHistories)".
     assert (recLocs = (dom (gset _) newAbsHists)) as domNewAbsHists.
     { rewrite new_abs_hist_dom.
       rewrite -domHistsEqBumpers.
@@ -319,11 +318,11 @@ Section wpr.
     iMod (own_update with "predicates") as "allPredicates".
     { apply auth_update_auth_persist. }
     iDestruct "allPredicates" as "#allPredicates".
-    iDestruct "history" as "[fullHist1 fullHist2]".
-    iMod (ghost_map_auth_persist with "fullHist1") as "#oldFullHist1".
-    iMod (own_update with "fullHist2") as "oldFullHist2".
-    { apply auth_update_auth_persist. }
-    iDestruct "oldFullHist2" as "#oldFullHist2".
+    (* iDestruct "history" as "[fullHist1 fullHist2]". *)
+    iMod (full_map_persist with "history") as "#oldFullHist".
+    (* iMod (own_update with "fullHist2") as "oldFullHist2". *)
+    (* { apply auth_update_auth_persist. } *)
+    (* iDestruct "oldFullHist2" as "#oldFullHist2". *)
     (* Ghost state for physical history. *)
     iMod (own_update with "physHist") as "oldPhysHist".
     { apply auth_update_auth_persist. }
@@ -425,7 +424,6 @@ Section wpr.
     iModIntro.
     set (hD' := {|
       abs_history_name := new_abs_history_name;
-      know_abs_history_name := new_know_abs_history_name;
       know_phys_history_name := new_phys_hist_name;
       non_atomic_views_gname := new_na_views_name;
       predicates_name := new_predicates_name;
@@ -470,22 +468,23 @@ Section wpr.
         iModIntro.
         iIntros (???? ℓ t s ?) "order oldBumper frag".
         iApply "orLost". iIntros (? look).
-        iDestruct "frag" as (temp eq) "oldFrag".
-        rewrite map_fmap_singleton in eq.
-        apply map_fmap_singleton_inv in eq.
-        destruct eq as (encX & decEq & ->).
+        iDestruct "frag" as (encX decEq) "oldFrag".
+        (* rewrite map_fmap_singleton in eq. *)
+        (* apply map_fmap_singleton_inv in eq. *)
+        (* destruct eq as (encX & decEq & ->). *)
 
         iDestruct ("bumperImpl" $! ST with "[//] oldBumper")
           as "[%bumpersLook newBumper]".
         iDestruct ("orderImpl" $! ST with "[//] order")
           as "[%ordersLook newOrder]".
 
-        iDestruct (auth_map_map_auth_frag with "oldFullHist2 oldFrag")
-          as %(h & lookH & hLook).
+        (* iDestruct (auth_map_map_auth_frag with "oldFullHist2 oldFrag") *)
+        (*   as %(h & lookH & hLook). *)
 
+        iDestruct (full_map_frag_entry with "oldFullHist oldFrag") as %(h & lookH & hLook).
         iDestruct (big_sepM2_lookup with "bumperSome") as %?; try done.
 
-        eassert _ as temp; first (apply new_abs_hist_lookup; done).
+        eassert _ as temp. { apply new_abs_hist_lookup; try done. }.
         destruct temp as (recEncS & ? & ? & encBumper & newHistLook).
 
         apply encode_bumper_Some_decode in encBumper as (recS & decEq2 & <-).
@@ -501,7 +500,7 @@ Section wpr.
             assert (s = recS) as ->; last reflexivity.
             apply (inj Some).
             rewrite -decEq2.
-            rewrite decEq.
+            rewrite -decEq.
             f_equiv.
             (* Why congruence no solve this? :'( *)
             apply (inj Some).
@@ -512,9 +511,9 @@ Section wpr.
           eapply incr; done. }
         rewrite /know_frag_history_loc.
         rewrite /history_frag_entry_unenc.
-        iExists {[ 0 := encode (bumper recS) ]}.
+        iExists (encode (bumper recS)).
         iSplitPure. {
-          rewrite 2!map_fmap_singleton.
+          (* rewrite 2!map_fmap_singleton. *)
           rewrite decode_encode.
           done. }
         iDestruct (auth_map_map_frag_lookup_singleton with "histFrags") as "$".
@@ -668,7 +667,7 @@ Section wpr.
       rewrite /post_crash_full_history_map.
       iSplitL "atLocsHistories".
       { iIntros (ℓ q hist) "[hist frag]".
-        iDestruct (ghost_map_lookup with "oldFullHist1 hist") as %look.
+        iDestruct (ghost_map_lookup with "oldFullHist hist") as %look.
         destruct (decide (ℓ ∈ at_locs)) as [?|notElem].
         { iDestruct (big_sepM_lookup with "atLocsHistories") as "[H _]".
           { apply restrict_lookup_Some; done. }

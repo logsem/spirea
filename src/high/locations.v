@@ -11,7 +11,7 @@ From iris.proofmode Require Import reduction monpred tactics.
 From iris_named_props Require Import named_props.
 
 From self Require Import extra ipm_tactics.
-From self.algebra Require Import ghost_map.
+From self.algebra Require Import ghost_map ghost_map_map.
 From self.lang Require Import lang.
 From self.base Require Import primitive_laws.
 From self.high Require Import dprop abstract_state lifted_modalities or_lost.
@@ -77,9 +77,9 @@ Section points_to_at.
 
   Implicit Types (ℓ : loc) (s : ST) (ss : list ST) (prot : LocationProtocol ST).
 
-  Definition abs_hist_to_ra_old
-          (abs_hist : gmap time (message * positive)) : encoded_abs_historyR :=
-    (to_agree ∘ snd) <$> abs_hist.
+  (* Definition abs_hist_to_ra_old *)
+  (*         (abs_hist : gmap time (message * positive)) : encoded_abs_historyR := *)
+  (*   (to_agree ∘ snd) <$> abs_hist. *)
 
   Lemma singleton_included_l' `{Countable K, CmraTotal A}
         (m : gmap K A) (i : K) x :
@@ -92,7 +92,8 @@ Section points_to_at.
   (* Points-to predicate for non-atomics. This predcate says that we know that
 the last events at [ℓ] corresponds to the *)
   Program Definition mapsto_na (ℓ : loc) prot (* (per : bool) *) (q : frac) (ss : list ST) : dProp Σ :=
-    (∃ (tP tStore : time) SV (abs_hist : gmap time ST) (msg : message),
+    (∃ (tP tStore : time) SV (abs_hist : gmap time ST) (msg : message) s,
+      "%lastEq" ∷ ⌜ last ss = Some s ⌝ ∗
       "#locationProtocol" ∷ ⎡ know_protocol ℓ prot ⎤ ∗
       (* NOTE: Maybe we can actually remove [increasing_list]? It should be
       covered by the fact that the list corresponds to [abs_hist] and that one
@@ -101,11 +102,12 @@ the last events at [ℓ] corresponds to the *)
       "#isNaLoc" ∷ ⎡ is_na_loc ℓ ⎤ ∗
 
       (* [tStore] is the last message and it agrees with the last state in ss. *)
-      "%lookupV" ∷ ⌜ abs_hist !! tStore = last ss ⌝ ∗
+      "%lookupV" ∷ ⌜ abs_hist !! tStore = Some s ⌝ ∗
       "%nolater" ∷ ⌜ map_no_later abs_hist tStore ⌝ ∗
 
       (* Ownership over the full abstract history. *)
       "hist" ∷ ⎡ know_full_history_loc ℓ q abs_hist ⎤ ∗
+      "#histFrag" ∷ ⎡ know_frag_history_loc ℓ tStore s ⎤ ∗
 
       "knowSV" ∷ ⎡ know_na_view ℓ q SV ⎤ ∗
       "%slice" ∷ ⌜ map_slice abs_hist tP tStore ss ⌝ ∗
@@ -126,20 +128,18 @@ the last events at [ℓ] corresponds to the *)
     rewrite /mapsto_na.
     iSplit.
     - iNamed 1.
-      iDestruct "hist" as "[[histP histQ] #fragHist]".
+      iDestruct "hist" as "[histP histQ]".
       iDestruct "knowSV" as "[knowSVP knowSVQ]".
         iSplitL "histP knowSVP".
-        + iExists _, _, _, _, _.
-          iFrame "#∗%".
-        + iExists _, _, _, _, _.
+        + repeat iExists _. iFrame "#∗%".
+        + repeat iExists _.
           iFrame "#∗%".
     - iDestruct 1 as "[L R]".
       iNamed "L".
-      iDestruct "hist" as "[hist frag]".
-      iDestruct "R" as (?????) "(_ & _ & _ & _ & _ & [histQ _] & SV & HIP & ?)".
-      iDestruct (ghost_map_elem_agree with "hist histQ") as %->%(inj (fmap _)).
+      iDestruct "R" as (??????) "(_ & _ & ? & _ & _ & _ & histQ & _ & SV & HIP & ?)".
+      iDestruct (full_entry_agree with "hist histQ") as %->%(inj (fmap _)).
       iDestruct (ghost_map_elem_agree with "knowSV SV") as %->.
-      iExists _, _, _, _, _. iFrame "#∗%".
+      repeat iExists _. iFrame "#∗%".
   Qed.
   Global Instance mapsto_na_as_fractional ℓ prot q v :
     AsFractional (mapsto_na ℓ prot q v) (λ q, mapsto_na ℓ prot q v)%I q.
@@ -168,13 +168,13 @@ the last events at [ℓ] corresponds to the *)
   Definition store_lb ℓ prot (s : ST) : dProp Σ :=
     ∃ (tS : nat),
       "#locationProtocol" ∷ ⎡ know_protocol ℓ prot ⎤ ∗
-      "#knowFragHist" ∷ ⎡ know_frag_history_loc ℓ {[ tS := s ]} ⎤ ∗
+      "#knowFragHist" ∷ ⎡ know_frag_history_loc ℓ tS s ⎤ ∗
       "#tSLe" ∷ have_SV ℓ tS.
 
   Definition flush_lb ℓ prot (s : ST) : dProp Σ :=
     ∃ (tF : nat),
       "#locationProtocol" ∷ ⎡ know_protocol ℓ prot ⎤ ∗
-      "knowFragHist" ∷ ⎡ know_frag_history_loc ℓ {[ tF := s ]} ⎤ ∗
+      "knowFragHist" ∷ ⎡ know_frag_history_loc ℓ tF s ⎤ ∗
       "#tSLe" ∷ have_SV ℓ tF ∗
       (* Either the location is persisted or we have something in the flush
       view. The later case is for use after a crash where we don't have
@@ -184,7 +184,7 @@ the last events at [ℓ] corresponds to the *)
   Program Definition persist_lb ℓ prot (sP : ST) : dProp Σ :=
     ∃ tP,
       "#locationProtocol" ∷ ⎡ know_protocol ℓ prot ⎤ ∗
-      "knowFragHist" ∷ ⎡ know_frag_history_loc ℓ {[ tP := sP ]} ⎤ ∗
+      "knowFragHist" ∷ ⎡ know_frag_history_loc ℓ tP sP ⎤ ∗
       (* We have the persisted state in our store view. *)
       "#tSLe" ∷ have_SV ℓ tP ∗
       "#tPLe" ∷ have_FV ℓ tP ∗
@@ -193,7 +193,7 @@ the last events at [ℓ] corresponds to the *)
   (* The location [ℓ] was recovered in the abstract state [s]. *)
   Definition recovered_at ℓ s : dProp Σ :=
     ∃ CV,
-      "#knowFragHist" ∷ ⎡ know_frag_history_loc ℓ {[ 0 := s ]} ⎤ ∗
+      "#knowFragHist" ∷ ⎡ know_frag_history_loc ℓ 0 s ⎤ ∗
       "#crashed" ∷ ⎡ crashed_at CV⎤ ∗
       "%inCV" ∷ ⌜ℓ ∈ dom (gset _) CV⌝.
 
@@ -301,9 +301,7 @@ the last events at [ℓ] corresponds to the *)
   Proof.
     iIntros (last). iNamed 1.
     iExists (tStore).
-    iDestruct (history_full_map_loc_to_frag with "hist") as "hist".
-    iDestruct (history_frag_entry_unenc_lookup with "hist") as "$".
-    { congruence. }
+    simplify_eq.
     iFrame "#".
     iApply monPred_in_have_SV; done.
   Qed.
@@ -547,7 +545,8 @@ Section points_to_at_more.
 
     rewrite /recovered_at.
     iSplit.
-    + iExists 0, 0, ∅, _, (Msg _ ∅ ∅ ∅). iFrame. iFrame "#".
+    + iExists 0, 0, ∅, _, (Msg _ ∅ ∅ ∅), _. iFrame. iFrame "#".
+      iPureGoal. { done. }
       iPureGoal. { apply increasing_list_singleton. }
       iPureGoal. { by rewrite lookup_singleton. }
       iPureGoal. { apply map_no_later_singleton. }

@@ -121,7 +121,7 @@ Section state_interpretation.
 
       (* Ownership over the full knowledge of the abstract history of _all_
       locations. *)
-      "history" ∷ history_full_map abs_history_name know_abs_history_name abs_hists ∗
+      "history" ∷ history_full_map abs_history_name abs_hists ∗
       (* Knowledge of all the predicates. *)
       "predicates" ∷ own predicates_name (● preds_to_ra predicates) ∗
       (* All the encoded orders *)

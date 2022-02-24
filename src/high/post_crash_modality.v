@@ -6,7 +6,7 @@ From Perennial.Helpers Require Import ipm NamedProps.
 From Perennial.program_logic Require Import recovery_weakestpre.
 
 From self Require Import extra ipm_tactics if_non_zero.
-From self.algebra Require Import ghost_map.
+From self.algebra Require Import ghost_map ghost_map_map.
 From self.base Require Import primitive_laws wpr_lifting.
 From self.base Require post_crash_modality.
 From self.high Require Import dprop resources monpred_simpl or_lost.
@@ -75,7 +75,7 @@ Definition know_history_post_crash `{nvmFixedG Σ}
       ⌜hist !! t = Some sOld⌝ ∗
       ⌜bumper sOld = Some sNew⌝ ∗
       know_full_encoded_history_loc ℓ q ({[ 0 := sNew ]}) ∗
-      know_frag_encoded_history_loc ℓ ({[ 0 := sNew ]}))%I.
+      know_frag_encoded_history_loc ℓ 0 sNew)%I.
 
 Instance know_history_post_crash_fractional `{nvmFixedG Σ} hG ℓ bumper hist :
   Fractional (λ q, know_history_post_crash hG ℓ q bumper hist).
@@ -83,9 +83,9 @@ Proof.
   apply or_lost_post_crash_fractional.
   iIntros (t p q).
   iSplit.
-  - iDestruct 1 as (????) "([[L R] #?] & #?)".
+  - iDestruct 1 as (????) "([L R] & #?)".
     iSplitL "L"; iExists _, _; iFrame "#%∗".
-  - iDestruct 1 as "[(% & % & % & % & [L #?] & #?) (% & % & % & % & [R #?] & #?)]".
+  - iDestruct 1 as "[(% & % & % & % & L & #?) (% & % & % & % & R & #?)]".
     simplify_eq. iCombine "L R" as "F". iExists _, _. iFrame "∗#%".
 Qed.
 
@@ -95,12 +95,12 @@ Definition post_crash_frag_history_impl `{hG : nvmFixedG Σ}
     ℓ (t : nat) (s : ST) (bumper : ST → ST),
       know_preorder_loc (nD := nD) ℓ (abs_state_relation (ST := ST)) -∗
       know_bumper (nD := nD) ℓ bumper -∗
-      know_frag_history_loc (nD := nD) ℓ {[ t := s ]} -∗
+      know_frag_history_loc (nD := nD) ℓ t s -∗
       (or_lost_post_crash ℓ (λ t', ∃ s',
         ⌜t ≤ t' → s ⊑ s'⌝ ∗
         know_preorder_loc (nD := nD') ℓ (abs_state_relation (ST := ST)) ∗
         know_bumper (nD := nD') ℓ bumper ∗
-        know_frag_history_loc (nD := nD') ℓ {[ 0 := bumper s' ]})).
+        know_frag_history_loc (nD := nD') ℓ 0 (bumper s'))).
 
 (** This map is used to exchange [know_full_history_loc] valid prior to a crash
 into a version valid after the crash. *)
@@ -275,13 +275,15 @@ Section post_crash_interact.
 
   How the post crash modality interacts with the assertions in the logic. *)
 
-  Lemma post_crash_know_full_history_loc ℓ q (abs_hist : gmap time ST) (bumper : ST → ST) :
-    ⎡ know_bumper ℓ bumper ⎤ ∗ ⎡ know_full_history_loc ℓ q abs_hist ⎤ -∗
+  Lemma post_crash_know_full_history_loc ℓ q (abs_hist : gmap time ST)
+        (bumper : ST → ST) :
+    ⎡ know_bumper ℓ bumper ⎤ ∗
+    ⎡ know_full_history_loc ℓ q abs_hist ⎤ -∗
     <PC> _, or_lost_with_t ℓ (λ t, ∃ (s : ST),
         ⌜abs_hist !! t = Some s⌝ ∗
         ⎡ know_bumper ℓ bumper ⎤ ∗
         ⎡ know_full_history_loc ℓ q {[ 0 := bumper s ]} ⎤ ∗
-        ⎡ know_frag_history_loc ℓ {[ 0 := bumper s ]} ⎤).
+        ⎡ know_frag_history_loc ℓ 0 (bumper s) ⎤).
   Proof.
     iStartProof (iProp _).
     iIntros (TV1) "[bumper hist]".
@@ -304,9 +306,8 @@ Section post_crash_interact.
       "[(%bumper' & %bumpersLook & H) reIns]"; first done.
     simplify_eq.
     iDestruct (soft_disj_exchange_l with "[] H [$]") as "[H newHist]".
-    { iIntros "!>" (?) "[H _]".
-      setoid_rewrite <- dfrac_valid_own.
-      iApply (ghost_map_elem_valid with "H"). }
+    { iIntros "!>" (?) "H".
+      iApply (full_entry_valid with "H"). }
     (* iFrame "#∗". *)
     iDestruct ("reIns" with "[H]") as "M".
     { iExists _. iSplitPure; done. }
@@ -325,7 +326,7 @@ Section post_crash_interact.
       iFrame "bumper".
       rewrite /history_full_map_loc /know_full_encoded_history_loc. rewrite map_fmap_singleton.
       simplify_eq. iFrame "hist".
-      iExists _. iFrame "frag". iPureIntro. rewrite !map_fmap_singleton.
+      iExists _. iFrame "frag". iPureIntro.
       rewrite decode_encode. done. }
     rewrite /post_crash_resource.
     iFrame "post_crash_na_view_map". iFrame.
@@ -348,13 +349,13 @@ Section post_crash_interact.
   Lemma post_crash_frag_history ℓ t bumper (s : ST) :
     ⎡ know_preorder_loc ℓ (abs_state_relation (ST := ST)) ⎤ ∗
     ⎡ know_bumper ℓ bumper ⎤ ∗
-    ⎡ know_frag_history_loc ℓ {[ t := s ]} ⎤ -∗
+    ⎡ know_frag_history_loc ℓ t s ⎤ -∗
     post_crash (λ hG',
       (or_lost_with_t ℓ (λ t', ∃ s',
         ⌜t ≤ t' → s ⊑ s'⌝ ∗
         ⎡ know_preorder_loc ℓ (abs_state_relation (ST := ST)) ⎤ ∗
         ⎡ know_bumper ℓ bumper ⎤ ∗
-        ⎡ know_frag_history_loc ℓ {[ 0 := bumper s' ]} ⎤))).
+        ⎡ know_frag_history_loc ℓ 0 (bumper s') ⎤))).
   Proof.
     iStartProof (iProp _).
     iIntros (?) "(order & bumper & hist)".
@@ -570,7 +571,7 @@ Section IntoCrash.
         ⌜abs_hist !! t = Some s⌝ ∗
         ⎡ know_bumper ℓ bumper ⎤ ∗
         ⎡ know_full_history_loc ℓ q {[ 0 := bumper s ]} ⎤ ∗
-        ⎡ know_frag_history_loc ℓ {[ 0 := bumper s ]} ⎤))%I.
+        ⎡ know_frag_history_loc ℓ 0 (bumper s) ⎤))%I.
   Proof.
     lift_into_crash post_crash_know_full_history_loc.
   Qed.

@@ -665,6 +665,15 @@ Section big_sepM2.
 
   Admitted.
 
+  (* Lemma big_sepM_bupd m1 m2 Φ : *)
+  Lemma big_sepM2_bupd `{BiBUpd PROP} m1 m2 Φ :
+    ([∗ map] k ↦ x1;x2 ∈ m1;m2, |==> Φ k x1 x2) -∗
+    |==> ([∗ map] k ↦ x1;x2 ∈ m1;m2, Φ k x1 x2).
+  Proof.
+    rewrite 2!big_sepM2_alt big_sepM_bupd. apply pure_elim_l => ?.
+    rewrite pure_True; [|assumption]. by rewrite left_id.
+  Qed.
+
   Lemma big_sepM_exist_r Φ m1 :
     ([∗ map] k ↦ x1 ∈ m1, ∃ x2, Φ k x1 x2) ⊣⊢
       ∃ m2, ([∗ map] k ↦ x1; x2 ∈ m1;m2, Φ k x1 x2).

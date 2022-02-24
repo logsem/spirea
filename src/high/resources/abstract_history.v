@@ -59,27 +59,27 @@ Section abs_history_lemmas.
   Definition history_frag_entry_unenc γ ℓ t (s : ST) : iProp Σ :=
     ∃ e, ⌜ decode e = Some s ⌝ ∗ history_frag_entry γ ℓ t e.
 
-  Definition own_full_encoded_history_loc γ ℓ q enc_abs_hist : iProp Σ :=
+  Definition history_full_entry_encoded γ ℓ q enc_abs_hist : iProp Σ :=
     full_entry γ ℓ (DfracOwn q) enc_abs_hist.
     (* ℓ ↪[ γ ]{#q} enc_abs_hist ∗ *)
     (* history_frag_entry ℓ enc_abs_hist. *)
 
   Definition history_full_map_loc γ ℓ q abs_hist : iProp Σ :=
-    own_full_encoded_history_loc γ ℓ q (encode <$> abs_hist).
+    history_full_entry_encoded γ ℓ q (encode <$> abs_hist).
 
   (* Global Instance own_full_encoded_history_fractional γ ℓ enc_abs_hist : *)
-  (*   Fractional (λ q, own_full_encoded_history_loc γ ℓ q enc_abs_hist). *)
+  (*   Fractional (λ q, history_full_entry_encoded γ ℓ q enc_abs_hist). *)
   (* Proof. apply _. *)
   (*   intros p q. *)
-  (*   rewrite /own_full_encoded_history_loc. *)
+  (*   rewrite /history_full_entry_encoded. *)
   (*   iSplit. *)
   (*   - iIntros "[[$$] #?]". iFrame "#". *)
   (*   - iIntros "[[$ $] [$ _]]". *)
   (* Qed. *)
   (* Global Instance own_full_encoded_history_as_fractional γ ℓ q enc_abs_hist : *)
   (*   AsFractional *)
-  (*     (own_full_encoded_history_loc γ ℓ q enc_abs_hist) *)
-  (*     (λ q, own_full_encoded_history_loc γ ℓ q enc_abs_hist)%I q. *)
+  (*     (history_full_entry_encoded γ ℓ q enc_abs_hist) *)
+  (*     (λ q, history_full_entry_encoded γ ℓ q enc_abs_hist)%I q. *)
   (* Proof. split; [done | apply _]. Qed. *)
 
   Lemma history_full_map_loc_agree γ ℓ q p abs_hist1 abs_hist2 :
@@ -126,30 +126,33 @@ Section abs_history_lemmas.
   (*   congruence. *)
   (* Qed. *)
 
-  (* Lemma history_full_map_alloc h : *)
-  (*   ⊢ |==> ∃ γ , *)
-  (*       history_full_map γ h ∗ *)
-  (*       auth_map_map_frag h ∗ *)
-  (*       [∗ map] k↦v ∈ h, k ↪[γ] v. *)
-  (* Proof. *)
-  (*   iMod (ghost_map_alloc h) as (new_abs_history_name) "[A B]". *)
-  (*   iExists _. iFrame "A B". *)
-  (*   setoid_rewrite <- own_op. *)
-  (*   iMod (own_alloc _) as "$". *)
-  (*   { apply auth_both_valid_2; last reflexivity. *)
-  (*     intros k. *)
-  (*     rewrite lookup_fmap. *)
-  (*     case (h !! k); simpl; last done. *)
-  (*     intros ? k'. *)
-  (*     apply Some_valid. *)
-  (*     rewrite lookup_fmap. *)
-  (*     case (g !! k'); done. } *)
-  (*   done. *)
-  (* Qed. *)
+  Lemma history_full_map_alloc h :
+    ⊢ |==> ∃ γ ,
+      history_full_map γ h ∗
+      (* auth_map_map_frag h ∗ *)
+      ([∗ map] k↦v ∈ h,
+        history_full_entry_encoded γ k 1 v ∗
+        ([∗ map] k2 ↦ x ∈ v, history_frag_entry γ k k2 x)).
+  Proof.
+    apply full_map_alloc.
+    (* iMod (ghost_map_alloc h) as (new_abs_history_name) "[A B]". *)
+    (* iExists _. iFrame "A B". *)
+    (* setoid_rewrite <- own_op. *)
+    (* iMod (own_alloc _) as "$". *)
+    (* { apply auth_both_valid_2; last reflexivity. *)
+    (*   intros k. *)
+    (*   rewrite lookup_fmap. *)
+    (*   case (h !! k); simpl; last done. *)
+    (*   intros ? k'. *)
+    (*   apply Some_valid. *)
+    (*   rewrite lookup_fmap. *)
+    (*   case (g !! k'); done. } *)
+    (* done. *)
+  Qed.
 
   Lemma own_full_equiv γ ℓ q abs_hist :
     history_full_map_loc γ ℓ q abs_hist ⊣⊢
-      own_full_encoded_history_loc γ ℓ q (encode <$> abs_hist).
+      history_full_entry_encoded γ ℓ q (encode <$> abs_hist).
   Proof. done. Qed.
 
   (* Lemma own_frag_equiv γ ℓ abs_hist : *)
@@ -289,33 +292,20 @@ Section abs_history_lemmas.
     abs_hists !! ℓ = None →
     history_full_map γ abs_hists ==∗
     history_full_map γ (<[ℓ := enc_abs_hist]>abs_hists) ∗
-    own_full_encoded_history_loc γ ℓ 1 enc_abs_hist.
+    history_full_entry_encoded γ ℓ 1 enc_abs_hist.
     (* history_frag_entry γ ℓ enc_abs_hist. *)
-  Proof.
-    iIntros (look) "[A B]".
-    iMod (ghost_map_insert with "A") as "[$ $]"; first done.
-    iMod (auth_map_map_insert_top with "B") as "[$ F]"; first done.
-    rewrite /history_frag_entry.
-    rewrite /auth_map_map_frag.
-    rewrite fmap_fmap_to_agree_singleton.
-    done.
-  Qed.
+  Proof. apply full_map_insert. Qed.
 
   (* Insert a new message into an abstract history. *)
   Lemma own_full_encoded_history_insert γ ℓ t enc_abs_hist abs_hists encS :
     enc_abs_hist !! t = None →
     history_full_map γ abs_hists -∗
-    own_full_encoded_history_loc γ ℓ 1 enc_abs_hist ==∗
+    history_full_entry_encoded γ ℓ 1 enc_abs_hist ==∗
     let enc_abs_hist' := <[t := encS]>enc_abs_hist
     in history_full_map γ (<[ℓ := enc_abs_hist']>abs_hists) ∗
-       own_full_encoded_history_loc γ ℓ 1 enc_abs_hist' ∗
-       history_frag_entry γ ℓ {[ t := encS ]}.
-  Proof.
-    iIntros (look) "[M N] [O P]".
-    iDestruct (ghost_map_lookup with "M O") as %hips.
-    iMod (ghost_map_update with "M O") as "[$ $]".
-    iMod (auth_map_map_insert with "N") as "[$ h]"; try done.
-  Qed.
+       history_full_entry_encoded γ ℓ 1 enc_abs_hist' ∗
+       history_frag_entry γ ℓ t encS.
+  Proof. apply full_map_full_entry_insert. Qed.
 
   (* Insert a new message into an abstract history. *)
   Lemma history_full_map_insert γ ℓ t abs_hist abs_hists (s : ST) :
@@ -325,7 +315,7 @@ Section abs_history_lemmas.
     let abs_hist' := <[t := s]>abs_hist
     in history_full_map γ (<[ℓ := encode <$> abs_hist']>abs_hists) ∗
        history_full_map_loc γ ℓ 1 abs_hist' ∗
-       history_frag_entry_unenc γ ℓ {[ t := s ]}.
+       history_frag_entry_unenc γ ℓ t s.
   Proof.
     iIntros (look) "??".
     iMod (own_full_encoded_history_insert with "[$] [$]") as "(H1 & H2 & H3)".
@@ -334,7 +324,7 @@ Section abs_history_lemmas.
     rewrite /history_full_map_loc /history_frag_entry_unenc fmap_insert.
     iFrame "H1 H2".
     iExists _. iFrame.
-    rewrite !map_fmap_singleton. by rewrite decode_encode.
+    iPureIntro. rewrite decode_encode. done.
   Qed.
 
 End abs_history_lemmas.
