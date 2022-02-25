@@ -11,7 +11,7 @@ From iris.program_logic Require weakestpre.
 From iris.heap_lang Require Import locations.
 From iris_named_props Require Import named_props.
 
-From self.algebra Require Export ghost_map.
+From self.algebra Require Export ghost_map ghost_map_map.
 From self Require Export extra ipm_tactics encode_relation view.
 From self.lang Require Export lang lemmas tactics syntax.
 From self.base Require Import primitive_laws.
@@ -108,9 +108,10 @@ Section wp_at_rules.
       rewrite domEq3. congruence. }
 
     (* Allocate the abstract history for the location. *)
-    iMod (history_full_map_history_insert_loc _ _ _ _ {[0 := encode s]} with "history")
+    iMod (full_map_insert _ _ _ {[0 := encode s]} with "history")
       as "(history & ownHist & #fragHist)".
     { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
+    rewrite big_sepM_singleton.
     
     (* Add the bumper to the ghost state of bumper. *)
     iMod (own_all_bumpers_insert _ _ _ (prot.(bumper)) with "allBumpers") as "[allBumper knowBumper]".
@@ -145,7 +146,7 @@ Section wp_at_rules.
         rewrite /history_frag_entry_unenc.
         iExists _.
         iFrame "fragHist".
-        iPureIntro. by rewrite !map_fmap_singleton decode_encode. }
+        iPureIntro. apply decode_encode. }
       iPureIntro.
       apply lookup_zero_gt_zero. }
 
@@ -183,7 +184,6 @@ Section wp_at_rules.
       rewrite /initial_history.
       apply map_Forall_singleton.
       done. }
-    iFrame "fragHist".
     (* increasingMap *)
     iSplit. { iPureIntro. apply increasing_map_singleton. }
     (* predsHold *)
@@ -380,7 +380,7 @@ Section wp_at_rules.
     iDestruct ("predsHold" with "[predMap]") as "predsHold".
     { iExists _. naive_solver. }
 
-    iMod (history_full_map_alloc_frag with "history") as "[history histS]"; try done.
+    (* iMod (history_full_map_alloc_frag with "history") as "[history histS]"; try done. *)
     iModIntro.
     (* We re-establish [interp]. *)
     iSplitR "ptsMap physHist allOrders ordered predsHold history predicates

@@ -297,8 +297,10 @@ Section wpr.
     set (recLocs := dom (gset _) CV ∩ dom _ abs_hists).
 
     set (newAbsHists := new_abs_hist abs_hists CV bumpers).
-    iMod (history_full_map_alloc newAbsHists)
-      as (new_abs_history_name) "(hists' & knowHistories)".
+    iMod (full_map_alloc newAbsHists)
+      as (new_abs_history_name) "(hists' & knowHistories & #fragHistories)".
+    iEval (rewrite big_sepM_sep) in "knowHistories".
+    iDestruct "knowHistories" as "[knowHistories #fragHistories]".
     assert (recLocs = (dom (gset _) newAbsHists)) as domNewAbsHists.
     { rewrite new_abs_hist_dom.
       rewrite -domHistsEqBumpers.
@@ -513,12 +515,12 @@ Section wpr.
         rewrite /history_frag_entry_unenc.
         iExists (encode (bumper recS)).
         iSplitPure. {
-          (* rewrite 2!map_fmap_singleton. *)
           rewrite decode_encode.
           done. }
-        iDestruct (auth_map_map_frag_lookup_singleton with "histFrags") as "$".
-        { done. }
-        { apply lookup_singleton. } }
+        iDestruct (big_sepM_lookup with "fragHistories") as "frag"; first done.
+        rewrite /big_frag_entry.
+        iEval (rewrite big_sepM_singleton) in "frag".
+        iFrame "frag". }
 
       (* The preorder implication. We show that the preorders may survive a
       crash. *)
@@ -667,16 +669,15 @@ Section wpr.
       rewrite /post_crash_full_history_map.
       iSplitL "atLocsHistories".
       { iIntros (ℓ q hist) "[hist frag]".
-        iDestruct (ghost_map_lookup with "oldFullHist hist") as %look.
+        iDestruct (full_map_full_entry with "oldFullHist hist") as %look.
         destruct (decide (ℓ ∈ at_locs)) as [?|notElem].
-        { iDestruct (big_sepM_lookup with "atLocsHistories") as "[H _]".
+        { iDestruct (big_sepM_lookup with "atLocsHistories") as "H".
           { apply restrict_lookup_Some; done. }
-          iDestruct (ghost_map_elem_valid_2 with "hist H") as "[%val _]".
+          iCombine "hist frag" as "H2".
+          iCombine "H H2" as "H2".
+          iDestruct (full_entry_valid with "H2") as %val.
           iPureIntro. exfalso.
-          eapply (Qp_not_add_le_r _ 1).
-          rewrite dfrac_op_own in val.
-          simpl in val.
-          setoid_rewrite dfrac_valid_own in val.
+          apply (Qp_not_add_le_l 1 q).
           apply val. }
         iPureIntro.
         apply restrict_lookup_Some.
@@ -685,8 +686,6 @@ Section wpr.
         set_solver+ notElem histDomLocs look. }
       iSplitL "".
       { iIntros (ℓ bumper). iApply (ghost_map_lookup with "oldBumpers"). }
-      (* iEval (rewrite big_sepM2_alt). *)
-      (* iSplit. { iPureIntro. apply dom_eq_alt. rewrite domHistsEqBumpers. done. } *)
       iDestruct (big_sepM_impl_strong with "naHistories []") as "[$ H]".
       iIntros "!>" (ℓ ?).
       destruct (newAbsHists !! ℓ) as [newHist|] eqn:eq.
@@ -714,13 +713,13 @@ Section wpr.
         iSplit; first done.
         iSplit; first done.
         iFrame "pts".
-        iDestruct (auth_map_map_frag_lookup_singleton with "histFrags") as "$".
-        { done. }
-        { rewrite eq. apply lookup_singleton. }
+        iDestruct (big_sepM_lookup with "fragHistories") as "frag"; first done.
+        rewrite /big_frag_entry.
+        iEval (rewrite big_sepM_singleton) in "frag".
+        rewrite eq.
+        iApply "frag".
       - iIntros "_".
         iIntros ([absHistsLook elem]%restrict_lookup_Some).
-        (* ((hist & bumper & -> & absHistsLook & bumpersLook *)
-        (*              )%map_lookup_zip_with_Some). *)
         assert (is_Some (bumpers !! ℓ)) as [bumper ?].
         { apply elem_of_dom.
           rewrite -domHistsEqBumpers.
@@ -744,6 +743,7 @@ Section wpr.
     iFrame "newPhysHist".
     iFrame "newBumpers".
     iFrame "naView".
+    iFrame "fragHistories".
     (* [locsDisjoint] *)
     iSplit.
     { iPureIntro. set_solver. }
@@ -759,10 +759,7 @@ Section wpr.
     iSplitL "atHistories".
     { iNext.
       iApply (big_sepM_impl with "atHistories").
-      iIntros "!>" (ℓ ? [??]%restrict_lookup_Some) "$".
-      rewrite /history_frag_entry.
-      iApply (auth_map_map_frag_lookup with "histFrags").
-      done. }
+      iIntros "!>" (ℓ ? [??]%restrict_lookup_Some) "$". }
     (* [ordered]: We show that the abstract states are still ordered. *)
     iSplitR.
     { iApply big_sepM2_intro.

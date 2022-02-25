@@ -3,7 +3,7 @@ From iris.algebra Require Import auth gset.
 From iris_named_props Require Import named_props.
 
 From self Require Import extra.
-From self.algebra Require Import ghost_map.
+From self.algebra Require Import ghost_map ghost_map_map.
 From self.base Require Import primitive_laws.
 From self.high Require Export dprop resources post_crash_modality increasing_map.
 
@@ -122,6 +122,7 @@ Section state_interpretation.
       (* Ownership over the full knowledge of the abstract history of _all_
       locations. *)
       "history" ∷ history_full_map abs_history_name abs_hists ∗
+      "#historyFragments" ∷ big_frag_entries abs_history_name abs_hists ∗
       (* Knowledge of all the predicates. *)
       "predicates" ∷ own predicates_name (● preds_to_ra predicates) ∗
       (* All the encoded orders *)
