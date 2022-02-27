@@ -155,6 +155,11 @@ Section abs_history_lemmas.
       history_full_entry_encoded γ ℓ q (encode <$> abs_hist).
   Proof. done. Qed.
 
+  Lemma frag_history_equiv γ ℓ t s :
+    frag_entry γ ℓ t (encode s) -∗
+    history_frag_entry_unenc γ ℓ t s.
+  Proof. iIntros "H". iExists _. iFrame. rewrite decode_encode. done. Qed.
+
   (* Lemma own_frag_equiv γ ℓ abs_hist : *)
   (*   history_frag_entry γ ℓ (encode <$> abs_hist) ⊢ *)
   (*   history_frag_entry_unenc γ ℓ abs_hist. *)

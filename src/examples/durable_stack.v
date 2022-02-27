@@ -102,15 +102,15 @@ Section mapsto_na_flushed.
     iNamed 1.
     iDestruct 1 as (ss' last') "[pts' lb']".
     rewrite /mapsto_na. iNamed "pts".
-    iDestruct "pts'" as (?????) "(? & ? & ? & %look & %nolater' & ? & ? & ? & ? & ? & ? & ?)".
+    simplify_eq.
+    iDestruct "pts'" as (??????) "(% & ? & ? & ? & %look & %nolater' & ? & ? & ? & ? & ? & ? & ? & ?)".
+    simplify_eq.
     iDestruct (history_full_map_loc_agree with "hist [$]") as %<-.
     iPureIntro.
     apply (inj Some).
-    rewrite -lastEq -last' -lookupV -look.
+    rewrite -lookupV -look.
     f_equiv.
     eapply map_no_later_Some_agree; try done.
-    - eexists _. rewrite lookupV. done.
-    - eexists _. rewrite look. done.
   Qed.
 
   Lemma mapsto_na_flushed_split ℓ prot p q (s : ST) :

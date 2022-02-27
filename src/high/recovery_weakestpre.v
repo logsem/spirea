@@ -299,8 +299,6 @@ Section wpr.
     set (newAbsHists := new_abs_hist abs_hists CV bumpers).
     iMod (full_map_alloc newAbsHists)
       as (new_abs_history_name) "(hists' & knowHistories & #fragHistories)".
-    iEval (rewrite big_sepM_sep) in "knowHistories".
-    iDestruct "knowHistories" as "[knowHistories #fragHistories]".
     assert (recLocs = (dom (gset _) newAbsHists)) as domNewAbsHists.
     { rewrite new_abs_hist_dom.
       rewrite -domHistsEqBumpers.
@@ -486,7 +484,7 @@ Section wpr.
         iDestruct (full_map_frag_entry with "oldFullHist oldFrag") as %(h & lookH & hLook).
         iDestruct (big_sepM2_lookup with "bumperSome") as %?; try done.
 
-        eassert _ as temp. { apply new_abs_hist_lookup; try done. }.
+        eassert _ as temp. { apply new_abs_hist_lookup; try done. }
         destruct temp as (recEncS & ? & ? & encBumper & newHistLook).
 
         apply encode_bumper_Some_decode in encBumper as (recS & decEq2 & <-).

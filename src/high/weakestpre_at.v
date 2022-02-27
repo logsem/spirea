@@ -111,8 +111,8 @@ Section wp_at_rules.
     iMod (full_map_insert _ _ _ {[0 := encode s]} with "history")
       as "(history & ownHist & #fragHist)".
     { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
-    rewrite big_sepM_singleton.
-    
+    iEval (rewrite /big_frag_entry big_sepM_singleton) in "fragHist".
+
     (* Add the bumper to the ghost state of bumper. *)
     iMod (own_all_bumpers_insert _ _ _ (prot.(bumper)) with "allBumpers") as "[allBumper knowBumper]".
     { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
@@ -137,16 +137,10 @@ Section wp_at_rules.
     { iApply "Φpost".
       iFrame "isShared".
       rewrite /store_lb.
-      (* simpl. rewrite /know_protocol. *)
-      (* iFrame "knowPred knowBumper isShared knowOrder". *)
       iExists 0.
       iFrame "prot".
       iSplit.
-      { rewrite /know_frag_history_loc.
-        rewrite /history_frag_entry_unenc.
-        iExists _.
-        iFrame "fragHist".
-        iPureIntro. apply decode_encode. }
+      { iApply (frag_history_equiv with "fragHist"). }
       iPureIntro.
       apply lookup_zero_gt_zero. }
 
@@ -166,6 +160,12 @@ Section wp_at_rules.
       try (eapply map_dom_eq_lookup_None; last apply physHistsLook;
            rewrite /relation2; congruence).
     iFrame "pts ptsMap ordered atLocsHistories ownHist bumpMono".
+    (* historyFragments *)
+    iSplit.
+    { rewrite /big_frag_entries.
+      iApply (big_sepM_insert_2 with "[] historyFragments").
+      rewrite /big_frag_entries /big_frag_entry big_sepM_singleton.
+      iFrame "fragHist". }
     (* locsDisjoint *)
     iSplit. {
       iPureIntro.
@@ -403,7 +403,13 @@ Section wp_at_rules.
     iSplitR "Q".
     - iFrameNamed.
       iExists t'.
-      iFrame "∗#".
+      iFrame "knowPred knowPreorder knowBumper".
+      iSplit.
+      { rewrite /big_frag_entries.
+        iExists _.
+        iDestruct (big_sepM_lookup with "historyFragments") as "F"; first done.
+        iDestruct (big_sepM_lookup with "F") as "$"; first done.
+        done. }
       iPureIntro.
       rewrite -SV'lookup.
       rewrite lookup_zero_lub. lia.
@@ -531,8 +537,9 @@ Section wp_at_rules.
       done. }
 
     (* Update the ghost state for the abstract history. *)
-    iMod (own_full_encoded_history_insert _ _ _ _ _ _ (encode s_t) with "history absHist")
-      as "(history & absHist & histFrag)". { done. }
+    iMod (full_map_full_entry_insert _ _ _ _ (encode s_t) with "history absHist")
+      as "(history & absHist & #histFrag)".
+    { done. }
 
     iMod (auth_map_map_insert with "physHist") as "[physHist unusedFrag]".
     { done. }
@@ -543,7 +550,7 @@ Section wp_at_rules.
     iEval (rewrite -assoc).
     iSplit. { iPureIntro. repeat split; try done. apply view_insert_le. lia. }
 
-    iSplitL "Φpost histFrag".
+    iSplitL "Φpost".
     { iApply "Φpost".
       - iPureIntro. destruct TV' as [[??]?].
         repeat split.
@@ -551,11 +558,9 @@ Section wp_at_rules.
         * apply incl2.
         * apply incl2.
       - iExists _.
-        iDestruct (own_frag_equiv _ _ {[ t_t := s_t ]} with "[histFrag]") as "histFrag".
-        { rewrite map_fmap_singleton. iFrame "histFrag". }
-        iFrame "histFrag knowPreorder knowPred knowBumper".
+        iDestruct (frag_history_equiv with "histFrag") as  "$".
+        iFrame "knowPreorder knowPred knowBumper".
         iPureIntro.
-        (* rewrite /store_view. simpl. *)
         rewrite /lookup_zero.
         rewrite lookup_insert.
         done. }
@@ -585,6 +590,14 @@ Section wp_at_rules.
             naLocs naView allBumpers bumpMono".
     iFrame (locsDisjoint naViewsDom).
 
+    (* historyFragments *)
+    iSplit.
+    { rewrite /big_frag_entries.
+      iApply (big_sepM_insert_2 with "[] historyFragments").
+      rewrite /big_frag_entry.
+      iApply (big_sepM_insert_2 with "histFrag []").
+      iApply (big_sepM_lookup with "historyFragments").
+      done. }
     (* [histDomLocs] *)
     iSplit. { iPureIntro. set_solver. }
 

@@ -15,6 +15,7 @@ From Perennial.program_logic Require Import crash_adequacy.
 
 From self Require Import ipm_tactics extra.
 From self.lang Require Import lang.
+From self.algebra Require Import ghost_map ghost_map_map.
 From self.base Require Import cred_frag adequacy. (* To get [recv_adequace]. *)
 From self.high Require Import crash_weakestpre resources monpred_simpl.
 From self.high Require Import recovery_weakestpre.
@@ -497,8 +498,8 @@ Proof.
   iExists (fixed).
   (* Unshelve. *)
   (* Allocate abstract history. *)
-  iMod (history_full_map_alloc ∅)
-    as (abs_history_name know_abs_history_name) "(hists' & #histFrags & knowHistories)".
+  iMod (full_map_alloc ∅)
+    as (abs_history_name) "(hists' & _ & _)".
   (* Allocate predicates. *)
   iMod (know_predicates_alloc ∅) as (predicates_name) "[preds #predsFrag]".
   (* Allocate preorders. *)
@@ -510,7 +511,7 @@ Proof.
   iMod (own_alloc (● (∅ : gsetUR _))) as (exclusive_locs_name) "naLocs".
   { apply auth_auth_valid. done. }
   (* iMod ghost_map.ghost_map_alloc_empty as (na_views_name) "na_views". *)
-  iMod (ghost_map.ghost_map_alloc (∅ : gmap loc view)) as (na_views_name) "(na_views & _)"; eauto.
+  iMod (ghost_map_alloc (∅ : gmap loc view)) as (na_views_name) "(na_views & _)".
   iMod (own_all_bumpers_alloc ∅) as (bumpers_name) "[bumpers #bumpersFrag]".
   iMod (auth_map_map_alloc ∅) as (phys_hist_name) "[physHist _]".
 
@@ -518,7 +519,6 @@ Proof.
     NvmDeltaG _
               (MkNvmBaseDeltaG _ _ _)
               ({| abs_history_name := abs_history_name;
-                  know_abs_history_name := know_abs_history_name;
                   predicates_name := predicates_name;
                   preorders_name := orders_name;
                   shared_locs_name := shared_locs_name;
@@ -538,8 +538,10 @@ Proof.
   repeat iExists ∅.
   simpl.
   iFrame.
+  rewrite /big_frag_entries.
   iEval (rewrite !big_sepM2_empty).
   iEval (rewrite !big_sepM_empty).
+  rewrite !left_id.
 
   iPureIntro.
   split_and!; try done; set_solver.
