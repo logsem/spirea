@@ -51,11 +51,26 @@ Section definitions.
   Global Instance have_FV_persistent ℓ t : Persistent (have_FV ℓ t).
   Proof. apply monPred_persistent=> j. apply _. Qed.
 
+  (* This is stronger than [have_FV] when the timestamp is [0]. *)
+  Definition have_FV_strong (ℓ : loc) (t : nat) : dProp Σ :=
+    monPred_in (∅, {[ ℓ := MaxNat t ]}, ∅).
+
   Lemma have_SV_0 ℓ : ⊢ have_SV ℓ 0.
   Proof. iModel. iPureIntro. lia. Qed.
 
   Lemma have_FV_0 ℓ : ⊢ have_FV ℓ 0.
   Proof. iModel. iPureIntro. lia. Qed.
+
+  Definition have_FV_strong_weaken ℓ t :
+    have_FV_strong ℓ t -∗ have_FV ℓ t.
+  Proof.
+    iModel. iPureIntro.
+    destruct TV as [[? FV]?].
+    intros [[_ incl] _].
+    rewrite /lookup_zero /=.
+    apply view_le_singleton in incl as (t2 & -> & le).
+    done.
+  Qed.
 
   Lemma monPred_in_have_SV SV PV BV ℓ t :
     t ≤ SV !!0 ℓ →

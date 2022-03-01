@@ -266,6 +266,14 @@ Proof.
   exists 0. rewrite lookup_fmap look' -eq. done.
 Qed.
 
+Lemma view_to_zero_lookup V ℓ t :
+  V !! ℓ = Some t →
+  view_to_zero V !! ℓ = Some (MaxNat 0).
+Proof.
+  intros look. rewrite /view_to_zero.
+  rewrite lookup_fmap. rewrite look. done.
+Qed.
+
 Lemma view_sqsubseteq_antisym V W : V ⊑ W → W ⊑ V → V = W.
 Proof.
   rewrite !subseteq_view_incl.

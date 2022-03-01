@@ -200,7 +200,7 @@ Section post_crash_prop.
 
   Lemma post_crash_emp : emp ⊢ post_crash (λ _, emp).
   Proof.
-    iStartProof (iProp _). iIntros (TV') "HP".
+    iModel. iIntros "HP".
     iIntrosPostCrash.
     post_crash_modality.iCrash.
     iIntros "[_ $]". done.
@@ -586,7 +586,7 @@ Section IntoCrash.
          ℓ bumper t (s : ST) : IntoCrash _ _ :=
     post_crash_frag_history ℓ bumper t s.
 
-  Global Instance know_pred_into_crash `{AbstractState ST}
+  Global Instance know_pred_into_crash `{Countable ST}
          ℓ (ϕ : ST → _ → _ → dProp Σ) :
     IntoCrash _ _ := post_crash_know_pred ℓ ϕ.
 
@@ -817,6 +817,27 @@ Section post_crash_persisted.
     rewrite -post_crash_flush_post_crash. apply post_crash_embed_nodep.
   Qed.
 
+  Lemma post_crash_have_FV_strong ℓ t :
+    have_FV_strong ℓ t -∗
+    <PCF> _,
+      ⎡ persisted ({[ ℓ := MaxNat 0 ]}) ⎤ ∗
+      ∃ CV t', ⌜CV !! ℓ = Some (MaxNat t') ∧ t ≤ t'⌝ ∗ ⎡ crashed_at CV ⎤.
+  Proof.
+    iModel. iIntros "le". simpl.
+    iIntros (nD hh bb na_views).
+    base.post_crash_modality.iCrash.
+    destruct (TV) as [[??]?]. iDestruct "le" as %[[? le] ?].
+    iIntros "[_ $] !>" (CV).
+    monPred_simpl. simpl.
+    iIntros (??) "(%le2 & pers & crashed)".
+    iDestruct (persisted_persisted_loc with "[$]") as "$".
+    { apply view_le_singleton in le as (t2 & look & ?).
+      eapply view_to_zero_lookup. done. }
+    pose proof (transitivity le le2) as le3.
+    apply view_le_singleton in le3 as (? & look & ?).
+    iExists _, _. iFrame "crashed". done.
+  Qed.
+
 End post_crash_persisted.
 
 Class IntoCrashFlush {Σ} `{nvmFixedG Σ, nvmDeltaG Σ}
@@ -847,6 +868,11 @@ Section IntoCrashFlush.
     IntoCrashFlush (⎡ P ⎤) (λ _, ⎡ P ⎤)%I | 1000.
   Proof. apply into_crash_into_crash_flushed. apply _. Qed.
 
+  Global Instance lifted_embed_into_crash_flush (P : iProp Σ) Q :
+    base.post_crash_modality.IntoCrash P Q →
+    IntoCrashFlush (⎡ P ⎤) (λ _, ⎡ Q _ ⎤)%I.
+  Proof. intros ?. apply into_crash_into_crash_flushed. apply _. Qed.
+
   Global Instance emp_into_crash_flush : IntoCrashFlush emp (λ hD, emp)%I.
   Proof. apply: into_crash_into_crash_flushed. Qed.
 
@@ -876,6 +902,11 @@ Section IntoCrashFlush.
     IntoCrashFlush ([∗ list] k↦x ∈ l, ϕ k x)%I (λ hG, [∗ list] k↦x ∈ l, ψ k x _)%I.
   Proof. revert ϕ ψ. induction l as [|x l IH]=> Φ ψ ? /=; apply _. Qed.
 
+  Global Instance know_pred_into_crash_flush `{Countable ST}
+         ℓ (ϕ : ST → _ → _ → _) :
+    IntoCrashFlush _ _ :=
+      into_crash_into_crash_flushed _ _ (know_pred_into_crash ℓ ϕ).
+
 End IntoCrashFlush.
 
 Ltac crash_flush_env Γ :=
@@ -904,11 +935,15 @@ Ltac iCrashFlush :=
 Section post_crash_flush_test.
   Context `{nvmFixedG Σ, nvmDeltaG Σ}.
 
-  Lemma foo P : ⌜ P ⌝ -∗ <PCF> _, ⌜ P ⌝.
+  Lemma foo P `{Countable ST'} ℓ (ϕ : ST' → val → nvmDeltaG Σ → dProp Σ) t :
+    ⌜ P ⌝ -∗
+    ⎡ know_pred ℓ ϕ ⎤ -∗
+    ⎡ persisted_loc ℓ t ⎤ -∗
+    <PCF> _, ⌜ P ⌝ ∗ or_lost ℓ ⎡ know_pred ℓ ϕ ⎤.
   Proof.
-    iIntros "P".
+    iIntros "P pred pers".
     iCrashFlush.
-    done.
+    iFrame.
   Qed.
 
 End post_crash_flush_test.
