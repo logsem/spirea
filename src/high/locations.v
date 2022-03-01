@@ -248,8 +248,16 @@ the last events at [ℓ] corresponds to the *)
   Proof.
     iIntros (lastSome) "flushLb".
     iNamed 1.
-    iDestruct "flushLb" as (t) "(_ & B & C & D)".
-  Admitted.
+    assert (s = s1) as -> by congruence.
+    iDestruct "flushLb" as (t) "(_ & histFrag' & C & D)".
+    iDestruct ("histFrag'") as (e decEq) "frag".
+    iDestruct (full_entry_frag_entry with "hist frag") as %look.
+    apply lookup_fmap_Some in look as (s2' & encEq & look).
+    assert (s2 = s2') as <-.
+    { rewrite -encEq decode_encode in decEq. by inversion decEq. }
+    eassert _ as le. { eapply map_no_later_Some; done. }
+    eapply increasing_map_increasing in incrMap; done.
+  Qed.
 
   (* Instances. *)
 
