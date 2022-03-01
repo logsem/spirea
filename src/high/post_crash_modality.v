@@ -785,6 +785,35 @@ Section post_crash_persisted.
     iFrame.
   Qed.
 
+  Lemma post_crash_flush_disj P Q :
+    post_crash_flush P ∨ post_crash_flush Q -∗ <PCF> hG, P hG ∨ Q hG.
+  Proof.
+    iModel.
+    iIntros "[HP | HP]".
+    - iIntrosPostCrash.
+      iDestruct ("HP" $! hG' hh bb na_views) as "HP".
+      base.post_crash_modality.iCrash.
+      iIntros "[#RP RE]".
+      iDestruct ("HP" with "[$RP $RE]") as "[HP $]".
+      iNext.
+      iIntros (CV).
+      iSpecialize ("HP" $! CV).
+      iIntros (TV'' le) "(%flushLe & #pers & #crashedAt)".
+      iSpecialize ("HP" with "[$pers $crashedAt //]").
+      iLeft. iFrame "HP".
+    - iIntrosPostCrash.
+      iDestruct ("HP" $! hG' hh bb na_views) as "HP".
+      base.post_crash_modality.iCrash.
+      iIntros "[#RP RE]".
+      iDestruct ("HP" with "[$RP $RE]") as "[HP $]".
+      iNext.
+      iIntros (CV).
+      iSpecialize ("HP" $! CV).
+      iIntros (TV'' le) "(%flushLe & #pers & #crashedAt)".
+      iSpecialize ("HP" with "[$pers $crashedAt //]").
+      iRight. iFrame "HP".
+  Qed.
+
   Lemma post_crash_flush_mono P Q :
     (∀ hG, P hG -∗ Q hG) → post_crash_flush P -∗ post_crash_flush Q.
   Proof.
@@ -887,6 +916,24 @@ Section IntoCrashFlush.
     iDestruct (Qi with "Q") as "Q".
     iApply (post_crash_flush_sep). iFrame.
   Qed.
+
+  Global Instance disj_into_crash_flush (P Q : dProp Σ) (P' Q' : _ → dProp Σ) :
+    IntoCrashFlush P P' → IntoCrashFlush Q Q' → IntoCrashFlush (P ∨ Q)%I (λ hD, P' hD ∨ Q' hD)%I.
+  Proof.
+    rewrite /IntoCrashFlush.
+    iIntros (Pi Qi) "[P|Q]".
+    - iDestruct (Pi with "P") as "P".
+      iApply post_crash_flush_disj.
+      iLeft.
+      iFrame.
+    - iDestruct (Qi with "Q") as "Q".
+      iApply post_crash_flush_disj.
+      iRight.
+      iFrame.
+  Qed.
+
+  Global Instance have_FV_strong_into_crash_flush ℓ t :
+    IntoCrashFlush _ _ := post_crash_have_FV_strong ℓ t.
 
   Global Instance exist_into_crash_flush {A} Φ Ψ:
     (∀ x : A, IntoCrashFlush (Φ x) (λ hG, Ψ hG x)) →
