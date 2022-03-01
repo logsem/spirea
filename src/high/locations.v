@@ -238,7 +238,15 @@ the last events at [ℓ] corresponds to the *)
     store_lb ℓ prot s2 -∗
     mapsto_na ℓ prot q ss -∗
     ⌜s2 ⊑ s1⌝.
-  Proof. Admitted.
+  Proof.
+    iIntros (lastSome) "storeLb".
+    iNamed 1.
+    assert (s = s1) as -> by congruence.
+    iDestruct "storeLb" as (t) "(_ & histFrag' & _)".
+    iDestruct (full_entry_frag_entry_unenc with "hist histFrag'") as %look.
+    eassert _ as le. { eapply map_no_later_Some; done. }
+    eapply increasing_map_increasing in incrMap; done.
+  Qed.
 
   Lemma mapsto_na_flush_lb_incl ℓ prot q ss s1 s2 :
     last ss = Some s1 →
@@ -249,12 +257,8 @@ the last events at [ℓ] corresponds to the *)
     iIntros (lastSome) "flushLb".
     iNamed 1.
     assert (s = s1) as -> by congruence.
-    iDestruct "flushLb" as (t) "(_ & histFrag' & C & D)".
-    iDestruct ("histFrag'") as (e decEq) "frag".
-    iDestruct (full_entry_frag_entry with "hist frag") as %look.
-    apply lookup_fmap_Some in look as (s2' & encEq & look).
-    assert (s2 = s2') as <-.
-    { rewrite -encEq decode_encode in decEq. by inversion decEq. }
+    iDestruct "flushLb" as (t) "(_ & histFrag' & _)".
+    iDestruct (full_entry_frag_entry_unenc with "hist histFrag'") as %look.
     eassert _ as le. { eapply map_no_later_Some; done. }
     eapply increasing_map_increasing in incrMap; done.
   Qed.

@@ -85,4 +85,18 @@ Section abs_history_lemmas.
     iPureIntro. congruence.
   Qed.
 
+  Lemma full_entry_frag_entry_unenc γ ℓ q abs_hist t s :
+    full_entry_unenc γ ℓ q abs_hist -∗
+    frag_entry_unenc γ ℓ t s -∗
+    ⌜ abs_hist !! t = Some s ⌝.
+  Proof.
+    iIntros "A B".
+    iDestruct ("B") as (e decEq) "B".
+    iDestruct (full_entry_frag_entry with "A B") as %look.
+    apply lookup_fmap_Some in look as (s' & encEq & look).
+    assert (s = s') as <-.
+    { rewrite -encEq decode_encode in decEq. by inversion decEq. }
+    done.
+  Qed.
+
 End abs_history_lemmas.
