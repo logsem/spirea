@@ -12,9 +12,9 @@ From iris_named_props Require Import named_props.
 
 From self Require Import extra ipm_tactics.
 From self.algebra Require Import ghost_map ghost_map_map.
+From self.base Require Import primitive_laws post_crash_modality.
 From self.lang Require Import lang.
-From self.base Require Import primitive_laws.
-From self.high Require Import increasing_map.
+From self.high Require Import increasing_map monpred_simpl.
 From self.high Require Import dprop abstract_state lifted_modalities or_lost.
 From self.high Require Export abstract_state resources protocol modalities post_crash_modality.
 From self.high.resources Require Export bumpers preorders auth_map_map abstract_history.
@@ -105,10 +105,10 @@ the last events at [ℓ] corresponds to the *)
       "#locationProtocol" ∷ ⎡ know_protocol ℓ prot ⎤ ∗
       "knowFragHist" ∷ ⎡ know_frag_history_loc ℓ tF s ⎤ ∗
       "#tSLe" ∷ have_SV ℓ tF ∗
-      (* Either the location is persisted or we have something in the flush
-      view. The later case is for use after a crash where we don't have
+      (* Either we have something in the flush view or the location is
+      persisted. The later case is for after a crash where we don't have
       anything in the flush view. *)
-      "viewFact" ∷ (have_FV ℓ tF ∨ (⌜tF = 0⌝ ∗ ⎡ persisted_loc ℓ 0 ⎤))%I.
+      "viewFact" ∷ (have_FV_strong ℓ tF ∨ ⎡ persisted_loc ℓ tF ⎤)%I.
 
   Program Definition persist_lb ℓ prot (sP : ST) : dProp Σ :=
     ∃ tP,
@@ -269,9 +269,13 @@ the last events at [ℓ] corresponds to the *)
     flush_lb ℓ prot s -∗ <nobuf> flush_lb ℓ prot s.
   Proof.
     rewrite /flush_lb.
-    iModel.
+    iModel. destruct TV as [[??]?].
     simpl.
-    iDestruct 1 as (?) "HI". iExists _. iFrame.
+    iNamed 1.
+    iExists _. iFrame "#∗".
+    iDestruct "viewFact" as "[%incl | $]".
+    iLeft. iPureIntro. repeat split; try apply view_empty_least.
+    apply incl.
   Qed.
 
   Global Instance buffer_free_flush_lb ℓ prot (s : ST) :
@@ -502,105 +506,35 @@ Section points_to_at_more.
   Lemma post_crash_flush_flush_lb (ℓ : loc) prot (s : ST) :
     flush_lb ℓ prot s -∗
     <PCF> hG, ∃ s__pc, ⌜s ⊑ s__pc⌝ ∗
-      recovered_at ℓ s__pc ∗ persist_lb ℓ prot s__pc.
+      recovered_at ℓ (bumper prot s__pc) ∗ persist_lb ℓ prot (bumper prot s__pc).
   Proof.
-    iStartProof (iProp _).
-    iIntros (TV).
-    rewrite /flush_lb.
-    simpl.
     iNamed 1.
-    iIntros (???).
-    (*
-    iDestruct (post_crash_modality.post_crash_nodep with "order") as "order".
-    iDestruct (post_crash_modality.post_crash_nodep with "knowFragHist") as "knowFragHist".
-    iDestruct "viewFact" as "[[%neq %leq] | [%eq pers]]".
-    * base.post_crash_modality.iCrash.
-      iNamed 1.
-      rewrite /post_crash_resource.
-      iFrameNamed.
-      iDestruct ("post_crash_history_impl" with "knowFragHist") as "knowFragHist".
-      iDestruct ("post_crash_preorder_impl" with "order") as "order'".
-      iIntros (CV).
-      iIntros (??) "(% & #pers & #crash)".
-      simpl.
-      destruct (flush_view TV !! ℓ) as [[tF']|] eqn:eq; last first.
-      { exfalso.
-        rewrite /lookup_zero in leq.
-        rewrite eq in leq.
-        simpl in leq.
-        lia. }
-      edestruct view_le_look as (t'' & lookCV & lt); [apply eq|eassumption |].
-      iDestruct (or_lost_post_crash_lookup CV with "crash order'") as "#order";
-        first apply lookCV.
-      iDestruct (or_lost_post_crash_lookup CV with "crash knowFragHist")
-        as "(%s'' & %imp & knowFragHist)";
-        first apply lookCV.
-      assert (s ⊑ s'') as sInclS''.
-      { etrans; first done. apply imp.
-        etrans; first done.
-        rewrite /lookup_zero.
-        rewrite eq.
-        simpl. done. }
-      iAssert (persisted_loc ℓ 0) as "persisted".
-      { iApply (persisted_persisted_loc with "pers").
-        rewrite /view_to_zero.
-        rewrite lookup_fmap.
-        rewrite eq.
-        done. }
-      iExists s''.
-      iSplit. { done. }
-      iSplit. { iExists CV. iFrame "crash knowFragHist". iPureIntro.
-                apply elem_of_dom. done. }
-      iSplit. { iExists 0. iFrameNamed. iPureIntro. lia. }
-      iSplit.
-      { iExists 0.
-        iFrameNamed.
-        iRight. by iFrame "#". }
-      iExists 0.
-      iFrameNamed.
-      iPureIntro. apply lookup_zero_gt_zero.
-    * base.post_crash_modality.iCrash.
-      iNamed 1.
-      rewrite /post_crash_resource.
-      iFrameNamed.
-      iDestruct ("post_crash_frag_history_impl" with "knowFragHist") as "knowFragHist".
-      iDestruct ("post_crash_preorder_impl" with "order") as "order'".
-      iIntros (CV).
-      iIntros (??) "(% & #pers' & #crash)".
-      simpl.
-      iDestruct "pers" as "[#persisted (%CV' & %t & [%lookCV _] & crash')]".
-      iDestruct (crashed_at_agree with "crash crash'") as %<-.
-      iClear "crash'".
-      iDestruct (or_lost_post_crash_lookup CV with "crash order'") as "#order";
-        first apply lookCV.
-      iDestruct (or_lost_post_crash_lookup CV with "crash knowFragHist")
-        as "(%s'' & %imp & knowFragHist)";
-        first apply lookCV.
-      assert (s ⊑ s'') as sInclS''.
-      { etrans; first done. apply imp.
-        etrans; first done.
-        rewrite /lookup_zero.
-        rewrite eq.
-        lia. }
-      iExists s''.
-      iSplit. { done. }
-      iSplit. { iExists CV. iFrame "crash knowFragHist". iPureIntro.
-                apply elem_of_dom. done. }
-      iSplit.
-      { iExists 0. iFrameNamed. iPureIntro. lia. }
-      iSplit.
-      { iExists 0. iFrameNamed. iRight. by iFrame "#". }
-      iExists 0. iFrameNamed. iPureIntro. lia.
-     *)
-  Admitted.
+    iDestruct "locationProtocol" as "(-#pred & -#order & -#bumper)".
+    iDestruct (post_crash_frag_history with "[$]") as "HI".
+    iDestruct (post_crash_flush_post_crash with "HI") as "HI".
+    iCrashFlush.
+    iAssert (_)%I with "[viewFact]" as "pers".
+    { iDestruct "viewFact" as "[pers | pers]".
+      - iAccu.
+      - iDestruct "pers" as "($ & (%CV & % & [% %] & ?))".
+        iExists _, _. iFrame. done. }
+    iDestruct "pers" as "(#pers & (%CV & %t & (%cvLook & %le) & #crashed))".
+    iDestruct (or_lost_with_t_get with "crashed HI") as "HI"; first done.
+    iDestruct (or_lost_get with "crashed pred") as "pred"; first done.
+    iDestruct "HI" as (s2 impl) "(#? & #? & #?)".
+    iExists s2.
+    iSplitPure; first by apply impl.
+    rewrite /recovered_at /persist_lb.
+    iSplit.
+    - iExists _. iFrame "#". iPureIntro. apply elem_of_dom. done.
+    - iExists _. iFrame "#∗".
+      iDestruct (have_SV_0) as "$".
+      iDestruct (have_FV_0) as "$".
+  Qed.
 
   Global Instance know_flush_into_crash ℓ prot (s : ST) :
-    IntoCrashFlush (flush_lb ℓ prot s) (λ _, ∃ s__pc, ⌜ s ⊑ s__pc ⌝ ∗
-      recovered_at ℓ s__pc ∗ persist_lb ℓ prot s__pc)%I.
-  Proof.
-    rewrite /IntoCrashFlush. iIntros "P".
-    by iApply post_crash_flush_flush_lb.
-  Qed.
+    IntoCrashFlush (flush_lb ℓ prot s) _ := post_crash_flush_flush_lb ℓ prot s.
+
   (* Global Instance mapsto_na_persisted_into_crash `{AbstractState ST} ℓ (ss : list ST) : *)
   (*   IntoCrash (ℓ ↦_{true} ss)%I (λ hG', ∃ s, ⌜s ∈ ss⌝ ∗ ℓ ↦_{true} [s] ∗ recovered_at ℓ s)%I. *)
   (* Proof. *)

@@ -154,13 +154,9 @@ Section mapsto_na_flushed.
     iCrashFlush.
     iDestruct "flushLb" as (s' ?) "(#r & ?)".
     iDestruct (recovered_at_or_lost with "r pts") as "(%s'' & ? & pts & ?)".
-    iDestruct (recovered_at_agree with "r [$]") as %<-.
+    iDestruct (recovered_at_agree with "r [$]") as %eq.
     (* We can't prove that with this approach, but it is (will be) true. *)
   Admitted.
-  (*   assert (s = s'). { eapply anti_symm. first apply H3. apply foo. } *)
-  (*   iExists [s']. *)
-  (*   iFrame. *)
-  (* Qed. *)
 
 End mapsto_na_flushed.
 

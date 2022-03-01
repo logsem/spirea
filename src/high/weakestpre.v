@@ -292,12 +292,11 @@ Section wp_rules.
         iFrame "knowFragHist".
         iSplitPure; first done.
         iLeft. iPureIntro.
-        simpl.
-        rewrite !lookup_zero_lub.
-        etrans; last apply Nat.le_max_r.
-        etrans; last apply Nat.le_max_l.
-        rewrite lookup_zero_singleton.
-        done. }
+        repeat split; try apply view_empty_least.
+        apply view_le_lub_r. apply view_le_lub_l.
+        apply view_le_singleton.
+        eexists _. rewrite lookup_singleton.
+        split; first reflexivity. done. }
     repeat iExists _.
     iFrame "#∗%".
   Qed.
