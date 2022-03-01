@@ -510,13 +510,12 @@ Section wpr.
           eapply encode_relation.encode_relation_decode_iff_1; try done.
           eapply incr; done. }
         rewrite /know_frag_history_loc.
-        rewrite /history_frag_entry_unenc.
+        rewrite /frag_entry_unenc.
         iExists (encode (bumper recS)).
         iSplitPure. {
           rewrite decode_encode.
           done. }
         iDestruct (big_sepM_lookup with "fragHistories") as "frag"; first done.
-        rewrite /big_frag_entry.
         iEval (rewrite big_sepM_singleton) in "frag".
         iFrame "frag". }
 
@@ -712,7 +711,6 @@ Section wpr.
         iSplit; first done.
         iFrame "pts".
         iDestruct (big_sepM_lookup with "fragHistories") as "frag"; first done.
-        rewrite /big_frag_entry.
         iEval (rewrite big_sepM_singleton) in "frag".
         rewrite eq.
         iApply "frag".
@@ -734,7 +732,7 @@ Section wpr.
     (* We show the state interpretation for the high-level logic. *)
     iExists _.
     repeat iExists _.
-    rewrite /history_full_map.
+    rewrite /full_map.
     iFrame "ptsMap".
     iFrame "newOrders newPreds hists' newAtLocs newCrashedAt".
     iFrame "newNaLocs".

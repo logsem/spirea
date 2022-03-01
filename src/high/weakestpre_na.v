@@ -126,7 +126,7 @@ Section wp_na_rules.
       (* iFrame "fragHist". *)
       simpl.
       iSplitPure; first reflexivity.
-      iSplitPure; first apply increasing_list_singleton.
+      iSplitPure; first apply increasing_map_singleton.
       iSplitPure; first apply lookup_singleton.
       iSplitPure; first apply map_no_later_singleton.
       iSplit.
@@ -155,8 +155,7 @@ Section wp_na_rules.
     iFrame (mapShared).
     (* historyFragments *)
     iSplit.
-    { rewrite /big_frag_entries. rewrite big_sepM_insert; last done.
-      iFrame "historyFragments fragHist". }
+    { iFrame "historyFragments fragHist". }
     (* locsDisjoint *)
     iSplitPure. { set_solver. }
     (* histDomLocs *)
@@ -255,7 +254,7 @@ Section wp_na_rules.
     iNamed 1.
     iDestruct (own_all_preds_pred with "predicates knowPred") as
       (pred predsLook) "#predsEquiv".
-    iDestruct (history_full_map_agree with "[$] [$]") as %absHistlook.
+    iDestruct (full_map_full_entry with "[$] [$]") as %absHistlook.
 
     iDestruct (big_sepM2_dom with "predsHold") as %domPhysHistEqAbsHist.
     assert (is_Some (phys_hists !! ℓ)) as [physHist physHistsLook].
@@ -399,7 +398,7 @@ Section wp_na_rules.
     iDestruct (ghost_map_lookup with "allOrders knowPreorder")
       as %ordersLook.
 
-    iDestruct (history_full_map_agree with "history hist") as %absHistsLook.
+    iDestruct (full_map_full_entry with "history hist") as %absHistsLook.
 
     iDestruct (big_sepM2_dom with "predsHold") as %domPhysHistEqAbsHist.
 
@@ -445,6 +444,11 @@ Section wp_na_rules.
     iMod (ghost_map_update (<[ℓ:=MaxNat tT]>SV') with "naView knowSV")
       as "[naView knowSV]".
 
+    assert (tS < tT) as tSLttT.
+    { eapply Nat.le_lt_trans; first apply haveTStore.
+      eapply Nat.le_lt_trans; last apply gt.
+      f_equiv. apply svInclSv'. }
+
     rewrite /validV.
     iModIntro.
     iFrame "valNew".
@@ -463,13 +467,13 @@ Section wp_na_rules.
       iSplit. { iFrame "knowPred knowPreorder knowBumper". }
       iFrame "physHistFrag".
       rewrite /know_full_history_loc.
-      rewrite /history_full_map_loc.
+      rewrite /full_entry_unenc.
       rewrite /history_full_entry_encoded.
       iEval (rewrite -fmap_insert) in "hist".
       iFrame "hist".
       iFrame "∗#".
-      (* [incrList] *)
-      iSplitPure. { eapply increasing_list_snoc; eauto. }
+      (* [incrMap] *)
+      iSplitPure. { apply: increasing_map_insert_last; eauto. }
       (* [lookupV] *)
       iSplitPure. { rewrite lookup_insert. done. }
       (* [nolater] *)
@@ -501,10 +505,8 @@ Section wp_na_rules.
     iFrame "history". iFrame "ptsMap". iFrame "#". iFrame"naView". iFrameNamed.
     rewrite /post_crash_flush /post_crash. iFrame "predPostCrash".
     iSplit.
-    { rewrite /big_frag_entries.
-      iApply (big_sepM_insert_2 with "[] historyFragments").
+    { iApply (big_sepM_insert_2 with "[] historyFragments").
       iDestruct (big_sepM_lookup with "historyFragments") as "F"; first done.
-      rewrite /big_frag_entry.
       iApply (big_sepM_insert_2 with "newHistFrag F"). }
     iSplit. { iPureIntro. set_solver. }
     (* [naViewsDom] *)

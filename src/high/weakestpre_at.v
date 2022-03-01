@@ -95,7 +95,13 @@ Section wp_at_rules.
     iDestruct (big_sepM2_dom with "bumperSome") as %domEq2.
     iDestruct (big_sepM2_dom with "predPostCrash") as %domEq3.
     iDestruct (big_sepM2_dom with "bumpMono") as %domEq4.
-    
+
+    assert (abs_hists !! ℓ = None) as absHistsLook.
+    { apply not_elem_of_dom. rewrite -domEq. apply not_elem_of_dom.
+      assumption. }
+    assert (ℓ ∉ dom (gset _) abs_hists) as absHistsDomElem.
+    { apply not_elem_of_dom. done. }
+
     (* We update ghost state. *)
 
     (* Update ghost state for physical history. *)
@@ -111,7 +117,7 @@ Section wp_at_rules.
     iMod (full_map_insert _ _ _ {[0 := encode s]} with "history")
       as "(history & ownHist & #fragHist)".
     { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
-    iEval (rewrite /big_frag_entry big_sepM_singleton) in "fragHist".
+    iEval (rewrite big_sepM_singleton) in "fragHist".
 
     (* Add the bumper to the ghost state of bumper. *)
     iMod (own_all_bumpers_insert _ _ _ (prot.(bumper)) with "allBumpers") as "[allBumper knowBumper]".
@@ -159,13 +165,11 @@ Section wp_at_rules.
     rewrite !big_sepM2_insert;
       try (eapply map_dom_eq_lookup_None; last apply physHistsLook;
            rewrite /relation2; congruence).
+
     iFrame "pts ptsMap ordered atLocsHistories ownHist bumpMono".
     (* historyFragments *)
     iSplit.
-    { rewrite /big_frag_entries.
-      iApply (big_sepM_insert_2 with "[] historyFragments").
-      rewrite /big_frag_entries /big_frag_entry big_sepM_singleton.
-      iFrame "fragHist". }
+    { iFrame "fragHist". iFrame "historyFragments". done. }
     (* locsDisjoint *)
     iSplit. {
       iPureIntro.
@@ -292,7 +296,7 @@ Section wp_at_rules.
     [interp].  We want to look up the points-to predicate in [ptsMap]. To this
     end, we combine our fragment of the history with the authorative element. *)
     iDestruct (
-      history_full_map_frag_singleton_agreee with "history hist") as %look.
+      full_map_frag_singleton_agreee with "history hist") as %look.
     destruct look as (absHist & enc & absHistLook & lookTS & decodeEnc).
 
     iDestruct (big_sepM2_dom with "predsHold") as %domPhysHistEqAbsHist.
@@ -380,7 +384,7 @@ Section wp_at_rules.
     iDestruct ("predsHold" with "[predMap]") as "predsHold".
     { iExists _. naive_solver. }
 
-    (* iMod (history_full_map_alloc_frag with "history") as "[history histS]"; try done. *)
+    (* iMod (full_map_alloc_frag with "history") as "[history histS]"; try done. *)
     iModIntro.
     (* We re-establish [interp]. *)
     iSplitR "ptsMap physHist allOrders ordered predsHold history predicates
@@ -405,8 +409,7 @@ Section wp_at_rules.
       iExists t'.
       iFrame "knowPred knowPreorder knowBumper".
       iSplit.
-      { rewrite /big_frag_entries.
-        iExists _.
+      { iExists _.
         iDestruct (big_sepM_lookup with "historyFragments") as "F"; first done.
         iDestruct (big_sepM_lookup with "F") as "$"; first done.
         done. }
@@ -473,7 +476,7 @@ Section wp_at_rules.
     [interp]. We want to look up the points-to predicate in [ptsMap]. To this
     end, we combine our fragment of the history with the authorative element. *)
     iDestruct (
-        history_full_map_frag_singleton_agreee with "history hist") as %look.
+        full_map_frag_singleton_agreee with "history hist") as %look.
     destruct look as (absHist & enc & absHistsLook & lookTS & decodeEnc).
 
     iDestruct (
@@ -567,7 +570,7 @@ Section wp_at_rules.
 
     (* Maybe add a lemma for this lookup *)
     iDestruct (
-        history_full_map_frag_singleton_agreee with "history hist") as %look'.
+        full_map_frag_singleton_agreee with "history hist") as %look'.
     destruct look' as (hist' & enc' & absHistsLook' & hip & hop).
     rewrite lookup_insert in absHistsLook'.
     apply (inj Some) in absHistsLook'.
@@ -592,9 +595,7 @@ Section wp_at_rules.
 
     (* historyFragments *)
     iSplit.
-    { rewrite /big_frag_entries.
-      iApply (big_sepM_insert_2 with "[] historyFragments").
-      rewrite /big_frag_entry.
+    { iApply (big_sepM_insert_2 with "[] historyFragments").
       iApply (big_sepM_insert_2 with "histFrag []").
       iApply (big_sepM_lookup with "historyFragments").
       done. }

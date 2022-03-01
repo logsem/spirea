@@ -538,7 +538,6 @@ Proof.
   repeat iExists ∅.
   simpl.
   iFrame.
-  rewrite /big_frag_entries.
   iEval (rewrite !big_sepM2_empty).
   iEval (rewrite !big_sepM_empty).
   rewrite !left_id.

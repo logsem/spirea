@@ -105,7 +105,7 @@ Section mapsto_na_flushed.
     simplify_eq.
     iDestruct "pts'" as (??????) "(% & ? & ? & ? & %look & %nolater' & ? & ? & ? & ? & ? & ? & ? & ?)".
     simplify_eq.
-    iDestruct (history_full_map_loc_agree with "hist [$]") as %<-.
+    iDestruct (full_entry_unenc_agree with "hist [$]") as %<-.
     iPureIntro.
     apply (inj Some).
     rewrite -lookupV -look.
@@ -134,9 +134,9 @@ Section mapsto_na_flushed.
       (* This direction is more annoying to show (not impossible) *)
   Abort.
 
-  Lemma mapsto_na_increasing_list ℓ p q (ss : list ST) :
-    mapsto_na p ℓ q ss -∗ ⌜ increasing_list ss ⌝.
-  Proof. rewrite /mapsto_na. iNamed 1. iFrame (incrList). Qed.
+  (* Lemma mapsto_na_increasing_list ℓ p q (ss : list ST) : *)
+  (*   mapsto_na p ℓ q ss -∗ ⌜ increasing_list (⊑@{ST}) ss ⌝. *)
+  (* Proof. rewrite /mapsto_na. iNamed 1. iFrame (incrList). Qed. *)
 
   Global Instance mapsto_na_flushed_post_crash_flushed ℓ prot q (s : ST) :
     IntoCrashFlush (mapsto_na_flushed ℓ prot q s)
@@ -148,7 +148,7 @@ Section mapsto_na_flushed.
     iDestruct "flushLb" as "-#flushLb".
     (* We could leave out these two lines, but [iCrashFlush] takes a looong time
     to find the [IntoCrashFlush] instance. *)
-    iDestruct (mapsto_na_increasing_list with "pts") as %incr.
+    (* iDestruct (mapsto_na_increasing_list with "pts") as %incr. *)
     iDestruct (post_crash_mapsto_na with "pts") as "pts".
     iDestruct (post_crash_flush_post_crash with "pts") as "pts".
     iCrashFlush.

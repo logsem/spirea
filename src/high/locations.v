@@ -14,6 +14,7 @@ From self Require Import extra ipm_tactics.
 From self.algebra Require Import ghost_map ghost_map_map.
 From self.lang Require Import lang.
 From self.base Require Import primitive_laws.
+From self.high Require Import increasing_map.
 From self.high Require Import dprop abstract_state lifted_modalities or_lost.
 From self.high Require Export abstract_state resources protocol modalities post_crash_modality.
 From self.high.resources Require Export bumpers preorders auth_map_map abstract_history.
@@ -45,7 +46,8 @@ the last events at [ℓ] corresponds to the *)
       (* NOTE: Maybe we can actually remove [increasing_list]? It should be
       covered by the fact that the list corresponds to [abs_hist] and that one
       is sorted. *)
-      "%incrList" ∷ ⌜ increasing_list ss ⌝ ∗
+      (* "%incrList" ∷ ⌜ increasing_list (⊑@{ST}) ss ⌝ ∗ *)
+      "%incrMap" ∷ ⌜ increasing_map (⊑@{ST}) abs_hist ⌝ ∗
       "#isNaLoc" ∷ ⎡ is_na_loc ℓ ⎤ ∗
 
       (* [tStore] is the last message and it agrees with the last state in ss. *)
@@ -91,26 +93,6 @@ the last events at [ℓ] corresponds to the *)
   Global Instance mapsto_na_as_fractional ℓ prot q v :
     AsFractional (mapsto_na ℓ prot q v) (λ q, mapsto_na ℓ prot q v)%I q.
   Proof. split; [done | apply _]. Qed.
-
-  Program Definition have_SV ℓ t : dProp Σ :=
-    MonPred (λ TV, ⌜ t ≤ (store_view TV) !!0 ℓ ⌝)%I _.
-  Next Obligation. solve_proper. Qed.
-
-  Global Instance have_SV_persistent ℓ t : Persistent (have_SV ℓ t).
-  Proof. apply monPred_persistent=> j. apply _. Qed.
-
-  Program Definition have_FV ℓ t : dProp Σ :=
-    MonPred (λ TV, ⌜ t ≤ (flush_view TV) !!0 ℓ ⌝)%I _.
-  Next Obligation. solve_proper. Qed.
-
-  Global Instance have_FV_persistent ℓ t : Persistent (have_FV ℓ t).
-  Proof. apply monPred_persistent=> j. apply _. Qed.
-
-  Lemma have_SV_0 ℓ : ⊢ have_SV ℓ 0.
-  Proof. iModel. iPureIntro. lia. Qed.
-
-  Lemma have_FV_0 ℓ : ⊢ have_FV ℓ 0.
-  Proof. iModel. iPureIntro. lia. Qed.
 
   Definition store_lb ℓ prot (s : ST) : dProp Σ :=
     ∃ (tS : nat),
@@ -229,16 +211,6 @@ the last events at [ℓ] corresponds to the *)
     iNamed 1. iIntros "(%CV' & hist & crashed' & pizz)".
     iDestruct (own_frag_history_singleton_agreee with "[$] [$]") as %->.
     done.
-  Qed.
-
-  Lemma monPred_in_have_SV SV PV BV ℓ t :
-    t ≤ SV !!0 ℓ →
-    monPred_in (SV, PV, BV) -∗
-    have_SV ℓ t.
-  Proof.
-    intros le.
-    iStartProof (iProp _). iPureIntro. intros [[SV' ?] ?] [[incl ?]?].
-    etrans; first done. f_equiv. done.
   Qed.
 
   Lemma mapsto_na_store_lb ℓ prot q ss s :
@@ -494,7 +466,7 @@ Section points_to_at_more.
     iSplit.
     + iExists 0, 0, ∅, _, (Msg _ ∅ ∅ ∅), _. iFrame. iFrame "#".
       iPureGoal. { done. }
-      iPureGoal. { apply increasing_list_singleton. }
+      iPureGoal. { apply increasing_map_singleton. }
       iPureGoal. { by rewrite lookup_singleton. }
       iPureGoal. { apply map_no_later_singleton. }
       iPureGoal. { by rewrite lookup_singleton. }

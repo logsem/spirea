@@ -11,8 +11,6 @@ Global Arguments IntoFence {_} _%I _%I.
 Global Arguments into_fence {_} _%I _%I {_}.
 Global Hint Mode IntoFence + ! -  : typeclass_instances.
 
-Ltac iModel := iStartProof (iProp _); iIntros (TV).
-
 Section post_fence.
   Context `{Σ : gFunctors}.
   Implicit Types (P : dProp Σ).

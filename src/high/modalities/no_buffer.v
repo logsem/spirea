@@ -41,8 +41,6 @@ Notation BufferFree p := (IntoNoBuffer p p).
 (*   specialize (H 0 ε). *)
 (* Qed. *)
 
-Ltac iModel := iStartProof (iProp _); iIntros (TV).
-
 Section no_buffer.
   Context `{Σ : gFunctors}.
   Implicit Types (P : dProp Σ).

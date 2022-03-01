@@ -110,13 +110,13 @@ Section ownership_wrappers.
 
   Definition know_full_history_loc `{Countable ST}
              ℓ q (abs_hist : gmap time ST) : iProp Σ :=
-    history_full_map_loc abs_history_name ℓ q abs_hist.
+    full_entry_unenc abs_history_name ℓ q abs_hist.
 
   Definition know_frag_encoded_history_loc ℓ t e : iProp Σ :=
-    history_frag_entry abs_history_name ℓ t e.
+    frag_entry abs_history_name ℓ t e.
 
   Definition know_frag_history_loc `{Countable ST} ℓ t (s : ST) : iProp Σ :=
-    history_frag_entry_unenc abs_history_name ℓ t s.
+    frag_entry_unenc abs_history_name ℓ t s.
 
   (* The storeview of the most recent write to a na location. *)
   Definition know_na_view ℓ q (SV : view) : iProp Σ :=

@@ -121,8 +121,10 @@ Section state_interpretation.
 
       (* Ownership over the full knowledge of the abstract history of _all_
       locations. *)
-      "history" ∷ history_full_map abs_history_name abs_hists ∗
-      "#historyFragments" ∷ big_frag_entries abs_history_name abs_hists ∗
+      "history" ∷ full_map abs_history_name (DfracOwn 1) abs_hists ∗
+      "#historyFragments" ∷
+        ([∗ map] k1 ↦ mi ∈ abs_hists,
+          [∗ map] k2 ↦ v ∈ mi, frag_entry abs_history_name k1 k2 v) ∗
       (* Knowledge of all the predicates. *)
       "predicates" ∷ own predicates_name (● preds_to_ra predicates) ∗
       (* All the encoded orders *)
@@ -146,7 +148,7 @@ Section state_interpretation.
           know_full_encoded_history_loc ℓ 1 abs_hist) ∗
 
       "#ordered" ∷ ([∗ map] ℓ ↦ hist; order ∈ abs_hists; orders,
-                    ⌜increasing_map order hist⌝) ∗
+                    ⌜ increasing_map order hist ⌝) ∗
 
       (* The predicates hold for all the atomic locations. *)
       "predsHold" ∷
