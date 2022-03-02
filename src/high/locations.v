@@ -405,44 +405,6 @@ Section points_to_at_more.
   Global Instance store_lb_into_crash ℓ prot s : IntoCrash _ _ :=
     post_crash_store_lb ℓ prot s.
 
-  (* NOTE: This rule should be changed once the "bump-back function" is
-  introduced. *)
-  (* Lemma post_crash_mapsto_persisted_ex ℓ prot q (ss : list ST) : *)
-  (*   ℓ ↦_{prot}^{q} ss -∗ <PC> hG', ∃ s, ⌜s ∈ ss⌝ ∗ ℓ ↦_{prot}^{q} [s] ∗ recovered_at ℓ s. *)
-  (* Proof. *)
-  (*   rewrite /mapsto_na. iNamed 1. *)
-  (*   iDestruct "isNaLoc" as "-#isNaLoc". *)
-    (* iDestruct "order" as "-#order". *)
-    (* iCrash. *)
-    (* iDestruct "pers" as "(persisted & (%CV & % & [% %] & #crash))". *)
-    (* iDestruct (or_lost_get with "crash isNaLoc") as "isNaLoc"; first done. *)
-    (* iDestruct (or_lost_get with "crash order") as "order"; first done. *)
-    (* iDestruct (or_lost_get with "crash knowSV") as "knowSV"; first done. *)
-    (* iDestruct (or_lost_with_t_get with "crash hist") as (s) "(% & ? & ? & _)"; *)
-    (*   first done. *)
-    (* iExists s. *)
-    (* iPureGoal. { by eapply map_slice_no_later_elem_of. } *)
-    (* iSplit. *)
-    (* - iExists 0, 0, ∅, _, (Msg _ ∅ ∅ ∅). iFrame. *)
-    (*   iPureGoal. { apply increasing_list_singleton. } *)
-    (*   iPureGoal. { by rewrite lookup_singleton. } *)
-    (*   iPureGoal. { apply map_no_later_singleton. } *)
-    (*   iPureGoal. { simpl. by rewrite lookup_singleton. } *)
-    (*   iSplit. { admit. } (* FIXME: We'd need to add some post crash rule for this. *) *)
-    (*   iStopProof. *)
-    (*   iStartProof (iProp _). iIntros (?) "_ !%". *)
-    (*   split_and!; try done. *)
-    (*   destruct i as [[??]?]; repeat split; apply view_empty_least. *)
-    (* - iExists _. iFrame "∗#". iPureIntro. apply elem_of_dom. naive_solver. *)
-  (* Admitted. *)
-
-  Lemma monPred_in_bottom : ⊢@{dPropI Σ} monPred_in (∅, ∅, ∅).
-  Proof.
-    iStartProof (iProp _). iPureIntro.
-    intros [[??]?].
-    repeat split; apply view_empty_least.
-  Qed.
-
   Lemma post_crash_mapsto_na ℓ prot q (ss : list ST) :
     ℓ ↦_{prot}^{q} ss -∗
     post_crash (λ hG', or_lost ℓ (∃ s, ⌜s ∈ ss⌝ ∗ ℓ ↦_{prot}^{q} [bumper prot s] ∗

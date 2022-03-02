@@ -82,4 +82,11 @@ Section definitions.
     etrans; first done. f_equiv. done.
   Qed.
 
+  Lemma monPred_in_bottom : ⊢@{dPropI Σ} monPred_in (∅, ∅, ∅).
+  Proof.
+    iStartProof (iProp _). iPureIntro.
+    intros [[??]?].
+    repeat split; apply view_empty_least.
+  Qed.
+
  End definitions.
