@@ -174,6 +174,45 @@ Section map_sequence.
     - apply Hl2 in lt. congruence.
   Qed.
 
+  Lemma map_sequence_list_lookup m lo hi l i s :
+    l !! i = Some s →
+    map_sequence m lo hi l →
+    ∃ t_i, lo ≤ t_i ≤ hi ∧ m !! t_i = Some s.
+  Proof.
+    generalize dependent lo.
+    generalize dependent i.
+    induction l as [|x l IH]; first done.
+    intros i lo lLook seq.
+    eassert _ as le; first (eapply map_sequence_lt; done).
+    destruct l.
+    { apply list_lookup_singleton_Some in lLook as [-> ->].
+      exists hi. split; [lia|apply seq]. }
+    destruct seq as [mLook seq].
+    destruct i; simpl in lLook.
+    { simplify_eq.
+      exists lo. split; [lia | done]. }
+    destruct seq as (lo' & lt & all & seq).
+    specialize (IH i lo' lLook seq) as (t_i & ? & mLook2).
+    exists t_i. split; last apply mLook2. lia.
+  Qed.
+
+  Lemma map_sequence_list_lookup_mono m lo hi l i j s1 s2 :
+    map_sequence m lo hi l →
+    i < j →
+    l !! i = Some s1 →
+    l !! j = Some s2 →
+    ∃ t_i t_j, t_i < t_j ∧
+               m !! t_i = Some s1 ∧
+               m !! t_j = Some s2.
+  Proof.
+    induction l as [|x l IH]; first done.
+    destruct l.
+    { intros [HA HB] le. admit. }
+    unfold map_sequence. fold map_sequence.
+    intros [Ha (lt & all & rec & hipo)].
+    intros le look1 look2.
+   Admitted.
+
 End map_sequence.
 
 Section map_no_later.

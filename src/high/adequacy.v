@@ -504,7 +504,7 @@ Proof.
   iMod (know_predicates_alloc ∅) as (predicates_name) "[preds #predsFrag]".
   (* Allocate preorders. *)
   iMod (own_all_preorders_gname_alloc ∅) as (orders_name) "[orders #fragOrders]".
-  (* Allocate set of shared locations.. *)
+  (* Allocate set of atomic locations. *)
   iMod (own_alloc (● (∅ : gsetUR _))) as (shared_locs_name) "atLocs".
   { apply auth_auth_valid. done. }
   (* Allocate set of non-atomic locations.. *)
@@ -512,21 +512,22 @@ Proof.
   { apply auth_auth_valid. done. }
   (* iMod ghost_map.ghost_map_alloc_empty as (na_views_name) "na_views". *)
   iMod (ghost_map_alloc (∅ : gmap loc view)) as (na_views_name) "(na_views & _)".
+  iMod (ghost_map_alloc (∅ : gmap loc positive)) as (crashed_in_name) "(crashedIn & _)".
   iMod (own_all_bumpers_alloc ∅) as (bumpers_name) "[bumpers #bumpersFrag]".
   iMod (auth_map_map_alloc ∅) as (phys_hist_name) "[physHist _]".
 
-  iExists (
-    NvmDeltaG _
-              (MkNvmBaseDeltaG _ _ _)
-              ({| abs_history_name := abs_history_name;
-                  predicates_name := predicates_name;
-                  preorders_name := orders_name;
-                  shared_locs_name := shared_locs_name;
-                  exclusive_locs_name := _;
-                  non_atomic_views_gname := na_views_name;
-                  bumpers_name := bumpers_name;
-                |})
-    ).
+  set (hD := {|
+               abs_history_name := abs_history_name;
+               know_phys_history_name := phys_hist_name;
+               non_atomic_views_gname := na_views_name;
+               crashed_in_name := crashed_in_name;
+               predicates_name := predicates_name;
+               preorders_name := orders_name;
+               shared_locs_name := shared_locs_name;
+               exclusive_locs_name := exclusive_locs_name;
+               bumpers_name := bumpers_name;
+             |}).
+  iExists (NvmDeltaG _ (MkNvmBaseDeltaG _ _ _) hD).
   iModIntro.
   iPureGoal. { done. }
   simpl.

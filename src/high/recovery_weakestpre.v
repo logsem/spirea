@@ -354,8 +354,12 @@ Section wpr.
     { apply auth_both_valid. done. }
     iDestruct "naLocsFrag" as "#naLocsFrag".
 
-    set (newNaViews := gset_to_gmap (∅ : view) newNaLocs).
+    pose (newNaViews := gset_to_gmap (∅ : view) newNaLocs).
     iMod (ghost_map_alloc newNaViews) as (new_na_views_name) "[naView naViewPts]".
+
+    iMod (ghost_map_alloc_persistent (default 1%positive <$> slice_hist CV abs_hists))
+      as (new_crashed_in_name) "[crashedInAuth #crashedInPts]".
+    iMod (ghost_map_auth_persist with "crashedInAuth") as "#crashedInAuth".
 
     (* Allocate the new map of bumpers. *)
     set newBumpers := restrict recLocs bumpers.
@@ -428,6 +432,7 @@ Section wpr.
       abs_history_name := new_abs_history_name;
       know_phys_history_name := new_phys_hist_name;
       non_atomic_views_gname := new_na_views_name;
+      crashed_in_name := new_crashed_in_name;
       predicates_name := new_predicates_name;
       preorders_name := new_orders_name;
       exclusive_locs_name := new_exclusive_locs_name;
@@ -471,23 +476,17 @@ Section wpr.
         iIntros (???? ℓ t s ?) "order oldBumper frag".
         iApply "orLost". iIntros (? look).
         iDestruct "frag" as (encX decEq) "oldFrag".
-        (* rewrite map_fmap_singleton in eq. *)
-        (* apply map_fmap_singleton_inv in eq. *)
-        (* destruct eq as (encX & decEq & ->). *)
 
         iDestruct ("bumperImpl" $! ST with "[//] oldBumper")
           as "[%bumpersLook newBumper]".
         iDestruct ("orderImpl" $! ST with "[//] order")
           as "[%ordersLook newOrder]".
 
-        (* iDestruct (auth_map_map_auth_frag with "oldFullHist2 oldFrag") *)
-        (*   as %(h & lookH & hLook). *)
-
         iDestruct (full_map_frag_entry with "oldFullHist oldFrag") as %(h & lookH & hLook).
         iDestruct (big_sepM2_lookup with "bumperSome") as %?; try done.
 
         eassert _ as temp. { apply new_abs_hist_lookup; try done. }
-        destruct temp as (recEncS & ? & ? & encBumper & newHistLook).
+        destruct temp as (recEncS & ? & hLook2 & encBumper & newHistLook).
 
         apply encode_bumper_Some_decode in encBumper as (recS & decEq2 & <-).
         iExists recS.
@@ -506,17 +505,21 @@ Section wpr.
             f_equiv.
             (* Why congruence no solve this? :'( *)
             apply (inj Some).
-            rewrite -H5.
+            rewrite -hLook2.
             rewrite -hLook.
             done. }
           eapply encode_relation.encode_relation_decode_iff_1; try done.
           eapply incr; done. }
+        iSplit.
+        { iExists _.
+          iSplitPure; first done.
+          iApply (big_sepM_lookup with "crashedInPts").
+          rewrite lookup_fmap.
+          erewrite slice_hist_lookup_Some; done. }
         rewrite /know_frag_history_loc.
         rewrite /frag_entry_unenc.
         iExists (encode (bumper recS)).
-        iSplitPure. {
-          rewrite decode_encode.
-          done. }
+        iSplitPure. { apply decode_encode. }
         iDestruct (big_sepM_lookup with "fragHistories") as "frag"; first done.
         iEval (rewrite big_sepM_singleton) in "frag".
         iFrame "frag". }
@@ -715,7 +718,10 @@ Section wpr.
         iDestruct (big_sepM_lookup with "fragHistories") as "frag"; first done.
         iEval (rewrite big_sepM_singleton) in "frag".
         rewrite eq.
-        iApply "frag".
+        iFrame "frag".
+        iApply (big_sepM_lookup with "crashedInPts").
+        rewrite lookup_fmap.
+        erewrite slice_hist_lookup_Some; done.
       - iIntros "_".
         iIntros ([absHistsLook elem]%restrict_lookup_Some).
         assert (is_Some (bumpers !! ℓ)) as [bumper ?].
@@ -783,6 +789,7 @@ Section wpr.
       { rewrite -domNewAbsHists.
         rewrite /slice_of_store. (* FIXME: Lemma for this. *)
         rewrite /slice_of_hist.
+        rewrite dom_fmap_L.
         rewrite dom_fmap_L.
         rewrite dom_map_zip_with_L.
         rewrite /recLocs.
