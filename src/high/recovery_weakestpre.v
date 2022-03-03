@@ -11,7 +11,7 @@ From Perennial.program_logic Require Import recovery_weakestpre.
 From Perennial.program_logic Require Import recovery_adequacy.
 
 From self.algebra Require Import ghost_map ghost_map_map.
-From self Require Import view extra ipm_tactics if_non_zero.
+From self Require Import view extra ipm_tactics if_non_zero view_slice.
 From self.base Require Import primitive_laws wpr_lifting.
 From self.high Require Import dprop resources crash_weakestpre
      post_crash_modality or_lost.
@@ -152,14 +152,16 @@ Section wpr.
   Lemma new_abs_hist_dom abs_hists CV bumpers :
     dom (gset loc) (new_abs_hist abs_hists CV bumpers) =
     (dom _ abs_hists ∩ dom _ CV ∩ dom _ bumpers).
-  Proof. rewrite 2!dom_map_zip_with_L. set_solver. Qed.
+  Proof. rewrite !dom_map_zip_with_L slice_of_hist_dom. set_solver. Qed.
 
   Lemma new_abs_hist_lookup_simpl_inv abs_hists CV bumpers ℓ hist :
     (new_abs_hist abs_hists CV bumpers) !! ℓ = Some hist →
     hist = ∅ ∨ ∃ s, hist = {[ 0 := s ]}.
   Proof.
     rewrite /new_abs_hist /slice_of_hist.
-    do 2 setoid_rewrite map_lookup_zip_with_Some.
+    setoid_rewrite map_lookup_zip_with_Some.
+    setoid_rewrite map_fmap_zip_with.
+    setoid_rewrite map_lookup_zip_with_Some.
     intros ([?] & ? & -> & ([t] & hist' & -> & ? & ?) & ?).
     destruct (hist' !! t).
     - right. eexists _. apply map_fmap_singleton.
@@ -224,7 +226,7 @@ Section wpr.
     intros absHistLook bumpersLook.
     rewrite /new_abs_hist.
     intros [look|?]%map_lookup_zip_with_None; last congruence.
-    apply map_lookup_zip_with_None in look as [?|?]; congruence.
+    apply slice_of_hist_None in look as [?|?]; congruence.
   Qed.
 
   Lemma map_subseteq_lookup_eq (m1 m2 : store) v1 v2 k :

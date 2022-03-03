@@ -7,7 +7,7 @@ From Perennial.algebra Require Import proph_map.
 From Perennial.program_logic Require Import recovery_weakestpre recovery_adequacy.
 (* From Perennial.goose_lang Require Import crash_modality typing adequacy lang. *)
 
-From self Require Import extra ipm_tactics if_non_zero.
+From self Require Import extra ipm_tactics if_non_zero view_slice.
 From self.lang Require Import lang.
 From self.base Require Import primitive_laws post_crash_modality.
 
@@ -116,6 +116,7 @@ Section wpr.
     intros cut val.
     intros ℓ h look'.
     rewrite /slice_of_store /slice_of_hist map_fmap_zip_with in look'.
+    rewrite map_fmap_zip_with in look'.
     apply map_lookup_zip_with_Some in look'.
     destruct look' as ([t] & hist & ? & pLook & ?).
     eapply map_Forall_lookup_1 in val; last done.
@@ -203,6 +204,7 @@ Section wpr.
         eapply consistent_cut_lookup_slice; done.
       * iLeft.
         rewrite /slice_of_store /slice_of_hist map_fmap_zip_with in look'.
+        rewrite map_fmap_zip_with in look'.
         apply map_lookup_zip_with_Some in look'.
         destruct look' as ([t] & ? & ? & CVLook & ?).
         rewrite /consistent_cut in cut.
@@ -225,6 +227,7 @@ Section wpr.
       (* TODO: Factor this out into a lemma (needs [cut] only). *)
       apply consistent_cut_subseteq_dom in cut.
       rewrite /slice_of_store /slice_of_hist map_fmap_zip_with.
+      rewrite map_fmap_zip_with.
       rewrite dom_map_zip_with_eq_l; try done.
     * iModIntro.
       iIntros (V) "pers".

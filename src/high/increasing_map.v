@@ -1,6 +1,6 @@
 From stdpp Require Import gmap.
 
-From self Require Export extra.
+From self Require Export extra map_extra.
 
 (* NOTE: The definition uses [i < j] and not [i ≤ j] in order to make the
 lemma [increasing_map_singleton] provable. When we use [increasing_map] the
