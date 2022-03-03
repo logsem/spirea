@@ -25,10 +25,6 @@ Section points_to_at.
 
   Implicit Types (ℓ : loc) (s : ST) (ss : list ST) (prot : LocationProtocol ST).
 
-  (* Definition abs_hist_to_ra_old *)
-  (*         (abs_hist : gmap time (message * positive)) : encoded_abs_historyR := *)
-  (*   (to_agree ∘ snd) <$> abs_hist. *)
-
   Lemma singleton_included_l' `{Countable K, CmraTotal A}
         (m : gmap K A) (i : K) x :
     {[i := x]} ≼ m ↔ (∃ y : A, m !! i ≡ Some y ∧ x ≼ y).
@@ -59,14 +55,11 @@ the last events at [ℓ] corresponds to the *)
       "#histFrag" ∷ ⎡ know_frag_history_loc ℓ tStore s ⎤ ∗
 
       "knowSV" ∷ ⎡ know_na_view ℓ q SV ⎤ ∗
-      "%slice" ∷ ⌜ map_slice abs_hist tP tStore ss ⌝ ∗
+      "%slice" ∷ ⌜ map_sequence abs_hist tP tStore ss ⌝ ∗
       "#physMsg" ∷ ⎡ auth_map_map_frag_singleton know_phys_history_name ℓ tStore msg ⎤ ∗
-      (* "%msgViewIncluded" ∷ ⌜ msg_store_view msg ⊑ SV ⌝ ∗ *)
       "#inThreadView" ∷ monPred_in (SV, msg_persisted_after_view msg, ∅) ∗
       (* We have the [tStore] timestamp in our store view. *)
       "%haveTStore" ∷ ⌜ tStore ≤ SV !!0 ℓ ⌝ ∗
-      (* "haveTStore" ∷ monPred_in ({[ ℓ := MaxNat tStore ]}, ∅, ∅) ∗ *)
-
       "#pers" ∷ (⎡ persisted_loc ℓ tP ⎤ ∨ ⌜ tP = 0 ⌝)
     )%I.
 
@@ -229,7 +222,7 @@ the last events at [ℓ] corresponds to the *)
   Proof.
     rewrite /mapsto_na.
     iNamed 1.
-    apply map_slice_lookup_hi_alt in slice.
+    apply map_sequence_lookup_hi_alt in slice.
     naive_solver.
   Qed.
 
@@ -331,8 +324,6 @@ Section points_to_at_more.
     iDestruct "locationProtocol" as "(-#pred & -#order & -#bumper)".
     iDestruct (post_crash_frag_history with "[$order $bumper $knowFragHist]") as "H".
     iCrash.
-
-    (* rewrite embed_sep. *)
     iDestruct "persisted" as "(persisted & (% & % & [% %] & #crashed))".
     iDestruct (or_lost_with_t_get with "[$] H") as "(% & % & order & bumper & hist)";
       first done.
@@ -359,7 +350,6 @@ Section points_to_at_more.
     iNamed 1.
     rewrite /know_protocol. rewrite 2!embed_sep.
     iDestruct "locationProtocol" as "(-#pred & -#order & -#bumper)".
-    (* iNamed "locationProtocol". *)
     iDestruct (post_crash_frag_history with "[$order $bumper $knowFragHist]") as "H".
     iCrash.
     iCombine "pred H" as "H".
@@ -386,7 +376,6 @@ Section points_to_at_more.
     iNamed 1.
     rewrite /know_protocol. rewrite 2!embed_sep.
     iDestruct "locationProtocol" as "(-#pred & -#order & -#bumper)".
-    (* iNamed "locationProtocol". *)
     iDestruct (post_crash_frag_history with "[$order $bumper $knowFragHist]") as "H".
     iCrash.
     iCombine "pred H" as "H".
@@ -435,7 +424,7 @@ Section points_to_at_more.
       assert (t = t'); last lia.
       congruence. }
     iSplit.
-    { iPureIntro. apply: map_slice_lookup_between; try done.
+    { iPureIntro. apply: map_sequence_lookup_between; try done.
       split; first done.
       eapply map_no_later_Some; naive_solver. }
     iDestruct "F" as (v) "hist".

@@ -24,7 +24,7 @@ Section nat_map.
 
   (** Expresses that the map [m] contains, in order, the values [xs] from the
   indeces starting at exactly [lo] ending at exactly [hi]. *)
-  Fixpoint map_slice m (lo hi : nat) (xs : list A) :=
+  Fixpoint map_sequence m (lo hi : nat) (xs : list A) :=
     match xs with
     | [] => False
     | [x] => m !! hi = Some x ∧ lo = hi
@@ -33,10 +33,10 @@ Section nat_map.
       ∃ lo',
         lo < lo' ∧
         (∀ lo'', lo < lo'' < lo' → m !! lo'' = None) ∧ (* There are no elements in between. *)
-        map_slice m lo' hi xs
+        map_sequence m lo' hi xs
     end.
 
-  Lemma map_slice_lt m lo hi xs : map_slice m lo hi xs → lo ≤ hi.
+  Lemma map_sequence_lt m lo hi xs : map_sequence m lo hi xs → lo ≤ hi.
   Proof.
     generalize dependent lo.
     induction xs as [|x1 xs IH]; first done.
@@ -45,8 +45,8 @@ Section nat_map.
     apply IH in slice. lia.
   Qed.
 
-  Lemma map_slice_lookup_between m lo hi xs t x :
-    map_slice m lo hi xs → lo ≤ t ≤ hi → m !! t = Some x → x ∈ xs.
+  Lemma map_sequence_lookup_between m lo hi xs t x :
+    map_sequence m lo hi xs → lo ≤ t ≤ hi → m !! t = Some x → x ∈ xs.
   Proof.
     generalize dependent m. generalize dependent lo. generalize dependent hi.
     induction xs as [|x1 xs IH]; first done. (* Base case is trivial. *)
@@ -66,8 +66,8 @@ Section nat_map.
         eapply IH; [apply slice | lia | done].
   Qed.
 
-  Lemma map_slice_lookup_lo m lo hi xs :
-    map_slice m lo hi xs → m !! lo = xs !! 0.
+  Lemma map_sequence_lookup_lo m lo hi xs :
+    map_sequence m lo hi xs → m !! lo = xs !! 0.
   Proof.
     destruct xs as [|x xs]; [done|]. simpl.
     destruct xs.
@@ -75,11 +75,11 @@ Section nat_map.
     - intros [? _]. done.
   Qed.
 
-  Lemma map_slice_nonempty m lo hi xs : map_slice m lo hi xs → xs ≠ [].
+  Lemma map_sequence_nonempty m lo hi xs : map_sequence m lo hi xs → xs ≠ [].
   Proof. by destruct xs. Qed.
 
-  Lemma map_slice_lookup_hi m lo hi xs :
-    map_slice m lo hi xs → m !! hi = last xs.
+  Lemma map_sequence_lookup_hi m lo hi xs :
+    map_sequence m lo hi xs → m !! hi = last xs.
   Proof.
     generalize dependent lo. generalize dependent hi.
     induction xs as [|x xs IH]; [done|].
@@ -90,21 +90,21 @@ Section nat_map.
       apply Hh.
   Qed.
 
-  Lemma map_slice_lookup_hi_alt m lo hi xs :
-    map_slice m lo hi xs → ∃ x, m !! hi = Some x ∧ last xs = Some x.
+  Lemma map_sequence_lookup_hi_alt m lo hi xs :
+    map_sequence m lo hi xs → ∃ x, m !! hi = Some x ∧ last xs = Some x.
   Proof.
     intros ?.
     assert (is_Some (last xs)) as [x eq].
-    { apply last_is_Some. eapply map_slice_nonempty. done. }
-    exists x. split; last done. rewrite -eq. by eapply map_slice_lookup_hi.
+    { apply last_is_Some. eapply map_sequence_nonempty. done. }
+    exists x. split; last done. rewrite -eq. by eapply map_sequence_lookup_hi.
   Qed.
 
-  Lemma map_slice_snoc m lo hi hi2 xs x :
+  Lemma map_sequence_snoc m lo hi hi2 xs x :
     hi2 < hi ∧
     m !! hi = Some x ∧
     (∀ hi'', hi2 < hi'' < hi → m !! hi'' = None) ∧ (* There are no elements in between. *)
-    map_slice m lo hi2 xs
-    → map_slice m lo hi (xs ++ [x]).
+    map_sequence m lo hi2 xs
+    → map_sequence m lo hi (xs ++ [x]).
   Proof.
     generalize dependent lo.
     induction xs as [|x1 xs IH].
@@ -125,19 +125,19 @@ Section nat_map.
       split_and!; try done. apply next.
   Qed.
 
-  Lemma map_slice_equiv m1 m2 lo hi xs :
+  Lemma map_sequence_equiv m1 m2 lo hi xs :
     (∀ t, lo ≤ t ≤ hi → m1 !! t = m2 !! t) →
-    map_slice m1 lo hi xs → map_slice m2 lo hi xs.
+    map_sequence m1 lo hi xs → map_sequence m2 lo hi xs.
   Proof.
     generalize dependent lo.
     induction xs as [|x1 xs IH]; first done.
     intros lo eq slice.
-    assert (lo ≤ hi) by (by eapply map_slice_lt).
+    assert (lo ≤ hi) by (by eapply map_sequence_lt).
     simpl.
     destruct xs as [|x2 xs].
     - destruct slice as [<- ->]. split; last done. symmetry. by apply eq.
     - destruct slice as [<- (lo' & le & between & slice)].
-      assert (lo' ≤ hi) by (by eapply map_slice_lt).
+      assert (lo' ≤ hi) by (by eapply map_sequence_lt).
       split. { symmetry. apply eq. lia. }
       exists lo'. split; first apply le.
       split. { intros ? ?. rewrite -eq. apply between. lia. lia. }
@@ -146,21 +146,21 @@ Section nat_map.
       + done.
   Qed.
 
-  Lemma map_slice_insert_snoc m lo hi hi2 xs x :
+  Lemma map_sequence_insert_snoc m lo hi hi2 xs x :
     hi < hi2 →
     map_no_later m hi →
-    map_slice m lo hi xs →
-    map_slice (<[hi2:=x]> m) lo hi2 (xs ++ [x]).
+    map_sequence m lo hi xs →
+    map_sequence (<[hi2:=x]> m) lo hi2 (xs ++ [x]).
   Proof.
     intros lt nolater sl.
-    eapply map_slice_snoc.
+    eapply map_sequence_snoc.
     split_and!.
     - done.
     - apply lookup_insert.
     - intros ??.
       rewrite lookup_insert_ne; last lia.
       apply nolater. lia.
-    - eapply map_slice_equiv; last apply sl.
+    - eapply map_sequence_equiv; last apply sl.
       intros t ?. rewrite lookup_insert_ne; first done. lia.
   Qed.
 
@@ -196,15 +196,15 @@ Section map_no_later.
     map_no_later {[ t := x ]} t.
   Proof. intros ??. rewrite lookup_singleton_ne; [done | lia]. Qed.
 
-  Lemma map_slice_no_later_elem_of m tP t tStore xs x :
+  Lemma map_sequence_no_later_elem_of m tP t tStore xs x :
     m !! t = Some x →
     tP ≤ t →
-    map_slice m tP tStore xs →
+    map_sequence m tP tStore xs →
     map_no_later m tStore →
     x ∈ xs.
   Proof.
     intros ??? nolater.
-    eapply map_slice_lookup_between; [done | | done].
+    eapply map_sequence_lookup_between; [done | | done].
     split; first done.
     apply not_gt.
     intros gt%nolater.

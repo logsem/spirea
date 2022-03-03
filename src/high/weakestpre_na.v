@@ -297,7 +297,7 @@ Section wp_na_rules.
       rewrite eq in HI. inversion HI as [? [=]]. }
     assert (absHist !! tS = Some s) as lookS.
     { rewrite -sLast.
-      apply map_slice_lookup_hi in slice.
+      apply map_sequence_lookup_hi in slice.
       rewrite slice.
       done. }
     clear lte HI.
@@ -488,7 +488,7 @@ Section wp_na_rules.
       { iExists _. iFrame "newHistFrag". by rewrite decode_encode. }
       (* [slice] *)
       iSplit. {
-        iPureIntro. eapply map_slice_insert_snoc; [|done|done].
+        iPureIntro. eapply map_sequence_insert_snoc; [|done|done].
         eapply Nat.le_lt_trans; last apply gt.
         etrans; first done.
         f_equiv.

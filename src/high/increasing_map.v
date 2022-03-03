@@ -164,7 +164,7 @@ Section increasing_list.
 
   (** A lemma that ties [increasing_map] and [increasing_list] together. *)
   Lemma increasing_map_to_increasing_list R m lo hi l :
-    increasing_map R m → map_slice m lo hi l → increasing_list R l.
+    increasing_map R m → map_sequence m lo hi l → increasing_list R l.
   Proof.
     intros incr sl.
     intros ?? ?? lt look1 look2.
