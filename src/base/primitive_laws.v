@@ -411,6 +411,15 @@ Section persisted.
   Global Instance persisted_anti_mono : Proper ((⊑@{view}) ==> flip (⊢)) (persisted).
   Proof. intros ??. apply persisted_weak. Qed.
 
+  Lemma persisted_loc_weak ℓ t1 t2 :
+    t2 ≤ t1 → persisted_loc ℓ t1 -∗ persisted_loc ℓ t2.
+  Proof.
+    intros le.
+    rewrite /persisted_loc. iApply persisted_weak. rewrite singleton_included.
+    right. apply max_nat_included. done.
+  Qed.
+
+
   Lemma persisted_persisted_loc PV ℓ t :
     PV !! ℓ = Some (MaxNat t) → persisted PV -∗ persisted_loc ℓ t.
   Proof.

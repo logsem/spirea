@@ -16,12 +16,11 @@ From self.high.resources Require Export bumpers preorders auth_map_map abstract_
 
 Class nvmHighDeltaG := MkNvmHighDeltaG {
   (* "Global" ghost names *)
-  (* For abstract history *)
   abs_history_name : gname;
-  (* know_abs_history_name : gname; *)
   (* For physical history *)
   know_phys_history_name : gname;
   non_atomic_views_gname : gname;
+  crashed_in_name : gname;
   predicates_name : gname;
   preorders_name : gname;
   exclusive_locs_name : gname;
@@ -40,19 +39,15 @@ Definition predicateR {Σ} :=
   agreeR (positive -d> val -d> laterO (optionO (nvmDeltaG Σ -d> (dPropO Σ)))).
 Definition predicatesR {Σ} := authR (gmapUR loc (@predicateR Σ)).
 
-(* Definition bumpersR := *)
-(*   authR (gmapUR loc (agreeR (leibnizO (positive → option positive)))). *)
-
 (* Resource algebra that contains all the locations that are _shared_. *)
 Definition shared_locsR := authR (gsetUR loc).
 
 Class nvmHighFixedG Σ := {
   predicates_inG :> inG Σ (@predicatesR Σ);
-  (* ra_inG' :> inG Σ know_abs_historiesR; *)
   abs_histories :> ghost_map_mapG Σ loc time positive;
-  (* abs_histories :> ghost_mapG Σ loc (gmap time positive); *)
   phys_histories :> inG Σ (auth_map_mapR (leibnizO message));
   non_atomic_views :> ghost_mapG Σ loc view;
+  crashed_in_inG :> ghost_mapG Σ loc positive;
   preordersG :> ghost_mapG Σ loc (relation2 positive);
   shared_locsG :> inG Σ shared_locsR;
   exclusive_locsG :> inG Σ shared_locsR;
@@ -102,7 +97,7 @@ Section ownership_wrappers.
   Definition know_bumper `{AbstractState ST} ℓ (bumper : ST → ST) : iProp Σ :=
     own_know_bumper bumpers_name ℓ bumper.
 
-  Definition know_preorder_loc `{Countable A} ℓ (preorder : relation2 A) : iProp Σ :=
+  Definition know_preorder_loc `{Countable ST} ℓ (preorder : relation2 ST) : iProp Σ :=
     own_know_preorder_loc preorders_name ℓ preorder.
 
   Definition know_full_encoded_history_loc ℓ q enc_abs_hist : iProp Σ :=
@@ -124,6 +119,18 @@ Section ownership_wrappers.
 
   Definition know_phys_hist_msg ℓ t msg : iProp Σ :=
     auth_map_map_frag_singleton know_phys_history_name ℓ t msg.
+
+  Definition crashed_in_mapsto `{Countable ST} ℓ (s : ST) : iProp Σ :=
+    ∃ es, ⌜ decode es = Some s ⌝ ∗ ℓ ↪[crashed_in_name]□ es.
+
+  Lemma crashed_in_mapsto_agree `{Countable ST} ℓ (s1 s2 : ST) :
+    crashed_in_mapsto ℓ s1 -∗ crashed_in_mapsto ℓ s2 -∗ ⌜ s1 = s2 ⌝.
+  Proof.
+    iDestruct 1 as (? eq1) "pts1".
+    iDestruct 1 as (? e2) "pts2".
+    iDestruct (ghost_map_elem_agree with "pts1 pts2") as %->.
+    iPureIntro. congruence.
+  Qed.
 
 End ownership_wrappers.
 

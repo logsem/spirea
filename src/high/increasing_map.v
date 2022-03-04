@@ -1,4 +1,5 @@
 From stdpp Require Import gmap.
+From iris.proofmode Require Import tactics.
 
 From self Require Export extra map_extra.
 
@@ -168,6 +169,9 @@ Section increasing_list.
   Proof.
     intros incr sl.
     intros ?? ?? lt look1 look2.
-  Admitted. (* Prove this later if we need it. *)
+    eassert _ as H. { eapply map_sequence_list_lookup_mono; done. }
+    destruct H as (? & ? & ? & ? & ?).
+    eapply incr; done.
+  Qed.
 
 End increasing_list.

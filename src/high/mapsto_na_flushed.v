@@ -64,15 +64,19 @@ Section mapsto_na_flushed.
       (* This direction is more annoying to show (not impossible) *)
   Abort.
 
-  (* Lemma mapsto_na_increasing_list ℓ p q (ss : list ST) : *)
-  (*   mapsto_na p ℓ q ss -∗ ⌜ increasing_list (⊑@{ST}) ss ⌝. *)
-  (* Proof. rewrite /mapsto_na. iNamed 1. iFrame (incrList). Qed. *)
+  Lemma mapsto_na_increasing_list ℓ p q (ss : list ST) :
+    mapsto_na p ℓ q ss -∗ ⌜ increasing_list (⊑@{ST}) ss ⌝.
+  Proof.
+    rewrite /mapsto_na. iNamed 1. iPureIntro.
+    eapply increasing_map_to_increasing_list; done.
+  Qed.
 
-  Global Instance mapsto_na_flushed_post_crash_flushed ℓ prot q (s : ST) :
+  Global Instance mapsto_na_flushed_post_crash_flushed `{!AntiSymm (=) (⊑@{ST})}
+         ℓ prot q (s : ST) :
     IntoCrashFlush
       (mapsto_na_flushed ℓ prot q s)
       (λ _, mapsto_na_flushed ℓ prot q (bumper prot s) ∗
-            recovered_at ℓ (bumper prot s))%I.
+            crashed_in prot ℓ s)%I.
   Proof.
     rewrite /IntoCrashFlush.
     iNamed 1.
@@ -80,16 +84,29 @@ Section mapsto_na_flushed.
     iDestruct "flushLb" as "-#flushLb".
     (* We could leave out these two lines, but [iCrashFlush] takes a looong time
     to find the [IntoCrashFlush] instance. *)
-    (* iDestruct (mapsto_na_increasing_list with "pts") as %incr. *)
+    iDestruct (mapsto_na_increasing_list with "pts") as %incr.
     iDestruct (post_crash_mapsto_na with "pts") as "pts".
     iDestruct (post_crash_flush_post_crash with "pts") as "pts".
     iCrashFlush.
-    iDestruct "flushLb" as (s' le) "(#rec & persistLb)".
-    iDestruct (recovered_at_or_lost with "rec pts") as "(%s'' & %in & pts & rec2)".
-    iDestruct (recovered_at_agree with "rec rec2") as %eq.
-    (* FIXME: We need to know that [s'] and [s''] are equal. *)
-    (* iExists ([_]). iFrame "pts flushLb". *)
-  Admitted.
+    iDestruct "flushLb" as (s' le) "(#crashedIn & persistLb)".
+    iDestruct (crashed_in_or_lost with "crashedIn pts") as "(%s'' & %elem & pts & chr2)".
+    (* iDestruct (crashed_in_or_lost with "crashedIn pts") as "(%s'' & %in & pts & rec2)". *)
+    iDestruct (crashed_in_agree with "crashedIn chr2") as %<-.
+    assert (s = s') as <-.
+    { apply (anti_symm (⊑@{ST})); first done.
+      apply elem_of_list_lookup_1 in elem as (? & ?).
+      apply: increasing_list_last_greatest; done. }
+    iFrame.
+    iExists [_]. iSplitPure; first done. iFrame "pts".
+    iExists _. iFrame.
+    iNamed "crashedIn".
+    iFrame "locationProtocol knowFragHist".
+    iDestruct (have_SV_0) as "$".
+    rewrite /persist_lb.
+    iDestruct "persistLb" as (?) "(? & ? & ? & ? & per)".
+    iRight. iApply (primitive_laws.persisted_loc_weak with "per").
+    lia.
+  Qed.
 
 End mapsto_na_flushed.
 
