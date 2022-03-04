@@ -56,34 +56,16 @@ Section wp_at_rules.
       done.
   Qed.
 
-  Lemma wp_alloc_at v s prot st E :
-    {{{ prot.(pred) s v _ }}}
-      ref_AT v @ st; E
-    {{{ ℓ, RET #ℓ;
-        store_lb ℓ prot s ∗ ⎡ is_at_loc ℓ ⎤ }}}.
+  Lemma interp_insert_loc_at ℓ prot s SV PV BV TV v :
+    SV !!0 ℓ = 0 →
+    interp -∗
+    pred prot s v hG (SV, PV, BV) -∗
+    ℓ ↦h initial_history AT SV PV v ==∗
+    store_lb ℓ prot s TV ∗ is_at_loc ℓ ∗ interp.
   Proof.
-    intros Φ. iStartProof (iProp _). iIntros (TV). iIntros "phi".
-    iIntros (TV' incl) "Φpost".
-
-    (* Unfold the wp *)
-    rewrite wp_eq /wp_def wpc_eq.
-    iIntros ([[SV PV] BV] incl2) "#val".
-    monPred_simpl.
-    iApply program_logic.crash_weakestpre.wp_wpc.
-
-    iApply wp_extra_state_interp. { done. } { by apply prim_step_ref_no_fork. }
-    (* We open [interp]. *)
+    iIntros (svLook).
     iNamed 1.
-
-    (* We add this to prevent Coq from trying to use [highExtraStateInterp]. *)
-    set (extra := (Build_extraStateInterp _ _)).
-    iApply wp_fupd.
-
-    iApply (wp_alloc (extra := {| extra_state_interp := True |})); first done.
-    iNext.
-    iIntros (ℓ CV') "(crashedAt' & % & % & pts)".
-    simpl.
-    iFrame "val".
+    iIntros "pred pts".
 
     (* The new location is not in the existing [phys_hist]. *)
     destruct (phys_hists !! ℓ) eqn:physHistsLook.
@@ -120,7 +102,8 @@ Section wp_at_rules.
     iEval (rewrite big_sepM_singleton) in "fragHist".
 
     (* Add the bumper to the ghost state of bumper. *)
-    iMod (own_all_bumpers_insert _ _ _ (prot.(bumper)) with "allBumpers") as "[allBumper knowBumper]".
+    iMod (own_all_bumpers_insert _ _ _ (prot.(bumper)) with "allBumpers")
+      as "[allBumpers knowBumper]".
     { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
 
     (* Add the preorder to the ghost state of bumper. *)
@@ -138,49 +121,37 @@ Section wp_at_rules.
     { rewrite /know_protocol. iFrame "knowPred knowBumper knowOrder". }
 
     iModIntro.
-    rewrite -assoc. iSplit; first done.
-    iSplitL "Φpost knowPred knowBumper".
-    { iApply "Φpost".
-      iFrame "isShared".
-      rewrite /store_lb.
+    iSplitL "knowPred knowBumper".
+    { rewrite /store_lb.
       iExists 0.
       iFrame "prot".
       iSplit.
       { iApply (frag_history_equiv with "fragHist"). }
       iPureIntro.
       apply lookup_zero_gt_zero. }
+    iSplit; first iFrame "isShared".
 
     repeat iExists _.
+    iSplitL "ptsMap pts".
+    { erewrite big_sepM_insert; first iFrame "pts ptsMap". assumption. }
     iFrame "physHist crashedAt history predicates allOrders naLocs atLocs".
-    iFrame.
-    iFrame "#".
-    iFrame "%".
-    (* We split up some of the big seps s.t. we can frame things away
-    immediately. *)
-    rewrite restrict_insert_union.
-    rewrite !big_sepM_insert; try done.
-    2: {
-      apply restrict_lookup_None_lookup.
-      eapply map_dom_eq_lookup_None; last apply physHistsLook. set_solver. }
-    rewrite !big_sepM2_insert;
-      try (eapply map_dom_eq_lookup_None; last apply physHistsLook;
-           rewrite /relation2; congruence).
 
-    iFrame "pts ptsMap ordered atLocsHistories ownHist bumpMono".
     (* historyFragments *)
     iSplit.
-    { iFrame "fragHist". iFrame "historyFragments". done. }
+    { iApply (big_sepM_insert_2 with "[] historyFragments");
+      simpl; rewrite big_sepM_singleton; iFrame "fragHist". }
     (* locsDisjoint *)
-    iSplit. {
-      iPureIntro.
+    iSplitPure. {
       assert (ℓ ∉ dom (gset loc) abs_hists).
       { rewrite -domEq. apply not_elem_of_dom. done. }
       set_solver. }
     (* histDomLocs *)
-    iSplit. { iPureIntro. rewrite dom_insert_L. set_solver. }
+    iSplitPure. { rewrite dom_insert_L. set_solver+ histDomLocs. }
+    (* naViewsDom *)
+    iSplitPure; first done.
+    iFrame "naView".
     (* mapShared *)
-    iSplit. {
-      iPureIntro.
+    iSplitPure. {
       rewrite restrict_insert_union.
       rewrite /shared_locs_inv.
       rewrite /map_map_Forall.
@@ -188,11 +159,17 @@ Section wp_at_rules.
       rewrite /initial_history.
       apply map_Forall_singleton.
       done. }
-    (* increasingMap *)
-    iSplit. { iPureIntro. apply increasing_map_singleton. }
+    iSplitL "atLocsHistories ownHist".
+    { rewrite restrict_insert_union big_sepM_insert.
+      2: { apply restrict_lookup_None_lookup. assumption. }
+      iFrame "ownHist atLocsHistories". }
+    (* "ordered" *)
+    iSplit.
+    { iApply (big_sepM2_insert_2); last done.
+      iPureIntro. apply increasing_map_singleton. }
     (* predsHold *)
-    iSplitL "predsHold phi".
-    { iSplitL "phi".
+    iSplitL "predsHold pred".
+    { iApply (big_sepM2_insert_2 with "[pred] [predsHold]").
       - iExists _. rewrite lookup_insert.
         iSplit; first done.
         rewrite /initial_history.
@@ -210,12 +187,8 @@ Section wp_at_rules.
         { done. }
         { done. }
         iApply "HH".
-        destruct TV as [[??]?]. destruct TV' as [[??]?].
-        iDestruct (into_no_buffer_at with "phi") as "phi".
-        iApply (monPred_mono with "phi").
-        repeat split; last done.
-        * etrans; first apply incl. apply incl2.
-        * etrans; first apply incl. apply incl2.
+        destruct TV as [[??]?].
+        iApply (into_no_buffer_at with "pred").
       - iApply (big_sepM2_impl with "predsHold").
         iModIntro. iIntros (ℓ' ????) "(%pred & %look & ?)".
         iExists (pred).
@@ -223,13 +196,18 @@ Section wp_at_rules.
         rewrite lookup_insert_ne; last done.
         iSplit; first done.
         iFrame. }
+    iFrame "allBumpers".
     (* bumpMono *)
-    iSplitPure.
-    { simpl. apply encode_bumper_bump_mono. apply bumper_mono. }
+    iSplit.
+    { iApply (big_sepM2_insert_2 with "[] bumpMono").
+      iPureIntro. simpl.
+      apply encode_bumper_bump_mono. apply bumper_mono. }
     (* predPostCrash *)
-    rewrite /post_crash_flush. rewrite /post_crash. iFrame "predPostCrash".
-    iSplitL.
-    { iModIntro. iIntros (??????) "(%eq & eq2 & P)".
+    iSplit.
+    { iApply (big_sepM2_insert_2 with "[] predPostCrash").
+    (*   rewrite /post_crash_flush. rewrite /post_crash. done. iFrame "predPostCrash". *)
+    (* iSplitL. *)
+      iModIntro. iIntros (??????) "(%eq & eq2 & P)".
       iEval (rewrite /encode_predicate).
       apply encode_bumper_Some_decode in eq.
       destruct eq as (s3 & eq' & eq2').
@@ -237,20 +215,53 @@ Section wp_at_rules.
       rewrite decode_encode.
       iExists _.
       iSplit. { iPureIntro. simpl. reflexivity. }
-      iDestruct (encode_predicate_extract with "eq2 P") as "phi".
+      iDestruct (encode_predicate_extract with "eq2 P") as "pred".
       { done. }
-      iApply (pred_condition with "phi"). }
+      iApply (pred_condition with "pred"). }
     (* bumperBumpToValid *)
     iSplitPure.
     { rewrite map_Forall_insert.
       2: { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
       split; last done.
       apply encode_bumper_bump_to_valid. }
-    iFrame "bumperSome".
+    iApply (big_sepM2_insert_2 with "[] bumperSome").
     iPureIntro.
     apply map_Forall_singleton.
     rewrite encode_bumper_encode.
     done.
+  Qed.
+
+  Lemma wp_alloc_at v s prot st E :
+    {{{ prot.(pred) s v _ }}}
+      ref_AT v @ st; E
+    {{{ ℓ, RET #ℓ;
+        store_lb ℓ prot s ∗ ⎡ is_at_loc ℓ ⎤ }}}.
+  Proof.
+    intros Φ. iStartProof (iProp _). iIntros (TV). iIntros "phi".
+    iIntros (TV' incl) "Φpost".
+    (* Unfold the wp *)
+    rewrite wp_eq /wp_def wpc_eq.
+    iIntros ([[SV PV] BV] incl2) "#val".
+    monPred_simpl.
+    iApply program_logic.crash_weakestpre.wp_wpc.
+    iApply wp_extra_state_interp. { done. } { by apply prim_step_ref_no_fork. }
+    iIntros "interp".
+    (* We add this to prevent Coq from trying to use [highExtraStateInterp]. *)
+    set (extra := (Build_extraStateInterp _ _)).
+    iApply wp_fupd.
+    iApply (wp_alloc (extra := {| extra_state_interp := True |})); first done.
+    iNext.
+    iIntros (ℓ CV') "(crashedAt' & % & % & pts)".
+    simpl.
+    iFrame "val".
+    destruct TV as [[??]?].
+    iMod (interp_insert_loc_at with "interp [phi] pts")
+      as "(storeLb & atLoc & interp)"; first done.
+    { iApply monPred_mono; last iApply "phi". etrans; done. }
+    iModIntro.
+    rewrite -assoc. iSplit; first done.
+    iFrame "interp". iApply "Φpost".
+    iFrame "storeLb atLoc".
   Qed.
 
   Lemma wp_load_at ℓ s Q prot st E :
@@ -369,22 +380,19 @@ Section wp_at_rules.
     iDestruct (predicate_holds_phi_decode with "predsEquiv predHolds") as "PH";
       first done.
     iSpecialize ("pToQ" $! (SV', PV', ∅) sL v').
-    monPred_simpl.
+    iEval (monPred_simpl) in "pToQ".
     iEval (setoid_rewrite monPred_at_wand) in "pToQ".
     assert (na_views !! ℓ = None) as ->.
-    { apply not_elem_of_dom. set_solver. }
+    { apply not_elem_of_dom. set_solver + ℓSh locsDisjoint naViewsDom. }
     iDestruct ("pToQ" $! (SV', PV', ∅) with "[//] [%] [//] PH") as "[Q phi]".
     { done. }
     (* Reinsert into the predicate map. *)
     iDestruct ("predMap" with "[phi]") as "predMap".
-    { iFrame "%".
-      iApply (predicate_holds_phi_decode with "predsEquiv phi").
-      done. }
+    { iApply (predicate_holds_phi_decode with "predsEquiv phi"). assumption. }
     (* Reinsert into the map. *)
     iDestruct ("predsHold" with "[predMap]") as "predsHold".
-    { iExists _. naive_solver. }
+    { iExists _. iFrame "predMap". done. }
 
-    (* iMod (full_map_alloc_frag with "history") as "[history histS]"; try done. *)
     iModIntro.
     (* We re-establish [interp]. *)
     iSplitR "ptsMap physHist allOrders ordered predsHold history predicates

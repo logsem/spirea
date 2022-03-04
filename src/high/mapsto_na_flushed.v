@@ -72,7 +72,7 @@ Section mapsto_na_flushed.
   Qed.
 
   Global Instance mapsto_na_flushed_post_crash_flushed `{!AntiSymm (=) (⊑@{ST})}
-         ℓ prot q (s : ST) :
+        ℓ prot q (s : ST) :
     IntoCrashFlush
       (mapsto_na_flushed ℓ prot q s)
       (λ _, mapsto_na_flushed ℓ prot q (bumper prot s) ∗
