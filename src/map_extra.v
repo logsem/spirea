@@ -205,13 +205,24 @@ Section map_sequence.
                m !! t_i = Some s1 ∧
                m !! t_j = Some s2.
   Proof.
+    generalize dependent lo. generalize dependent j. generalize dependent i.
     induction l as [|x l IH]; first done.
-    destruct l.
-    { intros [HA HB] le. admit. }
-    unfold map_sequence. fold map_sequence.
-    intros [Ha (lt & all & rec & hipo)].
+    intros i j lo. destruct l.
+    { intros ? ? ?%list_lookup_singleton_Some ?%list_lookup_singleton_Some.
+      lia. }
+    intros [Ha (lo' & ? & ? & ?)].
     intros le look1 look2.
-   Admitted.
+    assert (∃ j', j = S j') as [j' ->]. { exists (j - 1). lia. }
+    simpl in look2.
+    (* If [i] is [0] then we've found the first element. *)
+    destruct i; simpl in look1.
+    { simplify_eq.
+      exists lo.
+      eapply map_sequence_list_lookup in look2 as (t_j & ? & ?); last done.
+      simplify_eq.
+      exists t_j. split_and!; try done. lia. }
+    eapply (IH i j' lo'); done || lia.
+   Qed.
 
 End map_sequence.
 
