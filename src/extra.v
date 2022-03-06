@@ -426,8 +426,18 @@ Section big_sepM2.
   Proof.
     intros disj.
     rewrite big_sepM2_eq /big_sepM2_def. apply pure_elim_l => Hl.
-
-  Admitted.
+    assert (m1 = ∅ ∧ m2 = ∅) as [-> ->].
+    { apply dom_eq_alt_L in Hl.
+      destruct disj as [-> | ->].
+      * split.
+        + set_solver.
+        + apply dom_empty_iff_L. rewrite dom_empty_L in Hl. done.
+      * split.
+        + apply dom_empty_iff_L. rewrite dom_empty_L in Hl. done.
+        +  reflexivity. }
+    rewrite map_zip_with_empty.
+    rewrite big_sepM_empty. done.
+  Qed.
 
   (* Lemma big_sepM_bupd m1 m2 Φ : *)
   Lemma big_sepM2_bupd `{BiBUpd PROP} m1 m2 Φ :
@@ -442,7 +452,7 @@ Section big_sepM2.
     ([∗ map] k ↦ x1 ∈ m1, ∃ x2, Φ k x1 x2) ⊣⊢
       ∃ m2, ([∗ map] k ↦ x1; x2 ∈ m1;m2, Φ k x1 x2).
   Proof.
-    induction m1 as [|i x m ? IH] using map_ind.
+    induction m1 as [|i x m1' ? IH] using map_ind.
     - rewrite big_sepM_empty.
       apply (anti_symm _).
       * rewrite -(exist_intro ∅). rewrite big_sepM2_empty. done.
@@ -454,12 +464,23 @@ Section big_sepM2.
       * rewrite sep_exist_r. apply exist_elim => b.
         rewrite sep_exist_l. apply exist_elim => m2'.
         rewrite -(exist_intro (<[i:=b]>m2')).
-        rewrite big_sepM2_insert.
-        done.
-        done.
-        admit.
+        eapply pure_elim. { rewrite big_sepM2_dom. apply: sep_elim_r. }
+        intros dom.
+        rewrite big_sepM2_insert; [done|done|].
+        by rewrite -not_elem_of_dom -dom not_elem_of_dom.
       * apply exist_elim => m2.
-  Admitted.
+        eapply pure_elim; first apply big_sepM2_dom. intros dom.
+        destruct (m2 !! i) as [|y] eqn:Hlook.
+        2: {
+          apply not_elem_of_dom in Hlook.
+          rewrite -dom in Hlook.
+          set_solver. }
+        rewrite big_sepM2_delete; try done.
+        2: { apply lookup_insert. }
+        f_equiv.
+        + apply exist_intro.
+        + rewrite delete_insert; last done. apply exist_intro.
+  Qed.
 
   (* Lemma big_sepM2_thread_resource Φ m1 m2 R : *)
   (*   R ∗ ([∗ map] k↦x1;x2 ∈ m1;m2, R -∗ Φ k x1 x2 ∗ R) ⊣⊢ *)
