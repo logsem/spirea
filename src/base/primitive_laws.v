@@ -660,8 +660,8 @@ Section lifting.
 
   Lemma wp_alloc s a E v SV FV BV :
     {{{ validV SV }}}
-      ThreadState (Alloc a (Val v)) (SV, FV, BV) @ s; E
-    {{{ ℓ CV, RET (ThreadVal (LitV (LitLoc ℓ)) (SV, FV, BV));
+      Alloc a (Val v) `at` (SV, FV, BV) @ s; E
+    {{{ ℓ CV, RET LitV (LitLoc ℓ) `at` (SV, FV, BV);
         crashed_at CV ∗ ⌜ℓ ∉ dom (gset _) CV⌝ ∗ ⌜ SV !!0 ℓ = 0 ⌝ ∗
         ℓ ↦h initial_history a SV FV v }}}.
   Proof.
@@ -676,9 +676,9 @@ Section lifting.
   (* Non-atomic load. *)
   Lemma wp_load (SV FV BV : view) ℓ q (hist : history) s E :
     {{{ ℓ ↦h{q} hist ∗ validV SV }}}
-      (ThreadState (! #ℓ) (SV, FV, BV)) @ s; E
-    {{{ t v msg, RET (ThreadVal v (SV, FV, BV));
-        ℓ ↦h{q} hist ∗ ⌜hist !! t = Some msg ∧ msg.(msg_val) = v ∧ (SV !!0 ℓ) ≤ t⌝ }}}.
+      ! #ℓ `at` (SV, FV, BV) @ s; E
+    {{{ t msg, RET msg.(msg_val) `at` (SV, FV, BV);
+        ℓ ↦h{q} hist ∗ ⌜hist !! t = Some msg ∧ SV !!0 ℓ ≤ t⌝ }}}.
   Proof.
     iIntros (Φ) "[ℓPts Hval] HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
@@ -709,19 +709,19 @@ Section lifting.
       (* iFrame "Hheap lubauth persist Hincl Ht". *)
       rewrite -lookup_fmap in H11.
       apply lookup_fmap_Some in H11.
-      destruct H11 as [x [??]].
-      iDestruct ("HΦ" with "[$ℓPts]") as "$"; first naive_solver.
+      destruct H11 as [x [<- ?]].
+      iDestruct ("HΦ" with "[$ℓPts //]") as "$".
       iModIntro.
       naive_solver.
   Qed.
 
   Lemma wp_load_acquire SV PV BV ℓ q (hist : history) s E :
     {{{ ℓ ↦h{q} hist ∗ validV SV }}}
-      (ThreadState (!{acq} #ℓ) (SV, PV, BV)) @ s; E
-    {{{ t v V' P' _P, RET (ThreadVal v (SV ⊔ V', PV, BV ⊔ P'));
-        ⌜ (hist !! t) = Some (Msg v V' P' _P) ⌝ ∗
-        ⌜ (SV !!0 ℓ) ≤ t ⌝ ∗
-        validV (SV ⊔ V') ∗
+      !{acq} #ℓ `at` (SV, PV, BV) @ s; E
+    {{{ t v SV2 PV2 _P, RET v `at` (SV ⊔ SV2, PV, BV ⊔ PV2);
+        ⌜ hist !! t = Some (Msg v SV2 PV2 _P) ⌝ ∗
+        ⌜ SV !!0 ℓ ≤ t ⌝ ∗
+        validV (SV ⊔ SV2) ∗
         ℓ ↦h{q} hist }}}.
   Proof.
     iIntros (Φ) "[ℓPts Hval] HΦ".
@@ -764,8 +764,8 @@ Section lifting.
 
   Lemma wp_store v SV PV BV ℓ (hist : history) s E :
     {{{ ℓ ↦h hist ∗ validV SV }}}
-      (ThreadState (#ℓ <- v) (SV, PV, BV)) @ s; E
-    {{{ t, RET ThreadVal #() (<[ℓ := MaxNat t]>SV, PV, BV);
+      (#ℓ <- v) `at` (SV, PV, BV) @ s; E
+    {{{ t, RET #() `at` (<[ℓ := MaxNat t]>SV, PV, BV);
           ⌜hist !! t = None⌝ ∗
           ⌜(SV !!0 ℓ) < t⌝ ∗
           validV (<[ℓ := MaxNat t]>SV) ∗
@@ -818,10 +818,10 @@ Section lifting.
 
   Lemma wp_store_release SV v FV BV ℓ (hist : history) s E :
     {{{ ℓ ↦h hist ∗ validV SV }}}
-      (ThreadState (#ℓ <-{rel} v) (SV, FV, BV)) @ s; E
-    {{{ t, RET ThreadVal #() (<[ℓ := MaxNat t]>SV, FV, BV);
-          ⌜msg_val <$> (hist !! t) = None⌝ ∗
-          ⌜(SV !!0 ℓ) < t⌝ ∗
+      #ℓ <-{rel} v `at` (SV, FV, BV) @ s; E
+    {{{ t, RET #() `at` (<[ℓ := MaxNat t]>SV, FV, BV);
+          ⌜ hist !! t = None ⌝ ∗
+          ⌜ SV !!0 ℓ < t ⌝ ∗
           validV (<[ℓ := MaxNat t]>SV) ∗
           ℓ ↦h (<[t := Msg v (<[ℓ := MaxNat t]>SV) FV FV]>hist) }}}.
   Proof.
@@ -874,8 +874,8 @@ Section lifting.
 
   Lemma wp_flush SV FV BV ℓ (hist : history) s E :
     {{{ ℓ ↦h hist }}}
-      (ThreadState (Flush #ℓ) (SV, FV, BV)) @ s; E
-    {{{ RET ThreadVal #() (SV, FV, {[ℓ := MaxNat (SV !!0 ℓ)]} ⊔ BV); ℓ ↦h hist }}}.
+      (Flush #ℓ) `at` (SV, FV, BV) @ s; E
+    {{{ RET #() `at` (SV, FV, {[ℓ := MaxNat (SV !!0 ℓ)]} ⊔ BV); ℓ ↦h hist }}}.
   Proof.
     iIntros (Φ) "pts HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
@@ -897,8 +897,8 @@ Section lifting.
 
   Lemma wp_fence SV FV BV s E :
     {{{ True }}}
-      (ThreadState Fence (SV, FV, BV)) @ s; E
-    {{{ RET ThreadVal #() (SV, FV ⊔ BV, BV); True }}}.
+      Fence `at` (SV, FV, BV) @ s; E
+    {{{ RET #() `at` (SV, FV ⊔ BV, BV); True }}}.
   Proof.
     iIntros (Φ) "_ HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
@@ -915,8 +915,8 @@ Section lifting.
 
   Lemma wp_fence_sync SV FV BV s E :
     {{{ True }}}
-      (ThreadState FenceSync (SV, FV, BV)) @ s; E
-    {{{ RET ThreadVal #() (SV, FV ⊔ BV, BV); persisted BV }}}.
+      FenceSync `at` (SV, FV, BV) @ s; E
+    {{{ RET #() `at` (SV, FV ⊔ BV, BV); persisted BV }}}.
   Proof.
     iIntros (Φ) "_ HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.

@@ -263,7 +263,7 @@ Section wp_na_rules.
 
     iDestruct (big_sepM_lookup_acc with "ptsMap") as "[pts ptsMap]"; first done.
     iApply (wp_load (extra := {| extra_state_interp := True |}) with "[$pts $val]").
-    iNext. iIntros (tT v' msg') "[pts (%look & %msgVal & %gt)]".
+    iNext. iIntros (tT msg') "[pts (%look & %gt)]".
     simpl.
     iDestruct ("ptsMap" with "pts") as "ptsMap".
     iFrame "val".

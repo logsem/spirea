@@ -51,14 +51,10 @@ Section simple_increment.
     wp_pures.
     wp_pures.
     iApply (wp_load with "[$pts $val]").
-    iNext. iIntros (t v msg) "(pts & %look & %msgEq & gt)".
+    iNext. iIntros (t msg) "(pts & %look & gt)".
     move: look.
     rewrite /initial_history.
-    (* rewrite -lookup_fmap. *)
-    (* rewrite map_fmap_singleton. *)
     intros [<- <-]%lookup_singleton_Some.
-    simpl in msgEq.
-    rewrite -msgEq.
     iApply "Post".
     done.
   Qed.

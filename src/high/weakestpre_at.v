@@ -274,10 +274,10 @@ Section wp_at_rules.
   Proof.
     intros Φ.
     iStartProof (iProp _). iIntros (TV).
-    iDestruct 1 as "(isSharedLoc & storeLB & pToQ)".
-    iDestruct (store_lb_protocol with "storeLB") as "#temp". iNamed "temp".
+    iDestruct 1 as "(isSharedLoc & storeLb & pToQ)".
+    iDestruct (store_lb_protocol with "storeLb") as "#temp". iNamed "temp".
     rewrite /store_lb.
-    iDestruct "storeLB" as (tS) "(#prot & #hist & %tSLe)".
+    iDestruct "storeLb" as (tS) "(#prot & #hist & %tSLe)".
 
     (* We unfold the WP. *)
     iIntros (TV' incl) "Φpost".
@@ -432,7 +432,7 @@ Section wp_at_rules.
     {{{
        "%targetGt" ∷ ⌜ s_i ⊑ s_t ⌝ ∗
       "isSharedLoc" ∷ ⎡ is_at_loc ℓ ⎤ ∗
-      "storeLB" ∷ store_lb ℓ prot s_i ∗
+      "storeLb" ∷ store_lb ℓ prot s_i ∗
       "phi" ∷ <nobuf> (prot.(pred) s_t v_t _) ∗
       (* NOTE: This does _not_ work. *)
       (* "phi" ∷ (∀ v_i, ϕ s_i v_i _ -∗ ϕ s_t v_t _ ∗ ϕ s_i v_i _) ∗ *)
@@ -448,10 +448,10 @@ Section wp_at_rules.
     {{{ RET #(); store_lb ℓ prot s_t }}}.
   Proof.
     intros Φ. iStartProof (iProp _). iIntros (TV). iNamed 1.
-    iDestruct (store_lb_protocol with "storeLB") as "#temp". iNamed "temp".
+    iDestruct (store_lb_protocol with "storeLb") as "#temp". iNamed "temp".
 
     rewrite /store_lb.
-    iDestruct "storeLB" as (t_i) "(#prot & #hist & %tSLe)".
+    iDestruct "storeLb" as (t_i) "(#prot & #hist & %tSLe)".
     (* We unfold the WP. *)
     iIntros (TV' incl) "Φpost".
     iApply wp_unfold_at.
@@ -529,7 +529,6 @@ Section wp_at_rules.
     iAssert (⌜ absHist !! t_t = None ⌝)%I as %absHistLook.
     { iDestruct (big_sepM2_dom with "predMap") as %domEq.
       iPureIntro. move: look.
-      rewrite fmap_None.
       rewrite -!not_elem_of_dom.
       rewrite domEq.
       done. }
@@ -539,10 +538,8 @@ Section wp_at_rules.
       as "(history & absHist & #histFrag)".
     { done. }
 
-    iMod (auth_map_map_insert with "physHist") as "[physHist unusedFrag]".
-    { done. }
-    { eapply fmap_None. done. }
-
+    iMod (auth_map_map_insert with "physHist") as "[physHist unusedFrag]";
+      [done|done|].
     (* We are done updating ghost state. *)
     iModIntro.
     iEval (rewrite -assoc).
