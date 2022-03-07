@@ -137,10 +137,26 @@ Section wp.
     induction n as [|n IH]; by rewrite //= -step_fupd_intro // IH.
   Qed.
 
-End wp.
+  (* This lemma "unfolds" the high-level WP into the low-level WP when the
+  former is applied to a thread view. *)
+  Lemma wp_unfold_at e st E (Φ : val → dProp Σ) TV1 :
+    (∀ TV2, ⌜ TV1 ⊑ TV2 ⌝ -∗ validV (store_view TV2) -∗
+      WP e `at` TV2 @ st; E
+        {{ res,
+          let '(v `at` TV3)%V := res
+          in ⌜ TV2 ⊑ TV3 ⌝ ∗ validV (store_view TV3) ∗ Φ v TV3 }}) -∗
+    (WP e @ st; E {{ Φ }}) TV1.
+  Proof.
+    iStartProof (iProp _).
+    iIntros "impl".
+    rewrite wp_eq /wp_def wpc_eq.
+    iIntros (TV2 incl2) "#val".
+    rewrite monPred_at_pure.
+    iApply program_logic.crash_weakestpre.wp_wpc.
+    iApply "impl". done. iAssumption.
+  Qed.
 
-(* Definition lastR (ST : Type) : cmra := *)
-(*   prodR fracR (agreeR (prodO (leibnizO ST) valO)). *)
+End wp.
 
 Section wp_rules.
   Context `{AbstractState ST}.
@@ -248,10 +264,8 @@ Section wp_rules.
     iDestruct "tSLe" as %tSLe.
 
     iIntros ([[??]?] ?) "HΦ".
-    rewrite wp_eq /wp_def wpc_eq. simpl.
+    iApply wp_unfold_at.
     iIntros ([[SV PV] BV] incl) "#val".
-    iEval (monPred_simpl).
-    iApply program_logic.crash_weakestpre.wp_wpc.
 
     iApply wp_extra_state_interp. { done. } { by apply prim_step_flush_no_fork. }
     (* We open [interp]. *)
@@ -322,11 +336,8 @@ Section wp_rules.
   Proof.
     iStartProof (iProp _). iIntros ([[sv pv] bv]).
     iIntros "H".
-    rewrite wp_eq /wp_def.
-    rewrite wpc_eq.
+    iApply wp_unfold_at.
     iIntros ([[SV PV] BV] incl) "#val".
-    monPred_simpl.
-    iApply program_logic.crash_weakestpre.wp_wpc.
     iApply (wp_fence with "[//]").
     simpl.
     iNext. iIntros (_).
@@ -347,17 +358,14 @@ Section wp_rules.
     iStartProof (iProp _). iIntros ([[sv pv] bv]).
     rewrite monPred_at_wand.
     iIntros "P". iIntros (tv' incl) "HΦ".
-    monPred_simpl.
-    rewrite wp_eq /wp_def.
-    rewrite wpc_eq. simpl.
+    iApply wp_unfold_at.
     iIntros ([[SV PV] BV] incl2) "#val".
-    monPred_simpl. (* rewrite right_id. *)
-    iApply program_logic.crash_weakestpre.wp_wpc.
     iApply (primitive_laws.wp_fence with "[//]").
     iNext. iIntros (_).
     cbn.
-    iFrame "#∗".
+    iFrame "val".
     iSplit. { iPureIntro. repeat split; try done. apply view_le_l. }
+    rewrite monPred_at_wand.
     iApply "HΦ".
     - iPureIntro. etrans. apply incl2. repeat split; try done.
       apply view_le_l.

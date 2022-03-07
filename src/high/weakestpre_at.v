@@ -15,8 +15,8 @@ From self.algebra Require Export ghost_map ghost_map_map.
 From self Require Export extra ipm_tactics encode_relation view.
 From self.lang Require Export lang lemmas tactics syntax.
 From self.base Require Import primitive_laws.
-From self.high Require Export dprop resources crash_weakestpre lifted_modalities
-     monpred_simpl modalities protocol locations.
+From self.high Require Export dprop resources crash_weakestpre weakestpre
+     lifted_modalities monpred_simpl modalities protocol locations.
 From self.high Require Import locations protocol.
 From self.high.modalities Require Import no_buffer.
 
@@ -239,11 +239,8 @@ Section wp_at_rules.
   Proof.
     intros Φ. iStartProof (iProp _). iIntros (TV). iIntros "phi".
     iIntros (TV' incl) "Φpost".
-    (* Unfold the wp *)
-    rewrite wp_eq /wp_def wpc_eq.
+    iApply wp_unfold_at.
     iIntros ([[SV PV] BV] incl2) "#val".
-    monPred_simpl.
-    iApply program_logic.crash_weakestpre.wp_wpc.
     iApply wp_extra_state_interp. { done. } { by apply prim_step_ref_no_fork. }
     iIntros "interp".
     (* We add this to prevent Coq from trying to use [highExtraStateInterp]. *)
@@ -284,10 +281,8 @@ Section wp_at_rules.
 
     (* We unfold the WP. *)
     iIntros (TV' incl) "Φpost".
-    rewrite wp_eq /wp_def wpc_eq.
+    iApply wp_unfold_at.
     iIntros ([[SV PV] BV] incl2) "#val".
-    monPred_simpl.
-    iApply program_logic.crash_weakestpre.wp_wpc.
 
     iApply wp_extra_state_interp. { done. } { by apply prim_step_load_acq_no_fork. }
     (* We open [interp]. *)
@@ -459,12 +454,8 @@ Section wp_at_rules.
     iDestruct "storeLB" as (t_i) "(#prot & #hist & %tSLe)".
     (* We unfold the WP. *)
     iIntros (TV' incl) "Φpost".
-    rewrite wp_eq /wp_def wpc_eq.
+    iApply wp_unfold_at.
     iIntros ([[SV PV] BV] incl2) "#val".
-
-    monPred_simpl.
-    iApply program_logic.crash_weakestpre.wp_wpc.
-    (* iApply wp_fupd. *)
 
     iApply wp_extra_state_interp. { done. }
     { apply prim_step_store_rel_no_fork. }
@@ -535,10 +526,6 @@ Section wp_at_rules.
       "(absHist & atLocsHistories)".
     { apply restrict_lookup_Some_2; done. }
 
-    (* iDestruct (big_sepM_delete with "atLocsHistories") as *)
-    (*   "[(%abs_hist' & %absHistLook' & absHist) atLocsHistories]"; first done. *)
-    (* simplify_eq. *)
-
     iAssert (⌜ absHist !! t_t = None ⌝)%I as %absHistLook.
     { iDestruct (big_sepM2_dom with "predMap") as %domEq.
       iPureIntro. move: look.
@@ -562,7 +549,8 @@ Section wp_at_rules.
     iSplit. { iPureIntro. repeat split; try done. apply view_insert_le. lia. }
 
     iSplitL "Φpost".
-    { iApply "Φpost".
+    { iEval (rewrite monPred_at_wand) in "Φpost".
+      iApply "Φpost".
       - iPureIntro. destruct TV' as [[??]?].
         repeat split.
         * etrans; first apply incl2. apply view_insert_le. lia.
@@ -678,8 +666,7 @@ Section wp_at_rules.
       iFrame.
       assert (na_views !! ℓ = None) as ->. { apply not_elem_of_dom. set_solver. }
       iSplitL "phiI".
-      { iApply monPred_mono; last iApply "phiI".
-        apply thread_view_le_r. }
+      { iApply monPred_mono; last iApply "phiI". apply thread_view_le_r. }
       iSplitL "phi".
       { iApply monPred_mono; last iApply "phi".
         etrans; last apply thread_view_le_l.

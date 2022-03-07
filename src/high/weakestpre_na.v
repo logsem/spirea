@@ -15,8 +15,8 @@ From self.algebra Require Import ghost_map ghost_map_map.
 From self Require Export extra ipm_tactics encode_relation view.
 From self.lang Require Export lang lemmas tactics syntax.
 From self.base Require Import primitive_laws.
-From self.high Require Import dprop resources crash_weakestpre lifted_modalities
-     monpred_simpl modalities locations protocol.
+From self.high Require Import dprop resources weakestpre crash_weakestpre
+     lifted_modalities monpred_simpl modalities locations protocol.
 From self.high.modalities Require Import no_buffer.
 
 Section wp_na_rules.
@@ -34,10 +34,8 @@ Section wp_na_rules.
     iIntros (TV' incl) "Φpost".
 
     (* Unfold the wp *)
-    rewrite wp_eq /wp_def wpc_eq.
+    iApply wp_unfold_at.
     iIntros ([[SV PV] BV] incl2) "#val".
-    monPred_simpl.
-    iApply program_logic.crash_weakestpre.wp_wpc.
 
     iApply wp_extra_state_interp. { done. } { by apply prim_step_ref_no_fork. }
     (* We open [interp]. *)
@@ -241,11 +239,8 @@ Section wp_na_rules.
     rewrite monPred_at_wand. simpl.
     iIntros (TV' incl) "Φpost".
     rewrite monPred_at_later.
-    rewrite wp_eq /wp_def.
-    rewrite wpc_eq. simpl.
+    iApply wp_unfold_at.
     iIntros ([[SV' PV] BV] incl2) "#val".
-    rewrite monPred_at_pure.
-    iApply program_logic.crash_weakestpre.wp_wpc.
 
     (* We need to get the points-to predicate for [ℓ]. This is inside [interp]. *)
     iApply wp_extra_state_interp.
@@ -368,12 +363,8 @@ Section wp_na_rules.
 
     rewrite monPred_at_wand. simpl.
     iIntros (TV' incl) "Φpost".
-    rewrite monPred_at_later.
-    rewrite wp_eq /wp_def.
-    rewrite wpc_eq. simpl.
+    iApply wp_unfold_at.
     iIntros ([[SV' PV] BV] incl2) "#val".
-    rewrite monPred_at_pure.
-    iApply program_logic.crash_weakestpre.wp_wpc.
 
     (* We need to get the points-to predicate for [ℓ]. This is inside [interp]. *)
     iApply wp_extra_state_interp.

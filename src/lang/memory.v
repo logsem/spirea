@@ -22,11 +22,6 @@ Notation thread_view := (view * view * view)%type.
 
 Instance thread_view_bottom : Bottom thread_view := ε.
 
-(* Convert a message to a thread_view corresponding to what is stored in the
-message. *)
-Definition msg_to_tv (m : message) : thread_view :=
-  (m.(msg_store_view), m.(msg_persist_view), ∅).
-
 Notation store_view tv := (tv.1).1.
 Notation flush_view tv := (tv.1).2.
 Notation wb_buffer_view tv := (tv.2).

@@ -797,9 +797,6 @@ Section wpr.
         set_solver+. }
       { iAccu. }
 
-      (* iDestruct (big_sepM2_impl_dom_subseteq with "predsHold []") as "$". *)
-      (* { apply slice_of_store_dom_subset. } *)
-      (* { admit. } *)
       iModIntro.
       iIntros (ℓ physHist encHist newPhysHist newAbsHist physHistsLook
                absHistsLook newPhysHistsLook newAbsHistLook).
