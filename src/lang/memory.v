@@ -310,6 +310,7 @@ Section memory.
      (SV !!0 ℓ) ≤ t →
      (* All values that we could have reads are comparable to [v_t]. *)
      (∀ t' msg, SV !!0 ℓ ≤ t' → h !! t' = Some msg → vals_compare_safe msg.(msg_val) v_i) →
+     (h !! (t + 1)) = None →
      mem_step (σ, p) (SV, PV, BV)
               (MEvRMWFail ℓ v_i v_t)
               (σ, p) (SV ⊔ MV, PV, BV ⊔ MP) (* An acquire incorporates both the store view and the persistent view. *)

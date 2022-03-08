@@ -246,6 +246,16 @@ Section max_view.
     intros val ?. eapply map_Forall_lookup_1 in val; last done. apply val.
   Qed.
 
+  Lemma valid_heap_msg_lookup heap ℓ hist t v SV FV PV :
+    valid_heap heap →
+    heap !! ℓ = Some hist →
+    hist !! t = Some (Msg v SV FV PV) →
+    SV ⊑ max_view heap.
+  Proof.
+    intros val heapLook histLook.
+    apply val in heapLook. apply heapLook in histLook. done.
+  Qed.
+
   (* If a location has history [hist] then looking up a message from the
   max_view will result in some message. *)
   Lemma history_lookup_lub heap ℓ hist :
@@ -323,12 +333,6 @@ Section max_view.
   Lemma max_view_included_union_r σ σ' : σ ##ₘ σ' → max_view σ ⊑ max_view (σ' ∪ σ).
   Proof. intros disj. rewrite -max_view_union; last done. apply view_le_r. Qed.
 
-  (* Lemma max_view_insert V (ℓ : loc) (t : time) (msg : message) (hist : history) (heap : store) : *)
-  (*   (V !!0 ℓ) < t → *)
-  (*   heap !! ℓ = Some hist → *)
-  (*   max_view (<[ℓ := (<[t := msg]> hist)]> heap) = <[ℓ := MaxNat t]>(max_view heap). *)
-  (* Proof. Abort. *)
-
   (* If a new message is inserted into the heap the max_view can only grow. *)
   Lemma max_view_insert_incl (ℓ : loc) (t : time) (msg : message) hist (heap : store) :
     heap !! ℓ = Some hist →
@@ -365,26 +369,20 @@ Section max_view.
     set_solver.
   Qed.
 
-  Lemma auth_max_view_insert ℓ t (heap : store) (hist : history) msg :
+  Lemma auth_both_max_view_insert ℓ t (heap : store) V (hist : history) msg :
     heap !! ℓ = Some hist →
-    (* (V !!0 ℓ) < t → *)
-    own store_view_name (● max_view heap) ==∗
+    own store_view_name (● max_view heap) -∗
+    own store_view_name (◯ V) ==∗
     own store_view_name (● max_view (<[ℓ := <[t := msg]> hist]> heap)) ∗
-    own store_view_name (◯ {[ ℓ := MaxNat t ]}).
+    own store_view_name (◯ <[ℓ := MaxNat t]>V).
   Proof.
-    iIntros (look) "Olub".
+    iIntros (look) "Olub Flub".
     pose proof (max_view_insert_incl ℓ t msg hist heap look) as incl.
-    iMod (auth_auth_view_grow_incl _ _ _ incl with "Olub") as "Olub".
+    iDestruct (own_valid_2 with "Olub Flub") as %[? ?]%auth_both_valid_discrete.
+    iMod (auth_auth_view_grow_incl with "Olub") as "Olub"; first done.
     iMod (own_update with "Olub") as "[$ $]".
     { apply: auth_update_dfrac_alloc.
-      apply singleton_included_l.
-      epose proof (max_view_lookup_insert _ _ _ _ _) as (y & look' & le).
-      exists (MaxNat y).
-      erewrite look'.
-      split; first done.
-      apply Some_included_2.
-      apply max_nat_included. simpl.
-      apply le. }
+      apply max_view_incl_insert; done. }
     done.
   Qed.
 
@@ -740,7 +738,7 @@ Section lifting.
       (* We need to show that there is _some_ message that the load could read.
       It could certainly read the most recent message. *)
       pose proof (history_lookup_lub_valid _ _ _ Hlook)
-        as [[msgv msgV msgP] Hmsgeq]; first done.
+        as [[msgv msgSV msgP] Hmsgeq]; first done.
       (* The time at the view is smaller than the time in the lub view (which is
       the time of the most recent message *)
       iExists [], _, _, _, _. simpl. iPureIntro.
@@ -804,15 +802,14 @@ Section lifting.
       iMod (gen_heap_update with "Hσ ℓPts") as "[Hσ ℓPts]".
       iFrame "Hσ".
       (* We must now update the authorative element for the max_view. *)
-      iMod (auth_max_view_insert with "lubauth") as "[lubauth viewT]"; [done|].
+      iMod (auth_both_max_view_insert with "lubauth Hval")
+        as "[lubauth Hval]"; [done|].
       iFrame "lubauth".
       (* We now update the big op. *)
       iModIntro.
       iPureGoal.
       { apply hist_inv_insert_msg; try done. apply view_empty_least. }
-      iCombine "Hval viewT" as "v".
-      iDestruct ("HΦ" with "[$ℓPts v]") as "$".
-      { rewrite -view_insert_op; last lia. rewrite H11. naive_solver. }
+      iDestruct ("HΦ" with "[$ℓPts $Hval]") as "$". { done. }
       iFrame. iExists _. iFrame "#". iPureIntro. set_solver.
   Qed.
 
@@ -835,7 +832,7 @@ Section lifting.
     iDestruct (gen_heap_valid with "Hσ ℓPts") as %Hlook.
     iSplit.
     - (* We must show that the store can take some step. To do this we must use
-         the points-tostep_fupdN_freshredicate and fact that the view is valid. *)
+         the points-to-predicate and fact that the view is valid. *)
       rewrite /head_reducible.
       (* We need to show that there is _some_ message that the load could read.
       It could certainly read the most recent message. *)
@@ -857,18 +854,114 @@ Section lifting.
       iMod (gen_heap_update with "Hσ ℓPts") as "[Hσ ℓPts]".
       iFrame "Hσ".
       (* We must now update the authorative element for the max_view. *)
-      iMod (auth_max_view_insert with "lubauth") as "[lubauth viewT]"; [done|].
+      iMod (auth_both_max_view_insert with "lubauth Hval")
+        as "[lubauth Hval]"; [done|].
       iFrame "lubauth".
       (* We now update the big op. *)
       iPureGoal.
       { apply hist_inv_insert_msg; try done. apply max_view_incl_insert; done. }
-      iCombine "Hval viewT" as "v".
-      iDestruct ("HΦ" with "[$ℓPts v]") as "$".
-      { rewrite -view_insert_op; last lia. rewrite H11. naive_solver. }
+      iDestruct ("HΦ" with "[$ℓPts $Hval]") as "$"; first done.
       iFrame. iExists _. iFrame "#". iPureIntro. set_solver.
   Qed.
 
-  (* Lemma wp_cmpxch  *)
+  Lemma wp_cmpxchg ℓ hist (v_i v_t : val) SV FV BV s E :
+    (∀ (t : nat) (msg : message),
+      SV !!0 ℓ ≤ t → hist !! t = Some msg → vals_compare_safe (msg_val msg) v_i) →
+    {{{ ℓ ↦h hist ∗ validV SV }}}
+      CmpXchg #ℓ v_i v_t `at` (SV, FV, BV) @ s; E
+    {{{ t v SV2 PV2 _PV2 SV3 BV3 b, RET (v, #b) `at` (SV3, FV, BV3);
+      ⌜ SV !!0 ℓ ≤ t ⌝ ∗
+      validV SV3 ∗
+      ⌜ hist !! t = Some (Msg v SV2 PV2 _PV2) ⌝ ∗
+      ⌜ hist !! (t + 1)%nat = None ⌝ ∗
+      ( (* Success *)
+        ⌜ b = true ⌝ ∗
+        ⌜ SV3 = <[ ℓ := MaxNat (t + 1) ]>(SV ⊔ SV2) ⌝ ∗
+        ℓ ↦h <[ (t + 1) := Msg v SV3 (FV ⊔ PV2) (FV ⊔ PV2) ]>hist
+        ∨
+        (* Failure *)
+        ⌜ b = false ⌝ ∗ ⌜ SV3 = SV ⊔ SV2 ⌝ ∗ ℓ ↦h hist)
+    }}}.
+  Proof.
+    iIntros (safe Φ) "[ℓPts Hval] HΦ".
+    iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
+    iIntros ([??] [] ns mj D κ κs k) "[interp extra] ? !>".
+    iNamed "interp". iNamed "crash".
+    (* The time at the view is smaller than the time in the lub view (which is
+    the time of the most recent message *)
+    iDestruct (auth_frag_leq with "Hval lubauth") as %Vincl.
+    (* From the points-to predicate we know that [hist] is in the heap at ℓ. *)
+    iDestruct (gen_heap_valid with "Hσ ℓPts") as %Hlook.
+    iSplit.
+    - rewrite /head_reducible.
+      (* We need to show that there is _some_ message that the CmpXchg could read.
+      It could certainly read the most recent message. *)
+      pose proof (history_lookup_lub_valid _ _ _ Hlook)
+        as [[msgv msgSV msgP] Hmsgeq]; first done.
+      pose proof (history_lookup_lub_succ _ _ _ Hlook) as lookNone.
+      destruct (decide (msgv = v_i)) as [->|neq].
+      { iExists [], _, _, _, _. iPureIntro. simpl.
+        eapply impure_step.
+        * apply CmpXchgSuccS.
+        * eapply (MStepRMW _ _ _ _ _ _ _ (max_view g !!0 ℓ)); try done.
+          f_equiv. done. }
+      { iExists [], _, _, _, _. iPureIntro. simpl.
+        eapply impure_step.
+        * apply CmpXchgFailS. apply neq.
+        * eapply MStepRMWFail; try done. f_equiv. done. }
+    - iNext. iIntros (e2 σ2 [] efs Hstep).
+      whack_global.
+      simpl in *. inv_impure_thread_step.
+      * (* The persist view didn't change. *)
+        iFrame "Hpers".
+        (* We update the heap with the new history at ℓ. *)
+        iMod (gen_heap_update with "Hσ ℓPts") as "[Hσ ℓPts]".
+        iFrame "Hσ".
+        assert (MV ⊑ max_view g) as incl2 by
+          by eapply valid_heap_msg_lookup.
+        iMod (own_update with "lubauth") as "[lubauth mvView]".
+        { apply: auth_frac.auth_frac_update_core_id; last apply incl2. }
+        iCombine "Hval mvView" as "Hval".
+        (* We must now update the authorative element for the max_view. *)
+        iMod (auth_both_max_view_insert with "lubauth Hval")
+          as "[lubauth Hval]"; [done|].
+        iFrame "lubauth".
+        iModIntro. rewrite -!assoc.
+        (* We now update the big op. *)
+        iSplit=> //.
+        iSplitPure.
+        { simpl.
+          apply hist_inv_insert_msg; try done.
+          apply max_view_incl_insert; first done.
+          apply view_lub_le; done. }
+        iDestruct ("HΦ" $! t with "[ℓPts Hval]") as "$".
+        { iSplitPure; first done.
+          iFrame "Hval".
+          iSplitPure; first done.
+          iSplitPure; first done.
+          iLeft.
+          iSplitPure; first done.
+          iFrame "ℓPts".
+          done. }
+        iFrame. iExists _. iFrame "#". iPureIntro. set_solver.
+      * assert (MV ⊑ max_view g) as incl2 by
+          by eapply valid_heap_msg_lookup.
+        iMod (own_update with "lubauth") as "[lubauth mvView]".
+        { apply: auth_frac.auth_frac_update_core_id; last apply incl2. }
+        iCombine "Hval mvView" as "Hval".
+        iModIntro.
+        iSplitPure; first done.
+        iDestruct ("HΦ" $! t with "[ℓPts Hval]") as "$".
+        { iSplitPure; first done.
+          iFrame "Hval".
+          do 2 (iSplitPure; first done).
+          iRight. iFrame "ℓPts". done. }
+        iFrame.
+        iSplitPure; first done.
+        iExists _. iFrame "#". iPureIntro. set_solver.
+  Qed.
+
+  (* Lemma valid_heap *)
 
   (* Lemma wp_faa  *)
 
