@@ -11,8 +11,8 @@ From self.high Require Import dprop resources.
 
 Program Definition post_fence {Σ} (P : dProp Σ) : dProp Σ :=
   MonPred (λ tv, P (store_view tv,
-                    (flush_view tv ⊔ wb_buffer_view tv),
-                    wb_buffer_view tv)) _.
+                    (flush_view tv ⊔ buffer_view tv),
+                    buffer_view tv)) _.
   (* MonPred (λ '(s, p, b), P (s, (p ⊔ b), ∅)) _. *)
 Next Obligation.
   intros Σ P. intros [[??]?] [[??]?] [[??]?]. simpl.

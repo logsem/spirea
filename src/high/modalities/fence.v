@@ -16,7 +16,7 @@ Section post_fence.
   Implicit Types (P : dProp Σ).
 
   Lemma post_fence_at P tv :
-    ((<fence> P) tv = P (store_view tv, (flush_view tv ⊔ wb_buffer_view tv), wb_buffer_view tv))%I.
+    ((<fence> P) tv = P (store_view tv, (flush_view tv ⊔ buffer_view tv), buffer_view tv))%I.
   Proof. done. Qed.
 
   Lemma post_fence_at_alt P SV PV BV :
