@@ -265,16 +265,16 @@ Module nvm_lang.
                []
                (Val $ LitV LitUnit)
                []
-  | CmpXchgSuccS ℓ v1 v2 vl :
+  | CmpXchgSuccS ℓ v1 v2 :
      head_step (CmpXchg (Val $ LitV $ LitLoc ℓ) (Val v1) (Val v2))
                (Some $ MEvRMW ℓ v1 v2)
                []
-               (Val $ PairV vl (LitV $ LitBool true))
+               (Val $ PairV v1 (LitV $ LitBool true))
                []
   | CmpXchgFailS ℓ v1 v2 vl :
      vl ≠ v1 →
      head_step (CmpXchg (Val $ LitV $ LitLoc ℓ) (Val v1) (Val v2))
-               (Some $ MEvLoadEx ℓ vl)
+               (Some $ MEvRMWFail ℓ v1 vl)
                []
                (Val $ PairV vl (LitV $ LitBool false))
                []

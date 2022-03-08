@@ -192,7 +192,7 @@ Section memory.
   | MEvStoreRelease ℓ v
   (* RMW are special *)
   | MEvRMW ℓ (vExp vNew : val) (* read-modify-write *)
-  | MEvLoadEx ℓ (vExp : val) (* for failed RMWs *)
+  | MEvRMWFail ℓ (v1Exp : val) (v2Exp : val) (* for failed RMWs *)
   (* Persistent memory specific. *)
   | MEvFlush ℓ
   | MEvFence
@@ -303,14 +303,15 @@ Section memory.
      P' = PV ⊔ MP →
      mem_step (σ, p) (SV, PV, BV)
               (MEvRMW ℓ v v')
-              (<[ℓ := <[t := Msg v S' P' P']>h]>σ, p) (S', PV, BV ⊔ MP)
-  | MStepRMWFail σ SV PV BV t ℓ (v : val) MV MP _MP h p :
+              (<[ℓ := <[t + 1 := Msg v S' P' P']>h]>σ, p) (S', PV, BV ⊔ MP)
+  | MStepRMWFail σ SV PV BV t ℓ (v_i v_t : val) MV MP _MP h p :
      σ !! ℓ = Some h →
-     (h !! t) = Some (Msg v MV MP _MP) →
+     (h !! t) = Some (Msg v_t MV MP _MP) →
      (SV !!0 ℓ) ≤ t →
-     (∀ t' msg, SV !!0 ℓ ≤ t' → h !! t' = Some msg → vals_compare_safe msg.(msg_val) v) →
+     (* All values that we could have reads are comparable to [v_t]. *)
+     (∀ t' msg, SV !!0 ℓ ≤ t' → h !! t' = Some msg → vals_compare_safe msg.(msg_val) v_i) →
      mem_step (σ, p) (SV, PV, BV)
-              (MEvLoadEx ℓ v)
+              (MEvRMWFail ℓ v_i v_t)
               (σ, p) (SV ⊔ MV, PV, BV ⊔ MP) (* An acquire incorporates both the store view and the persistent view. *)
   (* Write-back instruction. *)
   | MStepFlush σ SV PV BV ℓ t p :
