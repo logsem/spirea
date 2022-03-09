@@ -869,18 +869,18 @@ Section lifting.
       SV !!0 ℓ ≤ t → hist !! t = Some msg → vals_compare_safe (msg_val msg) v_i) →
     {{{ ℓ ↦h hist ∗ validV SV }}}
       CmpXchg #ℓ v_i v_t `at` (SV, FV, BV) @ s; E
-    {{{ t v SV2 PV2 _PV2 SV3 BV3 b, RET (v, #b) `at` (SV3, FV, BV3);
+    {{{ t v SVm FVm _PVm SV3 b, RET (v, #b) `at` (SV3, FV, BV ⊔ FVm);
       ⌜ SV !!0 ℓ ≤ t ⌝ ∗
       validV SV3 ∗
-      ⌜ hist !! t = Some (Msg v SV2 PV2 _PV2) ⌝ ∗
+      ⌜ hist !! t = Some (Msg v SVm FVm _PVm) ⌝ ∗
       ⌜ hist !! (t + 1)%nat = None ⌝ ∗
       ( (* Success *)
         ⌜ b = true ⌝ ∗
-        ⌜ SV3 = <[ ℓ := MaxNat (t + 1) ]>(SV ⊔ SV2) ⌝ ∗
-        ℓ ↦h <[ (t + 1) := Msg v SV3 (FV ⊔ PV2) (FV ⊔ PV2) ]>hist
+        ⌜ SV3 = <[ ℓ := MaxNat (t + 1) ]>(SV ⊔ SVm) ⌝ ∗
+        ℓ ↦h <[ (t + 1) := Msg v SV3 (FV ⊔ FVm) (FV ⊔ FVm) ]>hist
         ∨
         (* Failure *)
-        ⌜ b = false ⌝ ∗ ⌜ SV3 = SV ⊔ SV2 ⌝ ∗ ℓ ↦h hist)
+        ⌜ b = false ⌝ ∗ ⌜ SV3 = SV ⊔ SVm ⌝ ∗ ℓ ↦h hist)
     }}}.
   Proof.
     iIntros (safe Φ) "[ℓPts Hval] HΦ".

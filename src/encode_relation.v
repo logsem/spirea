@@ -50,6 +50,10 @@ Section encode_relation.
     (encode_relation R) ea eb.
   Proof. rewrite /encode_relation. intros -> ->. done. Qed.
 
+  Lemma encode_relation_reflexive `{!Reflexive R} e (s : A) :
+    decode e = Some s → (encode_relation R) e e.
+  Proof. rewrite /encode_relation => -> /= //. Qed.
+
   Global Instance encode_relation_trans R :
     Transitive R → Transitive (encode_relation R).
   Proof.

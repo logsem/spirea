@@ -17,7 +17,8 @@ Section increasing_map.
   Context {A : Type}.
   Implicit Types (s : A) (R : relation2 A).
 
-  Lemma increasing_map_increasing `{!Reflexive R} m i j s1 s2 :
+  Lemma increasing_map_increasing_base R m i j s1 s2 :
+    R s1 s1 →
     increasing_map R m →
     i ≤ j →
     m !! i = Some s1 →
@@ -25,11 +26,19 @@ Section increasing_map.
     R s1 s2.
   Proof.
     unfold increasing_map.
-    intros incr le lookI lookJ.
+    intros refl incr le lookI lookJ.
     destruct (le_lt_eq_dec _ _ le).
     - eapply incr; done.
-    - simplify_eq. reflexivity.
+    - simplify_eq. assumption.
   Qed.
+
+  Lemma increasing_map_increasing `{!Reflexive R} m i j s1 s2 :
+    increasing_map R m →
+    i ≤ j →
+    m !! i = Some s1 →
+    m !! j = Some s2 →
+    R s1 s2.
+  Proof. apply increasing_map_increasing_base. reflexivity. Qed.
 
   Lemma increasing_map_singleton R t s :
     increasing_map R {[ t := s ]}.

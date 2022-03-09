@@ -205,8 +205,6 @@ Section wp_at_rules.
     (* predPostCrash *)
     iSplit.
     { iApply (big_sepM2_insert_2 with "[] predPostCrash").
-    (*   rewrite /post_crash_flush. rewrite /post_crash. done. iFrame "predPostCrash". *)
-    (* iSplitL. *)
       iModIntro. iIntros (??????) "(%eq & eq2 & P)".
       iEval (rewrite /encode_predicate).
       apply encode_bumper_Some_decode in eq.
@@ -346,7 +344,7 @@ Section wp_at_rules.
     assert (is_Some (absHist !! t')) as (encSL & HI).
     { apply elem_of_dom. rewrite <- domEq. apply elem_of_dom. naive_solver. }
     iDestruct (big_sepM2_lookup_acc with "predMap") as "[predHolds predMap]";
-      [done|done| ].
+      [done|done|].
     simpl.
 
     (* The loaded state must be greater than [s]. *)
@@ -355,18 +353,12 @@ Section wp_at_rules.
     { apply absHistLook. }
     iDestruct (orders_lookup with "allOrders knowPreorder") as %orderEq;
       first apply ordersLook.
-    epose proof (increasingMap tS t' (encode s) encSL) as hihi.
+    (* epose proof (increasingMap tS t' (encode s) encSL) as hihi. *)
     assert (order enc encSL) as orderRelated.
-    { destruct (le_lt_or_eq _ _ lte) as [le|tSEq].
-      - eapply increasingMap.
-        * apply le.
-        * subst. done.
-        * done.
-      - (* We can conclude that [enc] is equal to [t']. *)
-        assert (enc = encSL) as ->.
-        2: { rewrite orderEq. rewrite /encode_relation.
-             rewrite decodeEnc. simpl. done. }
-        congruence. }
+    { eapply increasing_map_increasing_base; try done.
+      rewrite orderEq. rewrite /encode_relation.
+      rewrite decodeEnc. simpl. done. }
+
     rewrite orderEq in orderRelated.
     epose proof (encode_relation_inv _ _ _ orderRelated)
       as (? & sL & eqX & decodeS' & s3InclS').
@@ -736,13 +728,136 @@ Section wp_at_rules.
 
   (** [Q1] is the resource we want to extract in case of success and and [Q2] is
   the resource we want to extract in case of failure. *)
+  Lemma wp_cmpxchg_at Q1 Q2 Q3 ℓ prot s_i v_i v_t R s_t st E :
+    {{{
+      ⎡ is_at_loc ℓ ⎤ ∗ store_lb ℓ prot s_i ∗
+      (* in case of success *)
+      ((∀ s_a, ⌜ s_i ⊑ s_a ⌝ -∗
+        (<obj> (prot.(pred) s_a v_i _ -∗ prot.(pred) s_a v_i _ ∗ R s_a)) ∗
+        (R s_a -∗ prot.(pred) s_t v_t _ ∗ Q1 s_a)) ∧
+      (* in case of failure *)
+      (∀ s_a, ⌜ s_i ⊑ s_a ⌝ -∗
+        (<obj> (prot.(pred) s_a v_i _ -∗ prot.(pred) s_a v_i _ ∗ Q2 s_a)) ∗ Q3))
+    }}}
+      CmpXchg #ℓ v_i v_t @ st; E
+    {{{ v b, RET (v, #b);
+      (⌜ b = true ⌝ ∗ Q1 s_t ∗ store_lb ℓ prot s_t) ∨
+      (∃ s_a, ⌜ b = false ⌝ ∗ ⌜ s_i ⊑ s_a ⌝ ∗ Q2 s_a ∗ Q3)
+    }}}.
+  Proof.
+    intros Φ. iStartProof (iProp _). iIntros (TV).
+    iIntros "(atLoc & storeLb & impl)".
+    iDestruct (store_lb_protocol with "storeLb") as "#temp". iNamed "temp".
+    rewrite /store_lb.
+    iDestruct "storeLb" as (t_i) "(#prot & #hist & %tSLe)".
+    (* We unfold the WP. *)
+    iIntros (TV' incl) "Φpost".
+    iApply wp_unfold_at.
+    iIntros ([[SV PV] BV] incl2) "#val".
+    iApply wp_extra_state_interp. { done. }
+    { apply prim_step_cmpxchg_no_fork. }
+    iNamed 1.
+
+    set (extra := (Build_extraStateInterp _ _)).
+    iApply wp_fupd.
+
+    (* _Before_ we load the points-to predicate we deal with the predicate ϕ. We
+    do this before such that the later that arrises is stripped off when we take
+    the step. *)
+    iDestruct (own_all_preds_pred with "predicates knowPred")
+      as (predi predsLook) "#predsEquiv".
+
+    (* We need to get the points-to predicate for [ℓ] which is is inside
+    [interp]. We want to look up the points-to predicate in [ptsMap]. To this
+    end, we combine our fragment of the history with the authorative element. *)
+    iDestruct (
+        full_map_frag_singleton_agreee with "history hist") as %look.
+    destruct look as (absHist & enc & absHistsLook & lookTS & decodeEnc).
+
+    iDestruct (location_sets_singleton_included with "atLocs atLoc") as %ℓSh.
+
+    iDestruct (big_sepM2_dom with "predsHold") as %domPhysHistEqAbsHist.
+    assert (is_Some (phys_hists !! ℓ)) as [physHist physHistsLook].
+    { rewrite -elem_of_dom domPhysHistEqAbsHist elem_of_dom. done. }
+
+    iDestruct (big_sepM2_delete with "predsHold") as "[predMap predsHold]".
+    { done. } { done. }
+    iDestruct "predMap" as (pred' predsLook') "predMap".
+    assert (predi = pred') as <-. { apply (inj Some). rewrite -predsLook. done. }
+    clear predsLook'.
+
+    (* We can now get the points-to predicate and execute the load. *)
+    iDestruct (big_sepM_delete with "ptsMap") as "[pts ptsMap]"; first done.
+
+    iApply (wp_cmpxchg (extra := {| extra_state_interp := True |})
+             with "[$pts $val]").
+    { admit. }
+    iEval (simpl).
+    iIntros "!>" (t_l v_l ???? succ) "(%le & #val2 & % & % & disj)".
+    iDestruct "disj" as "[H|H]"; iDestruct "H" as "(-> & -> & pts)".
+    - (* success *)
+      admit.
+    - (* failure *)
+      iModIntro.
+      do 2 rewrite -assoc.
+      iSplitPure. { repeat split; auto using view_le_l. }
+      iSplit; first iFrame "val2".
+      (* Find the state corresponding to the value that we loaded. *)
+      iDestruct (big_sepM2_dom with "predMap") as %domEq.
+      assert (is_Some (absHist !! t_l)) as [encSL absHistLook]
+        by by eapply map_dom_eq_lookup_Some.
+
+      iSplitL "Φpost impl predMap allOrders".
+      { (* Get the Q2 and Q3 *)
+        iDestruct (big_sepM2_lookup_acc with "predMap") as "[pred reinsPredMap]";
+          [done|done|].
+        simpl.
+
+        assert (t_i ≤ t_l) as le2.
+        { destruct TV as [[??]?].
+          destruct TV' as [[??]?].
+          etrans; first done.
+          etrans; last done.
+          f_equiv.
+          etrans. apply incl. apply incl2. }
+
+        (* The loaded state must be greater than [s_i]. *)
+        iDestruct (big_sepM2_lookup_l with "ordered")
+          as (order) "[%ordersLook %increasingMap]".
+        { apply absHistsLook. }
+        iDestruct (orders_lookup with "allOrders knowPreorder") as %orderEq;
+          first apply ordersLook.
+
+        assert (order enc encSL) as orderRelated.
+        { eapply increasing_map_increasing_base; try done.
+          rewrite orderEq. rewrite /encode_relation decodeEnc /=. done. }
+
+        rewrite orderEq in orderRelated.
+        epose proof (encode_relation_inv _ _ _ orderRelated)
+          as (? & sL & eqX & decodeS' & s3InclS').
+        assert (x = s_i) as -> by congruence.
+
+        iApply monPred_mono; last iApply "Φpost".
+        { destruct TV' as [[??]].
+          repeat split.
+          - etrans; first apply incl2. apply view_le_l.
+          - apply incl2.
+          - etrans; first apply incl2. apply view_le_l. }
+        iRight. iExists _.
+        iSplitPure; first done.
+      admit.
+  Admitted.
+
+  (** [Q1] is the resource we want to extract in case of success and and [Q2] is
+  the resource we want to extract in case of failure. *)
   Lemma wp_cas_at Q1 Q2 Q3 ℓ prot s_i v_i v_t R s_t st E :
     {{{
       ⎡ is_at_loc ℓ ⎤ ∗
       store_lb ℓ prot s_i ∗
       (* in case of success *)
       ((∀ s_a, ⌜ s_i ⊑ s_a ⌝ -∗
-        (<obj> (prot.(pred) s_a v_i _ -∗ prot.(pred) s_a v_i _ ∗ R s_a)) ∗ (R s_a -∗ prot.(pred) s_t v_t _ ∗ Q1 s_a)) ∧
+        (<obj> (prot.(pred) s_a v_i _ -∗ prot.(pred) s_a v_i _ ∗ R s_a)) ∗
+        (R s_a -∗ prot.(pred) s_t v_t _ ∗ Q1 s_a)) ∧
         (* in case of failure *)
         (∀ s_a, ⌜ s_i ⊑ s_a ⌝ -∗
           (<obj> (prot.(pred) s_a v_i _ -∗ prot.(pred) s_a v_i _ ∗ Q2 s_a)) ∗ Q3))
@@ -753,6 +868,18 @@ Section wp_at_rules.
       (∃ s_a, ⌜ b = false ⌝ ∗ ⌜ s_i ⊑ s_a ⌝ ∗ Q2 s_a ∗ Q3)
     }}}.
   Proof.
+    intros Φ. iStartProof (iProp _). iIntros (TV).
+    iIntros "(atLoc & storeLb & more)".
+    iDestruct (store_lb_protocol with "storeLb") as "#temp". iNamed "temp".
+    (* rewrite /store_lb. *)
+    (* iDestruct "storeLb" as (t_i) "(#prot & #hist & %tSLe)". *)
+    (* We unfold the WP. *)
+    iIntros (TV' incl) "Φpost".
+    iApply wp_unfold_at.
+    iIntros ([[SV PV] BV] incl2) "#val".
+    (* iApply wp_extra_state_interp. { done. } *)
+    (* { apply prim_step_store_rel_no_fork. } *)
+    (* iNamed 1. *)
   Admitted.
 
 End wp_at_rules.
