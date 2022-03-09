@@ -74,6 +74,18 @@ Section abs_history_lemmas.
     iPureIntro. eexists _, _. split_and!; done.
   Qed.
 
+  Lemma history_full_entry_frag_lookup γ q ℓ enc_abs_hist t (s : ST) :
+    history_full_entry_encoded γ ℓ q enc_abs_hist -∗
+    frag_entry_unenc γ ℓ t s -∗
+    ⌜∃ enc,
+      enc_abs_hist !! t = Some enc ∧ decode enc = Some s⌝.
+  Proof.
+    rewrite /history_full_entry_encoded.
+    iIntros "H1 (% & % & H2)".
+    iDestruct (full_entry_frag_entry with "H1 H2") as %look.
+    iPureIntro. eexists _. split_and!; done.
+  Qed.
+
   Lemma own_frag_history_singleton_agreee γ ℓ t s1 s2 :
     frag_entry_unenc γ ℓ t s1 -∗
     frag_entry_unenc γ ℓ t s2 -∗

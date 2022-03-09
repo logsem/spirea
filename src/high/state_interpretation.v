@@ -79,15 +79,15 @@ Section iter_option.
 
 End iter_option.
 
+Definition atomic_loc_inv (ℓ : loc) (t : time) (msg : message) :=
+  (* For shared locations the two persist views are equal. This enforces
+  that shared locations can only be written to using release store and
+  RMW operations. *)
+  msg.(msg_store_view) !!0 ℓ = t ∧
+  msg.(msg_persist_view) = msg.(msg_persisted_after_view).
+
 Definition shared_locs_inv (locs : gmap loc (gmap time message)) :=
-  map_map_Forall
-    (λ (ℓ : loc) (t : time) (msg : message),
-      (* For shared locations the two persist views are equal. This enforces
-      that shared locations can only be written to using release store and
-      RMW operations. *)
-      msg.(msg_store_view) !!0 ℓ = t ∧
-      msg.(msg_persist_view) = msg.(msg_persisted_after_view))
-    locs.
+  map_map_Forall atomic_loc_inv locs.
 
 Section state_interpretation.
   Context `{nvmFixedG Σ, hGD : nvmDeltaG Σ}.

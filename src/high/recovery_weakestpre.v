@@ -249,6 +249,7 @@ Section wpr.
     intros ℓ hist look. intros t msg histLook.
     epose proof (slice_of_store_lookup_Some _ _ _ _ _ _ look histLook)
       as (? & ? & [????] & ? & ? & ? & ? & -> & ?).
+    rewrite /atomic_loc_inv.
     naive_solver.
   Qed.
 
