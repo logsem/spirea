@@ -635,7 +635,7 @@ Section wp_at_rules.
 
     iIntros "interp".
     iDestruct (interp_get_at_loc with "interp isAt knowProt hist")
-      as (physHist absHist pred) "(R & [reestablishInterp _])".
+      as (physHist absHist pred) "(R & [reins _])".
     iNamed "R".
 
     (* We add this to prevent Coq from trying to use [highExtraStateInterp]. *)
@@ -733,12 +733,11 @@ Section wp_at_rules.
     rewrite (insert_id physHist t_i); last done.
     rewrite (insert_id absHist t_i); last done.
 
-    iMod ("reestablishInterp" $! t_t s_t
-                with "[//] [//] [] [] [predHolds phi] fullHist [//] pts") as "(#frag & $)".
+    iMod ("reins" $! t_t s_t
+      with "[//] [//] [] [] [predHolds phi] fullHist [//] pts") as "(#frag & $)".
     { iPureIntro. simpl. apply lookup_zero_insert. }
     { done. }
-    {
-      iApply (big_sepM2_insert_2 with "[phi] predHolds").
+    { iApply (big_sepM2_insert_2 with "[phi] predHolds").
       simpl.
       rewrite /encoded_predicate_holds.
       iExists (prot.(protocol.pred) s_t v_t).
@@ -779,17 +778,17 @@ Section wp_at_rules.
     {{{
       ⎡ is_at_loc ℓ ⎤ ∗ store_lb ℓ prot s_i ∗
       (* in case of success *)
-      ((∀ s_a v_a, ⌜ s_i ⊑ s_a ⌝ -∗
-        (<obj> (prot.(pred) s_a v_a _ -∗ prot.(pred) s_a v_a _ ∗ R s_a)) ∗
-        (R s_a -∗ prot.(pred) s_t v_t _ ∗ Q1 s_a)) ∧
+      ((∀ s_l v_l, ⌜ s_i ⊑ s_l ⌝ -∗
+        (<obj> (prot.(pred) s_l v_l _ -∗ prot.(pred) s_l v_l _ ∗ R s_l)) ∗
+        (R s_l -∗ prot.(pred) s_t v_t _ ∗ Q1 s_l)) ∧
       (* in case of failure *)
-      (∀ s_a v_a, ⌜ s_i ⊑ s_a ⌝ -∗
-        (<obj> (prot.(pred) s_a v_a _ -∗ prot.(pred) s_a v_a _ ∗ Q2 s_a)) ∗ Q3))
+      (∀ s_l v_l, ⌜ s_i ⊑ s_l ⌝ -∗
+        (<obj> (prot.(pred) s_l v_l _ -∗ prot.(pred) s_l v_l _ ∗ Q2 s_l)) ∗ Q3))
     }}}
       CmpXchg #ℓ v_i v_t @ st; E
-    {{{ v b, RET (v, #b);
-      (⌜ b = true ⌝ ∗ <fence> Q1 s_t ∗ store_lb ℓ prot s_t) ∨
-      (∃ s_a, ⌜ b = false ⌝ ∗ ⌜ s_i ⊑ s_a ⌝ ∗ <fence> (Q2 s_a) ∗ Q3)
+    {{{ v b s_l, RET (v, #b);
+      (⌜ b = true ⌝ ∗ <fence> Q1 s_l ∗ store_lb ℓ prot s_t) ∨
+      (⌜ b = false ⌝ ∗ ⌜ s_i ⊑ s_l ⌝ ∗ <fence> (Q2 s_l) ∗ Q3)
     }}}.
   Proof.
     intros Φ. iStartProof (iProp _). iIntros (TV).
@@ -825,14 +824,160 @@ Section wp_at_rules.
     { admit. }
     iEval (simpl).
     iIntros "!>" (t_l v_l ???? succ) "(%le & #val2 & % & % & disj)".
+    iFrame "val2".
     iDestruct "disj" as "[H|H]"; iDestruct "H" as "(-> & -> & pts)".
     - (* success *)
-      admit.
+      iDestruct "reins" as "[reins _]".
+
+      eassert _ as temp.
+      { eapply map_Forall_lookup_1; first apply atInvs. done. }
+      rewrite /atomic_loc_inv in temp.
+      simpl in temp. destruct temp as [SV'lookup <-].
+
+      (* The loaded timestamp is greater or equal to the one we know of. *)
+      assert (t_i ≤ t_l) as lte.
+      { destruct TV as [[??]?].
+        destruct TV' as [[??]?].
+        etrans; first done.
+        etrans; last done.
+        f_equiv.
+        etrans. apply incl. apply incl2. }
+
+      assert (is_Some (absHist !! t_l)) as (encSL & HI).
+      { apply elem_of_dom. rewrite <- domEq. apply elem_of_dom. naive_solver. }
+      iDestruct (big_sepM2_lookup_acc with "predHolds") as "[predHolds predMap]";
+        [done|done|].
+      simpl.
+
+      (* The loaded state must be greater than [s]. *)
+      assert ((encode_relation (⊑@{ST})) enc encSL) as orderRelated.
+      { eapply increasing_map_increasing_base; try done.
+        rewrite /encode_relation.
+        rewrite decodeEnc. simpl. done. }
+
+      epose proof (encode_relation_inv _ _ _ orderRelated)
+        as (? & s_l & eqX & decodeS' & s3InclS').
+      assert (x = s_i) as -> by congruence.
+
+      iDestruct (predicate_holds_phi_decode with "predEquiv predHolds") as "PH";
+        first done.
+
+      iAssert (
+        ⌜increasing_map (encode_relation sqsubseteq) (<[(t_l + 1)%nat := encode s_t]> absHist)⌝
+                        )%I as %incriii.
+      {
+        iApply (bi.pure_mono).
+        { apply
+          (increasing_map_insert_after _ _ _ _ _ (encode s_t) increasing
+                                        lookTS); last lia.
+          eapply encode_relation_decode_iff; eauto using decode_encode.
+          admit. }
+        iIntros (t_c encSC ? ?).
+        epose proof (increasing _ _ _ _ a0 lookTS a) as related.
+        (* epose proof (encode_relation_inv _ _ _ related) *)
+        (*   as (s_i' & s_c & eqX' & decodeS' & incl3). *)
+        (* assert (s_i = s_i') as <-. { congruence. } *)
+        simpl.
+        rewrite /encode_relation.
+        rewrite decode_encode.
+        (* rewrite decodeS'. *)
+        (* simpl. *)
+
+        (* assert (is_Some (physHist !! t_c)) as [vC physHistLook']. *)
+        (* { rewrite -elem_of_dom domEq elem_of_dom. done. } *)
+
+        (* iDestruct (big_sepM2_delete with "predHolds") as "[phiC predHolds]". *)
+        (* { rewrite lookup_delete_ne; [apply physHistLook' | lia]. } *)
+        (* { rewrite lookup_delete_ne; [apply a | lia]. } *)
+
+        (* iDestruct (predicate_holds_phi_decode with "predEquiv phiC") as "phiC"; *)
+        (*   first done. *)
+
+        (* iSpecialize ("greater" $! _ _ _). *)
+        (* iEval (monPred_simpl) in "greater". *)
+        (* iEval (setoid_rewrite monPred_at_pure) in "greater". *)
+
+        (* iApply ("greater" $! (TV' ⊔ (msg_to_tv vC) ⊔ (msg_to_tv vI))). *)
+        (* { iPureIntro. etrans; first apply incl. *)
+        (*   rewrite -assoc. *)
+        (*   apply thread_view_le_l. } *)
+        (* monPred_simpl. *)
+        (* iFrame. *)
+        (* iSplitL "phiI". *)
+        (* { iApply monPred_mono; last iApply "phiI". apply thread_view_le_r. } *)
+        (* iSplitL "phi". *)
+        (* { iApply monPred_mono; last iApply "phi". *)
+        (*   etrans; last apply thread_view_le_l. *)
+        (*   etrans; last apply thread_view_le_l. *)
+        (*   destruct TV as [[??]?]. *)
+        (*   destruct TV' as [[??]?]. *)
+        (*   repeat split. *)
+        (*   - apply incl. *)
+        (*   - apply incl. *)
+        (*   - apply view_empty_least. } *)
+
+        (* iApply monPred_mono; last iApply "phiC". *)
+        (* rewrite (comm _ TV'). *)
+        (* rewrite -assoc. *)
+        (* apply thread_view_le_l. *)
+        admit. }
+
+      iDestruct "impl" as "[impl _]".
+      iDestruct ("impl" $! _ _ s3InclS') as "[impl1 impl2]".
+      rewrite monPred_at_objectively.
+
+      iDestruct ("impl1" with "PH") as "[PH R]".
+      iEval (monPred_simpl) in "impl2".
+      iDestruct ("impl2" $! (TV ⊔ (SVm, FVm, ∅)) with "[] [R]") as "[HI Q]".
+      { iPureIntro. apply thread_view_le_l. }
+      { iApply monPred_mono; last iApply "R". apply thread_view_le_r. }
+
+      iSpecialize ("predMap" with "[PH]").
+      { iApply predicate_holds_phi_decode; done. }
+
+      iMod ("reins" $! (t_l + 1) s_t
+        with "[//] [//] [] [] [HI predMap] fullHist [//] pts") as "(#frag & $)".
+      { iPureIntro. simpl. apply lookup_zero_insert. }
+      { done. }
+      {
+        iApply (big_sepM2_insert_2 with "[HI] predMap").
+        simpl.
+        rewrite /encoded_predicate_holds.
+        iExists (prot.(protocol.pred) s_t v_t).
+        iSplit.
+        { iApply pred_encode_Some. done. }
+        destruct TV as [[??]?].
+        iDestruct (into_no_buffer_at with "HI") as "HI".
+
+        iApply monPred_mono; last iFrame.
+        destruct TV' as [[??]?].
+        repeat split; last done.
+        - apply view_lub_le.
+          * simpl. etrans; first apply incl. etrans; first apply incl2.
+            apply view_insert_le'; last lia. apply view_le_l.
+          * apply view_insert_le'; last lia. apply view_le_r.
+        - simpl. f_equiv. etrans; first apply incl. apply incl2. }
+
+      iModIntro.
+
+      iSplitPure. { admit. }
+
+      iSpecialize ("Φpost" $! _ true s_l).
+      iEval (monPred_simpl) in "Φpost".
+      iApply "Φpost".
+      { admit. }
+      iLeft.
+      iSplitPure; first done.
+      iSplitL "Q".
+      { rewrite /post_fence. simpl.
+        iApply monPred_mono; last iApply "Q".
+        admit. }
+      iExists _.
+      iFrame "#".
+      simpl. iPureIntro. rewrite lookup_zero_insert. done.
     - (* failure *)
       iDestruct "reins" as "[_ reins]".
       iModIntro.
-
-      iFrame "val2".
 
       eassert _ as temp.
       { eapply map_Forall_lookup_1; first apply atInvs. done. }
@@ -881,7 +1026,7 @@ Section wp_at_rules.
 
       iSplitPure. { repeat split; try done; apply view_le_l. }
 
-      iSpecialize ("Φpost" $! _ false).
+      iSpecialize ("Φpost" $! _ false s_l).
       iEval (monPred_simpl) in "Φpost".
       iApply "Φpost".
 
@@ -889,7 +1034,6 @@ Section wp_at_rules.
       { iPureIntro.
         etrans; first done. repeat split; auto using view_le_l. }
       iRight.
-      iExists _.
       iSplitPure; first done.
       iSplitPure; first done.
       rewrite /post_fence. simpl.

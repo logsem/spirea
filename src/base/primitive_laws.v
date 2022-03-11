@@ -877,7 +877,7 @@ Section lifting.
       ( (* Success *)
         ⌜ b = true ⌝ ∗
         ⌜ SV3 = <[ ℓ := MaxNat (t + 1) ]>(SV ⊔ SVm) ⌝ ∗
-        ℓ ↦h <[ (t + 1) := Msg v SV3 (FV ⊔ FVm) (FV ⊔ FVm) ]>hist
+        ℓ ↦h <[ (t + 1) := Msg v_t SV3 (FV ⊔ FVm) (FV ⊔ FVm) ]>hist
         ∨
         (* Failure *)
         ⌜ b = false ⌝ ∗ ⌜ SV3 = SV ⊔ SVm ⌝ ∗ ℓ ↦h hist)

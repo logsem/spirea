@@ -294,18 +294,18 @@ Section memory.
               (MEvStoreRelease ℓ v)
               (<[ℓ := <[t := Msg v V' FV FV]>h]>σ, PV) (V', FV, BV) (* A release releases both V' and FV. *)
   (* Read-modify-write instructions. *)
-  | MStepRMW σ ℓ h v MV MP SV t SV' FV P' BV PV v' _MP :
+  | MStepRMW σ ℓ h v_i MV MP SV t SV' FV P' BV PV v_t _MP :
      σ !! ℓ = Some h →
      SV !!0 ℓ ≤ t →
-     h !! t = Some (Msg v MV MP _MP) → (* We read an event at time [t]. *)
-     (* All values that we could have reads are comparable to [v]. *)
-     (∀ t' msg, SV !!0 ℓ ≤ t' → h !! t' = Some msg → vals_compare_safe msg.(msg_val) v) →
+     h !! t = Some (Msg v_i MV MP _MP) → (* We read an event at time [t]. *)
+     (* All values that we could have reads are comparable to [v_i]. *)
+     (∀ t' msg, SV !!0 ℓ ≤ t' → h !! t' = Some msg → vals_compare_safe msg.(msg_val) v_i) →
      h !! (t + 1) = None → (* The next timestamp is available, ensures that no other RMW read this event. *)
      SV' = (<[ ℓ := MaxNat (t + 1) ]>(SV ⊔ MV)) → (* SV' incorporates the new event in the threads view. *)
      P' = FV ⊔ MP →
      mem_step (σ, PV) (SV, FV, BV)
-              (MEvRMW ℓ v v')
-              (<[ℓ := <[t + 1 := Msg v SV' P' P']>h]>σ, PV) (SV', FV, BV ⊔ MP)
+              (MEvRMW ℓ v_i v_t)
+              (<[ℓ := <[t + 1 := Msg v_t SV' P' P']>h]>σ, PV) (SV', FV, BV ⊔ MP)
   | MStepRMWFail σ SV FV BV t ℓ (v_i v_t : val) MV MP _MP h PV :
      σ !! ℓ = Some h →
      h !! t = Some (Msg v_t MV MP _MP) →
