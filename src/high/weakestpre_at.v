@@ -15,6 +15,7 @@ From self.algebra Require Export ghost_map ghost_map_map.
 From self Require Export extra ipm_tactics encode_relation view.
 From self.lang Require Export lang lemmas tactics syntax.
 From self.base Require Import primitive_laws.
+From self Require Import solve_view_le.
 From self.high Require Export dprop resources crash_weakestpre weakestpre
      lifted_modalities monpred_simpl modalities protocol locations.
 From self.high Require Import locations protocol.
@@ -568,7 +569,7 @@ Section wp_at_rules.
     (* We re-establish [interp]. *)
     iDestruct ("reins" with "[$] [$] [$]") as "$".
 
-    iSplit. { iPureIntro. repeat split; try done; apply view_le_l. }
+    iSplit. { iPureIntro. solve_view_le. }
     iSpecialize ("Φpost" $! sL v').
     monPred_simpl.
     iApply "Φpost".
@@ -952,15 +953,12 @@ Section wp_at_rules.
         iApply monPred_mono; last iFrame.
         destruct TV' as [[??]?].
         repeat split; last done.
-        - apply view_lub_le.
-          * simpl. etrans; first apply incl. etrans; first apply incl2.
-            apply view_insert_le'; last lia. apply view_le_l.
-          * apply view_insert_le'; last lia. apply view_le_r.
-        - simpl. f_equiv. etrans; first apply incl. apply incl2. }
+        - eapply view_lub_le; solve_view_le.
+        - solve_view_le. }
 
       iModIntro.
 
-      iSplitPure. { admit. }
+      iSplitPure. { solve_view_le. }
 
       iSpecialize ("Φpost" $! _ true s_l).
       iEval (monPred_simpl) in "Φpost".
@@ -986,12 +984,7 @@ Section wp_at_rules.
 
       (* The loaded timestamp is greater or equal to the one we know of. *)
       assert (t_i ≤ t_l) as lte.
-      { destruct TV as [[??]?].
-        destruct TV' as [[??]?].
-        etrans; first done.
-        etrans; last done.
-        f_equiv.
-        etrans. apply incl. apply incl2. }
+      { etrans; first done. etrans; last done. f_equiv. solve_view_le. }
 
       assert (is_Some (absHist !! t_l)) as (encSL & HI).
       { apply elem_of_dom. rewrite <- domEq. apply elem_of_dom. naive_solver. }

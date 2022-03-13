@@ -8,6 +8,7 @@ From self Require Import extra.
 From self.algebra Require Export view.
 From self Require Import view_slice.
 From self.lang Require Import syntax.
+From self.lang Require Export thread_view.
 
 Record message : Type := Msg {
   msg_val : val;
@@ -17,14 +18,6 @@ Record message : Type := Msg {
 }.
 
 Canonical Structure messageO := leibnizO message.
-
-Notation thread_view := (view * view * view)%type.
-
-Instance thread_view_bottom : Bottom thread_view := ε.
-
-Notation store_view tv := (tv.1).1.
-Notation flush_view tv := (tv.1).2.
-Notation buffer_view tv := (tv.2).
 
 Notation history := (gmap time message).
 
@@ -355,28 +348,6 @@ Section memory.
   Qed.
 
 End memory.
-
-(* A few lattice rules for thread_view. *)
-
-Lemma thread_view_sqsubseteq_antisym (TV1 TV2 : thread_view) :
-  TV1 ⊑ TV2 → TV2 ⊑ TV1 → TV1 = TV2.
-Proof.
-  destruct TV1 as [[??]?]. destruct TV2 as [[??]?]. intros [[??] ?] [[??] ?].
-  rewrite 2!pair_equal_spec.
-  auto using view_sqsubseteq_antisym.
-Qed.
-
-Lemma thread_view_le_l (tv1 tv2 : thread_view) : tv1 ⊑ tv1 ⊔ tv2.
-Proof.
-  destruct tv1 as [[??]?], tv2 as [[??]?].
-  repeat split; apply view_le_l.
-Qed.
-
-Lemma thread_view_le_r (tv1 tv2 : thread_view) : tv1 ⊑ tv2 ⊔ tv1.
-Proof.
-  destruct tv1 as [[??]?], tv2 as [[??]?].
-  repeat split; apply view_le_r.
-Qed.
 
 (** Get the largest time of any message in a given history. *)
 Definition max_msg (h : history) : time :=
