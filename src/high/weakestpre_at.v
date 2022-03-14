@@ -476,6 +476,42 @@ Section wp_at_rules.
       iFrame "%". }
   Qed.
 
+  Lemma read_atomic_location t_i t_l (physHist : history) absHist vm SVm FVm
+        PVm ℓ (e_i : positive) (s_i : ST) :
+    t_i ≤ t_l →
+    dom (gset _) physHist = dom _ absHist →
+    absHist !! t_i = Some e_i →
+    decode e_i = Some s_i →
+    increasing_map (encode_relation (⊑@{ST})) absHist →
+    map_Forall (λ (t : nat) (msg : message), atomic_loc_inv ℓ t msg) physHist →
+    physHist !! t_l = Some (Msg vm SVm FVm PVm) →
+    ∃ s_l e_l,
+      absHist !! t_l = Some e_l ∧
+      decode e_l = Some s_l ∧
+      SVm !!0 ℓ = t_l ∧
+      FVm = PVm ∧
+      s_i ⊑ s_l.
+  Proof.
+    intros le domEq ? decodeEnc ? atInvs ?.
+    eassert _ as temp.
+    { eapply map_Forall_lookup_1; [apply atInvs|done]. }
+    rewrite /atomic_loc_inv /= in temp. destruct temp as [SV'lookup <-].
+
+    assert (is_Some (absHist !! t_l)) as (e_l & ?).
+    { apply elem_of_dom. rewrite <- domEq. apply elem_of_dom. naive_solver. }
+
+    (* The loaded state must be greater than [s_i]. *)
+    assert (encode_relation (⊑@{ST}) e_i e_l) as orderRelated.
+    { eapply increasing_map_increasing_base; try done.
+      rewrite /encode_relation. rewrite decodeEnc. simpl. done. }
+
+    epose proof (encode_relation_inv _ _ _ orderRelated)
+      as (? & s_l & eqX & decodeS' & s3InclS').
+    assert (x = s_i) as -> by congruence.
+
+    exists s_l, e_l. done.
+  Qed.
+
   Lemma wp_load_at ℓ s Q prot st E :
     {{{
       ⎡ is_at_loc ℓ ⎤ ∗
@@ -522,35 +558,15 @@ Section wp_at_rules.
 
     iFrame "val'".
 
-    eassert _ as temp.
-    { eapply map_Forall_lookup_1; first apply atInvs. done. }
-    rewrite /atomic_loc_inv in temp.
-    simpl in temp. destruct temp as [SV'lookup <-].
-
     assert (tS ≤ t') as lte.
-    { destruct TV as [[??]?].
-      destruct TV' as [[??]?].
-      etrans; first done.
-      etrans; last done.
-      f_equiv.
-      etrans. apply incl. apply incl2. }
+    { etrans; first done. etrans; last done. f_equiv. solve_view_le. }
 
-    (* iDestruct (big_sepM2_dom with "predMap") as %domEq. *)
-    assert (is_Some (absHist !! t')) as (encSL & HI).
-    { apply elem_of_dom. rewrite <- domEq. apply elem_of_dom. naive_solver. }
+    eassert _ as  temp. { eapply read_atomic_location; done. }
+    destruct temp as (sL & encSL & ? & ? & ? & <- & orderRelated).
+
     iDestruct (big_sepM2_lookup_acc with "predHolds") as "[predHolds predMap]";
       [done|done|].
     simpl.
-
-    (* The loaded state must be greater than [s]. *)
-    assert ((encode_relation (⊑@{ST})) enc encSL) as orderRelated.
-    { eapply increasing_map_increasing_base; try done.
-      rewrite /encode_relation.
-      rewrite decodeEnc. simpl. done. }
-
-    epose proof (encode_relation_inv _ _ _ orderRelated)
-      as (? & sL & eqX & decodeS' & s3InclS').
-    assert (x = s) as -> by congruence.
 
     iDestruct (predicate_holds_phi_decode with "predEquiv predHolds") as "PH";
       first done.
@@ -589,8 +605,7 @@ Section wp_at_rules.
         iSplitPure; first done.
         iApply (big_sepM_lookup with "frags"). done. }
       iPureIntro.
-      rewrite -SV'lookup.
-      rewrite lookup_zero_lub. lia.
+      subst. rewrite lookup_zero_lub. lia.
     - simpl.
       iApply monPred_mono; last iApply "Q".
       repeat split.
@@ -673,7 +688,7 @@ Section wp_at_rules.
 
     iAssert (
       ⌜increasing_map (encode_relation sqsubseteq) (<[t_t:=encode s_t]> absHist)⌝
-                      )%I as %incriii.
+                      )%I as %incri.
     { iApply (bi.pure_mono).
       { apply
          (increasing_map_insert_after _ _ _ _ _ (encode s_t) increasing
@@ -830,44 +845,24 @@ Section wp_at_rules.
     - (* success *)
       iDestruct "reins" as "[reins _]".
 
-      eassert _ as temp.
-      { eapply map_Forall_lookup_1; first apply atInvs. done. }
-      rewrite /atomic_loc_inv in temp.
-      simpl in temp. destruct temp as [SV'lookup <-].
-
       (* The loaded timestamp is greater or equal to the one we know of. *)
       assert (t_i ≤ t_l) as lte.
-      { destruct TV as [[??]?].
-        destruct TV' as [[??]?].
-        etrans; first done.
-        etrans; last done.
-        f_equiv.
-        etrans. apply incl. apply incl2. }
+      { etrans; first done. etrans; last done. f_equiv. solve_view_le. }
 
-      assert (is_Some (absHist !! t_l)) as (encSL & HI).
-      { apply elem_of_dom. rewrite <- domEq. apply elem_of_dom. naive_solver. }
+      eassert _ as  temp. { eapply read_atomic_location; done. }
+      destruct temp as (s_l & encSL & ? & ? & ? & <- & orderRelated).
+
       iDestruct (big_sepM2_lookup_acc with "predHolds") as "[predHolds predMap]";
         [done|done|].
       simpl.
-
-      (* The loaded state must be greater than [s]. *)
-      assert ((encode_relation (⊑@{ST})) enc encSL) as orderRelated.
-      { eapply increasing_map_increasing_base; try done.
-        rewrite /encode_relation.
-        rewrite decodeEnc. simpl. done. }
-
-      epose proof (encode_relation_inv _ _ _ orderRelated)
-        as (? & s_l & eqX & decodeS' & s3InclS').
-      assert (x = s_i) as -> by congruence.
 
       iDestruct (predicate_holds_phi_decode with "predEquiv predHolds") as "PH";
         first done.
 
       iAssert (
         ⌜increasing_map (encode_relation sqsubseteq) (<[(t_l + 1)%nat := encode s_t]> absHist)⌝
-                        )%I as %incriii.
-      {
-        iApply (bi.pure_mono).
+      )%I as %incri.
+      { iApply (bi.pure_mono).
         { apply
           (increasing_map_insert_after _ _ _ _ _ (encode s_t) increasing
                                         lookTS); last lia.
@@ -977,36 +972,22 @@ Section wp_at_rules.
       iDestruct "reins" as "[_ reins]".
       iModIntro.
 
-      eassert _ as temp.
-      { eapply map_Forall_lookup_1; first apply atInvs. done. }
-      rewrite /atomic_loc_inv in temp.
-      simpl in temp. destruct temp as [SV'lookup <-].
-
       (* The loaded timestamp is greater or equal to the one we know of. *)
       assert (t_i ≤ t_l) as lte.
       { etrans; first done. etrans; last done. f_equiv. solve_view_le. }
 
-      assert (is_Some (absHist !! t_l)) as (encSL & HI).
-      { apply elem_of_dom. rewrite <- domEq. apply elem_of_dom. naive_solver. }
+      eassert _ as  temp. { eapply read_atomic_location; done. }
+      destruct temp as (s_l & encSL & ? & ? & ? & <- & orderRelated).
+
       iDestruct (big_sepM2_lookup_acc with "predHolds") as "[predHolds predMap]";
         [done|done|].
       simpl.
 
-      (* The loaded state must be greater than [s]. *)
-      assert ((encode_relation (⊑@{ST})) enc encSL) as orderRelated.
-      { eapply increasing_map_increasing_base; try done.
-        rewrite /encode_relation.
-        rewrite decodeEnc. simpl. done. }
-
-      epose proof (encode_relation_inv _ _ _ orderRelated)
-        as (? & s_l & eqX & decodeS' & s3InclS').
-      assert (x = s_i) as -> by congruence.
-
       iDestruct (predicate_holds_phi_decode with "predEquiv predHolds") as "PH";
         first done.
 
-      iDestruct "impl" as "[_ impl]".
-      iDestruct ("impl" $! _ _ s3InclS') as "[impl Q3]".
+      (* iDestruct "impl" as "[_ impl]". *)
+      iDestruct ("impl" $! _ _ orderRelated) as "[HI [_ [impl Q3]]]".
       rewrite monPred_at_objectively.
       iSpecialize ("impl" $! ⊥).
       iEval (monPred_simpl) in "impl".
