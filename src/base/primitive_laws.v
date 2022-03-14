@@ -865,8 +865,8 @@ Section lifting.
   Qed.
 
   Lemma wp_cmpxchg ℓ hist (v_i v_t : val) SV FV BV s E :
-    (∀ (t : nat) (msg : message),
-      SV !!0 ℓ ≤ t → hist !! t = Some msg → vals_compare_safe (msg_val msg) v_i) →
+    ⌜ (∀ (t : nat) (msg : message),
+      SV !!0 ℓ ≤ t → hist !! t = Some msg → vals_compare_safe v_i (msg_val msg)) ⌝ -∗
     {{{ ℓ ↦h hist ∗ validV SV }}}
       CmpXchg #ℓ v_i v_t `at` (SV, FV, BV) @ s; E
     {{{ t v SVm FVm _PVm SV3 b, RET (v, #b) `at` (SV3, FV, BV ⊔ FVm);
@@ -883,7 +883,7 @@ Section lifting.
         ⌜ b = false ⌝ ∗ ⌜ SV3 = SV ⊔ SVm ⌝ ∗ ℓ ↦h hist)
     }}}.
   Proof.
-    iIntros (safe Φ) "[ℓPts Hval] HΦ".
+    iIntros (safe). iIntros "!>" (Φ) "[ℓPts Hval] HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
     iIntros ([??] [] ns mj D κ κs k) "[interp extra] ? !>".
     iNamed "interp". iNamed "crash".
@@ -894,8 +894,8 @@ Section lifting.
     iDestruct (gen_heap_valid with "Hσ ℓPts") as %Hlook.
     iSplit.
     - rewrite /head_reducible.
-      (* We need to show that there is _some_ message that the CmpXchg could read.
-      It could certainly read the most recent message. *)
+      (* We need to show that there is _some_ message that the CmpXchg could
+      read. It could certainly read the most recent message. *)
       pose proof (history_lookup_lub_valid _ _ _ Hlook)
         as [[msgv msgSV msgP] Hmsgeq]; first done.
       pose proof (history_lookup_lub_succ _ _ _ Hlook) as lookNone.

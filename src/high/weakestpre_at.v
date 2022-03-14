@@ -793,13 +793,16 @@ Section wp_at_rules.
   Lemma wp_cmpxchg_at Q1 Q2 Q3 ℓ prot s_i (v_i : val) v_t R s_t st E :
     {{{
       ⎡ is_at_loc ℓ ⎤ ∗ store_lb ℓ prot s_i ∗
-      (* in case of success *)
-      ((∀ s_l v_l, ⌜ s_i ⊑ s_l ⌝ -∗
-        (<obj> (prot.(pred) s_l v_l _ -∗ prot.(pred) s_l v_l _ ∗ R s_l)) ∗
-        (R s_l -∗ prot.(pred) s_t v_t _ ∗ Q1 s_l)) ∧
-      (* in case of failure *)
       (∀ s_l v_l, ⌜ s_i ⊑ s_l ⌝ -∗
-        (<obj> (prot.(pred) s_l v_l _ -∗ prot.(pred) s_l v_l _ ∗ Q2 s_l)) ∗ Q3))
+        ((▷ prot.(pred) s_l v_l _) -∗ ⌜ vals_compare_safe v_i v_l ⌝) ∗
+        (
+         ((* in case of success *)
+           (<obj> (prot.(pred) s_l v_l _ -∗ prot.(pred) s_l v_l _ ∗ R s_l)) ∗
+           (R s_l -∗ prot.(pred) s_t v_t _ ∗ Q1 s_l))
+         ∧
+            (* in case of failure *)
+            ((<obj> (prot.(pred) s_l v_l _ -∗ prot.(pred) s_l v_l _ ∗ Q2 s_l)) ∗ Q3)
+        ))
     }}}
       CmpXchg #ℓ v_i v_t @ st; E
     {{{ v b s_l, RET (v, #b);
@@ -809,7 +812,6 @@ Section wp_at_rules.
   Proof.
     intros Φ. iStartProof (iProp _). iIntros (TV).
     iIntros "(isAt & storeLb & impl)".
-    (* iDestruct (store_lb_protocol with "storeLb") as "#temp". iNamed "temp". *)
     iDestruct (store_lb_protocol with "storeLb") as "#knowProt".
     iDestruct (know_protocol_extract with "knowProt")
       as "(#knowPred & #knowPreorder & #knowBumper)".
@@ -827,17 +829,35 @@ Section wp_at_rules.
       as (physHist absHist pred) "(R & reins)".
     iNamed "R".
 
-    (* iNamed 1. *)
-
     set (extra := (Build_extraStateInterp _ _)).
     iApply wp_fupd.
 
-    iDestruct (history_full_entry_frag_lookup with "fullHist hist") as %look.
-    destruct look as (enc & lookTS & decodeEnc).
+    iDestruct (history_full_entry_frag_lookup with "fullHist hist")
+      as %(enc & lookTS & decodeEnc).
 
-    iApply (wp_cmpxchg (extra := {| extra_state_interp := True |})
-             with "[$pts $val]").
-    { admit. }
+    iApply (wp_cmpxchg with "[#] [$pts $val]").
+    { iIntros (t_l [vM SVm PVm BVm] leT physHistLook).
+
+      assert (t_i ≤ t_l) as le.
+      { etrans; first done. etrans; last done. f_equiv. solve_view_le. }
+
+      eassert _ as  temp. { eapply read_atomic_location; done. }
+      destruct temp as (s_l & encSL & ? & ? & ? & <- & orderRelated).
+
+      iDestruct ("impl" $! _ vM orderRelated) as "(safe & _)".
+      iEval (monPred_simpl) in "safe".
+      iEval (setoid_rewrite monPred_at_pure) in "safe".
+      simpl.
+      iApply ("safe" $! (TV ⊔ (SVm, PVm, ∅)) with "[%]").
+      { solve_view_le. }
+
+      iDestruct (big_sepM2_lookup_acc with "predHolds") as "[predHolds predMap]";
+        [done|done|].
+      simpl.
+      iNext.
+      iDestruct (predicate_holds_phi_decode with "predEquiv predHolds") as "PH";
+        first done.
+      iApply monPred_mono; last iApply "PH". solve_view_le. }
     iEval (simpl).
     iIntros "!>" (t_l v_l ???? succ) "(%le & #val2 & % & % & disj)".
     iFrame "val2".
@@ -918,8 +938,8 @@ Section wp_at_rules.
         (* apply thread_view_le_l. *)
         admit. }
 
-      iDestruct "impl" as "[impl _]".
-      iDestruct ("impl" $! _ _ s3InclS') as "[impl1 impl2]".
+      (* iDestruct "impl" as "[impl _]". *)
+      iDestruct ("impl" $! _ _ orderRelated) as "[hi [[impl1 impl2] _]]".
       rewrite monPred_at_objectively.
 
       iDestruct ("impl1" with "PH") as "[PH R]".
@@ -958,13 +978,20 @@ Section wp_at_rules.
       iSpecialize ("Φpost" $! _ true s_l).
       iEval (monPred_simpl) in "Φpost".
       iApply "Φpost".
-      { admit. }
+      { iPureIntro. solve_view_le. }
       iLeft.
       iSplitPure; first done.
       iSplitL "Q".
       { rewrite /post_fence. simpl.
         iApply monPred_mono; last iApply "Q".
-        admit. }
+        repeat destruct_thread_view; repeat destruct_thread_view_le.
+        rewrite thread_view_lub.
+        assert (SV ⊔ SVm ⊑ <[ℓ:=MaxNat (t_l + 1)]> (SV ⊔ SVm)) as le2.
+        { apply view_insert_le. rewrite lookup_zero_lub. lia. }
+        apply thread_view_le.
+        - etrans; last apply le2. solve_view_le.
+        - apply view_lub_le; solve_view_le.
+        - simpl_view. solve_view_le. }
       iExists _.
       iFrame "#".
       simpl. iPureIntro. rewrite lookup_zero_insert. done.
@@ -1004,7 +1031,6 @@ Section wp_at_rules.
       iEval (monPred_simpl) in "Φpost".
       iApply "Φpost".
 
-      (* iApply monPred_mono; last iApply "Φpost". *)
       { iPureIntro.
         etrans; first done. repeat split; auto using view_le_l. }
       iRight.
