@@ -116,6 +116,15 @@ Section increasing_map.
     congruence.
   Qed.
 
+  Lemma increasing_map_insert_succ R m t_i s_i s_t :
+    increasing_map R m →
+    m !! t_i = Some s_i →
+    R s_i s_t →
+    (∀ t_c (s_c : positive),
+      m !! t_c = Some s_c → (S t_i) < t_c → R s_t s_c) →
+    increasing_map R (<[(t_i + 1) := s_t]> m).
+  Proof. Admitted.
+
 End increasing_map.
 
 Definition increasing_list {A} (R : relation A) (ss : list A) :=

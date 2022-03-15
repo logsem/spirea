@@ -676,7 +676,7 @@ Section wp_at_rules.
     iFrame "valNew".
 
     iDestruct (history_full_entry_frag_lookup with "fullHist hist") as %look'.
-    destruct look' as (enc' & absHistLook' & hip).
+    destruct look' as (e_i & absHistLook' & hip).
     assert (is_Some (physHist !! t_i)) as [vI physHistLook].
     { rewrite -elem_of_dom domEq elem_of_dom. done. }
 
@@ -694,22 +694,18 @@ Section wp_at_rules.
          (increasing_map_insert_after _ _ _ _ _ (encode s_t) increasing
                                       absHistLook'); last done.
         eapply encode_relation_decode_iff; eauto using decode_encode. }
-      iIntros (t_c encSC ? ?).
-      epose proof (increasing _ _ _ _ a0 absHistLook' a) as related.
-      epose proof (encode_relation_inv _ _ _ related)
-        as (s_i' & s_c & eqX & decodeS' & incl3).
-      assert (s_i = s_i') as <-. { congruence. }
-      simpl.
-      rewrite /encode_relation.
-      rewrite decode_encode.
-      rewrite decodeS'.
-      simpl.
+      iIntros (t_c e_c ? iLeC).
 
-      assert (is_Some (physHist !! t_c)) as [vC physHistLook'].
+      assert (is_Some (physHist !! t_c)) as [[????] look2].
       { rewrite -elem_of_dom domEq elem_of_dom. done. }
 
+      eassert _ as  temp. { eapply (read_atomic_location t_i t_c); done || lia. }
+      destruct temp as (s_c & encSC & ? & decodeS' & ? & <- & orderRelated).
+      simplify_eq.
+      rewrite /encode_relation. rewrite decode_encode. rewrite decodeS'.
+
       iDestruct (big_sepM2_delete with "predHolds") as "[phiC predHolds]".
-      { rewrite lookup_delete_ne; [apply physHistLook' | lia]. }
+      { rewrite lookup_delete_ne; [apply look2 | lia]. }
       { rewrite lookup_delete_ne; [apply a | lia]. }
 
       iDestruct (predicate_holds_phi_decode with "predEquiv phiC") as "phiC";
@@ -719,7 +715,7 @@ Section wp_at_rules.
       iEval (monPred_simpl) in "greater".
       iEval (setoid_rewrite monPred_at_pure) in "greater".
 
-      iApply ("greater" $! (TV' ⊔ (msg_to_tv vC) ⊔ (msg_to_tv vI))).
+      iApply ("greater" $! (TV' ⊔ (_) ⊔ (msg_to_tv vI))).
       { iPureIntro. etrans; first apply incl.
         rewrite -assoc.
         apply thread_view_le_l. }
@@ -792,16 +788,21 @@ Section wp_at_rules.
   the resource we want to extract in case of failure. *)
   Lemma wp_cmpxchg_at Q1 Q2 Q3 ℓ prot s_i (v_i : val) v_t R s_t st E :
     {{{
-      ⎡ is_at_loc ℓ ⎤ ∗ store_lb ℓ prot s_i ∗
+      ⎡ is_at_loc ℓ ⎤ ∗
+      store_lb ℓ prot s_i ∗
       (∀ s_l v_l, ⌜ s_i ⊑ s_l ⌝ -∗
         ((▷ prot.(pred) s_l v_l _) -∗ ⌜ vals_compare_safe v_i v_l ⌝) ∗
-        (
-         ((* in case of success *)
-           (<obj> (prot.(pred) s_l v_l _ -∗ prot.(pred) s_l v_l _ ∗ R s_l)) ∗
-           (R s_l -∗ prot.(pred) s_t v_t _ ∗ Q1 s_l))
-         ∧
-            (* in case of failure *)
-            ((<obj> (prot.(pred) s_l v_l _ -∗ prot.(pred) s_l v_l _ ∗ Q2 s_l)) ∗ Q3)
+        (((* in case of success *)
+          (* The state we write fits in the history. *)
+          ⌜ s_l ⊑ s_t ⌝ ∗
+          (∀ s_n v_n, ⌜ s_l ⊑ s_n ⌝ -∗ prot.(pred) s_l v_l _ -∗
+            prot.(pred) s_n v_n _ -∗ ⌜ s_t ⊑ s_n ⌝) ∗
+          (* Extract from the location we load. *)
+          (<obj> (prot.(pred) s_l v_l _ -∗ prot.(pred) s_l v_l _ ∗ R s_l)) ∗
+          (* Establish the invariant for the value we store. *)
+          (R s_l -∗ prot.(pred) s_t v_t _ ∗ Q1 s_l))
+        ∧ (* in case of failure *)
+          ((<obj> (prot.(pred) s_l v_l _ -∗ prot.(pred) s_l v_l _ ∗ Q2 s_l)) ∗ Q3)
         ))
     }}}
       CmpXchg #ℓ v_i v_t @ st; E
@@ -872,74 +873,14 @@ Section wp_at_rules.
       eassert _ as  temp. { eapply read_atomic_location; done. }
       destruct temp as (s_l & encSL & ? & ? & ? & <- & orderRelated).
 
-      iDestruct (big_sepM2_lookup_acc with "predHolds") as "[predHolds predMap]";
+      iDestruct (big_sepM2_delete with "predHolds") as "[predL predMap]";
         [done|done|].
       simpl.
 
-      iDestruct (predicate_holds_phi_decode with "predEquiv predHolds") as "PH";
+      iDestruct (predicate_holds_phi_decode with "predEquiv predL") as "PH";
         first done.
 
-      iAssert (
-        ⌜increasing_map (encode_relation sqsubseteq) (<[(t_l + 1)%nat := encode s_t]> absHist)⌝
-      )%I as %incri.
-      { iApply (bi.pure_mono).
-        { apply
-          (increasing_map_insert_after _ _ _ _ _ (encode s_t) increasing
-                                        lookTS); last lia.
-          eapply encode_relation_decode_iff; eauto using decode_encode.
-          admit. }
-        iIntros (t_c encSC ? ?).
-        epose proof (increasing _ _ _ _ a0 lookTS a) as related.
-        (* epose proof (encode_relation_inv _ _ _ related) *)
-        (*   as (s_i' & s_c & eqX' & decodeS' & incl3). *)
-        (* assert (s_i = s_i') as <-. { congruence. } *)
-        simpl.
-        rewrite /encode_relation.
-        rewrite decode_encode.
-        (* rewrite decodeS'. *)
-        (* simpl. *)
-
-        (* assert (is_Some (physHist !! t_c)) as [vC physHistLook']. *)
-        (* { rewrite -elem_of_dom domEq elem_of_dom. done. } *)
-
-        (* iDestruct (big_sepM2_delete with "predHolds") as "[phiC predHolds]". *)
-        (* { rewrite lookup_delete_ne; [apply physHistLook' | lia]. } *)
-        (* { rewrite lookup_delete_ne; [apply a | lia]. } *)
-
-        (* iDestruct (predicate_holds_phi_decode with "predEquiv phiC") as "phiC"; *)
-        (*   first done. *)
-
-        (* iSpecialize ("greater" $! _ _ _). *)
-        (* iEval (monPred_simpl) in "greater". *)
-        (* iEval (setoid_rewrite monPred_at_pure) in "greater". *)
-
-        (* iApply ("greater" $! (TV' ⊔ (msg_to_tv vC) ⊔ (msg_to_tv vI))). *)
-        (* { iPureIntro. etrans; first apply incl. *)
-        (*   rewrite -assoc. *)
-        (*   apply thread_view_le_l. } *)
-        (* monPred_simpl. *)
-        (* iFrame. *)
-        (* iSplitL "phiI". *)
-        (* { iApply monPred_mono; last iApply "phiI". apply thread_view_le_r. } *)
-        (* iSplitL "phi". *)
-        (* { iApply monPred_mono; last iApply "phi". *)
-        (*   etrans; last apply thread_view_le_l. *)
-        (*   etrans; last apply thread_view_le_l. *)
-        (*   destruct TV as [[??]?]. *)
-        (*   destruct TV' as [[??]?]. *)
-        (*   repeat split. *)
-        (*   - apply incl. *)
-        (*   - apply incl. *)
-        (*   - apply view_empty_least. } *)
-
-        (* iApply monPred_mono; last iApply "phiC". *)
-        (* rewrite (comm _ TV'). *)
-        (* rewrite -assoc. *)
-        (* apply thread_view_le_l. *)
-        admit. }
-
-      (* iDestruct "impl" as "[impl _]". *)
-      iDestruct ("impl" $! _ _ orderRelated) as "[hi [[impl1 impl2] _]]".
+      iDestruct ("impl" $! _ _ orderRelated) as "[hi [(%above & below & impl1 & impl2) _]]".
       rewrite monPred_at_objectively.
 
       iDestruct ("impl1" with "PH") as "[PH R]".
@@ -948,8 +889,50 @@ Section wp_at_rules.
       { iPureIntro. apply thread_view_le_l. }
       { iApply monPred_mono; last iApply "R". apply thread_view_le_r. }
 
-      iSpecialize ("predMap" with "[PH]").
-      { iApply predicate_holds_phi_decode; done. }
+      iAssert (
+        ⌜increasing_map (encode_relation sqsubseteq) (<[(t_l + 1)%nat := encode s_t]> absHist)⌝
+      )%I as %incri.
+      {
+
+        iApply (bi.pure_mono).
+        { apply
+            (increasing_map_insert_succ _ _ _ _ (encode s_t) increasing
+                                          H3).
+          eapply encode_relation_decode_iff; eauto using decode_encode. }
+        iIntros (t_c e_c ? ?).
+
+        assert (is_Some (physHist !! t_c)) as [[v_c cSV cFV ?] look2].
+        { rewrite -elem_of_dom domEq elem_of_dom. done. }
+
+        eassert _ as  temp. { eapply (read_atomic_location t_l t_c); done || lia. }
+        destruct temp as (s_c & encSC & ? & decodeS' & ? & <- & orderRelated2).
+        simplify_eq.
+        rewrite /encode_relation. rewrite decode_encode. rewrite decodeS'.
+        simpl.
+
+        iDestruct (big_sepM2_delete with "predMap") as "[predC predMap]".
+        { rewrite lookup_delete_ne; [apply look2 | lia]. }
+        { rewrite lookup_delete_ne; [apply a | lia]. }
+
+        iDestruct (predicate_holds_phi_decode with "predEquiv predC") as "predC";
+          first done.
+        simpl.
+
+        iSpecialize ("below" $! s_c v_c orderRelated2).
+        iEval (monPred_simpl) in "below".
+        iApply ("below" $! (TV ⊔ (SVm, FVm, ∅) ⊔ (_, _, _)) with "[%] [PH] [predC]").
+        { rewrite -assoc. apply thread_view_le_l. }
+        2: { iApply monPred_mono; last iApply "predC". apply thread_view_le_r. }
+        { iApply monPred_mono; last iApply "PH".
+          destruct TV as [[??]?].
+          rewrite thread_view_lub.
+          solve_view_le. } }
+
+      iDestruct (big_sepM2_insert_delete _ _ _ _ (Msg _ _ _ _) with "[PH $predMap]") as "predMap".
+      { iApply predicate_holds_phi_decode; [done|done|].
+        iApply monPred_mono; last iApply "PH". simpl. done. }
+      rewrite (insert_id physHist t_l); last done.
+      rewrite (insert_id absHist t_l); last done.
 
       iMod ("reins" $! (t_l + 1) s_t
         with "[//] [//] [] [] [HI predMap] fullHist [//] pts") as "(#frag & $)".
@@ -1013,12 +996,12 @@ Section wp_at_rules.
       iDestruct (predicate_holds_phi_decode with "predEquiv predHolds") as "PH";
         first done.
 
-      (* iDestruct "impl" as "[_ impl]". *)
       iDestruct ("impl" $! _ _ orderRelated) as "[HI [_ [impl Q3]]]".
       rewrite monPred_at_objectively.
-      iSpecialize ("impl" $! ⊥).
+      iSpecialize ("impl" $! (∅, ∅, ∅)).
       iEval (monPred_simpl) in "impl".
-      iDestruct ("impl" $! _ _ with "PH") as "[PH Q2]".
+      iDestruct ("impl" $! _ with "[%] PH") as "[PH Q2]".
+      { solve_view_le. }
 
       iSpecialize ("predMap" with "[PH]").
       { iApply predicate_holds_phi_decode; done. }
@@ -1041,7 +1024,7 @@ Section wp_at_rules.
       { repeat split; eauto using view_le_r, view_empty_least.
         rewrite assoc. apply view_le_r. }
       { etrans; first done. etrans; first done. repeat split; auto using view_le_l. }
-    Admitted.
+    Qed.
 
   (** [Q1] is the resource we want to extract in case of success and and [Q2] is
   the resource we want to extract in case of failure. *)
