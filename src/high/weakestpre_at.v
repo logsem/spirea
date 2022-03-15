@@ -617,24 +617,24 @@ Section wp_at_rules.
   (* Rule for store on an atomic. *)
   Lemma wp_store_at ℓ s_i s_t v_t (prot : LocationProtocol ST) st E :
     {{{
-       "%targetGt" ∷ ⌜ s_i ⊑ s_t ⌝ ∗
-      "isAt" ∷ ⎡ is_at_loc ℓ ⎤ ∗
-      "storeLb" ∷ store_lb ℓ prot s_i ∗
-      "phi" ∷ <nobuf> (prot.(pred) s_t v_t _) ∗
+      ⌜ s_i ⊑ s_t ⌝ ∗
+      ⎡ is_at_loc ℓ ⎤ ∗
+      store_lb ℓ prot s_i ∗
+      <nobuf> (prot.(pred) s_t v_t _) ∗
       (* NOTE: This does _not_ work. *)
       (* "phi" ∷ (∀ v_i, ϕ s_i v_i _ -∗ ϕ s_t v_t _ ∗ ϕ s_i v_i _) ∗ *)
       (* NOTE: This should work and be more general. *)
       (* "phi" ∷ (∀ v_i, (<obj> (ϕ s_i v_i -∗ ϕ s_i_v ∗ R)) ∗ (R -∗ ϕ s_t v_t)) ∗ *)
       (* The new state must be greater than the possible current states. *)
-      "greater" ∷
-        (∀ v_i s_c v_c,
-          prot.(pred) s_i v_i _ ∗ prot.(pred) s_t v_t _ ∗ prot.(pred) s_c v_c _ -∗
-            ⌜ s_t ⊑ s_c ∧ s_c ⊑ s_t ⌝)
+      (∀ v_i s_c v_c,
+        prot.(pred) s_i v_i _ ∗ prot.(pred) s_t v_t _ ∗ prot.(pred) s_c v_c _ -∗
+          ⌜ s_t ⊑ s_c ∧ s_c ⊑ s_t ⌝)
     }}}
       #ℓ <-{rel} v_t @ st; E
     {{{ RET #(); store_lb ℓ prot s_t }}}.
   Proof.
-    intros Φ. iStartProof (iProp _). iIntros (TV). iNamed 1.
+    intros Φ. iStartProof (iProp _). iIntros (TV).
+    iIntros "(%targetGt & isAt & storeLb & phi & greater)".
     iDestruct (store_lb_protocol with "storeLb") as "#knowProt".
     iDestruct (know_protocol_extract with "knowProt")
       as "(#knowPred & #knowPreorder & #knowBumper)".
