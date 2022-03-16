@@ -66,6 +66,9 @@ Section increasing_map.
     - by apply increasing.
   Qed.
 
+  (* NOTE: We probably could've used the [increasing_map_insert] lemma above to
+  show the three insert lemmas below. *)
+
   Lemma increasing_map_insert_after R `{!Transitive R} m t_i t_t s_i s_t :
     increasing_map R m →
     m !! t_i = Some s_i →
@@ -79,7 +82,6 @@ Section increasing_map.
     intros t1 t2 s1 s2 lt.
     destruct (decide (t_t = t1)) as [eq1|neq1];
       destruct (decide (t_t = t2)) as [eq2|neq2].
-      (* subst; rewrite ?lookup_insert; try (rewrite lookup_insert_ne; last done). *)
     - lia.
     - subst.
       rewrite lookup_insert.
@@ -116,14 +118,36 @@ Section increasing_map.
     congruence.
   Qed.
 
-  Lemma increasing_map_insert_succ R m t_i s_i s_t :
+  Lemma increasing_map_insert_succ R `{!Transitive R} m t_i s_i s_t :
     increasing_map R m →
     m !! t_i = Some s_i →
     R s_i s_t →
-    (∀ t_c (s_c : positive),
+    (∀ t_c (s_c : A),
       m !! t_c = Some s_c → (S t_i) < t_c → R s_t s_c) →
     increasing_map R (<[(t_i + 1) := s_t]> m).
-  Proof. Admitted.
+  Proof.
+    intros increasing look sLe tLe.
+    intros t1 t2 s1 s2 lt.
+    destruct (decide ((t_i + 1) = t1)) as [eq1|neq1];
+      destruct (decide ((t_i + 1) = t2)) as [eq2|neq2].
+    - lia.
+    - subst.
+      rewrite lookup_insert.
+      rewrite lookup_insert_ne; last done.
+      intros [= ->] ?.
+      eapply tLe; [done | lia].
+    - subst.
+      rewrite lookup_insert_ne; last done.
+      rewrite lookup_insert.
+      intros look2 [= <-].
+      assert (t1 = t_i ∨ t1 < t_i) as [<-|ho] by lia.
+      * simplify_eq. done.
+      * etrans; last apply sLe.
+        rewrite /increasing_map in increasing.
+        eapply increasing; done.
+    - do 2 (rewrite lookup_insert_ne; last done).
+      apply increasing; done.
+  Qed.
 
 End increasing_map.
 
