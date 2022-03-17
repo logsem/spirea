@@ -113,3 +113,5 @@ End mapsto_na_flushed.
 (* Global Instance mapsto_na_flushed_as_fractional `{nvmFixedG Σ, nvmDeltaG Σ, AbstractState ST} per l q v : *)
 (*   AsFractional (mapsto_na per l q v) (λ q, mapsto_na per l q v)%I q. *)
 (* Proof. split; [done | apply _]. Qed. *)
+
+Typeclasses Opaque mapsto_na_flushed.

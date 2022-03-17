@@ -86,3 +86,5 @@ Section protocol.
   Proof. iNamed 1. iFrame "#". Qed.
 
 End protocol.
+
+Opaque know_protocol.

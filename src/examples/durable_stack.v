@@ -100,8 +100,8 @@ Section definitions.
        changed.
    *)
 
-  Program Definition toNext_prot : LocationProtocol (singl val) :=
-    {| pred := λ '(mk_singl v) v' _, ⌜ v = v' ⌝%I;
+  Program Definition toNext_prot : LocationProtocol (numbered val) :=
+    {| pred := λ '(mk_numbered t v) v' _, ⌜ v = v' ⌝%I;
        bumper v := v |}.
   Next Obligation. iIntros (?[?]?) "H". iCrashFlush. done. Qed.
   Next Obligation. destruct s. simpl. apply _. Qed.
@@ -140,14 +140,14 @@ Section definitions.
         ℓnode ↦_{nil_node_prot}^{q} [()] ∗
         (* know_protocol ℓnode nil_node_prot ∗ *)
         flush_lb ℓnode nil_node_prot ()
-    | x :: xs' => ∃ (ℓtoNext ℓnext : loc) q1 q2,
+    | x :: xs' => ∃ (ℓtoNext ℓnext : loc) q1 q2 i,
         (* ℓnode *)
         ℓnode ↦_{cons_node_prot x ℓtoNext}^{q1} [()] ∗
         (* know_protocol ℓnode (cons_node_prot x ℓtoNext) ∗ *)
         flush_lb ℓnode (cons_node_prot x ℓtoNext) () ∗
         (* ℓtoNext *)
         (* know_protocol ℓtoNext toNext_prot ∗ *)
-        mapsto_na_flushed ℓtoNext toNext_prot q2 (mk_singl #ℓnext) ∗
+        mapsto_na_flushed ℓtoNext toNext_prot q2 (mk_numbered i #ℓnext) ∗
         (* know_protocol ℓnext (constant_prot #ℓnode) ∗ *)
         is_node ℓnext xs'
     end.
@@ -168,19 +168,19 @@ Section definitions.
     - iDestruct 1 as (?) "(nodePts & lb)".
       iCrashFlush.
       iDestruct "lb" as ([] le) "(#rec & lb)".
-      iDestruct (recovered_at_or_lost with "rec nodePts") as "nodePts".
+      iDestruct (crashed_in_or_lost with "rec nodePts") as "nodePts".
       iDestruct "nodePts" as ([] elem) "(nodePts & ?)".
       iExists _. iFrame "nodePts". iFrame.
       iApply persist_lb_to_flush_lb.
       iFrame "lb".
-    - iDestruct 1 as (????) "(nodePts & nodeFlushLb & toNextFlush & node)".
+    - iDestruct 1 as (?????) "(nodePts & nodeFlushLb & toNextFlush & node)".
       iApply IH in "node".
       iCrashFlush.
       iDestruct "nodeFlushLb" as ([] ?) "(#nodeRec & toNextFlushLb)" .
       iDestruct "toNextFlush" as "[toNextFlush toNextRec]".
-      iDestruct (recovered_at_or_lost with "nodeRec nodePts") as "nodePts".
+      iDestruct (crashed_in_or_lost with "nodeRec nodePts") as "nodePts".
       iDestruct "nodePts" as ([]?) "[nodePts _]".
-      iExists _, _, _, q2.
+      iExists _, _, _,  q2, _.
       iFrame.
       iApply persist_lb_to_flush_lb.
       iFrame.
@@ -193,7 +193,7 @@ Section definitions.
     induction xs as [|x xs IH]; iIntros (ℓnode).
     - iDestruct 1 as (q) "([pts1 pts2] & #r)".
       iSplitL "pts1"; iFrame "r"; naive_solver.
-    - iDestruct 1 as (????) "([pts1 pts2] & #? & toNextPts & node)".
+    - iDestruct 1 as (?????) "([pts1 pts2] & #? & toNextPts & node)".
       rewrite -(Qp_div_2 q2).
       iDestruct (mapsto_na_flushed_split with "toNextPts") as "[toNextPts1 toNextPts2]".
       iDestruct (IH with "node") as "[node1 node2]".
@@ -294,7 +294,7 @@ Section proof.
       "[#(%ℓstack & -> & #(stackSh & stackLb)) #phi] ϕpost".
     rewrite /push.
     wp_pures.
-    wp_apply (wp_alloc_na _ (mk_singl _) toNext_prot with "[]").
+    wp_apply (wp_alloc_na _ (mk_numbered 0 _) toNext_prot with "[]").
     { simpl. done. }
     iIntros (ℓtoNext) "toNextPts".
     wp_pures.
@@ -308,7 +308,7 @@ Section proof.
     iAssert (∃ xs x', ⌜ last xs = Some x' ⌝ ∗ ℓtoNext ↦_{_} xs)%I with "[toNextPts]" as "toNextPts".
     { iExists _, _. iFrame. done. }
     iLöb as "IH".
-    iDestruct "toNextPts" as (xs' x' lastEq) "toNextPts".
+    iDestruct "toNextPts" as (xs' [n' x'] lastEq) "toNextPts".
     wp_pures.
 
     (* The load of the pointer to the head. *)
@@ -325,8 +325,8 @@ Section proof.
     iIntros ([] v) "[storeLb fence]".
 
     wp_pures.
-    wp_apply (wp_store_na _ _ _ _ _ (mk_singl v) with "[$toNextPts]").
-    { done. } { done. }
+    wp_apply (wp_store_na _ _ _ _ _ (mk_numbered (S n') v) with "[$toNextPts]").
+    { done. } { apply numbered_le. lia. }
     { simpl. done. }
     simpl.
     iIntros "toNextPts".
@@ -352,7 +352,7 @@ Section proof.
         iSplitPure; first done.
         iFrame "phi phis".
         (* iFrame "nodeFlushLb". *)
-        iExists _, _ , _, _.
+        iExists _, _ , _, _, _.
         iFrame "isNode".
         iFrame "nodePts nodeFlushLb".
         iExists _. iFrame "toNextPts toNextPtsFl".
@@ -409,7 +409,7 @@ Section proof.
       iApply "ϕpost". iLeft. done.
     - (* The queue is non-empty. *)
       iDestruct "phis" as "[phi phis]".
-      iDestruct "node" as (????) "(headPts & #headFlushLb & toNextPts & node)".
+      iDestruct "node" as (?????) "(headPts & #headFlushLb & toNextPts & node)".
       wp_apply (wp_load_na with "[$headPts]").
       { done. }
       { iModIntro. iIntros (?) "#eq". iFrame "eq". iDestruct "eq" as "-#eq". 
@@ -417,7 +417,7 @@ Section proof.
       simpl.
       iIntros (v) "[headPts <-]".
       wp_pures.
-      iNamed "toNextPts".
+      rewrite /mapsto_na_flushed. iNamed "toNextPts".
       wp_apply (wp_load_na with "[$pts]").
       { done. }
       { iModIntro. iIntros (?). rewrite /toNext_prot. iIntros "#eq".
