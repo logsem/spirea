@@ -340,8 +340,11 @@ Section proof.
 
     wp_apply (wp_cas_at (λ _, True)%I (λ _, True)%I with "[nodePts toNextPts isNode]").
     { iFrame "stackSh stackLb".
+      iIntros (???).
+      iSplitL "". { iIntros "_". iPureIntro. left. done. }
       iSplit.
-      { iIntros (??).
+      { iSplitPure. { destruct s_l. reflexivity. }
+        iSplitL "". { iIntros (???) "??". done. }
         iSplitL "".
         { iIntros "!>". iNamed 1. iSplitL "isNode".
           - repeat iExists _. iFrame "∗#". done.
@@ -357,16 +360,14 @@ Section proof.
         iFrame "nodePts nodeFlushLb".
         iExists _. iFrame "toNextPts toNextPtsFl".
         iPureIntro. apply last_app. done. }
-      iIntros (??).
       iSplitL ""; first iIntros "!> $ //". iAccu. }
-    iIntros (b) "[(-> & H & lb)|(%s' & -> & le & _ & (nodePts & toNextPts & isNode))]".
+    iIntros (b ?) "[(-> & H & lb)|(-> & le & _ & (nodePts & toNextPts & isNode))]".
     (* The CAS succeeded. *)
     - wp_pures. iModIntro. iApply "ϕpost". done.
     (* The CAS failed. *)
     - wp_pure _.
       iApply ("IH" with "ϕpost nodePts [toNextPts]").
       { iExists _, _. iFrame "toNextPts". iPureIntro. apply last_app. done. }
-    Unshelve. { apply (). }
   Qed.
 
   Lemma wpc_pop stack s E :
@@ -428,18 +429,21 @@ Section proof.
 
       wp_apply (wp_cas_at (λ _, True)%I (λ _, True)%I with "[node]").
       { iFrame "stackSh stackLb".
+        iIntros (???).
+        iSplitL "". { iIntros "_". iPureIntro. left. done. }
         iSplit.
-        { iIntros (??).
-          iSplitL "".
-          { iIntros "!> $". naive_solver. }
+        { iSplitPure. { destruct s_l. reflexivity. }
+          iSplitL "". { iIntros (???) "??". done. }
+        (* { iIntros (??). *)
+          iSplitL "". { iIntros "!> $". naive_solver. }
           simpl. iIntros "_". simpl. rewrite right_id.
           rewrite /toHead_prot.
           iExists _, xs.
           iSplitPure; first done.
           iFrame "node phis". }
-        iIntros (??).
+        (* iIntros (??). *)
         iSplitL ""; first iIntros "!> $ //". iAccu. }
-      iIntros (b) "[(-> & H & lb)|(%h & -> & ?)]".
+      iIntros (b ?) "[(-> & H & lb)|(-> & ?)]".
       * (* The CAS succeeded. *)
         wp_pures.
         (* Now we just need to load the value. *)
@@ -447,7 +451,6 @@ Section proof.
       * (* The CAS failed. *)
         wp_pure _.
         iApply ("IH" with "ϕpost").
-        Unshelve. { apply (). }
   Qed.
 
 End proof.

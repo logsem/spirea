@@ -1028,36 +1028,41 @@ Section wp_at_rules.
 
   (** [Q1] is the resource we want to extract in case of success and and [Q2] is
   the resource we want to extract in case of failure. *)
-  Lemma wp_cas_at Q1 Q2 Q3 ℓ prot s_i v_i v_t R s_t st E :
+  Lemma wp_cas_at Q1 Q2 Q3 ℓ prot s_i (v_i v_t : val) R s_t st E :
     {{{
       ⎡ is_at_loc ℓ ⎤ ∗
       store_lb ℓ prot s_i ∗
-      (* in case of success *)
-      ((∀ s_a, ⌜ s_i ⊑ s_a ⌝ -∗
-        (<obj> (prot.(pred) s_a v_i _ -∗ prot.(pred) s_a v_i _ ∗ R s_a)) ∗
-        (R s_a -∗ prot.(pred) s_t v_t _ ∗ Q1 s_a)) ∧
-        (* in case of failure *)
-        (∀ s_a, ⌜ s_i ⊑ s_a ⌝ -∗
-          (<obj> (prot.(pred) s_a v_i _ -∗ prot.(pred) s_a v_i _ ∗ Q2 s_a)) ∗ Q3))
+      (∀ s_l v_l, ⌜ s_i ⊑ s_l ⌝ -∗
+        ((▷ prot.(pred) s_l v_l _) -∗ ⌜ vals_compare_safe v_i v_l ⌝) ∗
+        (((* in case of success *)
+          (* The state we write fits in the history. *)
+          ⌜ s_l ⊑ s_t ⌝ ∗
+          (∀ s_n v_n, ⌜ s_l ⊑ s_n ⌝ -∗ prot.(pred) s_l v_l _ -∗
+            prot.(pred) s_n v_n _ -∗ ⌜ s_t ⊑ s_n ⌝) ∗
+          (* Extract from the location we load. *)
+          (<obj> (prot.(pred) s_l v_l _ -∗ prot.(pred) s_l v_l _ ∗ R s_l)) ∗
+          (* Establish the invariant for the value we store. *)
+          (R s_l -∗ prot.(pred) s_t v_t _ ∗ Q1 s_l))
+        ∧ (* in case of failure *)
+          ((<obj> (prot.(pred) s_l v_l _ -∗ prot.(pred) s_l v_l _ ∗ Q2 s_l)) ∗ Q3)
+        ))
     }}}
       CAS #ℓ v_i v_t @ st; E
-    {{{ b, RET #b;
-      (⌜ b = true ⌝ ∗ Q1 s_t ∗ store_lb ℓ prot s_t) ∨
-      (∃ s_a, ⌜ b = false ⌝ ∗ ⌜ s_i ⊑ s_a ⌝ ∗ Q2 s_a ∗ Q3)
+    {{{ b s_l, RET #b;
+      (⌜ b = true ⌝ ∗ <fence> Q1 s_l ∗ store_lb ℓ prot s_t) ∨
+      (⌜ b = false ⌝ ∗ ⌜ s_i ⊑ s_l ⌝ ∗ <fence> (Q2 s_l) ∗ Q3)
     }}}.
   Proof.
-    intros Φ. iStartProof (iProp _). iIntros (TV).
-    iIntros "(isAt & storeLb & more)".
-    iDestruct (store_lb_protocol with "storeLb") as "#temp". iNamed "temp".
-    (* rewrite /store_lb. *)
-    (* iDestruct "storeLb" as (t_i) "(#prot & #hist & %tSLe)". *)
-    (* We unfold the WP. *)
-    iIntros (TV' incl) "Φpost".
-    iApply wp_unfold_at.
-    iIntros ([[SV PV] BV] incl2) "#val".
-    (* iApply wp_extra_state_interp. { done. } *)
-    (* { apply prim_step_store_rel_no_fork. } *)
-    (* iNamed 1. *)
-  Admitted.
+    intros Φ.
+    iIntros "H Φpost".
+    iApply (wp_bind ([SndCtx])).
+    iApply (wp_cmpxchg_at with "H").
+    iIntros "!>" (v b s_l) "disj /=".
+    iApply wp_pure_step_later; first done.
+    iNext.
+    iApply wp_value.
+    iApply "Φpost".
+    iApply "disj".
+  Qed.
 
 End wp_at_rules.
