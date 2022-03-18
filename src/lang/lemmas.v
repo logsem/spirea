@@ -52,7 +52,7 @@ Lemma prim_step_load_acq_no_fork ℓ SV PV BV
   (σ1 : state nvm_lang) (g1 : global_state nvm_lang) (κ : list (language.observation nvm_lang)) 
   (e2 : language.expr nvm_lang) (σ2 : state nvm_lang) (g2 : global_state nvm_lang) 
   (efs : list (language.expr nvm_lang)) :
-  prim_step (!{acq} #ℓ `at` (SV, PV, BV)) σ1 g1 κ e2 σ2 g2 efs → efs = [].
+  prim_step (!_AT #ℓ `at` (SV, PV, BV)) σ1 g1 κ e2 σ2 g2 efs → efs = [].
 Proof.
     intros [Ki [??] [??] ? ? step].
     subst.
@@ -76,7 +76,7 @@ Proof.
     destruct Ki using rev_ind; try done.
     { simpl in *. subst. inv_impure_thread_step; try done. }
     simpl in *.
-    rewrite fill_app in H1.
+    rewrite fill_app in H.
     simpl in *.
     destruct x; try done.
 Qed.
@@ -86,7 +86,7 @@ Lemma prim_step_load_no_fork ℓ SV PV BV
   (σ1 : state nvm_lang) (g1 : global_state nvm_lang) (κ : list (language.observation nvm_lang)) 
   (e2 : language.expr nvm_lang) (σ2 : state nvm_lang) (g2 : global_state nvm_lang) 
   (efs : list (language.expr nvm_lang)) :
-  prim_step (! #ℓ `at` (SV, PV, BV)) σ1 g1 κ e2 σ2 g2 efs → efs = [].
+  prim_step (!_NA #ℓ `at` (SV, PV, BV)) σ1 g1 κ e2 σ2 g2 efs → efs = [].
 Proof.
     intros [Ki [??] [??] ? ? step].
     subst.
@@ -110,7 +110,7 @@ Proof.
     destruct Ki using rev_ind; try done.
     { simpl in *. subst. inv_impure_thread_step; try done. }
     simpl in *.
-    rewrite fill_app in H1.
+    rewrite fill_app in H.
     simpl in *.
     destruct x; try done.
 Qed.
@@ -119,7 +119,7 @@ Lemma prim_step_store_rel_no_fork ℓ (v : val) SV PV BV
   (σ1 : state nvm_lang) (g1 : global_state nvm_lang) (κ : list (language.observation nvm_lang))
   (e2 : language.expr nvm_lang) (σ2 : state nvm_lang) (g2 : global_state nvm_lang)
   (efs : list (language.expr nvm_lang)) :
-  prim_step (#ℓ <-{rel} v `at` (SV, PV, BV)) σ1 g1 κ e2 σ2 g2 efs → efs = [].
+  prim_step (#ℓ <-_AT v `at` (SV, PV, BV)) σ1 g1 κ e2 σ2 g2 efs → efs = [].
 Proof.
   intros [Ki [??] [??] ? ? step].
   subst.
@@ -138,12 +138,12 @@ Proof.
     simpl.
     inversion 1.
     simpl in *.
-    rewrite -nvm_fill_fill in H3.
+    rewrite -nvm_fill_fill in H2.
     simpl in *.
     destruct Ki using rev_ind; try done.
     { simpl in *. subst. inv_impure_thread_step; try done. }
     simpl in *.
-    rewrite fill_app in H1.
+    rewrite fill_app in H.
     simpl in *.
     destruct x; try done.
   - simpl.
@@ -156,17 +156,16 @@ Proof.
     destruct Ki using rev_ind; try done.
     { simpl in *. subst. inv_impure_thread_step; try done. }
     simpl in *.
-    rewrite fill_app in H2.
+    rewrite fill_app in H.
     simpl in *.
     destruct x; try done.
 Qed.
-
 
 Lemma prim_step_store_no_fork ℓ (v : val) SV PV BV
   (σ1 : state nvm_lang) (g1 : global_state nvm_lang) (κ : list (language.observation nvm_lang))
   (e2 : language.expr nvm_lang) (σ2 : state nvm_lang) (g2 : global_state nvm_lang)
   (efs : list (language.expr nvm_lang)) :
-  prim_step (#ℓ <- v `at` (SV, PV, BV)) σ1 g1 κ e2 σ2 g2 efs → efs = [].
+  prim_step (#ℓ <-_NA v `at` (SV, PV, BV)) σ1 g1 κ e2 σ2 g2 efs → efs = [].
 Proof.
   intros [Ki [??] [??] ? ? step].
   subst.
@@ -185,12 +184,12 @@ Proof.
     simpl.
     inversion 1.
     simpl in *.
-    rewrite -nvm_fill_fill in H3.
+    rewrite -nvm_fill_fill in H2.
     simpl in *.
     destruct Ki using rev_ind; try done.
     { simpl in *. subst. inv_impure_thread_step; try done. }
     simpl in *.
-    rewrite fill_app in H1.
+    rewrite fill_app in H.
     simpl in *.
     destruct x; try done.
   - simpl.
@@ -203,7 +202,7 @@ Proof.
     destruct Ki using rev_ind; try done.
     { simpl in *. subst. inv_impure_thread_step; try done. }
     simpl in *.
-    rewrite fill_app in H2.
+    rewrite fill_app in H.
     simpl in *.
     destruct x; try done.
 Qed.

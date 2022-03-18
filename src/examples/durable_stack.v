@@ -45,9 +45,9 @@ Definition push : expr :=
     let: "toNext" := ref_NA #() in
     let: "newNode" := ref_NA (InjR ("val", "toNext")) in
     Flush "newNode" ;;
-    (rec: "loop" <> :=
-       let: "head" := !{acq} "toHead" in
-       "toNext" <- "head" ;;
+  (rec: "loop" <> :=
+      let: "head" := !_AT "toHead" in
+       "toNext" <-_NA "head" ;;
        Flush "toNext" ;;
        Fence ;;
        if: CAS "toHead" "head" "newNode"
@@ -59,12 +59,12 @@ Definition push : expr :=
 none if the stack is empty. *)
 Definition pop : expr :=
   rec: "pop" "toHead" :=
-    let: "head" := !{acq} "toHead" in
+    let: "head" := !_AT "toHead" in
     Fence ;;
-    match: ! "head" with
+    match: !_NA "head" with
       NONE => NONE
     | SOME "pair" =>
-        let: "nextNode" := ! (Snd "pair") in
+        let: "nextNode" := !_NA (Snd "pair") in
         if: CAS "toHead" "head" "nextNode"
         then SOME (Fst "pair")
         else "pop" "toHead"

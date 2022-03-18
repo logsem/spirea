@@ -13,7 +13,7 @@ From self.high Require Import dprop resources crash_weakestpre weakestpre
      post_crash_modality protocol no_buffer abstract_state_instances locations protocol.
 From self.high.modalities Require Import fence.
 
-Definition prog : expr := let: "l" := ref_NA #1 in ! "l".
+Definition prog : expr := let: "l" := ref_NA #1 in !_NA "l".
 
 Definition pure : expr :=
   let: "a" := #1 in
@@ -67,17 +67,17 @@ Section simple_increment.
   Context `{nvmFixedG Σ, nvmDeltaG Σ}.
 
   Definition incr_both (ℓa ℓb : loc) : expr :=
-    #ℓa <- #1 ;;
+    #ℓa <-_NA #1 ;;
     Flush #ℓa ;;
     Fence ;;
-    #ℓb <- #1.
+    #ℓb <-_NA #1.
 
   (* After a crash the following is possible: [a = 0, b = 0], [a = 1, b = 0],
   and [a = 1, b = 1]. The case that is _not_ possible is: [a = 0, b = 1]. *)
 
   Definition recover (ℓa ℓb : loc) : expr :=
-    let: "a" := ! #ℓa in
-    let: "b" := ! #ℓb in
+    let: "a" := !_NA #ℓa in
+    let: "b" := !_NA #ℓb in
     if: "a" < "b"
     then #() #() (* Get stuck. *)
     else #().
@@ -145,7 +145,7 @@ Section simple_increment.
     rewrite /incr_both.
 
     (* The first store *)
-    wpc_bind (_ <- _)%E.
+    wpc_bind (_ <-_NA _)%E.
     iApply wpc_atomic_no_mask.
     iSplit. { iApply (prove_crash_condition with "aPer bPer aPts bPts"). }
     iApply (@wp_store_na with "[$aPts]").
@@ -207,7 +207,7 @@ Section simple_increment.
     iDestruct (mapsto_na_last with "bPts") as %[sB sbEq].
 
     (* Load [ℓa]. *)
-    wpc_bind (! _)%E.
+    wpc_bind (!_NA _)%E.
     iApply wpc_atomic_no_mask.
     iSplit; first iApply (prove_crash_condition with "aPer bPer aPts bPts").
 
@@ -222,7 +222,7 @@ Section simple_increment.
     { iApply (prove_crash_condition with "aPer bPer aPts bPts"). }
 
     (* Load [ℓb]. *)
-    wpc_bind (! _)%E.
+    wpc_bind (!_NA _)%E.
     iApply wpc_atomic_no_mask.
     iSplit; first iApply (prove_crash_condition with "aPer bPer aPts bPts").
     iApply (wp_load_na _ _ _ _ (λ v, ∃ sB', ⌜ sB ⊑ sB' ⌝ ∗ ⌜v = #sB⌝ ∗ flush_lb ℓa _ sB')%I

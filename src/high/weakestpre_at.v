@@ -518,7 +518,7 @@ Section wp_at_rules.
       store_lb ℓ prot s ∗
       <obj> (∀ s' v, ⌜ s ⊑ s' ⌝ -∗ prot.(pred) s' v _ -∗ Q s' v ∗ prot.(pred) s' v _)
     }}}
-      !{acq} #ℓ @ st; E
+      !_AT #ℓ @ st; E
     {{{ s' v, RET v;
       store_lb ℓ prot s' ∗
       post_fence (Q s' v) }}}.
@@ -630,7 +630,7 @@ Section wp_at_rules.
         prot.(pred) s_i v_i _ ∗ prot.(pred) s_t v_t _ ∗ prot.(pred) s_c v_c _ -∗
           ⌜ s_t ⊑ s_c ∧ s_c ⊑ s_t ⌝)
     }}}
-      #ℓ <-{rel} v_t @ st; E
+      #ℓ <-_AT v_t @ st; E
     {{{ RET #(); store_lb ℓ prot s_t }}}.
   Proof.
     intros Φ. iStartProof (iProp _). iIntros (TV).

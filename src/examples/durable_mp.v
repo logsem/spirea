@@ -28,22 +28,22 @@ From self.high.modalities Require Import fence no_buffer.
 Section program.
 
   Definition leftProg (x y : loc) : expr :=
-    #x <- #true ;;
+    #x <-_NA #true ;;
     Flush #x ;;
     Fence ;;
-    #y <-{rel} #true.
+    #y <-_AT #true.
 
   Definition rightProg (y z : loc) : expr :=
-    if: !{acq} #y = #true
-    then Fence ;; #z <- #true
+    if: !_AT #y = #true
+    then Fence ;; #z <-_NA #true
     else #().
 
   Definition prog (x y z : loc) : expr :=
     Fork (rightProg y z) ;; leftProg x y.
 
   Definition recovery x z : expr :=
-    if: ! z = #true
-    then assert: ! x = #true
+    if: !_NA z = #true
+    then assert: !_NA x = #true
     else #().
 
 End program.
@@ -146,7 +146,7 @@ Section proof.
     iIntros "#yLb #yShared #zPer zPts".
     (* Evaluate the first load. *)
     rewrite /rightProg.
-    wpc_bind (!{acq} _)%E.
+    wpc_bind (!_AT _)%E.
     iApply wpc_atomic_no_mask. whack_right_cc.
     iApply (wp_load_at _ _ (λ s v, (⌜v = #true⌝ ∗ flush_lb x inv_x true) ∨ ⌜v = #false⌝)%I inv_y with "[$yShared $yLb]").
     { iModIntro. iIntros (?? incl) "a". rewrite /inv_y.
@@ -245,7 +245,7 @@ Section proof.
       wpc_pures.
       { iApply (left_crash_condition_impl with "xPer xPts"). }
       rewrite /leftProg.
-      wpc_bind (_ <- _)%E.
+      wpc_bind (_ <-_NA _)%E.
       iApply wpc_atomic_no_mask. whack_left_cc.
       iApply (wp_store_na x _ _ _ _ true with "[$xPts]").
       { reflexivity. } { done. }
@@ -278,7 +278,7 @@ Section proof.
       wpc_pures;
         first iApply (left_crash_condition_impl with "xPer xPts").
 
-      wpc_bind (_ <-{rel} _)%E.
+      wpc_bind (_ <-_AT _)%E.
       iApply wpc_atomic_no_mask. whack_left_cc.
       iApply (wp_store_at _ false true).
       { iFrame.

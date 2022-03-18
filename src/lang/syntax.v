@@ -48,10 +48,8 @@ Module syntax.
     | Fork (e : expr)
     (* Memory operations. *)
     | AllocN (a : memory_access) (e1 e2 : expr)
-    | Load (e : expr)
-    | LoadAcquire (e : expr)
-    | Store (e1 e2 : expr)
-    | StoreRelease (e1 e2 : expr)
+    | Load (a : memory_access) (e : expr)
+    | Store (a : memory_access) (e1 e2 : expr)
     | Flush (e1 : expr)
     | Fence
     | FenceSync
@@ -156,12 +154,9 @@ Module syntax.
       | Fork e, Fork e' => cast_if (decide (e = e'))
       | AllocN a e1 e2, AllocN a' e1' e2' =>
           cast_if_and3 (decide (a = a')) (decide (e1 = e1')) (decide (e2 = e2'))
-      | Load e, Load e' => cast_if (decide (e = e'))
-      | LoadAcquire e, LoadAcquire e' => cast_if (decide (e = e'))
-      | Store e1 e2, Store e1' e2' =>
-          cast_if_and (decide (e1 = e1')) (decide (e2 = e2'))
-      | StoreRelease e1 e2, StoreRelease e1' e2' =>
-          cast_if_and (decide (e1 = e1')) (decide (e2 = e2'))
+      | Load a e, Load a' e' => cast_if_and (decide (a = a')) (decide (e = e'))
+      | Store a e1 e2, Store a' e1' e2' =>
+          cast_if_and3 (decide (a = a')) (decide (e1 = e1')) (decide (e2 = e2'))
       | Flush e, Flush e' => cast_if (decide (e = e'))
       | Fence, Fence => left _
       | FenceSync, FenceSync => left _
@@ -254,10 +249,10 @@ Module syntax.
       | Fork e => GenNode 12 [go e]
       | AllocN NA e1 e2 => GenNode 13 [go e1; go e2]
       | AllocN AT e1 e2 => GenNode 26 [go e1; go e2]
-      | Load e => GenNode 15 [go e]
-      | LoadAcquire e => GenNode 16 [go e]
-      | Store e1 e2 => GenNode 17 [go e1; go e2]
-      | StoreRelease e1 e2 => GenNode 18 [go e1; go e2]
+      | Load NA e => GenNode 15 [go e]
+      | Load AT e => GenNode 16 [go e]
+      | Store NA e1 e2 => GenNode 17 [go e1; go e2]
+      | Store AT e1 e2 => GenNode 18 [go e1; go e2]
       | Flush e => GenNode 19 [go e]
       | Fence => GenNode 20 []
       | FenceSync => GenNode 21 []
@@ -295,10 +290,10 @@ Module syntax.
       | GenNode 12 [e] => Fork (go e)
       | GenNode 13 [e1; e2] => AllocN NA (go e1) (go e2)
       | GenNode 26 [e1; e2] => AllocN AT (go e1) (go e2)
-      | GenNode 15 [e] => Load (go e)
-      | GenNode 16 [e] => LoadAcquire (go e)
-      | GenNode 17 [e1; e2] => Store (go e1) (go e2)
-      | GenNode 18 [e1; e2] => StoreRelease (go e1) (go e2)
+      | GenNode 15 [e] => Load NA (go e)
+      | GenNode 16 [e] => Load AT (go e)
+      | GenNode 17 [e1; e2] => Store NA (go e1) (go e2)
+      | GenNode 18 [e1; e2] => Store AT (go e1) (go e2)
       | GenNode 19 [e] => Flush (go e)
       | GenNode 20 [] => Fence
       | GenNode 21 [] => FenceSync
@@ -320,7 +315,7 @@ Module syntax.
     for go).
   refine (inj_countable' enc dec _).
   refine (fix go (e : expr) {struct e} := _ with gov (v : val) {struct v} := _ for go).
-  - destruct e as [v| | | | | | | | | | | | | | [|] | | | | | | | | | | |]; simpl; f_equal;
+  - destruct e as [v| | | | | | | | | | | | | | [|] | [|] | [|] | | | | | | |]; simpl; f_equal;
       [exact (gov v)| try done..].
   - destruct v; by f_equal.
   Qed.

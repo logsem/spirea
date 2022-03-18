@@ -40,12 +40,9 @@ Module nvm_lang.
     (* Memory operations. *)
     | AllocNLCtx (a : memory_access) (v2 : val)
     | AllocNRCtx (a : memory_access) (e1 : expr)
-    | LoadCtx
-    | LoadAcquireCtx
-    | StoreLCtx (v2 : val)
-    | StoreRCtx (e1 : expr)
-    | StoreReleaseLCtx (v2 : val)
-    | StoreReleaseRCtx (e1 : expr)
+    | LoadCtx (a : memory_access)
+    | StoreLCtx (a : memory_access) (v2 : val)
+    | StoreRCtx (a : memory_access) (e1 : expr)
     (* RMW memory operations. *)
     | CmpXchgLCtx (v1 : val) (v2 : val)
     | CmpXchgMCtx (e0 : expr) (v2 : val)
@@ -71,12 +68,9 @@ Module nvm_lang.
     | CaseCtx e1 e2 => Case e e1 e2
     | AllocNLCtx a v2 => AllocN a e (Val v2)
     | AllocNRCtx a e1 => AllocN a e1 e
-    | LoadCtx => Load e
-    | LoadAcquireCtx => LoadAcquire e
-    | StoreLCtx v2 => Store e (Val v2)
-    | StoreRCtx e1 => Store e1 e
-    | StoreReleaseLCtx v2 => StoreRelease e (Val v2)
-    | StoreReleaseRCtx e1 => StoreRelease e1 e
+    | LoadCtx a => Load a e
+    | StoreLCtx a v2 => Store a e (Val v2)
+    | StoreRCtx a e1 => Store a e1 e
     | CmpXchgLCtx v1 v2 => CmpXchg e (Val v1) (Val v2)
     | CmpXchgMCtx e0 v2 => CmpXchg e0 e (Val v2)
     | CmpXchgRCtx e0 e1 => CmpXchg e0 e1 e
@@ -103,10 +97,8 @@ Module nvm_lang.
     | Case e0 e1 e2 => Case (subst x v e0) (subst x v e1) (subst x v e2)
     | Fork e => Fork (subst x v e)
     | AllocN a e1 e2 => AllocN a (subst x v e1) (subst x v e2)
-    | Load e => Load (subst x v e)
-    | LoadAcquire e => LoadAcquire (subst x v e)
-    | Store e1 e2 => Store (subst x v e1) (subst x v e2)
-    | StoreRelease e1 e2 => StoreRelease (subst x v e1) (subst x v e2)
+    | Load a e => Load a (subst x v e)
+    | Store a e1 e2 => Store a (subst x v e1) (subst x v e2)
     | Flush e => Flush (subst x v e)
     | Fence => Fence
     | FenceSync => FenceSync
@@ -225,27 +217,15 @@ Module nvm_lang.
                []
                (Val $ LitV $ LitLoc ℓ)
                []
-  | LoadS ℓ v :
-     head_step (Load (Val $ LitV $ LitLoc ℓ))
-               (Some $ MEvLoad ℓ v)
+  | LoadS a ℓ v :
+     head_step (Load a (Val $ LitV $ LitLoc ℓ))
+               (Some $ MEvLoad a ℓ v)
                []
                (of_val v)
                []
-  | StoreS ℓ v :
-     head_step (Store (Val $ LitV $ LitLoc ℓ) (Val v))
-               (Some $ MEvStore ℓ v)
-               []
-               (Val $ LitV LitUnit)
-               []
-  | LoadAcquireS ℓ v :
-     head_step (LoadAcquire (Val $ LitV $ LitLoc ℓ))
-               (Some $ MEvLoadAcquire ℓ v)
-               []
-               (of_val v)
-               []
-  | StoreReleaseS ℓ v :
-     head_step (StoreRelease (Val $ LitV $ LitLoc ℓ) (Val v))
-               (Some $ MEvStoreRelease ℓ v)
+  | StoreS a ℓ v :
+     head_step (Store a (Val $ LitV $ LitLoc ℓ) (Val v))
+               (Some $ MEvStore a ℓ v)
                []
                (Val $ LitV LitUnit)
                []

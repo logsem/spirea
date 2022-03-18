@@ -178,11 +178,8 @@ Section memory.
 
   Inductive mem_event : Type :=
   | MEvAllocN (a : memory_access) ℓ (len : nat) v
-  | MEvLoad ℓ v
-  | MEvStore ℓ v
-  (* Acquire/release weak memory events. *)
-  | MEvLoadAcquire ℓ v
-  | MEvStoreRelease ℓ v
+  | MEvLoad (a : memory_access) ℓ v
+  | MEvStore (a : memory_access) ℓ v
   (* RMW are special *)
   | MEvRMW ℓ (vExp vNew : val) (* read-modify-write *)
   | MEvRMWFail ℓ (v1Exp : val) (v2Exp : val) (* for failed RMWs *)
@@ -257,7 +254,7 @@ Section memory.
      msg_val <$> (h !! t) = Some v →
      SV !!0 ℓ ≤ t →
      mem_step (σ, PV) (SV, FV, BV)
-              (MEvLoad ℓ v)
+              (MEvLoad NA ℓ v)
               (σ, PV) (SV, FV, BV)
               (* (σ, PV) ((<[ ℓ := t ]>SV), FV, BV) (* This variant includes the timestamp of the loaded msg. *) *)
   (* An atomic acquire load. *)
@@ -266,7 +263,7 @@ Section memory.
      h !! t = Some (Msg v MV MP _MP) →
      SV !!0 ℓ ≤ t →
      mem_step (σ, PV) (SV, FV, BV)
-              (MEvLoadAcquire ℓ v)
+              (MEvLoad AT ℓ v)
               (σ, PV) (SV ⊔ MV, FV, BV ⊔ MP) (* An acquire incorporates both the store view and the persistent view. *)
   (* A normal non-atomic write. *)
   | MStepStore σ SV FV BV t ℓ (v : val) h V' PV :
@@ -275,7 +272,7 @@ Section memory.
      SV !!0 ℓ < t →
      V' = <[ℓ := MaxNat t]>SV → (* V' incorporates the new event in the threads view. *)
      mem_step (σ, PV) (SV, FV, BV)
-             (MEvStore ℓ v)
+             (MEvStore NA ℓ v)
              (<[ℓ := <[t := Msg v ∅ ∅ FV]>h]>σ, PV) (V', FV, BV)
   (* An atomic release write. *)
   | MStepStoreRelease σ SV FV BV t ℓ (v : val) h V' PV :
@@ -284,7 +281,7 @@ Section memory.
      SV !!0 ℓ < t →
      V' = <[ℓ := MaxNat t]>SV → (* V' incorporates the new event in the threads view. *)
      mem_step (σ, PV) (SV, FV, BV)
-              (MEvStoreRelease ℓ v)
+              (MEvStore AT ℓ v)
               (<[ℓ := <[t := Msg v V' FV FV]>h]>σ, PV) (V', FV, BV) (* A release releases both V' and FV. *)
   (* Read-modify-write instructions. *)
   | MStepRMW σ ℓ h v_i MV MP SV t SV' FV P' BV PV v_t _MP :

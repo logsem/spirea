@@ -225,7 +225,7 @@ Section wp_na_rules.
     last ss = Some s →
     {{{ mapsto_na ℓ prot q ss ∗
         (<obj> (∀ v, prot.(pred) s v _ -∗ Q v ∗ prot.(pred) s v _)) }}}
-      Load (Val $ LitV $ LitLoc ℓ) @ positive; E
+      !_NA (Val $ LitV $ LitLoc ℓ) @ positive; E
     {{{ v, RET v; mapsto_na ℓ prot q ss ∗ Q v }}}.
   Proof.
     intros sLast Φ.
@@ -349,7 +349,7 @@ Section wp_na_rules.
     last ss = Some s__last →
     s__last ⊑ s →
     {{{ mapsto_na ℓ prot 1 ss ∗ prot.(pred) s v _ }}}
-      #ℓ <- v @ st; E
+      #ℓ <-_NA v @ st; E
     {{{ RET #(); mapsto_na ℓ prot 1 (ss ++ [s]) }}}.
   Proof.
     intros last stateGt Φ.

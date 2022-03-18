@@ -674,7 +674,7 @@ Section lifting.
   (* Non-atomic load. *)
   Lemma wp_load (SV FV BV : view) ℓ q (hist : history) s E :
     {{{ ℓ ↦h{q} hist ∗ validV SV }}}
-      ! #ℓ `at` (SV, FV, BV) @ s; E
+      !_NA #ℓ `at` (SV, FV, BV) @ s; E
     {{{ t msg, RET msg.(msg_val) `at` (SV, FV, BV);
         ℓ ↦h{q} hist ∗ ⌜hist !! t = Some msg ∧ SV !!0 ℓ ≤ t⌝ }}}.
   Proof.
@@ -715,7 +715,7 @@ Section lifting.
 
   Lemma wp_load_acquire SV PV BV ℓ q (hist : history) s E :
     {{{ ℓ ↦h{q} hist ∗ validV SV }}}
-      !{acq} #ℓ `at` (SV, PV, BV) @ s; E
+      !_AT #ℓ `at` (SV, PV, BV) @ s; E
     {{{ t v SV2 PV2 _P, RET v `at` (SV ⊔ SV2, PV, BV ⊔ PV2);
         ⌜ hist !! t = Some (Msg v SV2 PV2 _P) ⌝ ∗
         ⌜ SV !!0 ℓ ≤ t ⌝ ∗
@@ -762,7 +762,7 @@ Section lifting.
 
   Lemma wp_store v SV PV BV ℓ (hist : history) s E :
     {{{ ℓ ↦h hist ∗ validV SV }}}
-      (#ℓ <- v) `at` (SV, PV, BV) @ s; E
+      (#ℓ <-_NA v) `at` (SV, PV, BV) @ s; E
     {{{ t, RET #() `at` (<[ℓ := MaxNat t]>SV, PV, BV);
           ⌜hist !! t = None⌝ ∗
           ⌜(SV !!0 ℓ) < t⌝ ∗
@@ -815,7 +815,7 @@ Section lifting.
 
   Lemma wp_store_release SV v FV BV ℓ (hist : history) s E :
     {{{ ℓ ↦h hist ∗ validV SV }}}
-      #ℓ <-{rel} v `at` (SV, FV, BV) @ s; E
+      #ℓ <-_AT v `at` (SV, FV, BV) @ s; E
     {{{ t, RET #() `at` (<[ℓ := MaxNat t]>SV, FV, BV);
           ⌜ hist !! t = None ⌝ ∗
           ⌜ SV !!0 ℓ < t ⌝ ∗

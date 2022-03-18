@@ -40,7 +40,7 @@ Section simple_increment.
 
   Definition alloc_load : expr :=
     let: "ℓ" := ref_NA #4
-    in !"ℓ".
+    in !_NA "ℓ".
 
   Lemma wp_load_store SV PV :
     {{{ validV SV }}} ThreadState alloc_load (SV, PV, ∅) {{{ TV', RET ThreadVal (#4) TV'; True }}}.
@@ -60,14 +60,14 @@ Section simple_increment.
   Qed.
 
   Definition incr_both (ℓ1 ℓ2 : loc) : expr :=
-    #ℓ1 <- #1 ;;
+    #ℓ1 <-_NA #1 ;;
     Flush #ℓ1 ;;
     Fence ;;
-    #ℓ2 <- #1.
+    #ℓ2 <-_NA #1.
 
   Definition incr_both_recover ℓ1 ℓ2 : expr :=
-    let: "x" := ! ℓ1 in
-    let: "y" := ! ℓ2 in
+    let: "x" := !_NA ℓ1 in
+    let: "y" := !_NA ℓ2 in
     if: "y" ≤ "x"
     then #() #()
     else #().
@@ -88,7 +88,7 @@ Section simple_increment.
     iIntros (Φ Φc) "(val & ℓ1pts & ℓ2pts) Φpost".
     rewrite /incr_both.
     iDestruct (mapsto_ne with "ℓ1pts ℓ2pts") as "%ℓne".
-    wpc_bind (_ <- _)%E.
+    wpc_bind (_ <-_NA _)%E.
     iApply wpc_atomic_no_mask.
     iSplit.
     { crash_case. done. }
@@ -130,7 +130,7 @@ Section simple_increment.
     wpc_pures.
 
     (* Store *)
-    wpc_bind (_ <- _)%E.
+    wpc_bind (_ <-_NA _)%E.
     iApply wpc_atomic_no_mask.
     iSplit.
     { crash_case. done. }

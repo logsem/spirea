@@ -72,13 +72,9 @@ Section atomic.
 
   Global Instance alloc_atomic s a v w : AtomicBase s (AllocN a (Val v) (Val w)).
   Proof. solve_atomic. Qed.
-  Global Instance load_atomic s v : AtomicBase s (Load (Val v)).
+  Global Instance load_atomic s a v : AtomicBase s (Load a (Val v)).
   Proof. solve_atomic. Qed.
-  Global Instance load_acquire_atomic s v : AtomicBase s (LoadAcquire (Val v)).
-  Proof. solve_atomic. Qed.
-  Global Instance store_atomic s v1 v2 : AtomicBase s (Store (Val v1) (Val v2)).
-  Proof. solve_atomic. Qed.
-  Global Instance store_release_atomic s v1 v2 : AtomicBase s (StoreRelease (Val v1) (Val v2)).
+  Global Instance store_atomic s a v1 v2 : AtomicBase s (Store a (Val v1) (Val v2)).
   Proof. solve_atomic. Qed.
   Global Instance wb_atomic s v : AtomicBase s (Flush (Val v)).
   Proof. solve_atomic. Qed.
