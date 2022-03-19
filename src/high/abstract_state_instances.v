@@ -15,6 +15,9 @@ Next Obligation. split; repeat intros [|]; done. Qed.
 Program Instance nat_abstract_state : AbstractState nat :=
   { abs_state_relation := (≤) }.
 
+Program Instance Z_abstract_state : AbstractState Z :=
+  { abs_state_relation := (≤)%Z }.
+
 Lemma subseteq_nat_le (n m : nat) : n ⊑ m = (n ≤ m).
 Proof. done. Qed.
 
