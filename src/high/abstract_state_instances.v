@@ -21,13 +21,54 @@ Program Instance Z_abstract_state : AbstractState Z :=
 Lemma subseteq_nat_le (n m : nat) : n ⊑ m = (n ≤ m).
 Proof. done. Qed.
 
+(* Abstract state for unit. *)
+
+Instance unit_abstract_state : AbstractState unit.
+Proof. esplit; apply _. Defined.
+
+(** [option] abstract state. *)
+
+Definition option_order `{AbstractState A} (s1 s2 : option A) : Prop :=
+  match s1, s2 with
+    Some a1, Some a2 => a1 ⊑ a2
+  | None, _ => True
+  | _, None => False
+  end.
+
+Program Instance option_abstract_state `{AbstractState A} :
+  AbstractState (option A) :=
+  { abs_state_relation := option_order }.
+Next Obligation.
+  split.
+  - intros [a|]; simpl; done.
+  - intros [a1|] [a2|] [a3|]; simpl; try done. etrans; done.
+Qed.
+
+(** [sum] abstract state. *)
+
+Definition sum_order `{AbstractState A, AbstractState B} (s1 s2 : A + B) : Prop :=
+  match s1, s2 with
+    inl a1, inl a2 => a1 ⊑ a2
+  | inr b1, inr b2 => b1 ⊑ b2
+  | _, _ => False
+  end.
+
+Program Instance sum_abstract_state `{AbstractState A, AbstractState B} :
+  AbstractState (A + B) :=
+  { abs_state_relation := sum_order }.
+Next Obligation.
+  split.
+  - intros [a|]; simpl; done.
+  - intros [a1|] [a2|] [a3|]; simpl; try done; etrans; done.
+Qed.
+
 (* Abstract state where all elements are included in each other. *)
 Record singl (A : Type) := mk_singl { get_singl : A }.
 Arguments mk_singl {A}.
 Arguments get_singl {A}.
 
 Instance singl_eqdecision A `{EqDecision A} : EqDecision (singl A).
-Proof. 
+Proof.
   unfold EqDecision in *. unfold Decision in *. decide equality.
 Qed.
 
@@ -38,11 +79,6 @@ Proof.
 Qed.
 
 Instance singl_abstract_state A `{Countable A} : AbstractState (singl A).
-Proof. esplit; apply _. Defined.
-
-(* Abstract state for unit. *)
-
-Instance unit_abstract_state : AbstractState unit.
 Proof. esplit; apply _. Defined.
 
 (** Discrete abstract state (only reflexivity). *)
