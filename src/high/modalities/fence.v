@@ -2,8 +2,10 @@ From iris.proofmode Require Import tactics.
 From iris.bi Require Import bi.
 From iris.bi Require Import derived_laws.
 
+From self Require Import solve_view_le.
 From self.high Require Import dprop resources crash_weakestpre weakestpre
      recovery_weakestpre resources lifted_modalities modalities post_crash_modality protocol.
+From self.high.modalities Require Import no_flush.
 
 Class IntoFence {Σ} (P: dProp Σ) (Q : dProp Σ) :=
   into_fence : P ⊢ <fence> Q.
@@ -15,8 +17,9 @@ Section post_fence.
   Context `{Σ : gFunctors}.
   Implicit Types (P : dProp Σ).
 
-  Lemma post_fence_at P tv :
-    ((<fence> P) tv = P (store_view tv, (flush_view tv ⊔ buffer_view tv), buffer_view tv))%I.
+  Lemma post_fence_at P TV :
+    ((<fence> P) TV =
+       P (store_view TV, (flush_view TV ⊔ buffer_view TV), buffer_view TV))%I.
   Proof. done. Qed.
 
   Lemma post_fence_at_alt P SV PV BV :
@@ -25,6 +28,18 @@ Section post_fence.
 
   Lemma post_fence_mono P Q : (P ⊢ Q) → <fence> P ⊢ <fence> Q.
   Proof. intros H. iModel. rewrite 2!post_fence_at. iApply H. Qed.
+
+  Global Instance post_fence_mono' : Proper ((⊢) ==> (⊢)) (post_fence (Σ := Σ)).
+  Proof. intros P Q. apply post_fence_mono. Qed.
+
+  Lemma post_fence_wand P Q : (P -∗ Q) -∗ <fence> P -∗ <fence> Q.
+  Proof.
+    iModel. iIntros "H". iIntros (TV2 le) "P".
+    rewrite !post_fence_at.
+    monPred_simpl.
+    iApply "H". { iPureIntro. solve_view_le. }
+    done.
+  Qed.
 
   Lemma post_fence_idemp P : <fence> <fence> P ⊢ <fence> P.
   Proof.
@@ -55,6 +70,12 @@ Section post_fence.
     rewrite monPred_at_sep.
     iSplit; iIntros "$".
   Qed.
+
+  Global Instance into_sep_post_fence P Q1 Q2 :
+    IntoSep P Q1 Q2 →
+    IntoSep (<fence> P) (<fence> Q1) (<fence> Q2).
+  Proof.
+  rewrite /IntoSep /= => ->. rewrite post_fence_sep. done. Qed.
 
   Lemma post_fence_intuitionistically_2 P : □ <fence> P ⊢ <fence> □ P.
   Proof.
@@ -92,10 +113,19 @@ Section post_fence.
     naive_solver.
   Qed.
 
-  Lemma post_fence_objective P `{!Objective P} : post_fence P ⊢ P.
+  Lemma post_fence_no_flush P : <fence> (<noflush> P) ⊢ P.
   Proof.
-    iStartProof (iProp _). iIntros (TV).
-    rewrite post_fence_at. iApply objective_at.
+    iModel.
+    rewrite post_fence_at. rewrite into_no_flush_at.
+    iApply monPred_mono. solve_view_le.
+  Qed.
+
+  Lemma post_fence_flush_free P `{FlushFree P} : post_fence P ⊢ P.
+  Proof.
+    rewrite -> (into_no_flush P P) at 1.
+    iModel.
+    rewrite post_fence_at. rewrite into_no_flush_at.
+    iApply monPred_mono. solve_view_le.
   Qed.
 
   Global Instance post_fence_persistent P :
@@ -110,19 +140,20 @@ Section post_fence.
     iApply "H".
   Qed.
 
-  Lemma post_fence_extract P Q : post_fence P -∗ (P -∗ <obj> Q) -∗ Q.
+  Lemma post_fence_extract P Q1 Q2 :
+    <fence> P -∗ (P -∗ Q1 ∗ <noflush> Q2) -∗ <fence> Q1 ∗ Q2.
   Proof.
-    iIntros "P pToQ".
-    iEval (rewrite -(post_fence_objective' Q)).
-    iModIntro. iApply "pToQ". done.
+    iIntros "P W".
+    iDestruct (post_fence_wand with "W P") as "[$ Q]".
+    iDestruct (post_fence_no_flush with "Q") as "$".
   Qed.
 
-  Lemma post_fence_extract' P Q `{!Objective Q} : post_fence P -∗ (P -∗ Q) -∗ Q.
+  Lemma post_fence_extract' P Q `{!FlushFree Q} :
+    post_fence P -∗ (P -∗ Q) -∗ Q.
   Proof.
-    iIntros "P pToQ".
-    iApply (post_fence_extract with "P").
-    rewrite -(objective_objectively Q).
-    done.
+    iIntros "P W".
+    iDestruct (post_fence_wand with "W P") as "Q".
+    iDestruct (post_fence_flush_free with "Q") as "$".
   Qed.
 
 End post_fence.
