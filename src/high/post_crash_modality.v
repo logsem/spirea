@@ -250,15 +250,13 @@ Section post_crash_prop.
     iFrame "%".
   Qed.
 
-  Lemma post_crash_embed_nodep P :
-    ⎡ P ⎤ -∗ <PC> _, ⎡ P ⎤.
+  Lemma post_crash_nodep (P : dProp Σ) `{!Objective P} : P -∗ <PC> _, P.
   Proof.
     iStartProof (iProp _). iIntros (TV') "P".
     iIntrosPostCrash.
     iApply post_crash_modality.post_crash_for_all.
     iIntros (hG0) "[H $]".
-    iApply monPred_at_embed.
-    iFrame.
+    iApply (objective_at with "P").
   Qed.
 
   Lemma post_crash_named P name :
@@ -291,8 +289,8 @@ Section post_crash_interact.
     iStartProof (iProp _).
     iIntros (TV1) "[bumper hist]".
     iIntrosPostCrash.
-    iDestruct (post_crash_modality.post_crash_nodep with "bumper") as "bumper".
-    iDestruct (post_crash_modality.post_crash_nodep with "hist") as "hist".
+    iDestruct (base.post_crash_modality.post_crash_nodep with "bumper") as "bumper".
+    iDestruct (base.post_crash_modality.post_crash_nodep with "hist") as "hist".
     post_crash_modality.iCrash.
     iIntros "[Ha Hb]". iNamed "Ha". iNamed "Hb".
     (* iFrame "post_crash_preorder_impl". *)
@@ -346,7 +344,7 @@ Section post_crash_interact.
   Proof.
     iStartProof (iProp _). iIntros (TV') "HP".
     iIntrosPostCrash.
-    iDestruct (post_crash_modality.post_crash_nodep with "HP") as "HP".
+    iDestruct (base.post_crash_modality.post_crash_nodep with "HP") as "HP".
     post_crash_modality.iCrash.
     iIntros "[Ha $]". iNamed "Ha".
     iDestruct ("post_crash_preorder_impl" with "HP") as "H".
@@ -369,9 +367,9 @@ Section post_crash_interact.
     iStartProof (iProp _).
     iIntros (?) "(order & bumper & hist)".
     iIntrosPostCrash.
-    iDestruct (post_crash_modality.post_crash_nodep with "order") as "order".
-    iDestruct (post_crash_modality.post_crash_nodep with "bumper") as "bumper".
-    iDestruct (post_crash_modality.post_crash_nodep with "hist") as "hist".
+    iDestruct (base.post_crash_modality.post_crash_nodep with "order") as "order".
+    iDestruct (base.post_crash_modality.post_crash_nodep with "bumper") as "bumper".
+    iDestruct (base.post_crash_modality.post_crash_nodep with "hist") as "hist".
     post_crash_modality.iCrash.
     iIntros "[Ha $]". iNamed "Ha".
     iDestruct ("post_crash_frag_history_impl" with "order bumper hist") as "hist".
@@ -386,7 +384,7 @@ Section post_crash_interact.
   Proof.
     iStartProof (iProp _). iIntros (TV') "HP".
     iIntrosPostCrash.
-    iDestruct (post_crash_modality.post_crash_nodep with "HP") as "HP".
+    iDestruct (base.post_crash_modality.post_crash_nodep with "HP") as "HP".
     post_crash_modality.iCrash.
     iIntros "[Ha $]". iNamed "Ha".
     rewrite /post_crash_resource. iFrameNamed.
@@ -402,7 +400,7 @@ Section post_crash_interact.
   Proof.
     iStartProof (iProp _). iIntros (TV') "HP".
     iIntrosPostCrash.
-    iDestruct (post_crash_modality.post_crash_nodep with "HP") as "HP".
+    iDestruct (base.post_crash_modality.post_crash_nodep with "HP") as "HP".
     post_crash_modality.iCrash.
     iIntros "[Ha $]". iNamed "Ha".
     rewrite /post_crash_resource.
@@ -416,7 +414,7 @@ Section post_crash_interact.
   Proof.
     iStartProof (iProp _). iIntros (TV') "HP".
     iIntrosPostCrash.
-    iDestruct (post_crash_modality.post_crash_nodep with "HP") as "HP".
+    iDestruct (base.post_crash_modality.post_crash_nodep with "HP") as "HP".
     post_crash_modality.iCrash.
     iIntros "[Ha $]". iNamed "Ha".
     rewrite /post_crash_resource. iFrameNamed.
@@ -432,7 +430,7 @@ Section post_crash_interact.
   Proof.
     iStartProof (iProp _). iIntros (TV') "HP".
     iIntrosPostCrash.
-    iDestruct (post_crash_modality.post_crash_nodep with "HP") as "HP".
+    iDestruct (base.post_crash_modality.post_crash_nodep with "HP") as "HP".
     post_crash_modality.iCrash.
     iIntros "[Ha $]". iNamed "Ha".
     rewrite /post_crash_resource. iFrameNamed.
@@ -448,7 +446,7 @@ Section post_crash_interact.
   Proof.
     iStartProof (iProp _). iIntros (TV') "HP".
     iIntrosPostCrash.
-    iDestruct (post_crash_modality.post_crash_nodep with "HP") as "HP".
+    iDestruct (base.post_crash_modality.post_crash_nodep with "HP") as "HP".
     post_crash_modality.iCrash.
     iIntros "[Ha Hb]". iNamed "Ha". iNamed "Hb".
     iDestruct "post_crash_na_view_map" as "[in M]".
@@ -470,7 +468,7 @@ Section post_crash_interact.
   Proof.
     iStartProof (iProp _). iIntros (TV') "HP".
     iIntrosPostCrash.
-    iDestruct (post_crash_modality.post_crash_nodep with "HP") as "HP".
+    iDestruct (base.post_crash_modality.post_crash_nodep with "HP") as "HP".
     post_crash_modality.iCrash.
     iIntros "[Ha $]". iNamed "Ha".
     rewrite /post_crash_resource. iFrameNamed.
@@ -514,7 +512,7 @@ Section IntoCrash.
 
   Global Instance lifted_embed_nodep_into_crash (P : iProp Σ) :
     IntoCrash (⎡ P ⎤) (λ _, ⎡ P ⎤)%I | 1000.
-  Proof. apply post_crash_embed_nodep. Qed.
+  Proof. apply: post_crash_nodep. Qed.
 
   Global Instance lifted_embed_into_crash (P : iProp Σ) Q :
     base.post_crash_modality.IntoCrash P Q →
@@ -823,7 +821,6 @@ Section post_crash_persisted.
     iDestruct ("HP" $! hG' hh bb na_views) as "P".
     iApply (base.post_crash_modality.post_crash_mono with "P").
     iIntros (hG2).
-    (* rewrite /post_crash_impl. *)
     iIntros "P M".
     iDestruct ("P" with "M") as "[P $]".
     iNext.
@@ -840,11 +837,9 @@ Section post_crash_persisted.
     rewrite -post_crash_flush_post_crash. apply post_crash_pure.
   Qed.
 
-  Lemma post_crash_flush_embed_nodep P :
-    ⎡ P ⎤ -∗ <PCF> _, ⎡ P ⎤.
-  Proof.
-    rewrite -post_crash_flush_post_crash. apply post_crash_embed_nodep.
-  Qed.
+  Lemma post_crash_flush_nodep P `{!Objective P} :
+    P -∗ <PCF> _, P.
+  Proof. rewrite -post_crash_flush_post_crash. apply: post_crash_nodep. Qed.
 
   Lemma post_crash_have_FV_strong ℓ t :
     have_FV_strong ℓ t -∗
