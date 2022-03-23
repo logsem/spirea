@@ -23,6 +23,7 @@ Create HintDb view_le.
 #[global] Hint Resolve view_le_r : view_le.
 #[global] Hint Resolve view_insert_le' : view_le.
 #[global] Hint Resolve view_lub_le : view_le.
+#[global] Hint Resolve view_empty_least : view_le.
 #[global] Hint Extern 2 (_ ⊑ _) => (etrans; last eassumption) : view_le.
 #[global] Hint Extern 2 (_ ⊑ _) => (etrans; first eassumption) : view_le.
 #[global] Hint Resolve view_le_lub_r : view_le.

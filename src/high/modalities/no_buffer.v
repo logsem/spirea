@@ -45,11 +45,11 @@ Section no_buffer.
   Context `{Σ : gFunctors}.
   Implicit Types (P : dProp Σ).
 
-  Lemma no_buff_at_alt P SV PV BV : ((<nobuf> P) (SV, PV, BV) = P (SV, PV, ∅))%I.
+  Lemma no_buffer_at_alt P SV PV BV : ((<nobuf> P) (SV, PV, BV) = P (SV, PV, ∅))%I.
   Proof. done. Qed.
 
   Lemma no_buffer_at P TV : ((<nobuf> P) TV = P (store_view TV, flush_view TV, ∅))%I.
-  Proof. destruct TV as [[??]?]. apply no_buff_at_alt. Qed.
+  Proof. destruct TV as [[??]?]. apply no_buffer_at_alt. Qed.
 
   Lemma no_buffer_pure φ : ⌜φ⌝ -∗ <nobuf> (⌜φ⌝ : dProp Σ).
   Proof. iModel. by rewrite no_buffer_at monPred_at_pure. Qed.
@@ -130,7 +130,7 @@ Section no_buffer.
   Lemma into_no_buffer_at P Q SV FV BV `{!IntoNoBuffer P Q} :
     P (SV, FV, BV) ⊢ Q (SV, FV, ∅).
   Proof.
-    erewrite <- no_buff_at_alt.
+    erewrite <- no_buffer_at_alt.
     apply into_no_buffer.
     done.
   Qed.
