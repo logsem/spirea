@@ -5,13 +5,13 @@ From iris.base_logic Require Import iprop.
 
 From self.high Require Import dprop resources modalities.
 
-Class IntoNoflushfer {Σ} (P : dProp Σ) (Q : dProp Σ) :=
+Class IntoNoFlush {Σ} (P : dProp Σ) (Q : dProp Σ) :=
   into_no_flush : P ⊢ <noflush> Q.
-Global Arguments IntoNoflushfer {_} _%I _%I.
+Global Arguments IntoNoFlush {_} _%I _%I.
 Global Arguments into_no_flush {_} _%I _%I {_}.
-Global Hint Mode IntoNoflushfer + ! -  : typeclass_instances.
+Global Hint Mode IntoNoFlush + ! -  : typeclass_instances.
 
-Notation FlushFree p := (IntoNoflushfer p p).
+Notation FlushFree p := (IntoNoFlush p p).
 
 Section no_flush.
   Context `{Σ : gFunctors}.
@@ -48,12 +48,12 @@ Section no_flush.
 
   Lemma modality_no_flush_mixin :
     modality_mixin (@no_flush Σ)
-      (MIEnvTransform IntoNoflushfer) (MIEnvTransform IntoNoflushfer).
+      (MIEnvTransform IntoNoFlush) (MIEnvTransform IntoNoFlush).
   Proof.
     split; simpl; split_and?;
     eauto using bi.equiv_entails_1_2, no_flush_and, no_flush_emp,
       no_flush_mono, no_flush_sep.
-    intros P Q. rewrite /IntoNoflushfer=> ->.
+    intros P Q. rewrite /IntoNoFlush=> ->.
     by rewrite no_flush_intuitionistically_2.
   Qed.
   Definition modality_no_flush :=
@@ -70,36 +70,36 @@ Section no_flush.
   Global Instance flush_free_objective P : Objective P → FlushFree P.
   Proof.
     intros O.
-    rewrite /IntoNoflushfer. iModel. destruct TV as [[??]?].
+    rewrite /IntoNoFlush. iModel. destruct TV as [[??]?].
     rewrite no_flush_at. simpl. iApply objective_at.
   Qed.
 
   Global Instance into_no_flush_if (b : bool) (P P' Q Q' : dProp Σ) :
-    IntoNoflushfer P P' →
-    IntoNoflushfer Q Q' →
-    IntoNoflushfer (if b then P else Q) (if b then P' else Q').
-  Proof. rewrite /IntoNoflushfer. destruct b; naive_solver. Qed.
+    IntoNoFlush P P' →
+    IntoNoFlush Q Q' →
+    IntoNoFlush (if b then P else Q) (if b then P' else Q').
+  Proof. rewrite /IntoNoFlush. destruct b; naive_solver. Qed.
 
   Global Instance into_no_flush_emp :
-    IntoNoflushfer (emp : dProp Σ)%I (emp)%I.
-  Proof. rewrite /IntoNoflushfer. apply no_flush_emp. Qed.
+    IntoNoFlush (emp : dProp Σ)%I (emp)%I.
+  Proof. rewrite /IntoNoFlush. apply no_flush_emp. Qed.
 
   Global Instance into_no_flush_sep (P P' Q Q' : dProp Σ) :
-    IntoNoflushfer P P' → IntoNoflushfer Q Q' → IntoNoflushfer (P ∗ Q)%I (P' ∗ Q')%I.
-  Proof. rewrite /IntoNoflushfer no_flush_sep. by intros <- <-. Qed.
+    IntoNoFlush P P' → IntoNoFlush Q Q' → IntoNoFlush (P ∗ Q)%I (P' ∗ Q')%I.
+  Proof. rewrite /IntoNoFlush no_flush_sep. by intros <- <-. Qed.
 
-  Global Instance into_no_flush_no_flush P : IntoNoflushfer (<noflush> P) P.
-  Proof. rewrite /IntoNoflushfer. by iApply no_flush_mono. Qed.
+  Global Instance into_no_flush_no_flush P : IntoNoFlush (<noflush> P) P.
+  Proof. rewrite /IntoNoFlush. by iApply no_flush_mono. Qed.
 
   Global Instance into_no_flush_exists {A} (P Q : A → dProp Σ) :
-    (∀ a, IntoNoflushfer (P a) (Q a)) → IntoNoflushfer (∃ a, P a) (∃ a, Q a).
+    (∀ a, IntoNoFlush (P a) (Q a)) → IntoNoFlush (∃ a, P a) (∃ a, Q a).
   Proof.
-    rewrite /IntoNoflushfer. iIntros (H).
+    rewrite /IntoNoFlush. iIntros (H).
     iDestruct 1 as (?) "P". iDestruct (H with "P") as "P".
     iModIntro. naive_solver.
   Qed.
 
-  Lemma into_no_flush_at P Q SV FV BV `{!IntoNoflushfer P Q} :
+  Lemma into_no_flush_at P Q SV FV BV `{!IntoNoFlush P Q} :
     P (SV, FV, BV) ⊢ Q (SV, ∅, ∅).
   Proof.
     erewrite <- no_flush_at_alt.
@@ -117,7 +117,7 @@ Section no_flush.
   Qed.
 
   Global Instance into_no_flush_monPred_in SV FV PV :
-    IntoNoflushfer (monPred_in (SV, FV, PV) : dProp Σ) (monPred_in (SV, ∅, ∅)).
+    IntoNoFlush (monPred_in (SV, FV, PV) : dProp Σ) (monPred_in (SV, ∅, ∅)).
   Proof. apply no_flush_monPred_in. Qed.
 
   Global Instance big_sepL_nil_no_flush {A} (Φ : _ → A → dProp Σ) :

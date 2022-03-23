@@ -1,12 +1,5 @@
-(* This is the classic message passing example except with some differences.
-   The sending thread ([leftProg] below) ensures that it only sends [x] after
-   having flushed and fenced it. The receieving thread ([rightProg] below) saves
-   and acknowledgement to [z] and with a fence ensures that it is only persisted
-   after the send values is persisted.
-
-   The recovery code ([recovery] below) relies on this being true and crashes
-   otherwise. Hence showing safety of the recovery code ensures that the
-   intuitive property that we expect to hold does indeed hold. *)
+(* This is a variant of [durable_mp.v] where the flush and fence in the left
+thread is moved to the right thread. *)
 
 From iris.proofmode Require Import tactics.
 From iris.algebra Require Import excl.
@@ -29,17 +22,19 @@ Section program.
 
   Definition leftProg (x y : loc) : expr :=
     #x <-_NA #true ;;
-    Flush #x ;;
-    Fence ;;
+    (* No flush or fence here. *)
     #y <-_AT #true.
 
-  Definition rightProg (y z : loc) : expr :=
+  Definition rightProg (x y z : loc) : expr :=
     if: !_AT #y = #true
-    then Fence ;; #z <-_NA #true
+    then
+      Flush #x ;;
+      Fence ;;
+      #z <-_NA #true
     else #().
 
   Definition prog (x y z : loc) : expr :=
-    Fork (rightProg y z) ;; leftProg x y.
+    Fork (rightProg x y z) ;; leftProg x y.
 
   Definition recovery x z : expr :=
     if: !_NA z = #true
@@ -59,7 +54,23 @@ Section proof.
        bumper b := b; |}.
   Next Obligation. iIntros. by iApply post_crash_flush_pure. Qed.
 
-  Program Definition inv_y :=
+  Definition pred_y (s : option bool) (v : val) (hG : nvmDeltaG Σ) :=
+    match s with
+      None => True
+    | Some b =>
+        match b with
+          false => ⌜ v = #false ⌝ ∗ ⎡ own γ__ex (Excl ()) ⎤
+        | true => ⌜ v = #true ⌝ ∗ store_lb x inv_x true
+        end
+    end%I.
+
+  Program Definition prot_y := {| pred := pred_y; bumper _ := None; |}.
+  Next Obligation.
+    iIntros (???) "H /=". iApply post_crash_flush_nodep. done.
+  Qed.
+  Next Obligation. intros ? [|]; apply _. Qed.
+
+  Program Definition inv_z :=
     {| pred (b : bool) (v : val) (hG : nvmDeltaG Σ) :=
         match b with
           false => ⌜ v = #false ⌝ ∗ ⎡ own γ__ex (Excl ()) ⎤
@@ -77,7 +88,6 @@ Section proof.
   Qed.
   Next Obligation. intros ? [|]; apply _. Qed.
 
-  Definition inv_z := inv_y.
 
   (* Note: The recovery code does not use the [y] location, hence the crash
   condition does not mention [y] as we don't need it to be available after a
@@ -134,12 +144,19 @@ Section proof.
     iSplit;
     first iApply (left_crash_condition_impl with "xPer xPts").
 
+  Lemma no_flush_or (P : dProp Σ) Q : <noflush> (P ∨ Q) ⊣⊢ <noflush> P ∨ <noflush> Q.
+  Proof. iModel. rewrite !no_flush_at. rewrite monPred_at_or. naive_solver. Qed.
+
+  Global Instance into_no_flush_or (P P' Q Q' : dProp Σ) :
+    IntoNoFlush P P' → IntoNoFlush Q Q' → IntoNoFlush (P ∨ Q)%I (P' ∨ Q')%I.
+  Proof. rewrite /IntoNoFlush no_flush_or. by intros <- <-. Qed.
+
   Lemma right_prog_spec s E1 :
-    store_lb y inv_y false -∗
+    store_lb y prot_y (Some false) -∗
     ⎡ is_at_loc y ⎤ -∗
     persist_lb z inv_z false -∗
     z ↦_{inv_z} [false] -∗
-    WPC rightProg y z @ s; E1
+    WPC rightProg x y z @ s; E1
     {{ v, z ↦_{inv_z} [false; true] ∨ z ↦_{inv_z} [false] }}
     {{ <PC> _, right_crash_condition }}.
   Proof.
@@ -148,9 +165,9 @@ Section proof.
     rewrite /rightProg.
     wpc_bind (!_AT _)%E.
     iApply wpc_atomic_no_mask. whack_right_cc.
-    iApply (wp_load_at _ _ (λ s v, (⌜v = #true⌝ ∗ flush_lb x inv_x true) ∨ ⌜v = #false⌝)%I inv_y with "[$yShared $yLb]").
-    { iModIntro. iIntros (?? incl) "a". rewrite /inv_y.
-      destruct s'.
+    iApply (wp_load_at _ _ (λ s v, (⌜v = #true⌝ ∗ store_lb x inv_x true) ∨ ⌜v = #false⌝)%I prot_y with "[$yShared $yLb]").
+    { iModIntro. iIntros (?? incl) "a". rewrite /prot_y.
+      destruct s' as [[|]|]; last done.
       - iDestruct "a" as "[% #?]". iFrame "#". naive_solver.
       - iDestruct "a" as "[% O]". naive_solver. }
     iNext.
@@ -170,10 +187,27 @@ Section proof.
     iModIntro.
     wpc_pures.
     { iApply (right_crash_condition_impl with "zPer zPts"). }
+
+    (* Flush *)
+    wpc_bind (Flush _)%E.
+    iApply wpc_atomic_no_mask.
+    whack_right_cc.
+
+    iDestruct (post_fence_flush_free with "disj") as "[[_ storeLb] | %eq]";
+      last inversion eq.
+
+    iApply (wp_flush_lb with "storeLb").
+    iNext.
+    iIntros "#xLb".
+    whack_right_cc.
+    iModIntro.
+    wpc_pures;
+      first iApply (right_crash_condition_impl with "zPer zPts").
+
     wpc_bind (Fence).
     iApply wpc_atomic_no_mask. whack_right_cc.
     iApply wp_fence. do 2 iModIntro.
-    iDestruct "disj" as "[[_ #xLb] | %]"; last congruence.
+    (* iDestruct "disj" as "[[_ #xLb] | %]"; last congruence. *)
     whack_right_cc.
     iModIntro.
     wpc_pures.
@@ -191,10 +225,10 @@ Section proof.
 
   Lemma prog_spec :
     ⎡ pre_borrow ⎤ ∗
-    (* know_protocol x inv_x ∗ know_protocol y inv_y ∗ know_protocol z inv_z ∗ *)
+    (* know_protocol x inv_x ∗ know_protocol y prot_y ∗ know_protocol z inv_z ∗ *)
     persist_lb x inv_x false ∗
     x ↦_{inv_x} [false] ∗
-    store_lb y inv_y false ∗
+    store_lb y prot_y (Some false) ∗
     ⎡ is_at_loc y ⎤ ∗
     persist_lb z inv_z false ∗
     z ↦_{inv_z} [false] -∗
@@ -257,37 +291,18 @@ Section proof.
       wpc_pures;
         first iApply (left_crash_condition_impl with "xPer xPts").
 
-      (* Flush *)
-      wpc_bind (Flush _)%E.
-      iApply wpc_atomic_no_mask.
-      whack_left_cc.
-      iApply (wp_flush_ex with "xPts"); first reflexivity.
-      iNext.
-      iIntros "[xPts #xLowerBound]".
-      whack_left_cc.
-      iModIntro.
-      wpc_pures;
-        first iApply (left_crash_condition_impl with "xPer xPts").
-
-      (* The fence. *)
-      wpc_bind (Fence)%E.
-      iApply wpc_atomic_no_mask. whack_left_cc.
-      iApply wp_fence. do 2 iModIntro.
-      whack_left_cc.
-      iModIntro.
-      wpc_pures;
-        first iApply (left_crash_condition_impl with "xPer xPts").
-
+      iDestruct (mapsto_na_store_lb with "xPts") as "#xStoreLb";
+        first reflexivity.
       wpc_bind (_ <-_AT _)%E.
       iApply wpc_atomic_no_mask. whack_left_cc.
-      iApply (wp_store_at _ false true).
+      iApply (wp_store_at _ (Some false) (Some true)).
       { iFrame.
         iPureGoal. { done. }
         iFrame "#".
         iSplitL.
         - iModIntro. simpl. naive_solver.
         - iIntros (? s_c v_c). simpl.
-          destruct s_c; first naive_solver.
+          destruct s_c as [[|]|]; [naive_solver| |naive_solver].
           iIntros "? ([? O1] & [??] & [? O2])".
           by iDestruct (own_valid_2 with "O1 O2") as %HI%exclusive_l. }
       iIntros "!> yLb2".

@@ -626,7 +626,7 @@ Section wp_at_rules.
       (* NOTE: This should work and be more general. *)
       (* "phi" ∷ (∀ v_i, (<obj> (ϕ s_i v_i -∗ ϕ s_i_v ∗ R)) ∗ (R -∗ ϕ s_t v_t)) ∗ *)
       (* The new state must be greater than the possible current states. *)
-      (∀ v_i s_c v_c,
+      (∀ v_i s_c v_c, ⌜ s_i ⊑ s_c ⌝ -∗
         prot.(pred) s_i v_i _ ∗ prot.(pred) s_t v_t _ ∗ prot.(pred) s_c v_c _ -∗
           ⌜ s_t ⊑ s_c ∧ s_c ⊑ s_t ⌝)
     }}}
@@ -711,7 +711,10 @@ Section wp_at_rules.
       iDestruct (predicate_holds_phi_decode with "predEquiv phiC") as "phiC";
         first done.
 
-      iSpecialize ("greater" $! _ _ _).
+      iSpecialize ("greater" $! _ s_c _).
+      iEval (monPred_simpl) in "greater".
+
+      iSpecialize ("greater" $! TV with "[%] [%]"); [done|done|].
       iEval (monPred_simpl) in "greater".
       iEval (setoid_rewrite monPred_at_pure) in "greater".
 

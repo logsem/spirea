@@ -18,7 +18,7 @@ From self.high Require Import increasing_map monpred_simpl.
 From self.high Require Import dprop abstract_state lifted_modalities or_lost.
 From self.high Require Export abstract_state resources protocol modalities post_crash_modality.
 From self.high.resources Require Export bumpers preorders auth_map_map abstract_history.
-From self.high.modalities Require Export no_buffer.
+From self.high.modalities Require Export no_buffer no_flush.
 
 Section points_to_at.
   Context `{nvmFixedG Σ, hGD : nvmDeltaG Σ, AbstractState ST}.
@@ -296,6 +296,19 @@ the last events at [ℓ] corresponds to the *)
   Global Instance buffer_free_flush_lb ℓ prot (s : ST) :
     BufferFree (flush_lb ℓ prot s).
   Proof. rewrite /IntoNoBuffer. eauto using no_buffer_flush_lb. Qed.
+
+  Lemma no_flush_store_lb ℓ prot (s : ST) :
+    store_lb ℓ prot s -∗ <noflush> store_lb ℓ prot s.
+  Proof.
+    rewrite /store_lb.
+    iModel.
+    simpl.
+    iDestruct 1 as (?) "HI". iExists _. iFrame.
+  Qed.
+
+  Global Instance flush_free_flush_lb ℓ prot (s : ST) :
+    FlushFree (store_lb ℓ prot s).
+  Proof. rewrite /IntoNoFlush. eauto using no_flush_store_lb. Qed.
 
   Lemma no_buffer_store_lb ℓ prot (s : ST) :
     store_lb ℓ prot s -∗ <nobuf> store_lb ℓ prot s.
