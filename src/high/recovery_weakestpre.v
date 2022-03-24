@@ -560,9 +560,9 @@ Section wpr.
               own new_predicates_name (◯ {[ℓ := pred_to_ra r]})) with "equiv");
           last done.
         solve_proper. }
-      (* "post_crash_shared_loc_impl" - Shared locations. *)
+      (* "post_crash_at_loc_impl" - Shared locations. *)
       iSplit. {
-        rewrite /post_crash_shared_loc_impl.
+        rewrite /post_crash_at_loc_impl.
         iIntros "!>" (ℓ) "sh".
         iApply "orLost". iIntros (t look).
         rewrite /is_at_loc.
@@ -587,7 +587,7 @@ Section wpr.
         apply elem_of_dom.
         naive_solver. }
       iSplit. {
-        rewrite /post_crash_exclusive_loc_impl.
+        rewrite /post_crash_na_loc_impl.
         iIntros "!>" (ℓ) "sh".
         iApply "orLost". iIntros (t look).
         rewrite /is_na_loc.

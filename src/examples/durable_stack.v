@@ -12,7 +12,7 @@ From self.high Require Import dprop.
 From self.lang Require Import notation lang.
 From self.algebra Require Import view.
 From self.base Require Import primitive_laws class_instances.
-From self.high Require Import proofmode wpc_proofmode or_lost.
+From self.high Require Import proofmode wpc_proofmode if_rec.
 From self.high Require Import dprop abstract_state_instances modalities
      resources crash_weakestpre weakestpre weakestpre_na weakestpre_at
      recovery_weakestpre lifted_modalities protocol no_buffer mapsto_na_flushed.
@@ -168,7 +168,7 @@ Section definitions.
     - iDestruct 1 as (?) "(nodePts & lb)".
       iCrashFlush.
       iDestruct "lb" as ([] le) "(#rec & lb)".
-      iDestruct (crashed_in_or_lost with "rec nodePts") as "nodePts".
+      iDestruct (crashed_in_if_rec with "rec nodePts") as "nodePts".
       iDestruct "nodePts" as ([] elem) "(nodePts & ?)".
       iExists _. iFrame "nodePts". iFrame.
       iApply persist_lb_to_flush_lb.
@@ -178,7 +178,7 @@ Section definitions.
       iCrashFlush.
       iDestruct "nodeFlushLb" as ([] ?) "(#nodeRec & toNextFlushLb)" .
       iDestruct "toNextFlush" as "[toNextFlush toNextRec]".
-      iDestruct (crashed_in_or_lost with "nodeRec nodePts") as "nodePts".
+      iDestruct (crashed_in_if_rec with "nodeRec nodePts") as "nodePts".
       iDestruct "nodePts" as ([]?) "[nodePts _]".
       iExists _, _, _,  q2, _.
       iFrame.
@@ -241,17 +241,15 @@ Section proof.
             ∀ a nD, Persistent (ϕ a nD)}.
 
   Lemma is_stack_post_crash ℓ :
-    is_stack ϕ #ℓ -∗ <PC> _, or_lost ℓ (is_stack ϕ #ℓ).
+    is_stack ϕ #ℓ -∗ <PC> _, if_rec ℓ (is_stack ϕ #ℓ).
   Proof.
-    rewrite /is_stack.
     iDestruct 1 as (? [= <-]) "prot".
     iDestruct "prot" as "(a & c)".
     iDestruct (post_crash_store_lb with "c")  as "c".
     iCrash.
-    iCombine "a c" as "a".
-    rewrite !or_lost_sep.
-    iApply (or_lost_mono with "[] a").
-    iIntros "(a & (%u & c))". destruct u. iExists _. iSplitPure; first done.
+    iModIntro.
+    iDestruct "c" as ([]) "c".
+    iExists _. iSplitPure; first done.
     iFrame.
     iApply persist_lb_to_store_lb. iFrame.
   Qed.

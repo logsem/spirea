@@ -15,7 +15,7 @@ From self.algebra Require Import ghost_map ghost_map_map.
 From self.base Require Import primitive_laws post_crash_modality.
 From self.lang Require Import lang.
 From self.high Require Import increasing_map monpred_simpl.
-From self.high Require Import dprop abstract_state lifted_modalities or_lost.
+From self.high Require Import dprop abstract_state lifted_modalities if_rec or_lost.
 From self.high Require Export abstract_state resources protocol modalities post_crash_modality.
 From self.high.resources Require Export bumpers preorders auth_map_map abstract_history.
 From self.high.modalities Require Export no_buffer no_flush.
@@ -110,21 +110,12 @@ the last events at [ℓ] corresponds to the *)
 
   Definition crashed_in prot ℓ s : dProp Σ :=
     ∃ CV,
-      "#crashed" ∷ ⎡ crashed_at CV⎤ ∗
+      "#crashed" ∷ ⎡ crashed_at CV ⎤ ∗
       "#crashedIn" ∷ ⎡ crashed_in_mapsto ℓ s ⎤ ∗
       "#locationProtocol" ∷ ⎡ know_protocol ℓ prot ⎤ ∗
+      "#pers" ∷ ⎡ persisted_loc ℓ 0 ⎤ ∗
       "#knowFragHist" ∷ ⎡ know_frag_history_loc ℓ 0 (bumper prot s) ⎤ ∗
       "%inCV" ∷ ⌜ℓ ∈ dom (gset _) CV⌝.
-
-  (* The location [ℓ] was recovered in the abstract state [s]. *)
-  Definition recovered_at ℓ s : dProp Σ :=
-    ∃ CV,
-      "#knowFragHist" ∷ ⎡ know_frag_history_loc ℓ 0 s ⎤ ∗
-      "#crashed" ∷ ⎡ crashed_at CV⎤ ∗
-      "%inCV" ∷ ⌜ℓ ∈ dom (gset _) CV⌝.
-
-  (* [ℓ] was recovered at the last crash. *)
-  Definition recovered ℓ : dProp Σ := ∃ s, recovered_at ℓ s.
 
   (* [ℓ] was not recovered at the last crash. *)
   Definition lost ℓ : dProp Σ :=
@@ -212,20 +203,12 @@ the last events at [ℓ] corresponds to the *)
     apply elem_of_dom. done.
   Qed.
 
-  (* A few utility lemmas. *)
-  Lemma recovered_at_not_lot ℓ s : recovered_at ℓ s -∗ lost ℓ -∗ False.
+  Lemma crashed_in_if_rec `{AbstractState ST} prot ℓ P (s : ST) :
+    crashed_in prot ℓ s -∗ if_rec ℓ P -∗ P.
   Proof.
-    iNamed 1. iIntros "(%CV' & crashed' & %notInCV)".
-    iDestruct (crashed_at_agree with "[$] [$]") as %->.
-    set_solver.
-  Qed.
-
-  Lemma recovered_at_agree ℓ s s' :
-    recovered_at ℓ s -∗ recovered_at ℓ s' -∗ ⌜ s = s' ⌝.
-  Proof.
-    iNamed 1. iIntros "(%CV' & hist & crashed' & pizz)".
-    iDestruct (own_frag_history_singleton_agreee with "[$] [$]") as %->.
-    done.
+    iNamed 1. iIntros "P".
+    iApply "P"; iFrame "#%".
+    iPureIntro. apply elem_of_dom. done.
   Qed.
 
   Lemma mapsto_na_store_lb ℓ prot q ss s :
@@ -348,23 +331,22 @@ Section points_to_at_more.
   Implicit Types (e : expr) (ℓ : loc) (s : ST)
            (ss : list ST) (prot : LocationProtocol ST).
 
-  Lemma post_crash_persist_lb (ℓ : loc) prot (s : ST) :
-    persist_lb ℓ prot s -∗
-    post_crash (λ hG, ∃ s2, ⌜s ⊑ s2⌝ ∗
+  Lemma post_crash_persist_lb (ℓ : loc) prot (s1 : ST) :
+    persist_lb ℓ prot s1 -∗
+    post_crash (λ hG, ∃ s2, ⌜ s1 ⊑ s2 ⌝ ∗
       persist_lb ℓ prot (prot.(bumper) s2) ∗
       crashed_in prot ℓ s2).
-      (* recovered_at ℓ (prot.(bumper) s')). *)
   Proof.
     iNamed 1.
     rewrite /know_protocol. rewrite 2!embed_sep.
     iDestruct "locationProtocol" as "(-#pred & -#order & -#bumper)".
     iDestruct (post_crash_frag_history with "[$order $bumper $knowFragHist]") as "H".
     iCrash.
-    iDestruct "persisted" as "(persisted & (% & % & [% %] & #crashed))".
+    iDestruct "persisted" as "(#persisted & (% & % & [% %] & #crashed))".
     iDestruct (or_lost_with_t_get with "[$] H")
       as "(% & % & #crashedIn & order & bumper & hist)";
       first done.
-    iDestruct (or_lost_get with "[$] pred") as "pred"; first done.
+    iDestruct (if_rec_get with "[$] [$] pred") as "pred"; first done.
     iExists s2.
     iSplitPure; first intuition.
     iSplit.
@@ -381,23 +363,18 @@ Section points_to_at_more.
 
   Lemma post_crash_flush_lb (ℓ : loc) prot (s : ST) :
     flush_lb ℓ prot s -∗
-    post_crash (λ hG,
-                  or_lost ℓ (∃ (s' : ST), persist_lb ℓ prot s')).
+    post_crash (λ hG, if_rec ℓ (∃ (s' : ST), persist_lb ℓ prot s')).
   Proof.
     iNamed 1.
-    rewrite /know_protocol. rewrite 2!embed_sep.
-    iDestruct "locationProtocol" as "(-#pred & -#order & -#bumper)".
+    iDestruct (know_protocol_extract with "locationProtocol")
+      as "(-#pred & -#order & -#bumper)".
     iDestruct (post_crash_frag_history with "[$order $bumper $knowFragHist]") as "H".
     iCrash.
-    iCombine "pred H" as "H".
-    rewrite !or_lost_with_t_sep.
-    iApply (or_lost_with_t_mono_strong with "[] H").
-    iIntros (??). iNamed 1. iIntros "(pred & (% & _ & #? & order & bump & hist))".
-    iExists (bumper prot s2).
-    rewrite /persist_lb.
-    iExists 0.
-    rewrite /know_protocol. iEval (rewrite 2!embed_sep).
-    iFrame "∗#".
+    iDestruct (if_rec_or_lost_with_t with "H") as "H".
+    iDestruct (if_rec_is_persisted ℓ) as "pers".
+    iModIntro.
+    iDestruct "H" as (???) "(? & ? & ? & ?)".
+    iExists _, 0. iFrame "#∗".
     iDestruct (have_SV_0) as "$".
     iDestruct (have_FV_0) as "$".
   Qed.
@@ -407,23 +384,19 @@ Section points_to_at_more.
 
   Lemma post_crash_store_lb (ℓ : loc) prot (s : ST) :
     store_lb ℓ prot s -∗
-    post_crash (λ hG, or_lost ℓ (∃ (s' : ST),
+    post_crash (λ hG, if_rec ℓ (∃ (s' : ST),
       persist_lb ℓ prot s')).
   Proof.
     iNamed 1.
-    rewrite /know_protocol. rewrite 2!embed_sep.
-    iDestruct "locationProtocol" as "(-#pred & -#order & -#bumper)".
+    iDestruct (know_protocol_extract with "locationProtocol")
+      as "(-#pred & -#order & -#bumper)".
     iDestruct (post_crash_frag_history with "[$order $bumper $knowFragHist]") as "H".
     iCrash.
-    iCombine "pred H" as "H".
-    rewrite !or_lost_with_t_sep.
-    iApply (or_lost_with_t_mono_strong with "[] H").
-    iIntros (??). iNamed 1. iIntros "(pred & (% & H & ? & order & bump & hist))".
-    iExists (bumper prot s2).
-    rewrite /persist_lb.
-    iExists 0.
-    rewrite /know_protocol. iEval (rewrite 2!embed_sep).
-    iFrame "∗#".
+    iDestruct (if_rec_or_lost_with_t with "H") as "H".
+    iDestruct (if_rec_is_persisted ℓ) as "pers".
+    iModIntro.
+    iDestruct "H" as (???) "(? & ? & ? & ?)".
+    iExists _, 0. iFrame "#∗".
     iDestruct (have_SV_0) as "$".
     iDestruct (have_FV_0) as "$".
   Qed.
@@ -434,7 +407,7 @@ Section points_to_at_more.
   Lemma post_crash_mapsto_na ℓ prot q (ss : list ST) :
     ℓ ↦_{prot}^{q} ss -∗
     post_crash (λ hG',
-      or_lost ℓ (∃ s, ⌜s ∈ ss⌝ ∗
+      if_rec ℓ (∃ s, ⌜s ∈ ss⌝ ∗
                       ℓ ↦_{prot}^{q} [bumper prot s] ∗
                       crashed_in prot ℓ s)).
   Proof.
@@ -447,12 +420,11 @@ Section points_to_at_more.
     iDestruct "pers" as "-#pers".
     iCrash.
     iDestruct "pers" as "#pers".
-    iCombine "knowSV pred order isNaLoc H physMsg" as "H".
-    rewrite /or_lost. rewrite !or_lost_with_t_sep.
-    iApply (or_lost_with_t_mono_strong with "[] H").
-    iIntros (??). iNamed 1.
-    iIntros "(A & B & C & D & E & F)".
-    iDestruct "E" as (sNew ?) "(bump & fullHist & fragHist & crashedIn)".
+    iDestruct (if_rec_is_rec ℓ) as "rec".
+    iModIntro.
+    iDestruct "rec" as (CV [[t]?]) "[crashed pers']".
+    iDestruct (or_lost_with_t_get with "[$] H")
+      as (sNew ?) "(bump & fullHist & fragHist & crashedIn)"; first done.
     iExists (sNew).
 
     iAssert (⌜ tP ≤ t ⌝)%I as %?.
@@ -465,10 +437,11 @@ Section points_to_at_more.
     iSplit.
     { iPureIntro. apply: map_sequence_lookup_between; try done.
       split; first done.
-      eapply map_no_later_Some; naive_solver. }
-    iDestruct "F" as (v) "hist".
+      eapply map_no_later_Some; try naive_solver. }
 
-    rewrite /recovered_at.
+    iDestruct "physMsg" as (v) "hist".
+
+    rewrite /crashed_in.
     iSplit.
     + iExists 0, 0, ∅, _, (Msg _ ∅ ∅ ∅), _. iFrame. iFrame "#".
       iPureGoal. { done. }
@@ -506,11 +479,11 @@ Section points_to_at_more.
         iExists _, _. iFrame. done. }
     iDestruct "pers" as "(#pers & (%CV & %t & (%cvLook & %le) & #crashed))".
     iDestruct (or_lost_with_t_get with "crashed HI") as "HI"; first done.
-    iDestruct (or_lost_get with "crashed pred") as "pred"; first done.
+    iDestruct (if_rec_get with "crashed pers pred") as "pred"; first done.
     iDestruct "HI" as (s2 impl) "(#crashedIn & #? & #? & #?)".
     iExists s2.
     iSplitPure; first by apply impl.
-    rewrite /recovered_at /persist_lb.
+    rewrite /crashed_in /persist_lb.
     iSplit.
     - iExists _.
       iFrame "crashed crashedIn pred".
@@ -522,21 +495,6 @@ Section points_to_at_more.
 
   Global Instance know_flush_into_crash ℓ prot (s : ST) :
     IntoCrashFlush (flush_lb ℓ prot s) _ := post_crash_flush_flush_lb ℓ prot s.
-
-  (* Global Instance mapsto_na_persisted_into_crash `{AbstractState ST} ℓ (ss : list ST) : *)
-  (*   IntoCrash (ℓ ↦_{true} ss)%I (λ hG', ∃ s, ⌜s ∈ ss⌝ ∗ ℓ ↦_{true} [s] ∗ recovered_at ℓ s)%I. *)
-  (* Proof. *)
-  (*   rewrite /IntoCrash. iIntros "P". by iApply post_crash_mapsto_persisted_ex. *)
-  (* Qed. *)
-
-  Lemma recovered_at_or_lost `{AbstractState ST} ℓ P (s : ST) :
-    recovered_at ℓ s -∗ or_lost ℓ P -∗ P.
-  Proof.
-    iNamed 1. iIntros "P".
-    iApply (or_lost_get with "crashed P").
-    apply elem_of_dom.
-    done.
-  Qed.
 
 End points_to_at_more.
 

@@ -121,9 +121,9 @@ Section simple_increment.
     iCrash.
     iDestruct "perA" as (na' ?) "[perA #recA]".
     iDestruct "perB" as (nb' ?) "[perB #recB]".
-    iDestruct (crashed_in_or_lost with "recA aPts") as (??) "[ptsA recA']".
+    iDestruct (crashed_in_if_rec with "recA aPts") as (??) "[ptsA recA']".
     iDestruct (crashed_in_agree with "recA recA'") as %<-.
-    iDestruct (crashed_in_or_lost with "recB bPts") as (??) "[ptsB recB']".
+    iDestruct (crashed_in_if_rec with "recB bPts") as (??) "[ptsB recB']".
     iDestruct (crashed_in_agree with "recB recB'") as %<-.
     iExists na', nb'.
     iFrame.

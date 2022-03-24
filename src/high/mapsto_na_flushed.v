@@ -5,7 +5,7 @@ The stack is implemented as a linked list. *)
 From iris.bi Require Import lib.fractional.
 From iris.proofmode Require Import tactics.
 
-From self.high Require Import proofmode wpc_proofmode or_lost.
+From self.high Require Import proofmode wpc_proofmode if_rec.
 From self.high Require Import dprop abstract_state_instances modalities
      resources crash_weakestpre weakestpre weakestpre_na weakestpre_at
      recovery_weakestpre protocol no_buffer.
@@ -89,8 +89,7 @@ Section mapsto_na_flushed.
     iDestruct (post_crash_flush_post_crash with "pts") as "pts".
     iCrashFlush.
     iDestruct "flushLb" as (s' le) "(#crashedIn & persistLb)".
-    iDestruct (crashed_in_or_lost with "crashedIn pts") as "(%s'' & %elem & pts & chr2)".
-    (* iDestruct (crashed_in_or_lost with "crashedIn pts") as "(%s'' & %in & pts & rec2)". *)
+    iDestruct (crashed_in_if_rec with "crashedIn pts") as "(%s'' & %elem & pts & chr2)".
     iDestruct (crashed_in_agree with "crashedIn chr2") as %<-.
     assert (s = s') as <-.
     { apply (anti_symm (⊑@{ST})); first done.

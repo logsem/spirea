@@ -22,7 +22,7 @@ From self.base Require Import primitive_laws class_instances crash_borrow.
 From self.high Require Import proofmode wpc_proofmode.
 From self.high Require Import crash_weakestpre modalities weakestpre
      weakestpre_na weakestpre_at recovery_weakestpre protocol crash_borrow no_buffer
-     abstract_state_instances locations protocol or_lost.
+     abstract_state_instances locations protocol.
 From self.high.modalities Require Import fence no_buffer.
 
 Section program.
@@ -107,7 +107,7 @@ Section proof.
     iIntros "xPer xPts".
     iCrash.
     iDestruct "xPer" as (??) "[xPer #xRec]".
-    iDestruct (crashed_in_or_lost with "xRec xPts") as (??) "[xPts xRec']".
+    iDestruct (crashed_in_if_rec with "xRec xPts") as (??) "[xPts xRec']".
     iDestruct (crashed_in_agree with "xRec xRec'") as %->.
     iExists _. iFrame "∗#".
   Qed.
@@ -120,7 +120,7 @@ Section proof.
     iIntros "zPer zPts".
     iCrash.
     iDestruct "zPer" as (??) "[zPer #zRec]".
-    iDestruct (crashed_in_or_lost with "zRec zPts") as (??) "[zPts zRec']".
+    iDestruct (crashed_in_if_rec with "zRec zPts") as (??) "[zPts zRec']".
     iDestruct (crashed_in_agree with "zRec zRec'") as %->.
     iExists _. iFrame "∗#".
   Qed.

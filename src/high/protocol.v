@@ -4,7 +4,7 @@ From iris_named_props Require Import named_props.
 
 From self Require Import encode_relation.
 From self.high Require Import dprop resources modalities post_crash_modality
-      monpred_simpl or_lost.
+      monpred_simpl or_lost if_rec.
 From self.lang Require Import lang.
 From self.high.modalities Require Import no_buffer.
 
@@ -61,19 +61,13 @@ Section protocol.
   Implicit Types (prot : LocationProtocol ST).
 
   Lemma post_crash_know_protocol ℓ prot :
-    ⎡ know_protocol ℓ prot ⎤ -∗ <PC> hD, or_lost ℓ (⎡ know_protocol ℓ prot ⎤).
-  Proof.
-    iIntros "(a & b & c)". iCrash.
-    iCombine "a b c" as "a".
-    rewrite ?or_lost_sep.
-    iApply (or_lost_mono with "[] a").
-    iIntros "($ & $ & $)".
-  Qed.
+    ⎡ know_protocol ℓ prot ⎤ -∗ <PC> hD, if_rec ℓ (⎡ know_protocol ℓ prot ⎤).
+  Proof. iIntros "(a & b & c)". iCrash. iModIntro. iFrame. Qed.
 
   Global Instance know_protocol_into_crash ℓ prot :
     IntoCrash
       (⎡ know_protocol ℓ prot ⎤)%I
-      (λ hG', or_lost ℓ (⎡ know_protocol ℓ prot ⎤))%I.
+      (λ hG', if_rec ℓ (⎡ know_protocol ℓ prot ⎤))%I.
   Proof.
     rewrite /IntoCrash. iIntros "P". by iApply post_crash_know_protocol.
   Qed.

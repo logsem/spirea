@@ -117,7 +117,7 @@ Section proof.
     iIntros "xPer xPts".
     iCrash.
     iDestruct "xPer" as (??) "[xPer #xRec]".
-    iDestruct (crashed_in_or_lost with "xRec xPts") as (??) "[xPts xRec']".
+    iDestruct (crashed_in_if_rec with "xRec xPts") as (??) "[xPts xRec']".
     iDestruct (crashed_in_agree with "xRec xRec'") as %->.
     iExists _. iFrame "∗#".
   Qed.
@@ -130,7 +130,7 @@ Section proof.
     iIntros "zPer zPts".
     iCrash.
     iDestruct "zPer" as (??) "[zPer #zRec]".
-    iDestruct (crashed_in_or_lost with "zRec zPts") as (??) "[zPts zRec']".
+    iDestruct (crashed_in_if_rec with "zRec zPts") as (??) "[zPts zRec']".
     iDestruct (crashed_in_agree with "zRec zRec'") as %->.
     iExists _. iFrame "∗#".
   Qed.
