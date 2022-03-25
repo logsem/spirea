@@ -4,9 +4,9 @@ Notation thread_view := (view * view * view)%type.
 
 Instance thread_view_bottom : Bottom thread_view := ε.
 
-Notation store_view tv := (tv.1).1.
-Notation flush_view tv := (tv.1).2.
-Notation buffer_view tv := (tv.2).
+Notation store_view TV := (TV.1).1.
+Notation flush_view TV := (TV.1).2.
+Notation buffer_view TV := (TV.2).
 
 (* A few lattice rules for thread_view. *)
 
@@ -18,15 +18,15 @@ Proof.
   auto using view_sqsubseteq_antisym.
 Qed.
 
-Lemma thread_view_le_l (tv1 tv2 : thread_view) : tv1 ⊑ tv1 ⊔ tv2.
+Lemma thread_view_le_l (TV1 TV2 : thread_view) : TV1 ⊑ TV1 ⊔ TV2.
 Proof.
-  destruct tv1 as [[??]?], tv2 as [[??]?].
+  destruct TV1 as [[??]?], TV2 as [[??]?].
   repeat split; apply view_le_l.
 Qed.
 
-Lemma thread_view_le_r (tv1 tv2 : thread_view) : tv1 ⊑ tv2 ⊔ tv1.
+Lemma thread_view_le_r (TV1 TV2 : thread_view) : TV1 ⊑ TV2 ⊔ TV1.
 Proof.
-  destruct tv1 as [[??]?], tv2 as [[??]?].
+  destruct TV1 as [[??]?], TV2 as [[??]?].
   repeat split; apply view_le_r.
 Qed.
 

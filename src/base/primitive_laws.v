@@ -417,7 +417,6 @@ Section persisted.
     right. apply max_nat_included. done.
   Qed.
 
-
   Lemma persisted_persisted_loc PV ℓ t :
     PV !! ℓ = Some (MaxNat t) → persisted PV -∗ persisted_loc ℓ t.
   Proof.
@@ -429,6 +428,18 @@ Section persisted.
     eexists (MaxNat t).
     rewrite look.
     auto.
+  Qed.
+
+  Lemma persisted_persisted_loc_weak PV ℓ t1 t2 :
+    PV !! ℓ = Some (MaxNat t2) →
+    t1 ≤ t2 →
+    persisted PV -∗
+    persisted_loc ℓ t1.
+  Proof.
+    intros look le.
+    iIntros "pers".
+    iApply persisted_loc_weak; first done.
+    iApply persisted_persisted_loc; done.
   Qed.
 
 End persisted.

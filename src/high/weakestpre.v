@@ -13,7 +13,7 @@ From iris.heap_lang Require Import locations.
 From iris_named_props Require Import named_props.
 
 From self.algebra Require Export ghost_map.
-From self Require Export extra ipm_tactics.
+From self Require Export extra ipm_tactics solve_view_le.
 From self.high Require Export dprop.
 From self Require Export view.
 From self Require Export lang.
@@ -105,7 +105,7 @@ Section wp.
     specialize (Hexec TV' Hφ).
     iInduction n as [|n] "IH" forall (e1 TV Hexec).
     { inversion Hexec. simpl. iIntros "H". iApply "H". }
-    iIntros "H % HV".
+    iIntros "H % HV" .
     pose proof (Hexec) as step.
     inversion step.
     subst.
@@ -254,7 +254,10 @@ Section wp_rules.
   Lemma wp_flush_lb ℓ prot s st E :
     {{{ store_lb ℓ prot s }}}
       Flush #ℓ @ st; E
-    {{{ RET #(); <fence> flush_lb ℓ prot s }}}.
+    {{{ RET #();
+      <fence> flush_lb ℓ prot s ∗
+      <fence_sync> persist_lb ℓ prot s
+    }}}.
   Proof.
     intros Φ.
     iStartProof (iProp _).
@@ -293,12 +296,9 @@ Section wp_rules.
     { repeat split; try done. apply view_le_lub_r. done. }
     iFrame "val".
     iSplitL "HΦ".
-    { monPred_simpl. iApply "HΦ".
-      - iPureIntro.
-        repeat split.
-        * apply incl.
-        * apply incl.
-        * etrans; first apply incl. apply view_le_lub_r. done.
+    { iEval (monPred_simpl) in "HΦ". iApply "HΦ".
+      { iPureIntro. solve_view_le. }
+      iSplitL.
       - simpl.
         rewrite /flush_lb.
         iExists _.
@@ -310,7 +310,31 @@ Section wp_rules.
         apply view_le_lub_r. apply view_le_lub_l.
         apply view_le_singleton.
         eexists _. rewrite lookup_singleton.
-        split; first reflexivity. done. }
+        split; first reflexivity. done.
+      - simpl.
+        iIntros "#pers".
+        rewrite /persist_lb.
+        iExists _.
+        iFrame "locationProtocol".
+        iFrame "knowFragHist".
+        iSplitPure; first done.
+        simpl.
+        iSplit.
+        { simpl. iPureIntro.
+          rewrite !lookup_zero_lub.
+          rewrite lookup_zero_singleton.
+          lia. }
+        destruct (BV !! ℓ) as [[?]|] eqn:bvLook.
+        * iApply (persisted_persisted_loc_weak with "pers").
+          { apply lookup_join; last done.
+            rewrite lookup_singleton. done. }
+          lia.
+        * iApply (persisted_persisted_loc_weak with "pers").
+          { rewrite lookup_op.
+            rewrite bvLook.
+            rewrite right_id.
+            rewrite lookup_singleton. done. }
+          lia. }
     repeat iExists _.
     iFrame "#∗%".
   Qed.
@@ -319,7 +343,8 @@ Section wp_rules.
     last ss = Some s →
     {{{ mapsto_na ℓ prot q ss }}}
       Flush #ℓ @ st; E
-    {{{ RET #(); mapsto_na ℓ prot q ss ∗ <fence> flush_lb ℓ prot s }}}.
+    {{{ RET #(); mapsto_na ℓ prot q ss ∗ <fence> flush_lb ℓ prot s ∗
+                 <fence_sync> persist_lb ℓ prot s  }}}.
   Proof.
     iIntros (eq Φ) "pts".
     iDestruct (mapsto_na_store_lb with "pts") as "#lb"; first done.
@@ -374,6 +399,27 @@ Section wp_rules.
       destruct tv' as [[??]?].
       repeat split; try apply incl3.
       f_equiv; apply incl3.
+  Qed.
+
+  Lemma wp_fence_sync (st : stuckness) (E : coPset) (Φ : val → dProp Σ) :
+    ▷ <fence_sync> Φ #() -∗ WP FenceSync @ st; E {{ v, Φ v }}.
+  Proof.
+    iStartProof (iProp _). iIntros ([[sv pv] bv]).
+    iIntros "H".
+    iApply wp_unfold_at.
+    iIntros ([[SV PV] BV] incl) "#val".
+    iApply (wp_fence_sync with "[//]").
+    simpl.
+    monPred_simpl.
+    iNext. iIntros "pers".
+    cbn.
+    iFrame "#∗".
+    iSplit. { iPureIntro. repeat split; try done. apply view_le_l. }
+    iDestruct ("H" with "[pers]") as "H".
+    { iApply persisted_weak; last iApply "pers". apply incl. }
+    iApply monPred_mono; last iApply "H".
+    repeat split; try apply incl.
+    f_equiv; apply incl.
   Qed.
 
 End wp_rules.

@@ -57,6 +57,12 @@ Qed.
 Instance list_join_bot_r : RightId (=) (∅ : view) (⊔).
 Proof. intros ?. rewrite (comm (⊔)). by rewrite left_id. Qed.
 
+Lemma lookup_join (V1 V2 : view) t1 t2 ℓ :
+  V1 !! ℓ = Some (MaxNat t1) →
+  V2 !! ℓ = Some (MaxNat t2) →
+  (V1 ⊔ V2) !! ℓ = Some (MaxNat (t1 `max` t2)).
+Proof. intros l1 l2. rewrite lookup_op. rewrite l1 l2. done. Qed.
+
 Definition lookup_zero (V : view) l := default 0 (max_nat_car <$> (V !! l)).
 
 Notation "m !!0 l" := (lookup_zero m l) (at level 50).

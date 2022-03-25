@@ -447,9 +447,8 @@ Section points_to_at_more.
   Lemma post_crash_mapsto_na ℓ prot q (ss : list ST) :
     ℓ ↦_{prot}^{q} ss -∗
     post_crash (λ hG',
-      if_rec ℓ (∃ s, ⌜s ∈ ss⌝ ∗
-                      ℓ ↦_{prot}^{q} [bumper prot s] ∗
-                      crashed_in prot ℓ s)).
+      if_rec ℓ (∃ s, ⌜s ∈ ss⌝ ∗ ℓ ↦_{prot}^{q} [bumper prot s] ∗
+                     crashed_in prot ℓ s)).
   Proof.
     rewrite /mapsto_na.
     iNamed 1.
