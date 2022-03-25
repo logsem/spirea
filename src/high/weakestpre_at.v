@@ -614,13 +614,12 @@ Section wp_at_rules.
       * apply view_empty_least.
   Qed.
 
-  (* Rule for store on an atomic. *)
   Lemma wp_store_at ℓ s_i s_t v_t (prot : LocationProtocol ST) st E :
     {{{
       ⌜ s_i ⊑ s_t ⌝ ∗
       ⎡ is_at_loc ℓ ⎤ ∗
       store_lb ℓ prot s_i ∗
-      <nobuf> (prot.(pred) s_t v_t _) ∗
+      prot.(pred) s_t v_t _ ∗
       (* NOTE: This does _not_ work. *)
       (* "phi" ∷ (∀ v_i, ϕ s_i v_i _ -∗ ϕ s_t v_t _ ∗ ϕ s_i v_i _) ∗ *)
       (* NOTE: This should work and be more general. *)
@@ -727,15 +726,10 @@ Section wp_at_rules.
       iSplitL "phiI".
       { iApply monPred_mono; last iApply "phiI". apply thread_view_le_r. }
       iSplitL "phi".
-      { iApply monPred_mono; last iApply "phi".
-        etrans; last apply thread_view_le_l.
-        etrans; last apply thread_view_le_l.
-        destruct TV as [[??]?].
-        destruct TV' as [[??]?].
-        repeat split.
-        - apply incl.
-        - apply incl.
-        - apply view_empty_least. }
+      {
+        iApply monPred_mono; last iApply "phi".
+        rewrite -assoc.
+        etrans; last apply thread_view_le_l. done. }
 
       iApply monPred_mono; last iApply "phiC".
       rewrite (comm _ TV').
@@ -758,8 +752,9 @@ Section wp_at_rules.
       iExists (prot.(protocol.pred) s_t v_t).
       iSplit.
       { iApply pred_encode_Some. done. }
-      iApply monPred_mono; last iFrame.
       destruct TV as [[??]?].
+      iDestruct (into_no_buffer_at with "phi") as "phi".
+      iApply monPred_mono; last iFrame.
       destruct TV' as [[??]?].
       repeat split; last done.
       - simpl. etrans; first apply incl. etrans; first apply incl2.
