@@ -40,6 +40,21 @@ Section increasing_map.
     R s1 s2.
   Proof. apply increasing_map_increasing_base. reflexivity. Qed.
 
+  Lemma increasing_map_lookup_lt `{!Reflexive R} m t1 t2 s1 s2 :
+    increasing_map R m →
+    m !! t1 = Some s1 →
+    m !! t2 = Some s2 →
+    ¬ (R s2 s1) →
+    t1 < t2.
+  Proof.
+    rewrite /increasing_map.
+    intros increasing look1 look2 neg.
+    destruct (decide (t1 < t2)); first done.
+    exfalso.
+    apply neg.
+    eapply increasing_map_increasing; [done| |eassumption|eassumption]. lia.
+  Qed.
+
   Lemma increasing_map_singleton R t s :
     increasing_map R {[ t := s ]}.
   Proof. intros ????? ?%lookup_singleton_Some ?%lookup_singleton_Some. lia. Qed.

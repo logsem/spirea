@@ -19,3 +19,13 @@ Ltac iPureGoalNamed name :=
   rewrite (pure_named_True name);
   first (rewrite (left_id (True)%I) || rewrite (right_id (True)%I));
   last first.
+
+(** [iFrameF] takes an assumption (pure or spatial) an tries to frame only the
+first conjunct in the goal with the assumption. The key reason to use this
+tactic is that it can be much faster than the normal [iFrame] if the goal is
+large. *)
+Tactic Notation "iFrameF" "(" constr(t1) ")" :=
+  iSplit; first iFramePure t1.
+
+Tactic Notation "iFrameF" constr(Hs) :=
+  iSplitL Hs; first iFrame Hs.

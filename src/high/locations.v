@@ -211,6 +211,8 @@ the last events at [ℓ] corresponds to the *)
     iPureIntro. apply elem_of_dom. done.
   Qed.
 
+  (* Lemmas for [mapsto_na] *)
+
   Lemma mapsto_na_store_lb ℓ prot q ss s :
     last ss = Some s →
     mapsto_na ℓ prot q ss -∗
@@ -261,7 +263,45 @@ the last events at [ℓ] corresponds to the *)
     eapply increasing_map_increasing in incrMap; done.
   Qed.
 
-  (* Instances. *)
+  Lemma mapsto_na_persist_lb ℓ prot q ss s1 s2 s3 :
+    ¬(s2 ⊑ s1) →
+    mapsto_na ℓ prot q (s1 :: s3 :: ss) -∗
+    persist_lb ℓ prot s2 -∗
+    mapsto_na ℓ prot q (s3 :: ss).
+  Proof.
+    iIntros (gt).
+    iNamed 1.
+    iDestruct 1 as (tP2) "(? & frag & ? & ? & ?)".
+    assert (abs_hist !! tP = Some s1) as lookTP.
+    { apply map_sequence_lookup_lo in slice. done. }
+    apply map_sequence_cons_drop in slice as (tP3 & lt & noin & slice).
+    iExists tP3, tStore, SV, abs_hist, msg, s.
+    (* The non-trivial task now is to show that [tP2] is larger than [tP3]. *)
+    iDestruct (full_entry_frag_entry_unenc with "hist frag") as %lookTP2.
+    assert (tP < tP2). {
+      apply (increasing_map_lookup_lt abs_hist _ _ s1 s2 incrMap); done. }
+    destruct (decide (tP3 ≤ tP2)).
+    2: { exfalso.
+      assert (tP < tP2 < tP3) as order by lia.
+      specialize (noin tP2 order).
+      congruence. }
+    iFrameF (lastEq). iFrameF "locationProtocol". iFrameF (incrMap).
+    iFrameF "isNaLoc". iFrameF (lookupV). iFrameF (nolater).
+    iFrameF "hist". iFrameF "histFrag". iFrameF "knowSV".
+    iFrameF (slice). iFrame "physMsg". iFrame "inThreadView".
+    iFrameF (haveTStore).
+    iLeft. iApply persisted_loc_weak; done.
+  Qed.
+
+  (* Lemma mapsto_na_persist_lb ℓ prot q ss s1 s2 s3 : *)
+  (*   ¬(s2 ⊑ s1) → *)
+  (*   ss !! i = Some s1 → *)
+  (*   length ss *)
+  (*   mapsto_na ℓ prot q ss -∗ *)
+  (*   persist_lb ℓ prot s2 -∗ *)
+  (*   mapsto_na ℓ prot q (drop i ss). *)
+  (* Proof. *)
+  (* (* Instances. *) *)
 
   Lemma no_buffer_flush_lb ℓ prot (s : ST) :
     flush_lb ℓ prot s -∗ <nobuf> flush_lb ℓ prot s.
