@@ -3,6 +3,7 @@ From iris.bi Require Import bi.
 From iris.bi Require Import derived_laws.
 
 From self Require Import solve_view_le.
+From self.base Require Import primitive_laws.
 From self.high Require Import dprop resources crash_weakestpre weakestpre
      recovery_weakestpre resources lifted_modalities modalities post_crash_modality protocol.
 From self.high.modalities Require Import no_flush.
@@ -158,12 +159,12 @@ Section post_fence.
 
 End post_fence.
 
-(* Class IntoFence_Sync `{nvmFixedG Σ, nvmDeltaG Σ} *)
-(*       (P: dProp Σ) (Q : dProp Σ) := *)
-(*   into_fence_sync : P ⊢ <fence_sync> Q. *)
-(* Global Arguments IntoFence_Sync {_} _%I _%I. *)
-(* Global Arguments into_fence_sync {_} _%I _%I {_}. *)
-(* Global Hint Mode IntoFence_Sync - - + ! -  : typeclass_instances. *)
+Class IntoFenceSync `{nvmFixedG Σ, nvmDeltaG Σ}
+      (P: dProp Σ) (Q : dProp Σ) :=
+  into_fence_sync : P ⊢ <fence_sync> Q.
+Global Arguments IntoFenceSync {_} {_} {_} _%I _%I.
+Global Arguments into_fence_sync {_} _%I _%I {_}.
+Global Hint Mode IntoFenceSync - - + ! -  : typeclass_instances.
 
 Section post_fence_sync.
   Context `{nvmFixedG Σ, nvmDeltaG Σ}.
@@ -183,8 +184,11 @@ Section post_fence_sync.
   (*   ((<fence_sync> P) (SV, PV, BV) = P (SV, PV ⊔ BV, BV))%I. *)
   (* Proof. done. Qed. *)
 
-  (* Lemma post_fence_sync_mono P Q : (P ⊢ Q) → <fence_sync> P ⊢ <fence_sync> Q. *)
-  (* Proof. intros H. iModel. rewrite 2!post_fence_sync_at. iApply H. Qed. *)
+  Lemma post_fence_sync_mono P Q : (P ⊢ Q) → <fence_sync> P ⊢ <fence_sync> Q.
+  Proof.
+    intros Hi. iModel. simpl.
+    iIntros "H pers". iApply Hi. iApply "H". done.
+  Qed.
 
   (* Global Instance post_fence_sync_mono' : Proper ((⊢) ==> (⊢)) (post_fence (Σ := Σ)). *)
   (* Proof. intros P Q. apply post_fence_sync_mono. Qed. *)
@@ -208,25 +212,39 @@ Section post_fence_sync.
   (*   reflexivity. *)
   (* Qed. *)
 
-  (* Lemma post_fence_sync_intro P : P ⊢ <fence_sync> P. *)
-  (* Proof. *)
-  (*   iModel. destruct TV as [[??]?]. rewrite post_fence_sync_at /=. *)
-  (*   iApply monPred_mono. repeat split; auto using view_le_l. *)
-  (* Qed. *)
+  Lemma post_fence_sync_intro P : P ⊢ <fence_sync> P.
+  Proof.
+    iModel. destruct TV as [[??]?]. simpl.
+    iIntros "P pers".
+    iApply (monPred_mono with "P"). repeat split; auto using view_le_l.
+  Qed.
 
-  (* Lemma post_fence_sync_emp : (emp : dProp Σ) ⊢ <fence_sync> emp. *)
-  (* Proof. apply post_fence_sync_intro. Qed. *)
+  Lemma post_fence_sync_emp : (emp : dProp Σ) ⊢ <fence_sync> emp.
+  Proof. apply post_fence_sync_intro. Qed.
 
-  (* Lemma post_fence_sync_and P Q : <fence_sync> (P ∧ Q) ⊣⊢ <fence_sync> P ∧ <fence_sync> Q. *)
-  (* Proof. iModel. rewrite !post_fence_sync_at. rewrite monPred_at_and. naive_solver. Qed. *)
+  Lemma post_fence_sync_and P Q : <fence_sync> (P ∧ Q) ⊣⊢ <fence_sync> P ∧ <fence_sync> Q.
+  Proof.
+    iModel. simpl.
+    rewrite monPred_at_and. iSplit.
+    - iIntros "impl".
+      iSplit.
+      * iIntros "pers". iDestruct ("impl" with "pers") as "[$ _]".
+      * iIntros "pers". iDestruct ("impl" with "pers") as "[_ $]".
+    - iIntros "impl pers".
+      iSplit.
+      * iDestruct "impl" as "[impl _]". iApply "impl". done.
+      * iDestruct "impl" as "[_ impl]". iApply "impl". done.
+  Qed.
 
-  (* Lemma post_fence_sync_sep P Q : <fence_sync> (P ∗ Q) ⊣⊢ <fence_sync> P ∗ <fence_sync> Q. *)
-  (* Proof. *)
-  (*   iStartProof (iProp _). iIntros ([[sv pv] bv]). *)
-  (*   cbn. *)
-  (*   rewrite monPred_at_sep. *)
-  (*   iSplit; iIntros "$". *)
-  (* Qed. *)
+  Lemma post_fence_sync_sep P Q : <fence_sync> P ∗ <fence_sync> Q -∗ <fence_sync> (P ∗ Q) .
+  Proof.
+    iStartProof (iProp _). iIntros ([[??]?]).
+    cbn.
+    rewrite monPred_at_sep.
+    iIntros "[HP HQ] #per".
+    iDestruct ("HP" with "per") as "$".
+    iDestruct ("HQ" with "per") as "$".
+  Qed.
 
   (* Global Instance into_sep_post_fence_sync P Q1 Q2 : *)
   (*   IntoSep P Q1 Q2 → *)
@@ -234,23 +252,24 @@ Section post_fence_sync.
   (* Proof. *)
   (* rewrite /IntoSep /= => ->. rewrite post_fence_sync_sep. done. Qed. *)
 
-  (* Lemma post_fence_sync_intuitionistically_2 P : □ <fence_sync> P ⊢ <fence_sync> □ P. *)
-  (* Proof. *)
-  (*   iModel. rewrite !post_fence_sync_at monPred_at_intuitionistically. naive_solver. *)
-  (* Qed. *)
+  Lemma post_fence_sync_intuitionistically_2 P : □ <fence_sync> P ⊢ <fence_sync> □ P.
+  Proof.
+    iModel. simpl. rewrite monPred_at_intuitionistically.
+    iIntros "#impl #pers". iModIntro. iApply "impl". done.
+  Qed.
 
-  (* Lemma modality_post_fence_sync_mixin : *)
-  (*   modality_mixin (@post_fence_sync Σ) *)
-  (*     (MIEnvTransform IntoFence_Sync) (MIEnvTransform IntoFence). *)
-  (* Proof. *)
-  (*   split; simpl; split_and?; *)
-  (*   eauto using bi.equiv_entails_1_2, post_fence_sync_and, post_fence_emp, *)
-  (*     post_fence_sync_mono, post_fence_sep. *)
-  (*   intros P Q. rewrite /IntoFence_Sync=> ->. *)
-  (*   by rewrite post_fence_sync_intuitionistically_2. *)
-  (* Qed. *)
-  (* Definition modality_post_fence_sync := *)
-  (*   Modality _ modality_post_fence_sync_mixin. *)
+  Lemma modality_post_fence_sync_mixin :
+    modality_mixin (@post_fence_sync _ _ _)
+      (MIEnvTransform IntoFenceSync) (MIEnvTransform IntoFenceSync).
+  Proof.
+    split; simpl; split_and?;
+    eauto using bi.equiv_entails_1_2, post_fence_sync_and, post_fence_sync_emp,
+      post_fence_sync_mono, post_fence_sync_sep.
+    intros P Q. rewrite /IntoFenceSync=> ->.
+    by rewrite post_fence_sync_intuitionistically_2.
+  Qed.
+  Definition modality_post_fence_sync :=
+    Modality _ modality_post_fence_sync_mixin.
 
   (* Global Instance from_modal_post_fence_sync P : *)
   (*   FromModal True (modality_post_fence_sync) (<fence_sync> P) (<fence_sync> P) P. *)
@@ -285,13 +304,19 @@ Section post_fence_sync.
   (*   iApply monPred_mono. solve_view_le. *)
   (* Qed. *)
 
-  (* Global Instance post_fence_sync_persistent P : *)
-  (*   Persistent P → Persistent (post_fence_sync P). *)
+  (* NOTE: This seems to not hold. *)
+  (* Global Instance post_fence_sync_persistent P `{!Persistent P} : *)
+  (*   Persistent (post_fence_sync P). *)
   (* Proof. *)
   (*   rewrite /Persistent. *)
-  (*   intros pers. *)
   (*   iStartProof (iProp _). *)
+  (*   simpl. *)
   (*   iIntros (TV) "H". *)
+  (*   assert (Persistent (persisted TV.2 -∗ P (store_view TV, flush_view TV ⊔ TV.2, TV.2))). *)
+  (*   { apply: wand_persistent. *)
+  (*     Plain *)
+  (*   specialize (wand_persistent (persisted TV.2) (P (store_view TV, flush_view TV ⊔ TV.2, TV.2))). *)
+  (*   iModIntro. *)
   (*   rewrite post_fence_sync_at. *)
   (*   iApply pers. *)
   (*   iApply "H". *)
