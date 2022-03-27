@@ -165,7 +165,7 @@ Section simple_increment.
     iSplit. { iApply (prove_crash_condition with "aPer bPer aPts bPts"). }
     iApply (wp_flush_ex with "aPts"); first reflexivity.
     iNext.
-    iIntros "[aPts #pLowerBound]".
+    iIntros "(aPts & #pLowerBound & _)".
     iSplit; first iApply (prove_crash_condition with "aPer bPer aPts bPts").
     iModIntro.
     wpc_pures.
@@ -277,3 +277,46 @@ Section simple_increment.
   Qed.
 
 End simple_increment.
+
+Definition program (ℓ : loc) : expr :=
+  #ℓ <-_NA #1 ;;
+  Flush #ℓ ;;
+  FenceSync ;;
+  #().
+
+Section fence_sync.
+  Context `{!nvmFixedG Σ, nvmDeltaG Σ}.
+
+  (* Predicate used for the location [a]. *)
+  Program Definition prot : LocationProtocol nat :=
+    {| pred := λ n v _, ⌜v = #n⌝%I;
+       bumper n := n |}.
+  Next Obligation. iIntros. by iApply post_crash_flush_pure. Qed.
+
+  Lemma spec ℓ st E :
+    {{{ ℓ ↦_{prot} [0] }}}
+      program ℓ @ st; E
+    {{{ RET #(); ℓ ↦_{prot} [1] }}}.
+  Proof.
+    iIntros (Φ) "pts Φpost".
+    rewrite /program.
+    wp_apply (wp_store_na with "[$pts]"); first done.
+    { suff leq : (0 ≤ 1); first apply leq. lia. }
+    { done. }
+    iIntros "pts".
+    wp_pures.
+    wp_apply (wp_flush_ex with "pts"); first reflexivity.
+    iIntros "(pts & _ & lb) /=".
+    wp_pures.
+    (* iApply wp_fence_sync. *)
+    wp_apply wp_fence_sync.
+    iModIntro.
+    simpl.
+    wp_pures.
+    iModIntro.
+    iApply "Φpost".
+    iApply (mapsto_na_persist_lb with "pts lb").
+    cbn. lia.
+  Qed.
+
+End fence_sync.

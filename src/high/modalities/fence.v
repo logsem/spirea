@@ -271,15 +271,15 @@ Section post_fence_sync.
   Definition modality_post_fence_sync :=
     Modality _ modality_post_fence_sync_mixin.
 
-  (* Global Instance from_modal_post_fence_sync P : *)
-  (*   FromModal True (modality_post_fence_sync) (<fence_sync> P) (<fence_sync> P) P. *)
-  (* Proof. by rewrite /FromModal. Qed. *)
+  Global Instance from_modal_post_fence_sync P :
+    FromModal True (modality_post_fence_sync) (<fence_sync> P) (<fence_sync> P) P.
+  Proof. by rewrite /FromModal. Qed.
 
-  (* Global Instance into_post_fence_sync_default P : IntoFence P P. *)
-  (* Proof. apply post_fence_sync_intro. Qed. *)
+  Global Instance into_post_fence_sync_default P : IntoFenceSync P P.
+  Proof. apply post_fence_sync_intro. Qed.
 
-  (* Global Instance into_post_fence_sync_fence P : IntoFence (<fence_sync> P) P. *)
-  (* Proof. done. Qed. *)
+  Global Instance into_post_fence_sync_fence P : IntoFenceSync (<fence_sync> P) P.
+  Proof. done. Qed.
 
   (* Lemma post_fence_sync_objective' P : post_fence (<obj> P) ⊢ P. *)
   (* Proof. *)

@@ -263,7 +263,7 @@ Section proof.
       whack_left_cc.
       iApply (wp_flush_ex with "xPts"); first reflexivity.
       iNext.
-      iIntros "[xPts #xLowerBound]".
+      iIntros "(xPts & #xLowerBound & ?)".
       whack_left_cc.
       iModIntro.
       wpc_pures;
@@ -285,7 +285,7 @@ Section proof.
         iPureGoal. { done. }
         iFrame "#".
         iSplitL.
-        - iModIntro. simpl. naive_solver.
+        - simpl. naive_solver.
         - iIntros (? s_c v_c). simpl.
           destruct s_c; first naive_solver.
           iIntros "? ([? O1] & [??] & [? O2])".
