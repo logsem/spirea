@@ -198,7 +198,7 @@ Section proof.
 
     iApply (wp_flush_lb with "storeLb").
     iNext.
-    iIntros "#xLb".
+    iIntros "(#xLb & _)".
     whack_right_cc.
     iModIntro.
     wpc_pures;
@@ -300,7 +300,7 @@ Section proof.
         iPureGoal. { done. }
         iFrame "#".
         iSplitL.
-        - iModIntro. simpl. naive_solver.
+        - naive_solver.
         - iIntros (? s_c v_c). simpl.
           destruct s_c as [[|]|]; [naive_solver| |naive_solver].
           iIntros "? ([? O1] & [??] & [? O2])".

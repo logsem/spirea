@@ -267,7 +267,7 @@ Section proof.
     iDestruct (mapsto_na_store_lb with "nilPts") as "#storeLb"; first done.
     wp_pures.
     wp_apply (wp_flush_lb with "[$]").
-    iIntros "#flushLb".
+    iIntros "[#flushLb _]".
     wp_pures.
     wp_apply wp_fence.
     do 2 iModIntro.
@@ -301,7 +301,7 @@ Section proof.
     iIntros (ℓnode) "nodePts".
     wp_pures.
     wp_apply (wp_flush_ex with "nodePts"); first reflexivity.
-    iIntros "[nodePts #nodeFlushLb]".
+    iIntros "(nodePts & #nodeFlushLb & _)".
     wp_pure1. wp_pure1. wp_pure1.
     iAssert (∃ xs x', ⌜ last xs = Some x' ⌝ ∗ ℓtoNext ↦_{_} xs)%I with "[toNextPts]" as "toNextPts".
     { iExists _, _. iFrame. done. }
@@ -330,7 +330,7 @@ Section proof.
     iIntros "toNextPts".
     wp_pures.
     wp_apply (wp_flush_ex with "toNextPts"). { apply last_app. done. }
-    iIntros "[toNextPts #toNextPtsFl]".
+    iIntros "(toNextPts & #toNextPtsFl & _)".
     wp_pures.
     wp_apply wp_fence. do 2 iModIntro.
     iDestruct "fence" as (ℓhead xs ->) "[isNode #phis]".
@@ -380,7 +380,7 @@ Section proof.
     iLöb as "IH".
     wp_pures.
     wp_apply (wp_load_at _ _
-         (λ _ v, (∃ (ℓhead : loc) xs, ⌜v = #ℓhead⌝ ∗ is_node ℓhead xs ∗ _)%I) with "[]").
+      (λ _ v, (∃ (ℓhead : loc) xs, ⌜v = #ℓhead⌝ ∗ is_node ℓhead xs ∗ _)%I) with "[]").
     { iFrame "stackSh stackLb".
       iModIntro.
       iIntros ([] v le) "toHead".
@@ -432,7 +432,6 @@ Section proof.
         iSplit.
         { iSplitPure. { destruct s_l. reflexivity. }
           iSplitL "". { iIntros (???) "??". done. }
-        (* { iIntros (??). *)
           iSplitL "". { iIntros "!> $". naive_solver. }
           simpl. iIntros "_". simpl. rewrite right_id.
           rewrite /toHead_prot.
