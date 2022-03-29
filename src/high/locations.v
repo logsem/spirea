@@ -253,15 +253,7 @@ the last events at [ℓ] corresponds to the *)
     flush_lb ℓ prot s2 -∗
     mapsto_na ℓ prot q ss -∗
     ⌜s2 ⊑ s1⌝.
-  Proof.
-    iIntros (lastSome) "flushLb".
-    iNamed 1.
-    assert (s = s1) as -> by congruence.
-    iDestruct "flushLb" as (t) "(_ & histFrag' & _)".
-    iDestruct (full_entry_frag_entry_unenc with "hist histFrag'") as %look.
-    eassert _ as le. { eapply map_no_later_Some; done. }
-    eapply increasing_map_increasing in incrMap; done.
-  Qed.
+  Proof. rewrite flush_lb_to_store_lb. apply mapsto_na_store_lb_incl. Qed.
 
   Lemma mapsto_na_persist_lb ℓ prot q ss s1 s2 s3 :
     ¬(s2 ⊑ s1) →

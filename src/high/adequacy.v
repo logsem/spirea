@@ -556,7 +556,7 @@ Lemma high_recv_adequacy `{hPre : !nvmGpreS Σ} s e r σ PV (φ φr : val → Pr
       (* Note: We need to add the resources that can be used to prove the [wpr]
       includin [pre_borrow]. These should require the user to decide which
       locations should be shared/exclusive, location invariants, etc. *)
-      (wpr s ⊤ e r (λ v, ⌜φ v⌝) (λ _ v, ⌜φr v⌝))) →
+      (wpr s ⊤ e r (λ v, ⌜ φ v ⌝) (λ _ v, ⌜ φr v ⌝))) →
   recv_adequate s (ThreadState e ⊥) (ThreadState r ⊥) (σ, PV)
                 (λ v _, φ v.(val_val)) (λ v _, φr v.(val_val)).
 Proof.
