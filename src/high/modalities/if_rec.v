@@ -7,7 +7,7 @@ From self.base Require Import primitive_laws wpr_lifting.
 From self.high Require Import dprop resources modalities or_lost monpred_simpl.
 
 (* The predicate [P] holds for [ℓ] or [ℓ] has been lost. *)
-Definition if_rec `{nvmBaseFixedG Σ, nvmBaseDeltaG Σ}
+Definition if_rec `{nvmBaseFixedG Σ, nvmBaseDeltaG}
            (ℓ : loc) (P : dProp Σ) : dProp Σ :=
   ∀ (CV : view),
     ⌜ is_Some (CV !! ℓ) ⌝ -∗ ⎡ crashed_at CV ⎤ -∗ ⎡ persisted_loc ℓ 0 ⎤ -∗ P.
@@ -16,14 +16,14 @@ Definition if_rec `{nvmBaseFixedG Σ, nvmBaseDeltaG Σ}
   P ∨ (∃ CV, ⎡crashed_at CV⎤ ∗ ⌜ℓ ∉ dom (gset _) CV⌝ )
  *)
 
-Class IntoIfRec `{nvmBaseFixedG Σ, nvmBaseDeltaG Σ} ℓ (P : dProp Σ) (Q : dProp Σ) :=
+Class IntoIfRec `{nvmBaseFixedG Σ, nvmBaseDeltaG} ℓ (P : dProp Σ) (Q : dProp Σ) :=
   into_if_rec : P ⊢ if_rec ℓ Q.
 Global Arguments IntoIfRec {_} {_} {_} _ _%I _%I.
 Global Arguments into_if_rec {_} _ _%I _%I.
 Global Hint Mode IntoIfRec ! ! ! + + -  : typeclass_instances.
 
 Section if_rec.
-  Context `{nvmBaseFixedG Σ, nvmBaseDeltaG Σ}.
+  Context `{nvmBaseFixedG Σ, nvmBaseDeltaG}.
 
   Local Ltac ifRecIntro := iIntros (CV) "%look #crashed #pers".
 

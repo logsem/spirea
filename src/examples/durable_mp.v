@@ -49,7 +49,7 @@ Section program.
 End program.
 
 Section proof.
-  Context `{nvmFixedG Σ, nvmDeltaG Σ, inG Σ (exclR unitO)}.
+  Context `{nvmFixedG Σ, nvmDeltaG, inG Σ (exclR unitO)}.
   Context `{!stagedG Σ}.
 
   Context (x y z : loc) (γ__ex : gname).
@@ -60,7 +60,7 @@ Section proof.
   Next Obligation. iIntros. by iApply post_crash_flush_pure. Qed.
 
   Program Definition inv_y :=
-    {| pred (b : bool) (v : val) (hG : nvmDeltaG Σ) :=
+    {| pred (b : bool) (v : val) (hG : nvmDeltaG) :=
         match b with
           false => ⌜ v = #false ⌝ ∗ ⎡ own γ__ex (Excl ()) ⎤
         | true => ⌜ v = #true ⌝ ∗ flush_lb x inv_x true
@@ -82,24 +82,24 @@ Section proof.
   (* Note: The recovery code does not use the [y] location, hence the crash
   condition does not mention [y] as we don't need it to be available after a
   crash. *)
-  Definition crash_condition {hD : nvmDeltaG Σ} : dProp Σ :=
+  Definition crash_condition {hD : nvmDeltaG} : dProp Σ :=
     ∃ (bx bz : bool),
       "#xPer" ∷ persist_lb x inv_x bx ∗
       "#zPer" ∷ persist_lb z inv_z bz ∗
       x ↦_{inv_x} [bx] ∗
       z ↦_{inv_z} [bz].
 
-  Definition left_crash_condition {hD : nvmDeltaG Σ} : dProp Σ :=
+  Definition left_crash_condition {hD : nvmDeltaG} : dProp Σ :=
     ∃ (bx : bool),
       "#xPer" ∷ persist_lb x inv_x bx ∗
       "xPts" ∷ x ↦_{inv_x} [bx].
 
-  Definition right_crash_condition {hD : nvmDeltaG Σ} : dProp Σ :=
+  Definition right_crash_condition {hD : nvmDeltaG} : dProp Σ :=
     ∃ (bz : bool),
       "#zPer" ∷ persist_lb z inv_z bz ∗
       "zPts" ∷ z ↦_{inv_z} [bz].
 
-  Lemma left_crash_condition_impl {hD : nvmDeltaG Σ} (sx : list bool) :
+  Lemma left_crash_condition_impl {hD : nvmDeltaG} (sx : list bool) :
     persist_lb x inv_x false -∗
     x ↦_{inv_x} sx -∗
     <PC> hD, left_crash_condition.
@@ -112,7 +112,7 @@ Section proof.
     iExists _. iFrame "∗#".
   Qed.
 
-  Lemma right_crash_condition_impl {hD : nvmDeltaG Σ} (sz : list bool) :
+  Lemma right_crash_condition_impl {hD : nvmDeltaG} (sz : list bool) :
     persist_lb z inv_z false -∗
     z ↦_{inv_z} sz -∗
     <PC> hD, right_crash_condition.

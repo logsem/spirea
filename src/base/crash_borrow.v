@@ -58,7 +58,7 @@ Section crash_borrow_def.
 
 (* Context `{!heapGS Σ}. *)
   Context `{!stagedG Σ}.
-  Context `{nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG Σ}.
+  Context `{nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG}.
 
   Global Instance later_tokG_heap : later_tokG (nvmBase_irisGS).
   Proof.

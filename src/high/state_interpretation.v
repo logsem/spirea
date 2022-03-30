@@ -90,13 +90,13 @@ Definition shared_locs_inv (locs : gmap loc (gmap time message)) :=
   map_map_Forall atomic_loc_inv locs.
 
 Section state_interpretation.
-  Context `{nvmFixedG Σ, hGD : nvmDeltaG Σ}.
+  Context `{nvmFixedG Σ, hGD : nvmDeltaG}.
 
   Implicit Types (TV : thread_view).
 
   Definition pred_post_crash_implication {ST}
              (ϕ : ST → val → _ → dProp Σ) bumper : dProp Σ :=
-    □ ∀ (hD : nvmDeltaG Σ) s v, ϕ s v hD -∗ <PCF> hD', ϕ (bumper s) v hD'.
+    □ ∀ (hD : nvmDeltaG) s v, ϕ s v hD -∗ <PCF> hD', ϕ (bumper s) v hD'.
 
   (** This is our analog to the state interpretation in the Iris weakest
   precondition. We keep this in our crash weakest precondition ensuring that it
@@ -172,7 +172,7 @@ Section state_interpretation.
                          ⌜order e1 e2⌝ → ⌜order e1' e2'⌝) ∗
       (* The predicate holds after a crash for the bumped state. *)
       "#predPostCrash" ∷ ([∗ map] ℓ ↦ pred; bump ∈ predicates; bumpers,
-        □ (∀ (e : positive) (v : val) (hG : nvmDeltaG Σ) TV (P : nvmDeltaG Σ -d> dPropO Σ) e',
+        □ (∀ (e : positive) (v : val) (hG : nvmDeltaG) TV (P : nvmDeltaG -d> dPropO Σ) e',
           ⌜bump e = Some e'⌝ ∗ pred e v ≡ Some P ∗ P hG TV -∗
           ∃ P', ⌜pred e' v = Some P'⌝ ∗ ((post_crash_flush P') TV))) ∗
       (* Bumpers map valid input to valid output. *)

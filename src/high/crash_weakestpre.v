@@ -11,7 +11,7 @@ From self.high Require Export dprop resources lifted_modalities monpred_simpl
      post_crash_modality increasing_map state_interpretation wpc_notation.
 
 Section wpc.
-  Context `{nvmFixedG Σ, hGD : nvmDeltaG Σ}.
+  Context `{nvmFixedG Σ, hGD : nvmDeltaG}.
 
   Implicit Types (TV : thread_view).
 

@@ -20,6 +20,7 @@ Definition view_preG Σ := inG Σ (authR viewUR).
 Class nvmBaseFixedG Σ := {
   nvmBaseG_invGS : invGS Σ;                            (* For invariants. *)
   nvmBaseG_gen_heapGS :> gen_heapGpreS loc history Σ;  (* For the heap. *)
+  nvmBaseG_crashGS :> crashGpreS Σ;
   view_inG :> inG Σ (authR viewUR);                    (* For views. *)
   crashed_at_inG :> inG Σ (agreeR viewO);              (* For crashed at knowledge. *)
   nvm_base_creditG :> creditGS Σ;
@@ -33,22 +34,16 @@ Record nvm_heap_names := {
 
 (** A record of all the ghost names useb by [nvmBaseG] that needs to change
 after a crash. *)
-Class nvm_base_names := {
+Class nvmBaseDeltaG := {
   heap_names_name : nvm_heap_names;  (* Names used by [gen_heap]. *)
+  crash_token_name : gname;          (* Name for [crashGS]. *)
   store_view_name : gname;           (* Name used by the store view. *)
   persist_view_name : gname;         (* Name used by the persist view. *)
   crashed_at_view_name : gname;      (* Name used by the crashed at view. *)
 }.
 
-(* Things that change upon a crash. We would have like to _only_ have ghost
-names in this record, but due to how Perennial works we need to keep the entire
-[crashGS] in it. *)
-Class nvmBaseDeltaG Σ := MkNvmBaseDeltaG {
-  nvm_base_crashGS : crashGS Σ;
-  nvm_base_names' :> nvm_base_names;
-}.
-
-(* All the functors that we need for the base logic (and not ghost names). *)
+(* All the functors that we need for the base logic (and not ghost names). This
+is identical to [nvmBaseFixedG] except for the [invG] part. *)
 Class nvmBaseGpreS Σ := NvmBasePreG {
   nvmBase_preG_iris :> invGpreS Σ;
   nvmBase_preG_gen_heapGS :> gen_heapGpreS loc history Σ;
@@ -58,16 +53,11 @@ Class nvmBaseGpreS Σ := NvmBasePreG {
   nvmBase_preG_credit :> credit_preG Σ;
 }.
 
-Definition nvm_base_delta_update_names {Σ}
-           (hGD : nvmBaseDeltaG Σ) (names : nvm_base_names) :=
-  {| nvm_base_crashGS := nvm_base_crashGS;
-     nvm_base_names' := names |}.
-
 (* When we have an [nvmBaseG] instance we can stich together a [gen_heapGS]
 instance. We need this instance b.c. we store functors and the ghost names in
 separate records (for the post crash modality) and this means that we need this
 to construct the [gen_heapGS] record that mixes these things together. *)
-Instance nvm_baseG_to_heapG `{nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ} :
+Instance nvm_baseG_to_heapG `{nvmBaseFixedG Σ, hGD : nvmBaseDeltaG} :
     gen_heapGS loc _ Σ := {|
   gen_heap_inG := _;
   gen_heap_name := name_gen_heap (heap_names_name);
@@ -120,7 +110,7 @@ Proof.
 Qed.
 
 (* The state interpretation for the base logic. *)
-Definition nvm_heap_ctx `{hG : !nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ} σ : iProp Σ :=
+Definition nvm_heap_ctx `{hG : !nvmBaseFixedG Σ, hGD : nvmBaseDeltaG} σ : iProp Σ :=
   "Hσ" ∷ gen_heap_interp σ.1 ∗ (* The interpretation of the heap. This is standard,
   except that the heap stores histories and not plain values. *)
   "lubauth" ∷ own store_view_name (● (max_view σ.1)) ∗
@@ -140,7 +130,7 @@ Class extraStateInterp Σ := {
 }.
 
 Global Program Instance nvmBase_irisGS
-       `{!nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ, extraStateInterp Σ} :
+       `{!nvmBaseFixedG Σ, hGD : nvmBaseDeltaG, extraStateInterp Σ} :
   irisGS nvm_lang Σ := {
   iris_invGS := nvmBaseG_invGS;
   global_state_interp g ns mj D _ :=
@@ -154,9 +144,9 @@ Global Program Instance nvmBase_irisGS
 }.
 
 Global Program Instance nvmBase_generationGS
-       `{!nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ, extraStateInterp Σ} :
+       `{!nvmBaseFixedG Σ, hGD : nvmBaseDeltaG, extraStateInterp Σ} :
   generationGS nvm_lang Σ := {
-  iris_crashGS := nvm_base_crashGS;
+  iris_crashGS := {| crash_inG := _ ; crash_name := crash_token_name |};
   state_interp σ _nt := (nvm_heap_ctx σ ∗ extra_state_interp)%I;
 }.
 Next Obligation.
@@ -205,25 +195,25 @@ End view_ra_rules.
 
 (* Expresses that the view [V] is valid. This means that it is included in the
 lub view. *)
-Definition validV `{nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ} (V : view) : iProp Σ :=
+Definition validV `{nvmBaseFixedG Σ, hGD : nvmBaseDeltaG} (V : view) : iProp Σ :=
   own store_view_name (◯ V).
 
 (* Expresses that the view [V] is persisted. This means that it is included in
 the global persisted view. *)
-Definition persisted `{nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ} (V : view) : iProp Σ :=
+Definition persisted `{nvmBaseFixedG Σ, hGD : nvmBaseDeltaG} (V : view) : iProp Σ :=
   own persist_view_name (◯ V).
 
-Definition persisted_loc `{nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ}
+Definition persisted_loc `{nvmBaseFixedG Σ, hGD : nvmBaseDeltaG}
            ℓ t : iProp Σ :=
   persisted {[ ℓ := MaxNat t ]}.
 
 (* Expresses that the view [CV] was recovered after the last crash. *)
-Definition crashed_at {Σ} `{nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ}
+Definition crashed_at {Σ} `{nvmBaseFixedG Σ, hGD : nvmBaseDeltaG}
            (CV : view) : iProp Σ :=
   own crashed_at_view_name (to_agree CV).
 
 Section crashed_at.
-  Context `{nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ}.
+  Context `{nvmBaseFixedG Σ, hGD : nvmBaseDeltaG}.
 
   Lemma crashed_at_agree CV CV' :
     crashed_at CV -∗ crashed_at CV' -∗ ⌜CV = CV'⌝.
@@ -236,7 +226,7 @@ End crashed_at.
 
 (** * Lemmas about [max_view] *)
 Section max_view.
-  Context `{!nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ}.
+  Context `{!nvmBaseFixedG Σ, hGD : nvmBaseDeltaG}.
   Implicit Types hist : history.
   Implicit Types ℓ : loc.
 
@@ -389,7 +379,7 @@ Section max_view.
 End max_view.
 
 Section persisted.
-  Context `{!nvmBaseFixedG Σ, nvmBaseDeltaG Σ}.
+  Context `{!nvmBaseFixedG Σ, nvmBaseDeltaG}.
 
   Global Instance persisted_persistent PV : Persistent (persisted PV).
   Proof. apply _. Qed.
@@ -445,7 +435,7 @@ Section persisted.
 End persisted.
 
 Section lifting.
-  Context `{!nvmBaseFixedG Σ, nvmBaseDeltaG Σ, extra : !extraStateInterp Σ}.
+  Context `{!nvmBaseFixedG Σ, nvmBaseDeltaG, extra : !extraStateInterp Σ}.
 
   Implicit Types Q : iProp Σ.
   Implicit Types Φ Ψ : val → iProp Σ.
@@ -1044,7 +1034,7 @@ From self.base Require Import class_instances.
 
 Section extra_state_interp.
 
-  Context `{!nvmBaseFixedG Σ, nvmBaseDeltaG Σ, extra : extraStateInterp Σ}.
+  Context `{!nvmBaseFixedG Σ, nvmBaseDeltaG, extra : extraStateInterp Σ}.
 
   Lemma wp_extra_state_interp_fupd (e : expr) `{!AtomicBase StronglyAtomic e}
         TV s E (Φ : thread_val → iProp Σ) :

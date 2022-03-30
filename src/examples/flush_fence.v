@@ -32,7 +32,7 @@ End program.
 
 (* This is a simple example with a flush and a fence. *)
 Section specification.
-  Context `{nvmFixedG Σ, nvmDeltaG Σ}.
+  Context `{nvmFixedG Σ, nvmDeltaG}.
 
   (* After a crash the following is possible: [a = 0, b = 0], [a = 1, b = 0],
   and [a = 1, b = 1]. The case that is _not_ possible is: [a = 0, b = 1]. *)
@@ -58,14 +58,14 @@ Section specification.
     iPureIntro. etrans; done.
   Qed.
 
-  Definition crash_condition {hD : nvmDeltaG Σ} ℓa ℓb : dProp Σ :=
+  Definition crash_condition {hD : nvmDeltaG} ℓa ℓb : dProp Σ :=
     ("pts" ∷ ∃ (na nb : nat),
      "aPer" ∷ persist_lb ℓa ϕa na ∗
      "bPer" ∷ persist_lb ℓb (ϕb ℓa) nb ∗
      "aPts" ∷ ℓa ↦_{ϕa} [na] ∗
      "bPts" ∷ ℓb ↦_{ϕb ℓa} [nb])%I.
 
-  Lemma prove_crash_condition {hD : nvmDeltaG Σ} ℓa ℓb na nb (ssA ssB : list nat) :
+  Lemma prove_crash_condition {hD : nvmDeltaG} ℓa ℓb na nb (ssA ssB : list nat) :
     persist_lb ℓa ϕa na -∗
     persist_lb ℓb (ϕb ℓa) nb -∗
     ℓa ↦_{ϕa} ssA -∗
@@ -147,7 +147,7 @@ Section specification.
     iFrame "aPts bPts".
   Qed.
 
-  Lemma wpc_recover `{hD : nvmDeltaG Σ} ℓa ℓb s E :
+  Lemma wpc_recover `{hD : nvmDeltaG} ℓa ℓb s E :
     crash_condition ℓa ℓb -∗
     WPC recover ℓa ℓb @ s; E
       {{ _, True }}

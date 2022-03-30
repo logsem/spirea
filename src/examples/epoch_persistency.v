@@ -54,7 +54,7 @@ Global Instance subG_one_shotΣ {Σ} : subG one_shotΣ Σ → one_shotG Σ.
 Proof. solve_inG. Qed.
 
 Section proof.
-  Context `{nvmFixedG Σ, nvmDeltaG Σ, one_shotG Σ, inG Σ (gset_disjR nat) }.
+  Context `{nvmFixedG Σ, nvmDeltaG, one_shotG Σ, inG Σ (gset_disjR nat) }.
 
   Context (x y z : loc) (γag : gname) (γtok : gname).
 
@@ -126,7 +126,7 @@ Section proof.
   Next Obligation. Admitted.
   Next Obligation. Admitted.
 
-  Definition crash_condition {hD : nvmDeltaG Σ} : dProp Σ :=
+  Definition crash_condition {hD : nvmDeltaG} : dProp Σ :=
     ∃ (yb bz : bool),
       ⎡ is_at_loc x ⎤ ∗
       persist_lb x prot_x None ∗
@@ -137,7 +137,7 @@ Section proof.
       persist_lb z prot_z false ∗
       z ↦_{prot_z} [bz].
 
-  Definition left_crash_condition {hD : nvmDeltaG Σ} : dProp Σ :=
+  Definition left_crash_condition {hD : nvmDeltaG} : dProp Σ :=
     ⎡ is_at_loc x ⎤ ∗ persist_lb x prot_x None.
 
  (*  Lemma left_prog_spec : *)

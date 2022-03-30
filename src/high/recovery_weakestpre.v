@@ -18,12 +18,13 @@ From self.high Require Import dprop resources crash_weakestpre
 
 Set Default Proof Using "Type".
 
-(* Notation pbundleG := recovery_weakestpre.pbundleG. *)
+Definition get_crash_name (hD : nvmDeltaG) :=
+  @crash_token_name (@nvm_delta_base hD).
 
-(* Notation perennialG := recovery_weakestpre.perennialG. *)
-
-Definition get_crashG {Σ} (hD : nvmDeltaG Σ) :=
-  @nvm_base_crashGS Σ (@nvm_delta_base Σ hD).
+(* A wrapper around [NC] where the ghost name is explicit. *)
+Definition NC_name `{crashGpreS Σ} γcrash :=
+  @NC _ ({| crash_inG := _; crash_name := γcrash |}).
+Global Arguments NC_name {_ _} _ _%Qp.
 
 (** The recovery WP is parameterized by two predicates: [Φ], the postcondition
  for normal non-crashing execution and [Φr], the postcondition satisfied upon
@@ -33,10 +34,10 @@ Definition get_crashG {Σ} (hD : nvmDeltaG Σ) :=
  crash weakest precondition following the same pattern that is used in Perennial
  to define Perennial's wpr on top of Perennial's wpc. *)
 Definition wpr_pre `{nvmFixedG Σ} (s : stuckness)
-    (wpr : nvmDeltaG Σ -d> coPset -d> expr -d> expr -d> (val -d> dPropO Σ) -d>
-                     (nvmDeltaG Σ -d> val -d> dPropO Σ) -d> dPropO Σ) :
-  nvmDeltaG Σ -d> coPset -d> expr -d> expr -d> (val -d> dPropO Σ) -d>
-  (nvmDeltaG Σ -d> val -d> dPropO Σ) -d> dPropO Σ :=
+    (wpr : nvmDeltaG -d> coPset -d> expr -d> expr -d> (val -d> dPropO Σ) -d>
+                     (nvmDeltaG -d> val -d> dPropO Σ) -d> dPropO Σ) :
+  nvmDeltaG -d> coPset -d> expr -d> expr -d> (val -d> dPropO Σ) -d>
+  (nvmDeltaG -d> val -d> dPropO Σ) -d> dPropO Σ :=
   λ hGD E e e_rec Φ Φr,
   (WPC e @ s ; E
     {{ Φ }}
@@ -44,9 +45,10 @@ Definition wpr_pre `{nvmFixedG Σ} (s : stuckness)
       ⎡ (* interp -∗ *)
         state_interp σ n -∗
         global_state_interp (Λ := nvm_lang) () ns mj D [] -∗
-      ∀ (Hc1 : crashGS Σ) q, NC q ={E}=∗
-        ∃ (hD' : nvmDeltaG Σ),
-          ⌜ Hc1 = get_crashG hD' ⌝ ∗
+        ∀ (γcrash : gname) q,
+        NC_name γcrash q ={E}=∗
+        ∃ (hD' : nvmDeltaG),
+          ⌜ get_crash_name hD' = γcrash ⌝ ∗
           (* let hG := (nvm_update Σ hG _ Hc1 names) in *)
           (* interp ∗ *)
           ▷ state_interp σ' 0 ∗
@@ -70,7 +72,7 @@ Definition wpr_eq `{nvmFixedG Σ} : wpr' = @wpr_def _ := wpr_aux.(seal_eq).
 (* Lemma wpr_eq `{nvmFixedG Σ} : @wpr' Σ = @wpr_def Σ. *)
 (* Proof. rewrite /wpr'. rewrite wpr_aux.(seal_eq). done. Qed. *)
 
-Lemma wpr_unfold `{nvmFixedG Σ, hGD : nvmDeltaG Σ} st E e rec Φ Φc :
+Lemma wpr_unfold `{nvmFixedG Σ, hGD : nvmDeltaG} st E e rec Φ Φc :
   wpr' _ st hGD E e rec Φ Φc ⊣⊢ wpr_pre st (wpr' _ st) hGD E e rec Φ Φc.
 Proof.
   rewrite wpr_eq. rewrite /wpr_def.
@@ -80,7 +82,7 @@ Qed.
 (** If we have a map of points-to predicates prior to a crash and know what view
 we crashed at, then we can get a map of points-to predicates for the new
 heap. *)
-Lemma map_points_to_to_new `{nvmBaseFixedG Σ} logHists store CV (hG hG' : nvmBaseDeltaG Σ) :
+Lemma map_points_to_to_new `{nvmBaseFixedG Σ} logHists store CV (hG hG' : nvmBaseDeltaG) :
   consistent_cut CV store →
   crashed_at (hGD := hG') CV -∗
   base.post_crash_modality.post_crash_mapsto_map store hG hG' -∗
@@ -112,7 +114,7 @@ Proof.
   iFrame.
 Qed.
 
-Definition wpr `{nvmFixedG Σ, nvmDeltaG Σ} s := wpr' _ s _.
+Definition wpr `{nvmFixedG Σ, nvmDeltaG} s := wpr' _ s _.
 
 Lemma view_to_zero_lookup V ℓ x :
   V !! ℓ = Some x → (view_to_zero V) !! ℓ = Some (MaxNat 0).
@@ -120,7 +122,7 @@ Proof.
   intros look. rewrite /view_to_zero. rewrite lookup_fmap. rewrite look. done.
 Qed.
 
-Lemma or_lost_post_crash_full `{nvmBaseFixedG Σ, hG : nvmBaseDeltaG Σ} CV :
+Lemma or_lost_post_crash_full `{nvmBaseFixedG Σ, hG : nvmBaseDeltaG} CV :
   crashed_at CV -∗
   persisted (view_to_zero CV) -∗
   ∀ ℓ P, (∀ t, ⌜CV !! ℓ = Some (MaxNat t)⌝ -∗ P t) -∗ or_lost_post_crash ℓ P.
@@ -255,12 +257,12 @@ Section wpr.
 
   (* Given the state interpretations _before_ a crash we reestablish the
   interpretations _after_ a crash. *)
-  Lemma nvm_reinit (hGD : nvmDeltaG Σ) n P TV σ σ' (Hinv : invGS Σ) (Hcrash : crashGS Σ) :
+  Lemma nvm_reinit (hGD : nvmDeltaG) n P TV σ σ' (Hinv : invGS Σ) γcrash :
     crash_step σ σ' →
     ⊢ state_interp σ n -∗
       ((post_crash P) TV) ==∗
-      ∃ (hD' : nvmDeltaG Σ),
-        ⌜ Hcrash = get_crashG hD' ⌝ ∗
+      ∃ (hD' : nvmDeltaG),
+        ⌜ γcrash = get_crash_name hD' ⌝ ∗
         validV ∅ ∗
         ▷ interp (hGD := hD') ∗
         nvm_heap_ctx (hG := _) σ' ∗
@@ -281,8 +283,8 @@ Section wpr.
 
     (* We need to first re-create the ghost state for the base
     interpretation. *)
-    iMod (nvm_heap_reinit _ _ _ _ _ Hcrash with "Hσ Hpers")
-      as (baseNames hGD') "(% & valView & baseMap & baseInterp & #persImpl & #pers &
+    iMod (nvm_heap_reinit _ _ _ _ _ γcrash with "Hσ Hpers")
+      as (hGD') "(%crEq & valView & baseMap & baseInterp & #persImpl & #pers &
                             #newCrashedAt)";
       try done.
 
@@ -440,7 +442,7 @@ Section wpr.
       shared_locs_name := new_shared_locs_name;
       bumpers_name := new_bumpers_name;
     |}).
-    iExists (NvmDeltaG _ hGD' hD').
+    iExists (NvmDeltaG hGD' hD').
 
     assert (newNaLocs ## newAtLocs) as newLocsDisjoint.
     { rewrite /newNaLocs /newAtLocs. set_solver+ locsDisjoint. }
@@ -710,7 +712,7 @@ Section wpr.
         simplify_eq.
         iEval (simpl).
         iDestruct (big_sepM2_lookup with "bumperSome") as %bv; [done|done|].
-        destruct (bv t' s H1) as [sBumped eq].
+        destruct (bv t' s H0) as [sBumped eq].
         rewrite eq.
         iExists s, sBumped.
         iSplit; first done.
@@ -914,9 +916,9 @@ Section wpr.
   Qed.
 
   (* _The_ lemma for showing a recovery weakest precondition. *)
-  Lemma idempotence_wpr `{hGD : nvmDeltaG Σ} s E1 e rec Φ Φr Φc `{∀ hG, Objective (Φc hG)} :
+  Lemma idempotence_wpr `{hGD : nvmDeltaG} s E1 e rec Φ Φr Φc `{∀ hG, Objective (Φc hG)} :
     ⊢ WPC e @ s ; E1 {{ Φ }} {{ Φc _ }} -∗
-      (<obj> □ ∀ (hG' : nvmDeltaG Σ),
+      (<obj> □ ∀ (hG' : nvmDeltaG),
             Φc hG' -∗ post_crash (λ hG', (WPC rec @ s ; E1 {{ Φr hG' }} {{ Φc hG' }}))) -∗
       wpr s E1 e rec Φ Φr.
   Proof.
@@ -939,10 +941,10 @@ Section wpr.
     iIntros (???? step ns ?).
     iDestruct ("Hidemp" with "phiC") as "idemp'".
     iIntros "state global".
-    iIntros (??) "NC".
+    iIntros (γcrash ?) "NC".
     (* Allocate the new ghost state. *)
-    iMod (nvm_reinit _ _ _ _ _ _ _ _ with "state idemp'")
-      as (names) "(% & val & stateInterp & HIHI & idemp)".
+    iMod (nvm_reinit _ _ _ _ _ _ _ γcrash with "state idemp'")
+      as (names) "(%crEq & val & stateInterp & HIHI & idemp)".
     { apply step. }
     iDestruct "global" as "($ & Hc & $ & $)".
     assert (exists k, ns + k = step_count_next ns) as [k' eq].
@@ -953,6 +955,9 @@ Section wpr.
     iModIntro (|={E1}=> _)%I.
     iExists names.
     iSplit; first done.
+    simpl.
+    rewrite /get_crash_name in crEq. rewrite -crEq.
+    iFrame "NC".
     iFrame.
     monPred_simpl.
     iSpecialize ("IH" $! _ _ names (∅, ∅, ∅) with "idemp [Hidemp]").

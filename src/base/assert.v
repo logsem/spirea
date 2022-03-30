@@ -7,7 +7,7 @@ From self.base Require Import proofmode.
 From iris.prelude Require Import options.
 
 Section lifting.
-  Context `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG Σ}.
+  Context `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG}.
 
   Lemma wp_assert E (Φ : thread_val → iProp Σ) e TV :
     WP e `at` TV @ E {{ v, ⌜val_val v = #true⌝ ∧ ▷ Φ (ThreadVal #() (val_view v)) }} -∗

@@ -9,7 +9,7 @@ From self.high Require Import dprop monpred_simpl.
 Set Default Proof Using "Type".
 
 Section or_lost_post_crash.
-  Context `{nvmBaseFixedG Σ, nD: nvmBaseDeltaG Σ}.
+  Context `{nvmBaseFixedG Σ, nD: nvmBaseDeltaG}.
 
   Definition or_lost_post_crash ℓ (P : nat → iProp Σ) :=
     (∃ (CV : view),

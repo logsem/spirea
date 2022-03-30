@@ -23,7 +23,7 @@ From self.high Require Import resources crash_weakestpre lifted_modalities
      monpred_simpl modalities protocol locations.
 
 Section wp.
-  Context `{!nvmFixedG Σ, nvmDeltaG Σ}.
+  Context `{!nvmFixedG Σ, nvmDeltaG}.
 
   Implicit Types (Φ : val → dProp Σ) (e : expr).
 
@@ -160,9 +160,9 @@ End wp.
 
 Section wp_rules.
   Context `{AbstractState ST}.
-  Context `{!nvmFixedG Σ, hG : nvmDeltaG Σ}.
+  Context `{!nvmFixedG Σ, hG : nvmDeltaG}.
 
-  Implicit Types (ℓ : loc) (s : ST) (ϕ : ST → val → nvmDeltaG Σ → dProp Σ).
+  Implicit Types (ℓ : loc) (s : ST) (ϕ : ST → val → nvmDeltaG → dProp Σ).
 
   Lemma last_cons (A : Type) (l : list A) (a b : A) :
     last l = Some a → last (b :: l) = Some a.

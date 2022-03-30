@@ -21,7 +21,7 @@ Definition pure : expr :=
   "a" + "b".
 
 Section specs.
-  Context `{!nvmFixedG Σ, nvmDeltaG Σ}.
+  Context `{!nvmFixedG Σ, nvmDeltaG}.
 
   Lemma wp_bin_op : ⊢ WP (#1 + #2) {{ v, ⌜1 = 1⌝ }}.
   Proof.
@@ -69,7 +69,7 @@ Definition program (ℓ : loc) : expr :=
   #().
 
 Section fence_sync.
-  Context `{!nvmFixedG Σ, nvmDeltaG Σ}.
+  Context `{!nvmFixedG Σ, nvmDeltaG}.
 
   (* Predicate used for the location [a]. *)
   Program Definition prot : LocationProtocol nat :=

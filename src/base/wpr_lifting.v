@@ -17,64 +17,13 @@ Definition nvm_get_heap_names {V Σ} (hG : gen_heapGS loc V Σ) : nvm_heap_names
   {| name_gen_heap := gen_heap_name hG ;
      name_gen_meta := gen_meta_name hG |}.
 
-(* Definition nvm_heap_update {Σ} (h : gen_heapGS loc history Σ) (names : nvm_heap_names) := *)
-(*   {| gen_heap_inG := gen_heap_inG; *)
-(*      gen_heap_name := names.(name_gen_heap); *)
-(*      gen_meta_name := names.(name_gen_meta) |}. *)
+(* Canonical Structure nvmBaseDeltaGO := leibnizO nvmBaseDeltaG. *)
 
-Definition nvm_base_get_names Σ (hG : nvmBaseDeltaG Σ) : nvm_base_names :=
-  nvm_base_names'.
-
-Canonical Structure nvm_base_namesO := leibnizO nvm_base_names.
-
-(** Given an [hG : nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG Σ], update the fields per the information in the
-rest of the arguments. In particular, all the gnames in [names] replaces the
-corresponding gnames in [hG].
-TOOD: See if we can get rid of the [invGS] and [crashGS] argument.
- *)
-
-(* Lemma heap_update_eq {Σ} heapGS' (heapGS : gen_heapGS loc history Σ) : *)
-(*   (@nvm_heap_update Σ heapGS' (@nvm_get_heap_names (@gmap nat nat_eq_dec nat_countable message) Σ heapGS)) *)
-(*     = *)
-(*   heapGS. *)
-(* Proof. *)
-(*   destruct heapGS'. *)
-(*   destruct heapGS. *)
-(*   rewrite /nvm_get_heap_names. simpl. *)
-(*   rewrite /nvm_heap_update. simpl. *)
-(*   f_equal. *)
-(* Abort. *)
-(* (*   gen_heapGpreS *) *)
-(* (*   auto. *) *)
-(* (* Qed. *) *)
-
-(* Lemma nvm_update_id {Σ} (hGD : nvmBaseDeltaG Σ) (hG : nvmBaseFixedG Σ) : *)
-(*   hGD = {| nvm_base_crashGS := nvm_base_crashGS; *)
-(*            nvm_base_names' := *)
-(*              nvm_base_get_names Σ {| nvm_base_inG := hG; nvmBaseDeltaG' := hGD |} *)
-(*         |}. *)
-(* Proof. destruct hGD. done. Qed. *)
-
-(*
-Program Global Instance nvmBaseG_perennialG `{!nvmBaseFixedG Σ, !extraStateInterp Σ} :
-  perennialG nvm_lang nvm_crash_lang nvm_base_namesO Σ := {
-  perennial_irisG :=
-    λ Hcrash hnames,
-      nvmBase_irisGS (hGD := MkNvmBaseDeltaG _ Hcrash (@pbundleT _ _ hnames));
-  perennial_crashG := λ _ _, eq_refl;
-  perennial_num_laters_per_step := (λ n, 3 ^ (n + 1))%nat;
-  perennial_step_count_next := (λ n, 10 * (n + 1))%nat;
-}.
-Next Obligation. eauto. Qed.
-Next Obligation. eauto. Qed.
-Next Obligation. eauto. Qed.
-*)
-
-Definition wpr `{nvmBaseFixedG Σ, !extraStateInterp Σ, hG : nvmBaseDeltaG Σ} `{hC : !crashGS Σ}
+Definition wpr `{nvmBaseFixedG Σ, !extraStateInterp Σ, hG : nvmBaseDeltaG} `{hC : !crashGS Σ}
            (s : stuckness) (E : coPset)
            (e : thread_state) (recv : thread_state) (Φ : thread_val → iProp Σ)
-           (Φinv : nvmBaseDeltaG Σ → iProp Σ)
-           (Φr : nvmBaseDeltaG Σ → thread_val → iProp Σ) :=
+           (Φinv : nvmBaseDeltaG → iProp Σ)
+           (Φr : nvmBaseDeltaG → thread_val → iProp Σ) :=
   wpr
     nvm_crash_lang s _ E e recv Φ
     (λ hGen, ∃ nvmD, ⌜hGen = nvmBase_generationGS (hGD := nvmD)⌝ ∗ Φinv nvmD)%I
@@ -89,7 +38,7 @@ Section wpr.
   Implicit Types v : thread_val.
   Implicit Types e : thread_state.
 
-  Lemma wpr_strong_mono `{hG : !nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG Σ}
+  Lemma wpr_strong_mono `{hG : !nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG}
         s E e rec Φ Ψ Φinv Ψinv Φr Ψr :
     wpr s E e rec Φ Φinv Φr -∗
     (∀ v, Φ v ==∗ Ψ v) ∧
@@ -108,7 +57,7 @@ Section wpr.
       iExists _. iSplitR; first done. by iApply "H".
   Qed.
 
-  Lemma store_inv_cut `{nvmBaseFixedG Σ, hGD : nvmBaseDeltaG Σ} store p :
+  Lemma store_inv_cut `{nvmBaseFixedG Σ, hGD : nvmBaseDeltaG} store p :
     consistent_cut p store →
     valid_heap store → valid_heap (slice_of_store p store).
   Proof.
@@ -138,12 +87,12 @@ Section wpr.
       apply view_empty_least.
   Qed.
 
-  Definition persist_auth `{nvmBaseFixedG, hGD : nvmBaseDeltaG Σ}
+  Definition persist_auth `{nvmBaseFixedG, hGD : nvmBaseDeltaG}
              (σ : mem_config) :=
     own persist_view_name (● σ.2).
 
-  Lemma nvm_heap_reinit (hG : nvmBaseFixedG Σ) (hGD : nvmBaseDeltaG Σ) σ PV CV
-        (Hcrash : crashGS Σ) :
+  Lemma nvm_heap_reinit (hG : nvmBaseFixedG Σ) (hGD : nvmBaseDeltaG) σ PV CV
+        (γcrash : gname) :
     (* The first two assumptions are the content of [crash_step σ σ'] *)
     PV ⊑ CV →
     consistent_cut CV σ →
@@ -151,8 +100,8 @@ Section wpr.
     ⊢ gen_heap_interp (hG := _) σ -∗
       persist_auth (σ, PV)
       ==∗
-      ∃ (names : nvm_base_names) hGD',
-        ⌜ hGD' = MkNvmBaseDeltaG Σ Hcrash names ⌝ ∗
+      ∃ (hGD' : nvmBaseDeltaG),
+        ⌜ @crash_token_name hGD' = γcrash ⌝ ∗
         validV (hGD := hGD') ∅ ∗
         post_crash_mapsto_map σ hGD hGD' ∗
         nvm_heap_ctx (hGD := hGD') (slice_of_store CV σ, view_to_zero CV) ∗
@@ -179,10 +128,11 @@ Section wpr.
     { done. }
     iModIntro.
     set names := {| heap_names_name := Build_nvm_heap_names γh γm;
+                    crash_token_name := γcrash;
                     store_view_name := storeG;
                     persist_view_name := persistG;
                     crashed_at_view_name := crashedAtG |}.
-    iExists names, (MkNvmBaseDeltaG Σ Hcrash names).
+    iExists names.
     iSplitPure; first done.
     rewrite /crashed_at_view_name. simpl.
     iFrame.
@@ -240,34 +190,35 @@ Section wpr.
       iExists CV. iFrame "#%".
   Qed.
 
-  Lemma nvm_heap_reinit_alt (hG : nvmBaseFixedG Σ) (hGD : nvmBaseDeltaG Σ) σ σ'
-        (Hcrash : crashGS Σ) Pg :
+  Lemma nvm_heap_reinit_alt (hG : nvmBaseFixedG Σ) (hGD : nvmBaseDeltaG) σ σ'
+        (γcrash : gname) Pg :
     crash_step σ σ' →
     ⊢ nvm_heap_ctx σ -∗
       post_crash Pg ==∗
-      ∃ names : nvm_base_names,
-        post_crash_mapsto_map σ.1 _ (MkNvmBaseDeltaG Σ Hcrash names) ∗
-        nvm_heap_ctx (hGD := MkNvmBaseDeltaG Σ Hcrash names) σ' ∗
-        Pg (MkNvmBaseDeltaG Σ Hcrash names).
+      ∃ names : nvmBaseDeltaG,
+        ⌜ @crash_token_name names = γcrash ⌝ ∗
+        post_crash_mapsto_map σ.1 hGD names ∗
+        nvm_heap_ctx (hGD := names) σ' ∗
+        Pg names.
   Proof.
     iIntros ([store p p' pIncl cut]).
     iIntros "(heap & authStor & %inv & pers & recov) Pg".
-    iMod (nvm_heap_reinit _ _ _ _ _ Hcrash with "heap pers")
-      as (hnames hGD') "(-> & _ & map & interp' & #persImpl & rec)"; try done.
+    iMod (nvm_heap_reinit _ _ _ _ _ γcrash with "heap pers")
+      as (hGD') "(%crEq & _ & map & interp' & #persImpl & rec)"; try done.
     rewrite /post_crash.
-    set newBundle : nvmBaseDeltaG Σ :=
-      {| nvm_base_crashGS := Hcrash; nvm_base_names' := hnames |}.
-    iSpecialize ("Pg" $! (store, p') newBundle).
-    rewrite /newBundle.
+    (* set newBundle : nvmBaseDeltaG := *)
+    (*   {| nvmBaseDeltaG' := hnames |}. *)
+    iSpecialize ("Pg" $! (store, p') hGD').
+    (* rewrite /newBundle. *)
     iDestruct ("Pg" with "persImpl map") as "(map & Pg)".
-    iExists _. iFrame.
-    done.
+    iExists _. iModIntro.
+    iSplitPure; first done. iFrame.
   Qed.
 
   Lemma idempotence_wpr `{!ffi_interp_adequacy}
-        `{hG : nvmBaseFixedG Σ, !extraStateInterp Σ, hGD : nvmBaseDeltaG Σ} s E1 e rec Φx Φinv Φrx Φcx :
+        `{hG : nvmBaseFixedG Σ, !extraStateInterp Σ, hGD : nvmBaseDeltaG} s E1 e rec Φx Φinv Φrx Φcx :
     ⊢ WPC e @ s; E1 {{ Φx }} {{ Φcx hGD }} -∗
-    (□ ∀ (hG1 : nvmBaseDeltaG Σ)
+    (□ ∀ (hG1 : nvmBaseDeltaG)
          (* (Hpf : @nvmBaseG_invGS Σ (@nvm_base_inG _ hG) = *)
          (*          @nvmBaseG_invGS Σ (@nvm_base_inG _ hG1)) *) σ σ'
          (HC : crash_prim_step (nvm_crash_lang) σ σ'),
@@ -282,18 +233,19 @@ Section wpr.
     { iApply (wpc_crash_mono with "[] Hwpc").
       iIntros "HΦcx". iExists _. destruct hG. by iFrame. }
     { iModIntro. iIntros (HG' σ_pre_crash g σ_post_crash Hcrash ns mj D κs ?) "(%nvmD & %eq & phi)".
-      iMod (NC_alloc) as (Hc') "HNC".
+      iMod (NC_alloc_strong) as (γcrash) "HNC".
       iSpecialize ("Hidemp" $! _ _ _ Hcrash with "phi").
       rewrite eq.
       iIntros "[interp extra] g !> !>".
-      iMod (nvm_heap_reinit_alt _ _ _ _ _ _ Hcrash with "interp Hidemp") as (hnames) "(map & interp' & idemp)".
-      set (hGD' := (MkNvmBaseDeltaG Σ _ hnames)).
+      iMod (nvm_heap_reinit_alt _ _ _ _ γcrash _ Hcrash with "interp Hidemp")
+        as (hnames) "(%cEq & map & interp' & idemp)".
+      set (hGD' := hnames).
       iExists (nvmBase_generationGS (hGD := hGD')).
       iMod (global_state_interp_le (Λ := nvm_lang) _ _ () _ _ κs with "[$]") as "$";
         first (simpl; lia).
       iModIntro.
       rewrite /state_interp //=.
-      rewrite /nvm_heap_ctx.
+      rewrite cEq.
       iFrame.
       iSplit.
       - iExists (hGD'). iDestruct "idemp" as "[$ _]". done.

@@ -24,7 +24,7 @@ Lemma thread_of_val_fold (v : val) TV :
   ThreadState v TV = thread_of_val (ThreadVal v TV).
 Proof. done. Qed.
 
-Lemma wpc_fork `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG Σ} s E1 e TV Φ Φc :
+Lemma wpc_fork `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG} s E1 e TV Φ Φc :
   ▷ WPC e `at` TV @ s; ⊤ {{ _, True }} {{ True }} -∗
   (Φc ∧ ▷ Φ (LitV LitUnit `at` TV)%TV) -∗
   WPC (Fork e `at` TV) @ s; E1 {{ Φ }} {{ Φc }}.
@@ -49,7 +49,7 @@ Proof.
   iApply wpc_value'. by rewrite comm.
 Qed.
 
-Lemma tac_wpc_expr_eval `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG Σ} Δ (s: stuckness) E1 Φ (Φc: iProp Σ) e e' :
+Lemma tac_wpc_expr_eval `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG} Δ (s: stuckness) E1 Φ (Φc: iProp Σ) e e' :
   (∀ (e'':=e'), e = e'') →
   envs_entails Δ (WPC e' @ s; E1 {{ Φ }} {{ Φc }}) → envs_entails Δ (WPC e @ s; E1 {{ Φ }} {{ Φc }}).
 Proof. by intros ->. Qed.
@@ -62,7 +62,7 @@ Tactic Notation "wpc_expr_eval" tactic(t) :=
       [let x := fresh in intros x; t; unfold x; notypeclasses refine eq_refl|]
   end.
 
-Lemma tac_wpc_pure_ctx `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG Σ, !crashGS Σ}
+Lemma tac_wpc_pure_ctx `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG, !crashGS Σ}
       Δ Δ' s E1 K e1 e2 TV φ Φ Φc :
   PureExecBase φ 1 e1 e2 →
   φ →
@@ -78,7 +78,7 @@ Proof.
   rewrite HΔ' //.
 Qed.
 
-Lemma tac_wpc_pure_no_later_ctx `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG Σ, !crashGS Σ}
+Lemma tac_wpc_pure_no_later_ctx `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG, !crashGS Σ}
       Δ s E1 K e1 e2 TV φ Φ Φc :
   PureExecBase φ 1 e1 e2 →
   φ →
@@ -95,7 +95,7 @@ Proof.
     iApply HΔ'; iAssumption.
 Qed.
 
-Lemma tac_wpc_value `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG Σ} Δ s E1 Φ Φc v TV :
+Lemma tac_wpc_value `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG} Δ s E1 Φ Φc v TV :
   envs_entails Δ (|NC={E1}=> Φ (ThreadVal v TV)) →
   envs_entails Δ Φc →
   envs_entails Δ (WPC (ThreadState (Val v) TV) @ s; E1 {{ Φ }} {{ Φc }}).
@@ -108,7 +108,7 @@ Proof.
   - rewrite H2. iIntros. iModIntro; auto.
 Qed.
 
-Lemma tac_wpc_value_fupd `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG Σ} Δ s E1 Φ Φc v TV :
+Lemma tac_wpc_value_fupd `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG} Δ s E1 Φ Φc v TV :
   envs_entails Δ (|NC={E1}=> Φ (ThreadVal v TV)) →
   envs_entails Δ Φc →
   envs_entails Δ (WPC (ThreadState (Val v) TV) @ s; E1 {{ v, |={E1}=> Φ v }} {{ Φc }})%I.
@@ -120,7 +120,7 @@ Proof.
   - rewrite H2. iIntros. iModIntro; auto.
 Qed.
 
-Lemma tac_wpc_value_noncfupd `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG Σ} Δ s E1 Φ Φc v TV :
+Lemma tac_wpc_value_noncfupd `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG} Δ s E1 Φ Φc v TV :
   envs_entails Δ (Φ (ThreadVal v TV)) →
   envs_entails Δ Φc →
   envs_entails Δ (WPC (ThreadState (Val v) TV) @ s; E1 {{ Φ }} {{ Φc }}).
@@ -272,7 +272,7 @@ Ltac wpc_pures :=
       [try iFromCache .. | repeat (wpc_pure_no_later wp_pure_filter as Hcrash; []); clear Hcrash]
   end.
 
-Lemma tac_wpc_bind `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG Σ, !crashGS Σ} K Δ s E1 Φ Φc e TV f :
+Lemma tac_wpc_bind `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG, !crashGS Σ} K Δ s E1 Φ Φc e TV f :
   f = (λ e, fill K e) → (* as an eta expanded hypothesis so that we can `simpl` it *)
   envs_entails Δ (WPC (ThreadState e TV) @ s; E1 {{ tv, WPC (ThreadState (f $ Val tv.(val_val)) (tv.(val_view))) @ s; E1 {{ Φ }} {{ Φc }} }} {{ Φc }})%I →
   envs_entails Δ (WPC (ThreadState (fill K e) TV) @ s; E1 {{ Φ }} {{ Φc }}).
@@ -286,7 +286,7 @@ Qed.
 
 (*
 Lemma tac_wpc_wp_frame `{ffi_sem: ext_semantics} `{!ffi_interp ffi}
-      `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG Σ, !crashGS Σ} Δ d js s E1 e (Φ: _ -> iProp Σ) (Φc: iProp Σ) :
+      `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG, !crashGS Σ} Δ d js s E1 e (Φ: _ -> iProp Σ) (Φc: iProp Σ) :
   match envs_split d js Δ with
   | Some (Δ1, Δ2) => envs_entails Δ1 (<disc> Φc) ∧
                      envs_entails Δ2 (WP e @ s; E1
@@ -315,7 +315,7 @@ Qed.
 (* combines using [wpc_frame Hs] with [iFromCache], simultaneously framing and
    proving the crash condition using a cache *)
 Lemma tac_wpc_wp_frame_cache `{ffi_sem: ext_semantics} `{!ffi_interp ffi}
-      `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG Σ, !crashGS Σ} (Φc: iProp Σ) i (* name of cache *) (c: cache (<disc> Φc)%I)
+      `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG, !crashGS Σ} (Φc: iProp Σ) i (* name of cache *) (c: cache (<disc> Φc)%I)
       Δ stk E1 e (Φ: _ → iProp Σ)  :
   envs_lookup i Δ = Some (true, cached c) →
   match envs_split Left c.(cache_names) Δ with

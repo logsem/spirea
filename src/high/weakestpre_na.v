@@ -21,7 +21,7 @@ From self.high.modalities Require Import no_buffer.
 
 Section wp_na_rules.
   Context `{AbstractState ST}.
-  Context `{!nvmFixedG Σ, hG : nvmDeltaG Σ}.
+  Context `{!nvmFixedG Σ, hG : nvmDeltaG}.
 
   Implicit Types (ℓ : loc) (s : ST) (prot : LocationProtocol ST).
 

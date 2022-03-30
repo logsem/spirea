@@ -28,15 +28,16 @@ Class nvmHighDeltaG := MkNvmHighDeltaG {
   bumpers_name : gname;
 }.
 
-Class nvmDeltaG Σ := NvmDeltaG {
-  nvm_delta_base :> nvmBaseDeltaG Σ;
+Class nvmDeltaG := NvmDeltaG {
+  nvm_delta_base :> nvmBaseDeltaG;
   nvm_delta_high :> nvmHighDeltaG
 }.
 
 (* Resource algebra used to represent agreement on which predicates are
 associated with which locations. *)
+
 Definition predicateR {Σ} :=
-  agreeR (positive -d> val -d> laterO (optionO (nvmDeltaG Σ -d> (dPropO Σ)))).
+  agreeR (positive -d> val -d> laterO (optionO (nvmDeltaG -d> (dPropO Σ)))).
 Definition predicatesR {Σ} := authR (gmapUR loc (@predicateR Σ)).
 
 (* Resource algebra that contains all the locations that are _shared_. *)
@@ -75,7 +76,7 @@ Class nvmGpreS Σ := NvmPreG {
 after a crash in [post_crash_modality.v]. *)
 
 Section location.
-  Context `{nvmFixedG Σ, nD : nvmDeltaG Σ}.
+  Context `{nvmFixedG Σ, nD : nvmDeltaG}.
 
   Definition is_na_loc ℓ := own exclusive_locs_name (◯ {[ ℓ ]}).
 
@@ -84,7 +85,7 @@ Section location.
 End location.
 
 Section ownership_wrappers.
-  Context `{nvmFixedG Σ, nD : nvmDeltaG Σ}.
+  Context `{nvmFixedG Σ, nD : nvmDeltaG}.
 
   (* We have these wrappers partly to avoid having to spell out the global ghost
   names, and partly such that we can conveniently swap them out by giving the
@@ -150,12 +151,12 @@ Section location_sets.
 End location_sets.
 
 Section predicates.
-  Context `{!nvmFixedG Σ, hGD : nvmDeltaG Σ}.
+  Context `{!nvmFixedG Σ, hGD : nvmDeltaG}.
 
-  Definition predO := positive -d> val -d> optionO (nvmDeltaG Σ -d> dPropO Σ).
+  Definition predO := positive -d> val -d> optionO (nvmDeltaG -d> dPropO Σ).
 
   Definition pred_to_ra
-             (pred : positive → val → option (nvmDeltaG Σ → dProp Σ)) :
+             (pred : positive → val → option (nvmDeltaG → dProp Σ)) :
     (@predicateR Σ) :=
     to_agree ((λ a b, Next (pred a b))).
 
@@ -164,33 +165,33 @@ Section predicates.
   Proof.
     intros ??? eq.
     rewrite /pred_to_ra.
-    apply (@to_agree_ne (positive -d> val -d> laterO (optionO (nvmDeltaG Σ -d> (dPropO Σ))))).
+    apply (@to_agree_ne (positive -d> val -d> laterO (optionO (nvmDeltaG -d> (dPropO Σ))))).
     intros ??.
     apply contractive_ne; first apply _.
     apply: eq.
   Qed.
 
   Definition preds_to_ra
-        (preds : gmap loc (positive → val → option (nvmDeltaG Σ → dProp Σ)))
+        (preds : gmap loc (positive → val → option (nvmDeltaG → dProp Σ)))
     : gmapUR loc (@predicateR Σ) := pred_to_ra <$> preds.
 
   Definition own_all_preds dq preds :=
     own predicates_name (●{dq} (pred_to_ra <$> preds) : predicatesR).
 
   Definition encode_predicate `{Countable s}
-             (ϕ : s → val → nvmDeltaG Σ → dProp Σ)
-    : positive → val → option (nvmDeltaG Σ → dProp Σ) :=
+             (ϕ : s → val → nvmDeltaG → dProp Σ)
+    : positive → val → option (nvmDeltaG → dProp Σ) :=
     λ encS v, (λ s, ϕ s v) <$> decode encS.
 
   Definition know_pred `{Countable s}
-      ℓ (ϕ : s → val → nvmDeltaG Σ → dProp Σ) : iProp Σ :=
+      ℓ (ϕ : s → val → nvmDeltaG → dProp Σ) : iProp Σ :=
     own predicates_name
         (◯ {[ ℓ := pred_to_ra (encode_predicate ϕ) ]}).
 
   Lemma encode_predicate_extract `{Countable ST}
-        (ϕ : ST → val → nvmDeltaG Σ → dProp Σ) e s v (P : nvmDeltaG Σ -d> dPropO Σ) TV hG' :
+        (ϕ : ST → val → nvmDeltaG → dProp Σ) e s v (P : nvmDeltaG -d> dPropO Σ) TV hG' :
     decode e = Some s →
-    (encode_predicate ϕ e v : optionO (nvmDeltaG Σ -d> dPropO Σ)) ≡ Some P -∗
+    (encode_predicate ϕ e v : optionO (nvmDeltaG -d> dPropO Σ)) ≡ Some P -∗
     P hG' TV -∗
     ϕ s v hG' TV.
   Proof.
@@ -205,7 +206,7 @@ Section predicates.
   Qed.
 
   Lemma encode_predicate_extract_L `{Countable ST}
-        (ϕ : ST → val → nvmDeltaG Σ → dProp Σ) e s v P TV hG' :
+        (ϕ : ST → val → nvmDeltaG → dProp Σ) e s v P TV hG' :
     decode e = Some s →
     encode_predicate ϕ e v = Some P →
     P hG' TV -∗
@@ -226,7 +227,7 @@ Section predicates.
   Qed.
 
   Lemma own_all_preds_pred `{Countable ST}
-        dq ℓ (ϕ : ST → val → nvmDeltaG Σ → dProp Σ) (preds : gmap loc predO) :
+        dq ℓ (ϕ : ST → val → nvmDeltaG → dProp Σ) (preds : gmap loc predO) :
     own_all_preds dq preds -∗
     know_pred ℓ ϕ -∗
     (∃ (o : predO),
@@ -300,7 +301,7 @@ Section predicates.
     done.
   Qed.
 
-  Lemma own_all_preds_insert `{Countable ST} preds ℓ (ϕ : ST → val → nvmDeltaG Σ → dProp Σ) :
+  Lemma own_all_preds_insert `{Countable ST} preds ℓ (ϕ : ST → val → nvmDeltaG → dProp Σ) :
     preds !! ℓ = None →
     own predicates_name (● preds_to_ra preds) ==∗
     own predicates_name (● preds_to_ra (<[ℓ := encode_predicate ϕ]>preds)) ∗
@@ -323,12 +324,12 @@ End predicates.
 
 Section encoded_predicate.
   Context `{AbstractState ST}.
-  Context `{!nvmFixedG Σ, hG : nvmDeltaG Σ}.
+  Context `{!nvmFixedG Σ, hG : nvmDeltaG}.
 
-  Implicit Types (s : ST) (ϕ : ST → val → nvmDeltaG Σ → dProp Σ).
+  Implicit Types (s : ST) (ϕ : ST → val → nvmDeltaG → dProp Σ).
 
   Definition encoded_predicate_holds
-             (enc_pred : positive → val → optionO (nvmDeltaG Σ -d> dPropO Σ))
+             (enc_pred : positive → val → optionO (nvmDeltaG -d> dPropO Σ))
              (enc_state : positive) (v : val) TV : iProp Σ :=
     (∃ P, (enc_pred enc_state v ≡ Some P) ∗ P _ TV).
 

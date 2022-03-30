@@ -86,7 +86,7 @@ Section definitions.
   Context `{nvmFixedG Σ}.
 
   (* We assume a per-element predicate. *)
-  Context (ϕ : val → nvmDeltaG Σ → dProp Σ).
+  Context (ϕ : val → nvmDeltaG → dProp Σ).
   (* The per-element predicate must be stable under the <PCF> modality and not
   use anything from the buffer. *)
   Context `{∀ a nD, IntoCrashFlush (ϕ a nD) (ϕ a),
@@ -114,7 +114,7 @@ Section definitions.
   Definition cons_node_prot (x : val) (ℓtoNext : loc) :=
     constant_prot (InjRV (x, #ℓtoNext)).
 
-    (* λ (_ : unit) (v : val) (hG : nvmDeltaG Σ), *)
+    (* λ (_ : unit) (v : val) (hG : nvmDeltaG), *)
     (*   (⌜ v = InjRV (x, #ℓtoNext)%V ⌝)%I. *)
     (* ∗ ϕ x hG)%I. *)
 
@@ -134,7 +134,7 @@ Section definitions.
   (* Qed. *)
 
   (* Representation predicate for a node. *)
-  Fixpoint is_node `{nvmDeltaG Σ} ℓnode (xs : list val) : dProp Σ :=
+  Fixpoint is_node `{nvmDeltaG} ℓnode (xs : list val) : dProp Σ :=
     match xs with
     | [] => ∃ q,
         ℓnode ↦_{nil_node_prot}^{q} [()] ∗
@@ -152,14 +152,14 @@ Section definitions.
         is_node ℓnext xs'
     end.
 
-  Global Instance into_no_buffer_is_node `{nvmDeltaG Σ} ℓnode xs :
+  Global Instance into_no_buffer_is_node `{nvmDeltaG} ℓnode xs :
     IntoNoBuffer (is_node ℓnode xs) (is_node ℓnode xs).
   Proof.
     generalize dependent ℓnode.
     induction xs as [|x xs]; apply _.
   Qed.
 
-  Global Instance into_crash_flushed_mapsto_na_flushed `{nvmDeltaG Σ} ℓnode xs :
+  Global Instance into_crash_flushed_mapsto_na_flushed `{nvmDeltaG} ℓnode xs :
     IntoCrashFlush (is_node ℓnode xs) (λ _, is_node ℓnode xs).
   Proof.
     rewrite /IntoCrashFlush.
@@ -186,7 +186,7 @@ Section definitions.
       iFrame.
   Qed.
 
-  Lemma is_node_split `{nvmDeltaG Σ} ℓnode xs :
+  Lemma is_node_split `{nvmDeltaG} ℓnode xs :
     is_node ℓnode xs -∗ is_node ℓnode xs ∗ is_node ℓnode xs.
   Proof.
     generalize dependent ℓnode.
@@ -204,7 +204,7 @@ Section definitions.
 
   (* The invariant for the location that points to the first node in the
   stack. *)
-  Program Definition toHead_prot `{nvmDeltaG Σ} :=
+  Program Definition toHead_prot `{nvmDeltaG} :=
     {| pred (_ : unit) (v : val) _ :=
         (∃ (ℓnode : loc) xs,
           "%vEqNode" ∷ ⌜ v = #ℓnode ⌝ ∗
@@ -221,7 +221,7 @@ Section definitions.
   Qed.
 
   (* The representation predicate for the entire stack. *)
-  Definition is_stack `{nvmDeltaG Σ} (v : val) : dProp Σ :=
+  Definition is_stack `{nvmDeltaG} (v : val) : dProp Σ :=
     ∃ (ℓtoHead : loc),
       ⌜ v = #ℓtoHead ⌝ ∗
       ⎡ is_at_loc ℓtoHead ⎤ ∗
@@ -231,9 +231,9 @@ End definitions.
 
 Section proof.
   Implicit Types (ℓ : loc).
-  Context `{nvmFixedG Σ, nvmDeltaG Σ}.
+  Context `{nvmFixedG Σ, nvmDeltaG}.
 
-  Context (ϕ : val → nvmDeltaG Σ → dProp Σ).
+  Context (ϕ : val → nvmDeltaG → dProp Σ).
   (* The per-element predicate must be stable under the <PCF> modality and not
   use anything from the buffer. *)
   Context `{∀ a nD, IntoCrashFlush (ϕ a nD) (ϕ a),

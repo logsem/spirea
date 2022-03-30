@@ -8,34 +8,30 @@ From Perennial.algebra Require Import proph_map.
 From Perennial.program_logic Require Import recovery_weakestpre recovery_adequacy.
 From Perennial.Helpers Require Import ipm.
 
+From self Require Import ipm_tactics.
 From self.base Require Import cred_frag crash_borrow.
 From self.base Require Export wpr_lifting primitive_laws.
 
 Set Default Proof Using "Type".
 
-Definition nvm_build_base Σ (hpreG : nvmBaseGpreS Σ) (Hinv : invGS Σ)
+Definition nvm_build_base Σ (hpreG : nvmBaseGpreS Σ) (Hinv : invGS Σ) crIn
            (cred_names : cr_names) : nvmBaseFixedG Σ :=
   {|
     nvmBaseG_invGS := Hinv;
     nvmBaseG_gen_heapGS := nvmBase_preG_gen_heapGS;
+    nvmBaseG_crashGS := crIn;
     view_inG := nvmBase_preG_view_inG;
     crashed_at_inG := nvmBase_preG_crashed_at;
     nvm_base_creditG :=
       creditGS_update_pre Σ (nvmBase_preG_credit) cred_names;
   |}.
 
-Definition nvm_build_delta Σ Hc (names : nvm_base_names) : nvmBaseDeltaG Σ :=
-  {|
-    nvm_base_crashGS := Hc;
-    nvm_base_names' := names;
-  |}.
-
 (* Allocate the state intepretation in the base logic for any valid heap. *)
-Lemma allocate_state_interp `{hPre : !nvmBaseGpreS Σ} Hinv Hc σ PV cred_names :
+Lemma allocate_state_interp `{hPre : !nvmBaseGpreS Σ} Hinv crIn γcrash σ PV cred_names :
   valid_heap σ →
-  ⊢ |==> ∃ (names : nvm_base_names),
-    let hG := nvm_build_base _ hPre Hinv cred_names in
-    let hGD := nvm_build_delta _ Hc names in
+  ⊢ |==> ∃ (hGD : nvmBaseDeltaG),
+    let hG := nvm_build_base _ hPre Hinv crIn cred_names in
+    ⌜ @crash_token_name hGD = γcrash ⌝ ∗
     nvm_heap_ctx (σ, PV) ∗
     ([∗ map] l↦v ∈ σ, l ↦h v) ∗
     validV ∅ ∗
@@ -51,6 +47,7 @@ Proof.
   iMod (own_alloc (to_agree ∅ : agreeR viewO)) as (crashed_at_name) "#crashed".
   { done. }
   iExists ({| heap_names_name := {| name_gen_heap := γh; name_gen_meta := γm |};
+              crash_token_name := γcrash;
               store_view_name := store_view_name;
               persist_view_name := persist_view_name;
               crashed_at_view_name := crashed_at_name |}).
@@ -58,6 +55,7 @@ Proof.
   iFrame "∗#%".
   rewrite /valid_heap.
   rewrite /hist_inv.
+  iSplitPure; first done.
   iExists _. iFrame "∗#". iPureIntro. rewrite dom_empty. set_solver.
 Qed.
 
@@ -75,7 +73,7 @@ Section base_adequacy.
   variant below for the case where the invariant is alwasy true.  *)
   Theorem base_recv_adequacy Σ `{hPre : !nvmBaseGpreS Σ} s e r σ PV g φ φr φinv Φinv n :
     valid_heap σ →
-    (∀ `{Hheap : !nvmBaseFixedG Σ, hD : !nvmBaseDeltaG Σ},
+    (∀ `{Hheap : !nvmBaseFixedG Σ, hD : !nvmBaseDeltaG},
       ⊢ pre_borrowN n -∗
         ([∗ map] l ↦ v ∈ σ, l ↦h v) -∗
         validV ∅ -∗
@@ -87,8 +85,8 @@ Section base_adequacy.
   Proof.
     intros val Hwp.
     eapply (wp_recv_adequacy_inv _ _ _ _ _ _ _ _ _ _ _ _ _).
-    (* eapply (wp_recv_adequacy_inv _ _ _ nvm_base_namesO _ _ _ _ _ _ _ _ _ _). *)
-    iIntros (???) "".
+    (* eapply (wp_recv_adequacy_inv _ _ _ nvmBaseDeltaGO _ _ _ _ _ _ _ _ _ _). *)
+    iIntros (? [crIn γcrash] ?) "".
 
     iMod (credit_name_init (n * 4 + crash_borrow_ginv_number)) as
         (name_credit) "(Hcred_auth&Hcred&Htok)".
@@ -96,13 +94,12 @@ Section base_adequacy.
     iAssert (|={⊤}=> crash_borrow_ginv)%I with "[Hcred]" as ">#Hinv".
     { rewrite /crash_borrow_ginv. iApply (inv_alloc _). iNext. eauto. }
 
-    iMod (allocate_state_interp Hinv Hc σ PV name_credit)
-      as (hnames) "(interp & pts & validV & crashedAt & pers)"; first done.
+    set (crashPre := {| crash_inPreG := crIn |}).
+    iMod (allocate_state_interp Hinv crashPre γcrash σ PV name_credit)
+      as (hGD) "(%cEq & interp & pts & validV & crashedAt & pers)"; first done.
 
-    (* iExists ({| pbundleT := hnames |}). *)
     (* Build an nvmBaseFixedG. *)
-    set (hG := nvm_build_base _ hPre Hinv name_credit).
-    set (hGD := nvm_build_delta _ Hc hnames).
+    set (hG := nvm_build_base _ hPre Hinv crashPre name_credit).
 
     iExists state_interp, global_state_interp, fork_post.
     iExists _, _.
@@ -115,7 +112,7 @@ Section base_adequacy.
 
     iModIntro.
     iSplitR.
-    { iModIntro. iApply "H1". }
+    { iModIntro. simpl. rewrite cEq. iApply "H1". }
     iSplitR.
     { iModIntro. iIntros (Hg') "(%nD' & -> & inv)".
       iDestruct ("H2" with "inv") as "$". }
@@ -123,6 +120,7 @@ Section base_adequacy.
     iFrame "Hinv".
     iSplit. { iPureIntro. done. }
     rewrite /wpr.
+    rewrite /nvmBase_generationGS. rewrite cEq.
     iApply (recovery_weakestpre.wpr_strong_mono with "Hwp").
     iSplit; first by auto.
     iSplit; first by auto.
@@ -158,7 +156,7 @@ Section base_adequacy.
   (* This is the simpler adequacy result. *)
   Corollary base_recv_adequacy_simpl Σ `{hPre : !nvmBaseGpreS Σ} s e r σ PV φ φr n :
     valid_heap σ →
-    (∀ `{Hheap : !nvmBaseFixedG Σ, hD : !nvmBaseDeltaG Σ},
+    (∀ `{Hheap : !nvmBaseFixedG Σ, hD : !nvmBaseDeltaG},
       ⊢ pre_borrowN n -∗
         ([∗ map] l ↦ v ∈ σ, l ↦h v) -∗
         persisted PV -∗

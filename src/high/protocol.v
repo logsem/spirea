@@ -9,7 +9,7 @@ From self.lang Require Import lang.
 From self.high.modalities Require Import no_buffer.
 
 (* A handy alias for the type of location predicates. *)
-Definition loc_pred `{nvmFixedG Σ} ST `{AbstractState ST} := ST → val → nvmDeltaG Σ → dProp Σ.
+Definition loc_pred `{nvmFixedG Σ} ST `{AbstractState ST} := ST → val → nvmDeltaG → dProp Σ.
 
 (* A protocol consists of
   - A predicate [pred] that holds for each write and corresponding state of the
@@ -21,7 +21,7 @@ Record LocationProtocol ST `{AbstractState ST, nvmFixedG Σ} := {
   bumper : ST → ST;
   bumper_mono : Proper ((⊑@{ST}) ==> (⊑))%signature bumper;
   pred_condition :
-    (⊢ ∀ (hD : nvmDeltaG Σ) s v,
+    (⊢ ∀ (hD : nvmDeltaG) s v,
       pred s v hD -∗ <PCF> hD', pred (bumper s) v hD' : dProp Σ)%I;
   pred_nobuf :> (∀ hD s v, IntoNoBuffer (pred s v hD) (pred s v hD));
 }.
@@ -34,7 +34,7 @@ Existing Instance pred_nobuf.
 
 (** [know_protocol] represents the knowledge that a location is associated with a
 specific protocol. It's defined simply using more "primitive" assertions. *)
-Definition know_protocol `{AbstractState ST, nvmFixedG Σ, nvmDeltaG Σ}
+Definition know_protocol `{AbstractState ST, nvmFixedG Σ, nvmDeltaG}
            ℓ (prot : LocationProtocol ST) : iProp Σ :=
   "#knowPred" ∷ know_pred ℓ prot.(pred) ∗
   "#knowPreorder" ∷ know_preorder_loc ℓ (⊑@{ST}) ∗
@@ -56,7 +56,7 @@ Proof.
 Qed.
 
 Section protocol.
-  Context `{nvmFixedG Σ, nvmDeltaG Σ, AbstractState ST}.
+  Context `{nvmFixedG Σ, nvmDeltaG, AbstractState ST}.
 
   Implicit Types (prot : LocationProtocol ST).
 
