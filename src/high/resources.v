@@ -37,14 +37,27 @@ Class nvmDeltaG := NvmDeltaG {
 associated with which locations. *)
 
 Definition predicateR {Σ} :=
-  agreeR (positive -d> val -d> laterO (optionO (nvmDeltaG -d> (dPropO Σ)))).
+  agreeR (positive -d> val -d> laterO (optionO (nvmDeltaG -d> thread_view -d> iPropO Σ))).
+
 Definition predicatesR {Σ} := authR (gmapUR loc (@predicateR Σ)).
+
+Class predicatesG Σ := { predicates_inG :> inG Σ (@predicatesR Σ) }.
+
+Definition predicate_F :=
+  agreeRF (positive -d> val -d> ▶ (optionOF (nvmDeltaG -d> thread_view -d> ∙))).
+
+Definition predicates_F := authRF (gmapURF loc predicate_F).
+
+Definition predicatesΣ := #[ GFunctor predicates_F ].
+
+Instance subG_predicatesΣ {Σ} : subG predicatesΣ Σ → predicatesG Σ.
+Proof. solve_inG. Qed.
 
 (* Resource algebra that contains all the locations that are _shared_. *)
 Definition shared_locsR := authR (gsetUR loc).
 
 Class nvmHighFixedG Σ := {
-  predicates_inG :> inG Σ (@predicatesR Σ);
+  nvm_predicatesG :> predicatesG Σ;
   abs_histories :> ghost_map_mapG Σ loc time positive;
   phys_histories :> inG Σ (auth_map_mapR (leibnizO message));
   non_atomic_views :> ghost_mapG Σ loc view;
@@ -153,43 +166,94 @@ End location_sets.
 Section predicates.
   Context `{!nvmFixedG Σ, hGD : nvmDeltaG}.
 
-  Definition predO := positive -d> val -d> optionO (nvmDeltaG -d> dPropO Σ).
+  (* Note, there are three types for predicates.
+     1/ The real/initial type:
+        [ST → val → nvmDeltaG → dProp Σ]
+     2/ The encoded type that doesnt depend on [ST]:
+        [positive → val → option (nvmDeltaG → dProp Σ)]
+     3/ The unwrapped type where we project out of [dProp]:
+        [positive → val → nvmDeltaG → thread_view → iProp Σ] *)
 
-  Definition pred_to_ra
-             (pred : positive → val → option (nvmDeltaG → dProp Σ)) :
+  Definition predicate ST := ST → val → nvmDeltaG → dProp Σ.
+  Definition enc_predicate := positive → val → option (nvmDeltaG → dProp Σ).
+  Definition unwrapped_predicate :=
+    positive → val → option (nvmDeltaG → thread_view → iProp Σ).
+
+  Definition enc_predicateO :=
+    positive -d> val -d> optionO (nvmDeltaG -d> dPropO Σ).
+
+  Definition predO :=
+    positive -d> val -d> optionO (nvmDeltaG -d> thread_view -d> iPropO Σ).
+
+  (* Unfold the [dProp] and forget about monotinicity. *)
+  Definition encoded_pred_unwrap
+    (pred : enc_predicate) : unwrapped_predicate :=
+      λ s v, (λ p nD TV, monPred_at (p nD) TV) <$> (pred s v).
+
+  Definition encoded_pred_unwrap'
+    (pred : enc_predicateO) : predO :=
+      λ s v, (λ p nD TV, monPred_at (p nD) TV) <$> (pred s v).
+
+  Definition unwrapped_pred_to_ra (pred : unwrapped_predicate) :
     (@predicateR Σ) :=
     to_agree ((λ a b, Next (pred a b))).
 
+  Definition pred_to_ra (pred : enc_predicate) : (@predicateR Σ) :=
+    unwrapped_pred_to_ra (encoded_pred_unwrap pred).
+
+  Global Instance enoded_predc_unwrap :
+    ∀ n, Proper (@dist enc_predicateO _ n ==> @dist predO _ n) encoded_pred_unwrap.
+  Proof.
+    intros ? p1 p2 eq.
+    rewrite /encoded_pred_unwrap.
+    simpl.
+    intros e v.
+    specialize (eq e v).
+    destruct (p1 e v); destruct (p2 e v); simpl;
+      [ |inversion eq|inversion eq|done].
+    apply Some_dist_inj in eq.
+    constructor.
+    intros ??.
+    specialize (eq x).
+    apply eq.
+  Qed.
+
   Global Instance pred_to_ra_ne :
-    ∀ n, Proper (@dist predO _ n ==> dist n) pred_to_ra.
+    ∀ n, Proper (@dist enc_predicateO _ n ==> dist n) pred_to_ra.
   Proof.
     intros ??? eq.
     rewrite /pred_to_ra.
-    apply (@to_agree_ne (positive -d> val -d> laterO (optionO (nvmDeltaG -d> (dPropO Σ))))).
+    rewrite /pred_to_ra.
+    rewrite /unwrapped_pred_to_ra.
+    apply (@to_agree_ne (positive -d> val -d> laterO (optionO (nvmDeltaG -d> thread_view -d> (iPropO Σ))))).
     intros ??.
-    apply contractive_ne; first apply _.
-    apply: eq.
+    eassert (NonExpansive Next) as ne; last apply ne; first by apply _.
+    apply enoded_predc_unwrap in eq.
+    specialize (eq x0).
+    apply eq.
   Qed.
 
-  Definition preds_to_ra
-        (preds : gmap loc (positive → val → option (nvmDeltaG → dProp Σ)))
+  Definition preds_to_ra (preds : gmap loc (enc_predicate))
     : gmapUR loc (@predicateR Σ) := pred_to_ra <$> preds.
 
   Definition own_all_preds dq preds :=
-    own predicates_name (●{dq} (pred_to_ra <$> preds) : predicatesR).
+    own predicates_name (●{dq} (preds_to_ra preds) : predicatesR).
 
-  Definition encode_predicate `{Countable s}
-             (ϕ : s → val → nvmDeltaG → dProp Σ)
-    : positive → val → option (nvmDeltaG → dProp Σ) :=
+  Definition encode_predicate `{Countable ST} (ϕ : predicate ST)
+    : enc_predicate :=
     λ encS v, (λ s, ϕ s v) <$> decode encS.
 
-  Definition know_pred `{Countable s}
-      ℓ (ϕ : s → val → nvmDeltaG → dProp Σ) : iProp Σ :=
+  Definition predicate_to_unwrapped_predicate `{Countable ST} (ϕ : predicate ST)
+    : unwrapped_predicate :=
+    encoded_pred_unwrap (encode_predicate ϕ).
+
+  Definition know_pred `{Countable ST} ℓ (ϕ : predicate ST) : iProp Σ :=
     own predicates_name
-        (◯ {[ ℓ := pred_to_ra (encode_predicate ϕ) ]}).
+        (◯ {[ ℓ := unwrapped_pred_to_ra (predicate_to_unwrapped_predicate ϕ) ]}).
 
   Lemma encode_predicate_extract `{Countable ST}
-        (ϕ : ST → val → nvmDeltaG → dProp Σ) e s v (P : nvmDeltaG -d> dPropO Σ) TV hG' :
+      (ϕ : predicate ST) e s v
+      (P : nvmDeltaG -d> dPropO Σ) TV hG' :
     decode e = Some s →
     (encode_predicate ϕ e v : optionO (nvmDeltaG -d> dPropO Σ)) ≡ Some P -∗
     P hG' TV -∗
@@ -211,7 +275,7 @@ Section predicates.
     encode_predicate ϕ e v = Some P →
     P hG' TV -∗
     ϕ s v hG' TV.
-  Proof. rewrite /encode_predicate. by iIntros (-> [= ->]). Qed.
+  Proof. rewrite /encode_predicate. iIntros (-> [= <-]). done. Qed.
 
   Lemma know_predicates_alloc preds :
     ⊢ |==> ∃ γ,
@@ -226,11 +290,30 @@ Section predicates.
     by case (preds !! ℓ).
   Qed.
 
+  Lemma encoded_pred_unwrap_inj state v o1 o2 :
+    ⊢@{iPropI Σ} encoded_pred_unwrap o1 state v
+        ≡@{optionO (nvmDeltaG -d> thread_view -d> iPropO Σ)}
+        encoded_pred_unwrap o2 state v -∗
+      o1 state v ≡@{optionO (nvmDeltaG -d> dPropO Σ)} o2 state v.
+  Proof.
+    iIntros "#eq".
+    rewrite /encoded_pred_unwrap.
+    destruct o1; destruct o2; simpl;
+      rewrite option_equivI; try done.
+    rewrite option_equivI.
+    rewrite !discrete_fun_equivI. iIntros (nD).
+    rewrite monPred_equivI. iIntros (TV).
+    iSpecialize ("eq" $! nD).
+    rewrite discrete_fun_equivI.
+    iSpecialize ("eq" $! TV).
+    done.
+  Qed.
+
   Lemma own_all_preds_pred `{Countable ST}
-        dq ℓ (ϕ : ST → val → nvmDeltaG → dProp Σ) (preds : gmap loc predO) :
+        dq ℓ (ϕ : predicate ST) (preds : gmap loc enc_predicate) :
     own_all_preds dq preds -∗
     know_pred ℓ ϕ -∗
-    (∃ (o : predO),
+    (∃ (o : enc_predicateO),
        ⌜preds !! ℓ = Some o⌝ ∗ (* Some encoded predicate exists. *)
        ▷ (o ≡ encode_predicate ϕ)).
   Proof.
@@ -243,7 +326,7 @@ Section predicates.
     rewrite lookup_fmap.
     rewrite lookup_op.
     rewrite lookup_singleton.
-    destruct (preds !! ℓ) as [o|] eqn:eq; rewrite eq /=.
+    destruct (preds !! ℓ) as [o|] eqn:eq; simpl.
     2: { simpl. case (c !! ℓ); intros; iDestruct "eq" as %eq'; inversion eq'. }
     iExists o.
     iSplit; first done.
@@ -258,7 +341,9 @@ Section predicates.
       iSpecialize ("eq" $! v).
       rewrite later_equivI_1.
       iNext.
-      iRewrite "eq".
+      rewrite /predicate_to_unwrapped_predicate.
+      iDestruct (encoded_pred_unwrap_inj with "eq") as "eq2".
+      iRewrite "eq2".
       done.
     - rewrite right_id.
       simpl.
@@ -269,6 +354,9 @@ Section predicates.
       rewrite !discrete_fun_equivI. iIntros (v).
       iSpecialize ("eq" $! v).
       rewrite later_equivI_1.
+      iNext.
+      rewrite /predicate_to_unwrapped_predicate.
+      iDestruct (encoded_pred_unwrap_inj with "eq") as "eq2".
       done.
   Qed.
 
@@ -287,7 +375,8 @@ Section predicates.
 
   (** If [pred] is the encoding of [Φ] then [pred] holding for the encoding of
   [s] is equivalent to [ϕ] holding for [s]. *)
-  Lemma pred_encode_Some `{Countable ST} ϕ (s : ST) (v : val) (pred : predO) :
+  Lemma pred_encode_Some `{Countable ST}
+        ϕ (s : ST) (v : val) (pred : enc_predicateO) :
     (pred ≡ encode_predicate ϕ : iProp Σ) -∗
     (pred (encode s) v ≡ Some (ϕ s v) : iProp Σ).
   Proof.
@@ -296,7 +385,6 @@ Section predicates.
     iEval (setoid_rewrite discrete_fun_equivI) in "eq".
     iSpecialize ("eq" $! (encode s) v).
     Unshelve. 2: { done. } 2: { done. }
-    (* iRewrite "eq". Why this no work? *)
     rewrite /encode_predicate. rewrite decode_encode /=.
     done.
   Qed.
@@ -329,11 +417,11 @@ Section encoded_predicate.
   Implicit Types (s : ST) (ϕ : ST → val → nvmDeltaG → dProp Σ).
 
   Definition encoded_predicate_holds
-             (enc_pred : positive → val → optionO (nvmDeltaG -d> dPropO Σ))
-             (enc_state : positive) (v : val) TV : iProp Σ :=
+    (enc_pred : positive → val → optionO (nvmDeltaG -d> dPropO Σ))
+    (enc_state : positive) (v : val) TV : iProp Σ :=
     (∃ P, (enc_pred enc_state v ≡ Some P) ∗ P _ TV).
 
-  Lemma predicate_holds_phi ϕ s encS (encϕ : predO) v TV :
+  Lemma predicate_holds_phi ϕ s encS (encϕ : enc_predicateO) v TV :
     encS = encode s →
     (encϕ ≡ encode_predicate ϕ)%I -∗
     (encoded_predicate_holds encϕ encS v TV ∗-∗ ϕ s v _ TV).
@@ -365,7 +453,7 @@ Section encoded_predicate.
       by iRewrite "predsEquiv".
   Qed.
 
-  Lemma predicate_holds_phi_decode ϕ s encS (encϕ : predO) v TV :
+  Lemma predicate_holds_phi_decode ϕ s encS (encϕ : enc_predicateO) v TV :
     decode encS = Some s →
     (encϕ ≡ encode_predicate ϕ)%I -∗
     (encoded_predicate_holds encϕ encS v TV ∗-∗ ϕ s v _ TV).

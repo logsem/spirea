@@ -558,7 +558,7 @@ Section wpr.
         rewrite /predicates_name. simpl.
         iApply (
           internal_eq_rewrite _ _
-            (λ (r : predO),
+            (λ (r : enc_predicateO),
               own new_predicates_name (◯ {[ℓ := pred_to_ra r]})) with "equiv");
           last done.
         solve_proper. }

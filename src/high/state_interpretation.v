@@ -104,7 +104,7 @@ Section state_interpretation.
   Definition interp : iProp Σ :=
     (∃ (phys_hists : gmap loc (gmap time message))
        (abs_hists : gmap loc (gmap time positive))
-       (predicates : gmap loc (positive → val → option (nvmDeltaG Σ → dProp Σ)))
+       (predicates : gmap loc (positive → val → option (nvmDeltaG → dProp Σ)))
        (CV : view)
        (orders : gmap loc (relation2 positive))
        (bumpers : gmap loc (positive → option positive))
@@ -126,7 +126,7 @@ Section state_interpretation.
         ([∗ map] k1 ↦ mi ∈ abs_hists,
           [∗ map] k2 ↦ v ∈ mi, frag_entry abs_history_name k1 k2 v) ∗
       (* Knowledge of all the predicates. *)
-      "predicates" ∷ own predicates_name (● preds_to_ra predicates) ∗
+      "predicates" ∷ own_all_preds (DfracOwn 1) predicates ∗
       (* All the encoded orders *)
       "allOrders" ∷ own_all_preorders preorders_name orders ∗
 

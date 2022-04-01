@@ -267,7 +267,7 @@ Section wp_at_rules.
                               (msg_store_view msg,
                               msg_persisted_after_view msg, ∅)).
 
-  Definition loc_info ℓ prot (pred : predO) physHist absHist : iProp Σ :=
+  Definition loc_info ℓ prot (pred : enc_predicateO) physHist absHist : iProp Σ :=
     "%domEq" ∷ ⌜ dom (gset _) physHist = dom _ absHist ⌝ ∗
     "%increasing" ∷ ⌜ increasing_map (encode_relation (⊑@{ST})) absHist ⌝ ∗
     "%atInvs" ∷ ⌜ map_Forall (λ t msg, atomic_loc_inv ℓ t msg) physHist ⌝ ∗
