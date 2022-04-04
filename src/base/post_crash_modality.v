@@ -78,6 +78,9 @@ Definition post_crash `{nvmBaseFixedG Σ, hDG : nvmBaseDeltaG}
     post_crash_mapsto_map σ.1 hDG hDG' -∗
     (post_crash_mapsto_map σ.1 hDG hDG' ∗ P hDG')).
 
+Notation "'<PC>' g , P" := (post_crash (λ g, P))
+  (at level 200, g binder, right associativity) : bi_scope.
+
 Lemma post_crash_map_exchange `{nvmBaseFixedG Σ} σ__old
       (hG hG' : nvmBaseDeltaG) ℓ q hist :
   post_crash_mapsto_map σ__old hG hG' -∗
@@ -110,7 +113,7 @@ Section post_crash_prop.
 
   Lemma post_crash_intro Q :
     (⊢ Q) →
-    (⊢ post_crash (λ _, Q)).
+    (⊢ <PC> _, Q).
   Proof. iIntros (Hmono). iIntrosPostCrash. iFrame "∗". iApply Hmono. Qed.
 
   (* Lemma post_crash_idemp P : post_crash (λ hG, post_crash P) ⊢ post_crash P. *)
@@ -149,7 +152,7 @@ Section post_crash_prop.
   (* Qed. *)
 
   Lemma post_crash_sep P Q :
-    post_crash P ∗ post_crash Q -∗ post_crash (λ hG, P hG ∗ Q hG).
+    post_crash P ∗ post_crash Q -∗ <PC> hG, P hG ∗ Q hG.
   Proof.
     iIntros "(HP & HQ)".
     iIntrosPostCrash.
@@ -174,16 +177,12 @@ Section post_crash_prop.
   (*   - iDestruct "HPQ" as "(_&HQ)". by iApply "HQ". *)
   (* Qed. *)
 
-  Lemma post_crash_pure (P : Prop) :
-    P → ⊢ post_crash (λ _, ⌜ P ⌝).
-  Proof.
-    intros HP. iIntrosPostCrash. iFrame "%∗".
-  Qed.
+  Lemma post_crash_pure (P : Prop) : P → ⊢ <PC> _, ⌜ P ⌝.
+  Proof. intros HP. iIntrosPostCrash. iFrame "%∗". Qed.
 
   (* Any resource [P] is available after a crash. This lemmas is intended for
   cases where [P] does not refer to the global resources/gname. *)
-  Lemma post_crash_nodep P :
-    P -∗ post_crash (λ _, P).
+  Lemma post_crash_nodep P : P -∗ <PC> _, P.
   Proof. iIntros "?". iIntrosPostCrash. iFrame "∗". Qed.
 
   Lemma post_crash_for_all Q :

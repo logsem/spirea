@@ -90,7 +90,7 @@ Definition shared_locs_inv (locs : gmap loc (gmap time message)) :=
   map_map_Forall atomic_loc_inv locs.
 
 Section state_interpretation.
-  Context `{nvmFixedG Σ, hGD : nvmDeltaG}.
+  Context `{nvmG Σ, hGD : nvmDeltaG}.
 
   Implicit Types (TV : thread_view).
 

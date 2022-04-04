@@ -11,7 +11,7 @@ From self.high Require Import dprop abstract_state_instances modalities
      recovery_weakestpre protocol no_buffer.
 From self.high.modalities Require Import fence.
 
-Definition mapsto_na_flushed `{nvmFixedG Σ, nvmDeltaG, AbstractState ST}
+Definition mapsto_na_flushed `{nvmG Σ, nvmDeltaG, AbstractState ST}
            ℓ (prot : LocationProtocol ST) q (s : ST) : dProp Σ :=
   ∃ (ss : list ST),
     "%lastEq" ∷ ⌜ last ss = Some s ⌝ ∗
@@ -19,7 +19,7 @@ Definition mapsto_na_flushed `{nvmFixedG Σ, nvmDeltaG, AbstractState ST}
     "#flushLb" ∷ flush_lb ℓ prot s.
 
 Section mapsto_na_flushed.
-  Context `{nvmFixedG Σ, nvmDeltaG, AbstractState ST}.
+  Context `{nvmG Σ, nvmDeltaG, AbstractState ST}.
 
   Global Instance buffer_free_mapsto_na_flushed ℓ prot q (s : ST) :
     BufferFree (mapsto_na_flushed ℓ prot q s).
@@ -109,7 +109,7 @@ Section mapsto_na_flushed.
 
 End mapsto_na_flushed.
 
-(* Global Instance mapsto_na_flushed_as_fractional `{nvmFixedG Σ, nvmDeltaG, AbstractState ST} per l q v : *)
+(* Global Instance mapsto_na_flushed_as_fractional `{nvmG Σ, nvmDeltaG, AbstractState ST} per l q v : *)
 (*   AsFractional (mapsto_na per l q v) (λ q, mapsto_na per l q v)%I q. *)
 (* Proof. split; [done | apply _]. Qed. *)
 

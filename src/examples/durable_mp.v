@@ -49,7 +49,7 @@ Section program.
 End program.
 
 Section proof.
-  Context `{nvmFixedG Σ, nvmDeltaG, inG Σ (exclR unitO)}.
+  Context `{nvmG Σ, nvmDeltaG, inG Σ (exclR unitO)}.
   Context `{!stagedG Σ}.
 
   Context (x y z : loc) (γ__ex : gname).

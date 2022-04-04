@@ -7,7 +7,7 @@ From self.lang Require Import lang.
 From self.high Require Import crash_weakestpre.
 
 Section crash_borrow_high.
-  Context `{nvmFixedG Σ, nvmDeltaG}.
+  Context `{nvmG Σ, nvmDeltaG}.
   Context `{!stagedG Σ}.
 
   Program Definition crash_borrow (Ps : dProp Σ) (Pc : dProp Σ) `{!Objective Pc} : dProp Σ :=

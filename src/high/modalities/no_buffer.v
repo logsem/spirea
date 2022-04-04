@@ -160,7 +160,7 @@ End no_buffer.
 (*
 Section no_buffer_rules.
   (* Some less "basic" rules for <nobuf>. *)
-  Context `{nvmFixedG Σ, hGD : nvmDeltaG}.
+  Context `{nvmG Σ, hGD : nvmDeltaG}.
 
 End no_buffer_rules.
 *)

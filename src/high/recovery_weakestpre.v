@@ -33,7 +33,7 @@ Global Arguments NC_name {_ _} _ _%Qp.
  This definition of the recovery weakest precondition is defined on top of our
  crash weakest precondition following the same pattern that is used in Perennial
  to define Perennial's wpr on top of Perennial's wpc. *)
-Definition wpr_pre `{nvmFixedG Σ} (s : stuckness)
+Definition wpr_pre `{nvmG Σ} (s : stuckness)
     (wpr : nvmDeltaG -d> coPset -d> expr -d> expr -d> (val -d> dPropO Σ) -d>
                      (nvmDeltaG -d> val -d> dPropO Σ) -d> dPropO Σ) :
   nvmDeltaG -d> coPset -d> expr -d> expr -d> (val -d> dPropO Σ) -d>
@@ -58,21 +58,21 @@ Definition wpr_pre `{nvmFixedG Σ} (s : stuckness)
           NC q ⎤
     }})%I.
 
-Local Instance wpr_pre_contractive `{nvmFixedG Σ} s : Contractive (wpr_pre s).
+Local Instance wpr_pre_contractive `{nvmG Σ} s : Contractive (wpr_pre s).
 Proof.
   rewrite /wpr_pre. intros ??? Hwp ??????.
   apply wpc_ne; eauto;
   repeat (f_contractive || f_equiv). apply Hwp.
 Qed.
 
-Definition wpr_def `{nvmFixedG Σ} (s : stuckness) := fixpoint (wpr_pre s).
-Definition wpr_aux `{nvmFixedG Σ} : seal (@wpr_def Σ). by eexists. Qed.
-Definition wpr' `{nvmFixedG Σ} := (wpr_aux).(unseal).
-Definition wpr_eq `{nvmFixedG Σ} : wpr' = @wpr_def _ := wpr_aux.(seal_eq).
-(* Lemma wpr_eq `{nvmFixedG Σ} : @wpr' Σ = @wpr_def Σ. *)
+Definition wpr_def `{nvmG Σ} (s : stuckness) := fixpoint (wpr_pre s).
+Definition wpr_aux `{nvmG Σ} : seal (@wpr_def Σ). by eexists. Qed.
+Definition wpr' `{nvmG Σ} := (wpr_aux).(unseal).
+Definition wpr_eq `{nvmG Σ} : wpr' = @wpr_def _ := wpr_aux.(seal_eq).
+(* Lemma wpr_eq `{nvmG Σ} : @wpr' Σ = @wpr_def Σ. *)
 (* Proof. rewrite /wpr'. rewrite wpr_aux.(seal_eq). done. Qed. *)
 
-Lemma wpr_unfold `{nvmFixedG Σ, hGD : nvmDeltaG} st E e rec Φ Φc :
+Lemma wpr_unfold `{nvmG Σ, hGD : nvmDeltaG} st E e rec Φ Φc :
   wpr' _ st hGD E e rec Φ Φc ⊣⊢ wpr_pre st (wpr' _ st) hGD E e rec Φ Φc.
 Proof.
   rewrite wpr_eq. rewrite /wpr_def.
@@ -114,7 +114,7 @@ Proof.
   iFrame.
 Qed.
 
-Definition wpr `{nvmFixedG Σ, nvmDeltaG} s := wpr' _ s _.
+Definition wpr `{nvmG Σ, nvmDeltaG} s := wpr' _ s _.
 
 Lemma view_to_zero_lookup V ℓ x :
   V !! ℓ = Some x → (view_to_zero V) !! ℓ = Some (MaxNat 0).
@@ -138,7 +138,7 @@ Proof.
 Qed.
 
 Section wpr.
-  Context `{nvmFixedG Σ}.
+  Context `{nvmG Σ}.
 
   (* Computes the new abstract history based on the old history, the crash
   view, and the bumpers. *)

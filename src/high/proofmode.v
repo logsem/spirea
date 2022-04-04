@@ -17,7 +17,7 @@ Import uPred.
 
 Implicit Types (e : expr).
 
-Lemma tac_wp_expr_eval `{!nvmFixedG Σ, nvmDeltaG} Δ s E Φ e e' : (∀ (e'':=e'), e = e'') →
+Lemma tac_wp_expr_eval `{!nvmG Σ, nvmDeltaG} Δ s E Φ e e' : (∀ (e'':=e'), e = e'') →
   envs_entails Δ (WP e' @ s; E {{ Φ }}) → envs_entails Δ (WP e @ s; E {{ Φ }}).
 Proof. by intros ->. Qed.
 
@@ -46,7 +46,7 @@ Proof.
   - done.
 Qed.
 
-Lemma tac_wp_pure `{!nvmFixedG Σ, nvmDeltaG} Δ Δ' s E K e1 e2 φ n Φ :
+Lemma tac_wp_pure `{!nvmG Σ, nvmDeltaG} Δ Δ' s E K e1 e2 φ n Φ :
   (∀ TV, PureExec φ n (ThreadState e1 TV) (ThreadState e2 TV)) →
   (* PureExecBase φ n e1 e2 → *)
   φ →
@@ -59,7 +59,7 @@ Proof.
   pose proof @pure_exec_fill.
   rewrite HΔ'. rewrite -wp_pure_step_later //.
 Qed.
-Lemma tac_wp_pure_no_later `{!nvmFixedG Σ, nvmDeltaG} Δ s E K e1 e2 φ n Φ :
+Lemma tac_wp_pure_no_later `{!nvmG Σ, nvmDeltaG} Δ s E K e1 e2 φ n Φ :
   (∀ TV, PureExec φ n (ThreadState e1 TV) (ThreadState e2 TV)) →
   φ →
   envs_entails Δ (WP (fill K e2) @ s; E {{ Φ }}) →
@@ -72,14 +72,14 @@ Proof.
   iIntros "$".
 Qed.
 
-Lemma tac_wp_value_nofupd `{!nvmFixedG Σ, nvmDeltaG} Δ s E Φ v :
+Lemma tac_wp_value_nofupd `{!nvmG Σ, nvmDeltaG} Δ s E Φ v :
   envs_entails Δ (Φ v) → envs_entails Δ (WP (Val v) @ s; E {{ Φ }}).
 Proof. rewrite envs_entails_eq=> ->. apply wp_value. Qed.
 (* Lemma tac_twp_value_nofupd `{!nvmBaseFixedG Σ, nvmBaseDeltaG} Δ s E Φ v :
   envs_entails Δ (Φ v) → envs_entails Δ (WP (Val v) @ s; E [{ Φ }]).
 Proof. rewrite envs_entails_eq=> ->. by apply twp_value. Qed. *)
 
-Lemma tac_wp_value `{!nvmFixedG Σ, nvmDeltaG} Δ s E (Φ : val → dPropI Σ) v :
+Lemma tac_wp_value `{!nvmG Σ, nvmDeltaG} Δ s E (Φ : val → dPropI Σ) v :
   envs_entails Δ (|NC={E}=> Φ v) → envs_entails Δ (WP (Val v) @ s; E {{ Φ }}).
 Proof.
   rewrite envs_entails_eq=> ->. rewrite wp_value_fupd. done.
@@ -238,7 +238,7 @@ Tactic Notation "wp_inj" := wp_pure (InjL _) || wp_pure (InjR _).
 Tactic Notation "wp_pair" := wp_pure (Pair _ _).
 Tactic Notation "wp_closure" := wp_pure (Rec _ _ _).
 
-Lemma tac_wp_bind `{!nvmFixedG Σ, nvmDeltaG} K Δ s E Φ e f :
+Lemma tac_wp_bind `{!nvmG Σ, nvmDeltaG} K Δ s E Φ e f :
   f = (λ e, fill K e) → (* as an eta expanded hypothesis so that we can `simpl` it *)
   envs_entails Δ (WP e @ s; E {{ v, WP f (Val v) @ s; E {{ Φ }} }})%I →
   envs_entails Δ (WP fill K e @ s; E {{ Φ }}).

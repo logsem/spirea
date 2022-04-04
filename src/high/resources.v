@@ -28,6 +28,7 @@ Class nvmHighDeltaG := MkNvmHighDeltaG {
   bumpers_name : gname;
 }.
 
+(* A record of all the global ghost names that we need. *)
 Class nvmDeltaG := NvmDeltaG {
   nvm_delta_base :> nvmBaseDeltaG;
   nvm_delta_high :> nvmHighDeltaG
@@ -63,17 +64,24 @@ Class nvmHighFixedG Σ := {
   non_atomic_views :> ghost_mapG Σ loc view;
   crashed_in_inG :> ghost_mapG Σ loc positive;
   preordersG :> ghost_mapG Σ loc (relation2 positive);
-  shared_locsG :> inG Σ shared_locsR;
-  exclusive_locsG :> inG Σ shared_locsR;
+  locsG :> inG Σ shared_locsR;
   nvm_bumpersG :> bumpersG Σ;
 }.
 
-Class nvmHighG Σ := NvmHighG {
-  nvm_high_inG :> nvmHighFixedG Σ;
-  nvm_high_deltaG :> nvmHighDeltaG;
-}.
+Definition nvmHighΣ :=
+  #[ predicatesΣ;
+     ghost_map_mapΣ loc time positive;
+     GFunctor (auth_map_mapR (leibnizO message));
+     ghost_mapΣ loc view;
+     ghost_mapΣ loc positive;
+     ghost_mapΣ loc (relation2 positive);
+     GFunctor (shared_locsR);
+     ghost_mapΣ loc (positive → option positive) ].
 
-Class nvmFixedG Σ := NvmFixedG {
+Instance subG_nvmHighΣ {Σ} : subG nvmHighΣ Σ → nvmHighFixedG Σ.
+Proof. solve_inG. Qed.
+
+Class nvmG Σ := NvmFixedG {
   nvmG_baseG :> nvmBaseFixedG Σ;
   nvmG_highG :> nvmHighFixedG Σ;
 }.
@@ -84,12 +92,17 @@ Class nvmGpreS Σ := NvmPreG {
   nvmPreG_high :> nvmHighFixedG Σ; (* We can use [nvmHighFixedG] directly as it has no ghost names. *)
 }.
 
+Definition nvmΣ := #[ nvmBaseΣ; nvmHighΣ ].
+
+Instance subG_nvmΣ {Σ} : subG nvmΣ Σ → nvmGpreS Σ.
+Proof. solve_inG. Qed.
+
 (* Wrappers around ownership of resources that extracts the ghost names from
 [nvmDeltaG]. These wrapper makes it easier to switch the ghost names around
 after a crash in [post_crash_modality.v]. *)
 
 Section location.
-  Context `{nvmFixedG Σ, nD : nvmDeltaG}.
+  Context `{nvmG Σ, nD : nvmDeltaG}.
 
   Definition is_na_loc ℓ := own exclusive_locs_name (◯ {[ ℓ ]}).
 
@@ -98,7 +111,7 @@ Section location.
 End location.
 
 Section ownership_wrappers.
-  Context `{nvmFixedG Σ, nD : nvmDeltaG}.
+  Context `{nvmG Σ, nD : nvmDeltaG}.
 
   (* We have these wrappers partly to avoid having to spell out the global ghost
   names, and partly such that we can conveniently swap them out by giving the
@@ -149,7 +162,7 @@ Section ownership_wrappers.
 End ownership_wrappers.
 
 Section location_sets.
-  Context `{nvmFixedG Σ}.
+  Context `{nvmG Σ}.
 
   Lemma location_sets_singleton_included γ locs ℓ :
     own γ (● locs) -∗ own γ (◯ {[ ℓ ]}) -∗ ⌜ℓ ∈ locs⌝.
@@ -164,7 +177,7 @@ Section location_sets.
 End location_sets.
 
 Section predicates.
-  Context `{!nvmFixedG Σ, hGD : nvmDeltaG}.
+  Context `{!nvmG Σ, hGD : nvmDeltaG}.
 
   (* Note, there are three types for predicates.
      1/ The real/initial type:
@@ -412,7 +425,7 @@ End predicates.
 
 Section encoded_predicate.
   Context `{AbstractState ST}.
-  Context `{!nvmFixedG Σ, hG : nvmDeltaG}.
+  Context `{!nvmG Σ, hG : nvmDeltaG}.
 
   Implicit Types (s : ST) (ϕ : ST → val → nvmDeltaG → dProp Σ).
 

@@ -16,6 +16,8 @@ From self.lang Require Export notation tactics.
 
 Definition view_preG Σ := inG Σ (authR viewUR).
 
+Definition viewΣ : gFunctors := #[ GFunctor (authRF viewUR) ].
+
 (* The functors that are unchanged after a crash. *)
 Class nvmBaseFixedG Σ := {
   nvmBaseG_invGS : invGS Σ;                            (* For invariants. *)
@@ -52,6 +54,17 @@ Class nvmBaseGpreS Σ := NvmBasePreG {
   nvmBase_preG_crashed_at :> inG Σ (agreeR viewO);
   nvmBase_preG_credit :> credit_preG Σ;
 }.
+
+Definition nvmBaseΣ :=
+  #[ invΣ;
+     gen_heapΣ loc history;
+     crashΣ;
+     viewΣ;
+     GFunctor (agreeRF viewO);
+     creditΣ ].
+
+Instance subG_nvmBaseΣ {Σ} : subG nvmBaseΣ Σ → nvmBaseGpreS Σ.
+Proof. solve_inG. Qed.
 
 (* When we have an [nvmBaseG] instance we can stich together a [gen_heapGS]
 instance. We need this instance b.c. we store functors and the ghost names in

@@ -12,11 +12,21 @@ From self Require Import extra.
 From self.algebra Require Import ghost_map.
 
 Class ghost_map_mapG Σ (K1 K2 V : Type) `{Countable K1, Countable K2} :=
-  GhostMapMapG {
-      ghost_map_outer_inG :> ghost_mapG Σ K1 (gname * gname);
-      ghost_map_inner_inG :> ghost_mapG Σ K2 V;
-      ghost_map_inner_frac_inG :> inG Σ dfracR;
-    }.
+  {
+    ghost_map_outer_inG :> ghost_mapG Σ K1 (gname * gname);
+    ghost_map_inner_inG :> ghost_mapG Σ K2 V;
+    ghost_map_inner_frac_inG :> inG Σ dfracR;
+  }.
+
+Definition ghost_map_mapΣ (K1 K2 V : Type) `{Countable K1, Countable K2} : gFunctors :=
+  #[ ghost_mapΣ K1 (gname * gname);
+     ghost_mapΣ K2 V;
+     GFunctor dfracR].
+
+Global Instance subG_ghost_map_mapΣ {Σ} (K1 K2 V : Type)
+       `{Countable K1, Countable K2}
+  : subG (ghost_map_mapΣ K1 K2 V) Σ → ghost_map_mapG Σ K1 K2 V.
+Proof. intros [??]%subG_inv. solve_inG. Qed.
 
 Definition dfrac_div_2 (dq : dfrac) :=
   match dq with

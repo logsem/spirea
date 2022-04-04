@@ -55,7 +55,7 @@ Section recovery_adequacy.
 
   (* The assertion [P] holds after [lenght ns] crashes where each execution is
   [ns !! i] many steps. *)
-  Fixpoint step_fupdN_fresh `{!nvmFixedG Σ}
+  Fixpoint step_fupdN_fresh `{!nvmG Σ}
            ncurrent (ns : list nat) (hD : nvmDeltaG)
           (P : nvmDeltaG → iProp Σ) {struct ns} :=
     match ns with
@@ -71,7 +71,7 @@ Section recovery_adequacy.
         step_fupdN_fresh ((Nat.iter (S n) step_count_next ncurrent)) ns hD' P))%I
     end.
 
-  Lemma step_fupdN_fresh_wand `{!nvmFixedG Σ} ncurr1 ncurr2 (ns : list nat) hD P Q :
+  Lemma step_fupdN_fresh_wand `{!nvmG Σ} ncurr1 ncurr2 (ns : list nat) hD P Q :
     ncurr1 = ncurr2 →
     step_fupdN_fresh ncurr1 (ns) hD P -∗
     (∀ hD, P hD -∗ Q hD) -∗
@@ -98,7 +98,7 @@ Section recovery_adequacy.
 
   Notation wptp s t := ([∗ list] ef ∈ t, WPC ef @ s; ⊤ {{ fork_post }} {{ True }})%I.
 
-  Lemma wptp_recv_strong_normal_adequacy `{!nvmFixedG Σ, nD : !nvmDeltaG}
+  Lemma wptp_recv_strong_normal_adequacy `{!nvmG Σ, nD : !nvmDeltaG}
         Φ Φr κs' s n (ncurr : nat) mj D r1 e1
         TV1 (t1 : list thread_state) κs t2 σ1 g1 σ2 g2 :
     nrsteps (r1 `at` ⊥) [n] ((e1 `at` TV1) :: t1, (σ1, g1))%TE κs (t2, (σ2, g2)) Normal →
@@ -130,9 +130,9 @@ Section recovery_adequacy.
     iEval (rewrite crash_weakestpre.wpc_eq /=) in "He".
     iSpecialize ("He" $! TV1 with "[%] Hv").
     { destruct TV1 as [[??]?]. repeat split; apply view_empty_least. }
-    iDestruct (wptp_strong_adequacy (irisGS0 := (@nvmBase_irisGS Σ (@nvmG_baseG Σ nvmFixedG0)
+    iDestruct (wptp_strong_adequacy (irisGS0 := (@nvmBase_irisGS Σ (@nvmG_baseG Σ nvmG0)
                    (@nvm_delta_base nD)
-                   (@highExtraStateInterp Σ nvmFixedG0 nD))) with "Hσ Hg He Ht") as "H".
+                   (@highExtraStateInterp Σ nvmG0 nD))) with "Hσ Hg He Ht") as "H".
     { eauto. }
     iSpecialize ("H" with "HNC").
     iApply (step_fupd2N_wand with "H"); first auto.
@@ -150,7 +150,7 @@ Section recovery_adequacy.
     iDestruct "HI" as "(_ & _ & $)".
   Qed.
 
-  Lemma wptp_recv_strong_crash_adequacy `{!nvmFixedG Σ}
+  Lemma wptp_recv_strong_crash_adequacy `{!nvmG Σ}
         Φ Φr κs' s t ncurr mj D (ns : list nat) n r1 e1
         TV1 t1 κs t2 σ1 g1 σ2 g2 :
     nrsteps (r1 `at` ⊥) (ns ++ [n]) ((e1 `at` TV1)%E :: t1, (σ1, g1)) κs (t2, (σ2, g2)) Crashed →
@@ -282,7 +282,7 @@ Section recovery_adequacy.
   (* In this lemma we combine [wptp_recv_strong_normal_adequacy] and
   [wptp_recv_strong_crash_adequacy] into a lemma that applies both in the
   absence and presence of crashes. *)
-  Lemma wptp_recv_strong_adequacy `{!nvmFixedG Σ} Φ Φr κs' s hD ns mj D n r1 e1 TV1 t1 κs t2 σ1 g1 ncurr σ2 g2 stat :
+  Lemma wptp_recv_strong_adequacy `{!nvmG Σ} Φ Φr κs' s hD ns mj D n r1 e1 TV1 t1 κs t2 σ1 g1 ncurr σ2 g2 stat :
     nrsteps (r1 `at` ⊥) (ns ++ [n]) ((e1 `at` TV1)%TE :: t1, (σ1,g1)) κs (t2, (σ2,g2)) stat →
     state_interp σ1 (length t1) -∗
     global_state_interp g1 ncurr mj D (κs ++ κs') -∗
@@ -369,7 +369,7 @@ Qed.
 
 (* If you can prove a plain proposition [P] under [step_fupdN_fresh] then the *)
 (* proposition holds under only under a number of laters. *)
-Lemma step_fupdN_fresh_plain `{!nvmFixedG Σ, hD : nvmDeltaG} P `{!Plain P} ns ncurr k :
+Lemma step_fupdN_fresh_plain `{!nvmG Σ, hD : nvmDeltaG} P `{!Plain P} ns ncurr k :
   (step_fupdN_fresh ncurr ns _
                  (λ _, ||={⊤|⊤,∅|∅}=> ||▷=>^k ||={∅|∅, ⊤|⊤}=> P)) -∗
   ||={⊤|⊤, ⊤|⊤}=> ▷ ▷^(k + fresh_later_count num_laters_per_step step_count_next ncurr ns) P.
@@ -414,7 +414,7 @@ Qed.
 
 Lemma step_fupdN_fresh_soundness `{!nvmGpreS Σ} φ ns ncurr k k2 :
   (⊢ ∀ (Hi : invGS Σ),
-    |={⊤}=> ∃ (nF : nvmFixedG Σ) (nD : nvmDeltaG),
+    |={⊤}=> ∃ (nF : nvmG Σ) (nD : nvmDeltaG),
       (* ⌜ num_laters_per_step = f ⌝ ∗ *)
       (* ⌜ step_count_next = g ⌝ ∗ *)
       ⌜ nvmBaseG_invGS = Hi ⌝ ∗
@@ -462,7 +462,7 @@ Qed.
 
 Lemma allocate_high_state_interp `{!nvmGpreS Σ} Hinv σ PV κs :
   valid_heap σ →
-  ⊢ |={⊤}=> ∃ (nF : nvmFixedG Σ) (nD : nvmDeltaG),
+  ⊢ |={⊤}=> ∃ (nF : nvmG Σ) (nD : nvmDeltaG),
       ⌜ nvmBaseG_invGS = Hinv ⌝ ∗
       interp ∗
       validV ∅ ∗
@@ -541,9 +541,9 @@ Qed.
 
 (* This adequacy lemma is similar to the adequacy lemma for [wpr] in Perennial:
 [wp_recv_adequacy_inv]. *)
-Lemma high_recv_adequacy `{hPre : !nvmGpreS Σ} s e r σ PV (φ φr : val → Prop) :
+Lemma high_recv_adequacy Σ `{hPre : !nvmGpreS Σ} s e r σ PV (φ φr : val → Prop) :
   valid_heap σ →
-  (∀ `{nF : !nvmFixedG Σ, nD : !nvmDeltaG},
+  (∀ `{nF : !nvmG Σ, nD : !nvmDeltaG},
     ⊢ (* ⎡ ([∗ map] l ↦ v ∈ σ.1, l ↦h v) ⎤ -∗ *)
       (* Note: We need to add the resources that can be used to prove the [wpr]
       includin [pre_borrow]. These should require the user to decide which

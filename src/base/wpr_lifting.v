@@ -3,21 +3,13 @@ From iris.proofmode Require Import tactics.
 From iris.algebra Require Import auth dfrac.
 From Perennial.base_logic.lib Require Import proph_map.
 From Perennial.algebra Require Import proph_map.
-(* From Perennial.goose_lang Require Import proofmode notation. *)
 From Perennial.program_logic Require Import recovery_weakestpre recovery_adequacy.
-(* From Perennial.goose_lang Require Import crash_modality typing adequacy lang. *)
 
 From self Require Import extra ipm_tactics if_non_zero view_slice.
 From self.lang Require Import lang.
 From self.base Require Import primitive_laws post_crash_modality.
 
 Set Default Proof Using "Type".
-
-Definition nvm_get_heap_names {V Σ} (hG : gen_heapGS loc V Σ) : nvm_heap_names :=
-  {| name_gen_heap := gen_heap_name hG ;
-     name_gen_meta := gen_meta_name hG |}.
-
-(* Canonical Structure nvmBaseDeltaGO := leibnizO nvmBaseDeltaG. *)
 
 Definition wpr `{nvmBaseFixedG Σ, !extraStateInterp Σ, hG : nvmBaseDeltaG} `{hC : !crashGS Σ}
            (s : stuckness) (E : coPset)

@@ -54,7 +54,7 @@ Global Instance subG_one_shotΣ {Σ} : subG one_shotΣ Σ → one_shotG Σ.
 Proof. solve_inG. Qed.
 
 Section proof.
-  Context `{nvmFixedG Σ, nvmDeltaG, one_shotG Σ, inG Σ (gset_disjR nat) }.
+  Context `{nvmG Σ, nvmDeltaG, one_shotG Σ, inG Σ (gset_disjR nat) }.
 
   Context (x y z : loc) (γag : gname) (γtok : gname).
 

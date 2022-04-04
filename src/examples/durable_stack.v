@@ -72,7 +72,7 @@ Definition pop : expr :=
 
 Section constant_prot.
   Context `{Σ : gFunctors}.
-  Context `{nvmFixedG Σ}.
+  Context `{nvmG Σ}.
 
   Program Definition constant_prot v1 : LocationProtocol unit :=
     {| pred := λ _ v2 _, ⌜ v1 = v2 ⌝%I;
@@ -83,7 +83,7 @@ End constant_prot.
 
 Section definitions.
   Implicit Types (ℓ : loc).
-  Context `{nvmFixedG Σ}.
+  Context `{nvmG Σ}.
 
   (* We assume a per-element predicate. *)
   Context (ϕ : val → nvmDeltaG → dProp Σ).
@@ -231,7 +231,7 @@ End definitions.
 
 Section proof.
   Implicit Types (ℓ : loc).
-  Context `{nvmFixedG Σ, nvmDeltaG}.
+  Context `{nvmG Σ, nvmDeltaG}.
 
   Context (ϕ : val → nvmDeltaG → dProp Σ).
   (* The per-element predicate must be stable under the <PCF> modality and not

@@ -21,7 +21,7 @@ From self.high.resources Require Export bumpers preorders auth_map_map abstract_
 From self.high.modalities Require Export no_buffer no_flush.
 
 Section points_to_at.
-  Context `{nvmFixedG Σ, hGD : nvmDeltaG, AbstractState ST}.
+  Context `{nvmG Σ, hGD : nvmDeltaG, AbstractState ST}.
 
   Implicit Types (ℓ : loc) (s : ST) (ss : list ST) (prot : LocationProtocol ST).
 
@@ -358,7 +358,7 @@ Notation "l ↦_{ prot }^{ q } ss" := (mapsto_na l prot q ss) (at level 20).
 (* Notation "l ↦ ( s1 , s2 , s3 )  | P" := (mapsto_shared l s1 s2 s3 P) (at level 20). *)
 
 Section points_to_at_more.
-  Context `{nvmFixedG Σ, hGD : nvmDeltaG, AbstractState ST}.
+  Context `{nvmG Σ, hGD : nvmDeltaG, AbstractState ST}.
 
   Implicit Types (e : expr) (ℓ : loc) (s : ST)
            (ss : list ST) (prot : LocationProtocol ST).

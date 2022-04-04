@@ -6,11 +6,12 @@ From self.high Require Import dprop.
 
 From self.lang Require Import notation lang.
 From self.algebra Require Import view.
-From self.base Require Import primitive_laws class_instances.
+From self.base Require Import primitive_laws class_instances adequacy.
 From self.high Require Import proofmode wpc_proofmode.
 From self.high Require Import dprop resources crash_weakestpre weakestpre
      weakestpre_na recovery_weakestpre lifted_modalities modalities
-     post_crash_modality protocol no_buffer abstract_state_instances locations protocol.
+     post_crash_modality protocol no_buffer abstract_state_instances locations protocol
+     adequacy.
 From self.high.modalities Require Import fence.
 
 Definition prog : expr := let: "l" := ref_NA #1 in !_NA "l".
@@ -21,7 +22,7 @@ Definition pure : expr :=
   "a" + "b".
 
 Section specs.
-  Context `{!nvmFixedG Σ, nvmDeltaG}.
+  Context `{!nvmG Σ, nvmDeltaG}.
 
   Lemma wp_bin_op : ⊢ WP (#1 + #2) {{ v, ⌜1 = 1⌝ }}.
   Proof.
@@ -60,7 +61,25 @@ Section specs.
     auto.
   Qed.
 
+  Lemma wpr_pure s E :
+    ⊢ wpr s E pure pure (λ v, ⌜ v = #8 ⌝)%I (λ _ _, True)%I.
+  Proof.
+    iApply idempotence_wpr.
+    2: { iApply wpc_with_let. }
+    { apply _. }
+    iModIntro. iModIntro. iIntros (?) "_". admit.
+  Admitted.
+
 End specs.
+
+Lemma wpr_pure_safe :
+  recv_adequate NotStuck (pure `at` ⊥) (pure `at` ⊥) (∅, ∅)
+                (λ v _, v.(val_val) = #8) (λ v _, True).
+Proof.
+  apply (high_recv_adequacy nvmΣ NotStuck pure pure ∅ ∅ (λ v, v = #8) (λ _, True)).
+  - done.
+  - iIntros (??). iApply wpr_pure.
+Qed.
 
 Definition program (ℓ : loc) : expr :=
   #ℓ <-_NA #1 ;;
@@ -69,7 +88,7 @@ Definition program (ℓ : loc) : expr :=
   #().
 
 Section fence_sync.
-  Context `{!nvmFixedG Σ, nvmDeltaG}.
+  Context `{!nvmG Σ, nvmDeltaG}.
 
   (* Predicate used for the location [a]. *)
   Program Definition prot : LocationProtocol nat :=

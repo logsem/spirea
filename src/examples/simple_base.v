@@ -1,9 +1,75 @@
 From iris.proofmode Require Import tactics.
 From Perennial.program_logic Require Import crash_weakestpre.
-From self.base Require Export primitive_laws class_instances.
+From self.base Require Export primitive_laws class_instances post_crash_modality.
 From self.algebra Require Import view.
-From self.base Require Import proofmode wpc_proofmode.
+From self.base Require Import proofmode wpc_proofmode wpr_lifting.
 From self.lang Require Import lang.
+
+Definition assignment_prog (ℓ : loc) : expr :=
+  #ℓ <-_NA #1.
+
+Definition init_hist : history := {[ 0 := Msg #0 ∅ ∅ ∅ ]}.
+
+Section simple_assignment.
+  Context `{!nvmBaseFixedG Σ, extraStateInterp Σ, nvmBaseDeltaG}.
+
+  Lemma wpc_assignment ℓ st E :
+    {{{ validV ∅ ∗
+          persisted_loc ℓ 0 ∗
+          ℓ ↦h init_hist
+    }}}
+      assignment_prog ℓ `at` (∅, ∅, ∅) @ st; E
+    {{{ v t TV, RET ThreadVal v TV;
+      ℓ ↦h {[ t := Msg #1 ∅ ∅ ∅; 0 := Msg #0 ∅ ∅ ∅ ]}
+    }}}
+    {{{ <PC> _,
+      (ℓ ↦h {[ 0 := Msg #0 ∅ ∅ ∅ ]} ∨
+      (ℓ ↦h {[ 0 := Msg #1 ∅ ∅ ∅ ]}))
+    }}}.
+  Proof.
+    iIntros (Φ Φc) "(#val & #per & pts) post".
+    rewrite /assignment_prog /init_hist.
+    iApply wpc_atomic_no_mask.
+    iSplit.
+    { crash_case.
+      iDestruct (post_crash_mapsto with "pts") as "pts".
+      iDestruct "per" as "-#per".
+      iCrash.
+      iDestruct "per" as "(per & (%CV & %t & (%look & %le) & crashed))".
+      rewrite /mapsto_post_crash.
+      iDestruct "pts" as (CV') "[crashed' [H | %]]";
+        iDestruct (crashed_at_agree with "crashed crashed'") as %<-.
+      2: { congruence. }
+      iDestruct "H" as (??? histLook ?) "pts".
+      apply lookup_singleton_Some in histLook as [<- <-].
+      iLeft. iFrame. }
+    iApply (wp_store with "[$pts $val]").
+    iNext. iIntros (t) "(%hlook & %gtT & val2 & pts)".
+    iSplit.
+    { iModIntro. crash_case.
+      iDestruct (post_crash_mapsto with "pts") as "pts".
+      iDestruct "per" as "-#per".
+      iCrash.
+      iDestruct "per" as "(per & (%CV & % & (%look & %le) & crashed))".
+      rewrite /mapsto_post_crash.
+      iDestruct "pts" as (CV') "[crashed' [H | %]]";
+        iDestruct (crashed_at_agree with "crashed crashed'") as %<-.
+      2: { congruence. }
+      iDestruct "H" as (tn ?? histLook ?) "pts".
+      destruct (decide (tn = t)) as [->|neq].
+      - rewrite lookup_insert in histLook.
+        inversion histLook.
+        simpl.
+        iRight. iFrame.
+      - rewrite lookup_insert_ne in histLook; last done.
+        apply lookup_singleton_Some in histLook as [? <-].
+        iLeft. iFrame. }
+    iModIntro.
+    iApply "post".
+    iFrame "pts".
+  Qed.
+
+End simple_assignment.
 
 Section simple_increment.
   Context `{!nvmBaseFixedG Σ, extraStateInterp Σ, nvmBaseDeltaG}.
@@ -14,7 +80,7 @@ Section simple_increment.
     "a" + "b".
 
   Lemma wp_with_let TV :
-    {{{ True }}} ThreadState pure TV {{{ RET ThreadVal (#8) TV; True }}}.
+    {{{ True }}} pure `at` TV {{{ RET ThreadVal (#8) TV; True }}}.
   Proof.
     iIntros (Φ) "_ Post".
     rewrite /pure.
@@ -24,7 +90,7 @@ Section simple_increment.
   Qed.
 
   Lemma wpc_with_let TV E1 :
-    {{{ True }}} ThreadState pure TV @ E1 {{{ RET ThreadVal (#8) TV; True }}}{{{ True }}}.
+    {{{ True }}} pure `at` TV @ E1 {{{ RET ThreadVal (#8) TV; True }}}{{{ True }}}.
   Proof.
     iIntros (Φ Φc) "_ Post".
     rewrite /pure.
@@ -43,7 +109,7 @@ Section simple_increment.
     in !_NA "ℓ".
 
   Lemma wp_load_store SV PV :
-    {{{ validV SV }}} ThreadState alloc_load (SV, PV, ∅) {{{ TV', RET ThreadVal (#4) TV'; True }}}.
+    {{{ validV SV }}} alloc_load `at` (SV, PV, ∅) {{{ TV', RET ThreadVal (#4) TV'; True }}}.
   Proof.
     iIntros (Φ) "#val Post".
     rewrite /alloc_load.
@@ -65,20 +131,18 @@ Section simple_increment.
     Fence ;;
     #ℓ2 <-_NA #1.
 
-  Definition incr_both_recover ℓ1 ℓ2 : expr :=
-    let: "x" := !_NA ℓ1 in
-    let: "y" := !_NA ℓ2 in
+  Definition incr_both_recover (ℓ1 ℓ2 : loc) : expr :=
+    let: "x" := !_NA #ℓ1 in
+    let: "y" := !_NA #ℓ2 in
     if: "y" ≤ "x"
     then #() #()
     else #().
 
-  Definition init_hist : history := {[ 0 := Msg #0 ∅ ∅ ∅ ]}.
-
-  Lemma wpc_incr ℓ1 ℓ2 k E1 :
+  Lemma wpc_incr ℓ1 ℓ2 st E1 :
     {{{ validV ∅ ∗
         ℓ1 ↦h init_hist ∗
         ℓ2 ↦h init_hist }}}
-      ThreadState (incr_both ℓ1 ℓ2) (∅, ∅, ∅) @ k; E1
+      ThreadState (incr_both ℓ1 ℓ2) (∅, ∅, ∅) @ st; E1
     {{{ v t1 t2 TV, RET ThreadVal v TV;
       ℓ1 ↦h {[ t1 := Msg #1 ∅ ∅ ∅; 0 := Msg #0 ∅ ∅ ∅ ]} ∗
       ℓ2 ↦h {[ t2 := Msg #1 ∅ ∅ {[ ℓ1 := MaxNat t1 ]}; 0 := Msg #0 ∅ ∅ ∅ ]}
@@ -149,5 +213,19 @@ Section simple_increment.
     rewrite lookup_zero_singleton.
     iFrame "ℓ2pts".
   Qed.
-  
+
+  (* Lemma wpr_incr ℓ1 ℓ2 s E : *)
+  (*   validV ∅ -∗ *)
+  (*   ℓ1 ↦h init_hist -∗ *)
+  (*   ℓ2 ↦h init_hist -∗ *)
+  (*   wpr s E *)
+  (*       (incr_both ℓ1 ℓ2 `at` (∅, ∅, ∅)) *)
+  (*       (incr_both_recover ℓ1 ℓ2 `at` (∅, ∅, ∅)) (λ _, True)%I (λ _, True)%I (λ _ _, True)%I. *)
+  (* Proof. *)
+  (*   iIntros "#val pts1 pts2". *)
+  (*   iApply (idempotence_wpr with "[pts1 pts2]"). *)
+  (*   - iApply (wpc_incr with "[$val $pts1 $pts2]"). *)
+  (*     iSplit. { iIntros "$". } *)
+  (* Qed. *)
+
 End simple_increment.
