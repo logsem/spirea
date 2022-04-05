@@ -16,7 +16,8 @@ From Perennial.program_logic Require Import crash_adequacy.
 From self Require Import ipm_tactics extra.
 From self.lang Require Import lang.
 From self.algebra Require Import ghost_map ghost_map_map.
-From self.base Require Import cred_frag adequacy. (* To get [recv_adequace]. *)
+From self.base Require Import cred_frag crash_borrow adequacy. (* To get [recv_adequace]. *)
+From self.high Require Import crash_borrow.
 From self.high Require Import crash_weakestpre resources monpred_simpl.
 From self.high Require Import recovery_weakestpre.
 (* From Perennial.program_logic Require Export crash_lang recovery_weakestpre. *)
@@ -137,7 +138,7 @@ Section recovery_adequacy.
     iSpecialize ("H" with "HNC").
     iApply (step_fupd2N_wand with "H"); first auto.
     iApply fupd2_mono.
-    iIntros "(%ts2 & % & % & PIZ & ZA & PEPPERONI & HI & horse & NC)".
+    iIntros "(%ts2 & % & % & PIZ & ZA & ? & HI & ? & NC)".
     destruct ts2 as [e2 TV2].
     iExists e2, TV2, _.
     iFrame.
@@ -460,24 +461,23 @@ Proof.
   - constructor; naive_solver.
 Qed.
 
-Lemma allocate_high_state_interp `{!nvmGpreS Σ} Hinv σ PV κs :
+Lemma allocate_high_state_interp `{!nvmGpreS Σ} Hinv σ PV κs n :
   valid_heap σ →
   ⊢ |={⊤}=> ∃ (nF : nvmG Σ) (nD : nvmDeltaG),
       ⌜ nvmBaseG_invGS = Hinv ⌝ ∗
       interp ∗
       validV ∅ ∗
       NC 1 ∗
-      global_state_interp (Λ := nvm_lang) () crash_borrow_ginv_number 1%Qp ∅ κs ∗
+      pre_borrowN n ∗
+      global_state_interp (Λ := nvm_lang) () (n * 4 + crash_borrow_ginv_number) 1%Qp ∅ κs ∗
       nvm_heap_ctx (σ, PV).
 Proof.
   intros valid.
   iMod NC_alloc_strong as (γcrash) "NC".
-  (* assert (hi : cr_names). first apply _. *)
 
-  set (n := 0).
   iMod (credit_name_init (n * 4 + crash_borrow_ginv_number)) as
-      (name_credit) "([credfull credfrag] & Hcred & Htok)".
-  iDestruct (cred_frag_split with "Hcred") as "(Hpre&Hcred)".
+      (name_credit) "(credAuth & Hcred & Htok)".
+  iDestruct (cred_frag_split with "Hcred") as "(Hpre & Hcred)".
   iAssert (|={⊤}=> crash_borrow_ginv)%I with "[Hcred]" as ">#Hinv".
   { rewrite /crash_borrow_ginv. iApply (inv_alloc _). iNext. eauto. }
 
@@ -524,7 +524,11 @@ Proof.
   simpl.
   iFrame "valid ctx Hinv".
   rewrite crEq. iFrame "NC".
-  iFrame.
+  iFrame "credAuth".
+  iFrame "Htok".
+  iDestruct (@cred_frag_to_pre_borrowN _ _ _ _ n with "[ Hpre ]") as "Hpre".
+  { rewrite /fixed. iFrame "Hpre". }
+  iFrame "Hpre".
   rewrite /cred_interp.
   iPureGoal; first done.
   rewrite /interp.
@@ -541,13 +545,13 @@ Qed.
 
 (* This adequacy lemma is similar to the adequacy lemma for [wpr] in Perennial:
 [wp_recv_adequacy_inv]. *)
-Lemma high_recv_adequacy Σ `{hPre : !nvmGpreS Σ} s e r σ PV (φ φr : val → Prop) :
+Lemma high_recv_adequacy Σ `{hPre : !nvmGpreS Σ} s e r σ PV (φ φr : val → Prop) n :
   valid_heap σ →
   (∀ `{nF : !nvmG Σ, nD : !nvmDeltaG},
-    ⊢ (* ⎡ ([∗ map] l ↦ v ∈ σ.1, l ↦h v) ⎤ -∗ *)
-      (* Note: We need to add the resources that can be used to prove the [wpr]
-      includin [pre_borrow]. These should require the user to decide which
-      locations should be shared/exclusive, location invariants, etc. *)
+    ⊢ ⎡ pre_borrowN n ⎤ -∗
+      (* Note: We need to add the resources that can be used to prove the [wpr].
+       These should require the user to decide which locations should be
+       shared/exclusive, location invariants, etc. *)
       (wpr s ⊤ e r (λ v, ⌜ φ v ⌝) (λ _ v, ⌜ φr v ⌝))) →
   recv_adequate s (ThreadState e ⊥) (ThreadState r ⊥) (σ, PV)
                 (λ v _, φ v.(val_val)) (λ v _, φr v.(val_val)).
@@ -556,12 +560,12 @@ Proof.
   intros Hwp.
   apply recv_adequate_alt.
   intros t2 σ2 stat.
-  intros [n [κs nstep]]%erased_rsteps_nrsteps.
+  intros [ns [κs nstep]]%erased_rsteps_nrsteps.
   destruct (nrsteps_snoc _ _ _ _ _ _ nstep) as (ns' & n' & ->).
-  set (n := 0).
+  (* set (n := 0). *)
   set (nsinit := (n * 4 + crash_borrow_ginv_number)).
   (* Very beautiful! *)
-  eset (n'' :=
+  set (n'' :=
           S (S (3 ^ (Nat.iter (n' + sum_crash_steps ns')
                     (λ n0 : nat,
                        n0 + 1 +
@@ -576,17 +580,11 @@ Proof.
   eapply (step_fupdN_fresh_soundness _ ns' nsinit _ n'').
   iIntros (inv).
 
-  iMod (credit_name_init (n * 4 + crash_borrow_ginv_number)) as
-      (name_credit) "(Hcred_auth&Hcred&Htok)".
-  iDestruct (cred_frag_split with "Hcred") as "(Hpre&Hcred)".
-  iAssert (|={⊤}=> crash_borrow_ginv)%I with "[Hcred]" as ">#Hinv".
-  { rewrite /crash_borrow_ginv. iApply (inv_alloc _). iNext. eauto. }
-  
-  iMod (allocate_high_state_interp inv σ PV [])
-    as (nF nD eq) "(high & validV & nc & global & int)"; first done.
+  iMod (allocate_high_state_interp inv σ PV [] n)
+    as (nF nD eq) "(high & validV & nc & pre & global & int)"; first done.
 
   iDestruct (Hwp _ _ ) as "-#Hwp".
-  iDestruct ("Hwp" $! (∅, ∅, ∅)) as "Hwpr".
+  iDestruct ("Hwp" $! (∅, ∅, ∅) with "pre") as "Hwpr".
   iModIntro.
   iExists _, _.
   iPureGoal. { done. }
@@ -595,7 +593,7 @@ Proof.
   iSpecialize ("HIP" with "validV Hwpr [//] nc").
 
   iApply (step_fupdN_fresh_wand with "HIP").
-  { auto. }
+  { rewrite /nsinit. rewrite /crash_borrow_ginv_number. done. }
   iIntros (hD).
   iIntros "H".
   rewrite -eq.
@@ -616,3 +614,15 @@ Proof.
     iSplit; last naive_solver.
     by iIntros (? ? [= ->]).
 Qed.
+
+(* Lemma high_recv_adequacy Σ `{hPre : !nvmGpreS Σ} s e r σ PV (φ φr : val → Prop) : *)
+(*   valid_heap σ → *)
+(*   (∀ `{nF : !nvmG Σ, nD : !nvmDeltaG}, *)
+(*     ⊢ (* ⎡ ([∗ map] l ↦ v ∈ σ.1, l ↦h v) ⎤ -∗ *) *)
+(*       (* Note: We need to add the resources that can be used to prove the [wpr] *)
+(*       includin [pre_borrow]. These should require the user to decide which *)
+(*       locations should be shared/exclusive, location invariants, etc. *) *)
+(*       (wpr s ⊤ e r (λ v, ⌜ φ v ⌝) (λ _ v, ⌜ φr v ⌝))) → *)
+(*   recv_adequate s (ThreadState e ⊥) (ThreadState r ⊥) (σ, PV) *)
+(*                 (λ v _, φ v.(val_val)) (λ v _, φr v.(val_val)). *)
+(* Proof. *)

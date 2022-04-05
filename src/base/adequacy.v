@@ -89,8 +89,8 @@ Section base_adequacy.
     iIntros (? [crIn γcrash] ?) "".
 
     iMod (credit_name_init (n * 4 + crash_borrow_ginv_number)) as
-        (name_credit) "(Hcred_auth&Hcred&Htok)".
-    iDestruct (cred_frag_split with "Hcred") as "(Hpre&Hcred)".
+        (name_credit) "(Hcred_auth & Hcred & Htok)".
+    iDestruct (cred_frag_split with "Hcred") as "(Hpre & Hcred)".
     iAssert (|={⊤}=> crash_borrow_ginv)%I with "[Hcred]" as ">#Hinv".
     { rewrite /crash_borrow_ginv. iApply (inv_alloc _). iNext. eauto. }
 
@@ -105,7 +105,7 @@ Section base_adequacy.
     iExists _, _.
     iExists (
       λ inv gen, ∃ nD', ⌜gen = nvmBase_generationGS (hGD := nD') ⌝ ∗ Φinv nD'
-    )%I. (* ϕinv *)
+    )%I.
     
     iDestruct (@cred_frag_to_pre_borrowN _ hG _ _ n with "Hpre") as "Hpre".
     iDestruct (Hwp hG hGD with "Hpre pts validV pers") as "(#H1 & #H2 & Hwp)".

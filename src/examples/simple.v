@@ -76,9 +76,9 @@ Lemma wpr_pure_safe :
   recv_adequate NotStuck (pure `at` ⊥) (pure `at` ⊥) (∅, ∅)
                 (λ v _, v.(val_val) = #8) (λ v _, True).
 Proof.
-  apply (high_recv_adequacy nvmΣ NotStuck pure pure ∅ ∅ (λ v, v = #8) (λ _, True)).
+  apply (high_recv_adequacy nvmΣ NotStuck pure pure ∅ ∅ (λ v, v = #8) (λ _, True) 0).
   - done.
-  - iIntros (??). iApply wpr_pure.
+  - iIntros (??) "_". iApply wpr_pure.
 Qed.
 
 Definition program (ℓ : loc) : expr :=
