@@ -176,14 +176,12 @@ Section state_interpretation.
           ⌜bump e = Some e'⌝ ∗ pred e v ≡ Some P ∗ P hG TV -∗
           ∃ P', ⌜pred e' v = Some P'⌝ ∗ ((post_crash_flush P') TV))) ∗
       (* Bumpers map valid input to valid output. *)
-      (* NOTE: We probably need something to this effect, but for now it is commented out. *)
       "%bumperBumpToValid" ∷
         ⌜ map_Forall
             (λ _ bumper, ∀ e e', bumper e = Some e' → is_Some (bumper e'))
             bumpers⌝ ∗
       (* All the abstract state are "valid" inputs to the bumpers. *)
       "#bumperSome" ∷ ([∗ map] ℓ ↦ abs_hist; bumper ∈ abs_hists; bumpers,
-        (* ⌜ map_Forall (λ _ e,  ∀ n, is_Some (iter_option n bumper e)) abs_hist ⌝)). *)
         ⌜ map_Forall (λ _ e, is_Some (bumper e)) abs_hist ⌝)).
 
   Global Instance highExtraStateInterp : extraStateInterp Σ := {

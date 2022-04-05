@@ -19,7 +19,7 @@ From self.algebra Require Import ghost_map ghost_map_map.
 From self.base Require Import cred_frag crash_borrow adequacy. (* To get [recv_adequace]. *)
 From self.high Require Import crash_borrow.
 From self.high Require Import crash_weakestpre resources monpred_simpl.
-From self.high Require Import recovery_weakestpre.
+From self.high Require Import recovery_weakestpre locations protocol.
 (* From Perennial.program_logic Require Export crash_lang recovery_weakestpre. *)
 Import uPred.
 
@@ -461,33 +461,30 @@ Proof.
   - constructor; naive_solver.
 Qed.
 
-Lemma allocate_high_state_interp `{!nvmGpreS Σ} Hinv σ PV κs n :
+Lemma allocate_empty_high_state_interp `{!nvmGpreS Σ} Hinv σ PV κs n :
   valid_heap σ →
   ⊢ |={⊤}=> ∃ (nF : nvmG Σ) (nD : nvmDeltaG),
       ⌜ nvmBaseG_invGS = Hinv ⌝ ∗
-      interp ∗
       validV ∅ ∗
       NC 1 ∗
       pre_borrowN n ∗
+      ([∗ map] ℓ ↦ hist ∈ σ, ℓ ↦h hist) ∗
       global_state_interp (Λ := nvm_lang) () (n * 4 + crash_borrow_ginv_number) 1%Qp ∅ κs ∗
-      nvm_heap_ctx (σ, PV).
+      nvm_heap_ctx (σ, PV) ∗
+      interp.
 Proof.
   intros valid.
   iMod NC_alloc_strong as (γcrash) "NC".
-
   iMod (credit_name_init (n * 4 + crash_borrow_ginv_number)) as
       (name_credit) "(credAuth & Hcred & Htok)".
   iDestruct (cred_frag_split with "Hcred") as "(Hpre & Hcred)".
   iAssert (|={⊤}=> crash_borrow_ginv)%I with "[Hcred]" as ">#Hinv".
   { rewrite /crash_borrow_ginv. iApply (inv_alloc _). iNext. eauto. }
-
   iMod (allocate_state_interp Hinv _ γcrash σ PV name_credit)
     as (names) "(%crEq & ctx & Ha & #valid & crashedAt & Hc)";
     first eassumption.
-  (* set (base := (NvmFixedG _ (nvm_build_base _ _ Hinv _) _)). *)
   set (fixed := NvmFixedG _ (nvm_build_base _ _ Hinv _ name_credit) nvmPreG_high).
   iExists (fixed).
-  (* Unshelve. *)
   (* Allocate abstract history. *)
   iMod (full_map_alloc ∅)
     as (abs_history_name) "(hists' & _ & _)".
@@ -498,15 +495,13 @@ Proof.
   (* Allocate set of atomic locations. *)
   iMod (own_alloc (● (∅ : gsetUR _))) as (shared_locs_name) "atLocs".
   { apply auth_auth_valid. done. }
-  (* Allocate set of non-atomic locations.. *)
+  (* Allocate set of non-atomic locations. *)
   iMod (own_alloc (● (∅ : gsetUR _))) as (exclusive_locs_name) "naLocs".
   { apply auth_auth_valid. done. }
-  (* iMod ghost_map.ghost_map_alloc_empty as (na_views_name) "na_views". *)
   iMod (ghost_map_alloc (∅ : gmap loc view)) as (na_views_name) "(na_views & _)".
   iMod (ghost_map_alloc (∅ : gmap loc positive)) as (crashed_in_name) "(crashedIn & _)".
   iMod (own_all_bumpers_alloc ∅) as (bumpers_name) "[bumpers #bumpersFrag]".
   iMod (auth_map_map_alloc ∅) as (phys_hist_name) "[physHist _]".
-
   set (hD := {|
                abs_history_name := abs_history_name;
                know_phys_history_name := phys_hist_name;
@@ -520,17 +515,17 @@ Proof.
              |}).
   iExists (NvmDeltaG _ hD).
   iModIntro.
-  iPureGoal. { done. }
-  simpl.
-  iFrame "valid ctx Hinv".
-  rewrite crEq. iFrame "NC".
-  iFrame "credAuth".
-  iFrame "Htok".
+  iSplitPure; first done.
+  iFrameF "valid".
+  simpl. rewrite crEq. iFrameF "NC".
   iDestruct (@cred_frag_to_pre_borrowN _ _ _ _ n with "[ Hpre ]") as "Hpre".
   { rewrite /fixed. iFrame "Hpre". }
-  iFrame "Hpre".
+  iFrameF "Hpre". iFrameF "Ha".
+  iFrame "Hinv".
   rewrite /cred_interp.
   iPureGoal; first done.
+  iFrame "credAuth Htok".
+  iFrame.
   rewrite /interp.
   repeat iExists ∅.
   simpl.
@@ -538,7 +533,6 @@ Proof.
   iEval (rewrite !big_sepM2_empty).
   iEval (rewrite !big_sepM_empty).
   rewrite !left_id.
-
   iPureIntro.
   split_and!; try done; set_solver.
 Qed.
@@ -547,7 +541,7 @@ Qed.
 [wp_recv_adequacy_inv]. *)
 Lemma high_recv_adequacy Σ `{hPre : !nvmGpreS Σ} s e r σ PV (φ φr : val → Prop) n :
   valid_heap σ →
-  (∀ `{nF : !nvmG Σ, nD : !nvmDeltaG},
+  (∀ `{nF : !nvmG Σ, nD : nvmDeltaG},
     ⊢ ⎡ pre_borrowN n ⎤ -∗
       (* Note: We need to add the resources that can be used to prove the [wpr].
        These should require the user to decide which locations should be
@@ -562,7 +556,6 @@ Proof.
   intros t2 σ2 stat.
   intros [ns [κs nstep]]%erased_rsteps_nrsteps.
   destruct (nrsteps_snoc _ _ _ _ _ _ nstep) as (ns' & n' & ->).
-  (* set (n := 0). *)
   set (nsinit := (n * 4 + crash_borrow_ginv_number)).
   (* Very beautiful! *)
   set (n'' :=
@@ -580,8 +573,8 @@ Proof.
   eapply (step_fupdN_fresh_soundness _ ns' nsinit _ n'').
   iIntros (inv).
 
-  iMod (allocate_high_state_interp inv σ PV [] n)
-    as (nF nD eq) "(high & validV & nc & pre & global & int)"; first done.
+  iMod (allocate_empty_high_state_interp inv σ PV [] n)
+    as (nF nD eq) "(validV & nc & pre & ptsMap & global & int & high)"; first done.
 
   iDestruct (Hwp _ _ ) as "-#Hwp".
   iDestruct ("Hwp" $! (∅, ∅, ∅) with "pre") as "Hwpr".
@@ -615,14 +608,45 @@ Proof.
     by iIntros (? ? [= ->]).
 Qed.
 
-(* Lemma high_recv_adequacy Σ `{hPre : !nvmGpreS Σ} s e r σ PV (φ φr : val → Prop) : *)
-(*   valid_heap σ → *)
-(*   (∀ `{nF : !nvmG Σ, nD : !nvmDeltaG}, *)
-(*     ⊢ (* ⎡ ([∗ map] l ↦ v ∈ σ.1, l ↦h v) ⎤ -∗ *) *)
-(*       (* Note: We need to add the resources that can be used to prove the [wpr] *)
-(*       includin [pre_borrow]. These should require the user to decide which *)
-(*       locations should be shared/exclusive, location invariants, etc. *) *)
-(*       (wpr s ⊤ e r (λ v, ⌜ φ v ⌝) (λ _ v, ⌜ φr v ⌝))) → *)
-(*   recv_adequate s (ThreadState e ⊥) (ThreadState r ⊥) (σ, PV) *)
-(*                 (λ v _, φ v.(val_val)) (λ v _, φr v.(val_val)). *)
-(* Proof. *)
+Record loc_info `{nvmG Σ} := {
+    (* Type for the location. *)
+    loc_state : Type;
+    loca_state_eqdecision : EqDecision loc_state;
+    loca_state_countable : Countable loc_state;
+    loc_state_abstractstate : AbstractState loc_state;
+    loc_prot : LocationProtocol loc_state;
+    (* Initial state. *)
+    loc_init : loc_state;
+  }.
+
+Definition initial_heap (σ : gmap loc val) (PV : view) : store :=
+  (λ (v : val), {[ 0 := Msg v PV PV PV ]} : history ) <$> σ.
+
+Lemma high_recv_adequacy_2 Σ `{hPre : !nvmGpreS Σ} s e r (φ φr : val → Prop) n
+      (init_heap : gmap loc val) (na_locs at_locs : gset loc)
+  :
+  (* valid_heap σ → *)
+  dom _ init_heap = na_locs ∪ at_locs →
+  (∀ `{nF : !nvmG Σ, nD : nvmDeltaG}, ∃ (lif : gmap loc loc_info),
+    ⊢ ([∗ map] ℓ ↦ v; li ∈ init_heap; lif,
+        (pred (loc_prot li)) (loc_init li) v _) ∗
+      ⎡ pre_borrowN n ⎤ -∗
+      (* Resources for NA locations. *)
+      ([∗ map] ℓ ↦ v; li ∈ restrict na_locs init_heap; lif,
+        (* ⎡ is_na_loc ℓ ⎤ ∗ *)
+        persist_lb ℓ (loc_prot li) (loc_init li) ∗
+        ℓ ↦_{loc_prot li} [loc_init li]
+      ) -∗
+      (* Resources for AT locations. *)
+      ([∗ map] ℓ ↦ v; li ∈ restrict at_locs init_heap; lif,
+        ⎡ is_at_loc ℓ ⎤ ∗
+        persist_lb ℓ (loc_prot li) (loc_init li)
+      ) -∗
+      (wpr s ⊤ e r (λ v, ⌜ φ v ⌝) (λ _ v, ⌜ φr v ⌝))) →
+  recv_adequate s
+                (e `at` ⊥) (r `at` ⊥)
+                (initial_heap init_heap (const (MaxNat 0) <$> init_heap),
+                  (const (MaxNat 0) <$> init_heap))
+                (λ v _, φ v.(val_val)) (λ v _, φr v.(val_val)).
+Proof.
+Admitted.
