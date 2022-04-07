@@ -11,7 +11,7 @@ From Perennial.program_logic Require Import recovery_weakestpre.
 From Perennial.program_logic Require Import recovery_adequacy.
 
 From self.algebra Require Import ghost_map ghost_map_map.
-From self Require Import view extra ipm_tactics if_non_zero view_slice.
+From self Require Import view extra ipm_tactics if_non_zero view_slice solve_view_le.
 From self.base Require Import primitive_laws wpr_lifting.
 From self.high Require Import dprop resources crash_weakestpre
      post_crash_modality or_lost.
@@ -115,6 +115,44 @@ Proof.
 Qed.
 
 Definition wpr `{nvmG Σ, nvmDeltaG} s := wpr' _ s _.
+
+Lemma wpr_mono `{nvmG Σ, nvmDeltaG} s E e rec Φ Ψ Φr Ψr :
+  wpr s E e rec Φ Φr -∗
+      ((∀ v, Φ v ==∗ Ψ v) ∧ <obj> (∀ nD v, Φr nD v ==∗ Ψr nD v)) -∗
+  wpr s E e rec Ψ Ψr.
+Proof.
+  iStartProof (iProp _).
+  iLöb as "IH" forall (H0 e E Φ Ψ Φr Ψr).
+  iIntros (?).
+  iIntros "H" (??).
+  iIntros "HΦ".
+  rewrite /wpr !wpr_unfold /wpr_pre.
+  iApply (wpc_strong_mono' with "H"); auto.
+  iSplit.
+  { iDestruct "HΦ" as "(H & _)".
+    iIntros (v ? le) "Hi".
+    iSpecialize ("H" $! v).
+    monPred_simpl.
+    iMod ("H" $! _ le with "Hi").
+    done. }
+  iIntros (??) "H".
+  iModIntro.
+  iIntros (???????) "Hσ Hg".
+  iIntros (??) "NC".
+  iMod ("H" with "[//] Hσ Hg NC") as "H".
+  iModIntro.
+  iDestruct "H" as (nD') "(HNC & ? & ? & ? & H & ?)".
+  iExists nD'. iFrame.
+  iNext.
+  iApply ("IH" with "[H] [HΦ]").
+  { iApply monPred_mono; last iApply "H". solve_view_le. }
+  iDestruct "HΦ" as "[_ HΦ]".
+  rewrite monPred_at_objectively.
+  iSplit.
+  - iApply ("HΦ" $! (∅, ∅, ∅) _).
+  - rewrite monPred_at_objectively.
+    iApply "HΦ".
+Qed.
 
 Lemma view_to_zero_lookup V ℓ x :
   V !! ℓ = Some x → (view_to_zero V) !! ℓ = Some (MaxNat 0).
