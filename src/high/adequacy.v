@@ -609,12 +609,11 @@ Proof.
     by iIntros (? ? [= ->]).
 Qed.
 
-Definition initial_heap (σ : gmap loc val) (PV : view) : store :=
-  (* (λ (v : val), {[ 0 := Msg v PV PV PV ]} : history ) <$> σ. *)
+Definition initial_heap (σ : gmap loc val) : store :=
   (λ (v : val), {[ 0 := Msg v ∅ ∅ ∅ ]} : history ) <$> σ.
 
 Lemma shared_locs_inv_initial_heap (at_locs : gset loc) init_heap :
-  shared_locs_inv (restrict at_locs (initial_heap init_heap (const (MaxNat 0) <$> init_heap))).
+  shared_locs_inv (restrict at_locs (initial_heap init_heap)).
 Proof.
   eapply map_Forall_subseteq. { apply restrict_subseteq. }
   intros ℓ hist (v & <- & hihi)%lookup_fmap_Some.
@@ -671,8 +670,7 @@ Section loc_info.
 
 End loc_info.
 
-Lemma valid_heap_initial_heap init_heap :
-  valid_heap (initial_heap init_heap (const (MaxNat 0) <$> init_heap)).
+Lemma valid_heap_initial_heap init_heap : valid_heap (initial_heap init_heap).
 Proof.
   rewrite /valid_heap.
   intros ℓ hist.
@@ -689,8 +687,6 @@ Lemma high_recv_adequacy_2 Σ `{hPre : !nvmGpreS Σ} st e r (φ φr : val → Pr
       (init_heap : gmap loc val) (na_locs at_locs : gset loc) :
   na_locs ## at_locs →
   dom _ init_heap = na_locs ∪ at_locs →
-  let initHeap := initial_heap init_heap (const (MaxNat 0) <$> init_heap) in
-  let V := const (MaxNat 0) <$> init_heap in
   (∀ (nF : nvmG Σ),
    ∃ (lif : gmap loc loc_info), dom (gset _) lif = dom _ init_heap ∧
    ∀ (nD : nvmDeltaG),
@@ -710,7 +706,7 @@ Lemma high_recv_adequacy_2 Σ `{hPre : !nvmGpreS Σ} st e r (φ φr : val → Pr
       (wpr st ⊤ e r (λ v, ⌜ φ v ⌝) (λ _ v, ⌜ φr v ⌝))) →
   recv_adequate st
                 (e `at` ⊥) (r `at` ⊥)
-                (initHeap, V)
+                (initial_heap init_heap, const (MaxNat 0) <$> init_heap)
                 (λ v _, φ v.(val_val)) (λ v _, φr v.(val_val)).
 Proof.
   intros disj locsEq. simpl.
@@ -736,7 +732,7 @@ Proof.
   eapply (step_fupdN_fresh_soundness _ ns' nsinit _ n'').
   iIntros (inv).
 
-  set (σ := initial_heap init_heap (const (MaxNat 0) <$> init_heap)).
+  set (σ := initial_heap init_heap).
   set (PV := (const (MaxNat 0) <$> init_heap)).
 
   (* Begin allocate ghost state. *)

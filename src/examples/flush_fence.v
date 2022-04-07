@@ -233,9 +233,58 @@ End specification.
 
 (* We now create a closed proof. *)
 
-(* Lemma incr_safe_proof ℓa ℓb : *)
-(*   recv_adequate NotStuck (incr_both ℓa ℓb `at` ⊥) (recover ℓa ℓb `at` ⊥) (∅, ∅) *)
-(*                 (λ v _, True) (λ v _, True). *)
-(* Proof. *)
-(*   eapply high_recv_adequacy. *)
-(* Qed. *)
+Definition init_heap ℓa ℓb : gmap loc val := {[ ℓa := #0; ℓb := #0 ]}.
+
+Lemma incr_safe_proof ℓa ℓb :
+  ℓa ≠ ℓb →
+  recv_adequate NotStuck
+                (incr_both ℓa ℓb `at` ⊥)
+                (recover ℓa ℓb `at` ⊥)
+                (initial_heap (init_heap ℓa ℓb),
+                  const (MaxNat 0) <$> (init_heap ℓa ℓb))
+                (λ v _, True) (λ v _, True).
+Proof.
+  intros neq.
+  eapply (high_recv_adequacy_2 nvmΣ _ _ _ (λ _, True) (λ _, True) 0
+                               (init_heap ℓa ℓb)
+                               ({[ ℓa; ℓb ]})
+                               ∅).
+  { set_solver. }
+  { set_solver. }
+  iIntros (nD).
+  set (ℓa_lif := {| loc_state := nat; loc_init := 0; loc_prot := ϕa |}).
+  set (ℓb_lif := {| loc_state := nat; loc_init := 0; loc_prot := (ϕb ℓa) |}).
+  set (lif := {[ℓa := ℓa_lif; ℓb := ℓb_lif ]} : gmap loc loc_info).
+  exists lif.
+  rewrite /lif.
+  split; first set_solver.
+  intros nnD .
+  iIntros "M _ _".
+  setoid_rewrite (restrict_id {[ℓa; ℓb]}); last set_solver.
+  rewrite /init_heap.
+  rewrite big_sepM_insert. 2: { apply lookup_singleton_ne. done. }
+  iDestruct "M" as "[(% & %look & #pa & ptsA) M]".
+  rewrite big_sepM_singleton.
+  iDestruct "M" as "(% & %look' & #pb & ptsB)".
+  simplify_eq.
+
+  (* Simplify things. *)
+  rewrite lookup_insert in look.
+  rewrite lookup_insert_ne in look'; last done.
+  rewrite lookup_insert in look'.
+  simplify_eq /=.
+  rewrite big_sepM2_insert; try (apply lookup_singleton_ne; done).
+  rewrite big_sepM2_singleton.
+
+  iSplit.
+  { simpl.
+    iSplitPure; first done. iSplitPure; first done.
+    iExists 0. iSplitPure; first done.
+    iApply persist_lb_to_flush_lb. iApply "pa". }
+
+  iApply (wpr_mono with "[ptsA ptsB]").
+  { iApply (incr_safe with "[$] [$] ptsA ptsB"). }
+  iSplit.
+  - iIntros. done.
+  - iModIntro. done.
+Qed.
