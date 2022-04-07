@@ -13,7 +13,7 @@ From Perennial.program_logic Require Import recovery_adequacy.
 From Perennial.program_logic Require Import step_fupd_extra crash_lang crash_weakestpre.
 From Perennial.program_logic Require Import crash_adequacy.
 
-From self Require Import ipm_tactics extra.
+From self Require Import ipm_tactics extra encode_relation.
 From self.lang Require Import lang.
 From self.algebra Require Import ghost_map ghost_map_map.
 From self.base Require Import cred_frag crash_borrow adequacy. (* To get [recv_adequace]. *)
@@ -469,6 +469,7 @@ Lemma allocate_empty_high_state_interp `{!nvmGpreS Σ} Hinv σ PV κs n :
       NC 1 ∗
       pre_borrowN n ∗
       ([∗ map] ℓ ↦ hist ∈ σ, ℓ ↦h hist) ∗
+      persisted PV ∗
       global_state_interp (Λ := nvm_lang) () (n * 4 + crash_borrow_ginv_number) 1%Qp ∅ κs ∗
       nvm_heap_ctx (σ, PV) ∗
       interp.
@@ -574,7 +575,7 @@ Proof.
   iIntros (inv).
 
   iMod (allocate_empty_high_state_interp inv σ PV [] n)
-    as (nF nD eq) "(validV & nc & pre & ptsMap & global & int & high)"; first done.
+    as (nF nD eq) "(validV & nc & pre & ptsMap & pers & global & int & high)"; first done.
 
   iDestruct (Hwp _ _ ) as "-#Hwp".
   iDestruct ("Hwp" $! (∅, ∅, ∅) with "pre") as "Hwpr".
@@ -608,45 +609,433 @@ Proof.
     by iIntros (? ? [= ->]).
 Qed.
 
+Definition initial_heap (σ : gmap loc val) (PV : view) : store :=
+  (* (λ (v : val), {[ 0 := Msg v PV PV PV ]} : history ) <$> σ. *)
+  (λ (v : val), {[ 0 := Msg v ∅ ∅ ∅ ]} : history ) <$> σ.
+
+Lemma shared_locs_inv_initial_heap (at_locs : gset loc) init_heap :
+  shared_locs_inv (restrict at_locs (initial_heap init_heap (const (MaxNat 0) <$> init_heap))).
+Proof.
+  eapply map_Forall_subseteq. { apply restrict_subseteq. }
+  intros ℓ hist (v & <- & hihi)%lookup_fmap_Some.
+  apply map_Forall_singleton.
+  rewrite /atomic_loc_inv. simpl.
+  split; last done.
+  rewrite /lookup_zero.
+  done.
+Qed.
+
+(* A record that contains all the information we need for a new location. *)
 Record loc_info `{nvmG Σ} := {
     (* Type for the location. *)
     loc_state : Type;
-    loca_state_eqdecision : EqDecision loc_state;
-    loca_state_countable : Countable loc_state;
+    loc_state_eqdecision : EqDecision loc_state;
+    loc_state_countable : Countable loc_state;
     loc_state_abstractstate : AbstractState loc_state;
     loc_prot : LocationProtocol loc_state;
     (* Initial state. *)
     loc_init : loc_state;
   }.
 
-Definition initial_heap (σ : gmap loc val) (PV : view) : store :=
-  (λ (v : val), {[ 0 := Msg v PV PV PV ]} : history ) <$> σ.
+Existing Instance loc_state_eqdecision.
+Existing Instance loc_state_countable.
+Existing Instance loc_state_abstractstate.
 
-Lemma high_recv_adequacy_2 Σ `{hPre : !nvmGpreS Σ} s e r (φ φr : val → Prop) n
-      (init_heap : gmap loc val) (na_locs at_locs : gset loc)
-  :
-  (* valid_heap σ → *)
+Section loc_info.
+  Context `{nvmG Σ}.
+  Implicit Types (lif : gmap loc loc_info).
+
+  Definition encode_li (li : loc_info) := encode (li.(loc_init)).
+
+  Definition mk_abs_hist lif : gmap loc (gmap time positive) :=
+    (λ li, {[ 0 := encode li.(loc_init) ]}) <$> lif.
+
+  Definition mk_preds lif : gmap loc (enc_predicate) :=
+    (λ li, encode_predicate (li.(loc_prot).(pred))) <$> lif.
+
+  Definition mk_bumpers lif : gmap loc _ :=
+    (λ li, encode_bumper (li.(loc_prot).(bumper))) <$> lif.
+
+  Definition mk_order lif : gmap loc (relation2 positive) :=
+    (λ li, encode_relation (@abs_state_relation _ _ _ (li.(loc_state_abstractstate)))) <$> lif.
+
+  Definition mk_na_views (na : gset loc) lif : gmap loc view :=
+    (λ li, ∅ : view) <$> (restrict na lif).
+
+  Lemma mk_na_views_default_lookup (ℓ : loc) (na_locs : gset loc) lif :
+    default (∅ : view) (mk_na_views na_locs lif !! ℓ) = ∅.
+  Proof.
+    rewrite /mk_na_views. rewrite lookup_fmap.
+    destruct (restrict na_locs lif !! ℓ); done.
+  Qed.
+
+End loc_info.
+
+Lemma valid_heap_initial_heap init_heap :
+  valid_heap (initial_heap init_heap (const (MaxNat 0) <$> init_heap)).
+Proof.
+  rewrite /valid_heap.
+  intros ℓ hist.
+  rewrite /initial_heap. simpl.
+  intros (v & <- & ?)%lookup_fmap_Some.
+  split. { done. }
+  intros ?? (<- & <-)%lookup_singleton_Some.
+  simpl.
+  apply view_le_lookup.
+  done.
+Qed.
+
+Lemma high_recv_adequacy_2 Σ `{hPre : !nvmGpreS Σ} st e r (φ φr : val → Prop) n
+      (init_heap : gmap loc val) (na_locs at_locs : gset loc) :
+  na_locs ## at_locs →
   dom _ init_heap = na_locs ∪ at_locs →
-  (∀ `{nF : !nvmG Σ, nD : nvmDeltaG}, ∃ (lif : gmap loc loc_info),
-    ⊢ ([∗ map] ℓ ↦ v; li ∈ init_heap; lif,
-        (pred (loc_prot li)) (loc_init li) v _) ∗
-      ⎡ pre_borrowN n ⎤ -∗
-      (* Resources for NA locations. *)
-      ([∗ map] ℓ ↦ v; li ∈ restrict na_locs init_heap; lif,
-        (* ⎡ is_na_loc ℓ ⎤ ∗ *)
+  let initHeap := initial_heap init_heap (const (MaxNat 0) <$> init_heap) in
+  let V := const (MaxNat 0) <$> init_heap in
+  (∀ (nF : nvmG Σ),
+   ∃ (lif : gmap loc loc_info), dom (gset _) lif = dom _ init_heap ∧
+   ∀ (nD : nvmDeltaG),
+    ⊢ (* Resources for NA locations. *)
+      ([∗ map] ℓ ↦ v ∈ restrict na_locs init_heap, ∃ li,
+        ⌜ lif !! ℓ = Some li ⌝ ∗
         persist_lb ℓ (loc_prot li) (loc_init li) ∗
-        ℓ ↦_{loc_prot li} [loc_init li]
-      ) -∗
+        ℓ ↦_{loc_prot li} [loc_init li]) -∗
       (* Resources for AT locations. *)
-      ([∗ map] ℓ ↦ v; li ∈ restrict at_locs init_heap; lif,
+      ([∗ map] ℓ ↦ v ∈ restrict at_locs init_heap, ∃ li,
+        ⌜ lif !! ℓ = Some li ⌝ ∗
         ⎡ is_at_loc ℓ ⎤ ∗
-        persist_lb ℓ (loc_prot li) (loc_init li)
-      ) -∗
-      (wpr s ⊤ e r (λ v, ⌜ φ v ⌝) (λ _ v, ⌜ φr v ⌝))) →
-  recv_adequate s
+        persist_lb ℓ (loc_prot li) (loc_init li)) -∗
+      ⎡ pre_borrowN n ⎤ -∗
+      ([∗ map] ℓ ↦ v; li ∈ init_heap; lif,
+        (pred (loc_prot li)) (loc_init li) v _) ∗
+      (wpr st ⊤ e r (λ v, ⌜ φ v ⌝) (λ _ v, ⌜ φr v ⌝))) →
+  recv_adequate st
                 (e `at` ⊥) (r `at` ⊥)
-                (initial_heap init_heap (const (MaxNat 0) <$> init_heap),
-                  (const (MaxNat 0) <$> init_heap))
+                (initHeap, V)
                 (λ v _, φ v.(val_val)) (λ v _, φr v.(val_val)).
 Proof.
-Admitted.
+  intros disj locsEq. simpl.
+  intros Hwp.
+  apply recv_adequate_alt.
+  intros t2 σ2 stat.
+  intros [ns [κs nstep]]%erased_rsteps_nrsteps.
+  destruct (nrsteps_snoc _ _ _ _ _ _ nstep) as (ns' & n' & ->).
+  set (nsinit := (n * 4 + crash_borrow_ginv_number)).
+  (* Very beautiful! *)
+  set (n'' :=
+          S (S (3 ^ (Nat.iter (n' + sum_crash_steps ns')
+                    (λ n0 : nat,
+                       n0 + 1 +
+                       (n0 + 1 +
+                        (n0 + 1 +
+                         (n0 + 1 +
+                          (n0 + 1 +
+                           (n0 + 1 +
+                            (n0 + 1 + (n0 + 1 + (n0 + 1 + (n0 + 1 + 0))))))))))
+                    nsinit + 1)))).
+  (* We apply soundness of Perennial/Iris. *)
+  eapply (step_fupdN_fresh_soundness _ ns' nsinit _ n'').
+  iIntros (inv).
+
+  set (σ := initial_heap init_heap (const (MaxNat 0) <$> init_heap)).
+  set (PV := (const (MaxNat 0) <$> init_heap)).
+
+  (* Begin allocate ghost state. *)
+
+  iMod NC_alloc_strong as (γcrash) "NC".
+  iMod (credit_name_init (n * 4 + crash_borrow_ginv_number)) as
+      (name_credit) "(credAuth & Hcred & Htok)".
+  iDestruct (cred_frag_split with "Hcred") as "(Hpre & Hcred)".
+  iAssert (|={⊤}=> crash_borrow_ginv)%I with "[Hcred]" as ">#Hinv".
+  { rewrite /crash_borrow_ginv. iApply (inv_alloc _). iNext. eauto. }
+  iMod (allocate_state_interp inv _ γcrash σ PV name_credit)
+    as (names) "(%crEq & ctx & Ha & #valid & #crashedAt & #pers)".
+  { apply valid_heap_initial_heap. }
+  rewrite <- crEq in *.
+  set (fixed := NvmFixedG _ (nvm_build_base _ _ inv _ name_credit) nvmPreG_high).
+  iExists (fixed).
+
+  (* We can now get all the protocols. *)
+  specialize (Hwp fixed) as (lif & domEq & Hwp).
+
+  (* Allocate abstract history. *)
+  set (absHist := mk_abs_hist lif).
+  iMod (full_map_alloc absHist)
+    as (abs_history_name) "(hists' & histPts & #histFrag)".
+
+  (* Allocate predicates. *)
+  set (preds := mk_preds lif).
+  iMod (know_predicates_alloc preds) as (predicates_name) "[preds #predsFrag]".
+  (* Allocate preorders. *)
+  iMod (own_all_preorders_gname_alloc (mk_order lif)) as (orders_name) "[orders #fragOrders]".
+  (* Allocate set of atomic locations. *)
+  iMod (own_alloc (● (at_locs : gsetUR _) ⋅ (◯ at_locs)))
+    as (shared_locs_name) "[atLocs #atLocsF]".
+  { apply auth_both_valid. done. }
+  (* Allocate set of non-atomic locations. *)
+  iMod (own_alloc (● (na_locs : gsetUR _) ⋅ (◯ na_locs)))
+    as (exclusive_locs_name) "[naLocs #naLocsF]".
+  { apply auth_both_valid. done. }
+  iMod (ghost_map_alloc (mk_na_views na_locs lif)) as (na_views_name) "(na_views & naViewsF)".
+  iMod (ghost_map_alloc (∅ : gmap loc positive)) as (crashed_in_name) "(crashedIn & _)".
+  iMod (own_all_bumpers_alloc (mk_bumpers lif)) as (bumpers_name) "[bumpers #bumpersFrag]".
+  iMod (auth_map_map_alloc σ) as (phys_hist_name) "[physHist #physHistF]".
+  set (hD := {|
+               abs_history_name := abs_history_name;
+               know_phys_history_name := phys_hist_name;
+               non_atomic_views_gname := na_views_name;
+               crashed_in_name := crashed_in_name;
+               predicates_name := predicates_name;
+               preorders_name := orders_name;
+               shared_locs_name := shared_locs_name;
+               exclusive_locs_name := exclusive_locs_name;
+               bumpers_name := bumpers_name;
+             |}).
+  iExists (NvmDeltaG names hD).
+
+  assert (dom (gset loc) init_heap = dom _ absHist) as domEq2.
+  { rewrite /absHist. rewrite /mk_abs_hist. rewrite dom_fmap_L. done. }
+
+  (* End allocate ghost state. *)
+  eassert (absHist = _ ∪ _) as split.
+  { eapply restrict_disjoint_union. rewrite -domEq2. symmetry. apply locsEq. }
+  iEval (rewrite split) in "histPts".
+  rewrite big_sepM_union. 2: { apply restrict_disjoint. done. }
+  iDestruct ("histPts") as "[naHistPts atHistPts]".
+
+  iDestruct (Hwp (NvmDeltaG names hD)) as "-#Hwp".
+  iDestruct (@cred_frag_to_pre_borrowN _ _ _ _ n with "[ Hpre ]") as "Hpre".
+  { rewrite /fixed. iFrame "Hpre". }
+  iDestruct ("Hwp" $! (∅, ∅, ∅) with "[naHistPts naViewsF] [] [$Hpre]") as "[predsHold Hwpr]".
+  { (* Non-atomic locations. *)
+    rewrite monPred_at_big_sepM.
+    iDestruct (big_sepM_sep_zip with "[$naHistPts $naViewsF]") as "na".
+    { apply dom_eq_alt_L.
+      rewrite /mk_abs_hist /mk_na_views.
+      rewrite restrict_dom_L.
+      rewrite 2!dom_fmap_L.
+      rewrite restrict_dom_L.
+      done. }
+    iDestruct (big_sepM_impl_dom_subseteq with "na []") as "[$ H]".
+    { rewrite /mk_abs_hist /mk_na_views.
+      rewrite dom_map_zip_with.
+      rewrite !restrict_dom.
+      rewrite !dom_fmap_L.
+      rewrite !restrict_dom.
+      rewrite domEq.
+      set_solver+. }
+    iModIntro.
+    iIntros (ℓ [??] v [l1 l2]%map_lookup_zip_Some).
+    apply restrict_lookup_Some in l1 as [look inNa].
+    apply lookup_fmap_Some in look as (li & <- & lifLook).
+    rewrite /mk_na_views in l2.
+    apply lookup_fmap_Some in l2 as (li' & <- & [??]%restrict_lookup_Some).
+    simplify_eq.
+    iIntros ([? _]%restrict_lookup_Some) "[E naView]".
+    iExists li.
+    iSplitPure; first done. rewrite /persist_lb. rewrite /mapsto_na.
+    iSplit.
+    { iExists 0.
+      iDestruct (persisted_persisted_loc with "pers") as "$".
+      { rewrite /PV. rewrite lookup_fmap. rewrite H. done. }
+      simpl.
+      rewrite /know_protocol.
+      rewrite /know_pred.
+      iDestruct (predicates_frag_lookup with "[$predsFrag]") as "$".
+      { rewrite /preds /mk_preds. rewrite lookup_fmap. rewrite lifLook. done. }
+      iDestruct (big_sepM_lookup with "fragOrders") as "$".
+      { rewrite /mk_order. rewrite lookup_fmap. rewrite lifLook. done. }
+      rewrite /know_bumper.
+      iDestruct (big_sepM_lookup with "bumpersFrag") as "$".
+      { rewrite /mk_bumpers. rewrite lookup_fmap lifLook. done. }
+      iSplitPure. { apply bumper_mono. }
+      iSplit.
+      { iExists (encode _).
+        iSplitPure. { setoid_rewrite decode_encode. done. }
+        iDestruct (big_sepM_lookup _ _ ℓ with "histFrag") as "hf".
+        { rewrite /mk_abs_hist. rewrite lookup_fmap lifLook. done. }
+        rewrite big_sepM_singleton.
+        iFrame "hf". }
+      rewrite view_lookup_zero_empty.
+      done. }
+    iExists 0, 0, _, _, _, _.
+    iSplitPure; first done.
+    iSplit.
+    { rewrite /know_protocol.
+      rewrite /know_pred.
+      iDestruct (predicates_frag_lookup with "[$predsFrag]") as "$".
+      { rewrite /preds /mk_preds. rewrite lookup_fmap. rewrite lifLook. done. }
+      iDestruct (big_sepM_lookup with "fragOrders") as "$".
+      { rewrite /mk_order. rewrite lookup_fmap. rewrite lifLook. done. }
+      rewrite /know_bumper.
+      iDestruct (big_sepM_lookup with "bumpersFrag") as "$".
+      { rewrite /mk_bumpers. rewrite lookup_fmap lifLook. done. }
+      iPureIntro. apply bumper_mono. }
+    iSplitPure. { apply increasing_map_singleton. }
+    iSplit. { iApply location_sets_lookup; done. }
+    iSplitPure. { apply lookup_singleton. }
+    iSplitPure. { apply map_no_later_singleton. }
+    iSplitL "E".
+    { rewrite /know_full_history_loc /full_entry_unenc /=.
+      rewrite map_fmap_singleton. iFrame "E". }
+    iSplit.
+    { iExists (encode _).
+      iSplitPure. { setoid_rewrite decode_encode. done. }
+      iDestruct (big_sepM_lookup _ _ ℓ with "histFrag") as "hf".
+      { rewrite /mk_abs_hist. rewrite lookup_fmap lifLook. done. }
+      rewrite big_sepM_singleton. iFrame "hf". }
+    iFrameF "naView".
+    iSplitPure; first done.
+    iDestruct (auth_map_map_frag_lookup_singleton with "physHistF") as "$".
+    { rewrite /σ. rewrite lookup_fmap. rewrite H. simpl. done. }
+    { rewrite lookup_singleton. done. }
+    simpl.
+    iSplitPure. { done. }
+    iSplitPure. { done. }
+    iRight. done. }
+  { (* Atomic locations. *)
+    rewrite monPred_at_big_sepM.
+    iApply big_sepM_forall.
+    iIntros (ℓ ? [? inAt]%restrict_lookup_Some).
+    assert (is_Some (lif !! ℓ)) as (li & lifLook).
+    { apply elem_of_dom. rewrite domEq. apply elem_of_dom. done. }
+    iExists li. iSplitPure; first done.
+    rewrite /persist_lb. simpl.
+    iSplit. { iApply location_sets_lookup; done. }
+    iExists 0.
+    iDestruct (persisted_persisted_loc with "pers") as "$".
+    { rewrite /PV. rewrite lookup_fmap. rewrite H. done. }
+    simpl.
+    rewrite /know_protocol.
+    rewrite /know_pred.
+    iDestruct (predicates_frag_lookup with "[$predsFrag]") as "$".
+    { rewrite /preds /mk_preds. rewrite lookup_fmap. rewrite lifLook. done. }
+    iDestruct (big_sepM_lookup with "fragOrders") as "$".
+    { rewrite /mk_order. rewrite lookup_fmap. rewrite lifLook. done. }
+    rewrite /know_bumper.
+    iDestruct (big_sepM_lookup with "bumpersFrag") as "$".
+    { rewrite /mk_bumpers. rewrite lookup_fmap lifLook. done. }
+    iSplitPure. { apply bumper_mono. }
+    iSplit.
+    { iExists (encode _).
+      iSplitPure. { setoid_rewrite decode_encode. done. }
+      iDestruct (big_sepM_lookup _ _ ℓ with "histFrag") as "hf".
+      { rewrite /absHist /mk_abs_hist. rewrite lookup_fmap lifLook. done. }
+      rewrite big_sepM_singleton.
+      iFrame "hf". }
+    rewrite view_lookup_zero_empty.
+    done. }
+  iModIntro.
+  iSplitPure; first done.
+  iDestruct (wptp_recv_strong_adequacy _ _ [] _ (NvmDeltaG names hD)
+    with "[predsHold bumpers ctx Ha hists' atLocs naLocs physHist crashedIn atHistPts preds orders na_views] [credAuth Htok]") as "HIP".
+  { done. }
+  { (* Show the state interpretaion. *)
+    simpl.
+    iFrame "ctx".
+    iExists _, _, preds, _, _, _, na_locs, at_locs. iExists _.
+    iFrameF "Ha".
+    iFrame.
+    iFrameF "crashedAt".
+    iFrameF "histFrag".
+    iSplitPure; first done.
+    iSplitPure. { rewrite -domEq2. done. }
+    iSplitPure.
+    { rewrite /mk_na_views. rewrite dom_fmap_L.
+      eapply restrict_dom_subset_L.
+      rewrite domEq. set_solver. }
+    iSplitPure. { rewrite /σ. apply shared_locs_inv_initial_heap. }
+    iSplit.
+    { iApply big_sepM2_forall.
+      iPureIntro. split.
+      { rewrite dom_eq_alt_L. set_solver. }
+      intros ??? (? & <- & ?)%lookup_fmap_Some ?.
+      apply increasing_map_singleton. }
+    iSplitL "predsHold".
+    { rewrite monPred_at_big_sepM2.
+      iApply (big_sepM2_impl_dom_subseteq with "predsHold []").
+      { rewrite /σ. rewrite /initial_heap. rewrite dom_fmap_L. done. }
+      { rewrite /σ /mk_abs_hist. rewrite /initial_heap. rewrite !dom_fmap_L.
+        done. }
+      iModIntro.
+      iIntros (ℓ v li hist ??? (hip & <- & ?)%lookup_fmap_Some
+                 (li' & <- & ?)%lookup_fmap_Some) "pred".
+      simplify_eq.
+      iExists _.
+      iSplitPure. 
+      { rewrite /preds. rewrite /mk_preds. rewrite lookup_fmap.
+        rewrite H0. simpl. done. }
+      iApply big_sepM2_singleton. simpl.
+      iApply predicate_holds_phi.
+      { done. }
+      { done. }
+      rewrite mk_na_views_default_lookup.
+      iApply "pred". }
+    (* bumpMono *)
+    iSplit.
+    { iApply big_sepM2_forall. iPureIntro. simpl. split.
+      { apply dom_eq_alt_L. rewrite /mk_order /mk_bumpers.
+        rewrite 2!dom_fmap_L. done. }
+      intros ???.
+      intros (li & ? & ?)%lookup_fmap_Some.
+      intros (? & ? & ?)%lookup_fmap_Some.
+      simplify_eq.
+      apply: encode_bumper_bump_mono. }
+    (* predPostCrash *)
+    iSplit.
+    { iApply big_sepM2_forall. iSplitPure.
+      { apply dom_eq_alt_L. rewrite /mk_order /mk_bumpers.
+        rewrite 2!dom_fmap_L. done. }
+      iIntros (ℓ ?? (li &?&?)%lookup_fmap_Some (? & ? & ?)%lookup_fmap_Some) "!>".
+      simplify_eq.
+
+      iIntros (??????) "(%eq & eq2 & P)".
+      iEval (rewrite /encode_predicate).
+      apply encode_bumper_Some_decode in eq.
+      destruct eq as (s & eq' & eq2').
+      rewrite -eq2'.
+      rewrite decode_encode.
+      iExists _.
+      iSplitPure.
+      { simpl. reflexivity. }
+      iDestruct (encode_predicate_extract with "eq2 P") as "pred".
+      { done. }
+      iApply (pred_condition with "pred"). }
+    iSplitPure.
+    { intros ?? (li & ? & ?)%lookup_fmap_Some.
+      simplify_eq.
+      apply encode_bumper_bump_to_valid. }
+
+    iApply big_sepM2_forall. iPureIntro. simpl. split.
+    { apply dom_eq_alt_L. rewrite /mk_order /mk_bumpers.
+      rewrite 2!dom_fmap_L. done. }
+    intros ???.
+    intros (li & ? & ?)%lookup_fmap_Some.
+    intros (? & ? & ?)%lookup_fmap_Some.
+    simplify_eq.
+    apply map_Forall_singleton.
+    rewrite encode_bumper_encode. done. }
+  { iFrame "Hinv". iFrame. done. }
+
+  iSpecialize ("HIP" with "valid Hwpr [//] NC").
+
+  iApply (step_fupdN_fresh_wand with "HIP").
+  { rewrite /nsinit. rewrite /crash_borrow_ginv_number. done. }
+  iIntros (hD').
+  iIntros "H".
+  iMod "H".
+  simpl.
+  iApply (step_fupd2N_wand with "H"); auto.
+  iModIntro. iIntros "H".
+  iMod "H" as (v2 TV2 ts2 ->) "(stuck & interp & global & HIP & nc)".
+  destruct stat.
+  - iDestruct "HIP" as "#HIP".
+    iModIntro.
+    do 3 iNext.
+    iSplit; last naive_solver.
+    by iIntros (? ? [= ->]).
+  - iDestruct "HIP" as "[%eq'' #HIP]".
+    iModIntro.
+    do 3 iNext.
+    iSplit; last naive_solver.
+    by iIntros (? ? [= ->]).
+Qed.

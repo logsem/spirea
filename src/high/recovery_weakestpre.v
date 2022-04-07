@@ -454,9 +454,7 @@ Section wpr.
       set_solver+. }
     assert (newAbsHists = restrict newNaLocs newAbsHists ∪
                           restrict newAtLocs newAbsHists) as split.
-    { rewrite restrict_union.
-      rewrite -newHistDomLocs.
-      rewrite restrict_superset_id; done. }
+    { apply restrict_disjoint_union. done. }
     iEval (rewrite split) in "knowHistories".
     rewrite big_sepM_union.
     2: { apply restrict_disjoint. done. }

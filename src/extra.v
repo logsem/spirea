@@ -1,7 +1,7 @@
 (* A collection of a few fairly general constructions and lemmas. *)
 
 From stdpp Require Import countable numbers gmap fin_maps list.
-From iris.bi Require Import big_op.
+From iris.bi Require Import big_op monpred.
 From iris.algebra Require Import cmra updates gmap agree big_op auth.
 From iris.proofmode Require Import tactics.
 Import interface.bi derived_laws.bi derived_laws_later.bi.
@@ -272,6 +272,9 @@ Section restrict_dom.
     set_solver.
   Qed.
 
+  Lemma restrict_id (s : D) (m : M A) : dom _ m = s → restrict s m = m.
+  Proof. intros eq. apply restrict_superset_id. set_solver. Qed.
+
   Lemma restrict_union (s1 s2 : D) (m : M A) :
     restrict s1 m ∪ restrict s2 m = restrict (s1 ∪ s2) m.
   Proof.
@@ -306,6 +309,18 @@ Section restrict_dom.
     s ⊆ dom _ m → dom _ (restrict s m) ≡ s.
   Proof. rewrite restrict_dom. set_solver. Qed.
 
+  Lemma restrict_disjoint_union s1 s2 m :
+    s1 ∪ s2 = dom _ m →
+    m = restrict s1 m ∪ restrict s2 m.
+  Proof.
+    intros domEq.
+    rewrite restrict_union.
+    rewrite domEq.
+    symmetry.
+    apply restrict_id.
+    done.
+  Qed.
+
 End restrict_dom.
 
 Section restrict_leibniz.
@@ -313,6 +328,9 @@ Section restrict_leibniz.
   Context `{!RelDecision (∈@{D})}.
   Context {A : Type}.
   Context `{!LeibnizEquiv D}.
+
+  Lemma restrict_dom_L (s : D) (m : M A) : dom _ (restrict s m) = s ∩ dom _ m.
+  Proof. unfold_leibniz. apply restrict_dom. Qed.
 
   Lemma restrict_dom_subset_L (s : D) (m : M A) :
     s ⊆ dom _ m → dom _ (restrict s m) = s.
@@ -519,7 +537,8 @@ Section big_sepM2.
 
   (* This could be upstreamed but we'd need to drop the affine requirement and
   rewrite the proof to not use the proofmode. *)
-  Lemma big_sepM2_impl_dom_subseteq `{!BiAffine PROP} Φ Ψ m1 m2 n1 n2 :
+  Lemma big_sepM2_impl_dom_subseteq {C D} `{!BiAffine PROP}
+        Φ (Ψ : K → C → D → _) m1 m2 n1 n2 :
     dom (gset _) n1 ⊆ dom (gset _) m1 →
     dom (gset _) n1 = dom (gset _) n2 →
     ([∗ map] k↦x1;x2 ∈ m1;m2, Φ k x1 x2) -∗
@@ -527,7 +546,6 @@ Section big_sepM2.
         ⌜m1 !! k = Some x1⌝ → ⌜m2 !! k = Some x2⌝ →
         ⌜n1 !! k = Some y1⌝ → ⌜n2 !! k = Some y2⌝ → Φ k x1 x2 -∗ Ψ k y1 y2) -∗
     ([∗ map] k↦y1;y2 ∈ n1;n2, Ψ k y1 y2).
-    (* ∗ ([∗ map] k↦x ∈ filter (λ '(k, _), m2 !! k = None) m1, Φ k x). *)
   Proof.
     iIntros (sub1 domEq).
     rewrite !big_sepM2_alt.
@@ -621,6 +639,13 @@ Section big_sepM2.
   Proof.
     intros ??. rewrite <- (insert_id m2 k v__b) at 2; eauto.
     iApply big_sepM2_update; eauto.
+  Qed.
+
+  Lemma monPred_at_big_sepM2 {I : biIndex} `{Countable K}
+        i (Φ : K → A → B → monPred I PROP) (m1 : gmap K A) (m2 : gmap K B) :
+    ([∗ map] k↦x1;x2 ∈ m1;m2, Φ k x1 x2) i ⊣⊢ [∗ map] k↦x1;x2 ∈ m1;m2, Φ k x1 x2 i.
+  Proof.
+    by rewrite 2!big_sepM2_alt monPred_at_and monPred_at_pure monPred_at_big_sepM.
   Qed.
 
 End big_sepM2.

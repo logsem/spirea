@@ -164,8 +164,10 @@ End ownership_wrappers.
 Section location_sets.
   Context `{nvmG Σ}.
 
+  Implicit Types (locs : gset loc) (ℓ : loc).
+
   Lemma location_sets_singleton_included γ locs ℓ :
-    own γ (● locs) -∗ own γ (◯ {[ ℓ ]}) -∗ ⌜ℓ ∈ locs⌝.
+    own γ (● locs) -∗ own γ (◯ {[ ℓ ]}) -∗ ⌜ ℓ ∈ locs ⌝.
   Proof.
     iIntros "A B".
     iDestruct (own_valid_2 with "A B")
@@ -174,21 +176,28 @@ Section location_sets.
     done.
   Qed.
 
+  Lemma location_sets_lookup γ locs ℓ :
+    ℓ ∈ locs → own γ (◯ locs) -∗ own γ (◯ {[ ℓ ]}).
+  Proof.
+    iIntros (elm). f_equiv. simpl.
+    eexists (◯ locs).
+    rewrite -auth_frag_op.
+    f_equiv.
+    set_solver.
+  Qed.
+
 End location_sets.
 
 Section predicates.
   Context `{!nvmG Σ, hGD : nvmDeltaG}.
 
   (* Note, there are three types for predicates.
-     1/ The real/initial type:
-        [ST → val → nvmDeltaG → dProp Σ]
-     2/ The encoded type that doesnt depend on [ST]:
-        [positive → val → option (nvmDeltaG → dProp Σ)]
-     3/ The unwrapped type where we project out of [dProp]:
-        [positive → val → nvmDeltaG → thread_view → iProp Σ] *)
-
+     1/ The real/initial type which depends on some [ST]: *)
   Definition predicate ST := ST → val → nvmDeltaG → dProp Σ.
+  (* 2/ The encoded type that doesnt depend on [ST]: *)
   Definition enc_predicate := positive → val → option (nvmDeltaG → dProp Σ).
+  (* 3/ The unwrapped type where we project out of [dProp], forgets that it is
+        monotone, and end up with [thread_view → iProp Σ]: *)
   Definition unwrapped_predicate :=
     positive → val → option (nvmDeltaG → thread_view → iProp Σ).
 

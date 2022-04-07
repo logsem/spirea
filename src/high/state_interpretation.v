@@ -104,7 +104,7 @@ Section state_interpretation.
   Definition interp : iProp Σ :=
     (∃ (phys_hists : gmap loc (gmap time message))
        (abs_hists : gmap loc (gmap time positive))
-       (predicates : gmap loc (positive → val → option (nvmDeltaG → dProp Σ)))
+       (predicates : gmap loc enc_predicate)
        (CV : view)
        (orders : gmap loc (relation2 positive))
        (bumpers : gmap loc (positive → option positive))
