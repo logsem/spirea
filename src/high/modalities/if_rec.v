@@ -88,6 +88,9 @@ Section if_rec.
   Global Instance if_rec_mono' ℓ : Proper ((⊢) ==> (⊢)) (if_rec (Σ := Σ) ℓ).
   Proof. intros P Q. apply if_rec_mono. Qed.
 
+  Global Instance if_rec_proper ℓ : Proper ((⊣⊢) ==> (⊣⊢)) (if_rec (Σ := Σ) ℓ).
+  Proof. rewrite /if_rec. intros P Q pToQ. setoid_rewrite pToQ. done. Qed.
+
   Global Instance if_rec_objective ℓ `{!Objective P} : Objective (if_rec ℓ P).
   Proof.
     iIntros (TV1 ?) "P".

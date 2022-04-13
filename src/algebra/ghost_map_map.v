@@ -41,7 +41,6 @@ Section definitions.
   Implicit Types (mi : gmap K2 V).
 
   (* Ownership over the entire map. *)
-  (* FIXME: Take a [dq] argument. *)
   Definition full_map γ dq m : iProp Σ :=
     ∃ (gnames : gmap K1 (gname * gname)),
       ghost_map_auth γ dq gnames ∗

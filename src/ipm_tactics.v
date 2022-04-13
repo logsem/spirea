@@ -29,3 +29,5 @@ Tactic Notation "iFrameF" "(" constr(t1) ")" :=
 
 Tactic Notation "iFrameF" constr(Hs) :=
   iSplitL Hs; first iFrame Hs.
+
+Tactic Notation "iExistsN" := repeat iExists _.

@@ -189,22 +189,22 @@ Section memory.
   | MEvFenceSync.
 
   (* Takes a value and creates an initial history for that value. *)
-  Definition initial_history (a : memory_access) SV PV v : history :=
+  Definition initial_history (a : memory_access) SV FV v : history :=
     let view_access V := match a with NA => ∅ | AT => V end
-    in {[0 := Msg v (view_access SV) (view_access PV) PV]}.
+    in {[0 := Msg v (view_access SV) (view_access FV) FV]}.
 
   (* Convert an array into a store. *)
-  Fixpoint heap_array ℓ a SV PV (vs : list val) : store :=
+  Fixpoint heap_array ℓ a SV FV (vs : list val) : store :=
     match vs with
     | [] => ∅
     | v :: vs' =>
-        {[ ℓ := initial_history a SV PV v ]} ∪ heap_array (ℓ +ₗ 1) a SV PV vs'
+        {[ ℓ := initial_history a SV FV v ]} ∪ heap_array (ℓ +ₗ 1) a SV FV vs'
     end.
 
-  Lemma heap_array_lookup ℓ a SV PV (vs : list val) (ow : history) (k : loc) :
-    (heap_array ℓ a SV PV vs : store) !! k = Some ow ↔
+  Lemma heap_array_lookup ℓ a SV FV (vs : list val) (ow : history) (k : loc) :
+    (heap_array ℓ a SV FV vs : store) !! k = Some ow ↔
     ∃ j w, (0 ≤ j)%Z ∧ k = ℓ +ₗ j ∧
-            (ow = initial_history a SV PV w) ∧
+            (ow = initial_history a SV FV w) ∧
             vs !! (Z.to_nat j) = (Some w).
   Proof.
     revert k ℓ; induction vs as [|v' vs IH]=> l' ℓ /=.
@@ -224,9 +224,9 @@ Section memory.
       auto with lia.
   Qed.
 
-  Lemma heap_array_map_disjoint (h : gmap loc history) SV PV PAV ℓ (vs : list val) :
+  Lemma heap_array_map_disjoint (h : gmap loc history) SV FV PAV ℓ (vs : list val) :
     (∀ i, (0 ≤ i)%Z → (i < length vs)%Z → h !! (ℓ +ₗ i) = None) →
-    (heap_array ℓ SV PV PAV vs) ##ₘ h.
+    (heap_array ℓ SV FV PAV vs) ##ₘ h.
   Proof.
     intros Hdisj. apply map_disjoint_spec=> l' v1 v2.
     intros (j&w&?&->&?&Hj%lookup_lt_Some%inj_lt)%heap_array_lookup.
@@ -234,8 +234,8 @@ Section memory.
   Qed.
 
   (* Initializes a region of the memory starting at [ℓ] *)
-  Definition state_init_heap a (ℓ : loc) (n : nat) SV PV (v : val) (σ : store) : store :=
-    heap_array ℓ a SV PV (replicate n v) ∪ σ.
+  Definition state_init_heap a (ℓ : loc) (n : nat) SV FV (v : val) (σ : store) : store :=
+    heap_array ℓ a SV FV (replicate n v) ∪ σ.
 
   (* Small-step reduction steps on the memory. *)
 

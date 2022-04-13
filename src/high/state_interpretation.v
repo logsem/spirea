@@ -28,7 +28,7 @@ Section map_map_Forall.
   Lemma map_map_Forall_lookup_1 P m n i j x :
     map_map_Forall P m → m !! i = Some n → n !! j = Some x → P i j x.
   Proof.
-    intros map ? ?.
+    intros map ??.
     eapply map_Forall_lookup_1 in map; last done.
     eapply map_Forall_lookup_1 in map; done.
   Qed.
@@ -47,38 +47,6 @@ Section map_map_Forall.
 
 End map_map_Forall.
 
-(* This could be defined for any monad, but who cares. *)
-Fixpoint iter_option {A} (n : nat) (f : A → option A) (a : A) : option A :=
-  match n with
-  | O => f a
-  | S m => f a ≫= iter_option m f
-  end.
-
-Section iter_option.
-  Context {A : Type}.
-  Implicit Types (a : A).
-
-  Lemma iter_option_Some_S n f a c :
-    iter_option (S n) f a = Some c →
-    ∃ b, f a = Some b ∧ iter_option n f b = Some c.
-  Proof. apply bind_Some. Qed.
-
-  Lemma iter_option_forall f a :
-    (∀ n, is_Some (iter_option n f a)) →
-    ∃ b, f a = Some b ∧ (∀ n, is_Some (iter_option n f b)).
-  Proof.
-    intros H.
-    pose proof (H 0) as (b & Hip).
-    exists b.
-    split; first apply Hip.
-    intros n.
-    pose proof (H (S n)) as [c eq].
-    apply iter_option_Some_S in eq as (b' & eq' & ?).
-    naive_solver.
-  Qed.
-
-End iter_option.
-
 Definition atomic_loc_inv (ℓ : loc) (t : time) (msg : message) :=
   (* For shared locations the two persist views are equal. This enforces
   that shared locations can only be written to using release store and
@@ -88,6 +56,15 @@ Definition atomic_loc_inv (ℓ : loc) (t : time) (msg : message) :=
 
 Definition shared_locs_inv (locs : gmap loc (gmap time message)) :=
   map_map_Forall atomic_loc_inv locs.
+
+Section slice_prefix.
+
+  (* Shift everything in [h] down by [t] and remove everything that is below
+  [t]. *)
+  Definition slice_prefix {A} (h : gmap time A) (t : time) : gmap time A :=
+    map_fold (λ k v m, if decide (t ≤ k) then <[(k - t) := v]>m else m) ∅ h.
+
+End slice_prefix.
 
 Section state_interpretation.
   Context `{nvmG Σ, hGD : nvmDeltaG}.
@@ -110,12 +87,15 @@ Section state_interpretation.
        (bumpers : gmap loc (positive → option positive))
        (na_locs : gset loc)
        (at_locs : gset loc)
+       (offsets : gmap loc nat)
        (na_views : gmap loc view),
       (* We keep the points-to predicates to ensure that we know that the keys
       in the abstract history correspond to the physical history. This ensures
       that at a crash we know that the value recovered after a crash has a
       corresponding abstract value. *)
-      "ptsMap" ∷ ([∗ map] ℓ ↦ hist ∈ phys_hists, ℓ ↦h hist) ∗
+      (* "ptsMap" ∷ ([∗ map] ℓ ↦ hist ∈ phys_hists, ℓ ↦h hist) ∗ *)
+      "ptsMap" ∷ ([∗ map] ℓ ↦ hist;offset ∈ phys_hists;offsets,
+                    ℓ ↦h slice_prefix hist offset) ∗
       "physHist" ∷ auth_map_map_auth know_phys_history_name phys_hists ∗
       "#crashedAt" ∷ crashed_at CV ∗
 
@@ -136,6 +116,8 @@ Section state_interpretation.
       "naLocs" ∷ own exclusive_locs_name (● na_locs) ∗
       "atLocs" ∷ own shared_locs_name (● at_locs) ∗
 
+      "offsets" ∷ ghost_map_auth offset_name (DfracOwn 1) offsets ∗
+
       (* Non-atomic locations. *)
       "%naViewsDom" ∷ ⌜ dom _ na_views = na_locs ⌝ ∗ (* NOTE: If this equality persists we could remove na_locs *)
       "naView" ∷ ghost_map_auth non_atomic_views_gname (DfracOwn 1) na_views ∗
@@ -150,7 +132,7 @@ Section state_interpretation.
       "#ordered" ∷ ([∗ map] ℓ ↦ hist; order ∈ abs_hists; orders,
                     ⌜ increasing_map order hist ⌝) ∗
 
-      (* The predicates hold for all the atomic locations. *)
+      (* The predicates hold for all the locations. *)
       "predsHold" ∷
         ([∗ map] ℓ ↦ phys_hist;abs_hist ∈ phys_hists;abs_hists,
           ∃ pred,
@@ -189,3 +171,5 @@ Section state_interpretation.
   }.
 
 End state_interpretation.
+
+Opaque interp.

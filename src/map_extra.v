@@ -232,6 +232,13 @@ Section map_sequence.
       map_sequence m lo2 hi (y :: xs).
   Proof. intros [a (lo2 & ?)]. exists lo2. naive_solver. Qed.
 
+  Lemma map_sequence_prefix lo hi t ss m :
+    map_sequence m lo hi ss →
+    lo ≤ t ≤ hi →
+    ∃ ss', ss' `prefix_of` ss ∧
+    map_sequence m lo t ss.
+  Proof. Admitted.
+
 End map_sequence.
 
 Section map_no_later.
@@ -285,3 +292,12 @@ Section map_no_later.
   Qed.
 
 End map_no_later.
+
+Section drop_above.
+  Context {A : Type}.
+
+  (* Removes all entries from [m] after [t]. *)
+  Definition drop_above t (m : gmap nat A) : gmap nat A :=
+    filter (λ '(t', ev), t' < t) m.
+
+End drop_above.

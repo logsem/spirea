@@ -5,7 +5,7 @@ From iris.proofmode Require Import reduction monpred tactics.
 From Perennial.Helpers Require Import ipm NamedProps.
 From Perennial.program_logic Require Import recovery_weakestpre.
 
-From self Require Import extra ipm_tactics if_non_zero.
+From self Require Import extra ipm_tactics if_non_zero map_extra.
 From self.algebra Require Import ghost_map ghost_map_map.
 From self.base Require Import primitive_laws wpr_lifting.
 From self.base Require post_crash_modality.
@@ -47,6 +47,13 @@ Definition post_crash_na_loc_impl `{nvmG Σ}
   □ ∀ ℓ, is_na_loc (nD := nD) ℓ -∗
     or_lost_post_crash_no_t ℓ (is_na_loc (nD := nD') ℓ).
 
+Definition offsets_impl `{nvmG Σ}
+           (nD nD' : nvmDeltaG) : iProp Σ :=
+  □ ∀ ℓ t, ℓ ↪[@offset_name (@nvm_delta_high nD)]□ t -∗
+    or_lost_post_crash_no_t
+      ℓ
+      (∃ t2, ⌜ t ≤ t2 ⌝ ∗ ℓ ↪[@offset_name (@nvm_delta_high nD')]□ t2).
+
 Definition map_map_phys_history_impl `{nvmG Σ}
            (nD nD' : nvmDeltaG) : iProp Σ :=
   □ ∀ ℓ tStore msg,
@@ -67,15 +74,19 @@ Instance know_na_view_post_crash_fractional `{nvmG Σ, nvmDeltaG} ℓ :
   Fractional (λ q0 : Qp, or_lost_post_crash_no_t ℓ (know_na_view ℓ q0 ∅)).
 Proof. apply or_lost_post_crash_fractional. apply _. Qed.
 
+Definition new_hist t (bumper : positive → option positive) (hist : gmap time positive) :=
+  omap bumper (drop_above t hist).
+
 Definition know_history_post_crash `{nvmG Σ}
            (hG : nvmDeltaG) ℓ q bumper (hist : gmap time positive) : iProp Σ :=
   or_lost_post_crash ℓ (λ t,
-    ∃ sOld sNew,
-      ⌜ hist !! t = Some sOld ⌝ ∗
+    ∃ sOld sNew t',
+      ⌜ hist !! t' = Some sOld ⌝ ∗
       ⌜ bumper sOld = Some sNew ⌝ ∗
       ℓ ↪[crashed_in_name]□ sOld ∗
-      know_full_encoded_history_loc ℓ q ({[ 0 := sNew ]}) ∗
-      know_frag_encoded_history_loc ℓ 0 sNew)%I.
+      ℓ ↪[offset_name]□ t' ∗
+      know_full_encoded_history_loc ℓ q (new_hist t' bumper hist) ∗
+      know_frag_encoded_history_loc ℓ t' sNew)%I.
 
 Instance know_history_post_crash_fractional `{nvmG Σ} hG ℓ bumper hist :
   Fractional (λ q, know_history_post_crash hG ℓ q bumper hist).
@@ -83,25 +94,14 @@ Proof.
   apply or_lost_post_crash_fractional.
   iIntros (t p q).
   iSplit.
-  - iDestruct 1 as (????) "(#? & [L R] & #?)".
-    iSplitL "L"; iExists _, _; iFrame "#%∗".
-  - iDestruct 1 as "[(% & % & % & % & #? & L & #?) (% & % & % & % & #? & R & #?)]".
-    simplify_eq. iCombine "L R" as "F". iExists _, _. iFrame "∗#%".
+  - iDestruct 1 as (?????) "(#? & #? & [L R] & #?)".
+    iSplitL "L"; iExistsN; iFrame "#%∗".
+  - iDestruct 1 as "[(% & % & % & % & % & #? & #off & L & #?) (% & % & % & % & % & #? & #? & R & #?)]".
+    simplify_eq.
+    iDestruct (ghost_map_elem_agree with "off [$]") as %<-.
+    iCombine "L R" as "F".
+    iExistsN. iFrame "∗#%".
 Qed.
-
-Definition post_crash_frag_history_impl `{hG : nvmG Σ}
-           (nD nD' : nvmDeltaG) : iProp Σ :=
-  □ ∀ ST (_ : EqDecision ST) (_ : Countable ST) (_ : AbstractState ST)
-    ℓ (t : nat) (s : ST) (bumper : ST → ST),
-      know_preorder_loc (nD := nD) ℓ (abs_state_relation (ST := ST)) -∗
-      know_bumper (nD := nD) ℓ bumper -∗
-      know_frag_history_loc (nD := nD) ℓ t s -∗
-      (or_lost_post_crash ℓ (λ t', ∃ s',
-        ⌜ t ≤ t' → s ⊑ s' ⌝ ∗
-        crashed_in_mapsto ℓ s' ∗
-        know_preorder_loc (nD := nD') ℓ (abs_state_relation (ST := ST)) ∗
-        know_bumper (nD := nD') ℓ bumper ∗
-        know_frag_history_loc (nD := nD') ℓ 0 (bumper s'))).
 
 (** This map is used to exchange [know_full_history_loc] valid prior to a crash
 into a version valid after the crash. *)
@@ -121,6 +121,23 @@ Definition post_crash_full_history_map `{nvmG Σ}
       (λ q, know_full_encoded_history_loc (nD := nD) ℓ q hist)
       (λ q, know_history_post_crash nD' ℓ q bumper hist).
 
+Definition post_crash_frag_history_impl `{hG : nvmG Σ}
+           (nD nD' : nvmDeltaG) : iProp Σ :=
+  □ ∀ ST (_ : EqDecision ST) (_ : Countable ST) (_ : AbstractState ST)
+    ℓ (t : nat) (s : ST) (bumper : ST → ST),
+      (* FIXME: It seems that we can remove the preorder *)
+      know_preorder_loc (nD := nD) ℓ (abs_state_relation (ST := ST)) -∗
+      know_bumper (nD := nD) ℓ bumper -∗
+      know_frag_history_loc (nD := nD) ℓ t s -∗
+      (or_lost_post_crash ℓ (λ t', ∃ offset,
+        (* ⌜ t ≤ t' → s ⊑ s' ⌝ ∗ *)
+        (* crashed_in_mapsto ℓ s' ∗ *)
+        ⌜ t ≤ offset ⌝ ∗
+        ℓ ↪[offset_name]□ offset ∗
+        know_preorder_loc (nD := nD') ℓ (abs_state_relation (ST := ST)) ∗
+        know_bumper (nD := nD') ℓ bumper ∗
+        know_frag_history_loc (nD := nD') ℓ t (bumper s))).
+
 Definition post_crash_resource_persistent `{nvmG Σ}
            (nD nD' : nvmDeltaG) : iProp Σ :=
   "#post_crash_frag_history_impl" ∷ post_crash_frag_history_impl nD nD' ∗
@@ -128,6 +145,7 @@ Definition post_crash_resource_persistent `{nvmG Σ}
   "#post_crash_pred_impl" ∷ post_crash_pred_impl nD nD' ∗
   "#post_crash_at_loc_impl" ∷ post_crash_at_loc_impl nD nD' ∗
   "#post_crash_na_loc_impl" ∷ post_crash_na_loc_impl nD nD' ∗
+  "#post_crash_offsets_impl" ∷ offsets_impl nD nD' ∗
   "#post_crash_map_map_phys_history_impl" ∷ map_map_phys_history_impl nD nD' ∗
   "#post_crash_bumper_impl" ∷ post_crash_bumper_impl nD nD'.
 
@@ -274,15 +292,23 @@ Section post_crash_interact.
 
   How the post crash modality interacts with the assertions in the logic. *)
 
+  Lemma new_hist_encode_eq t bumper (abs_hist : gmap time ST) :
+    new_hist t (encode_bumper bumper) (encode <$> abs_hist) =
+      encode <$> (bumper <$> drop_above t abs_hist).
+  Proof.
+    rewrite /new_hist. rewrite /drop_above.
+  Admitted.
+
   Lemma post_crash_know_full_history_loc ℓ q (bumper : ST → ST)
         (abs_hist : gmap time ST) :
     ⎡ know_bumper ℓ bumper ⎤ ∗
     ⎡ know_full_history_loc ℓ q abs_hist ⎤ -∗
-    <PC> _, or_lost_with_t ℓ (λ t, ∃ (s : ST),
-        ⌜abs_hist !! t = Some s⌝ ∗
+    <PC> _, or_lost_with_t ℓ (λ t, ∃ (s : ST) t',
+        ⌜ abs_hist !! t' = Some s ⌝ ∗
         ⎡ know_bumper ℓ bumper ⎤ ∗
-        ⎡ know_full_history_loc ℓ q {[ 0 := bumper s ]} ⎤ ∗
-        ⎡ know_frag_history_loc ℓ 0 (bumper s) ⎤ ∗
+        ⎡ ℓ ↪[offset_name]□ t' ⎤ ∗
+        ⎡ know_full_history_loc ℓ q (bumper <$> (drop_above t' abs_hist)) ⎤ ∗
+        ⎡ know_frag_history_loc ℓ t' (bumper s) ⎤ ∗
         ⎡ crashed_in_mapsto ℓ s ⎤).
   Proof.
     iStartProof (iProp _).
@@ -316,7 +342,7 @@ Section post_crash_interact.
       iDestruct "newHist" as (CV) "[#crashed [H|H]]"; iExists (CV);
         iFrame "crashed"; [iLeft|iRight; done].
       iDestruct "H" as (t)
-        "(%cvLook & #per & (% & % & %look & %bump & #crash & hist & frag))".
+        "(%cvLook & #per & (% & % & % & %look & %bump & #crash & #offset & hist & frag))".
       iDestruct (or_lost_post_crash_lookup with "crashed newBumper") as "bumper";
         first done.
       apply lookup_fmap_Some in look as [st [eq ?]].
@@ -324,11 +350,13 @@ Section post_crash_interact.
       simplify_eq.
       rewrite decode_encode in decEq.
       simplify_eq.
-      iExists t. iFrame (cvLook) "per". iExists sn.
+      iExists t. iFrame (cvLook) "per". iExists sn, t'.
       iSplitPure; first assumption.
-      iFrame "bumper".
-      (* iSplit. { *)
-      rewrite /full_entry_unenc /know_full_encoded_history_loc. rewrite map_fmap_singleton.
+      iFrameF "bumper".
+      iFrameF "offset".
+      rewrite /full_entry_unenc /know_full_encoded_history_loc.
+      rewrite new_hist_encode_eq.
+      (* rewrite map_fmap_singleton. *)
       iFrame "hist".
       iSplit.
       { iExists _. iFrame "frag". iPureIntro. apply decode_encode. }
@@ -356,12 +384,14 @@ Section post_crash_interact.
     ⎡ know_bumper ℓ bumper ⎤ ∗
     ⎡ know_frag_history_loc ℓ t s ⎤ -∗
     post_crash (λ hG',
-      (or_lost_with_t ℓ (λ t', ∃ s2,
-        ⌜ t ≤ t' → s ⊑ s2 ⌝ ∗
-        ⎡ crashed_in_mapsto ℓ s2 ⎤ ∗
+      (or_lost_with_t ℓ (λ t', ∃ offset, (* ∃ s2, *)
+        (* ⌜ t ≤ t' → s ⊑ s2 ⌝ ∗ *)
+        (* ⎡ crashed_in_mapsto ℓ s2 ⎤ ∗ *)
+        ⌜ t ≤ offset ⌝ ∗
+        ⎡ ℓ ↪[offset_name]□ offset ⎤ ∗
         ⎡ know_preorder_loc ℓ (abs_state_relation (ST := ST)) ⎤ ∗
         ⎡ know_bumper ℓ bumper ⎤ ∗
-        ⎡ know_frag_history_loc ℓ 0 (bumper s2) ⎤))).
+        ⎡ know_frag_history_loc ℓ t (bumper s) ⎤))).
   Proof.
     iStartProof (iProp _).
     iIntros (?) "(order & bumper & hist)".
@@ -375,7 +405,8 @@ Section post_crash_interact.
     iApply or_lost_with_t_at.
     iApply (or_lost_post_crash_mono with "[] hist").
     iIntros (?) "_".
-    iDestruct 1 as (?) "(% & ? & ? & ?)". iExists _. iFrame. done.
+    naive_solver.
+    (* iDestruct 1 as (?) "(% & ? & ? & ?)". iExists _. iFrame. done. *)
   Qed.
 
   Lemma post_crash_know_pred `{Countable ST'} ℓ (ϕ : ST' → val → nvmDeltaG → dProp Σ) :
@@ -415,6 +446,23 @@ Section post_crash_interact.
     iIntros "[Ha $]". iNamed "Ha".
     rewrite /post_crash_resource. iFrameNamed.
     iDestruct ("post_crash_na_loc_impl" with "HP") as "H".
+    iApply or_lost_if_rec_embed. iFrame.
+  Qed.
+
+  Lemma post_crash_offset ℓ t1 :
+    ⎡ ℓ ↪[offset_name]□ t1 ⎤ -∗
+    <PC> _, if_rec ℓ (∃ t2, ⌜ t1 ≤ t2 ⌝ ∗ ⎡ ℓ ↪[offset_name]□ t2 ⎤).
+  Proof.
+    iStartProof (iProp _). iIntros (TV') "HP".
+    iIntrosPostCrash.
+    iDestruct (base.post_crash_modality.post_crash_nodep with "HP") as "HP".
+    post_crash_modality.iCrash.
+    iIntros "[Ha $]". iNamed "Ha".
+    rewrite /post_crash_resource. iFrameNamed.
+    iDestruct ("post_crash_offsets_impl" with "HP") as "H".
+    iEval (setoid_rewrite <- embed_pure).
+    iEval (setoid_rewrite <- embed_sep).
+    iEval (setoid_rewrite <- embed_exist).
     iApply or_lost_if_rec_embed. iFrame.
   Qed.
 
@@ -582,6 +630,9 @@ Section IntoCrash.
 
   Global Instance na_loc_into_crash ℓ :
     IntoCrash _ _ := post_crash_na_loc ℓ.
+
+  Global Instance offset_into_crash ℓ t :
+    IntoCrash _ _ := post_crash_offset ℓ t.
 
   Global Instance know_phys_hist_msg_into_crash ℓ t msg :
     IntoCrash _ _ := post_crash_know_phys_hist_msg ℓ t msg.
@@ -907,6 +958,9 @@ Section IntoCrashFlush.
     (∀ k (x : A), IntoCrashFlush (ϕ k x) (ψ k x)) →
     IntoCrashFlush ([∗ list] k↦x ∈ l, ϕ k x)%I (λ hG, [∗ list] k↦x ∈ l, ψ k x _)%I.
   Proof. revert ϕ ψ. induction l as [|x l IH]=> Φ ψ ? /=; apply _. Qed.
+
+  Global Instance offset_into_crash_flush ℓ t : IntoCrashFlush _ _ :=
+      into_crash_into_crash_flushed _ _ (offset_into_crash ℓ t).
 
   Global Instance know_pred_into_crash_flush `{Countable ST}
          ℓ (ϕ : ST → _ → _ → _) :

@@ -23,6 +23,7 @@ Class nvmHighDeltaG := MkNvmHighDeltaG {
   crashed_in_name : gname;
   predicates_name : gname;
   preorders_name : gname;
+  offset_name : gname;
   exclusive_locs_name : gname;
   shared_locs_name : gname;
   bumpers_name : gname;
@@ -64,6 +65,7 @@ Class nvmHighFixedG Σ := {
   non_atomic_views :> ghost_mapG Σ loc view;
   crashed_in_inG :> ghost_mapG Σ loc positive;
   preordersG :> ghost_mapG Σ loc (relation2 positive);
+  offsetsG :> ghost_mapG Σ loc nat;
   locsG :> inG Σ shared_locsR;
   nvm_bumpersG :> bumpersG Σ;
 }.
@@ -75,6 +77,7 @@ Definition nvmHighΣ :=
      ghost_mapΣ loc view;
      ghost_mapΣ loc positive;
      ghost_mapΣ loc (relation2 positive);
+     ghost_mapΣ loc nat;
      GFunctor (shared_locsR);
      ghost_mapΣ loc (positive → option positive) ].
 

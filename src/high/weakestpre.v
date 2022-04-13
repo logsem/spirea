@@ -263,7 +263,7 @@ Section wp_rules.
     iStartProof (iProp _).
     iIntros ([[sv pv] bv]) "lb".
     rewrite /store_lb.
-    iDestruct "lb" as (?) "H". iNamed "H".
+    iDestruct "lb" as (? offset) "H". iNamed "H". iNamed "lbBase".
     iDestruct "tSLe" as %tSLe.
 
     iIntros ([[??]?] ?) "HΦ".
@@ -282,13 +282,14 @@ Section wp_rules.
     iDestruct (big_sepM2_dom with "predsHold") as %domEq2.
     assert (is_Some (phys_hists !! ℓ)) as [physHist ?].
     { apply elem_of_dom. rewrite domEq2 domEq. apply elem_of_dom. naive_solver. }
-    iDestruct (big_sepM_lookup_acc with "ptsMap") as "[pts ptsMap]"; first done.
+    iDestruct (ghost_map_lookup with "offsets offset") as %?.
+    iDestruct (big_sepM2_lookup_acc with "ptsMap") as "[pts ptsMap]"; [done|done| ].
 
     iApply (wp_flush (extra := {| extra_state_interp := True |}) with "pts").
     iNext. iIntros "pts".
     iDestruct ("ptsMap" with "pts") as "ptsMap".
 
-    assert (tS ≤ SV !!0 ℓ) as tSLe2.
+    assert (tS - offset ≤ SV !!0 ℓ) as tSLe2.
     { etrans; first apply tSLe.
       f_equiv. etrans; first apply H1. apply incl. }
     rewrite -assoc.
@@ -301,10 +302,11 @@ Section wp_rules.
       iSplitL.
       - simpl.
         rewrite /flush_lb.
-        iExists _.
+        iExistsN.
         iFrame "locationProtocol".
         iFrame "knowFragHist".
-        iSplitPure; first done.
+        iFrame "offset".
+        iSplitPure. { done. }
         iLeft. iPureIntro.
         repeat split; try apply view_empty_least.
         apply view_le_lub_r. apply view_le_lub_l.
@@ -314,9 +316,10 @@ Section wp_rules.
       - simpl.
         iIntros "#pers".
         rewrite /persist_lb.
-        iExists _.
+        iExistsN.
         iFrame "locationProtocol".
         iFrame "knowFragHist".
+        iFrame "offset".
         iSplitPure; first done.
         simpl.
         iSplit.
@@ -335,7 +338,7 @@ Section wp_rules.
             rewrite right_id.
             rewrite lookup_singleton. done. }
           lia. }
-    repeat iExists _.
+    iExistsN.
     iFrame "#∗%".
   Qed.
 

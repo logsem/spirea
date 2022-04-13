@@ -34,79 +34,94 @@ Section points_to_at.
   Qed.
 
   (* Points-to predicate for non-atomics. This predcate says that we know that
-the last events at [ℓ] corresponds to the *)
+     the last events at [ℓ] corresponds to the *)
+  (* FIXME: Can [mapsto_na] use [lb_base]? *)
   Program Definition mapsto_na (ℓ : loc) prot (q : frac) (ss : list ST) : dProp Σ :=
-    (∃ (tP tStore : time) SV (abs_hist : gmap time ST) (msg : message) s,
+    (∃ (tLo tHi offset : time) SV (abs_hist : gmap time ST) (msg : message) s,
       "%lastEq" ∷ ⌜ last ss = Some s ⌝ ∗
       "#locationProtocol" ∷ ⎡ know_protocol ℓ prot ⎤ ∗
       "%incrMap" ∷ ⌜ increasing_map (⊑@{ST}) abs_hist ⌝ ∗
       "#isNaLoc" ∷ ⎡ is_na_loc ℓ ⎤ ∗
 
-      (* [tStore] is the last message and it agrees with the last state in ss. *)
-      "%lookupV" ∷ ⌜ abs_hist !! tStore = Some s ⌝ ∗
-      "%nolater" ∷ ⌜ map_no_later abs_hist tStore ⌝ ∗
+      (* [tHi] is the last message and it agrees with the last state in ss. *)
+      "%lookupV" ∷ ⌜ abs_hist !! tHi = Some s ⌝ ∗
+      "%nolater" ∷ ⌜ map_no_later abs_hist tHi ⌝ ∗
 
       (* Ownership over the full abstract history. *)
       "hist" ∷ ⎡ know_full_history_loc ℓ q abs_hist ⎤ ∗
-      "#histFrag" ∷ ⎡ know_frag_history_loc ℓ tStore s ⎤ ∗
+      "#histFrag" ∷ ⎡ know_frag_history_loc ℓ tHi s ⎤ ∗
+      "#offset" ∷ ⎡ ℓ ↪[offset_name]□ offset ⎤ ∗
 
       "knowSV" ∷ ⎡ know_na_view ℓ q SV ⎤ ∗
-      "%slice" ∷ ⌜ map_sequence abs_hist tP tStore ss ⌝ ∗
-      "#physMsg" ∷ ⎡ auth_map_map_frag_singleton know_phys_history_name ℓ tStore msg ⎤ ∗
+      "%slice" ∷ ⌜ map_sequence abs_hist tLo tHi ss ⌝ ∗
+      "#physMsg" ∷ ⎡ auth_map_map_frag_singleton know_phys_history_name ℓ tHi msg ⎤ ∗
       "#inThreadView" ∷ monPred_in (SV, msg_persisted_after_view msg, ∅) ∗
-      (* We have the [tStore] timestamp in our store view. *)
-      "%haveTStore" ∷ ⌜ tStore ≤ SV !!0 ℓ ⌝ ∗
-      "#pers" ∷ (⎡ persisted_loc ℓ tP ⎤ ∨ ⌜ tP = 0 ⌝)
+      (* We have the [tHi] timestamp in our store view. *)
+      "%haveTStore" ∷ ⌜ tHi - offset ≤ SV !!0 ℓ ⌝ ∗
+      "#pers" ∷ (⎡ persisted_loc ℓ (tLo - offset) ⎤ ∨ ⌜ tLo - offset = 0 ⌝)
     )%I.
 
   Global Instance mapsto_na_fractional ℓ prot ss :
     Fractional (λ q, mapsto_na ℓ prot q ss).
   Proof.
-    intros p q.
-    rewrite /mapsto_na.
-    iSplit.
-    - iNamed 1.
-      iDestruct "hist" as "[histP histQ]".
-      iDestruct "knowSV" as "[knowSVP knowSVQ]".
-        iSplitL "histP knowSVP".
-        + repeat iExists _. iFrame "#∗%".
-        + repeat iExists _.
-          iFrame "#∗%".
-    - iDestruct 1 as "[L R]".
-      iNamed "L".
-      iDestruct "R" as (??????) "(_ & _ & ? & _ & _ & _ & histQ & _ & SV & HIP & ?)".
-      iDestruct (full_entry_agree with "hist histQ") as %->%(inj (fmap _)).
-      iDestruct (ghost_map_elem_agree with "knowSV SV") as %->.
-      repeat iExists _. iFrame "#∗%".
-  Qed.
+  Admitted.
+  (*   intros p q. *)
+  (*   rewrite /mapsto_na. *)
+  (*   iSplit. *)
+  (*   - iNamed 1. *)
+  (*     iDestruct "hist" as "[histP histQ]". *)
+  (*     iDestruct "knowSV" as "[knowSVP knowSVQ]". *)
+  (*       iSplitL "histP knowSVP". *)
+  (*       + repeat iExists _. iFrame "#∗%". *)
+  (*       + repeat iExists _. *)
+  (*         iFrame "#∗%". *)
+  (*   - iDestruct 1 as "[L R]". *)
+  (*     iNamed "L". *)
+  (*     iDestruct "R" as (??????) "(_ & _ & ? & _ & _ & _ & histQ & _ & SV & HIP & ?)". *)
+  (*     iDestruct (full_entry_agree with "hist histQ") as %->%(inj (fmap _)). *)
+  (*     iDestruct (ghost_map_elem_agree with "knowSV SV") as %->. *)
+  (*     repeat iExists _. iFrame "#∗%". *)
+  (* Qed. *)
   Global Instance mapsto_na_as_fractional ℓ prot q v :
     AsFractional (mapsto_na ℓ prot q v) (λ q, mapsto_na ℓ prot q v)%I q.
   Proof. split; [done | apply _]. Qed.
 
+  Definition lb_base ℓ prot offset tS (s : ST) : dProp Σ :=
+    "#locationProtocol" ∷ ⎡ know_protocol ℓ prot ⎤ ∗
+    "#knowFragHist" ∷ ⎡ know_frag_history_loc ℓ tS s ⎤ ∗
+    "#offset" ∷ ⎡ ℓ ↪[offset_name]□ offset ⎤ ∗
+    "#tSLe" ∷ have_SV ℓ (tS - offset).
+
   Definition store_lb ℓ prot (s : ST) : dProp Σ :=
-    ∃ (tS : nat),
-      "#locationProtocol" ∷ ⎡ know_protocol ℓ prot ⎤ ∗
-      "#knowFragHist" ∷ ⎡ know_frag_history_loc ℓ tS s ⎤ ∗
-      "#tSLe" ∷ have_SV ℓ tS.
+    ∃ (tS : nat) (offset : nat),
+      "#lbBase" ∷ lb_base ℓ prot offset tS s.
+
+      (* "#locationProtocol" ∷ ⎡ know_protocol ℓ prot ⎤ ∗ *)
+      (* "#knowFragHist" ∷ ⎡ know_frag_history_loc ℓ (offset + tS) s ⎤ ∗ *)
+      (* "#offset" ∷ ⎡ ℓ ↪[offset_name] offset ⎤ ∗ *)
+      (* "#tSLe" ∷ have_SV ℓ tS. *)
 
   Definition flush_lb ℓ prot (s : ST) : dProp Σ :=
-    ∃ (tF : nat),
-      "#locationProtocol" ∷ ⎡ know_protocol ℓ prot ⎤ ∗
-      "knowFragHist" ∷ ⎡ know_frag_history_loc ℓ tF s ⎤ ∗
-      "#tSLe" ∷ have_SV ℓ tF ∗
+    ∃ (tF : nat) offset,
+      "#lbBase" ∷ lb_base ℓ prot offset tF s ∗
+      (* "#locationProtocol" ∷ ⎡ know_protocol ℓ prot ⎤ ∗ *)
+      (* "knowFragHist" ∷ ⎡ know_frag_history_loc ℓ tF s ⎤ ∗ *)
+      (* "#tSLe" ∷ have_SV ℓ tF ∗ *)
       (* Either we have something in the flush view or the location is
       persisted. The later case is for after a crash where we don't have
       anything in the flush view. *)
-      "viewFact" ∷ (have_FV_strong ℓ tF ∨ ⎡ persisted_loc ℓ tF ⎤)%I.
+      "viewFact" ∷ (have_FV_strong ℓ (tF - offset) ∨
+                    ⎡ persisted_loc ℓ (tF - offset) ⎤)%I.
 
   Program Definition persist_lb ℓ prot (sP : ST) : dProp Σ :=
-    ∃ tP,
-      "#locationProtocol" ∷ ⎡ know_protocol ℓ prot ⎤ ∗
-      "knowFragHist" ∷ ⎡ know_frag_history_loc ℓ tP sP ⎤ ∗
+    ∃ tP offset,
+      "#lbBase" ∷ lb_base ℓ prot offset tP sP ∗
+      (* "#locationProtocol" ∷ ⎡ know_protocol ℓ prot ⎤ ∗ *)
+      (* "knowFragHist" ∷ ⎡ know_frag_history_loc ℓ tP sP ⎤ ∗ *)
       (* We have the persisted state in our store view. *)
-      "#tSLe" ∷ have_SV ℓ tP ∗
-      "#tPLe" ∷ have_FV ℓ tP ∗
-      "persisted" ∷ ⎡ persisted_loc ℓ tP ⎤.
+      (* "#tSLe" ∷ have_SV ℓ tP ∗ *)
+      "#tPLe" ∷ have_FV ℓ (tP - offset) ∗
+      "persisted" ∷ ⎡ persisted_loc ℓ (tP - offset) ⎤.
 
   Definition crashed_in prot ℓ s : dProp Σ :=
     ∃ CV,
@@ -120,7 +135,7 @@ the last events at [ℓ] corresponds to the *)
   (* [ℓ] was not recovered at the last crash. *)
   Definition lost ℓ : dProp Σ :=
     ∃ CV,
-      "#crashed" ∷ ⎡crashed_at CV⎤ ∗
+      "#crashed" ∷ ⎡ crashed_at CV ⎤ ∗
       "%notInCV" ∷ ⌜ℓ ∉ dom (gset _) CV⌝.
 
   (* Let's see if we want this.
@@ -135,9 +150,10 @@ the last events at [ℓ] corresponds to the *)
   Lemma store_lb_protocol ℓ prot s :
     store_lb ℓ prot s -∗ ⎡ know_protocol ℓ prot ⎤.
   Proof.
-    iStartProof (iProp _). iIntros (TV). simpl. iNamed 1.
-    iFrame "locationProtocol".
-  Qed.
+    Admitted.
+  (*   iStartProof (iProp _). iIntros (TV). simpl. iNamed 1. *)
+  (*   iFrame "locationProtocol". *)
+  (* Qed. *)
 
   Global Instance store_lb_persistent
          ℓ prot (s : ST) : Persistent (store_lb ℓ prot s).
@@ -153,15 +169,15 @@ the last events at [ℓ] corresponds to the *)
 
   Lemma persist_lb_to_flush_lb ℓ prot s :
     persist_lb ℓ prot s -∗ flush_lb ℓ prot s.
-  Proof. iNamed 1. iExists _. iFrame "∗#". Qed.
+  Proof. iNamed 1. iExistsN. iFrame "∗#". Qed.
 
   Lemma flush_lb_to_store_lb ℓ prot s :
     flush_lb ℓ prot s -∗ store_lb ℓ prot s.
-  Proof. iNamed 1. iExists _. iFrame "∗#". Qed.
+  Proof. iNamed 1. iExistsN. iFrame "∗#". Qed.
 
   Lemma persist_lb_to_store_lb ℓ prot s :
     persist_lb ℓ prot s -∗ store_lb ℓ prot s.
-  Proof. iNamed 1. iExists _. iFrame "∗#". Qed.
+  Proof. iNamed 1. iExistsN. iFrame "∗#". Qed.
   
   (* Lemma flush_lb_at_zero ℓ (s s' : ST) : *)
   (*   s ⊑ s' → *)
@@ -219,7 +235,7 @@ the last events at [ℓ] corresponds to the *)
     store_lb ℓ prot s.
   Proof.
     iIntros (last). iNamed 1.
-    iExists (tStore).
+    iExists tHi, offset.
     simplify_eq.
     iFrame "#".
     iApply monPred_in_have_SV; done.
@@ -242,7 +258,7 @@ the last events at [ℓ] corresponds to the *)
     iIntros (lastSome) "storeLb".
     iNamed 1.
     assert (s = s1) as -> by congruence.
-    iDestruct "storeLb" as (t) "(_ & histFrag' & _)".
+    iDestruct "storeLb" as (t ?) "(_ & histFrag' & _)".
     iDestruct (full_entry_frag_entry_unenc with "hist histFrag'") as %look.
     eassert _ as le. { eapply map_no_later_Some; done. }
     eapply increasing_map_increasing in incrMap; done.
@@ -263,26 +279,27 @@ the last events at [ℓ] corresponds to the *)
   Proof.
     iIntros (gt).
     iNamed 1.
-    iDestruct 1 as (tP2) "(? & frag & ? & ? & ?)".
-    assert (abs_hist !! tP = Some s1) as lookTP.
+    iDestruct 1 as (tP2 ?) "((? & frag & ? & ?) & ? & ?)".
+    assert (abs_hist !! tLo = Some s1) as lookTP.
     { apply map_sequence_lookup_lo in slice. done. }
     apply map_sequence_cons_drop in slice as (tP3 & lt & noin & slice).
-    iExists tP3, tStore, SV, abs_hist, msg, s.
+    iExists tP3, tHi, offset, SV, abs_hist, msg, s.
     (* The non-trivial task now is to show that [tP2] is larger than [tP3]. *)
     iDestruct (full_entry_frag_entry_unenc with "hist frag") as %lookTP2.
-    assert (tP < tP2). {
+    assert (tLo < tP2). {
       apply (increasing_map_lookup_lt abs_hist _ _ s1 s2 incrMap); done. }
     destruct (decide (tP3 ≤ tP2)).
     2: { exfalso.
-      assert (tP < tP2 < tP3) as order by lia.
+      assert (tLo < tP2 < tP3) as order by lia.
       specialize (noin tP2 order).
       congruence. }
+    iDestruct (ghost_map_elem_agree with "offset [$]") as %<-.
     iFrameF (lastEq). iFrameF "locationProtocol". iFrameF (incrMap).
     iFrameF "isNaLoc". iFrameF (lookupV). iFrameF (nolater).
-    iFrameF "hist". iFrameF "histFrag". iFrameF "knowSV".
+    iFrameF "hist". iFrameF "histFrag". iFrameF "offset". iFrameF "knowSV".
     iFrameF (slice). iFrame "physMsg". iFrame "inThreadView".
     iFrameF (haveTStore).
-    iLeft. iApply persisted_loc_weak; done.
+    iLeft. iApply persisted_loc_weak; last done. lia.
   Qed.
 
   (* Lemma mapsto_na_persist_lb ℓ prot q ss s1 s2 s3 : *)
@@ -302,7 +319,7 @@ the last events at [ℓ] corresponds to the *)
     iModel. destruct TV as [[??]?].
     simpl.
     iNamed 1.
-    iExists _. iFrame "#∗".
+    iExists _, _. iFrame "#∗".
     iDestruct "viewFact" as "[%incl | $]".
     iLeft. iPureIntro. repeat split; try apply view_empty_least.
     apply incl.
@@ -363,84 +380,90 @@ Section points_to_at_more.
   Implicit Types (e : expr) (ℓ : loc) (s : ST)
            (ss : list ST) (prot : LocationProtocol ST).
 
-  Lemma post_crash_persist_lb (ℓ : loc) prot (s1 : ST) :
-    persist_lb ℓ prot s1 -∗
-    post_crash (λ hG, ∃ s2, ⌜ s1 ⊑ s2 ⌝ ∗
-      persist_lb ℓ prot (prot.(bumper) s2) ∗
-      crashed_in prot ℓ s2).
+  Lemma post_crash_persist_lb (ℓ : loc) prot (s : ST) :
+    persist_lb ℓ prot s -∗ <PC> _, persist_lb ℓ prot (prot.(bumper) s).
   Proof.
-    iNamed 1.
-    rewrite /know_protocol. rewrite 2!embed_sep.
+    iNamed 1. iNamed "lbBase".
+    rewrite /know_protocol. rewrite embed_sep.
+    iDestruct "offset" as "-#offset".
     iDestruct "locationProtocol" as "(-#pred & -#order & -#bumper)".
     iDestruct (post_crash_frag_history with "[$order $bumper $knowFragHist]") as "H".
     iCrash.
     iDestruct "persisted" as "(#persisted & (% & % & [% %] & #crashed))".
     iDestruct (or_lost_with_t_get with "[$] H")
-      as "(% & % & #crashedIn & order & bumper & hist)";
+      as (?) "(%le & offset2 & order & bumper & hist)";
       first done.
     iDestruct (if_rec_get with "[$] [$] pred") as "pred"; first done.
-    iExists s2.
-    iSplitPure; first intuition.
-    iSplit.
-    { iExists 0.
-      iFrame "∗#".
-      iDestruct (have_SV_0) as "$".
-      iDestruct (have_FV_0) as "$". }
-    rewrite /crashed_in.
-    iExists _. iFrame "#∗". iPureIntro. apply elem_of_dom. done.
+    iDestruct (if_rec_get with "[$] [$] offset") as (offset2) "[% offset]"; first done.
+    iDestruct (ghost_map_elem_agree with "offset offset2") as %<-.
+    iExists tP, _.
+    iFrame "∗#".
+    assert (tP - offset2 = 0) as ->. { lia. }
+    iDestruct (have_SV_0) as "$".
+    iDestruct (have_FV_0) as "$".
+    done.
   Qed.
 
   Global Instance persist_lb_into_crash ℓ prot s : IntoCrash _ _ :=
     post_crash_persist_lb ℓ prot s.
 
-  Lemma post_crash_flush_lb (ℓ : loc) prot (s : ST) :
-    flush_lb ℓ prot s -∗
-    post_crash (λ hG, if_rec ℓ (∃ (s' : ST), persist_lb ℓ prot s')).
-  Proof.
-    iNamed 1.
-    iDestruct (know_protocol_extract with "locationProtocol")
-      as "(-#pred & -#order & -#bumper)".
-    iDestruct (post_crash_frag_history with "[$order $bumper $knowFragHist]") as "H".
-    iCrash.
-    iDestruct (if_rec_or_lost_with_t with "H") as "H".
-    iDestruct (if_rec_is_persisted ℓ) as "pers".
-    iModIntro.
-    iDestruct "H" as (???) "(? & ? & ? & ?)".
-    iExists _, 0. iFrame "#∗".
-    iDestruct (have_SV_0) as "$".
-    iDestruct (have_FV_0) as "$".
-  Qed.
+  (* This lemma is commented out as it doesn't seem useful. *)
+  (* Lemma post_crash_flush_lb (ℓ : loc) prot (s : ST) : *)
+  (*   flush_lb ℓ prot s -∗ *)
+  (*   post_crash (λ hG, if_rec ℓ (∃ (s' : ST), persist_lb ℓ prot s')). *)
+  (* Proof. *)
+  (*   iNamed 1. *)
+  (*   iDestruct (know_protocol_extract with "locationProtocol") *)
+  (*     as "(-#pred & -#order & -#bumper)". *)
+  (*   iDestruct (post_crash_frag_history with "[$order $bumper $knowFragHist]") as "H". *)
+  (*   iCrash. *)
+  (*   iDestruct (if_rec_or_lost_with_t with "H") as "H". *)
+  (*   iDestruct (if_rec_is_persisted ℓ) as "pers". *)
+  (*   iModIntro. *)
+  (*   iDestruct "H" as (???) "(? & ? & ? & ?)". *)
+  (*   iExists _, 0. iFrame "#∗". *)
+  (*   iDestruct (have_SV_0) as "$". *)
+  (*   iDestruct (have_FV_0) as "$". *)
+  (* Qed. *)
 
-  Global Instance flush_lb_into_crash ℓ prot s : IntoCrash _ _ :=
-    post_crash_flush_lb ℓ prot s.
+  (* Global Instance flush_lb_into_crash ℓ prot s : IntoCrash _ _ := *)
+  (*   post_crash_flush_lb ℓ prot s. *)
 
-  Lemma post_crash_store_lb (ℓ : loc) prot (s : ST) :
-    store_lb ℓ prot s -∗
-    post_crash (λ hG, if_rec ℓ (∃ (s' : ST),
-      persist_lb ℓ prot s')).
-  Proof.
-    iNamed 1.
-    iDestruct (know_protocol_extract with "locationProtocol")
-      as "(-#pred & -#order & -#bumper)".
-    iDestruct (post_crash_frag_history with "[$order $bumper $knowFragHist]") as "H".
-    iCrash.
-    iDestruct (if_rec_or_lost_with_t with "H") as "H".
-    iDestruct (if_rec_is_persisted ℓ) as "pers".
-    iModIntro.
-    iDestruct "H" as (???) "(? & ? & ? & ?)".
-    iExists _, 0. iFrame "#∗".
-    iDestruct (have_SV_0) as "$".
-    iDestruct (have_FV_0) as "$".
-  Qed.
+  (* Lemma post_crash_store_lb (ℓ : loc) prot (s : ST) : *)
+  (*   store_lb ℓ prot s -∗ *)
+  (*   post_crash (λ hG, if_rec ℓ (∃ (s' : ST), *)
+  (*     persist_lb ℓ prot s')). *)
+  (* Proof. *)
+  (*   iNamed 1. iNamed "lbBase". *)
+  (*   iDestruct (know_protocol_extract with "locationProtocol") *)
+  (*     as "(-#pred & -#order & -#bumper)". *)
+  (*   iDestruct (post_crash_frag_history with "[$order $bumper $knowFragHist]") as "H". *)
+  (*   iCrash. *)
+  (*   iDestruct (if_rec_or_lost_with_t with "H") as "H". *)
+  (*   iDestruct (if_rec_is_persisted ℓ) as "pers". *)
+  (*   iModIntro. *)
+  (*   iDestruct "H" as (???) "(? & ? & ? & ?)". *)
+  (*   iExists _, 0, _. iFrame "#∗". *)
+  (*   iDestruct (have_SV_0) as "$". *)
+  (*   iDestruct (have_FV_0) as "$". *)
+  (* Qed. *)
 
-  Global Instance store_lb_into_crash ℓ prot s : IntoCrash _ _ :=
-    post_crash_store_lb ℓ prot s.
+  (* Global Instance store_lb_into_crash ℓ prot s : IntoCrash _ _ := *)
+  (*   post_crash_store_lb ℓ prot s. *)
+
+  (* Lemma map_sequence_prefix tLo tHi t ss abs_hist : *)
+  (*   map_sequence abs_hist tLo tHi ss → *)
+  (*   tLo ≤ t ≤ tHi → *)
+  (*   ∃ ss', ss' `prefix_of` ss ∧ *)
+  (*   map_sequence abs_hist tLo t ss. *)
+  (* Proof. Admitted. *)
 
   Lemma post_crash_mapsto_na ℓ prot q (ss : list ST) :
     ℓ ↦_{prot}^{q} ss -∗
     post_crash (λ hG',
-      if_rec ℓ (∃ s, ⌜s ∈ ss⌝ ∗ ℓ ↦_{prot}^{q} [bumper prot s] ∗
-                     crashed_in prot ℓ s)).
+      if_rec ℓ (∃ ss', ⌜ ss' `prefix_of` ss ⌝ ∗
+                       ℓ ↦_{prot}^{q} ((bumper prot) <$> ss'))).
+                (* ∗ crashed_in prot ℓ s)). *)
   Proof.
     rewrite /mapsto_na.
     iNamed 1.
@@ -455,9 +478,19 @@ Section points_to_at_more.
     iModIntro.
     iDestruct "rec" as (CV [[t]?]) "[crashed pers']".
     iDestruct (or_lost_with_t_get with "[$] H")
-      as (sNew ?) "(bump & fullHist & fragHist & crashedIn)"; first done.
-    iExists (sNew).
+      as (sNew tR look) "(bump & fullHist & fragHist & crashedIn)"; first done.
 
+    assert (tR ≤ tHi). { eapply map_no_later_Some; done. }
+    iAssert (⌜ tLo ≤ tR ⌝)%I as %?.
+    { admit. }
+
+    eassert _ as HT. { eapply map_sequence_prefix; done. }
+    destruct HT as (ss' & prefix & slice').
+
+    iExists (ss').
+    iSplitPure; first done.
+
+    (*
     iAssert (⌜ tP ≤ t ⌝)%I as %?.
     { iDestruct "pers" as "[(_ & (%CV' & % & [% %] & crashed'))|->]";
         last (iPureIntro; lia).
@@ -474,17 +507,20 @@ Section points_to_at_more.
 
     rewrite /crashed_in.
     iSplit.
-    + iExists 0, 0, ∅, _, (Msg _ ∅ ∅ ∅), _. iFrame. iFrame "#".
-      iPureGoal. { done. }
-      iPureGoal. { apply increasing_map_singleton. }
-      iPureGoal. { by rewrite lookup_singleton. }
-      iPureGoal. { apply map_no_later_singleton. }
-      iPureGoal. { by rewrite lookup_singleton. }
-      iSplit. { simpl. iApply monPred_in_bottom. }
-      done.
-    + iExists _. iFrame "∗#".
-      iPureIntro. rewrite elem_of_dom. naive_solver.
-  Qed.
+    +
+      *)
+      iExists tLo, tR, tR, ∅, _, (Msg _ ∅ ∅ ∅), _. iFrame. iFrame "#".
+  Admitted.
+  (*     iPureGoal. { done. } *)
+  (*     iPureGoal. { apply increasing_map_singleton. } *)
+  (*     iPureGoal. { by rewrite lookup_singleton. } *)
+  (*     iPureGoal. { apply map_no_later_singleton. } *)
+  (*     iPureGoal. { by rewrite lookup_singleton. } *)
+  (*     iSplit. { simpl. iApply monPred_in_bottom. } *)
+  (*     done. *)
+  (*   + iExists _. iFrame "∗#". *)
+  (*     iPureIntro. rewrite elem_of_dom. naive_solver. *)
+  (* Qed. *)
 
   Global Instance mapsto_na_into_crash ℓ prot q (ss : list ST) :
     IntoCrash (ℓ ↦_{prot}^{q} ss)%I _ := post_crash_mapsto_na ℓ prot q ss.
@@ -495,10 +531,10 @@ Section points_to_at_more.
 
   Lemma post_crash_flush_flush_lb (ℓ : loc) prot (s : ST) :
     flush_lb ℓ prot s -∗
-    <PCF> hG, ∃ s__pc,
-      ⌜ s ⊑ s__pc ⌝ ∗ crashed_in prot ℓ s__pc ∗ persist_lb ℓ prot (bumper prot s__pc).
+    <PCF> hG, persist_lb ℓ prot (bumper prot s).
   Proof.
-    iNamed 1.
+    iNamed 1. iNamed "lbBase".
+    iDestruct "offset" as "-#offset".
     iDestruct "locationProtocol" as "(-#pred & -#order & -#bumper)".
     iDestruct (post_crash_frag_history with "[$]") as "HI".
     iDestruct (post_crash_flush_post_crash with "HI") as "HI".
@@ -511,17 +547,25 @@ Section points_to_at_more.
     iDestruct "pers" as "(#pers & (%CV & %t & (%cvLook & %le) & #crashed))".
     iDestruct (or_lost_with_t_get with "crashed HI") as "HI"; first done.
     iDestruct (if_rec_get with "crashed pers pred") as "pred"; first done.
-    iDestruct "HI" as (s2 impl) "(#crashedIn & #? & #? & #?)".
-    iExists s2.
-    iSplitPure; first by apply impl.
-    rewrite /crashed_in /persist_lb.
-    iSplit.
-    - iExists _.
-      iFrame "crashed crashedIn pred".
-      iFrame "#". iPureIntro. apply elem_of_dom. done.
-    - iExists _. iFrame "#∗".
-      iDestruct (have_SV_0) as "$".
-      iDestruct (have_FV_0) as "$".
+    iDestruct "HI" as (offset' impl) "(#offset2 & #? & #? & #?)".
+    iDestruct (if_rec_get with "[$] [$] offset") as (offset2) "[% offset]"; first done.
+    iDestruct (ghost_map_elem_agree with "offset offset2") as %<-.
+    iExists tF, offset2.
+    rewrite /lb_base.
+    iFrame "∗#".
+    assert (tF - offset2 = 0) as ->. { lia. }
+    iDestruct (have_SV_0) as "$".
+    iDestruct (have_FV_0) as "$".
+    done.
+    (* iSplitPure; first by apply impl. *)
+    (* rewrite /crashed_in /persist_lb. *)
+    (* iSplit. *)
+    (* - iExists _. *)
+    (*   iFrame "crashed crashedIn pred". *)
+    (*   iFrame "#". iPureIntro. apply elem_of_dom. done. *)
+    (* - iExists _. iFrame "#∗". *)
+    (*   iDestruct (have_SV_0) as "$". *)
+    (*   iDestruct (have_FV_0) as "$". *)
   Qed.
 
   Global Instance know_flush_into_crash ℓ prot (s : ST) :
