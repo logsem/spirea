@@ -178,96 +178,119 @@ Qed.
 Section wpr.
   Context `{nvmG Σ}.
 
+  Definition drop_all_above {A} (offsets : gmap loc nat) (abs_hists : gmap loc (gmap time A)) :=
+    map_zip_with (λ offset h, drop_above offset h) offsets abs_hists.
+
   (* Computes the new abstract history based on the old history, the crash
   view, and the bumpers. *)
   Definition new_abs_hist (abs_hists : gmap loc (gmap time positive))
-             (CV : view) (bumpers : gmap loc (positive → option positive))
+             (offsets : gmap loc nat) (bumpers : gmap loc (positive → option positive))
     : gmap loc (gmap time positive) :=
     map_zip_with
       (λ (hist : gmap time positive) bumper,
-        (default (1%positive) ∘ bumper) <$> hist)
-      (slice_of_hist CV abs_hists)
+        omap bumper hist)
+      (drop_all_above offsets abs_hists)
       bumpers.
 
   Lemma new_abs_hist_dom abs_hists CV bumpers :
     dom (gset loc) (new_abs_hist abs_hists CV bumpers) =
     (dom _ abs_hists ∩ dom _ CV ∩ dom _ bumpers).
-  Proof. rewrite !dom_map_zip_with_L slice_of_hist_dom. set_solver. Qed.
+  Proof. rewrite !dom_map_zip_with_L. set_solver. Qed.
 
-  Lemma new_abs_hist_lookup_simpl_inv abs_hists CV bumpers ℓ hist :
-    (new_abs_hist abs_hists CV bumpers) !! ℓ = Some hist →
-    hist = ∅ ∨ ∃ s, hist = {[ 0 := s ]}.
-  Proof.
-    rewrite /new_abs_hist /slice_of_hist.
-    setoid_rewrite map_lookup_zip_with_Some.
-    setoid_rewrite map_fmap_zip_with.
-    setoid_rewrite map_lookup_zip_with_Some.
-    intros ([?] & ? & -> & ([t] & hist' & -> & ? & ?) & ?).
-    destruct (hist' !! t).
-    - right. eexists _. apply map_fmap_singleton.
-    - left. apply fmap_empty.
-  Qed.
+  (* Lemma new_abs_hist_lookup_simpl_inv abs_hists CV bumpers ℓ hist : *)
+  (*   (new_abs_hist abs_hists CV bumpers) !! ℓ = Some hist → *)
+  (*   hist = ∅ ∨ ∃ s, hist = {[ 0 := s ]}. *)
+  (* Proof. *)
+  (*   rewrite /new_abs_hist /slice_of_hist. *)
+  (*   setoid_rewrite map_lookup_zip_with_Some. *)
+  (*   setoid_rewrite map_fmap_zip_with. *)
+  (*   setoid_rewrite map_lookup_zip_with_Some. *)
+  (*   intros ([?] & ? & -> & ([t] & hist' & -> & ? & ?) & ?). *)
+  (*   destruct (hist' !! t). *)
+  (*   - right. eexists _. apply map_fmap_singleton. *)
+  (*   - left. apply fmap_empty. *)
+  (* Qed. *)
 
-  Lemma new_abs_hist_lookup CV ℓ t abs_hists hist bumpers bumper :
-    map_Forall (λ _ e, is_Some (bumper e)) hist →
-    valid_slice CV abs_hists →
-    CV !! ℓ = Some (MaxNat t) →
+  Lemma new_abs_hist_lookup offsets off ℓ abs_hists hist bumpers bumper :
+    (* oldOffsets !! ℓ = Some offset → *)
+    (* map_Forall (λ _ e, is_Some (bumper e)) hist → *)
+    (* valid_slice offset abs_hists → *)
+    (* CV !! ℓ = Some (MaxNat t) → *)
     abs_hists !! ℓ = Some hist →
     bumpers !! ℓ = Some bumper →
-    ∃ s' e,
-      hist !! t = Some s' ∧
-      bumper s' = Some e ∧
-      new_abs_hist abs_hists CV bumpers !! ℓ = Some {[ 0 := e ]}.
+    offsets !! ℓ = Some off →
+    new_abs_hist abs_hists offsets bumpers !! ℓ = Some (new_hist off bumper hist).
+      (* new_abs_hist abs_hists CV bumpers !! ℓ = Some {[ 0 := e ]}. *)
   Proof.
-    intros bumperToValid val CVlook absHistLook bumpersLook.
-    eapply map_Forall_lookup_1 in val.
-    2: { apply map_lookup_zip_with_Some. eexists _, _. done. }
-    destruct val as [s histLook].
-    eapply map_Forall_lookup_1 in bumperToValid as [bumped eq]; last done.
-    exists s, bumped.
-    split_and!; try done.
-    rewrite /new_abs_hist.
+    intros l1 l2 l3.
     apply map_lookup_zip_with_Some.
-    eexists {[0 := s]}, _.
-    simpl.
-    split_and!; try done.
-    { rewrite map_fmap_singleton. simpl. rewrite eq. done. }
-    eapply slice_of_hist_lookup_Some; done.
+    eexists _, _.
+    split_and!; last done.
+    2: { rewrite /drop_all_above. apply map_lookup_zip_with_Some.
+         eexists _, _. split_and!; done. }
+    done.
   Qed.
 
-  Lemma new_abs_hist_lookup_Some abs_hists CV bumpers ℓ hist :
-    valid_slice CV abs_hists →
-    new_abs_hist abs_hists CV bumpers !! ℓ = Some hist →
-    ∃ t s bumper abs_hist,
-      CV !! ℓ = Some (MaxNat t) ∧
-      abs_hists !! ℓ = Some abs_hist ∧
-      abs_hist !! t = Some s ∧
-      bumpers !! ℓ = Some bumper ∧
-      hist = {[ 0 := default 1%positive (bumper s) ]}.
-  Proof.
-    intros val.
-    rewrite /new_abs_hist.
-    rewrite map_lookup_zip_with_Some.
-    intros (newHist & bumper & hi & sliceLook & bumpersLook).
-    apply slice_of_hist_lookup_inv in sliceLook
-      as (t & ? & ? & ? & ? & ? & newHistEq); last done.
-    rewrite newHistEq in hi.
-    rewrite map_fmap_singleton in hi.
-    simpl in hi.
-    naive_solver.
-  Qed.
+  (* Lemma new_abs_hist_lookup CV ℓ t abs_hists hist bumpers bumper : *)
+  (*   map_Forall (λ _ e, is_Some (bumper e)) hist → *)
+  (*   valid_slice CV abs_hists → *)
+  (*   CV !! ℓ = Some (MaxNat t) → *)
+  (*   abs_hists !! ℓ = Some hist → *)
+  (*   bumpers !! ℓ = Some bumper → *)
+  (*   ∃ s' e, *)
+  (*     hist !! t = Some s' ∧ *)
+  (*     bumper s' = Some e ∧ *)
+  (*     new_abs_hist abs_hists CV bumpers !! ℓ = Some {[ 0 := e ]}. *)
+  (* Proof. *)
+  (*   intros bumperToValid val CVlook absHistLook bumpersLook. *)
+  (*   eapply map_Forall_lookup_1 in val. *)
+  (*   2: { apply map_lookup_zip_with_Some. eexists _, _. done. } *)
+  (*   destruct val as [s histLook]. *)
+  (*   eapply map_Forall_lookup_1 in bumperToValid as [bumped eq]; last done. *)
+  (*   exists s, bumped. *)
+  (*   split_and!; try done. *)
+  (*   rewrite /new_abs_hist. *)
+  (*   apply map_lookup_zip_with_Some. *)
+  (*   eexists {[0 := s]}, _. *)
+  (*   simpl. *)
+  (*   split_and!; try done. *)
+  (*   { rewrite map_fmap_singleton. simpl. rewrite eq. done. } *)
+  (*   eapply slice_of_hist_lookup_Some; done. *)
+  (* Qed. *)
 
-  Lemma new_abs_hist_lookup_None abs_hists CV bumpers bumper ℓ hist :
-    abs_hists !! ℓ = Some hist →
-    bumpers !! ℓ = Some bumper →
-    new_abs_hist abs_hists CV bumpers !! ℓ = None →
-    CV !! ℓ = None.
-  Proof.
-    intros absHistLook bumpersLook.
-    rewrite /new_abs_hist.
-    intros [look|?]%map_lookup_zip_with_None; last congruence.
-    apply slice_of_hist_None in look as [?|?]; congruence.
-  Qed.
+  (* Lemma new_abs_hist_lookup_Some abs_hists CV bumpers ℓ hist : *)
+  (*   valid_slice CV abs_hists → *)
+  (*   new_abs_hist abs_hists CV bumpers !! ℓ = Some hist → *)
+  (*   ∃ t s bumper abs_hist, *)
+  (*     CV !! ℓ = Some (MaxNat t) ∧ *)
+  (*     abs_hists !! ℓ = Some abs_hist ∧ *)
+  (*     abs_hist !! t = Some s ∧ *)
+  (*     bumpers !! ℓ = Some bumper ∧ *)
+  (*     hist = {[ 0 := default 1%positive (bumper s) ]}. *)
+  (* Proof. *)
+  (*   intros val. *)
+  (*   rewrite /new_abs_hist. *)
+  (*   rewrite map_lookup_zip_with_Some. *)
+  (*   intros (newHist & bumper & hi & sliceLook & bumpersLook). *)
+  (*   apply slice_of_hist_lookup_inv in sliceLook *)
+  (*     as (t & ? & ? & ? & ? & ? & newHistEq); last done. *)
+  (*   rewrite newHistEq in hi. *)
+  (*   rewrite map_fmap_singleton in hi. *)
+  (*   simpl in hi. *)
+  (*   naive_solver. *)
+  (* Qed. *)
+
+  (* Lemma new_abs_hist_lookup_None abs_hists CV bumpers bumper ℓ hist : *)
+  (*   abs_hists !! ℓ = Some hist → *)
+  (*   bumpers !! ℓ = Some bumper → *)
+  (*   new_abs_hist abs_hists CV bumpers !! ℓ = None → *)
+  (*   CV !! ℓ = None. *)
+  (* Proof. *)
+  (*   intros absHistLook bumpersLook. *)
+  (*   rewrite /new_abs_hist. *)
+  (*   intros [look|?]%map_lookup_zip_with_None; last congruence. *)
+  (*   apply slice_of_hist_None in look as [?|?]; congruence. *)
+  (* Qed. *)
 
   Lemma map_subseteq_lookup_eq (m1 m2 : store) v1 v2 k :
     m1 ⊆ m2 → m1 !! k = Some v1 → m2 !! k = Some v2 → v1 = v2.
@@ -313,11 +336,13 @@ Section wpr.
     (* Our [phys_hist] may contain only a subset of all the locations in
     [store]. But, those that are in [phys_hist] agree with what is in
     [store]. *)
+    (*
     iAssert (⌜phys_hists ⊆ store⌝)%I as %physHistsSubStore.
     { rewrite map_subseteq_spec.
       iIntros (ℓ hist look).
-      iDestruct (big_sepM_lookup with "ptsMap") as "pts"; first eassumption.
+      iDestruct (big_sepM2_lookup_l with "ptsMap") as (??) "pts"; first eassumption.
       iApply (gen_heap_valid with "Hσ pts"). }
+     *)
 
     (* We need to first re-create the ghost state for the base
     interpretation. *)
@@ -339,18 +364,32 @@ Section wpr.
     [phys_hists] instead of [abs_hists].)*)
     set (recLocs := dom (gset _) CV ∩ dom _ abs_hists).
 
-    set (newAbsHists := new_abs_hist abs_hists CV bumpers).
+    set newOffsets :=
+      map_zip_with (λ n '(MaxNat m), n + m) (restrict recLocs offsets) CV.
+
+    (* The new offsets is a valid slice of the abstract history. This should
+    follow from the relationship between [phys_hists] and the points-to
+    predicates and the fact that [CV] is a valid slice of these. *)
+
+    set (newAbsHists := new_abs_hist abs_hists newOffsets bumpers).
+
     iMod (full_map_alloc newAbsHists)
       as (new_abs_history_name) "(hists' & knowHistories & #fragHistories)".
+
+    assert (recLocs = (dom (gset _) newOffsets)) as domNewOffsets.
+    { rewrite dom_map_zip_with_L restrict_dom_L.
+      rewrite offsetDom. rewrite domPhysHistsEqAbsHists. set_solver+. }
     assert (recLocs = (dom (gset _) newAbsHists)) as domNewAbsHists.
     { rewrite new_abs_hist_dom.
       rewrite -domHistsEqBumpers.
+      rewrite domNewOffsets.
       set_solver. }
     (* Allocate new ghost state for the logical histories. *)
     rewrite /interp.
 
     (* We freeze/persist the old authorative resource algebra. *)
     iMod (ghost_map_auth_persist with "allOrders") as "#allOrders".
+    iMod (ghost_map_auth_persist with "offsets") as "#oldOffsets".
     iMod (own_update with "atLocs") as "atLocs".
     { apply auth_update_auth_persist. }
     iDestruct "atLocs" as "#atLocs".
@@ -378,6 +417,9 @@ Section wpr.
     set newOrders := restrict recLocs orders.
     iMod (own_all_preorders_gname_alloc newOrders)
       as (new_orders_name) "[newOrders #fragOrders]".
+
+    iMod (ghost_map_alloc_persistent newOffsets) as
+      (new_offset_name) "[offsets #offsetPts]".
 
     set newPreds := restrict recLocs predicates.
     iMod (know_predicates_alloc newPreds) as
@@ -459,12 +501,14 @@ Section wpr.
       iApply (big_sepM2_dom with "sep"). }
 
     (* [CV] is a valid slice of the physical and abstract history. *)
+    (*
     assert (valid_slice CV phys_hists) as cvSlicesPhysHists.
     { apply consistent_cut_valid_slice in cut.
       eapply valid_slice_mono_l in cut; last apply physHistsSubStore.
       done. }
     assert (valid_slice CV abs_hists) as cvSlicesAbsHists.
     { eapply valid_slice_transfer; done. }
+    *)
 
     (* We are done allocating ghost state and can now present a new bundle of
     ghost names. *)
@@ -476,6 +520,7 @@ Section wpr.
       crashed_in_name := new_crashed_in_name;
       predicates_name := new_predicates_name;
       preorders_name := new_orders_name;
+      offset_name := new_offset_name;
       exclusive_locs_name := new_exclusive_locs_name;
       shared_locs_name := new_shared_locs_name;
       bumpers_name := new_bumpers_name;
@@ -521,10 +566,32 @@ Section wpr.
         iDestruct ("orderImpl" $! ST with "[//] order")
           as "[%ordersLook newOrder]".
 
+        assert (is_Some (offsets !! ℓ)) as [ℓoff offsetsLook].
+        { apply elem_of_dom.
+          rewrite offsetDom.
+          rewrite domPhysHistsEqAbsHists.
+          rewrite domHistsEqOrders.
+          apply elem_of_dom. naive_solver. }
+
+        assert (ℓ ∈ recLocs).
+        { rewrite /recLocs.
+          rewrite domHistsEqOrders.
+          apply elem_of_intersection.
+          split; apply elem_of_dom; done. }
+
+        iDestruct (big_sepM_lookup _ _ ℓ with "offsetPts") as "offset".
+        { rewrite /newOffsets.
+          apply map_lookup_zip_with_Some.
+          eexists _, _.
+          split_and!; last done.
+          2: { apply restrict_lookup_Some. done. }
+          done. }
+        iExists _. iFrame "offset".
+
         iDestruct (full_map_frag_entry with "oldFullHist oldFrag") as %(h & lookH & hLook).
         iDestruct (big_sepM2_lookup with "bumperSome") as %?; try done.
 
-        eassert _ as temp. { apply new_abs_hist_lookup; try done. }
+        eassert _ as newHistLook. { apply new_abs_hist_lookup; try done. }
         destruct temp as (recEncS & ? & hLook2 & encBumper & newHistLook).
 
         apply encode_bumper_Some_decode in encBumper as (recS & decEq2 & <-).

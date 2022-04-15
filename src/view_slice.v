@@ -185,3 +185,12 @@ Section slice_of_hist_props.
   Qed.
 
 End slice_of_hist_props.
+
+Section drop_prefix.
+
+  (* Shift everything in [h] down by [t] and remove everything that is below
+  [t]. *)
+  Definition drop_prefix {A} (h : gmap time A) (t : time) : gmap time A :=
+    map_fold (λ k v m, if decide (t ≤ k) then <[(k - t) := v]>m else m) ∅ h.
+
+End drop_prefix.

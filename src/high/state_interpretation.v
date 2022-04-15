@@ -2,7 +2,7 @@ From iris.proofmode Require Import base.
 From iris.algebra Require Import auth gset.
 From iris_named_props Require Import named_props.
 
-From self Require Import extra.
+From self Require Import extra view_slice.
 From self.algebra Require Import ghost_map ghost_map_map.
 From self.base Require Import primitive_laws.
 From self.high Require Export dprop resources post_crash_modality increasing_map.
@@ -57,15 +57,6 @@ Definition atomic_loc_inv (ℓ : loc) (t : time) (msg : message) :=
 Definition shared_locs_inv (locs : gmap loc (gmap time message)) :=
   map_map_Forall atomic_loc_inv locs.
 
-Section slice_prefix.
-
-  (* Shift everything in [h] down by [t] and remove everything that is below
-  [t]. *)
-  Definition slice_prefix {A} (h : gmap time A) (t : time) : gmap time A :=
-    map_fold (λ k v m, if decide (t ≤ k) then <[(k - t) := v]>m else m) ∅ h.
-
-End slice_prefix.
-
 Section state_interpretation.
   Context `{nvmG Σ, hGD : nvmDeltaG}.
 
@@ -93,9 +84,10 @@ Section state_interpretation.
       in the abstract history correspond to the physical history. This ensures
       that at a crash we know that the value recovered after a crash has a
       corresponding abstract value. *)
-      (* "ptsMap" ∷ ([∗ map] ℓ ↦ hist ∈ phys_hists, ℓ ↦h hist) ∗ *)
-      "ptsMap" ∷ ([∗ map] ℓ ↦ hist;offset ∈ phys_hists;offsets,
-                    ℓ ↦h slice_prefix hist offset) ∗
+      "%offsetDom" ∷ ⌜ dom (gset _) offsets = dom _ phys_hists ⌝ ∗
+      "ptsMap" ∷ ([∗ map] ℓ ↦ hist ∈ (map_zip_with drop_prefix phys_hists offsets), ℓ ↦h hist) ∗
+      "offsets" ∷ ghost_map_auth offset_name (DfracOwn 1) offsets ∗
+
       "physHist" ∷ auth_map_map_auth know_phys_history_name phys_hists ∗
       "#crashedAt" ∷ crashed_at CV ∗
 
@@ -115,8 +107,6 @@ Section state_interpretation.
       "%histDomLocs" ∷ ⌜ dom _ abs_hists = na_locs ∪ at_locs ⌝ ∗
       "naLocs" ∷ own exclusive_locs_name (● na_locs) ∗
       "atLocs" ∷ own shared_locs_name (● at_locs) ∗
-
-      "offsets" ∷ ghost_map_auth offset_name (DfracOwn 1) offsets ∗
 
       (* Non-atomic locations. *)
       "%naViewsDom" ∷ ⌜ dom _ na_views = na_locs ⌝ ∗ (* NOTE: If this equality persists we could remove na_locs *)
