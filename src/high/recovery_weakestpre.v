@@ -401,8 +401,7 @@ Section wpr.
     [phys_hists] instead of [abs_hists].)*)
     set (recLocs := dom (gset _) CV ∩ dom _ abs_hists).
 
-    set newOffsets :=
-      map_zip_with (λ n '(MaxNat m), n + m) (restrict recLocs offsets) CV.
+    set newOffsets := map_zip_with (λ n '(MaxNat m), n + m) offsets CV.
 
     (* The new offsets is a valid slice of the abstract history. This should
     follow from the relationship between [phys_hists] and the points-to
@@ -414,7 +413,7 @@ Section wpr.
       as (new_abs_history_name) "(hists' & knowHistories & #fragHistories)".
 
     assert (recLocs = (dom (gset _) newOffsets)) as domNewOffsets.
-    { rewrite dom_map_zip_with_L restrict_dom_L.
+    { rewrite dom_map_zip_with_L.
       rewrite offsetDom. rewrite domPhysHistsEqAbsHists. set_solver+. }
     assert (recLocs = (dom (gset _) newAbsHists)) as domNewAbsHists.
     { rewrite new_abs_hist_dom.
@@ -619,10 +618,8 @@ Section wpr.
         iDestruct (big_sepM_lookup _ _ ℓ with "offsetPts") as "offset".
         { rewrite /newOffsets.
           apply map_lookup_zip_with_Some.
-          eexists _, _.
-          split_and!; last done.
-          2: { apply restrict_lookup_Some. done. }
-          done. }
+          eexists _, (MaxNat _).
+          split_and!; done. }
         iExists _. iFrame "offset".
 
         iDestruct (full_map_frag_entry with "oldFullHist oldFrag") as %(h & lookH & hLook).
@@ -764,13 +761,7 @@ Section wpr.
         apply map_lookup_zip_with_Some.
         eexists _, (MaxNat _).
         split; first reflexivity.
-        split; last done.
-        apply restrict_lookup_Some.
-        split; first done.
-        rewrite /recLocs. rewrite -domPhysHistsEqAbsHists. rewrite -offsetDom.
-        apply elem_of_dom_2 in cvLook.
-        apply elem_of_dom_2 in look.
-        set_solver + cvLook look. }
+        split; done. }
       (* "post_crash_map_map_phys_history_impl" *)
       iSplit. {
         rewrite /map_map_phys_history_impl.
@@ -875,13 +866,7 @@ Section wpr.
       { rewrite /newOffsets.
         apply map_lookup_zip_with_Some.
         eexists _, (MaxNat _).
-        split_and!; try done.
-        apply restrict_lookup_Some.
-        split_and!; try done.
-        rewrite /recLocs.
-        apply elem_of_dom_2 in cvLook.
-        apply elem_of_dom_2 in absHistLook.
-        set_solver+ cvLook absHistLook. }
+        split_and!; done. }
 
       rewrite restrict_lookup_elem_of.
       2: { rewrite /newNaLocs.
