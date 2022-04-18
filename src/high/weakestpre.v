@@ -283,7 +283,8 @@ Section wp_rules.
     assert (is_Some (phys_hists !! ℓ)) as [physHist ?].
     { apply elem_of_dom. rewrite domEq2 domEq. apply elem_of_dom. naive_solver. }
     iDestruct (ghost_map_lookup with "offsets offset") as %?.
-    iDestruct (big_sepM2_lookup_acc with "ptsMap") as "[pts ptsMap]"; [done|done| ].
+    iDestruct (big_sepM_lookup_acc with "ptsMap") as "[pts ptsMap]".
+    { apply map_lookup_zip_with_Some. naive_solver. }
 
     iApply (wp_flush (extra := {| extra_state_interp := True |}) with "pts").
     iNext. iIntros "pts".

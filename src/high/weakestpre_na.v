@@ -12,7 +12,7 @@ From iris.heap_lang Require Import locations.
 From iris_named_props Require Import named_props.
 
 From self.algebra Require Import ghost_map ghost_map_map.
-From self Require Export extra ipm_tactics encode_relation view.
+From self Require Export extra ipm_tactics encode_relation view view_slice.
 From self.lang Require Export lang lemmas tactics syntax.
 From self.base Require Import primitive_laws.
 From self.high Require Import dprop resources weakestpre crash_weakestpre
@@ -53,7 +53,10 @@ Section wp_na_rules.
 
     (* The new location is not in the existing [phys_hist]. *)
     destruct (phys_hists !! ℓ) eqn:physHistsLook.
-    { iDestruct (big_sepM_lookup with "ptsMap") as "pts'"; first done.
+    { assert (is_Some (offsets !! ℓ)) as (? & ?).
+      { apply elem_of_dom. rewrite offsetDom. apply elem_of_dom. done. }
+      iDestruct (big_sepM_lookup with "ptsMap") as "pts'".
+      { apply map_lookup_zip_with_Some. naive_solver. }
       iDestruct (mapsto_valid_2 with "pts pts'") as (?) "_".
       done. }
 
@@ -72,6 +75,10 @@ Section wp_na_rules.
     iMod (own_all_preds_insert with "predicates") as "[predicates knowPred]".
     { eapply map_dom_eq_lookup_None; last apply physHistsLook.
       rewrite domEq3. congruence. }
+
+    (* Add a new offset to the ghost state of offfsets. *)
+    iMod (ghost_map_insert_persist ℓ 0 with "offsets") as "[offsets #offset]".
+    { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
 
     (* Allocate the abstract history for the location. *)
     iMod (full_map_insert _ _ _ {[0 := encode s]} with "history")
@@ -115,13 +122,13 @@ Section wp_na_rules.
     rewrite -assoc. iSplit; first done.
     iSplitL "Φpost knowPred knowBumper knowOrder ownHist ownNaView ownPhysHist".
     { iApply "Φpost".
-      iExists _, _, _, _, (Msg v ∅ ∅ PV).
+      iExists _, _, _, _, _, (Msg v ∅ ∅ PV), _.
       iFrame "knowPred knowOrder knowBumper isExclusive".
       repeat iExists _.
       rewrite -map_fmap_singleton. iFrame "ownHist".
       iFrame "ownNaView".
       iFrame "ownPhysHist".
-      (* iFrame "fragHist". *)
+      iFrame "offset".
       simpl.
       iSplitPure; first reflexivity.
       iSplitPure; first apply increasing_map_singleton.
@@ -149,8 +156,18 @@ Section wp_na_rules.
       try (eapply map_dom_eq_lookup_None; last apply physHistsLook;
            rewrite /relation2; congruence).
     rewrite !(restrict_insert_not_elem _ _ _ _ H3).
-    iFrame "pts ptsMap ordered bumpMono".
+    iSplitL "pts ptsMap".
+    { rewrite -map_insert_zip_with.
+      rewrite big_sepM_insert.
+      2: { apply map_lookup_zip_with_None. naive_solver. }
+      simpl.
+      rewrite view_slice.drop_prefix_zero.
+      iFrame. }
+    iFrame "ordered bumpMono".
     iFrame (mapShared).
+    (* [offsetDom] *)
+    iSplitPure.
+    { rewrite 2!dom_insert_L. rewrite offsetDom. set_solver+. }
     (* historyFragments *)
     iSplit.
     { iFrame "historyFragments fragHist". }
@@ -233,7 +250,7 @@ Section wp_na_rules.
     (* We destruct the exclusive points-to predicate. *)
     iIntros "(pts & pToQ)".
     rewrite /mapsto_na.
-    iDestruct "pts" as (?tP ?tS SV absHist msg) "pts". iNamed "pts".
+    iDestruct "pts" as (?tP ?tS offset SV absHist msg ?) "pts". iNamed "pts".
     iNamed "locationProtocol".
     iDestruct "inThreadView" as %inThreadView.
     rewrite monPred_at_wand. simpl.
@@ -255,13 +272,16 @@ Section wp_na_rules.
     assert (is_Some (phys_hists !! ℓ)) as [physHist physHistsLook].
     { rewrite -elem_of_dom domPhysHistEqAbsHist elem_of_dom. done. }
 
+    iDestruct (ghost_map_lookup with "offsets offset") as %?.
+
     iDestruct (big_sepM2_lookup_acc with "predsHold") as "[predMap predsHold]".
     { done. } { done. }
     iDestruct "predMap" as (pred' predsLook') "predMap".
     assert (pred = pred') as <-. { apply (inj Some). rewrite -predsLook. done. }
     clear predsLook'.
 
-    iDestruct (big_sepM_lookup_acc with "ptsMap") as "[pts ptsMap]"; first done.
+    iDestruct (big_sepM_lookup_acc with "ptsMap") as "[pts ptsMap]".
+    { apply map_lookup_zip_with_Some. naive_solver. }
     iApply (wp_load (extra := {| extra_state_interp := True |}) with "[$pts $val]").
     iNext. iIntros (tT msg') "[pts (%look & %gt)]".
     simpl.
@@ -275,20 +295,22 @@ Section wp_na_rules.
 
     (* We need to conclude that the only write we could read is [tS]. I.e., that
     [tT = tS]. *)
-    assert (tS ≤ SV' !!0 ℓ) as tSle.
+    assert (tS - offset ≤ SV' !!0 ℓ) as tSle.
     { etrans; first done. f_equiv. done. }
-    assert (tS ≤ tT) as lte.
+    assert (tS - offset ≤ tT) as lte.
     { etrans; first done. apply gt. }
     iDestruct (big_sepM2_dom with "predMap") as %domEq.
-    assert (is_Some (absHist !! tT)) as HI.
+    assert (is_Some (absHist !! (tT + offset))) as HI.
     { apply elem_of_dom.
       erewrite <- dom_fmap_L.
       erewrite <- domEq.
       apply elem_of_dom.
+      apply drop_prefix_lookup_Some in look.
       naive_solver. }
-    assert (tT = tS) as ->.
+    assert (tT = tS - offset) as ->.
     { apply Nat.lt_eq_cases in lte. destruct lte as [lt|]; last done.
-      pose proof (nolater tT lt) as eq.
+      eassert _ as eq. { apply (nolater (tT + offset)). lia. }
+      (* pose proof (nolater tT lt) as eq. *)
       rewrite eq in HI. inversion HI as [? [=]]. }
     assert (absHist !! tS = Some s) as lookS.
     { rewrite -sLast.

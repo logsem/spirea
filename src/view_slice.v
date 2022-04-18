@@ -187,10 +187,32 @@ Section slice_of_hist_props.
 End slice_of_hist_props.
 
 Section drop_prefix.
+  Context {A : Type}.
 
   (* Shift everything in [h] down by [t] and remove everything that is below
   [t]. *)
-  Definition drop_prefix {A} (h : gmap time A) (t : time) : gmap time A :=
+  (* TODO: Consider definition of this that uses filter and map (over keys). *)
+  Definition drop_prefix (h : gmap time A) (t : time) : gmap time A :=
     map_fold (λ k v m, if decide (t ≤ k) then <[(k - t) := v]>m else m) ∅ h.
+
+  Lemma drop_prefix_zero h : drop_prefix h 0 = h.
+  Proof.
+    rewrite /drop_prefix.
+    induction h as [|i x m IH] using map_ind; first done.
+    rewrite map_fold_insert_L; last done.
+    - simpl. rewrite IHh. replace (i - 0) with i by lia. done.
+    - intros. simpl. rewrite !Nat.sub_0_r. apply insert_commute. done.
+  Qed.
+
+  Lemma drop_prefix_lookup_Some t (a : A) (h : gmap time A) (k : time) :
+    drop_prefix h t !! k = Some a →
+    h !! (k + t) = Some a.
+  Proof.
+    (* rewrite /drop_prefix. *)
+    (* induction h as [|i x m IH] using map_ind; first done. *)
+    (* rewrite map_fold_insert_L; last done. *)
+    (* - simpl. rewrite IHh. replace (i - 0) with i by lia. done. *)
+    (* - intros. simpl. rewrite !Nat.sub_0_r. apply insert_commute. done. *)
+  Admitted.
 
 End drop_prefix.

@@ -353,6 +353,29 @@ Section wpr.
     naive_solver.
   Qed.
 
+  Definition offsets_add : gmap loc nat → view → gmap loc nat :=
+    map_zip_with (λ (n : nat) '(MaxNat m), n + m).
+
+  (* Lemma slice_of_hist_drop CV (phys_hists : store) (offsets : gmap loc nat) : *)
+  (*   slice_of_hist CV (map_zip_with drop_prefix phys_hists offsets) = *)
+  (*     map_zip_with drop_prefix phys_hists (offsets_add offsets CV). *)
+  (* Proof. *)
+  (* Admitted. *)
+
+  Lemma slice_of_store_drop CV (phys_hists : store) (offsets : gmap loc nat) :
+    slice_of_store CV (map_zip_with drop_prefix phys_hists offsets)
+    =
+    map_zip_with drop_prefix
+            ((λ hist : history, discard_msg_views <$> hist) <$>
+            drop_all_above (offsets_add offsets CV) phys_hists)
+            (offsets_add offsets CV).
+  Proof. Admitted.
+
+  (* Lemma slice_of_store_drop CV (phys_hists : store) (offsets : gmap loc nat) : *)
+  (*   slice_of_store CV (map_zip_with drop_prefix phys_hists offsets) = *)
+  (*     map_zip_with drop_prefix ((λ (hist : gmap _ _), discard_msg_views <$> hist) <$> phys_hists) (offsets_add offsets CV). *)
+  (* Proof. Admitted. *)
+
   (* Given the state interpretations _before_ a crash we reestablish the
   interpretations _after_ a crash. *)
   Lemma nvm_reinit (hGD : nvmDeltaG) n P TV σ σ' (Hinv : invGS Σ) γcrash :
@@ -401,7 +424,7 @@ Section wpr.
     [phys_hists] instead of [abs_hists].)*)
     set (recLocs := dom (gset _) CV ∩ dom _ abs_hists).
 
-    set newOffsets := map_zip_with (λ n '(MaxNat m), n + m) offsets CV.
+    set newOffsets := offsets_add offsets CV.
 
     (* The new offsets is a valid slice of the abstract history. This should
     follow from the relationship between [phys_hists] and the points-to
@@ -485,7 +508,10 @@ Section wpr.
     iMod (own_all_bumpers_alloc newBumpers)
          as (new_bumpers_name) "[newBumpers #bumpersFrag]".
 
-    iMod (auth_map_map_alloc (A := leibnizO _) (slice_of_store CV phys_hists))
+    set newPhysHist :=
+      (λ (hist : gmap _ _), discard_msg_views <$> hist) <$>
+        (drop_all_above newOffsets phys_hists).
+    iMod (auth_map_map_alloc (A := leibnizO _) newPhysHist)
       as (new_phys_hist_name) "[newPhysHist #newPhysHistFrag]".
 
     (* We show a few results that will be useful below. *)
@@ -904,24 +930,34 @@ Section wpr.
     (* We show the state interpretation for the high-level logic. *)
     iExistsN.
     rewrite /full_map.
+
+    iFrame "offsets".
+    iFrame "newPhysHist".
+    rewrite /newPhysHist /newOffsets.
+
+    rewrite slice_of_store_drop.
+
     iFrame "ptsMap".
+    (* iFrame "offsets". *)
     iFrame "newOrders newPreds hists' newAtLocs newCrashedAt".
     iFrame "newNaLocs".
-    iFrame "newPhysHist".
+    (* iFrame "newPhysHist". *)
     iFrame "newBumpers".
     iFrame "naView".
     iFrame "fragHistories".
+    (* [offsetDom] *)
+    iSplitPure.
+    { admit. }
     (* [locsDisjoint] *)
-    iSplit.
-    { iPureIntro. set_solver. }
+    iSplitPure.
+    { set_solver. }
     (* [histDomLocs] *)
-    iSplit.
-    { iPureIntro. rewrite -domNewAbsHists. set_solver+ histDomLocs. }
+    iSplitPure. { rewrite -domNewAbsHists. set_solver+ histDomLocs. }
     (* [naView] *)
     iSplitPure. { rewrite /newNaViews. apply dom_gset_to_gmap. }
     (* mapShared. We show that the shared location still satisfy that
-    heir two persist-views are equal. *)
-    iSplitPure. { apply shared_locs_inv_slice_of_store. }
+    their two persist-views are equal. *)
+    iSplitPure. { admit. (* apply shared_locs_inv_slice_of_store. *) }
     (* atLocsHistories *)
     iSplitL "atHistories".
     { iNext.
@@ -936,9 +972,10 @@ Section wpr.
         rewrite -domHistsEqOrders.
         set_solver+.
       - iModIntro.
-        iIntros (ℓ hist order [->|[? ->]]%new_abs_hist_lookup_simpl_inv slice) "!%".
-        * apply increasing_map_empty.
-        * apply increasing_map_singleton. }
+        admit. }
+        (* iIntros (ℓ hist order [->|[? ->]]%new_abs_hist_lookup_simpl_inv slice) "!%". *)
+        (* * apply increasing_map_empty. *)
+        (* * apply increasing_map_singleton. } *)
 
     (* [predsHold] We show that the encoded predicates still hold for the new abstract
     history. *)
@@ -948,88 +985,90 @@ Section wpr.
       locations in the old abstract state so the new predsHold is over a subset
       of locations. *)
       iDestruct (big_sepM2_impl_dom_subseteq_with_resource with "[baseMap pcRes] predsHold []") as "$".
-      { apply slice_of_store_dom_subset. }
+      { admit. } (* apply slice_of_store_dom_subset. } *)
       { rewrite -domNewAbsHists.
         rewrite /slice_of_store. (* FIXME: Lemma for this. *)
         rewrite /slice_of_hist.
         rewrite dom_fmap_L.
-        rewrite dom_fmap_L.
-        rewrite dom_map_zip_with_L.
-        rewrite /recLocs.
-        rewrite domPhysHistsEqAbsHists.
-        set_solver+. }
+        admit. }
+        (* rewrite dom_fmap_L. *)
+        (* rewrite dom_map_zip_with_L. *)
+        (* rewrite /recLocs. *)
+        (* rewrite domPhysHistsEqAbsHists. *)
+        (* set_solver+. } *)
       { iAccu. }
 
       iModIntro.
-      iIntros (ℓ physHist encHist newPhysHist newAbsHist physHistsLook
-               absHistsLook newPhysHistsLook newAbsHistLook).
-      iIntros "[baseMap pcRes]".
+      admit. }
+      (* iIntros (ℓ physHist encHist newPhysHist newAbsHist physHistsLook *)
+      (*          absHistsLook newPhysHistsLook newAbsHistLook). *)
+      (* iIntros "[baseMap pcRes]". *)
 
-      (* Infer what we can from the lookup in the new physical history. *)
-      apply slice_of_store_lookup_inv in newPhysHistsLook
-          as (t & hist & msg & cvLook & ? & ? & cat);
-        last done.
+      (* (* Infer what we can from the lookup in the new physical history. *) *)
+      (* apply slice_of_store_lookup_inv in newPhysHistsLook *)
+      (*     as (t & hist & msg & cvLook & ? & ? & cat); *)
+      (*   last done. *)
 
-      (* Infer what we can from the lookup in the new abstract history. *)
-      apply new_abs_hist_lookup_Some in newAbsHistLook
-        as (? & s & bumper & ? & ? & ? & histLook &
-            bumpersLook & ->); last done.
-      simplify_eq.
+      (* (* Infer what we can from the lookup in the new abstract history. *) *)
+      (* apply new_abs_hist_lookup_Some in newAbsHistLook *)
+      (*   as (? & s & bumper & ? & ? & ? & histLook & *)
+      (*       bumpersLook & ->); last done. *)
+      (* simplify_eq. *)
 
-      iIntros "(%pred & %predsLook & encs)".
+      (* iIntros "(%pred & %predsLook & encs)". *)
 
-      rewrite -bi.later_exist_2.
-      rewrite bi.sep_exist_l.
-      iExists pred.
-      iPureGoal.
-      { rewrite /newPreds.
-        apply restrict_lookup_Some_2; first done.
-        apply elem_of_dom_2 in cvLook.
-        apply elem_of_dom_2 in absHistsLook.
-        set_solver+ cvLook absHistsLook. }
-      rewrite big_sepM2_singleton.
+      (* rewrite -bi.later_exist_2. *)
+      (* rewrite bi.sep_exist_l. *)
+      (* iExists pred. *)
+      (* iPureGoal. *)
+      (* { rewrite /newPreds. *)
+      (*   apply restrict_lookup_Some_2; first done. *)
+      (*   apply elem_of_dom_2 in cvLook. *)
+      (*   apply elem_of_dom_2 in absHistsLook. *)
+      (*   set_solver+ cvLook absHistsLook. } *)
+      (* rewrite big_sepM2_singleton. *)
 
-      (* We look up the relevant predicate in [encs]. *)
-      iDestruct (big_sepM2_lookup with "encs") as "predHolds"; [done|done|].
+      (* (* We look up the relevant predicate in [encs]. *) *)
+      (* iDestruct (big_sepM2_lookup with "encs") as "predHolds"; [done|done|]. *)
 
-      iDestruct (big_sepM2_lookup with "bumperSome") as %map; [done|done|].
-      destruct (map t s histLook) as [bumpedS bumperEq].
-      rewrite bumperEq.
-      iEval (simpl).
-      assert (default ∅ (newNaViews !! ℓ) = ∅) as ->.
-      { rewrite /newNaViews.
-        destruct (gset_to_gmap ∅ newNaLocs !! ℓ) eqn:eq.
-        - apply lookup_gset_to_gmap_Some in eq as [_ ->]. done.
-        - done. }
+      (* iDestruct (big_sepM2_lookup with "bumperSome") as %map; [done|done|]. *)
+      (* destruct (map t s histLook) as [bumpedS bumperEq]. *)
+      (* rewrite bumperEq. *)
+      (* iEval (simpl). *)
+      (* assert (default ∅ (newNaViews !! ℓ) = ∅) as ->. *)
+      (* { rewrite /newNaViews. *)
+      (*   destruct (gset_to_gmap ∅ newNaLocs !! ℓ) eqn:eq. *)
+      (*   - apply lookup_gset_to_gmap_Some in eq as [_ ->]. done. *)
+      (*   - done. } *)
 
-      (* We now looks up in [predPostCrash]. *)
-      iDestruct (big_sepM2_lookup with "predPostCrash") as "#postCrash";
-        [apply predsLook | apply bumpersLook | ].
-      iSpecialize ("postCrash" $! s (msg_val msg)).
+      (* (* We now looks up in [predPostCrash]. *) *)
+      (* iDestruct (big_sepM2_lookup with "predPostCrash") as "#postCrash"; *)
+      (*   [apply predsLook | apply bumpersLook | ]. *)
+      (* iSpecialize ("postCrash" $! s (msg_val msg)). *)
 
-      rewrite /encoded_predicate_holds.
-      iDestruct "predHolds" as (?P) "[#eq PHolds]".
-      iDestruct ("postCrash" with "[$PHolds $eq //]") as (?pred) "[%eq2 pred]".
-      rewrite -bi.later_exist_2.
-      rewrite bi.sep_exist_l.
-      iExists _.
+      (* rewrite /encoded_predicate_holds. *)
+      (* iDestruct "predHolds" as (?P) "[#eq PHolds]". *)
+      (* iDestruct ("postCrash" with "[$PHolds $eq //]") as (?pred) "[%eq2 pred]". *)
+      (* rewrite -bi.later_exist_2. *)
+      (* rewrite bi.sep_exist_l. *)
+      (* iExists _. *)
 
-      rewrite /post_crash_flush. rewrite /post_crash.
-      iEval (simpl) in "pred".
-      iDestruct ("pred" $! _ _ bumpers na_views (store, _) _
-                  with "persImpl baseMap") as "(baseMap & pred)".
-      iDestruct ("pred" with "[$pcResPers $pcRes]") as "[H pcRes]".
-      iFrame "baseMap pcRes".
-      iSplit. { rewrite eq2. done. }
-      iNext.
-      iApply "H".
-      iFrame "newCrashedAt".
-      assert (msg_persisted_after_view msg ⊑ CV).
-      { eapply consistent_cut_extract; try done. eapply lookup_weaken; done. }
-      iSplitPure; first done.
-      iApply (persisted_weak with "pers").
-      f_equiv.
-      done. }
+      (* rewrite /post_crash_flush. rewrite /post_crash. *)
+      (* iEval (simpl) in "pred". *)
+      (* iDestruct ("pred" $! _ _ bumpers na_views (store, _) _ *)
+      (*             with "persImpl baseMap") as "(baseMap & pred)". *)
+      (* iDestruct ("pred" with "[$pcResPers $pcRes]") as "[H pcRes]". *)
+      (* iFrame "baseMap pcRes". *)
+      (* iSplit. { rewrite eq2. done. } *)
+      (* iNext. *)
+      (* iApply "H". *)
+      (* iFrame "newCrashedAt". *)
+      (* assert (msg_persisted_after_view msg ⊑ CV). *)
+      (* { eapply consistent_cut_extract; try done. eapply lookup_weaken; done. } *)
+      (* iSplitPure; first done. *)
+      (* iApply (persisted_weak with "pers"). *)
+      (* f_equiv. *)
+      (* done. } *)
     (* [bumpMono] - Show that the bumpers are still monotone. *)
     iSplitR "".
     { iApply (big_sepM2_impl_subseteq with "bumpMono").
@@ -1060,20 +1099,21 @@ Section wpr.
         rewrite domHistsEqBumpers.
         set_solver+. }
       iIntros (ℓ hist bumper look look2).
-      apply new_abs_hist_lookup_Some in look; last done.
-      destruct look as (t & s & bumper' & hist' & ? & ? & ? & ? & histEq).
-      simplify_eq.
-      assert (bumper = bumper') as <-.
-      { eapply lookup_weaken_inv; [done| |done]. apply restrict_subseteq. }
-      iEval (rewrite -map_Forall_singleton).
-      iDestruct (big_sepM2_lookup with "bumperSome") as %i; [done|done|].
-      eapply map_Forall_lookup_1 in i as [bumpedS eq]; last done.
-      rewrite eq.
-      simpl.
-      eapply map_Forall_lookup_1 in bumperBumpToValid as [spa equi]; last done; first done.
-      rewrite equi.
-      done. }
-  Qed.
+      admit. }
+      (* apply new_abs_hist_lookup_Some in look; last done. *)
+      (* destruct look as (t & s & bumper' & hist' & ? & ? & ? & ? & histEq). *)
+      (* simplify_eq. *)
+      (* assert (bumper = bumper') as <-. *)
+      (* { eapply lookup_weaken_inv; [done| |done]. apply restrict_subseteq. } *)
+      (* iEval (rewrite -map_Forall_singleton). *)
+      (* iDestruct (big_sepM2_lookup with "bumperSome") as %i; [done|done|]. *)
+      (* eapply map_Forall_lookup_1 in i as [bumpedS eq]; last done. *)
+      (* rewrite eq. *)
+      (* simpl. *)
+      (* eapply map_Forall_lookup_1 in bumperBumpToValid as [spa equi]; last done; first done. *)
+      (* rewrite equi. *)
+      (* done. } *)
+  Admitted.
 
   (* _The_ lemma for showing a recovery weakest precondition. *)
   Lemma idempotence_wpr `{hGD : nvmDeltaG} s E1 e rec Φ Φr Φc `{∀ hG, Objective (Φc hG)} :

@@ -84,9 +84,9 @@ Section state_interpretation.
       in the abstract history correspond to the physical history. This ensures
       that at a crash we know that the value recovered after a crash has a
       corresponding abstract value. *)
-      "%offsetDom" ∷ ⌜ dom (gset _) offsets = dom _ phys_hists ⌝ ∗
       "ptsMap" ∷ ([∗ map] ℓ ↦ hist ∈ (map_zip_with drop_prefix phys_hists offsets), ℓ ↦h hist) ∗
       "offsets" ∷ ghost_map_auth offset_name (DfracOwn 1) offsets ∗
+      "%offsetDom" ∷ ⌜ dom (gset _) offsets = dom _ phys_hists ⌝ ∗
 
       "physHist" ∷ auth_map_map_auth know_phys_history_name phys_hists ∗
       "#crashedAt" ∷ crashed_at CV ∗

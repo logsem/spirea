@@ -70,7 +70,10 @@ Section wp_at_rules.
 
     (* The new location is not in the existing [phys_hist]. *)
     destruct (phys_hists !! ℓ) eqn:physHistsLook.
-    { iDestruct (big_sepM_lookup with "ptsMap") as "pts'"; first done.
+    { assert (is_Some (offsets !! ℓ)) as (? & ?).
+      { apply elem_of_dom. rewrite offsetDom. apply elem_of_dom. done. }
+      iDestruct (big_sepM_lookup with "ptsMap") as "pts'".
+      { apply map_lookup_zip_with_Some. naive_solver. }
       iDestruct (mapsto_valid_2 with "pts pts'") as (?) "_".
       done. }
 
@@ -95,6 +98,10 @@ Section wp_at_rules.
     iMod (own_all_preds_insert with "predicates") as "[predicates knowPred]".
     { eapply map_dom_eq_lookup_None; last apply physHistsLook.
       rewrite domEq3. congruence. }
+
+    (* Add a new offset to the ghost state of offfsets. *)
+    iMod (ghost_map_insert_persist with "offsets") as "[offsets #offset]".
+    { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
 
     (* Allocate the abstract history for the location. *)
     iMod (full_map_insert _ _ _ {[0 := encode s]} with "history")
@@ -124,8 +131,8 @@ Section wp_at_rules.
     iModIntro.
     iSplitL "knowPred knowBumper".
     { rewrite /store_lb.
-      iExists 0.
-      iFrame "prot".
+      iExists 0, _.
+      iFrame "prot offset".
       iSplit.
       { iApply (frag_history_equiv with "fragHist"). }
       iPureIntro.
