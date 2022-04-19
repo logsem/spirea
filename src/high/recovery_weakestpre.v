@@ -947,7 +947,10 @@ Section wpr.
     iFrame "fragHistories".
     (* [offsetDom] *)
     iSplitPure.
-    { admit. }
+    { rewrite dom_fmap_L.
+      rewrite /offsets_add /drop_all_above !dom_map_zip_with_L.
+      rewrite offsetDom.
+      set_solver+. }
     (* [locsDisjoint] *)
     iSplitPure.
     { set_solver. }
@@ -957,7 +960,18 @@ Section wpr.
     iSplitPure. { rewrite /newNaViews. apply dom_gset_to_gmap. }
     (* mapShared. We show that the shared location still satisfy that
     their two persist-views are equal. *)
-    iSplitPure. { admit. (* apply shared_locs_inv_slice_of_store. *) }
+    iSplitPure. {
+      rewrite /shared_locs_inv.
+      rewrite /map_map_Forall.
+      eapply map_Forall_subseteq. { apply restrict_subseteq. }
+      intros ?? (? & ? & ?)%lookup_fmap_Some ???.
+      simplify_eq.
+      apply lookup_fmap_Some in H2 as (? & ? & ?).
+      simplify_eq.
+      split; last done.
+      (* FIXME: We can't show this due to the first conjunct of
+      [atomic_loc_inv]. Can this be removed? *)
+      admit. (* apply shared_locs_inv_slice_of_store. *) }
     (* atLocsHistories *)
     iSplitL "atHistories".
     { iNext.
@@ -1110,20 +1124,19 @@ Section wpr.
         rewrite domHistsEqBumpers.
         set_solver+. }
       iIntros (ℓ hist bumper look look2).
-      admit. }
-      (* apply new_abs_hist_lookup_Some in look; last done. *)
-      (* destruct look as (t & s & bumper' & hist' & ? & ? & ? & ? & histEq). *)
-      (* simplify_eq. *)
-      (* assert (bumper = bumper') as <-. *)
-      (* { eapply lookup_weaken_inv; [done| |done]. apply restrict_subseteq. } *)
-      (* iEval (rewrite -map_Forall_singleton). *)
-      (* iDestruct (big_sepM2_lookup with "bumperSome") as %i; [done|done|]. *)
-      (* eapply map_Forall_lookup_1 in i as [bumpedS eq]; last done. *)
-      (* rewrite eq. *)
-      (* simpl. *)
-      (* eapply map_Forall_lookup_1 in bumperBumpToValid as [spa equi]; last done; first done. *)
-      (* rewrite equi. *)
-      (* done. } *)
+      apply new_abs_hist_lookup_Some in look.
+      destruct look as (bumper' & s & ? & hist' & ? & ? & ?).
+      simplify_eq.
+      assert (bumper = bumper') as <-.
+      { eapply lookup_weaken_inv; [done| |done]. apply restrict_subseteq. }
+      iNext. iIntros (?? look).
+      iDestruct (big_sepM2_lookup with "bumperSome") as %i; [done|done|].
+      apply lookup_omap_Some in look as (? & ? & (? & ?)%map_filter_lookup_Some).
+      eapply map_Forall_lookup_1 in i as [bumpedS eq]; last done.
+      simplify_eq.
+      eapply map_Forall_lookup_1 in bumperBumpToValid as [spa equi]; last done; first done.
+      rewrite equi.
+      done. }
   Admitted.
 
   (* _The_ lemma for showing a recovery weakest precondition. *)
