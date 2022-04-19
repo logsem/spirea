@@ -191,7 +191,6 @@ Section drop_prefix.
 
   (* Shift everything in [h] down by [t] and remove everything that is below
   [t]. *)
-  (* TODO: Consider definition of this that uses filter and map (over keys). *)
   Definition drop_prefix (h : gmap time A) (t : time) : gmap time A :=
     map_fold (λ k v m, if decide (t ≤ k) then <[(k - t) := v]>m else m) ∅ h.
 
@@ -208,11 +207,25 @@ Section drop_prefix.
     drop_prefix h t !! k = Some a →
     h !! (k + t) = Some a.
   Proof.
-    (* rewrite /drop_prefix. *)
-    (* induction h as [|i x m IH] using map_ind; first done. *)
-    (* rewrite map_fold_insert_L; last done. *)
-    (* - simpl. rewrite IHh. replace (i - 0) with i by lia. done. *)
-    (* - intros. simpl. rewrite !Nat.sub_0_r. apply insert_commute. done. *)
-  Admitted.
+    rewrite /drop_prefix.
+    induction h as [|i x m IH] using map_ind; first done.
+    rewrite map_fold_insert_L; last done.
+    - destruct (decide (t ≤ i)).
+      + destruct (decide (i - t = k)) as [eq|neq].
+        * rewrite eq. rewrite lookup_insert.
+          replace (k + t) with i by lia.
+          intros [= ->].
+          rewrite lookup_insert. done.
+        * rewrite lookup_insert_ne; last done.
+          intros ?%IHh.
+          assert (k + t ≠ i) by lia.
+          rewrite lookup_insert_ne; done.
+      + intros ?%IHh.
+        assert (k + t ≠ i) by lia.
+        rewrite lookup_insert_ne; done.
+    - intros j1 j2. intros.
+      destruct (decide (t ≤ j2)); destruct (decide (t ≤ j1)); try done.
+      apply insert_commute. lia.
+  Qed.
 
 End drop_prefix.
