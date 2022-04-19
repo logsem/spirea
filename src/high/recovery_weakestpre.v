@@ -966,16 +966,27 @@ Section wpr.
     (* [ordered]: We show that the abstract states are still ordered. *)
     iSplitR.
     { iApply big_sepM2_intro.
-      - setoid_rewrite <- elem_of_dom.
+      { setoid_rewrite <- elem_of_dom.
         apply set_eq.
         rewrite restrict_dom_subset_L; first done.
         rewrite -domHistsEqOrders.
-        set_solver+.
-      - iModIntro.
-        admit. }
-        (* iIntros (ℓ hist order [->|[? ->]]%new_abs_hist_lookup_simpl_inv slice) "!%". *)
-        (* * apply increasing_map_empty. *)
-        (* * apply increasing_map_singleton. } *)
+        set_solver+. }
+      iModIntro.
+      iModIntro.
+      iIntros (ℓ newHist order ih [ordersLook ?]%restrict_lookup_Some).
+      apply new_abs_hist_lookup_Some in ih
+          as (bumper & hist & ? & ? & ? & ? & ?).
+      simplify_eq.
+      iDestruct (big_sepM2_lookup with "ordered") as %incr; [done|done| ].
+      iDestruct (big_sepM2_lookup with "bumpMono") as %mono; [done|done| ].
+      iPureIntro.
+
+      intros ?????.
+      intros (? & ? & [??]%map_filter_lookup_Some)%lookup_omap_Some
+             (? & ? & [??]%map_filter_lookup_Some)%lookup_omap_Some.
+      eapply mono; [done | done |].
+      eapply incr; [ |done|done].
+      lia. }
 
     (* [predsHold] We show that the encoded predicates still hold for the new abstract
     history. *)
