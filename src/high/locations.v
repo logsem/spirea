@@ -57,6 +57,7 @@ Section points_to_at.
       "#physMsg" ∷ ⎡ auth_map_map_frag_singleton know_phys_history_name ℓ tHi msg ⎤ ∗
       "#inThreadView" ∷ monPred_in (SV, msg_persisted_after_view msg, ∅) ∗
       (* We have the [tHi] timestamp in our store view. *)
+      "%offsetLe" ∷ ⌜ offset ≤ tHi ⌝ ∗
       "%haveTStore" ∷ ⌜ tHi - offset ≤ SV !!0 ℓ ⌝ ∗
       "#pers" ∷ (⎡ persisted_loc ℓ (tLo - offset) ⎤ ∨ ⌜ tLo - offset = 0 ⌝)
     )%I.
@@ -298,6 +299,7 @@ Section points_to_at.
     iFrameF "isNaLoc". iFrameF (lookupV). iFrameF (nolater).
     iFrameF "hist". iFrameF "histFrag". iFrameF "offset". iFrameF "knowSV".
     iFrameF (slice). iFrame "physMsg". iFrame "inThreadView".
+    iSplitPure; first done.
     iFrameF (haveTStore).
     iLeft. iApply persisted_loc_weak; last done. lia.
   Qed.

@@ -142,6 +142,7 @@ Section wp_na_rules.
       iSplitPure; first (split; [apply lookup_singleton | reflexivity]).
       iSplitPure; first repeat split; auto using view_empty_least.
       iSplitPure; first lia.
+      iSplitPure; first lia.
       iRight. done. }
     repeat iExists _.
     iFrame "physHist crashedAt history predicates allOrders naLocs
@@ -294,29 +295,26 @@ Section wp_na_rules.
       etrans; first apply incl; apply incl2. }
 
     (* We need to conclude that the only write we could read is [tS]. I.e., that
-    [tT = tS]. *)
+    [tT + offset = tS]. *)
     assert (tS - offset ≤ SV' !!0 ℓ) as tSle.
     { etrans; first done. f_equiv. done. }
     assert (tS - offset ≤ tT) as lte.
     { etrans; first done. apply gt. }
     iDestruct (big_sepM2_dom with "predMap") as %domEq.
+    apply drop_prefix_lookup_Some in look.
     assert (is_Some (absHist !! (tT + offset))) as HI.
     { apply elem_of_dom.
       erewrite <- dom_fmap_L.
       erewrite <- domEq.
       apply elem_of_dom.
-      apply drop_prefix_lookup_Some in look.
       naive_solver. }
-    assert (tT = tS - offset) as ->.
+    assert (tT = tS - offset).
     { apply Nat.lt_eq_cases in lte. destruct lte as [lt|]; last done.
       eassert _ as eq. { apply (nolater (tT + offset)). lia. }
       (* pose proof (nolater tT lt) as eq. *)
       rewrite eq in HI. inversion HI as [? [=]]. }
-    assert (absHist !! tS = Some s) as lookS.
-    { rewrite -sLast.
-      apply map_sequence_lookup_hi in slice.
-      rewrite slice.
-      done. }
+    assert (tS = tT + offset) as -> by lia.
+    assert (a = s) as -> by congruence.
     clear lte HI.
 
     iDestruct (auth_map_map_lookup_agree with "[$] [$]") as %eq.
@@ -325,7 +323,7 @@ Section wp_na_rules.
 
     iDestruct (big_sepM2_lookup_acc with "predMap") as "[predHolds predMap]";
       first done.
-    { rewrite lookup_fmap. rewrite lookS. done. }
+    { rewrite lookup_fmap. rewrite lookupV. done. }
     iDestruct (ghost_map_lookup with "naView knowSV") as %->.
     simpl.
     iDestruct (predicate_holds_phi with "predsEquiv predHolds") as "phi";
@@ -342,7 +340,7 @@ Section wp_na_rules.
     iDestruct ("predsHold" with "[predMap]") as "predsHold". { naive_solver. }
 
     iSplitR "ptsMap physHist allOrders ordered predsHold history predicates
-             atLocs naLocs crashedAt allBumpers bumpMono predPostCrash
+             atLocs naLocs crashedAt allBumpers bumpMono predPostCrash offsets
              atLocsHistories naView"; last first.
     { repeat iExists _. iFrameNamed.
       rewrite /post_crash_flush /post_crash.
@@ -361,7 +359,7 @@ Section wp_na_rules.
         etrans; first apply incl.
         apply incl2.
       - apply view_empty_least. }
-    iExists _, _, _, _, _, _.
+    iExistsN.
     iFrameNamed.
     iSplit. { iFrame "knowPred knowPreorder knowBumper". }
     iPureIntro. etrans. eassumption. etrans. eassumption. eassumption.
