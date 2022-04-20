@@ -301,3 +301,14 @@ Section drop_above.
     filter (λ '(t', ev), t' ≤ t) m.
 
 End drop_above.
+
+Lemma drop_above_dom_eq {A B} t (m1 : gmap nat A) (m2 : gmap nat B) :
+  dom (gset _) m1 = dom (gset _) m2 →
+  dom (gset _) (drop_above t m1) = dom (gset _) (drop_above t m2).
+Proof.
+  rewrite !set_eq.
+  setoid_rewrite elem_of_dom. unfold is_Some.
+  intros eq. rewrite /drop_above.
+  setoid_rewrite map_filter_lookup_Some.
+  naive_solver.
+Qed.

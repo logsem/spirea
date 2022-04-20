@@ -156,7 +156,7 @@ Section map_zip_with.
   Proof. unfold_leibniz. apply dom_eq_alt. Qed.
 
   (* Could be upstreamed. *)
-  Lemma dom_omap_id `{FinMapDom K M D} `{!LeibnizEquiv D} {A B} (f : A → option B) (m : M A) :
+  Lemma dom_omap_id `{FinMapDom K M D} {A B} (f : A → option B) (m : M A) :
     map_Forall (λ _ v, is_Some (f v)) m → dom D (omap f m) ≡ dom D m.
   Proof.
     intros Ha. apply set_equiv. intros k.
@@ -166,6 +166,10 @@ Section map_zip_with.
     eapply map_Forall_lookup_1 in Ha as [??]; last done.
     eexists _, _. done.
   Qed.
+
+  Lemma dom_omap_id_L `{FinMapDom K M D} `{!LeibnizEquiv D} {A B} (f : A → option B) (m : M A) :
+    map_Forall (λ _ v, is_Some (f v)) m → dom D (omap f m) = dom D m.
+  Proof. unfold_leibniz. apply dom_omap_id. Qed.
 
 End map_zip_with.
 

@@ -1032,7 +1032,6 @@ Section wpr.
       { iAccu. }
 
       iModIntro.
-      (* admit. } *)
       iIntros (ℓ physHist encHist newPhysHist newAbsHist physHistsLook
                absHistsLook newPhysHistsLook newAbsHistLook).
       iIntros "[baseMap pcRes]".
@@ -1041,10 +1040,8 @@ Section wpr.
       apply lookup_fmap_Some in newPhysHistsLook as (? & ? & look).
       apply drop_all_above_lookup_Some in look as (newOffset & ? & -> & newOffsetLook & ?).
       simplify_eq.
-      apply map_lookup_zip_with_Some in newOffsetLook as (oldOffset & [tC] &?&?& cvLook).
-      (* apply slice_of_store_lookup_inv in newPhysHistsLook *)
-      (*     as (t & hist & msg & cvLook & ? & ? & cat); *)
-      (*   last done. *)
+      eassert _ as eq by apply newOffsetLook.
+      apply map_lookup_zip_with_Some in eq as (oldOffset & [tC] &?&?& cvLook).
 
       (* Infer what we can from the lookup in the new abstract history. *)
       apply new_abs_hist_lookup_Some in newAbsHistLook
@@ -1060,12 +1057,22 @@ Section wpr.
       iPureGoal.
       { rewrite /newPreds.
         apply restrict_lookup_Some_2; first done.
-        admit. }
+        apply elem_of_dom_2 in cvLook.
+        apply elem_of_dom_2 in absHistsLook.
+        set_solver+ cvLook absHistsLook. }
 
+      iDestruct (big_sepM2_dom with "encs") as %physEncDomEq.
+      iDestruct (big_sepM2_lookup with "bumperSome") as %map; [done|done|].
       rewrite -big_sepM2_later_2.
       iApply (big_sepM2_impl_dom_subseteq_with_resource with "[baseMap pcRes] encs []").
-      { admit. }
-      { admit. }
+      { rewrite dom_fmap_L.
+        rewrite /drop_above.
+        apply dom_filter_subseteq. }
+      { rewrite dom_fmap_L.
+        erewrite drop_above_dom_eq; last apply physEncDomEq.
+        rewrite dom_omap_id_L; first done.
+        eapply map_Forall_subseteq; last apply map.
+        apply map_filter_subseteq. }
       { iFrame. }
       iIntros "!>" (? msg oldS ? newS ? histLook (? & <- & look)%lookup_fmap_Some bumperLook).
       apply map_filter_lookup_Some in look as [??].
@@ -1074,19 +1081,6 @@ Section wpr.
       simpl.
       iIntros "[baseMap pcRes] predHolds".
 
-      (* apply elem_of_dom_2 in cvLook. *)
-      (* apply elem_of_dom_2 in absHistsLook. *)
-      (* set_solver+ cvLook absHistsLook. } *)
-      (* rewrite big_sepM2_singleton. *)
-
-      (* (* We look up the relevant predicate in [encs]. *) *)
-      (* iDestruct (big_sepM2_lookup with "encs") as "predHolds"; [done|done|]. *)
-
-      (* NOTE: It seems that we don't need this anymore. *)
-      (* iDestruct (big_sepM2_lookup with "bumperSome") as %map; [done|done|]. *)
-      (* destruct (map _ oldS histLook) as [bumpedS bumperEq]. *)
-      (* rewrite bumperEq. *)
-      (* simplify_eq. *)
       iEval (simpl).
 
       assert (default ∅ (newNaViews !! ℓ) = ∅) as ->.
@@ -1117,13 +1111,12 @@ Section wpr.
       iNext.
       iApply "H".
       iFrame "newCrashedAt".
-      iDestruct (big_sepM2_lookup with "oldViewsDiscarded") as %ham; [try done | try done |].
+      iDestruct (big_sepM2_lookup with "oldViewsDiscarded") as %disc; [done|done|].
       assert (msg_persisted_after_view msg ⊑ CV).
-      {
-        apply map_lookup_zip_with_Some in H1 as (oldOffset & [tC] &?&?& cvLook).
-        assert (k < oldOffset ∨ oldOffset ≤ k) as [?|le] by lia.
-        {
-          admit. }
+      { assert (k < oldOffset ∨ oldOffset ≤ k) as [?|le] by lia.
+        { eassert _ as eq. { eapply disc; done. }
+          rewrite -eq.
+          apply view_empty_least. }
         apply Nat.le_exists_sub in le as (tt & eq & ?).
         eapply consistent_cut_extract; first done.
         - done.
