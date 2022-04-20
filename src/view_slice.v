@@ -228,4 +228,8 @@ Section drop_prefix.
       apply insert_commute. lia.
   Qed.
 
+  Lemma drop_prefix_lookup_Some_2 t (a : A) h k :
+    h !! (k + t) = Some a →
+    drop_prefix h t !! k = Some a.
+  Proof. Admitted.
 End drop_prefix.

@@ -4,7 +4,7 @@ From stdpp Require Import countable numbers gmap.
 From iris.heap_lang Require Import locations.
 From iris.algebra Require Import gmap numbers.
 
-From self Require Import extra.
+From self Require Import extra map_extra.
 From self.algebra Require Export view.
 From self Require Import view_slice.
 From self.lang Require Import syntax.
@@ -27,9 +27,9 @@ Definition mem_config : Type := store * view.
 
 Section consistent_cut.
 
-  (* Removes all messages from [hist] after [t]. *)
-  Definition cut_history t (hist : history) : history :=
-    filter (λ '(t', ev), t' ≤ t) hist.
+  (* (* Removes all messages from [hist] after [t]. *) *)
+  (* Definition drop_above t (hist : history) : history := *)
+  (*   filter (λ '(t', ev), t' ≤ t) hist. *)
 
   Definition discard_msg_views (msg : message) : message :=
     Msg msg.(msg_val) ∅ ∅ ∅.
@@ -44,7 +44,7 @@ Section consistent_cut.
        ∃ hist msg, σ !! ℓ = Some hist ∧
                    hist !! t = Some msg ∧
                    map_Forall (λ _ msg', msg'.(msg_persisted_after_view) ⊑ CV)
-                              (cut_history t hist))
+                              (drop_above t hist))
       CV.
 
   (* Consisten cut is stronger than [valid_slice]. *)
@@ -84,18 +84,19 @@ Section consistent_cut.
     set_solver.
   Qed.
 
-  Lemma consistent_cut_extract CV store ℓ t hist msg :
+  Lemma consistent_cut_extract CV store ℓ t1 t2 hist msg :
     consistent_cut CV store →
-    CV !! ℓ = Some (MaxNat t) →
+    CV !! ℓ = Some (MaxNat t1) →
     store !! ℓ = Some hist →
-    hist !! t = Some msg →
+    hist !! t2 = Some msg →
+    t2 ≤ t1 →
     msg_persisted_after_view msg ⊑ CV.
   Proof.
     rewrite /consistent_cut.
-    intros cut cvLook storeLook histLook.
-    destruct (cut ℓ (MaxNat t) cvLook) as (? & ? & ? & ? & map).
-    apply (map t msg).
-    rewrite /cut_history.
+    intros cut cvLook storeLook histLook le.
+    destruct (cut ℓ _ cvLook) as (? & ? & ? & ? & map).
+    apply (map t2 msg).
+    rewrite /drop_above.
     apply map_filter_lookup_Some.
     naive_solver.
   Qed.

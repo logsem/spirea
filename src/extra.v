@@ -155,6 +155,18 @@ Section map_zip_with.
     (dom D m1 = dom D m2).
   Proof. unfold_leibniz. apply dom_eq_alt. Qed.
 
+  (* Could be upstreamed. *)
+  Lemma dom_omap_id `{FinMapDom K M D} `{!LeibnizEquiv D} {A B} (f : A → option B) (m : M A) :
+    map_Forall (λ _ v, is_Some (f v)) m → dom D (omap f m) ≡ dom D m.
+  Proof.
+    intros Ha. apply set_equiv. intros k.
+    rewrite !elem_of_dom. unfold is_Some. setoid_rewrite lookup_omap_Some.
+    split; first naive_solver.
+    intros [? Hl].
+    eapply map_Forall_lookup_1 in Ha as [??]; last done.
+    eexists _, _. done.
+  Qed.
+
 End map_zip_with.
 
 Definition restrict `{FinMap K M, ElemOf K D, !RelDecision (∈@{D})} {A} (s : D) (m : M A) :=
@@ -520,12 +532,14 @@ Section big_sepM2.
     □ (∀ (k : K) x1 x2 y1 y2,
         ⌜m1 !! k = Some x1⌝ → ⌜m2 !! k = Some x2⌝ →
         ⌜n1 !! k = Some y1⌝ → ⌜n2 !! k = Some y2⌝ → R -∗ Φ k x1 x2 -∗ R ∗ Ψ k y1 y2) -∗
-    ([∗ map] k↦y1;y2 ∈ n1;n2, Ψ k y1 y2).
+    R ∗ ([∗ map] k↦y1;y2 ∈ n1;n2, Ψ k y1 y2).
   Proof.
     iIntros (sub1 domEq).
     rewrite !big_sepM2_alt.
     iIntros "R [%impl sep] #impl".
     apply dom_eq_alt_L in impl.
+    rewrite persistent_and_sep.
+    rewrite comm. rewrite -assoc.
     iSplit. { iPureIntro. apply dom_eq_alt_L. congruence. }
     iDestruct (big_sepM_impl_dom_subseteq_with_resource with "R sep []")
       as "(A & $ & C)".
@@ -533,6 +547,7 @@ Section big_sepM2.
     iIntros "!>" (k [??] [??] [l1 l2]%map_lookup_zip_Some [l3 l4]%map_lookup_zip_Some) "R phi".
     simpl in *.
     iApply ("impl" with "[//] [//] [//] [//] R phi").
+    iFrame.
   Qed.
 
   (* This could be upstreamed but we'd need to drop the affine requirement and

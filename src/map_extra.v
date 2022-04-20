@@ -298,6 +298,6 @@ Section drop_above.
 
   (* Removes all entries from [m] after [t]. *)
   Definition drop_above t (m : gmap nat A) : gmap nat A :=
-    filter (λ '(t', ev), t' < t) m.
+    filter (λ '(t', ev), t' ≤ t) m.
 
 End drop_above.

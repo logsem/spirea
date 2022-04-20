@@ -86,9 +86,15 @@ Section state_interpretation.
       corresponding abstract value. *)
       "ptsMap" ∷ ([∗ map] ℓ ↦ hist ∈ (map_zip_with drop_prefix phys_hists offsets), ℓ ↦h hist) ∗
       "offsets" ∷ ghost_map_auth offset_name (DfracOwn 1) offsets ∗
-      "%offsetDom" ∷ ⌜ dom (gset _) offsets = dom _ phys_hists ⌝ ∗
+      (* "%offsetDom" ∷ ⌜ dom (gset _) offsets = dom _ phys_hists ⌝ ∗ *)
 
       "physHist" ∷ auth_map_map_auth know_phys_history_name phys_hists ∗
+      (* The messages in [phys_hists] that precede their corresponding offset
+      (i.e., those that are no longer present the real physical history) don't
+      store any views. *)
+      "#oldViewsDiscarded" ∷
+        ([∗ map] ℓ ↦ hist;offset ∈ phys_hists;offsets,
+          ⌜ ∀ t msg, t < offset → hist !! t = Some msg → discard_msg_views msg = msg ⌝) ∗
       "#crashedAt" ∷ crashed_at CV ∗
 
       (* Ownership over the full knowledge of the abstract history of _all_

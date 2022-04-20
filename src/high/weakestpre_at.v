@@ -789,6 +789,30 @@ Section wp_at_rules.
       done.
   Qed.
 
+  (* Rule for store on an atomic. *)
+  Lemma wp_store_at_strong R Q ℓ s_i s_t v_t (prot : LocationProtocol ST) st E :
+    {{{
+      ⎡ is_at_loc ℓ ⎤ ∗
+      store_lb ℓ prot s_i ∗
+      (* [s_l] is the state of the store that ours end up just after in the
+      history. *)
+      (∀ s_l v_l, ⌜ s_i ⊑ s_l ⌝ -∗ ∃ s_t,
+        (* The state we picked fits in the history. *)
+        (∀ v_i s_n v_n, ⌜ s_l ⊑ s_n ⌝ -∗
+          prot.(pred) s_i v_i _ -∗
+          prot.(pred) s_l v_l _ -∗
+          prot.(pred) s_n v_n _ -∗
+          ⌜ s_l ⊑ s_t ⌝ ∗ ⌜ s_t ⊑ s_n ⌝) ∧
+        (* Extract from the location we load. *)
+        (<obj> (prot.(pred) s_l v_l _ -∗ prot.(pred) s_l v_l _ ∗ R s_l)) ∗
+        (* Establish the invariant for the value we store. *)
+        (R s_l -∗ prot.(pred) s_t v_t _ ∗ Q s_t))
+    }}}
+      #ℓ <-_AT v_t @ st; E
+    {{{ RET #(); store_lb ℓ prot s_t ∗ Q s_t }}}.
+  Proof.
+  Admitted.
+
   (** [Q1] is the resource we want to extract in case of success and and [Q2] is
   the resource we want to extract in case of failure. *)
   Lemma wp_cmpxchg_at Q1 Q2 Q3 ℓ prot s_i (v_i : val) v_t R s_t st E :

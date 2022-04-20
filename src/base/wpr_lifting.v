@@ -5,7 +5,7 @@ From Perennial.base_logic.lib Require Import proph_map.
 From Perennial.algebra Require Import proph_map.
 From Perennial.program_logic Require Import recovery_weakestpre recovery_adequacy.
 
-From self Require Import extra ipm_tactics if_non_zero view_slice.
+From self Require Import extra map_extra ipm_tactics if_non_zero view_slice.
 From self.lang Require Import lang.
 From self.base Require Import primitive_laws post_crash_modality.
 
@@ -160,7 +160,7 @@ Section wpr.
         iPureGoal; first done.
         iPureIntro.
         eapply (map_Forall_lookup_1 _ _ _ _ map).
-        rewrite /cut_history.
+        rewrite /drop_above.
         apply map_filter_lookup_Some_2; [done| reflexivity]. }
     iSplit.
     * simpl.
