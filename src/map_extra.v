@@ -68,6 +68,15 @@ Section map_sequence.
     - intros [? _]. done.
   Qed.
 
+  Lemma map_sequence_lookup_lo_cons m lo hi xs x :
+    m !! lo = Some x → map_sequence m lo hi xs → ∃ xs', x :: xs' = xs.
+  Proof.
+    destruct xs as [|? xs]; [done|]. simpl.
+    destruct xs as [|x' xs].
+    - intros ? [? ->]. exists []. congruence.
+    - intros ? [? _]. exists (x' :: xs). congruence.
+  Qed.
+
   Lemma map_sequence_nonempty m lo hi xs : map_sequence m lo hi xs → xs ≠ [].
   Proof. by destruct xs. Qed.
 
@@ -232,12 +241,39 @@ Section map_sequence.
       map_sequence m lo2 hi (y :: xs).
   Proof. intros [a (lo2 & ?)]. exists lo2. naive_solver. Qed.
 
-  Lemma map_sequence_prefix lo hi t ss m :
-    map_sequence m lo hi ss →
+  Lemma map_sequence_prefix lo hi t xs x m :
+    m !! t = Some x →
+    map_sequence m lo hi xs →
     lo ≤ t ≤ hi →
-    ∃ ss', ss' `prefix_of` ss ∧
-    map_sequence m lo t ss.
-  Proof. Admitted.
+    ∃ xs', xs' `prefix_of` xs ∧ map_sequence m lo t xs' ∧ last xs' = Some x.
+  Proof.
+    intros look.
+    generalize dependent lo.
+    induction xs as [|x1 xs IH]; first done.
+    intros lo.
+    destruct (decide (lo = t)).
+    { simplify_eq.
+      intros. eexists [x].
+      eassert _ as eq. { eapply map_sequence_lookup_lo_cons; done. }
+      destruct eq as [xs' <-].
+      split_and!; try done.
+      apply prefix_cons. apply prefix_nil. }
+    destruct xs as [|x2 xs].
+    { simpl. intros ??. lia. }
+    intros (look' & lo' & ? & between & slice) inter.
+    assert (lo' <= t <= hi) as inter2.
+    { split; last lia.
+      destruct (Nat.le_gt_cases lo' t) as [?|lt]; first done.
+      assert (m !! t = None); last congruence.
+      apply between. lia. }
+    destruct (IH _ slice inter2) as (xs' & ? & ? & lastEq).
+    eexists (x1 :: xs').
+    split. { apply prefix_cons. done. }
+    split.
+    { destruct xs'. { simpl in lastEq. congruence. }
+      split; first done. exists lo'. done. }
+    rewrite last_cons. rewrite lastEq. done.
+  Qed.
 
 End map_sequence.
 
