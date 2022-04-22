@@ -164,6 +164,25 @@ Section increasing_map.
       apply increasing; done.
   Qed.
 
+  Lemma increasing_map_fmap R m f `{!Proper (R ==> R) f} :
+    increasing_map R m →
+    increasing_map R (f <$> m).
+  Proof.
+    intros incr.
+    intros ????? (? & <- & ?)%lookup_fmap_Some (? & <- & ?)%lookup_fmap_Some.
+    f_equiv.
+    eapply incr; done.
+  Qed.
+
+  Lemma increasing_map_filter R P `{∀ x, Decision (P x)} m :
+    increasing_map R m →
+    increasing_map R (filter P m).
+  Proof.
+    intros incr.
+    intros ????? [??]%map_filter_lookup_Some [??]%map_filter_lookup_Some.
+    eapply incr; done.
+  Qed.
+
 End increasing_map.
 
 Definition increasing_list {A} (R : relation A) (ss : list A) :=

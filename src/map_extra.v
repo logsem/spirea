@@ -332,9 +332,26 @@ End map_no_later.
 Section drop_above.
   Context {A : Type}.
 
-  (* Removes all entries from [m] after [t]. *)
+  (* Removes all entries from [m] after [t]. Note, there aren't that many lemmas
+  about [drop_above]. In most cases we unfold it and use lemmas for [filter]. *)
   Definition drop_above t (m : gmap nat A) : gmap nat A :=
     filter (λ '(t', ev), t' ≤ t) m.
+
+  Lemma drop_above_lookup_t m t :
+    drop_above t m !! t = m !! t.
+  Proof.
+    rewrite map_filter_lookup.
+    destruct (m !! t); last done. simpl.
+    rewrite option_guard_True; done.
+  Qed.
+
+  Lemma map_no_later_drop_above t m :
+    map_no_later (drop_above t m) t.
+  Proof.
+    rewrite /map_no_later /drop_above => t2 le.
+    apply map_filter_lookup_None. right.
+    intros ??. lia.
+  Qed.
 
 End drop_above.
 
