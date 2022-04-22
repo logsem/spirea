@@ -17,12 +17,16 @@ Section or_lost_post_crash.
       ((∃ t, ⌜CV !! ℓ = Some (MaxNat t)⌝ ∗ persisted_loc ℓ 0 ∗ P t)
       ∨ ⌜CV !! ℓ = None⌝))%I.
 
-  Instance or_lost_post_crash_proper ℓ :
+  Global Instance or_lost_post_crash_proper ℓ :
     Proper (pointwise_relation _ (⊣⊢) ==> (⊣⊢)) (or_lost_post_crash ℓ).
   Proof. solve_proper. Qed.
 
   Definition or_lost_post_crash_no_t ℓ (P : iProp Σ) :=
     or_lost_post_crash ℓ (λ _, P).
+
+  Global Instance or_lost_post_crash_no_t_proper ℓ :
+    Proper ((⊣⊢) ==> (⊣⊢)) (or_lost_post_crash_no_t ℓ).
+  Proof. solve_proper. Qed.
 
   (* A [dProp] version of [or_lost_post_crash]. *)
   Definition or_lost_with_t ℓ (P : time → dProp Σ) : dProp Σ :=
@@ -81,13 +85,16 @@ Section or_lost_post_crash.
   Qed.
 
   Lemma or_lost_post_crash_mono ℓ P Q :
-    (∀ t, ("#per" ∷ persisted_loc ℓ 0) -∗ P t -∗ Q t) -∗
+    (∀ t CV,
+      ("#per" ∷ persisted_loc ℓ 0 ∗
+       "#crashed" ∷ crashed_at CV ∗
+       "%cvLook" ∷ ⌜ CV !! ℓ = Some (MaxNat t) ⌝) -∗ P t -∗ Q t) -∗
     or_lost_post_crash ℓ P -∗ or_lost_post_crash ℓ Q.
   Proof.
-    iIntros "pToQ (%CV & crashed & disj)".
+    iIntros "pToQ (%CV & #crashed & disj)".
     iExists CV. iFrame "crashed". iDestruct "disj" as "[(% & % & #per & P) | %lost]".
     - iLeft. iExists _. iFrame "#". iSplitPure; first done.
-      iApply ("pToQ" with "[$] P").
+      iApply ("pToQ" with "[$per $crashed //] P").
     - iRight. iFrame (lost).
   Qed.
 

@@ -126,14 +126,22 @@ Section if_rec.
     ⊢ if_rec ℓ ⎡ persisted_loc ℓ 0 ⎤.
   Proof. ifRecIntro. iFrame "#". Qed.
 
-  Lemma or_lost_if_rec_embed ℓ P TV :
-    or_lost_post_crash_no_t ℓ P -∗ (if_rec ℓ ⎡ P ⎤) TV.
+  Lemma or_lost_if_rec_at ℓ (P : dProp Σ) TV :
+    or_lost_post_crash_no_t ℓ (P TV) -∗ (if_rec ℓ P) TV.
   Proof.
     iDestruct 1 as (CV) "[crash disj]".
     iIntros (CV'). monPred_simpl. iIntros (??). monPred_simpl.
     iIntros ([??] ??). monPred_simpl. iIntros "crashed" (??) "pers".
     iDestruct (crashed_at_agree with "crash crashed") as %->.
-    iDestruct "disj" as "[(%t & %look & [_ $]) | %]". congruence.
+    iApply monPred_mono.
+    2: { iDestruct "disj" as "[(%t & %look & [_ $]) | %]". congruence. }
+    etrans; first done. etrans; first done. done.
+  Qed.
+
+  Lemma or_lost_if_rec_embed ℓ P TV :
+    or_lost_post_crash_no_t ℓ P -∗ (if_rec ℓ ⎡ P ⎤) TV.
+  Proof.
+    iIntros "H". iApply or_lost_if_rec_at. rewrite monPred_at_embed. iApply "H".
   Qed.
 
   Lemma if_rec_or_lost_with_t ℓ P :
