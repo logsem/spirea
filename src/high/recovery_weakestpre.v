@@ -356,20 +356,39 @@ Section wpr.
   Definition offsets_add : gmap loc nat → view → gmap loc nat :=
     map_zip_with (λ (n : nat) '(MaxNat m), n + m).
 
-  (* Lemma slice_of_hist_drop CV (phys_hists : store) (offsets : gmap loc nat) : *)
-  (*   slice_of_hist CV (map_zip_with drop_prefix phys_hists offsets) = *)
-  (*     map_zip_with drop_prefix phys_hists (offsets_add offsets CV). *)
-  (* Proof. *)
-  (* Admitted. *)
+  Lemma map_zip_with_drop_prefix_fmap (f : message → message) (m : store) (offsets : gmap loc nat) :
+    map_zip_with drop_prefix ((λ hist, f <$> hist) <$> m) offsets =
+      (λ hist, f <$> hist) <$> (map_zip_with drop_prefix m offsets).
+  Proof.
+    rewrite map_zip_with_fmap_1.
+    rewrite map_fmap_zip_with.
+    (* We can't rewrite under the binder with [drop_prefix_fmap] :'( for some
+    reason. So we get rid of the binder. *)
+    apply map_eq. intros i.
+    rewrite !map_lookup_zip_with.
+    destruct (m !! i); destruct (offsets !! i); simpl; try done.
+    rewrite drop_prefix_fmap.
+    done.
+  Qed.
+
+  Lemma slice_of_hist_drop CV (phys_hists : store) (offsets : gmap loc nat) :
+    slice_of_hist CV (map_zip_with drop_prefix phys_hists offsets) =
+    map_zip_with drop_prefix (drop_all_above (offsets_add offsets CV) phys_hists) (offsets_add offsets CV).
+  Proof.
+  Admitted.
 
   Lemma slice_of_store_drop CV (phys_hists : store) (offsets : gmap loc nat) :
-    slice_of_store CV (map_zip_with drop_prefix phys_hists offsets)
-    =
-    map_zip_with drop_prefix
-            ((λ hist : history, discard_msg_views <$> hist) <$>
-            drop_all_above (offsets_add offsets CV) phys_hists)
-            (offsets_add offsets CV).
-  Proof. Admitted.
+    slice_of_store CV (map_zip_with drop_prefix phys_hists offsets) =
+      map_zip_with drop_prefix
+              ((λ hist : history, discard_msg_views <$> hist) <$>
+              drop_all_above (offsets_add offsets CV) phys_hists)
+              (offsets_add offsets CV).
+  Proof.
+    rewrite /slice_of_store.
+    rewrite map_zip_with_drop_prefix_fmap.
+    rewrite slice_of_hist_drop.
+    done.
+  Qed.
 
   (* Lemma slice_of_store_drop CV (phys_hists : store) (offsets : gmap loc nat) : *)
   (*   slice_of_store CV (map_zip_with drop_prefix phys_hists offsets) = *)
