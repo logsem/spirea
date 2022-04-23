@@ -872,13 +872,12 @@ Section wpr.
       (* "post_crash_full_history_map" *)
       rewrite /post_crash_full_history_map.
       iSplitL "atLocsHistories".
-      { iIntros (ℓ q hist) "[hist frag]".
+      { iIntros (ℓ q hist) "hist".
         iDestruct (full_map_full_entry with "oldFullHist hist") as %look.
         destruct (decide (ℓ ∈ at_locs)) as [?|notElem].
         { iDestruct (big_sepM_lookup with "atLocsHistories") as "H".
           { apply restrict_lookup_Some; done. }
-          iCombine "hist frag" as "H2".
-          iCombine "H H2" as "H2".
+          iCombine "H hist" as "H2".
           iDestruct (full_entry_valid with "H2") as %val.
           iPureIntro. exfalso.
           apply (Qp_not_add_le_l 1 q).
@@ -891,8 +890,7 @@ Section wpr.
       iSplitL "".
       { iIntros (ℓ bumper). iApply (ghost_map_lookup with "oldBumpers"). }
       iDestruct (big_sepM_impl_strong with "naHistories []") as "[$ H]".
-      iIntros "!>" (ℓ ?).
-      iIntros "pts".
+      iIntros "!>" (ℓ oldAbsHist) "pts".
       iIntros ([absHistLook elem]%restrict_lookup_Some).
       assert (is_Some (bumpers !! ℓ)) as [bumper ?].
       { apply elem_of_dom.

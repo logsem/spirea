@@ -396,11 +396,11 @@ Section points_to_at_more.
       as (?) "(%le & offset2 & order & bumper & hist)";
       first done.
     iDestruct (if_rec_get with "[$] [$] pred") as "pred"; first done.
-    iDestruct (if_rec_get with "[$] [$] offset") as (offset2) "[% offset]"; first done.
+    iDestruct (if_rec_get with "[$] [$] offset") as (tC ?) "(% & ? & offset)"; first done.
     iDestruct (ghost_map_elem_agree with "offset offset2") as %<-.
     iExists tP, _.
     iFrame "∗#".
-    assert (tP - offset2 = 0) as ->. { lia. }
+    assert (tP - (offset + tC) = 0) as ->. { lia. }
     iDestruct (have_SV_0) as "$".
     iDestruct (have_FV_0) as "$".
     done.
@@ -474,55 +474,47 @@ Section points_to_at_more.
     iDestruct (post_crash_know_full_history_loc with "[$bumper $hist]") as "H".
     iDestruct "physMsg" as "-#physMsg".
     iDestruct "pers" as "-#pers".
+    iDestruct "offset" as "-#offset".
     iCrash.
-    iDestruct "pers" as "#pers".
-    iDestruct (if_rec_is_rec ℓ) as "rec".
     iModIntro.
-    iDestruct "rec" as (CV [[t]?]) "[crashed pers']".
-    iDestruct (or_lost_with_t_get with "[$] H")
-      as (sNew tR look) "(bump & fullHist & fragHist & crashedIn)"; first done.
+    iDestruct "offset" as (tC CV cvLook) "(crashed & offset)".
+    iDestruct "H" as (?? absHistLook) "( bumper & offset' & fullHist & fragHist)".
+    iDestruct (ghost_map_elem_agree with "offset offset'") as %<-.
+    iClear "offset'".
+    assert (offset + tC ≤ tHi). { eapply map_no_later_Some; done. }
 
-    assert (tR ≤ tHi). { eapply map_no_later_Some; done. }
-    iAssert (⌜ tLo ≤ tR ⌝)%I as %?.
-    { admit. }
-
+    iAssert (⌜ tLo ≤ offset + tC ⌝)%I as %?.
+    { iDestruct "pers" as "[(_ & (%CV' & % & [% %] & crashed'))|%eq]".
+      - iDestruct (crashed_at_agree with "crashed crashed'") as %<-.
+        simplify_eq. iPureIntro. lia.
+      - iPureIntro. lia. }
     eassert _ as HT. { eapply map_sequence_prefix; done. }
-    destruct HT as (ss' & prefix & slice').
-
+    destruct HT as (ss' & prefix & slice' & lastEq').
     iExists (ss').
     iSplitPure; first done.
-
-    (*
-    iAssert (⌜ tP ≤ t ⌝)%I as %?.
-    { iDestruct "pers" as "[(_ & (%CV' & % & [% %] & crashed'))|->]";
-        last (iPureIntro; lia).
-      iDestruct (crashed_at_agree with "crashed crashed'") as %<-.
-      iPureIntro.
-      assert (t = t'); last lia.
-      congruence. }
+    iExists tLo, (offset + tC), (offset + tC), ∅, _, (Msg _ ∅ ∅ ∅), _.
+    iFrame. iFrame "#".
+    iPureGoal. { rewrite fmap_last. rewrite lastEq'. done. }
+    iPureGoal.
+    { apply: increasing_map_fmap.
+      apply increasing_map_filter.
+      done. }
+    iPureGoal.
+    { rewrite lookup_fmap.
+      rewrite drop_above_lookup_t.
+      rewrite absHistLook.
+      done. }
+    iPureGoal. {
+      apply map_no_later_fmap.
+      apply map_no_later_drop_above. }
+    iPureGoal. { admit. (* FIXME: Wee need some more lemmas but nothing crazy. *) }
+    iPureGoal; first lia.
     iSplit.
-    { iPureIntro. apply: map_sequence_lookup_between; try done.
-      split; first done.
-      eapply map_no_later_Some; try naive_solver. }
-
-    iDestruct "physMsg" as (v) "hist".
-
-    rewrite /crashed_in.
-    iSplit.
-    +
-      *)
-      iExists tLo, tR, tR, ∅, _, (Msg _ ∅ ∅ ∅), _. iFrame. iFrame "#".
+    { admit. (* FIXME: Figure out the best way to carry the phys hist through the crash. *) }
+    iSplit. { simpl. iApply monPred_in_bottom. }
+    iSplitPure; first lia.
+    iRight. iPureIntro. lia.
   Admitted.
-  (*     iPureGoal. { done. } *)
-  (*     iPureGoal. { apply increasing_map_singleton. } *)
-  (*     iPureGoal. { by rewrite lookup_singleton. } *)
-  (*     iPureGoal. { apply map_no_later_singleton. } *)
-  (*     iPureGoal. { by rewrite lookup_singleton. } *)
-  (*     iSplit. { simpl. iApply monPred_in_bottom. } *)
-  (*     done. *)
-  (*   + iExists _. iFrame "∗#". *)
-  (*     iPureIntro. rewrite elem_of_dom. naive_solver. *)
-  (* Qed. *)
 
   Global Instance mapsto_na_into_crash ℓ prot q (ss : list ST) :
     IntoCrash (ℓ ↦_{prot}^{q} ss)%I _ := post_crash_mapsto_na ℓ prot q ss.
@@ -550,7 +542,8 @@ Section points_to_at_more.
     iDestruct (or_lost_with_t_get with "crashed HI") as "HI"; first done.
     iDestruct (if_rec_get with "crashed pers pred") as "pred"; first done.
     iDestruct "HI" as (offset' impl) "(#offset2 & #? & #? & #?)".
-    iDestruct (if_rec_get with "[$] [$] offset") as (offset2) "[% offset]"; first done.
+    iDestruct (if_rec_get with "[$] [$] offset")
+      as (offset2) "(% & % & ? & offset)"; first done.
     iDestruct (ghost_map_elem_agree with "offset offset2") as %<-.
     iExists tF, offset2.
     rewrite /lb_base.
