@@ -194,69 +194,47 @@ Section drop_prefix.
   Definition drop_prefix (h : gmap time A) (t : time) : gmap time A :=
     map_fold (λ k v m, if decide (t ≤ k) then <[(k - t) := v]>m else m) ∅ h.
 
-  Lemma drop_prefix_zero h : drop_prefix h 0 = h.
+  Lemma drop_prefix_lookup t h k :
+    drop_prefix h t !! k = h !! (k + t).
   Proof.
     rewrite /drop_prefix.
-    apply map_fold_ind; first done.
-    intros ????? ->.
-    replace (i - 0) with i by lia.
-    apply decide_True. lia.
+    apply (map_fold_ind (λ mr h, mr !! k = h !! (k + t))); first done.
+    intros ????? IH.
+    destruct (decide (i = k + t)) as [eq|neq].
+    - rewrite decide_True; last lia.
+      rewrite -eq.
+      assert (i - t = k) as -> by lia.
+      rewrite !lookup_insert.
+      done.
+    - rewrite lookup_insert_ne; last done. rewrite -IH.
+      destruct (decide (t ≤ i)); last done.
+      rewrite lookup_insert_ne; [done|lia].
+  Qed.
+
+  Lemma drop_prefix_zero h : drop_prefix h 0 = h.
+  Proof.
+    apply map_eq. intros ?. rewrite drop_prefix_lookup.
+    replace (i + 0) with i by lia.
+    done.
   Qed.
 
   Lemma drop_prefix_lookup_Some t (a : A) (h : gmap time A) (k : time) :
-    drop_prefix h t !! k = Some a →
+    drop_prefix h t !! k = Some a ↔
     h !! (k + t) = Some a.
-  Proof.
-    rewrite /drop_prefix.
-    induction h as [|i x m IH] using map_ind; first done.
-    rewrite map_fold_insert_L; last done.
-    - destruct (decide (t ≤ i)).
-      + destruct (decide (i - t = k)) as [eq|neq].
-        * rewrite eq. rewrite lookup_insert.
-          replace (k + t) with i by lia.
-          intros [= ->].
-          rewrite lookup_insert. done.
-        * rewrite lookup_insert_ne; last done.
-          intros ?%IHh.
-          assert (k + t ≠ i) by lia.
-          rewrite lookup_insert_ne; done.
-      + intros ?%IHh.
-        assert (k + t ≠ i) by lia.
-        rewrite lookup_insert_ne; done.
-    - intros j1 j2. intros.
-      destruct (decide (t ≤ j2)); destruct (decide (t ≤ j1)); try done.
-      apply insert_commute. lia.
-  Qed.
+  Proof. rewrite drop_prefix_lookup. done. Qed.
 
   Lemma drop_prefix_lookup_Some_2 t (a : A) h k :
     h !! (k + t) = Some a →
     drop_prefix h t !! k = Some a.
-  Proof. Admitted.
+  Proof. apply drop_prefix_lookup_Some. Qed.
 
 End drop_prefix.
 
 Lemma drop_prefix_fmap {A B} (f : A → B) h t :
   drop_prefix (f <$> h) t = f <$> (drop_prefix h t).
 Proof.
-  rewrite /drop_prefix.
-  induction h as [|i x m IH] using map_ind.
-  { rewrite fmap_empty. done. }
-  rewrite fmap_insert.
-  rewrite map_fold_insert_L; last (rewrite lookup_fmap IH; done).
-  - destruct (decide (t ≤ i)).
-    + rewrite IHh.
-      rewrite map_fold_insert_L; last done.
-      * rewrite decide_True; last done. rewrite fmap_insert. done.
-      * intros.
-        destruct (decide (t ≤ j2)); destruct (decide (t ≤ j1)); try done.
-        apply insert_commute. lia.
-    + rewrite IHh.
-      rewrite map_fold_insert_L; last done.
-      * rewrite decide_False; last done. done.
-      * intros.
-        destruct (decide (t ≤ j2)); destruct (decide (t ≤ j1)); try done.
-        apply insert_commute. lia.
-  - intros.
-    destruct (decide (t ≤ j2)); destruct (decide (t ≤ j1)); try done.
-    apply insert_commute. lia.
+  apply map_eq. intros ?.
+  rewrite lookup_fmap.
+  rewrite !drop_prefix_lookup.
+  apply lookup_fmap.
 Qed.

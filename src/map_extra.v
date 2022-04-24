@@ -345,13 +345,16 @@ Section drop_above.
     rewrite option_guard_True; done.
   Qed.
 
+  Lemma drop_above_lookup_gt m t1 t2 :
+    t1 < t2 → drop_above t1 m !! t2 = None.
+  Proof.
+    intros gt. apply map_filter_lookup_None.
+    right. intros ??. lia.
+  Qed.
+
   Lemma map_no_later_drop_above t m :
     map_no_later (drop_above t m) t.
-  Proof.
-    rewrite /map_no_later /drop_above => t2 le.
-    apply map_filter_lookup_None. right.
-    intros ??. lia.
-  Qed.
+  Proof. rewrite /map_no_later => ??. apply drop_above_lookup_gt. done. Qed.
 
 End drop_above.
 
