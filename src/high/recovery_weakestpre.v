@@ -353,9 +353,6 @@ Section wpr.
     naive_solver.
   Qed.
 
-  Definition offsets_add : gmap loc nat → view → gmap loc nat :=
-    map_zip_with (λ (n : nat) '(MaxNat m), n + m).
-
   Lemma map_zip_with_drop_prefix_fmap (f : message → message) (m : store) (offsets : gmap loc nat) :
     map_zip_with drop_prefix ((λ hist, f <$> hist) <$> m) offsets =
       (λ hist, f <$> hist) <$> (map_zip_with drop_prefix m offsets).
@@ -603,14 +600,14 @@ Section wpr.
       iApply (big_sepM2_dom with "sep"). }
 
     (* [CV] is a valid slice of the physical and abstract history. *)
-    (*
-    assert (valid_slice CV phys_hists) as cvSlicesPhysHists.
+    assert (valid_slice CV (map_zip_with drop_prefix phys_hists offsets))
+      as cvSlicesPhysHists.
     { apply consistent_cut_valid_slice in cut.
       eapply valid_slice_mono_l in cut; last apply physHistsSubStore.
       done. }
-    assert (valid_slice CV abs_hists) as cvSlicesAbsHists.
-    { eapply valid_slice_transfer; done. }
-    *)
+    assert (valid_slice (MaxNat <$> offsets_add offsets CV) abs_hists) as cvSlicesAbsHists.
+    { apply valid_slice_drop_prefix in cvSlicesPhysHists.
+      eapply valid_slice_transfer; done. }
 
     (* We are done allocating ghost state and can now present a new bundle of
     ghost names. *)
@@ -945,22 +942,28 @@ Section wpr.
         eexists _, _.
         split_and!; done. }
       rewrite newAbsHistLook.
+      eassert (is_Some (oldAbsHist !! _)) as [sOld ?].
+      { eapply valid_slice_lookup; try done.
+        rewrite lookup_fmap. rewrite /offsets_add.
+        rewrite map_lookup_zip_with.
+        rewrite cvLook. rewrite H1. simpl.
+        done. }
       iDestruct (big_sepM2_lookup with "bumperSome") as %bv; [done|done|].
-      iExists _, _, _.
+      eassert _ as temp.
+      { eapply map_Forall_lookup_1; [eapply bv|done]. }
+      destruct temp as [sNew ?].
+      iExists _, sOld, _.
       iDestruct (big_sepM_lookup with "offsetPts") as "$"; first done.
       (* iExists s, sBumped. *)
       (* iSplit; first done. *)
-      (* iSplit; first done. *)
+      iSplitPure; first done.
+      iSplitPure; first done.
       iFrame "pts".
-      iDestruct (big_sepM_lookup with "fragHistories") as "frag"; first done.
-      admit.
-      (* iEval (rewrite big_sepM_singleton) in "frag". *)
-      (* rewrite eq. *)
-      (* iFrame "frag". *)
-      (* iApply (big_sepM_lookup with "crashedInPts"). *)
-      (* rewrite lookup_fmap. *)
-      (* erewrite slice_hist_lookup_Some; done. *)
-    }
+      iDestruct (big_sepM_lookup with "fragHistories") as "frags"; first done.
+      (* Note: At this point we could easily give all the fractional entries. *)
+      iDestruct (big_sepM_lookup with "frags") as "$".
+      { apply lookup_omap_Some. eexists _.
+        split; first done. rewrite drop_above_lookup_t. done. } }
     iFrame "valView".
     iSplitPure. { subst. done. }
     (* We show the state interpretation for the high-level logic. *)

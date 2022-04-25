@@ -238,3 +238,42 @@ Proof.
   rewrite !drop_prefix_lookup.
   apply lookup_fmap.
 Qed.
+
+Definition offsets_add : gmap loc nat → view → gmap loc nat :=
+  map_zip_with (λ (n : nat) '(MaxNat m), n + m).
+
+Lemma valid_slice_drop_prefix {A} CV (h : gmap loc (gmap nat A)) offsets :
+  valid_slice CV (map_zip_with drop_prefix h offsets) ↔
+    valid_slice (MaxNat <$> offsets_add offsets CV) h.
+Proof.
+  rewrite /valid_slice.
+  split.
+  - intros H ℓ [[t] hist] (? & ? & [= <- <-] & look & ?)%map_lookup_zip_with_Some.
+    apply lookup_fmap_Some in look as (? & [= ->] & look).
+    rewrite /offsets_add.
+    apply map_lookup_zip_with_Some in look as (tO & [cT] & -> & ? & cvLook).
+    eassert _ as temp. {
+      eapply map_Forall_lookup_1; first apply H.
+      apply map_lookup_zip_with_Some.
+      eexists _, _. split; first done.
+      split; first done.
+      apply map_lookup_zip_with_Some.
+      eexists _, _. done. }
+    destruct temp as [? look].
+    rewrite drop_prefix_lookup in look.
+    setoid_rewrite (comm Nat.add) in look.
+    naive_solver.
+  - intros H ℓ [[t] hist] (? & ? & [= <- <-] & cvLook & look)%map_lookup_zip_with_Some.
+    apply map_lookup_zip_with_Some in look as (? & ? & -> & ? & ?).
+    eassert _ as temp. {
+      eapply map_Forall_lookup_1; first apply H.
+      apply map_lookup_zip_with_Some.
+      eexists _, _. split; first done.
+      split; last done.
+      apply lookup_fmap_Some.
+      eexists _. split; first done.
+      apply map_lookup_zip_with_Some.
+      eexists _, _. split; first done. done. }
+    destruct temp as [? look].
+    eexists _. rewrite drop_prefix_lookup. rewrite (comm Nat.add). done.
+Qed.
