@@ -463,9 +463,11 @@ Section points_to_at_more.
   Lemma post_crash_mapsto_na ℓ prot q (ss : list ST) :
     ℓ ↦_{prot}^{q} ss -∗
     post_crash (λ hG',
-      if_rec ℓ (∃ ss', ⌜ ss' `prefix_of` ss ⌝ ∗
-                       ℓ ↦_{prot}^{q} ((bumper prot) <$> ss'))).
-                (* ∗ crashed_in prot ℓ s)). *)
+      if_rec ℓ (∃ ss' s,
+        ⌜ ss' `prefix_of` ss ⌝ ∗
+        ⌜ last ss' = Some s ⌝ ∗
+        crashed_in prot ℓ s ∗
+        ℓ ↦_{prot}^{q} ((bumper prot) <$> ss'))).
   Proof.
     rewrite /mapsto_na.
     iNamed 1.
@@ -478,7 +480,7 @@ Section points_to_at_more.
     iCrash.
     iModIntro.
     iDestruct "offset" as (tC CV cvLook) "(crashed & offset)".
-    iDestruct "H" as (?? absHistLook) "( bumper & offset' & fullHist & fragHist)".
+    iDestruct "H" as (? s2 absHistLook) "( bumper & offset' & fullHist & fragHist)".
     iDestruct (ghost_map_elem_agree with "offset offset'") as %<-.
     iClear "offset'".
     assert (offset + tC ≤ tHi). { eapply map_no_later_Some; done. }
@@ -490,8 +492,12 @@ Section points_to_at_more.
       - iPureIntro. lia. }
     eassert _ as HT. { eapply map_sequence_prefix; done. }
     destruct HT as (ss' & prefix & slice' & lastEq').
-    iExists (ss').
+    iExists ss', s2.
     iSplitPure; first done.
+    iSplitPure; first done.
+    iSplit.
+    { rewrite /crashed_in.
+      iExists CV. iFrame "#∗". admit. }
     iExists tLo, (offset + tC), (offset + tC), ∅, _, (Msg _ ∅ ∅ ∅), _.
     iFrame. iFrame "#".
     iPureGoal. { rewrite fmap_last. rewrite lastEq'. done. }
@@ -525,7 +531,8 @@ Section points_to_at_more.
 
   Lemma post_crash_flush_flush_lb (ℓ : loc) prot (s : ST) :
     flush_lb ℓ prot s -∗
-    <PCF> hG, persist_lb ℓ prot (bumper prot s).
+    <PCF> hG, persist_lb ℓ prot (bumper prot s) ∗
+              ∃ s__pc, ⌜ s ⊑ s__pc ⌝ ∗ crashed_in prot ℓ s__pc.
   Proof.
     iNamed 1. iNamed "lbBase".
     iDestruct "offset" as "-#offset".
@@ -535,33 +542,34 @@ Section points_to_at_more.
     iCrashFlush.
     iAssert (_)%I with "[viewFact]" as "pers".
     { iDestruct "viewFact" as "[pers | pers]".
-      - iAccu.
-      - iDestruct "pers" as "($ & (%CV & % & [% %] & ?))".
+      - iApply "pers".
+      - iDestruct "pers" as "($ & (%CV & % & % & ?))".
         iExists _, _. iFrame. done. }
     iDestruct "pers" as "(#pers & (%CV & %t & (%cvLook & %le) & #crashed))".
-    iDestruct (or_lost_with_t_get with "crashed HI") as "HI"; first done.
-    iDestruct (if_rec_get with "crashed pers pred") as "pred"; first done.
-    iDestruct "HI" as (offset' impl) "(#offset2 & #? & #? & #?)".
-    iDestruct (if_rec_get with "[$] [$] offset")
-      as (offset2) "(% & % & ? & offset)"; first done.
-    iDestruct (ghost_map_elem_agree with "offset offset2") as %<-.
-    iExists tF, offset2.
-    rewrite /lb_base.
-    iFrame "∗#".
-    assert (tF - offset2 = 0) as ->. { lia. }
-    iDestruct (have_SV_0) as "$".
-    iDestruct (have_FV_0) as "$".
-    done.
-    (* iSplitPure; first by apply impl. *)
-    (* rewrite /crashed_in /persist_lb. *)
-    (* iSplit. *)
-    (* - iExists _. *)
-    (*   iFrame "crashed crashedIn pred". *)
-    (*   iFrame "#". iPureIntro. apply elem_of_dom. done. *)
-    (* - iExists _. iFrame "#∗". *)
-    (*   iDestruct (have_SV_0) as "$". *)
-    (*   iDestruct (have_FV_0) as "$". *)
-  Qed.
+  Admitted.
+  (*   iDestruct (or_lost_with_t_get with "crashed HI") as "HI"; first done. *)
+  (*   iDestruct (if_rec_get with "crashed pers pred") as "pred"; first done. *)
+  (*   iDestruct "HI" as (offset' impl) "(#offset2 & #? & #? & #?)". *)
+  (*   iDestruct (if_rec_get with "[$] [$] offset") *)
+  (*     as (offset2) "(% & % & ? & offset)"; first done. *)
+  (*   iDestruct (ghost_map_elem_agree with "offset offset2") as %<-. *)
+  (*   iExists tF, offset2. *)
+  (*   rewrite /lb_base. *)
+  (*   iFrame "∗#". *)
+  (*   assert (tF - offset2 = 0) as ->. { lia. } *)
+  (*   iDestruct (have_SV_0) as "$". *)
+  (*   iDestruct (have_FV_0) as "$". *)
+  (*   done. *)
+  (*   (* iSplitPure; first by apply impl. *) *)
+  (*   (* rewrite /crashed_in /persist_lb. *) *)
+  (*   (* iSplit. *) *)
+  (*   (* - iExists _. *) *)
+  (*   (*   iFrame "crashed crashedIn pred". *) *)
+  (*   (*   iFrame "#". iPureIntro. apply elem_of_dom. done. *) *)
+  (*   (* - iExists _. iFrame "#∗". *) *)
+  (*   (*   iDestruct (have_SV_0) as "$". *) *)
+  (*   (*   iDestruct (have_FV_0) as "$". *) *)
+  (* Qed. *)
 
   Global Instance know_flush_into_crash ℓ prot (s : ST) :
     IntoCrashFlush (flush_lb ℓ prot s) _ := post_crash_flush_flush_lb ℓ prot s.

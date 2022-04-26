@@ -13,7 +13,7 @@ From Perennial.program_logic Require Import recovery_adequacy.
 From Perennial.program_logic Require Import step_fupd_extra crash_lang crash_weakestpre.
 From Perennial.program_logic Require Import crash_adequacy.
 
-From self Require Import ipm_tactics extra encode_relation.
+From self Require Import ipm_tactics extra encode_relation view_slice.
 From self.lang Require Import lang.
 From self.algebra Require Import ghost_map ghost_map_map.
 From self.base Require Import cred_frag crash_borrow adequacy. (* To get [recv_adequace]. *)
@@ -499,6 +499,7 @@ Proof.
   (* Allocate set of non-atomic locations. *)
   iMod (own_alloc (● (∅ : gsetUR _))) as (exclusive_locs_name) "naLocs".
   { apply auth_auth_valid. done. }
+  iMod (ghost_map_alloc (∅ : gmap loc nat)) as (offsets_name) "(offsets & _)".
   iMod (ghost_map_alloc (∅ : gmap loc view)) as (na_views_name) "(na_views & _)".
   iMod (ghost_map_alloc (∅ : gmap loc positive)) as (crashed_in_name) "(crashedIn & _)".
   iMod (own_all_bumpers_alloc ∅) as (bumpers_name) "[bumpers #bumpersFrag]".
@@ -510,6 +511,7 @@ Proof.
                crashed_in_name := crashed_in_name;
                predicates_name := predicates_name;
                preorders_name := orders_name;
+               offset_name := offsets_name;
                shared_locs_name := shared_locs_name;
                exclusive_locs_name := exclusive_locs_name;
                bumpers_name := bumpers_name;
@@ -531,6 +533,7 @@ Proof.
   repeat iExists ∅.
   simpl.
   iFrame.
+  rewrite map_zip_with_empty.
   iEval (rewrite !big_sepM2_empty).
   iEval (rewrite !big_sepM_empty).
   rewrite !left_id.
@@ -655,6 +658,9 @@ Section loc_info.
   Definition mk_bumpers lif : gmap loc _ :=
     (λ li, encode_bumper (li.(loc_prot).(bumper))) <$> lif.
 
+  Definition mk_offsets lif : gmap loc nat :=
+    (const 0) <$> lif.
+
   Definition mk_order lif : gmap loc (relation2 positive) :=
     (λ li, encode_relation (@abs_state_relation _ _ _ (li.(loc_state_abstractstate)))) <$> lif.
 
@@ -772,6 +778,7 @@ Proof.
     as (exclusive_locs_name) "[naLocs #naLocsF]".
   { apply auth_both_valid. done. }
   iMod (ghost_map_alloc (mk_na_views na_locs lif)) as (na_views_name) "(na_views & naViewsF)".
+  iMod (ghost_map_alloc_persistent (mk_offsets lif)) as (offsets_name) "(offsets & #offsetsPts)".
   iMod (ghost_map_alloc (∅ : gmap loc positive)) as (crashed_in_name) "(crashedIn & _)".
   iMod (own_all_bumpers_alloc (mk_bumpers lif)) as (bumpers_name) "[bumpers #bumpersFrag]".
   iMod (auth_map_map_alloc σ) as (phys_hist_name) "[physHist #physHistF]".
@@ -782,6 +789,7 @@ Proof.
                crashed_in_name := crashed_in_name;
                predicates_name := predicates_name;
                preorders_name := orders_name;
+               offset_name := offsets_name;
                shared_locs_name := shared_locs_name;
                exclusive_locs_name := exclusive_locs_name;
                bumpers_name := bumpers_name;
@@ -790,7 +798,9 @@ Proof.
 
   assert (dom (gset loc) init_heap = dom _ absHist) as domEq2.
   { rewrite /absHist. rewrite /mk_abs_hist. rewrite dom_fmap_L. done. }
-
+  assert (dom (gset loc) σ = dom (gset loc) (mk_offsets lif)) as domEq3.
+  { rewrite /mk_offsets. rewrite dom_fmap_L. rewrite domEq.
+    rewrite /σ /initial_heap. apply dom_fmap_L. }
   (* End allocate ghost state. *)
   eassert (absHist = _ ∪ _) as split.
   { eapply restrict_disjoint_union. rewrite -domEq2. symmetry. apply locsEq. }
@@ -830,7 +840,7 @@ Proof.
     iExists li.
     iSplitPure; first done. rewrite /persist_lb. rewrite /mapsto_na.
     iSplit.
-    { iExists 0.
+    { iExists 0, 0.
       iDestruct (persisted_persisted_loc with "pers") as "$".
       { rewrite /PV. rewrite lookup_fmap. rewrite H. done. }
       simpl.
@@ -843,6 +853,9 @@ Proof.
       rewrite /know_bumper.
       iDestruct (big_sepM_lookup with "bumpersFrag") as "$".
       { rewrite /mk_bumpers. rewrite lookup_fmap lifLook. done. }
+      iDestruct (big_sepM_lookup with "offsetsPts") as "$".
+      { rewrite /mk_offsets. rewrite lookup_fmap lifLook. done. }
+      rewrite -!assoc.
       iSplitPure. { apply bumper_mono. }
       iSplit.
       { iExists (encode _).
@@ -853,7 +866,7 @@ Proof.
         iFrame "hf". }
       rewrite view_lookup_zero_empty.
       done. }
-    iExists 0, 0, _, _, _, _.
+    iExists 0, 0, 0, _, _, _, _.
     iSplitPure; first done.
     iSplit.
     { rewrite /know_protocol.
@@ -879,12 +892,15 @@ Proof.
       iDestruct (big_sepM_lookup _ _ ℓ with "histFrag") as "hf".
       { rewrite /mk_abs_hist. rewrite lookup_fmap lifLook. done. }
       rewrite big_sepM_singleton. iFrame "hf". }
+    iDestruct (big_sepM_lookup with "offsetsPts") as "$".
+    { rewrite /mk_offsets. rewrite lookup_fmap lifLook. done. }
     iFrameF "naView".
     iSplitPure; first done.
     iDestruct (auth_map_map_frag_lookup_singleton with "physHistF") as "$".
     { rewrite /σ. rewrite lookup_fmap. rewrite H. simpl. done. }
     { rewrite lookup_singleton. done. }
     simpl.
+    iSplitPure. { done. }
     iSplitPure. { done. }
     iSplitPure. { done. }
     iRight. done. }
@@ -897,7 +913,7 @@ Proof.
     iExists li. iSplitPure; first done.
     rewrite /persist_lb. simpl.
     iSplit. { iApply location_sets_lookup; done. }
-    iExists 0.
+    iExists 0, 0.
     iDestruct (persisted_persisted_loc with "pers") as "$".
     { rewrite /PV. rewrite lookup_fmap. rewrite H. done. }
     simpl.
@@ -910,7 +926,10 @@ Proof.
     rewrite /know_bumper.
     iDestruct (big_sepM_lookup with "bumpersFrag") as "$".
     { rewrite /mk_bumpers. rewrite lookup_fmap lifLook. done. }
+    rewrite -!assoc.
     iSplitPure. { apply bumper_mono. }
+    iDestruct (big_sepM_lookup with "offsetsPts") as "$".
+    { rewrite /mk_offsets. rewrite lookup_fmap lifLook. done. }
     iSplit.
     { iExists (encode _).
       iSplitPure. { setoid_rewrite decode_encode. done. }
@@ -923,14 +942,38 @@ Proof.
   iModIntro.
   iSplitPure; first done.
   iDestruct (wptp_recv_strong_adequacy _ _ [] _ (NvmDeltaG names hD)
-    with "[predsHold bumpers ctx Ha hists' atLocs naLocs physHist crashedIn atHistPts preds orders na_views] [credAuth Htok]") as "HIP".
+    with "[predsHold bumpers ctx Ha hists' atLocs naLocs physHist offsets
+          crashedIn atHistPts preds orders na_views] [credAuth Htok]") as "HIP".
   { done. }
   { (* Show the state interpretaion. *)
     simpl.
     iFrame "ctx".
-    iExists _, _, preds, _, _, _, na_locs, at_locs. iExists _.
-    iFrameF "Ha".
+    iExists _, _, preds, _, _, _, na_locs, at_locs. iExists (mk_offsets lif), _.
+    iFrame "physHist".
+    iFrame "offsets".
+    iSplitL "Ha".
+    {
+      assert (map_zip_with view_slice.drop_prefix σ (mk_offsets lif) = σ).
+      { rewrite /mk_offsets.
+        apply map_eq. intros ℓ.
+        rewrite map_lookup_zip_with.
+        destruct (σ !! ℓ) eqn:look; simpl; last done.
+        rewrite lookup_fmap.
+        assert (is_Some (lif !! ℓ)) as [? ->].
+        { apply elem_of_dom. rewrite domEq.
+          apply lookup_fmap_Some in look as (? & ? & ?).
+          apply elem_of_dom. done. }
+        simpl.
+        rewrite drop_prefix_zero. done. }
+      rewrite H.
+      iFrame "Ha". }
     iFrame.
+    (* oldViewsDiscarded *)
+    iSplit.
+    { iApply big_sepM2_forall.
+      iSplitPure. { apply dom_eq_alt_L. apply domEq3. }
+      rewrite /mk_offsets.
+      iIntros (???? (? & <- & ?)%lookup_fmap_Some ?? lt). simpl in lt. lia. }
     iFrameF "crashedAt".
     iFrameF "histFrag".
     iSplitPure; first done.

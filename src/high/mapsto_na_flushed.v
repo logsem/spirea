@@ -7,7 +7,8 @@ From iris.proofmode Require Import tactics.
 
 From self.high Require Import proofmode wpc_proofmode if_rec.
 From self.high Require Import dprop abstract_state_instances modalities
-     resources crash_weakestpre weakestpre weakestpre_na weakestpre_at
+     resources crash_weakestpre weakestpre
+     weakestpre_na weakestpre_at
      recovery_weakestpre protocol no_buffer.
 From self.high.modalities Require Import fence.
 
@@ -33,7 +34,7 @@ Section mapsto_na_flushed.
     iDestruct 1 as (ss' last') "[pts' lb']".
     rewrite /mapsto_na. iNamed "pts".
     simplify_eq.
-    iDestruct "pts'" as (??????) "(% & ? & ? & ? & %look & %nolater' & ? & ? & ? & ? & ? & ? & ? & ?)".
+    iDestruct "pts'" as (???????) "(% & ? & ? & ? & %look & %nolater' & ? & ? & ?)".
     simplify_eq.
     iDestruct (full_entry_unenc_agree with "hist [$]") as %<-.
     iPureIntro.
@@ -88,23 +89,24 @@ Section mapsto_na_flushed.
     iDestruct (post_crash_mapsto_na with "pts") as "pts".
     iDestruct (post_crash_flush_post_crash with "pts") as "pts".
     iCrashFlush.
-    iDestruct "flushLb" as (s' le) "(#crashedIn & persistLb)".
-    iDestruct (crashed_in_if_rec with "crashedIn pts") as "(%s'' & %elem & pts & chr2)".
-    iDestruct (crashed_in_agree with "crashedIn chr2") as %<-.
+    (* rewrite /persist_lb. *)
+    iDestruct "flushLb" as "(persistLb & (%sPC & %le & #crashedIn))".
+    iDestruct (crashed_in_if_rec with "crashedIn pts")
+      as "(%s'' & %s' & %pre & %last & chr2 & pts)".
+    iDestruct (crashed_in_agree with "crashedIn chr2") as %->.
     assert (s = s') as <-.
     { apply (anti_symm (⊑@{ST})); first done.
-      apply elem_of_list_lookup_1 in elem as (? & ?).
-      apply: increasing_list_last_greatest; done. }
+      rewrite last_lookup in last.
+      (* apply elem_of_list_lookup_1 in elem as (? & ?). *)
+      (* admit. (* Need lemmas but is easy. *) } *)
+      apply: increasing_list_last_greatest; try done.
+      eapply prefix_lookup; done. }
     iFrame.
-    iExists [_]. iSplitPure; first done. iFrame "pts".
-    iExists _. iFrame.
-    iNamed "crashedIn".
-    iFrame "locationProtocol knowFragHist".
-    iDestruct (have_SV_0) as "$".
+    iExists _. iFrame "pts".
+    iSplitPure. { rewrite fmap_last. rewrite last. done. }
     rewrite /persist_lb.
-    iDestruct "persistLb" as (?) "(? & ? & ? & ? & per)".
-    iRight. iApply (primitive_laws.persisted_loc_weak with "per").
-    lia.
+    iDestruct "persistLb" as (??) "((? & ? & offset & ?) & ? & per)".
+    iExists _, _. iFrame.
   Qed.
 
 End mapsto_na_flushed.

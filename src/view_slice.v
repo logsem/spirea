@@ -228,6 +228,17 @@ Section drop_prefix.
     drop_prefix h t !! k = Some a.
   Proof. apply drop_prefix_lookup_Some. Qed.
 
+  Lemma drop_prefix_insert t1 t2 a h :
+    <[t2 := a]>(drop_prefix h t1) = drop_prefix (<[t2 + t1 := a]> h) t1.
+  Proof.
+    apply map_eq. intros i. rewrite drop_prefix_lookup.
+    destruct (decide (i = t2)) as [->|neq].
+    - rewrite !lookup_insert. done.
+    - rewrite lookup_insert_ne; last congruence.
+      rewrite lookup_insert_ne; last lia.
+      apply drop_prefix_lookup.
+  Qed.
+
 End drop_prefix.
 
 Lemma drop_prefix_fmap {A B} (f : A → B) h t :

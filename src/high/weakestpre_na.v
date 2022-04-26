@@ -51,10 +51,11 @@ Section wp_na_rules.
     simpl.
     iFrame "val".
 
+    iDestruct (big_sepM2_dom with "oldViewsDiscarded") as %offsetsDom.
     (* The new location is not in the existing [phys_hist]. *)
     destruct (phys_hists !! ℓ) eqn:physHistsLook.
     { assert (is_Some (offsets !! ℓ)) as (? & ?).
-      { apply elem_of_dom. rewrite offsetDom. apply elem_of_dom. done. }
+      { apply elem_of_dom. rewrite -offsetsDom. apply elem_of_dom. done. }
       iDestruct (big_sepM_lookup with "ptsMap") as "pts'".
       { apply map_lookup_zip_with_Some. naive_solver. }
       iDestruct (mapsto_valid_2 with "pts pts'") as (?) "_".
@@ -166,9 +167,9 @@ Section wp_na_rules.
       iFrame. }
     iFrame "ordered bumpMono".
     iFrame (mapShared).
-    (* [offsetDom] *)
-    iSplitPure.
-    { rewrite 2!dom_insert_L. rewrite offsetDom. set_solver+. }
+    (* [oldViewsDiscarded] *)
+    iSplit.
+    { iFrame "oldViewsDiscarded". iIntros (???). lia. }
     (* historyFragments *)
     iSplit.
     { iFrame "historyFragments fragHist". }
@@ -376,7 +377,7 @@ Section wp_na_rules.
     iStartProof (iProp _). iIntros (TV).
     iIntros "(pts & phi)".
     rewrite /mapsto_na.
-    iDestruct "pts" as (?tP ?tS SV absHist msg) "pts". iNamed "pts".
+    iDestruct "pts" as (?tP ?tS offset SV absHist msg) "pts". iNamed "pts".
     assert (a = s__last) as -> by congruence.
     iNamed "locationProtocol".
     iDestruct "inThreadView" as %inThreadView.
@@ -413,20 +414,24 @@ Section wp_na_rules.
 
     iDestruct (big_sepM2_dom with "predsHold") as %domPhysHistEqAbsHist.
 
+    iDestruct (ghost_map_lookup with "offsets offset") as %?.
+
     assert (is_Some (phys_hists !! ℓ)) as [physHist physHistsLook]
       by by eapply map_dom_eq_lookup_Some.
     iDestruct (bumpers_lookup with "allBumpers knowBumper") as %bumpersLook.
 
-    iDestruct (big_sepM_delete with "ptsMap") as "[pts ptsMap]"; first done.
+    iDestruct (big_sepM_delete with "ptsMap") as "[pts ptsMap]".
+    { apply map_lookup_zip_with_Some. naive_solver. }
 
     iApply (wp_store (extra := {| extra_state_interp := True |})
              with "[$pts $val]").
     iIntros "!>" (tT) "(%look & %gt & #valNew & pts)".
     simpl in gt.
+    rewrite drop_prefix_lookup in look.
 
     iDestruct (big_sepM_insert_delete with "[$ptsMap $pts]") as "ptsMap".
 
-    iAssert (⌜ absHist !! tT = None ⌝)%I as %absHistLook.
+    iAssert (⌜ absHist !! (tT + offset)%nat = None ⌝)%I as %absHistLook.
     { iDestruct (big_sepM2_lookup_acc with "predsHold") as "[predMap predsHold]".
       { done. } { done. }
       iDestruct "predMap" as (pred' predsLook') "predMap".
@@ -455,10 +460,11 @@ Section wp_na_rules.
     iMod (ghost_map_update (<[ℓ:=MaxNat tT]>SV') with "naView knowSV")
       as "[naView knowSV]".
 
-    assert (tS < tT) as tSLttT.
+    assert (tS - offset < tT) as tSLttT.
     { eapply Nat.le_lt_trans; first apply haveTStore.
       eapply Nat.le_lt_trans; last apply gt.
       f_equiv. apply svInclSv'. }
+    assert (tS < tT + offset) as ? by lia.
 
     rewrite /validV.
     iModIntro.
@@ -473,7 +479,7 @@ Section wp_na_rules.
       { iPureIntro. etrans; first done.
         repeat split; try done.
         apply view_insert_le. lia. }
-      iExists _, tT, _, _, _, _.
+      iExists _, (tT + offset), offset, _, _, _, _.
       iSplitPure. { rewrite last_snoc. reflexivity. }
       iSplit. { iFrame "knowPred knowPreorder knowBumper". }
       iFrame "physHistFrag".
@@ -488,22 +494,24 @@ Section wp_na_rules.
       (* [lookupV] *)
       iSplitPure. { rewrite lookup_insert. done. }
       (* [nolater] *)
-      iSplitPure. {
-        eapply map_no_later_insert; last done.
-        etrans; first apply haveTStore.
-        apply Nat.lt_le_incl. eapply Nat.le_lt_trans; last apply gt.
-        f_equiv.
-        apply svInclSv'. }
+      iSplitPure.
+      { eapply map_no_later_insert; last done.
+        lia. }
+        (* etrans; first apply haveTStore. *)
+        (* apply Nat.lt_le_incl. eapply Nat.le_lt_trans; last apply gt. *)
+        (* f_equiv. *)
+        (* apply svInclSv'. } *)
       (* [histFrag] *)
       iSplit.
       { iExists _. iFrame "newHistFrag". by rewrite decode_encode. }
       (* [slice] *)
       iSplit. {
         iPureIntro. eapply map_sequence_insert_snoc; [|done|done].
-        eapply Nat.le_lt_trans; last apply gt.
-        etrans; first done.
-        f_equiv.
-        apply svInclSv'. }
+        lia. }
+        (* eapply Nat.le_lt_trans; last apply gt. *)
+        (* etrans; first done. *)
+        (* f_equiv. *)
+        (* apply svInclSv'. } *)
       (* [inThreadView] *)
       iSplit. {
         iPureIntro. repeat split.
@@ -511,12 +519,29 @@ Section wp_na_rules.
         - done.
         - apply view_empty_least. }
       (* [haveTSore] *)
-      iPureIntro. by rewrite lookup_zero_insert. }
+      iPureIntro. rewrite lookup_zero_insert. split; lia. }
     repeat iExists _.
-    iFrame "history". iFrame "ptsMap". iFrame "#". iFrame"naView". iFrameNamed.
+    rewrite drop_prefix_insert.
+    iEval (rewrite map_insert_zip_with) in "ptsMap".
+    iFrame "ptsMap".
+    iFrame "history".
+    iFrame "#". iFrame"naView". iFrameNamed.
     rewrite /post_crash_flush /post_crash. iFrame "predPostCrash".
+    iSplitL "offsets".
+    { rewrite (insert_id offsets); done. }
+    (* oldViewsDiscarded *)
     iSplit.
-    { iApply (big_sepM_insert_2 with "[] historyFragments").
+    { iApply (big_sepM2_insert_2 with "[] oldViewsDiscarded").
+      iIntros (t2 ?).
+      iDestruct (big_sepM2_lookup _ _ _ ℓ with "oldViewsDiscarded") as %hi;
+        [done|done|].
+      destruct (decide (tT + offset = t2)) as [<-|neq].
+      - iIntros (?). lia.
+      - rewrite lookup_insert_ne; last done.
+        iPureIntro. apply hi. }
+    iSplit.
+    { erewrite <- (insert_id offsets); last done.
+      iApply (big_sepM_insert_2 with "[] historyFragments").
       iDestruct (big_sepM_lookup with "historyFragments") as "F"; first done.
       iApply (big_sepM_insert_2 with "newHistFrag F"). }
     iSplit. { iPureIntro. set_solver. }
@@ -539,9 +564,10 @@ Section wp_na_rules.
       apply: increasing_map_insert_last.
       - eauto.
       - apply map_no_later_fmap. done.
-      - eapply Nat.le_lt_trans; last apply gt.
-        etrans; first apply haveTStore.
-        f_equiv. done.
+      - lia.
+        (* eapply Nat.le_lt_trans; last apply gt. *)
+        (* etrans; first apply haveTStore. *)
+        (* f_equiv. done. *)
       - rewrite lookup_fmap. rewrite lookupV. done.
       - eapply encode_relation_decode_iff; eauto using decode_encode. }
     iSplit.
