@@ -275,6 +275,24 @@ Section map_sequence.
     rewrite last_cons. rewrite lastEq. done.
   Qed.
 
+  Lemma map_sequence_fmap f m lo hi xs :
+    map_sequence m lo hi xs →
+    map_sequence (f <$> m) lo hi (f <$> xs).
+  Proof.
+    generalize dependent lo.
+    induction xs as [|x1 xs IH]; first done.
+    intros lo.
+    destruct xs as [|x2 xs].
+    { simpl. intros [look ?]. rewrite lookup_fmap. rewrite look. done. }
+    (* simpl. *)
+    intros [look (lo' & ? & all & ?)].
+    split. { rewrite lookup_fmap. rewrite look. done. }
+    exists lo'. split; first done.
+    split.
+    - intros. rewrite lookup_fmap. rewrite all; done.
+    - apply IH. done.
+  Qed.
+
 End map_sequence.
 
 Section map_no_later.
@@ -337,13 +355,18 @@ Section drop_above.
   Definition drop_above t (m : gmap nat A) : gmap nat A :=
     filter (λ '(t', ev), t' ≤ t) m.
 
-  Lemma drop_above_lookup_t m t :
-    drop_above t m !! t = m !! t.
+  Lemma drop_above_lookup_le m t1 t2 :
+    t1 ≤ t2 → drop_above t2 m !! t1 = m !! t1.
   Proof.
+    intros le.
     rewrite map_filter_lookup.
-    destruct (m !! t); last done. simpl.
+    destruct (m !! t1); last done. simpl.
     rewrite option_guard_True; done.
   Qed.
+
+  Lemma drop_above_lookup_t m t :
+    drop_above t m !! t = m !! t.
+  Proof. apply drop_above_lookup_le. done. Qed.
 
   Lemma drop_above_lookup_gt m t1 t2 :
     t1 < t2 → drop_above t1 m !! t2 = None.
@@ -367,4 +390,29 @@ Proof.
   intros eq. rewrite /drop_above.
   setoid_rewrite map_filter_lookup_Some.
   naive_solver.
+Qed.
+
+Lemma map_sequence_drop_above {A : Type} (m : gmap nat A) lo hi xs :
+  map_sequence m lo hi xs →
+  map_sequence (drop_above hi m) lo hi xs.
+Proof.
+  generalize dependent lo.
+  induction xs as [|x1 xs IH]; first done.
+  intros lo.
+  destruct xs as [|x2 xs].
+  { simpl. intros [??]. rewrite drop_above_lookup_t. done. }
+  intros seq.
+  eassert (lo ≤ hi). { eapply map_sequence_lt. done. }
+  destruct seq as (look & lo' & ? & between & slice).
+  eassert (lo' ≤ hi). { eapply map_sequence_lt. done. }
+  split.
+  { rewrite drop_above_lookup_le; done. }
+  exists lo'.
+  split; first done.
+  split.
+  { intros.
+    rewrite drop_above_lookup_le; last lia.
+    apply between. done. }
+  apply IH.
+  done.
 Qed.

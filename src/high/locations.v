@@ -150,11 +150,7 @@ Section points_to_at.
 
   Lemma store_lb_protocol ℓ prot s :
     store_lb ℓ prot s -∗ ⎡ know_protocol ℓ prot ⎤.
-  Proof.
-    Admitted.
-  (*   iStartProof (iProp _). iIntros (TV). simpl. iNamed 1. *)
-  (*   iFrame "locationProtocol". *)
-  (* Qed. *)
+  Proof. iNamed 1. iNamed "lbBase". iFrame "locationProtocol". Qed.
 
   Global Instance store_lb_persistent
          ℓ prot (s : ST) : Persistent (store_lb ℓ prot s).
@@ -204,8 +200,7 @@ Section points_to_at.
 
   (* Lemmas for [crashed_in]. *)
   Lemma crashed_in_agree prot ℓ s s' :
-    crashed_in prot ℓ s -∗ crashed_in prot ℓ s' -∗ ⌜ s = s' ⌝.
-  Proof.
+    crashed_in prot ℓ s -∗ crashed_in prot ℓ s' -∗ ⌜ s = s' ⌝. Proof.
     iNamed 1.
     iDestruct 1 as (?) "(? & ? & ? & ?)".
     iDestruct (crashed_in_mapsto_agree with "crashedIn [$]") as %->.
@@ -478,6 +473,7 @@ Section points_to_at_more.
     iDestruct "pers" as "-#pers".
     iDestruct "offset" as "-#offset".
     iCrash.
+    iDestruct (if_rec_is_persisted ℓ) as "persisted".
     iModIntro.
     iDestruct "offset" as (tC CV cvLook) "(crashed & offset)".
     iDestruct "H" as (? s2 absHistLook) "( bumper & offset' & fullHist & fragHist)".
@@ -513,7 +509,10 @@ Section points_to_at_more.
     iPureGoal. {
       apply map_no_later_fmap.
       apply map_no_later_drop_above. }
-    iPureGoal. { admit. (* FIXME: Wee need some more lemmas but nothing crazy. *) }
+    iPureGoal.
+    { apply map_sequence_fmap.
+      apply map_sequence_drop_above.
+      done. }
     iPureGoal; first lia.
     iSplit.
     { admit. (* FIXME: Figure out the best way to carry the phys hist through the crash. *) }
