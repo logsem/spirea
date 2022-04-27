@@ -506,7 +506,7 @@ Proof.
   iMod (auth_map_map_alloc ∅) as (phys_hist_name) "[physHist _]".
   set (hD := {|
                abs_history_name := abs_history_name;
-               know_phys_history_name := phys_hist_name;
+               phys_history_name := phys_hist_name;
                non_atomic_views_gname := na_views_name;
                crashed_in_name := crashed_in_name;
                predicates_name := predicates_name;
@@ -784,7 +784,7 @@ Proof.
   iMod (auth_map_map_alloc σ) as (phys_hist_name) "[physHist #physHistF]".
   set (hD := {|
                abs_history_name := abs_history_name;
-               know_phys_history_name := phys_hist_name;
+               phys_history_name := phys_hist_name;
                non_atomic_views_gname := na_views_name;
                crashed_in_name := crashed_in_name;
                predicates_name := predicates_name;

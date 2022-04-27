@@ -54,13 +54,15 @@ Definition offsets_impl `{nvmG Σ}
       ℓ
       (λ tC, ℓ ↪[@offset_name (@nvm_delta_high nD')]□ (t + tC)).
 
-Definition map_map_phys_history_impl `{nvmG Σ}
-           (nD nD' : nvmDeltaG) : iProp Σ :=
-  □ ∀ ℓ tStore msg,
-    know_phys_hist_msg (nD := nD) ℓ tStore msg -∗
-      or_lost_post_crash_no_t ℓ (
-        ∃ v, know_phys_hist_msg (nD := nD') ℓ 0 (Msg v ∅ ∅ ∅)
-      ).
+(* We don't have a post crash rule for the physical history anymore, instead one
+gets the physical history knowledge from knowing the full abstract history. *)
+(* Definition map_map_phys_history_impl `{nvmG Σ} *)
+(*            (nD nD' : nvmDeltaG) : iProp Σ := *)
+(*   □ ∀ ℓ tStore msg, *)
+(*     know_phys_hist_msg (nD := nD) ℓ tStore msg -∗ *)
+(*       or_lost_post_crash_no_t ℓ ( *)
+(*         ∃ v, know_phys_hist_msg (nD := nD') ℓ 0 (Msg v ∅ ∅ ∅) *)
+(*       ). *)
 
 Definition post_crash_na_view_map `{nvmG Σ}
            (na_views : gmap loc view) (nD nD' : nvmDeltaG) : iProp Σ :=
@@ -80,13 +82,15 @@ Definition new_hist t (bumper : positive → option positive) (hist : gmap time 
 Definition know_history_post_crash `{nvmG Σ}
            (hG : nvmDeltaG) ℓ q bumper (hist : gmap time positive) : iProp Σ :=
   or_lost_post_crash ℓ (λ t,
-    ∃ t' sOld sNew,
-      ⌜ hist !! t' = Some sOld ⌝ ∗
+    ∃ t2 sOld sNew v,
+      ⌜ hist !! t2 = Some sOld ⌝ ∗
       ⌜ bumper sOld = Some sNew ⌝ ∗
       (* ℓ ↪[crashed_in_name]□ sOld ∗ *)
-      ℓ ↪[offset_name]□ t' ∗
-      know_full_encoded_history_loc ℓ q (new_hist t' bumper hist) ∗
-      know_frag_encoded_history_loc ℓ t' sNew
+      ℓ ↪[offset_name]□ t2 ∗
+      know_full_encoded_history_loc ℓ q (new_hist t2 bumper hist) ∗
+      (* We could give the following two for the whole new history. *)
+      know_frag_encoded_history_loc ℓ t2 sNew ∗
+      know_phys_hist_msg ℓ t2 (Msg v ∅ ∅ ∅)
     )%I.
 
 Instance know_history_post_crash_fractional `{nvmG Σ} hG ℓ bumper hist :
@@ -148,7 +152,7 @@ Definition post_crash_resource_persistent `{nvmG Σ}
   "#post_crash_at_loc_impl" ∷ post_crash_at_loc_impl nD nD' ∗
   "#post_crash_na_loc_impl" ∷ post_crash_na_loc_impl nD nD' ∗
   "#post_crash_offsets_impl" ∷ offsets_impl nD nD' ∗
-  "#post_crash_map_map_phys_history_impl" ∷ map_map_phys_history_impl nD nD' ∗
+  (* "#post_crash_map_map_phys_history_impl" ∷ map_map_phys_history_impl nD nD' ∗ *)
   "#post_crash_bumper_impl" ∷ post_crash_bumper_impl nD nD'.
 
 Definition post_crash_resource_ephmeral `{nvmG Σ}
@@ -305,14 +309,15 @@ Section post_crash_interact.
         (abs_hist : gmap time ST) :
     ⎡ know_bumper ℓ bumper ⎤ ∗
     ⎡ know_full_history_loc ℓ q abs_hist ⎤ -∗
-    <PC> _, if_rec ℓ (∃ t' (s : ST),
+    <PC> _, if_rec ℓ (∃ t' (s : ST) v,
         ⌜ abs_hist !! t' = Some s ⌝ ∗
         ⎡ know_bumper ℓ bumper ⎤ ∗
         ⎡ ℓ ↪[offset_name]□ t' ⎤ ∗
         ⎡ know_full_history_loc ℓ q (bumper <$> (drop_above t' abs_hist)) ⎤ ∗
-        ⎡ know_frag_history_loc ℓ t' (bumper s) ⎤
-        (* ⎡ crashed_in_mapsto ℓ s ⎤). *)
-          ).
+        ⎡ know_frag_history_loc ℓ t' (bumper s) ⎤ ∗
+        ⎡ know_phys_hist_msg ℓ t' (Msg v ∅ ∅ ∅) ⎤
+        (* ⎡ crashed_in_mapsto ℓ s ⎤) *)
+      ).
    Proof.
     iStartProof (iProp _).
     iIntros (TV1) "[bumper hist]".
@@ -345,7 +350,7 @@ Section post_crash_interact.
       iDestruct "newHist" as (CV) "[#crashed [H|H]]"; iExists (CV);
         iFrame "crashed"; [iLeft|iRight; done].
       iDestruct "H" as (t) "(%cvLook & #per & H)".
-      iDestruct "H" as (???) "(%look & %bump & #offset & hist & frag)".
+      iDestruct "H" as (???) "(%v & %look & %bump & #offset & hist & frag & phys)".
       iDestruct (or_lost_post_crash_lookup with "crashed newBumper") as "bumper";
         first done.
       apply lookup_fmap_Some in look as [st [eq ?]].
@@ -353,14 +358,13 @@ Section post_crash_interact.
       simplify_eq.
       rewrite decode_encode in decEq.
       simplify_eq.
-      iExists t. iFrame (cvLook) "per". iExists t', sn.
+      iExists t. iFrame (cvLook) "per". iExists t2, sn, v.
       iSplitPure; first assumption.
       iFrameF "bumper".
       iFrameF "offset".
       rewrite /full_entry_unenc /know_full_encoded_history_loc.
       rewrite new_hist_encode_eq.
-      (* rewrite map_fmap_singleton. *)
-      iFrame "hist".
+      iFrame "hist phys".
       iExists _. iFrame "frag". iPureIntro. apply decode_encode. }
     rewrite /post_crash_resource.
     iFrame "post_crash_na_view_map". iFrame.
@@ -490,6 +494,7 @@ Section post_crash_interact.
     iExists _. iFrame (cvLook) "crashed O".
   Qed.
 
+  (*
   Lemma post_crash_know_phys_hist_msg ℓ t msg :
     ⎡ know_phys_hist_msg ℓ t msg ⎤ -∗
     <PC> _, if_rec ℓ (∃ v, ⎡ know_phys_hist_msg ℓ 0 (Msg v ∅ ∅ ∅) ⎤).
@@ -506,6 +511,7 @@ Section post_crash_interact.
     iApply (if_rec_mono with "H").
     apply embed_exist_1.
   Qed.
+  *)
 
   Lemma post_crash_know_na_view ℓ q SV :
     ⎡ know_na_view ℓ q SV ⎤ -∗ <PC> _, if_rec ℓ ⎡ know_na_view ℓ q ∅ ⎤.
@@ -658,8 +664,8 @@ Section IntoCrash.
   Global Instance offset_into_crash ℓ t :
     IntoCrash _ _ := post_crash_offset ℓ t.
 
-  Global Instance know_phys_hist_msg_into_crash ℓ t msg :
-    IntoCrash _ _ := post_crash_know_phys_hist_msg ℓ t msg.
+  (* Global Instance know_phys_hist_msg_into_crash ℓ t msg : *)
+  (*   IntoCrash _ _ := post_crash_know_phys_hist_msg ℓ t msg. *)
 
   Global Instance exclusive_know_na_view_crash ℓ q SV :
     IntoCrash _ _ := post_crash_know_na_view ℓ q SV.

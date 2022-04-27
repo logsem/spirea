@@ -18,7 +18,7 @@ Class nvmHighDeltaG := MkNvmHighDeltaG {
   (* "Global" ghost names *)
   abs_history_name : gname;
   (* For physical history *)
-  know_phys_history_name : gname;
+  phys_history_name : gname;
   non_atomic_views_gname : gname;
   crashed_in_name : gname;
   predicates_name : gname;
@@ -148,7 +148,7 @@ Section ownership_wrappers.
     ℓ ↪[non_atomic_views_gname]{#q} SV.
 
   Definition know_phys_hist_msg ℓ t msg : iProp Σ :=
-    auth_map_map_frag_singleton know_phys_history_name ℓ t msg.
+    auth_map_map_frag_singleton phys_history_name ℓ t msg.
 
   Definition crashed_in_mapsto `{Countable ST} ℓ (s : ST) : iProp Σ :=
     ∃ es, ⌜ decode es = Some s ⌝ ∗ ℓ ↪[crashed_in_name]□ es.

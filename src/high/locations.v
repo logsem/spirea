@@ -54,7 +54,7 @@ Section points_to_at.
 
       "knowSV" ∷ ⎡ know_na_view ℓ q SV ⎤ ∗
       "%slice" ∷ ⌜ map_sequence abs_hist tLo tHi ss ⌝ ∗
-      "#physMsg" ∷ ⎡ auth_map_map_frag_singleton know_phys_history_name ℓ tHi msg ⎤ ∗
+      "#physMsg" ∷ ⎡ auth_map_map_frag_singleton phys_history_name ℓ tHi msg ⎤ ∗
       "#inThreadView" ∷ monPred_in (SV, msg_persisted_after_view msg, ∅) ∗
       (* We have the [tHi] timestamp in our store view. *)
       "%offsetLe" ∷ ⌜ offset ≤ tHi ⌝ ∗
@@ -476,7 +476,7 @@ Section points_to_at_more.
     iDestruct (if_rec_is_persisted ℓ) as "persisted".
     iModIntro.
     iDestruct "offset" as (tC CV cvLook) "(crashed & offset)".
-    iDestruct "H" as (? s2 absHistLook) "( bumper & offset' & fullHist & fragHist)".
+    iDestruct "H" as (? s2 v absHistLook) "(bumper & offset' & fullHist & fragHist & #phys)".
     iDestruct (ghost_map_elem_agree with "offset offset'") as %<-.
     iClear "offset'".
     assert (offset + tC ≤ tHi). { eapply map_no_later_Some; done. }
@@ -514,8 +514,6 @@ Section points_to_at_more.
       apply map_sequence_drop_above.
       done. }
     iPureGoal; first lia.
-    iSplit.
-    { admit. (* FIXME: Figure out the best way to carry the phys hist through the crash. *) }
     iSplit. { simpl. iApply monPred_in_bottom. }
     iSplitPure; first lia.
     iRight. iPureIntro. lia.
@@ -579,3 +577,4 @@ Typeclasses Opaque mapsto_na.
 Typeclasses Opaque store_lb.
 Typeclasses Opaque flush_lb.
 Typeclasses Opaque persist_lb.
+Typeclasses Opaque crashed_in.

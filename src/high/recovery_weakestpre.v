@@ -614,7 +614,7 @@ Section wpr.
     iModIntro.
     set (hD' := {|
       abs_history_name := new_abs_history_name;
-      know_phys_history_name := new_phys_hist_name;
+      phys_history_name := new_phys_hist_name;
       non_atomic_views_gname := new_na_views_name;
       crashed_in_name := new_crashed_in_name;
       predicates_name := new_predicates_name;
@@ -824,6 +824,7 @@ Section wpr.
         split; first reflexivity.
         split; done. }
       (* "post_crash_map_map_phys_history_impl" *)
+      (*
       iSplit. {
         rewrite /map_map_phys_history_impl.
         iIntros "!>" (ℓ tStore msg) "oldPhysHistMsg".
@@ -833,6 +834,7 @@ Section wpr.
         iDestruct (auth_map_map_auth_frag with "oldPhysHist oldPhysHistMsg")
           as (hist physHistLook) "%histLook".
         admit. }
+       *)
       (*   eapply slice_of_hist_Some in cvSlicesPhysHists as ([v ?] & look & sliceLook); try done. *)
       (*   (* [msg] is of course not neccessarily the recovered message. Let' find *)
       (*   that one. *) *)
@@ -918,10 +920,12 @@ Section wpr.
         rewrite -offsetDom domPhysHistsEqAbsHists.
         apply elem_of_dom.
         eexists _. apply absHistLook. }
+      assert (is_Some (phys_hists !! ℓ)) as [physHist physHistsLook].
+      { rewrite -elem_of_dom domPhysHistsEqAbsHists elem_of_dom. done. }
       iExists bumper. iSplitPure; first done.
       iApply soft_disj_intro_r.
       iApply "orLost". iIntros (? cvLook).
-      assert (newOffsets !! ℓ = Some (offset + t)).
+      assert (newOffsets !! ℓ = Some (offset + t)) as newOffsetsLook.
       { rewrite /newOffsets.
         apply map_lookup_zip_with_Some.
         eexists _, (MaxNat _).
@@ -948,14 +952,17 @@ Section wpr.
         rewrite map_lookup_zip_with.
         rewrite cvLook. rewrite H1. simpl.
         done. }
+      eassert (is_Some (physHist !! _)) as [msg physHistLook].
+      { apply elem_of_dom.
+        erewrite physAbsHistTimestamps; [ | done | done].
+        apply elem_of_dom.
+        done. }
       iDestruct (big_sepM2_lookup with "bumperSome") as %bv; [done|done|].
       eassert _ as temp.
       { eapply map_Forall_lookup_1; [eapply bv|done]. }
       destruct temp as [sNew ?].
-      iExists _, sOld, _.
+      iExists _, sOld, _, msg.(msg_val).
       iDestruct (big_sepM_lookup with "offsetPts") as "$"; first done.
-      (* iExists s, sBumped. *)
-      (* iSplit; first done. *)
       iSplitPure; first done.
       iSplitPure; first done.
       iFrame "pts".
@@ -963,7 +970,14 @@ Section wpr.
       (* Note: At this point we could easily give all the fractional entries. *)
       iDestruct (big_sepM_lookup with "frags") as "$".
       { apply lookup_omap_Some. eexists _.
-        split; first done. rewrite drop_above_lookup_t. done. } }
+        split; first done. rewrite drop_above_lookup_t. done. }
+      iDestruct (auth_map_map_frag_lookup_singleton with "newPhysHistFrag") as "$".
+      { rewrite /newPhysHists. rewrite lookup_fmap. rewrite /drop_all_above.
+        rewrite map_lookup_zip_with.
+        rewrite newOffsetsLook /=. rewrite physHistsLook /=.
+        done. }
+      { rewrite lookup_fmap. rewrite drop_above_lookup_t. rewrite physHistLook. done. }
+    }
     iFrame "valView".
     iSplitPure. { subst. done. }
     (* We show the state interpretation for the high-level logic. *)
