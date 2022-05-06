@@ -130,7 +130,7 @@ Section points_to_at.
       "#crashedIn" ∷ ⎡ crashed_in_mapsto ℓ s ⎤ ∗
       "#locationProtocol" ∷ ⎡ know_protocol ℓ prot ⎤ ∗
       "#pers" ∷ ⎡ persisted_loc ℓ 0 ⎤ ∗
-      "#knowFragHist" ∷ ⎡ know_frag_history_loc ℓ 0 (bumper prot s) ⎤ ∗
+      (* "#knowFragHist" ∷ ⎡ know_frag_history_loc ℓ 0 (bumper prot s) ⎤ ∗ *)
       "%inCV" ∷ ⌜ℓ ∈ dom (gset _) CV⌝.
 
   (* [ℓ] was not recovered at the last crash. *)
@@ -377,28 +377,36 @@ Section points_to_at_more.
   Implicit Types (e : expr) (ℓ : loc) (s : ST)
            (ss : list ST) (prot : LocationProtocol ST).
 
+  (* FIXME: We probably want to add a [crashed_in] here. *)
   Lemma post_crash_persist_lb (ℓ : loc) prot (s : ST) :
     persist_lb ℓ prot s -∗ <PC> _, persist_lb ℓ prot (prot.(bumper) s).
   Proof.
     iNamed 1. iNamed "lbBase".
-    rewrite /know_protocol. rewrite embed_sep.
+    rewrite /know_protocol.
+    iDestruct "locationProtocol" as "(-#pred & #order & #bumper)".
+    iDestruct (post_crash_frag_history with "[$order $offset $bumper $knowFragHist]") as "-#H".
     iDestruct "offset" as "-#offset".
-    iDestruct "locationProtocol" as "(-#pred & -#order & -#bumper)".
-    iDestruct (post_crash_frag_history with "[$order $bumper $knowFragHist]") as "H".
+    iDestruct "bumper" as "-#bumper".
+    iDestruct "order" as "-#order".
     iCrash.
-    iDestruct "persisted" as "(#persisted & (% & % & [% %] & #crashed))".
-    iDestruct (or_lost_with_t_get with "[$] H")
-      as (?) "(%le & offset2 & order & bumper & hist)";
-      first done.
-    iDestruct (if_rec_get with "[$] [$] pred") as "pred"; first done.
-    iDestruct (if_rec_get with "[$] [$] offset") as (tC ?) "(% & ? & offset)"; first done.
-    iDestruct (ghost_map_elem_agree with "offset offset2") as %<-.
-    iExists tP, _.
+    iDestruct "persisted" as "(#persisted & (% & %tC & [% %] & #crashed))".
+    iApply (if_rec_get with "crashed persisted"); first done.
+    iModIntro.
+    iDestruct "offset" as (???) "[crashed' offset]".
+    iDestruct (crashed_at_agree with "crashed crashed'") as %<-.
+    iClear "crashed'".
+    simplify_eq.
+    iDestruct "H" as (????) "(#crashed' & ? & #hist & impl)".
+    iDestruct (crashed_at_agree with "crashed crashed'") as %<-.
+    iClear "crashed'".
+    assert (tC = tC0) as <- by congruence.
+    iDestruct ("impl" with "[%]") as "[??]"; first lia.
+    iExists _, _.
     iFrame "∗#".
-    assert (tP - (offset + tC) = 0) as ->. { lia. }
+    assert (tP - (offset + tC) = 0) as -> by lia.
+    iFrame "persisted".
     iDestruct (have_SV_0) as "$".
     iDestruct (have_FV_0) as "$".
-    done.
   Qed.
 
   Global Instance persist_lb_into_crash ℓ prot s : IntoCrash _ _ :=
@@ -462,7 +470,7 @@ Section points_to_at_more.
         ⌜ ss' `prefix_of` ss ⌝ ∗
         ⌜ last ss' = Some s ⌝ ∗
         crashed_in prot ℓ s ∗
-        ℓ ↦_{prot}^{q} ((bumper prot) <$> ss'))).
+        ℓ ↦_{prot}^{q} (bumper prot <$> ss'))).
   Proof.
     rewrite /mapsto_na.
     iNamed 1.
@@ -476,7 +484,8 @@ Section points_to_at_more.
     iDestruct (if_rec_is_persisted ℓ) as "persisted".
     iModIntro.
     iDestruct "offset" as (tC CV cvLook) "(crashed & offset)".
-    iDestruct "H" as (? s2 v absHistLook) "(bumper & offset' & fullHist & fragHist & #phys)".
+    iDestruct "H" as (? s2 v absHistLook)
+      "(bumper & #crashedIn & offset' & fullHist & fragHist & #phys)".
     iDestruct (ghost_map_elem_agree with "offset offset'") as %<-.
     iClear "offset'".
     assert (offset + tC ≤ tHi). { eapply map_no_later_Some; done. }
@@ -493,7 +502,7 @@ Section points_to_at_more.
     iSplitPure; first done.
     iSplit.
     { rewrite /crashed_in.
-      iExists CV. iFrame "#∗". admit. }
+      iExists CV. iFrame "#∗". iPureIntro. apply elem_of_dom. done. }
     iExists tLo, (offset + tC), (offset + tC), ∅, _, (Msg _ ∅ ∅ ∅), _.
     iFrame. iFrame "#".
     iPureGoal. { rewrite fmap_last. rewrite lastEq'. done. }
@@ -517,7 +526,7 @@ Section points_to_at_more.
     iSplit. { simpl. iApply monPred_in_bottom. }
     iSplitPure; first lia.
     iRight. iPureIntro. lia.
-  Admitted.
+  Qed.
 
   Global Instance mapsto_na_into_crash ℓ prot q (ss : list ST) :
     IntoCrash (ℓ ↦_{prot}^{q} ss)%I _ := post_crash_mapsto_na ℓ prot q ss.
@@ -532,41 +541,41 @@ Section points_to_at_more.
               ∃ s__pc, ⌜ s ⊑ s__pc ⌝ ∗ crashed_in prot ℓ s__pc.
   Proof.
     iNamed 1. iNamed "lbBase".
-    iDestruct "offset" as "-#offset".
-    iDestruct "locationProtocol" as "(-#pred & -#order & -#bumper)".
+    iDestruct "locationProtocol" as "(-#pred & #order & #bumper)".
     iDestruct (post_crash_frag_history with "[$]") as "HI".
-    iDestruct (post_crash_flush_post_crash with "HI") as "HI".
+    iDestruct (post_crash_flush_post_crash with "HI") as "-#HI".
+    iDestruct "offset" as "-#offset".
+    iDestruct "bumper" as "-#bumper".
+    iDestruct "order" as "-#order".
+    iDestruct (post_crash_know_bumper with "bumper") as "bumper".
+    iDestruct (post_crash_flush_post_crash with "bumper") as "bumper".
+    iDestruct (post_crash_preorder with "order") as "order".
+    iDestruct (post_crash_flush_post_crash with "order") as "order".
     iCrashFlush.
     iAssert (_)%I with "[viewFact]" as "pers".
     { iDestruct "viewFact" as "[pers | pers]".
       - iApply "pers".
       - iDestruct "pers" as "($ & (%CV & % & % & ?))".
         iExists _, _. iFrame. done. }
-    iDestruct "pers" as "(#pers & (%CV & %t & (%cvLook & %le) & #crashed))".
+    iDestruct "pers" as "(#persisted & (%CV & %t & (%cvLook & %le) & #crashed))".
+    iApply (if_rec_get with "crashed persisted"); first done.
+    iModIntro.
+
+    iDestruct "offset" as (???) "[crashed' offset]".
+    iDestruct (crashed_at_agree with "crashed crashed'") as %<-.
+    iClear "crashed'".
+    simplify_eq.
+    iDestruct "HI" as (????) "(#crashed' & ? & #hist & impl)".
+    iDestruct (crashed_at_agree with "crashed crashed'") as %<-.
+    iClear "crashed'".
+    iSplit.
+    - iExists _, _.
+      iFrame "∗#".
+      assert (tF - (offset + t) = 0) as -> by lia.
+      iDestruct (have_SV_0) as "$".
+      iDestruct (have_FV_0) as "$".
+      iFrame "persisted".
   Admitted.
-  (*   iDestruct (or_lost_with_t_get with "crashed HI") as "HI"; first done. *)
-  (*   iDestruct (if_rec_get with "crashed pers pred") as "pred"; first done. *)
-  (*   iDestruct "HI" as (offset' impl) "(#offset2 & #? & #? & #?)". *)
-  (*   iDestruct (if_rec_get with "[$] [$] offset") *)
-  (*     as (offset2) "(% & % & ? & offset)"; first done. *)
-  (*   iDestruct (ghost_map_elem_agree with "offset offset2") as %<-. *)
-  (*   iExists tF, offset2. *)
-  (*   rewrite /lb_base. *)
-  (*   iFrame "∗#". *)
-  (*   assert (tF - offset2 = 0) as ->. { lia. } *)
-  (*   iDestruct (have_SV_0) as "$". *)
-  (*   iDestruct (have_FV_0) as "$". *)
-  (*   done. *)
-  (*   (* iSplitPure; first by apply impl. *) *)
-  (*   (* rewrite /crashed_in /persist_lb. *) *)
-  (*   (* iSplit. *) *)
-  (*   (* - iExists _. *) *)
-  (*   (*   iFrame "crashed crashedIn pred". *) *)
-  (*   (*   iFrame "#". iPureIntro. apply elem_of_dom. done. *) *)
-  (*   (* - iExists _. iFrame "#∗". *) *)
-  (*   (*   iDestruct (have_SV_0) as "$". *) *)
-  (*   (*   iDestruct (have_FV_0) as "$". *) *)
-  (* Qed. *)
 
   Global Instance know_flush_into_crash ℓ prot (s : ST) :
     IntoCrashFlush (flush_lb ℓ prot s) _ := post_crash_flush_flush_lb ℓ prot s.

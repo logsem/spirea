@@ -536,7 +536,8 @@ Section wpr.
     pose (newNaViews := gset_to_gmap (∅ : view) newNaLocs).
     iMod (ghost_map_alloc newNaViews) as (new_na_views_name) "[naView naViewPts]".
 
-    iMod (ghost_map_alloc_persistent (default 1%positive <$> slice_hist CV abs_hists))
+    iMod (ghost_map_alloc_persistent
+            (default 1%positive <$> slice_hist (MaxNat <$> newOffsets) abs_hists))
       as (new_crashed_in_name) "[crashedInAuth #crashedInPts]".
     iMod (ghost_map_auth_persist with "crashedInAuth") as "#crashedInAuth".
 
@@ -593,8 +594,8 @@ Section wpr.
     (* The physical and abstract history has the same timestamps for all
     locations. We will need this when we apply [valid_slice_transfer] below. *)
     iAssert (
-      ⌜(∀ ℓ h1 h2, phys_hists !! ℓ = Some h1 → abs_hists !! ℓ = Some h2 → dom (gset _) h1 = dom _ h2)⌝
-    )%I as %physAbsHistTimestamps.
+        ⌜(∀ ℓ h1 h2, phys_hists !! ℓ = Some h1 → abs_hists !! ℓ = Some h2 → dom (gset _) h1 = dom _ h2)⌝
+      )%I as %physAbsHistTimestamps.
     { iIntros (?????).
       iDestruct (big_sepM2_lookup with "predsHold") as (??) "sep"; try eassumption.
       iApply (big_sepM2_dom with "sep"). }
@@ -656,7 +657,7 @@ Section wpr.
     { iSplit.
       { (* We show that fragments of the histories may survive a crash. *)
         iModIntro.
-        iIntros (???? ℓ t s ?) "order oldBumper frag".
+        iIntros (???? ℓ t offset s bumper) "order newOffset oldBumper frag".
         iApply "orLost". iIntros (? look).
         iDestruct "frag" as (encX decEq) "oldFrag".
 
@@ -683,12 +684,13 @@ Section wpr.
           apply map_lookup_zip_with_Some.
           eexists _, (MaxNat _).
           split_and!; done. }
-        iExists _. iFrame "offset".
+        iExists _.
+        (* iFrame "offset". *)
 
         iDestruct (full_map_frag_entry with "oldFullHist oldFrag") as %(h & lookH & hLook).
         iDestruct (big_sepM2_lookup with "bumperSome") as %?; try done.
 
-        eassert _ as newHistLook. { apply new_abs_hist_lookup; try done. }
+        eassert _ as newHistLook. { apply new_abs_hist_lookup; done. }
         (*
         destruct temp as (recEncS & ? & hLook2 & encBumper & newHistLook).
 
@@ -965,6 +967,14 @@ Section wpr.
       iDestruct (big_sepM_lookup with "offsetPts") as "$"; first done.
       iSplitPure; first done.
       iSplitPure; first done.
+      iSplit.
+      { iApply (big_sepM_lookup with "crashedInPts").
+        rewrite lookup_fmap.
+        erewrite slice_hist_lookup_Some; try done.
+        rewrite lookup_fmap.
+        rewrite newOffsetsLook.
+        simpl.
+        f_equiv. }
       iFrame "pts".
       iDestruct (big_sepM_lookup with "fragHistories") as "frags"; first done.
       (* Note: At this point we could easily give all the fractional entries. *)
@@ -976,7 +986,7 @@ Section wpr.
         rewrite map_lookup_zip_with.
         rewrite newOffsetsLook /=. rewrite physHistsLook /=.
         done. }
-      { rewrite lookup_fmap. rewrite drop_above_lookup_t. rewrite physHistLook. done. }
+      { rewrite lookup_fmap drop_above_lookup_t physHistLook. done. }
     }
     iFrame "valView".
     iSplitPure. { subst. done. }

@@ -85,7 +85,7 @@ Definition know_history_post_crash `{nvmG Σ}
     ∃ t2 sOld sNew v,
       ⌜ hist !! t2 = Some sOld ⌝ ∗
       ⌜ bumper sOld = Some sNew ⌝ ∗
-      (* ℓ ↪[crashed_in_name]□ sOld ∗ *)
+      ℓ ↪[crashed_in_name]□ sOld ∗
       ℓ ↪[offset_name]□ t2 ∗
       know_full_encoded_history_loc ℓ q (new_hist t2 bumper hist) ∗
       (* We could give the following two for the whole new history. *)
@@ -130,19 +130,17 @@ Definition post_crash_full_history_map `{nvmG Σ}
 Definition post_crash_frag_history_impl `{hG : nvmG Σ}
            (nD nD' : nvmDeltaG) : iProp Σ :=
   □ ∀ ST (_ : EqDecision ST) (_ : Countable ST) (_ : AbstractState ST)
-    ℓ (t : nat) (s : ST) (bumper : ST → ST),
-      (* FIXME: It seems that we can remove the preorder *)
+    ℓ (t offset : nat) (s : ST) (bumper : ST → ST),
       know_preorder_loc (nD := nD) ℓ (abs_state_relation (ST := ST)) -∗
+      ℓ ↪[@offset_name (@nvm_delta_high nD)]□  offset -∗
       know_bumper (nD := nD) ℓ bumper -∗
       know_frag_history_loc (nD := nD) ℓ t s -∗
-      (or_lost_post_crash ℓ (λ t', ∃ offset,
-        (* ⌜ t ≤ t' → s ⊑ s' ⌝ ∗ *)
-        (* crashed_in_mapsto ℓ s' ∗ *)
-        ⌜ t ≤ offset ⌝ ∗
-        ℓ ↪[offset_name]□ offset ∗
-        know_preorder_loc (nD := nD') ℓ (abs_state_relation (ST := ST)) ∗
-        know_bumper (nD := nD') ℓ bumper ∗
-        know_frag_history_loc (nD := nD') ℓ t (bumper s))).
+      (or_lost_post_crash ℓ (λ tC, ∃ s2,
+        crashed_in_mapsto ℓ s2 ∗
+        know_frag_history_loc (nD := nD') ℓ (offset + tC) (bumper s2) ∗
+        (⌜ t ≤ offset + tC ⌝ -∗
+          ⌜ s ⊑ s2 ⌝ ∗
+          know_frag_history_loc (nD := nD') ℓ t (bumper s)))).
 
 Definition post_crash_resource_persistent `{nvmG Σ}
            (nD nD' : nvmDeltaG) : iProp Σ :=
@@ -312,11 +310,11 @@ Section post_crash_interact.
     <PC> _, if_rec ℓ (∃ t' (s : ST) v,
         ⌜ abs_hist !! t' = Some s ⌝ ∗
         ⎡ know_bumper ℓ bumper ⎤ ∗
+        ⎡ crashed_in_mapsto ℓ s ⎤ ∗
         ⎡ ℓ ↪[offset_name]□ t' ⎤ ∗
         ⎡ know_full_history_loc ℓ q (bumper <$> (drop_above t' abs_hist)) ⎤ ∗
         ⎡ know_frag_history_loc ℓ t' (bumper s) ⎤ ∗
         ⎡ know_phys_hist_msg ℓ t' (Msg v ∅ ∅ ∅) ⎤
-        (* ⎡ crashed_in_mapsto ℓ s ⎤) *)
       ).
    Proof.
     iStartProof (iProp _).
@@ -350,7 +348,7 @@ Section post_crash_interact.
       iDestruct "newHist" as (CV) "[#crashed [H|H]]"; iExists (CV);
         iFrame "crashed"; [iLeft|iRight; done].
       iDestruct "H" as (t) "(%cvLook & #per & H)".
-      iDestruct "H" as (???) "(%v & %look & %bump & #offset & hist & frag & phys)".
+      iDestruct "H" as (???) "(%v & %look & %bump & #crashedIn & #offset & hist & frag & phys)".
       iDestruct (or_lost_post_crash_lookup with "crashed newBumper") as "bumper";
         first done.
       apply lookup_fmap_Some in look as [st [eq ?]].
@@ -361,6 +359,7 @@ Section post_crash_interact.
       iExists t. iFrame (cvLook) "per". iExists t2, sn, v.
       iSplitPure; first assumption.
       iFrameF "bumper".
+      iSplit. { iExists _. iFrame "crashedIn". rewrite decode_encode. done. }
       iFrameF "offset".
       rewrite /full_entry_unenc /know_full_encoded_history_loc.
       rewrite new_hist_encode_eq.
@@ -384,34 +383,43 @@ Section post_crash_interact.
     iApply or_lost_if_rec_embed. iFrame.
   Qed.
 
-  Lemma post_crash_frag_history ℓ t bumper (s : ST) :
+  Lemma post_crash_frag_history ℓ t offset bumper (s : ST) :
     ⎡ know_preorder_loc ℓ (abs_state_relation (ST := ST)) ⎤ ∗
+    ⎡ ℓ ↪[offset_name]□ offset ⎤ ∗
     ⎡ know_bumper ℓ bumper ⎤ ∗
     ⎡ know_frag_history_loc ℓ t s ⎤ -∗
     post_crash (λ hG',
-      (or_lost_with_t ℓ (λ t', ∃ offset, (* ∃ s2, *)
-        (* ⌜ t ≤ t' → s ⊑ s2 ⌝ ∗ *)
-        (* ⎡ crashed_in_mapsto ℓ s2 ⎤ ∗ *)
-        ⌜ t ≤ offset ⌝ ∗
-        ⎡ ℓ ↪[offset_name]□ offset ⎤ ∗
-        ⎡ know_preorder_loc ℓ (abs_state_relation (ST := ST)) ⎤ ∗
-        ⎡ know_bumper ℓ bumper ⎤ ∗
-        ⎡ know_frag_history_loc ℓ t (bumper s) ⎤))).
+      (if_rec ℓ (∃ s2, ∃ CV tC,
+        ⌜ CV !! ℓ = Some (MaxNat tC) ⌝ ∗
+        ⎡ crashed_at CV ⎤ ∗
+        ⎡ crashed_in_mapsto ℓ s2 ⎤ ∗
+        ⎡ know_frag_history_loc ℓ (offset + tC) (bumper s2) ⎤ ∗
+        (⌜ t ≤ offset + tC ⌝ -∗
+          (* ⎡ know_preorder_loc ℓ (abs_state_relation (ST := ST)) ⎤ ∗ *)
+          (* ⎡ know_bumper ℓ bumper ⎤ ∗ *)
+          ⌜ s ⊑ s2 ⌝ ∗ ⎡ know_frag_history_loc ℓ t (bumper s) ⎤)))).
   Proof.
     iStartProof (iProp _).
-    iIntros (?) "(order & bumper & hist)".
+    iIntros (?) "(order & offset & bumper & hist)".
     iIntrosPostCrash.
     iDestruct (base.post_crash_modality.post_crash_nodep with "order") as "order".
+    iDestruct (base.post_crash_modality.post_crash_nodep with "offset") as "offset".
     iDestruct (base.post_crash_modality.post_crash_nodep with "bumper") as "bumper".
     iDestruct (base.post_crash_modality.post_crash_nodep with "hist") as "hist".
     post_crash_modality.iCrash.
     iIntros "[Ha $]". iNamed "Ha".
-    iDestruct ("post_crash_frag_history_impl" with "order bumper hist") as "hist".
-    iApply or_lost_with_t_at.
+    iDestruct ("post_crash_frag_history_impl" $! ST with "order offset bumper hist") as "hist".
+    iApply or_lost_if_rec_at.
     iApply (or_lost_post_crash_mono with "[] hist").
-    iIntros (??) "_".
-    naive_solver.
-    (* iDestruct 1 as (?) "(% & ? & ? & ?)". iExists _. iFrame. done. *)
+    iIntros (tC ?) "(? & crashed & %cvLook) impl".
+    iDestruct "impl" as (s2) "(#crashedIn & hist & impl)".
+    monPred_simpl. iExists (s2).
+    monPred_simpl. iExists (CV).
+    monPred_simpl. iExists (tC).
+    iSplitPure. { done. }
+    iFrame.
+    iFrameF "crashedIn".
+    iIntros (??). iApply "impl".
   Qed.
 
   Lemma post_crash_know_pred `{Countable ST'} ℓ (ϕ : ST' → val → nvmDeltaG → dProp Σ) :
@@ -649,8 +657,8 @@ Section IntoCrash.
     IntoCrash _ _ := post_crash_preorder (ST := ST) ℓ.
 
   Global Instance frag_history_into_crash `{AbstractState ST}
-         ℓ bumper t (s : ST) : IntoCrash _ _ :=
-    post_crash_frag_history ℓ bumper t s.
+         ℓ bumper t offset (s : ST) : IntoCrash _ _ :=
+    post_crash_frag_history ℓ bumper t offset s.
 
   Global Instance know_pred_into_crash `{Countable ST}
          ℓ (ϕ : ST → _ → _ → dProp Σ) :
