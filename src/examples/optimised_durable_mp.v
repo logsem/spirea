@@ -76,12 +76,11 @@ Section proof.
           false => ⌜ v = #false ⌝ ∗ ⎡ own γ__ex (Excl ()) ⎤
         | true => ⌜ v = #true ⌝ ∗ flush_lb x inv_x true
         end%I;
-      bumper b := b; |}.
+      bumper := id; |}.
   Next Obligation.
     iIntros (? [|] ?); simpl.
     - iIntros "[% lb]". iCrashFlush.
-      iDestruct "lb" as "(% & %le & ? & ?)".
-      destruct s__pc; last done.
+      iDestruct "lb" as "(le & ?)".
       iFrame "%".
       iApply persist_lb_to_flush_lb. iFrame.
     - iIntros "[% H]". iCrashFlush. iFrame. done.
@@ -93,21 +92,25 @@ Section proof.
   condition does not mention [y] as we don't need it to be available after a
   crash. *)
   Definition crash_condition {hD : nvmDeltaG} : dProp Σ :=
-    ∃ (bx bz : bool),
+    ∃ (xss zss : list bool) (bx bz : bool),
+      "%xLast" ∷ ⌜ last xss = Some bx ⌝ ∗
+      "%zLast" ∷ ⌜ last zss = Some bz ⌝ ∗
       "#xPer" ∷ persist_lb x inv_x bx ∗
       "#zPer" ∷ persist_lb z inv_z bz ∗
-      x ↦_{inv_x} [bx] ∗
-      z ↦_{inv_z} [bz].
+      x ↦_{inv_x} xss ∗
+      z ↦_{inv_z} zss.
 
   Definition left_crash_condition {hD : nvmDeltaG} : dProp Σ :=
-    ∃ (bx : bool),
+    ∃ xss (bx : bool),
+      "%xLast" ∷ ⌜ last xss = Some bx ⌝ ∗
       "#xPer" ∷ persist_lb x inv_x bx ∗
-      "xPts" ∷ x ↦_{inv_x} [bx].
+      "xPts" ∷ x ↦_{inv_x} xss.
 
   Definition right_crash_condition {hD : nvmDeltaG} : dProp Σ :=
-    ∃ (bz : bool),
+    ∃ zss (bz : bool),
+      "%zLast" ∷ ⌜ last zss = Some bz ⌝ ∗
       "#zPer" ∷ persist_lb z inv_z bz ∗
-      "zPts" ∷ z ↦_{inv_z} [bz].
+      "zPts" ∷ z ↦_{inv_z} zss.
 
   Lemma left_crash_condition_impl {hD : nvmDeltaG} (sx : list bool) :
     persist_lb x inv_x false -∗
@@ -116,10 +119,13 @@ Section proof.
   Proof.
     iIntros "xPer xPts".
     iCrash.
-    iDestruct "xPer" as (??) "[xPer #xRec]".
-    iDestruct (crashed_in_if_rec with "xRec xPts") as (??) "[xPts xRec']".
-    iDestruct (crashed_in_agree with "xRec xRec'") as %->.
-    iExists _. iFrame "∗#".
+    iDestruct "xPer" as "[#xPer (% & % & #xRec)]".
+    iDestruct (crashed_in_if_rec with "xRec xPts") as (????) "[cras xPts]".
+    iDestruct (crashed_in_agree with "xRec cras") as %->.
+    iDestruct (crashed_in_persist_lb with "xRec") as "#per2".
+    iExists _, _. iSplitPure; first done. iFrame "∗#".
+    rewrite list_fmap_id.
+    done.
   Qed.
 
   Lemma right_crash_condition_impl {hD : nvmDeltaG} (sz : list bool) :
@@ -129,10 +135,13 @@ Section proof.
   Proof.
     iIntros "zPer zPts".
     iCrash.
-    iDestruct "zPer" as (??) "[zPer #zRec]".
-    iDestruct (crashed_in_if_rec with "zRec zPts") as (??) "[zPts zRec']".
-    iDestruct (crashed_in_agree with "zRec zRec'") as %->.
-    iExists _. iFrame "∗#".
+    iDestruct "zPer" as "[#zPer (% & % & #zRec)]".
+    iDestruct (crashed_in_if_rec with "zRec zPts") as (????) "[cras zPts]".
+    iDestruct (crashed_in_agree with "zRec cras") as %->.
+    iDestruct (crashed_in_persist_lb with "zRec") as "#per2".
+    iExists _, _. iSplitPure; first done. iFrame "∗#".
+    rewrite list_fmap_id.
+    done.
   Qed.
 
   (* Prove right crash condition. *)
@@ -253,8 +262,8 @@ Section proof.
       iCrash.
       iNamed "L".
       iNamed "R".
-      iExists _, _.
-      iFrame "∗#". }
+      iExists _, _, _, _.
+      iFrame "∗#%". }
     Unshelve. 2: { apply _. }
 
     wpc_bind (Fork _)%E.
