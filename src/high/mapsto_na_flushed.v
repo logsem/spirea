@@ -81,24 +81,16 @@ Section mapsto_na_flushed.
   Proof.
     rewrite /IntoCrashFlush.
     iNamed 1.
-    (* iDestruct 1 as (? ss eq) "[pts lb]". *)
     iDestruct "flushLb" as "-#flushLb".
-    (* We could leave out these two lines, but [iCrashFlush] takes a looong time
-    to find the [IntoCrashFlush] instance. *)
     iDestruct (mapsto_na_increasing_list with "pts") as %incr.
-    iDestruct (post_crash_mapsto_na with "pts") as "pts".
-    iDestruct (post_crash_flush_post_crash with "pts") as "pts".
     iCrashFlush.
-    (* rewrite /persist_lb. *)
     iDestruct "flushLb" as "(persistLb & (%sPC & %le & #crashedIn))".
     iDestruct (crashed_in_if_rec with "crashedIn pts")
-      as "(%s'' & %s' & %pre & %last & chr2 & pts)".
+      as "(%ss' & %s' & %pre & %last & chr2 & pts)".
     iDestruct (crashed_in_agree with "crashedIn chr2") as %->.
     assert (s = s') as <-.
     { apply (anti_symm (⊑@{ST})); first done.
       rewrite last_lookup in last.
-      (* apply elem_of_list_lookup_1 in elem as (? & ?). *)
-      (* admit. (* Need lemmas but is easy. *) } *)
       apply: increasing_list_last_greatest; try done.
       eapply prefix_lookup; done. }
     iFrame.

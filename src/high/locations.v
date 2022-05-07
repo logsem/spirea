@@ -126,12 +126,17 @@ Section points_to_at.
 
   Definition crashed_in prot ℓ s : dProp Σ :=
     ∃ CV,
+      "#persistLb" ∷ persist_lb ℓ prot (prot.(bumper) s) ∗
       "#crashed" ∷ ⎡ crashed_at CV ⎤ ∗
       "#crashedIn" ∷ ⎡ crashed_in_mapsto ℓ s ⎤ ∗
-      "#locationProtocol" ∷ ⎡ know_protocol ℓ prot ⎤ ∗
-      "#pers" ∷ ⎡ persisted_loc ℓ 0 ⎤ ∗
+      (* "#locationProtocol" ∷ ⎡ know_protocol ℓ prot ⎤ ∗ *)
+      (* "#pers" ∷ ⎡ persisted_loc ℓ 0 ⎤ ∗ *)
       (* "#knowFragHist" ∷ ⎡ know_frag_history_loc ℓ 0 (bumper prot s) ⎤ ∗ *)
       "%inCV" ∷ ⌜ℓ ∈ dom (gset _) CV⌝.
+
+  Global Instance crashed_in_persistent prot ℓ s :
+    Persistent (crashed_in prot ℓ s).
+  Proof. apply _. Qed.
 
   (* [ℓ] was not recovered at the last crash. *)
   Definition lost ℓ : dProp Σ :=
@@ -199,6 +204,7 @@ Section points_to_at.
   *)
 
   (* Lemmas for [crashed_in]. *)
+
   Lemma crashed_in_agree prot ℓ s s' :
     crashed_in prot ℓ s -∗ crashed_in prot ℓ s' -∗ ⌜ s = s' ⌝. Proof.
     iNamed 1.
@@ -218,10 +224,16 @@ Section points_to_at.
   Lemma crashed_in_if_rec `{AbstractState ST} prot ℓ P (s : ST) :
     crashed_in prot ℓ s -∗ if_rec ℓ P -∗ P.
   Proof.
-    iNamed 1. iIntros "P".
+    iNamed 1. iNamed "persistLb". iIntros "P".
+    iDestruct (persisted_loc_weak with "persisted") as "persisted2".
+    { apply le_0_n. }
     iApply "P"; iFrame "#%".
     iPureIntro. apply elem_of_dom. done.
   Qed.
+
+  Lemma crashed_in_persist_lb `{AbstractState ST} prot ℓ (s : ST) :
+    crashed_in prot ℓ s -∗ persist_lb ℓ prot (prot.(bumper) s).
+  Proof. iNamed 1. iFrame "persistLb". Qed.
 
   (* Lemmas for [mapsto_na] *)
 
@@ -267,6 +279,12 @@ Section points_to_at.
     ⌜s2 ⊑ s1⌝.
   Proof. rewrite flush_lb_to_store_lb. apply mapsto_na_store_lb_incl. Qed.
 
+  Lemma mapsto_na_increasing ℓ prot q ss :
+    mapsto_na ℓ prot q ss -∗ ⌜ increasing_list (⊑) ss ⌝.
+  Proof.
+    iNamed 1. iPureIntro. eapply increasing_map_to_increasing_list; done.
+  Qed.
+
   Lemma mapsto_na_persist_lb ℓ prot q ss s1 s2 s3 :
     ¬(s2 ⊑ s1) →
     mapsto_na ℓ prot q (s1 :: s3 :: ss) -∗
@@ -298,6 +316,24 @@ Section points_to_at.
     iFrameF (haveTStore).
     iLeft. iApply persisted_loc_weak; last done. lia.
   Qed.
+
+  Lemma mapsto_na_persist_lb_last ℓ prot q ss s :
+    last ss = Some s →
+    persist_lb ℓ prot s -∗
+    mapsto_na ℓ prot q ss -∗
+    mapsto_na ℓ prot q [s].
+  Proof.
+    induction ss as [|s1 ss IH]; first done.
+    iIntros (lastLook) "#per pts".
+    destruct ss as [|s2 ss].
+    { inversion lastLook. done. }
+    iApply IH.
+    - done.
+    - done.
+    - iDestruct (mapsto_na_increasing with "[$]") as %incr.
+      iApply (mapsto_na_persist_lb with "pts per").
+  Abort. (* This lemma only holds if [s] is strictly greater than all other
+  elements of [ss]. *)
 
   (* Lemma mapsto_na_persist_lb ℓ prot q ss s1 s2 s3 : *)
   (*   ¬(s2 ⊑ s1) → *)
@@ -377,9 +413,11 @@ Section points_to_at_more.
   Implicit Types (e : expr) (ℓ : loc) (s : ST)
            (ss : list ST) (prot : LocationProtocol ST).
 
-  (* FIXME: We probably want to add a [crashed_in] here. *)
   Lemma post_crash_persist_lb (ℓ : loc) prot (s : ST) :
-    persist_lb ℓ prot s -∗ <PC> _, persist_lb ℓ prot (prot.(bumper) s).
+    persist_lb ℓ prot s -∗
+    <PC> _,
+      persist_lb ℓ prot (prot.(bumper) s) ∗
+      ∃ s', ⌜ s ⊑ s' ⌝ ∗ crashed_in prot ℓ s'.
   Proof.
     iNamed 1. iNamed "lbBase".
     rewrite /know_protocol.
@@ -400,13 +438,22 @@ Section points_to_at_more.
     iDestruct (crashed_at_agree with "crashed crashed'") as %<-.
     iClear "crashed'".
     assert (tC = tC0) as <- by congruence.
-    iDestruct ("impl" with "[%]") as "[??]"; first lia.
-    iExists _, _.
-    iFrame "∗#".
-    assert (tP - (offset + tC) = 0) as -> by lia.
-    iFrame "persisted".
-    iDestruct (have_SV_0) as "$".
-    iDestruct (have_FV_0) as "$".
+    iDestruct ("impl" with "[%]") as "[% ?]"; first lia.
+    iSplit.
+    * iExists _, _.
+      iFrame "∗#".
+      assert (tP - (offset + tC) = 0) as -> by lia.
+      iFrame "persisted".
+      iDestruct (have_SV_0) as "$".
+      iDestruct (have_FV_0) as "$".
+    * iExists s2. iSplitPure; first done.
+      iExists _. iFrame "crashed". iFrame.
+      iSplit; last (iPureIntro; apply elem_of_dom; done).
+      iExists (offset + tC), (offset + tC).
+      assert ((offset + tC - (offset + tC)) = 0) as -> by lia.
+      iFrame "#∗".
+      iDestruct (have_SV_0) as "$".
+      iDestruct (have_FV_0) as "$".
   Qed.
 
   Global Instance persist_lb_into_crash ℓ prot s : IntoCrash _ _ :=
@@ -502,7 +549,16 @@ Section points_to_at_more.
     iSplitPure; first done.
     iSplit.
     { rewrite /crashed_in.
-      iExists CV. iFrame "#∗". iPureIntro. apply elem_of_dom. done. }
+      iExists CV.
+      iFrame "crashed crashedIn".
+      iSplit; last (iPureIntro; apply elem_of_dom; done).
+      iFrame.
+      iExists (offset + tC), (offset + tC).
+      assert ((offset + tC - (offset + tC)) = 0) as -> by lia.
+      iFrame "persisted".
+      iFrame "#∗".
+      iDestruct (have_SV_0) as "$".
+      iDestruct (have_FV_0) as "$". }
     iExists tLo, (offset + tC), (offset + tC), ∅, _, (Msg _ ∅ ∅ ∅), _.
     iFrame. iFrame "#".
     iPureGoal. { rewrite fmap_last. rewrite lastEq'. done. }
@@ -530,6 +586,28 @@ Section points_to_at_more.
 
   Global Instance mapsto_na_into_crash ℓ prot q (ss : list ST) :
     IntoCrash (ℓ ↦_{prot}^{q} ss)%I _ := post_crash_mapsto_na ℓ prot q ss.
+
+  (* This lemma is strictly weaker than the above but could be useful if we do
+  not want to preserve the prefix after a crash. *)
+  Lemma post_crash_mapsto_na_singleton ℓ prot q (ss : list ST) :
+    ℓ ↦_{prot}^{q} ss -∗
+    post_crash (λ hG',
+      if_rec ℓ (∃ s,
+        ⌜ s ∈ ss ⌝ ∗
+        crashed_in prot ℓ s ∗
+        ℓ ↦_{prot}^{q} [prot.(bumper) s])).
+  Proof.
+    iIntros "pts".
+    iCrash. iModIntro.
+    iDestruct "pts" as (????) "(crashed & pts)".
+    iExists s.
+    iSplitPure.
+    { eapply elem_of_list_lookup_2.
+      eapply prefix_lookup; last done.
+      erewrite <- last_lookup.
+      done. }
+    iDestruct (crashed_in_persist_lb with "[$]") as "#per".
+  Abort. (* This should be true but is a bit annoying to show. *)
 
   Global Instance mapsto_na_into_crash_flush ℓ prot q (ss : list ST) :
     IntoCrashFlush _ _ :=
