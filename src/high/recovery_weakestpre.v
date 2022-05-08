@@ -594,8 +594,8 @@ Section wpr.
     (* The physical and abstract history has the same timestamps for all
     locations. We will need this when we apply [valid_slice_transfer] below. *)
     iAssert (
-        ⌜(∀ ℓ h1 h2, phys_hists !! ℓ = Some h1 → abs_hists !! ℓ = Some h2 → dom (gset _) h1 = dom _ h2)⌝
-      )%I as %physAbsHistTimestamps.
+      ⌜∀ ℓ h1 h2, phys_hists !! ℓ = Some h1 → abs_hists !! ℓ = Some h2 → dom (gset _) h1 = dom _ h2⌝
+    )%I as %physAbsHistTimestamps.
     { iIntros (?????).
       iDestruct (big_sepM2_lookup with "predsHold") as (??) "sep"; try eassumption.
       iApply (big_sepM2_dom with "sep"). }
@@ -657,21 +657,22 @@ Section wpr.
     { iSplit.
       { (* We show that fragments of the histories may survive a crash. *)
         iModIntro.
-        iIntros (???? ℓ t offset s bumper) "order newOffset oldBumper frag".
-        iApply "orLost". iIntros (? look).
+        iIntros (???? ℓ t offset s bumper) "order oldOffset oldBumper frag".
+        iApply "orLost". iIntros (tC look).
+
         iDestruct "frag" as (encX decEq) "oldFrag".
 
         iDestruct ("bumperImpl" $! ST with "[//] oldBumper")
           as "[%bumpersLook newBumper]".
         iDestruct ("orderImpl" $! ST with "[//] order")
           as "[%ordersLook newOrder]".
+        iDestruct (ghost_map_lookup with "oldOffsets oldOffset") as %offsetsLook.
 
-        assert (is_Some (offsets !! ℓ)) as [ℓoff offsetsLook].
-        { apply elem_of_dom.
-          rewrite -offsetDom.
-          rewrite domPhysHistsEqAbsHists.
-          rewrite domHistsEqOrders.
-          apply elem_of_dom. naive_solver. }
+        assert (newOffsets !! ℓ = Some (offset + tC)) as newOffsetsLook.
+        { rewrite /newOffsets.
+          apply map_lookup_zip_with_Some.
+          eexists _, (MaxNat _).
+          split_and!; done. }
 
         assert (ℓ ∈ recLocs).
         { rewrite /recLocs.
@@ -684,52 +685,84 @@ Section wpr.
           apply map_lookup_zip_with_Some.
           eexists _, (MaxNat _).
           split_and!; done. }
-        iExists _.
-        (* iFrame "offset". *)
 
-        iDestruct (full_map_frag_entry with "oldFullHist oldFrag") as %(h & lookH & hLook).
-        iDestruct (big_sepM2_lookup with "bumperSome") as %?; try done.
+        iDestruct (full_map_frag_entry with "oldFullHist oldFrag")
+          as %(oldAbsHist & lookH & hLook).
 
         eassert _ as newHistLook. { apply new_abs_hist_lookup; done. }
-        (*
-        destruct temp as (recEncS & ? & hLook2 & encBumper & newHistLook).
 
-        apply encode_bumper_Some_decode in encBumper as (recS & decEq2 & <-).
-        iExists recS.
-        iFrame "newOrder newBumper".
-        iSplit.
-        { (* We need info about ordered. *)
-          iDestruct (big_sepM2_lookup with "ordered") as %incr; try done.
-          iPureIntro.
-          rewrite /increasing_map in incr.
-          intros [lt | ->]%le_lt_or_eq.
-          2: {
-            assert (s = recS) as ->; last reflexivity.
-            apply (inj Some).
-            rewrite -decEq2.
-            rewrite -decEq.
-            f_equiv.
-            (* Why congruence no solve this? :'( *)
-            apply (inj Some).
-            rewrite -hLook2.
-            rewrite -hLook.
-            done. }
-          eapply encode_relation.encode_relation_decode_iff_1; try done.
-          eapply incr; done. }
-        iSplit.
-        { iExists _.
-          iSplitPure; first done.
-          iApply (big_sepM_lookup with "crashedInPts").
+        eassert (is_Some (oldAbsHist !! (offset + tC))) as [sOld oldAbsHistLook].
+        { eapply valid_slice_lookup; try done.
+          rewrite lookup_fmap. rewrite /offsets_add.
+          rewrite map_lookup_zip_with.
+          rewrite look. rewrite offsetsLook. simpl.
+          done. }
+
+        (* TODO: Make this a lemma. *)
+        iDestruct (big_sepM2_lookup with "bumperSome")
+          as %bumperSome; [done|done|].
+        eassert _ as applyBumper.
+        { eapply map_Forall_lookup_1.
+          apply bumperSome.
+          apply oldAbsHistLook. }
+        destruct applyBumper as (? & temp).
+        assert _ as encodeBumper by apply temp.
+        apply encode_bumper_Some_decode in temp as (recS & decEq2 & <-).
+
+        eassert _ as applyBumper.
+        { eapply map_Forall_lookup_1.
+          apply bumperSome.
+          apply hLook. }
+        destruct applyBumper as (? & temp).
+        assert _ as encodeBumper2 by apply temp.
+        apply encode_bumper_Some_decode in temp as (? & decEq' & <-).
+        simplify_eq.
+        iExists _.
+
+        iDestruct (big_sepM_lookup with "crashedInPts") as "#crashedIn".
+        { rewrite lookup_fmap.
+          erewrite slice_hist_lookup_Some; try done.
           rewrite lookup_fmap.
-          erewrite slice_hist_lookup_Some; done. }
-        rewrite /know_frag_history_loc.
-        rewrite /frag_entry_unenc.
-        iExists (encode (bumper recS)).
-        iSplitPure. { apply decode_encode. }
-        iDestruct (big_sepM_lookup with "fragHistories") as "frag"; first done.
-        iEval (rewrite big_sepM_singleton) in "frag".
-        iFrame "frag". }
-      *) admit. }
+          erewrite newOffsetsLook.
+          done. }
+
+        iSplit.
+        { iExists sOld. iFrame "crashedIn". iPureIntro. apply decEq2. }
+        iAssert (frag_entry_unenc new_abs_history_name ℓ (offset + tC) (bumper recS))%I as "#frag".
+        { iDestruct (big_sepM_lookup with "fragHistories") as "HI"; try done.
+          iDestruct (big_sepM_lookup with "HI") as "HI2"; try done.
+          { rewrite /new_hist.
+            rewrite lookup_omap.
+            erewrite drop_above_lookup_t.
+            rewrite oldAbsHistLook /=.
+            rewrite encodeBumper.
+            done. }
+          rewrite /know_frag_history_loc.
+          rewrite /frag_entry_unenc.
+          iExists _.
+          iFrame "HI2".
+          rewrite decode_encode. done. }
+        iFrame "frag".
+        iIntros ([lt | ->]%le_lt_or_eq).
+        2: { assert (s = recS) as -> by congruence. iFrame "frag". done. }
+
+        iDestruct (big_sepM_lookup with "fragHistories") as "HI"; try done.
+        iDestruct (big_sepM_lookup with "HI") as "HI2"; try done.
+        { rewrite /new_hist.
+          rewrite lookup_omap.
+          erewrite drop_above_lookup_le; last (apply Nat.lt_le_incl; apply lt).
+          rewrite hLook.
+          simpl.
+          rewrite encodeBumper2.
+          done. }
+        iDestruct (big_sepM2_lookup with "ordered") as %incr; try done.
+        iSplitPure.
+        { eapply encode_relation.encode_relation_decode_iff_1; try done.
+          eapply incr; done. }
+        iExists _.
+        iFrame "HI2".
+        rewrite decode_encode.
+        done. }
 
       (* The preorder implication. We show that the preorders may survive a
         crash. *)
@@ -926,8 +959,8 @@ Section wpr.
       { rewrite -elem_of_dom domPhysHistsEqAbsHists elem_of_dom. done. }
       iExists bumper. iSplitPure; first done.
       iApply soft_disj_intro_r.
-      iApply "orLost". iIntros (? cvLook).
-      assert (newOffsets !! ℓ = Some (offset + t)) as newOffsetsLook.
+      iApply "orLost". iIntros (tC cvLook).
+      assert (newOffsets !! ℓ = Some (offset + tC)) as newOffsetsLook.
       { rewrite /newOffsets.
         apply map_lookup_zip_with_Some.
         eexists _, (MaxNat _).
@@ -948,7 +981,7 @@ Section wpr.
         eexists _, _.
         split_and!; done. }
       rewrite newAbsHistLook.
-      eassert (is_Some (oldAbsHist !! _)) as [sOld ?].
+      eassert (is_Some (oldAbsHist !! (offset + tC))) as [sOld ?].
       { eapply valid_slice_lookup; try done.
         rewrite lookup_fmap. rewrite /offsets_add.
         rewrite map_lookup_zip_with.
