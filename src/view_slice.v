@@ -4,7 +4,7 @@ From stdpp Require Import countable numbers gmap.
 From iris.heap_lang Require Import locations.
 From iris.algebra Require Import gmap numbers.
 
-From self Require Import extra.
+From self Require Import extra map_extra.
 From self.algebra Require Export view.
 From self.lang Require Import syntax.
 
@@ -237,6 +237,15 @@ Section drop_prefix.
     - rewrite lookup_insert_ne; last congruence.
       rewrite lookup_insert_ne; last lia.
       apply drop_prefix_lookup.
+  Qed.
+
+  Lemma drop_prefix_drop_above x m t (a : A) :
+   drop_prefix (drop_above x m) x !! t = Some a →
+   t = 0 ∧ m !! (t + x) = Some a.
+  Proof.
+    intros look%drop_prefix_lookup_Some.
+    apply map_filter_lookup_Some in look as (? & ?).
+    split; [lia | done].
   Qed.
 
 End drop_prefix.

@@ -47,11 +47,13 @@ Section map_map_Forall.
 
 End map_map_Forall.
 
+(* A property that holds for all messages for atomic locations. *)
 Definition atomic_loc_inv (ℓ : loc) (t : time) (msg : message) :=
+  (* The store view includes the message itself. *)
+  msg.(msg_store_view) !!0 ℓ = t ∧
   (* For shared locations the two persist views are equal. This enforces
   that shared locations can only be written to using release store and
   RMW operations. *)
-  msg.(msg_store_view) !!0 ℓ = t ∧
   msg.(msg_persist_view) = msg.(msg_persisted_after_view).
 
 Definition shared_locs_inv (locs : gmap loc (gmap time message)) :=
@@ -118,8 +120,8 @@ Section state_interpretation.
       "%naViewsDom" ∷ ⌜ dom _ na_views = na_locs ⌝ ∗ (* NOTE: If this equality persists we could remove na_locs *)
       "naView" ∷ ghost_map_auth non_atomic_views_gname (DfracOwn 1) na_views ∗
 
-      (* Shared locations. *)
-      "%mapShared" ∷ ⌜ shared_locs_inv (restrict at_locs phys_hists) ⌝ ∗
+      (* Atomic locations. *)
+      "%mapShared" ∷ ⌜ shared_locs_inv (restrict at_locs (map_zip_with drop_prefix phys_hists offsets)) ⌝ ∗
       (* For shared locations [interp] owns the fragment for the full history. *)
       "atLocsHistories" ∷
         ([∗ map] ℓ ↦ abs_hist ∈ (restrict at_locs abs_hists),

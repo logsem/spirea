@@ -347,13 +347,19 @@ Section map_no_later.
 
 End map_no_later.
 
+Definition drop_above {A} t (m : gmap nat A) : gmap nat A :=
+  filter (λ '(t', ev), t' ≤ t) m.
+
 Section drop_above.
   Context {A : Type}.
+  Implicit Types (m : gmap nat A).
 
   (* Removes all entries from [m] after [t]. Note, there aren't that many lemmas
   about [drop_above]. In most cases we unfold it and use lemmas for [filter]. *)
-  Definition drop_above t (m : gmap nat A) : gmap nat A :=
-    filter (λ '(t', ev), t' ≤ t) m.
+
+  Lemma drop_above_fmap {B} t m (f : A → B) :
+    f <$> drop_above t m = drop_above t (f <$> m).
+  Proof. rewrite /drop_above. rewrite map_filter_fmap. done. Qed.
 
   Lemma drop_above_lookup_le m t1 t2 :
     t1 ≤ t2 → drop_above t2 m !! t1 = m !! t1.

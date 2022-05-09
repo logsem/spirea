@@ -858,27 +858,6 @@ Section wpr.
         eexists _, (MaxNat _).
         split; first reflexivity.
         split; done. }
-      (* "post_crash_map_map_phys_history_impl" *)
-      (*
-      iSplit. {
-        rewrite /map_map_phys_history_impl.
-        iIntros "!>" (ℓ tStore msg) "oldPhysHistMsg".
-        iApply "orLost". iIntros (t cvLook).
-        (* We need the old fragment to conclude that the location is in
-        [phys_hist]. *)
-        iDestruct (auth_map_map_auth_frag with "oldPhysHist oldPhysHistMsg")
-          as (hist physHistLook) "%histLook".
-        admit. }
-       *)
-      (*   eapply slice_of_hist_Some in cvSlicesPhysHists as ([v ?] & look & sliceLook); try done. *)
-      (*   (* [msg] is of course not neccessarily the recovered message. Let' find *)
-      (*   that one. *) *)
-      (*   iDestruct (auth_map_map_frag_lookup_singleton with "newPhysHistFrag") as "frag". *)
-      (*   { rewrite /slice_of_store. rewrite lookup_fmap. *)
-      (*     erewrite sliceLook. simpl. rewrite map_fmap_singleton. reflexivity. } *)
-      (*   { apply lookup_singleton. } *)
-      (*   iExists v. *)
-      (*   iFrame "frag". } *)
       (* "post_crash_bumper_impl" *)
       { iIntros "!>" (? ? ? ? ℓ bumper) "oldBumper".
         iApply "orLost". iIntros (t cvLook).
@@ -1065,18 +1044,29 @@ Section wpr.
     iSplitPure. { rewrite /newNaViews. apply dom_gset_to_gmap. }
     (* mapShared. We show that the shared location still satisfy that
     their two persist-views are equal. *)
-    iSplitPure. {
-      rewrite /shared_locs_inv.
+    iSplitPure.
+    { rewrite /shared_locs_inv.
       rewrite /map_map_Forall.
       eapply map_Forall_subseteq. { apply restrict_subseteq. }
-      intros ?? (? & ? & ?)%lookup_fmap_Some ???.
+      intros ℓ hist look t newMsg histLook.
+      apply map_lookup_zip_with_Some in look as (hist' & off & -> & look & offsetsLook).
+      apply lookup_fmap_Some in look as (origHist & <- & look).
+      apply drop_all_above_lookup_Some in look as (? & ? & -> & ? & ?).
+      rewrite drop_above_fmap in histLook.
       simplify_eq.
-      apply lookup_fmap_Some in H2 as (? & ? & ?).
-      simplify_eq.
+      Set Nested Proofs Allowed.
+      Lemma drop_prefix_drop_above {A} x m t (a : A) :
+       drop_prefix (drop_above x m) x !! t = Some a →
+       t = 0 ∧ m !! (t + x) = Some a.
+      Proof.
+        intros look%drop_prefix_lookup_Some.
+        apply map_filter_lookup_Some in look as (? & ?).
+        split; [lia | done].
+      Qed.
+      apply drop_prefix_drop_above in histLook as (-> & look).
+      apply lookup_fmap_Some in look as (? & <- & ? ).
       split; last done.
-      (* FIXME: We can't show this due to the first conjunct of
-      [atomic_loc_inv]. Can this be removed? *)
-      admit. (* apply shared_locs_inv_slice_of_store. *) }
+      destruct x1. simpl. apply view_lookup_zero_empty. }
     (* atLocsHistories *)
     iSplitL "atHistories".
     { iNext.
