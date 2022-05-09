@@ -480,24 +480,33 @@ Section points_to_at_more.
   (* Global Instance flush_lb_into_crash ℓ prot s : IntoCrash _ _ := *)
   (*   post_crash_flush_lb ℓ prot s. *)
 
-  (* Lemma post_crash_store_lb (ℓ : loc) prot (s : ST) : *)
-  (*   store_lb ℓ prot s -∗ *)
-  (*   post_crash (λ hG, if_rec ℓ (∃ (s' : ST), *)
-  (*     persist_lb ℓ prot s')). *)
-  (* Proof. *)
-  (*   iNamed 1. iNamed "lbBase". *)
-  (*   iDestruct (know_protocol_extract with "locationProtocol") *)
-  (*     as "(-#pred & -#order & -#bumper)". *)
-  (*   iDestruct (post_crash_frag_history with "[$order $bumper $knowFragHist]") as "H". *)
-  (*   iCrash. *)
-  (*   iDestruct (if_rec_or_lost_with_t with "H") as "H". *)
-  (*   iDestruct (if_rec_is_persisted ℓ) as "pers". *)
-  (*   iModIntro. *)
-  (*   iDestruct "H" as (???) "(? & ? & ? & ?)". *)
-  (*   iExists _, 0, _. iFrame "#∗". *)
-  (*   iDestruct (have_SV_0) as "$". *)
-  (*   iDestruct (have_FV_0) as "$". *)
-  (* Qed. *)
+  Lemma post_crash_store_lb (ℓ : loc) prot (s : ST) :
+    store_lb ℓ prot s -∗
+    <PC> hG, if_rec ℓ (∃ (s' : ST), persist_lb ℓ prot s').
+  Proof.
+    iNamed 1. iNamed "lbBase".
+    iDestruct (know_protocol_extract with "locationProtocol")
+      as "(#pred & #order & #bumper)".
+    iDestruct (post_crash_frag_history
+    with "[$order $bumper $knowFragHist $offset]") as "-#H".
+    iDestruct "pred" as "-#pred".
+    iDestruct "offset" as "-#offset".
+    iDestruct "bumper" as "-#bumper".
+    iDestruct "order" as "-#order".
+    iCrash.
+    iDestruct (if_rec_is_persisted ℓ) as "pers".
+    iModIntro.
+    iDestruct "H" as (????) "(crashed & ? & ? & ?)".
+    iDestruct "offset" as (???) "(crashed' & ?)".
+    iDestruct (crashed_at_agree with "crashed crashed'") as %->.
+    simplify_eq.
+    iExistsN.
+    iFrame.
+    replace (offset + tC - (offset + tC)) with 0 by lia.
+    iDestruct (have_SV_0) as "$".
+    iDestruct (have_FV_0) as "$".
+    iFrame "pers".
+  Qed.
 
   (* Global Instance store_lb_into_crash ℓ prot s : IntoCrash _ _ := *)
   (*   post_crash_store_lb ℓ prot s. *)

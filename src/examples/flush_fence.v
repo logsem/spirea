@@ -52,7 +52,7 @@ Section specification.
     iIntros (????) "[% lb]".
     iDestruct "lb" as (m ?) "lb".
     iCrashFlush.
-    iDestruct "lb" as (??) "(? & H)".
+    iDestruct "lb" as "[H ?]".
     iPureGoal; first done.
     iExists _.
     iDestruct (persist_lb_to_flush_lb with "H") as "$".
@@ -60,11 +60,13 @@ Section specification.
   Qed.
 
   Definition crash_condition {hD : nvmDeltaG} ℓa ℓb : dProp Σ :=
-    ("pts" ∷ ∃ (na nb : nat),
-     "aPer" ∷ persist_lb ℓa ϕa na ∗
-     "bPer" ∷ persist_lb ℓb (ϕb ℓa) nb ∗
-     "aPts" ∷ ℓa ↦_{ϕa} [na] ∗
-     "bPts" ∷ ℓb ↦_{ϕb ℓa} [nb])%I.
+    ("pts" ∷ ∃ nas nbs (na nb : nat),
+      "lastA" ∷ ⌜ last nas = Some na ⌝ ∗
+      "lastB" ∷ ⌜ last nbs = Some nb ⌝ ∗
+      "aPer" ∷ persist_lb ℓa ϕa na ∗
+      "bPer" ∷ persist_lb ℓb (ϕb ℓa) nb ∗
+      "aPts" ∷ ℓa ↦_{ϕa} nas ∗
+      "bPts" ∷ ℓb ↦_{ϕb ℓa} nbs)%I.
 
   Lemma prove_crash_condition {hD : nvmDeltaG} ℓa ℓb na nb (ssA ssB : list nat) :
     persist_lb ℓa ϕa na -∗
@@ -75,14 +77,17 @@ Section specification.
   Proof.
     iIntros "perA perB aPts bPts".
     iCrash.
-    iDestruct "perA" as (na' ?) "[perA #recA]".
-    iDestruct "perB" as (nb' ?) "[perB #recB]".
-    iDestruct (crashed_in_if_rec with "recA aPts") as (??) "[ptsA recA']".
+    iDestruct "perA" as "[perA (% & ? & #recA)]".
+    iDestruct "perB" as "[perB (% & ? & #recB)]".
+    iDestruct (crashed_in_if_rec with "recA aPts") as (????) "[recA' ptsA]".
     iDestruct (crashed_in_agree with "recA recA'") as %<-.
-    iDestruct (crashed_in_if_rec with "recB bPts") as (??) "[ptsB recB']".
+    iDestruct (crashed_in_if_rec with "recB bPts") as (????) "[recB' ptsB]".
     iDestruct (crashed_in_agree with "recB recB'") as %<-.
-    iExists na', nb'.
-    iFrame.
+    iExistsN.
+    iDestruct (crashed_in_persist_lb with "recA'") as "$".
+    iDestruct (crashed_in_persist_lb with "recB'") as "$".
+    rewrite !list_fmap_id.
+    iFrame "%∗".
   Qed.
 
   Lemma wp_incr_both ℓa ℓb s E :

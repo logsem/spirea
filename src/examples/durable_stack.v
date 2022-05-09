@@ -136,13 +136,13 @@ Section definitions.
   (* Representation predicate for a node. *)
   Fixpoint is_node `{nvmDeltaG} ℓnode (xs : list val) : dProp Σ :=
     match xs with
-    | [] => ∃ q,
-        ℓnode ↦_{nil_node_prot}^{q} [()] ∗
+    | [] => ∃ q ss,
+        ℓnode ↦_{nil_node_prot}^{q} ss ∗
         (* know_protocol ℓnode nil_node_prot ∗ *)
         flush_lb ℓnode nil_node_prot ()
-    | x :: xs' => ∃ (ℓtoNext ℓnext : loc) q1 q2 i,
+    | x :: xs' => ∃ (ℓtoNext ℓnext : loc) ss q1 q2 i,
         (* ℓnode *)
-        ℓnode ↦_{cons_node_prot x ℓtoNext}^{q1} [()] ∗
+        ℓnode ↦_{cons_node_prot x ℓtoNext}^{q1} ss ∗
         (* know_protocol ℓnode (cons_node_prot x ℓtoNext) ∗ *)
         flush_lb ℓnode (cons_node_prot x ℓtoNext) () ∗
         (* ℓtoNext *)
@@ -165,22 +165,23 @@ Section definitions.
     rewrite /IntoCrashFlush.
     generalize dependent ℓnode.
     induction xs as [|x xs IH]; iIntros (ℓnode).
-    - iDestruct 1 as (?) "(nodePts & lb)".
+    - iDestruct 1 as (??) "(nodePts & lb)".
       iCrashFlush.
-      iDestruct "lb" as ([] le) "(#rec & lb)".
+      iDestruct "lb" as "[#lb (% & ? & rec)]".
       iDestruct (crashed_in_if_rec with "rec nodePts") as "nodePts".
-      iDestruct "nodePts" as ([] elem) "(nodePts & ?)".
-      iExists _. iFrame "nodePts". iFrame.
+      iDestruct "nodePts" as (????) "(? & nodePts)".
+      iExists _, _. iFrame "nodePts".
       iApply persist_lb_to_flush_lb.
       iFrame "lb".
-    - iDestruct 1 as (?????) "(nodePts & nodeFlushLb & toNextFlush & node)".
+    - iDestruct 1 as (??????) "(nodePts & nodeFlushLb & toNextFlush & node)".
       iApply IH in "node".
       iCrashFlush.
-      iDestruct "nodeFlushLb" as ([] ?) "(#nodeRec & toNextFlushLb)" .
+      iDestruct "nodeFlushLb" as "[toNextLb (% & % & nodeRec)]".
       iDestruct "toNextFlush" as "[toNextFlush toNextRec]".
       iDestruct (crashed_in_if_rec with "nodeRec nodePts") as "nodePts".
-      iDestruct "nodePts" as ([]?) "[nodePts _]".
-      iExists _, _, _,  q2, _.
+      iDestruct "nodePts" as (????) "[? nodePts]".
+      iExists _, _, _, _, _, _.
+      rewrite !list_fmap_id.
       iFrame.
       iApply persist_lb_to_flush_lb.
       iFrame.
@@ -191,9 +192,9 @@ Section definitions.
   Proof.
     generalize dependent ℓnode.
     induction xs as [|x xs IH]; iIntros (ℓnode).
-    - iDestruct 1 as (q) "([pts1 pts2] & #r)".
+    - iDestruct 1 as (q ?) "([pts1 pts2] & #r)".
       iSplitL "pts1"; iFrame "r"; naive_solver.
-    - iDestruct 1 as (?????) "([pts1 pts2] & #? & toNextPts & node)".
+    - iDestruct 1 as (??????) "([pts1 pts2] & #? & toNextPts & node)".
       rewrite -(Qp_div_2 q2).
       iDestruct (mapsto_na_flushed_split with "toNextPts") as "[toNextPts1 toNextPts2]".
       iDestruct (IH with "node") as "[node1 node2]".
@@ -240,6 +241,7 @@ Section proof.
             ∀ a nD, BufferFree (ϕ a nD),
             ∀ a nD, Persistent (ϕ a nD)}.
 
+  (* The stack is crash safe. *)
   Lemma is_stack_post_crash ℓ :
     is_stack ϕ #ℓ -∗ <PC> _, if_rec ℓ (is_stack ϕ #ℓ).
   Proof.
@@ -277,7 +279,7 @@ Section proof.
       iExists _, [].
       iSplitPure; first reflexivity.
       simpl. iFrame "#".
-      iExists _. iFrame. }
+      iExists _, _. iFrame. }
     iNext. iIntros (?) "(? & ?)".
     iApply "ϕpost".
     iExists _. naive_solver.
@@ -356,7 +358,7 @@ Section proof.
         iExists _, _ , _, _, _.
         iFrame "isNode".
         iFrame "nodePts nodeFlushLb".
-        iExists _. iFrame "toNextPts toNextPtsFl".
+        iExists _, _. iFrame "toNextPts toNextPtsFl".
         iPureIntro. apply last_app. done. }
       iSplitL ""; first iIntros "!> $ //". iAccu. }
     iIntros (b ?) "[(-> & H & lb)|(-> & le & _ & (nodePts & toNextPts & isNode))]".
@@ -397,7 +399,8 @@ Section proof.
     wp_pures.
     destruct xs as [|x xs]; simpl.
     - (* The queue is empty. *)
-      iDestruct "node" as (?) "(headPts & #headLb)".
+      iDestruct "node" as (??) "(headPts & #headLb)".
+      iDestruct (mapsto_na_last with "headPts") as %[[]?].
       wp_apply (wp_load_na with "[$headPts]").
       { done. }
       { iModIntro. iIntros (?). rewrite /constant_prot. iIntros "#eq".
@@ -408,7 +411,8 @@ Section proof.
       iApply "ϕpost". iLeft. done.
     - (* The queue is non-empty. *)
       iDestruct "phis" as "[phi phis]".
-      iDestruct "node" as (?????) "(headPts & #headFlushLb & toNextPts & node)".
+      iDestruct "node" as (??????) "(headPts & #headFlushLb & toNextPts & node)".
+      iDestruct (mapsto_na_last with "headPts") as %[[]?].
       wp_apply (wp_load_na with "[$headPts]").
       { done. }
       { iModIntro. iIntros (?) "#eq". iFrame "eq". iDestruct "eq" as "-#eq". 
