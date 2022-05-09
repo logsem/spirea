@@ -1180,7 +1180,7 @@ Section wpr.
 
       rewrite /post_crash_flush. rewrite /post_crash.
       iEval (simpl) in "pred".
-      iDestruct ("pred" $! _ _ bumpers na_views (store, _) _
+      iDestruct ("pred" $! _ _ bumpers na_views (store,  ∅) _
                   with "persImpl baseMap") as "(baseMap & pred)".
       iDestruct ("pred" with "[$pcResPers $pcRes]") as "[H pcRes]".
       iFrame "baseMap pcRes".
@@ -1251,7 +1251,7 @@ Section wpr.
       eapply map_Forall_lookup_1 in bumperBumpToValid as [spa equi]; last done; first done.
       rewrite equi.
       done. }
-  Admitted.
+  Qed.
 
   (* _The_ lemma for showing a recovery weakest precondition. *)
   Lemma idempotence_wpr `{hGD : nvmDeltaG} s E1 e rec Φ Φr Φc `{∀ hG, Objective (Φc hG)} :
@@ -1303,4 +1303,4 @@ Section wpr.
     iApply "IH".
   Qed.
 
-End wpr_pre.
+End wpr.

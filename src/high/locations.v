@@ -65,24 +65,23 @@ Section points_to_at.
   Global Instance mapsto_na_fractional ℓ prot ss :
     Fractional (λ q, mapsto_na ℓ prot q ss).
   Proof.
-  Admitted.
-  (*   intros p q. *)
-  (*   rewrite /mapsto_na. *)
-  (*   iSplit. *)
-  (*   - iNamed 1. *)
-  (*     iDestruct "hist" as "[histP histQ]". *)
-  (*     iDestruct "knowSV" as "[knowSVP knowSVQ]". *)
-  (*       iSplitL "histP knowSVP". *)
-  (*       + repeat iExists _. iFrame "#∗%". *)
-  (*       + repeat iExists _. *)
-  (*         iFrame "#∗%". *)
-  (*   - iDestruct 1 as "[L R]". *)
-  (*     iNamed "L". *)
-  (*     iDestruct "R" as (??????) "(_ & _ & ? & _ & _ & _ & histQ & _ & SV & HIP & ?)". *)
-  (*     iDestruct (full_entry_agree with "hist histQ") as %->%(inj (fmap _)). *)
-  (*     iDestruct (ghost_map_elem_agree with "knowSV SV") as %->. *)
-  (*     repeat iExists _. iFrame "#∗%". *)
-  (* Qed. *)
+    intros p q.
+    rewrite /mapsto_na.
+    iSplit.
+    - iNamed 1.
+      iDestruct "hist" as "[histP histQ]".
+      iDestruct "knowSV" as "[knowSVP knowSVQ]".
+        iSplitL "histP knowSVP".
+        + repeat iExists _. iFrame "#∗%".
+        + repeat iExists _.
+          iFrame "#∗%".
+    - iDestruct 1 as "[L R]".
+      iNamed "L".
+      iDestruct "R" as (???????) "(_ & _ & ? & _ & _ & _ & histQ & _ & _ & SV & HIP & ?)".
+      iDestruct (full_entry_agree with "hist histQ") as %->%(inj (fmap _)).
+      iDestruct (ghost_map_elem_agree with "knowSV SV") as %->.
+      repeat iExists _. iFrame "#∗%".
+  Qed.
   Global Instance mapsto_na_as_fractional ℓ prot q v :
     AsFractional (mapsto_na ℓ prot q v) (λ q, mapsto_na ℓ prot q v)%I q.
   Proof. split; [done | apply _]. Qed.
@@ -508,7 +507,7 @@ Section points_to_at_more.
   (*   tLo ≤ t ≤ tHi → *)
   (*   ∃ ss', ss' `prefix_of` ss ∧ *)
   (*   map_sequence abs_hist tLo t ss. *)
-  (* Proof. Admitted. *)
+  (* Proof. *)
 
   Lemma post_crash_mapsto_na ℓ prot q (ss : list ST) :
     ℓ ↦_{prot}^{q} ss -∗
@@ -646,6 +645,8 @@ Section points_to_at_more.
     iDestruct "HI" as (????) "(#crashed' & ? & #hist & impl)".
     iDestruct (crashed_at_agree with "crashed crashed'") as %<-.
     iClear "crashed'".
+    simplify_eq.
+    iDestruct ("impl" with "[%]") as "[%incl ?]"; first lia.
     iSplit.
     - iExists _, _.
       iFrame "∗#".
@@ -653,7 +654,16 @@ Section points_to_at_more.
       iDestruct (have_SV_0) as "$".
       iDestruct (have_FV_0) as "$".
       iFrame "persisted".
-  Admitted.
+    - iExists s2.
+      iFrame (incl).
+      iExists _. iFrame "∗#".
+      iSplit; last (iPureIntro; apply elem_of_dom; try naive_solver).
+      iExists _, _. iFrame "∗#".
+      replace (offset + t - (offset + t)) with 0 by lia.
+      iFrame "persisted".
+      iDestruct (have_SV_0) as "$".
+      iDestruct (have_FV_0) as "$".
+  Qed.
 
   Global Instance know_flush_into_crash ℓ prot (s : ST) :
     IntoCrashFlush (flush_lb ℓ prot s) _ := post_crash_flush_flush_lb ℓ prot s.

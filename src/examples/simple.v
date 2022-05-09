@@ -61,22 +61,25 @@ Section specs.
     auto.
   Qed.
 
-  Lemma wpr_pure s E :
-    ⊢ wpr s E pure pure (λ v, ⌜ v = #8 ⌝)%I (λ _ _, True)%I.
-  Proof.
-    iApply idempotence_wpr.
-    2: { iApply wpc_with_let. }
-    { apply _. }
-    iModIntro. iModIntro. iIntros (?) "_". admit.
-  Admitted.
-
 End specs.
+
+Lemma wpr_pure `{!nvmG Σ, nvmDeltaG} s E :
+  ⊢ wpr s E pure pure (λ v, ⌜ v = #8 ⌝)%I (λ _ v, ⌜ v = #8 ⌝)%I.
+Proof.
+  iApply idempotence_wpr.
+  2: { iApply wpc_with_let. }
+  { apply _. }
+  iModIntro. iModIntro. iIntros (?) "_".
+  iApply post_crash_intro.
+  iIntros (?).
+  iApply wpc_with_let.
+Qed.
 
 Lemma wpr_pure_safe :
   recv_adequate NotStuck (pure `at` ⊥) (pure `at` ⊥) (∅, ∅)
-                (λ v _, v.(val_val) = #8) (λ v _, True).
+                (λ v _, v.(val_val) = #8) (λ v _, v.(val_val) = #8).
 Proof.
-  apply (high_recv_adequacy nvmΣ NotStuck pure pure ∅ ∅ (λ v, v = #8) (λ _, True) 0).
+  apply (high_recv_adequacy nvmΣ NotStuck pure pure ∅ ∅ (λ v, v = #8) (λ v, v = #8) 0).
   - done.
   - iIntros (??) "_". iApply wpr_pure.
 Qed.

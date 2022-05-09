@@ -96,18 +96,18 @@ Definition know_history_post_crash `{nvmG Σ}
 Instance know_history_post_crash_fractional `{nvmG Σ} hG ℓ bumper hist :
   Fractional (λ q, know_history_post_crash hG ℓ q bumper hist).
 Proof.
-Admitted. (* Trivial *)
-(*   apply or_lost_post_crash_fractional. *)
-(*   iIntros (t p q). *)
-(*   iSplit. *)
-(*   - iDestruct 1 as (?????) "(#? & #? & [L R] & #?)". *)
-(*     iSplitL "L"; iExistsN; iFrame "#%∗". *)
-(*   - iDestruct 1 as "[(% & % & % & % & % & #? & #off & L & #?) (% & % & % & % & % & #? & #? & R & #?)]". *)
-(*     simplify_eq. *)
-(*     iDestruct (ghost_map_elem_agree with "off [$]") as %<-. *)
-(*     iCombine "L R" as "F". *)
-(*     iExistsN. iFrame "∗#%". *)
-(* Qed. *)
+  apply or_lost_post_crash_fractional.
+  iIntros (t p q).
+  iSplit.
+  - iDestruct 1 as (??????) "(#? & #? & [L R] & #?)".
+    iSplitL "L"; iExistsN; iFrame "#%∗".
+  - iDestruct 1 as "[(% & % & % & % & % & % & #? & #off & L & #?)
+                     (% & % & % & % & % & % & #? & #? & R & #?)]".
+    simplify_eq.
+    iDestruct (ghost_map_elem_agree with "off [$]") as %<-.
+    iCombine "L R" as "F".
+    iExistsN. iFrame "∗#%".
+Qed.
 
 (** This map is used to exchange [know_full_history_loc] valid prior to a crash
 into a version valid after the crash. *)
@@ -193,16 +193,19 @@ Section post_crash_prop.
   Global Instance post_crash_objective P : Objective (post_crash P).
   Proof. done. Qed.
 
-  (* Lemma post_crash_intro Q: *)
-  (*   (⊢ Q) → *)
-  (*   (⊢ post_crash (λ _, Q)). *)
-  (* Proof. *)
-  (*   iStartProof (iProp _). iIntros (TV'). *)
-  (*   iIntros (Hmono). *)
-  (*   iIntrosPostCrash. *)
-  (*   iFrame "∗". *)
-  (*   iApply Hmono. *)
-  (* Qed. *)
+  Lemma post_crash_intro Q:
+    (⊢ (∀ nG, Q nG)) →
+    ⊢ post_crash (λ nG, Q nG).
+  Proof.
+    intros HQ.
+    iStartProof (iProp _). iIntros (TV').
+    iIntrosPostCrash.
+    iApply post_crash_modality.post_crash_for_all.
+    iIntros (hD).
+    iIntros "[_ $]".
+    iNext.
+    iApply HQ.
+  Qed.
 
   (** ** Structural rules *)
 
@@ -301,7 +304,18 @@ Section post_crash_interact.
       encode <$> (bumper <$> drop_above t abs_hist).
   Proof.
     rewrite /new_hist. rewrite /drop_above.
-  Admitted.
+    apply map_eq. intros t'.
+    rewrite lookup_omap.
+    rewrite map_filter_lookup.
+    rewrite !lookup_fmap.
+    rewrite map_filter_lookup.
+    destruct (abs_hist !! t'); simpl; last done.
+    destruct (decide (t' ≤ t)).
+    - rewrite !option_guard_True; try done.
+      simpl.
+      apply encode_bumper_encode.
+    - rewrite !option_guard_False; done.
+  Qed.
 
   Lemma post_crash_know_full_history_loc ℓ q (bumper : ST → ST)
         (abs_hist : gmap time ST) :
@@ -484,7 +498,6 @@ Section post_crash_interact.
                                ⎡ crashed_at CV ⎤ ∗
                                ⎡ ℓ ↪[offset_name]□ (tO + tC) ⎤).
   Proof.
-  (* Admitted. (* Should be proveable from above. *) *)
     iStartProof (iProp _). iIntros (TV') "HP".
     iIntrosPostCrash.
     iDestruct (base.post_crash_modality.post_crash_nodep with "HP") as "HP".
