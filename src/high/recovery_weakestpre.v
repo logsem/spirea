@@ -1054,15 +1054,6 @@ Section wpr.
       apply drop_all_above_lookup_Some in look as (? & ? & -> & ? & ?).
       rewrite drop_above_fmap in histLook.
       simplify_eq.
-      Set Nested Proofs Allowed.
-      Lemma drop_prefix_drop_above {A} x m t (a : A) :
-       drop_prefix (drop_above x m) x !! t = Some a →
-       t = 0 ∧ m !! (t + x) = Some a.
-      Proof.
-        intros look%drop_prefix_lookup_Some.
-        apply map_filter_lookup_Some in look as (? & ?).
-        split; [lia | done].
-      Qed.
       apply drop_prefix_drop_above in histLook as (-> & look).
       apply lookup_fmap_Some in look as (? & <- & ? ).
       split; last done.
@@ -1312,4 +1303,4 @@ Section wpr.
     iApply "IH".
   Qed.
 
-End wpr.
+End wpr_pre.

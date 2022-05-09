@@ -615,18 +615,6 @@ Qed.
 Definition initial_heap (σ : gmap loc val) : store :=
   (λ (v : val), {[ 0 := Msg v ∅ ∅ ∅ ]} : history ) <$> σ.
 
-Lemma shared_locs_inv_initial_heap (at_locs : gset loc) init_heap :
-  shared_locs_inv (restrict at_locs (initial_heap init_heap)).
-Proof.
-  eapply map_Forall_subseteq. { apply restrict_subseteq. }
-  intros ℓ hist (v & <- & hihi)%lookup_fmap_Some.
-  apply map_Forall_singleton.
-  rewrite /atomic_loc_inv. simpl.
-  split; last done.
-  rewrite /lookup_zero.
-  done.
-Qed.
-
 (* A record that contains all the information we need for a new location. *)
 Record loc_info `{nvmG Σ} := {
     (* Type for the location. *)
@@ -675,6 +663,39 @@ Section loc_info.
   Qed.
 
 End loc_info.
+
+Lemma map_zip_with_drop_prefix_const {A B} (m1 : gmap loc (gmap nat A)) (m2 : gmap loc B) :
+  dom (gset _) m1 = dom _ m2 →
+  map_zip_with drop_prefix m1 (const 0 <$> m2) = m1.
+Proof.
+  intros domEq.
+  apply map_eq. intros ℓ.
+  rewrite map_lookup_zip_with.
+  destruct (m1 !! ℓ) eqn:eq; simpl; last done.
+  rewrite lookup_fmap.
+  assert (is_Some (m2 !! ℓ)) as (? & ->).
+  { apply elem_of_dom. rewrite -domEq. apply elem_of_dom. done. }
+  simpl.
+  rewrite drop_prefix_zero. done.
+Qed.
+
+Lemma shared_locs_inv_initial_heap {A} (at_locs : gset loc) init_heap (lif : gmap loc A) :
+  dom (gset loc) lif = dom (gset loc) init_heap →
+  shared_locs_inv
+    (restrict at_locs
+       (map_zip_with drop_prefix (initial_heap init_heap) ((const 0) <$> lif))).
+Proof.
+  intros domEq.
+  eapply map_Forall_subseteq. { apply restrict_subseteq. }
+  rewrite map_zip_with_drop_prefix_const.
+  2: { rewrite /initial_heap. rewrite dom_fmap_L. done. }
+  intros ℓ hist (v & <- & hihi)%lookup_fmap_Some.
+  apply map_Forall_singleton.
+  rewrite /atomic_loc_inv. simpl.
+  split; last done.
+  rewrite /lookup_zero.
+  done.
+Qed.
 
 Lemma valid_heap_initial_heap init_heap : valid_heap (initial_heap init_heap).
 Proof.
@@ -982,7 +1003,7 @@ Proof.
     { rewrite /mk_na_views. rewrite dom_fmap_L.
       eapply restrict_dom_subset_L.
       rewrite domEq. set_solver. }
-    iSplitPure. { rewrite /σ. apply shared_locs_inv_initial_heap. }
+    iSplitPure. { rewrite /σ. apply shared_locs_inv_initial_heap. done. }
     iSplit.
     { iApply big_sepM2_forall.
       iPureIntro. split.

@@ -553,7 +553,9 @@ Section wp_na_rules.
     { iPureIntro. rewrite dom_insert_lookup_L; naive_solver. }
     (* [mapShared] *)
     iSplit.
-    { iPureIntro. setoid_rewrite restrict_insert_not_elem; done. }
+    { iPureIntro.
+      rewrite -map_insert_zip_with.
+      setoid_rewrite restrict_insert_not_elem; done. }
 
     (* [atLocsHistories] *)
     iSplitL "atLocsHistories".
