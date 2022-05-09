@@ -166,7 +166,6 @@ Section wp_na_rules.
       rewrite view_slice.drop_prefix_zero.
       iFrame. }
     iFrame "ordered bumpMono".
-    iFrame (mapShared).
     (* [oldViewsDiscarded] *)
     iSplit.
     { iFrame "oldViewsDiscarded". iIntros (???). lia. }
@@ -180,6 +179,10 @@ Section wp_na_rules.
     (* naViewsDom *)
     iSplitPure. { rewrite dom_insert_L. rewrite naViewsDom. done. }
     iFrame "atLocsHistories".
+    iSplitPure.
+    { rewrite -map_insert_zip_with.
+      rewrite !(restrict_insert_not_elem _ _ _ _ H3).
+      apply mapShared. }
     (* increasingMap *)
     iSplitPure; first apply increasing_map_singleton.
     (* predsHold *)

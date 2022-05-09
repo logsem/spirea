@@ -171,7 +171,8 @@ Section wp_at_rules.
     iSplitPure; first done.
     iFrame "naView".
     (* mapShared *)
-    iSplitPure. {
+    iSplitPure.
+    { rewrite -map_insert_zip_with.
       rewrite restrict_insert_union.
       rewrite /shared_locs_inv.
       rewrite /map_map_Forall.
@@ -289,7 +290,8 @@ Section wp_at_rules.
   Definition loc_info ℓ prot (pred : enc_predicateO) physHist absHist offset : iProp Σ :=
     "%domEq" ∷ ⌜ dom (gset _) physHist = dom _ absHist ⌝ ∗
     "%increasing" ∷ ⌜ increasing_map (encode_relation (⊑@{ST})) absHist ⌝ ∗
-    "%atInvs" ∷ ⌜ map_Forall (λ t msg, atomic_loc_inv ℓ t msg) physHist ⌝ ∗
+    "%atInvs" ∷
+      ⌜ map_Forall (λ t msg, atomic_loc_inv ℓ t msg) (drop_prefix physHist offset) ⌝ ∗
     "#predEquiv" ∷ ▷ (pred ≡ encode_predicate (protocol.pred prot)) ∗
     "#frags" ∷ ([∗ map] k2 ↦ v ∈ absHist, frag_entry abs_history_name ℓ k2 v) ∗
     "predHolds" ∷ encoded_predicate_hold physHist absHist pred ∗
@@ -371,7 +373,9 @@ Section wp_at_rules.
 
     eassert _ as invs.
     { eapply map_Forall_lookup_1; first apply mapShared.
-        apply restrict_lookup_Some_2; done. }
+      apply restrict_lookup_Some_2; last done.
+      apply map_lookup_zip_with_Some.
+      eexists _, _. split_and!; done. }
     simpl in invs.
 
     iDestruct (big_sepM_delete with "atLocsHistories") as
@@ -382,7 +386,7 @@ Section wp_at_rules.
 
     iExists physHist, absHist, pred.
     (* Give resources. *)
-    iFrame (domEq increasingMap invs).
+    iFrame (domEq increasingMap). iFrame (invs).
     iFrame "predsEquiv".
     iFrame "predHolds".
     iFrame "histFrags".
@@ -392,7 +396,7 @@ Section wp_at_rules.
     (* We show the two different implications. *)
     iSplit.
     { (* Get back resources. *)
-      iIntros (t_i s2 es msg ? encEs lookNone ? ?) "predHolds fullHist order pts".
+      iIntros (t_i s2 es msg ? encEs lookNone viewLook ?) "predHolds fullHist order pts".
 
       assert (absHist !! t_i = None)%I as absHistLookNone.
       { apply not_elem_of_dom. rewrite -domEq. apply not_elem_of_dom. done. }
@@ -460,14 +464,19 @@ Section wp_at_rules.
       persisted after view is equal. *)
       iSplit.
       { iPureIntro.
+        erewrite <- (insert_id offsets); last done.
+        rewrite -map_insert_zip_with.
         setoid_rewrite (restrict_insert ℓ); last done.
         rewrite /shared_locs_inv.
+        apply Nat.le_exists_sub in H2 as (tE & -> & ?).
+        rewrite -drop_prefix_insert.
         apply map_map_Forall_insert_2.
-        - apply restrict_lookup_Some; done.
+        - apply restrict_lookup_Some_2; last done.
+          apply map_lookup_zip_with_Some. naive_solver.
         - simpl.
           rewrite /atomic_loc_inv.
-          admit.
-          (* split; done. *)
+          split; last done.
+          rewrite viewLook. lia.
         - done. }
       iSplitL "atLocsHistories".
       {
@@ -517,19 +526,49 @@ Section wp_at_rules.
       iFrame "bumperSome".
       iFrame "historyFragments".
       iFrame "%". }
-  Admitted.
+  Qed.
 
-  Lemma read_atomic_location t_i t_l (physHist : history) absHist vm SVm FVm
+  Lemma read_atomic_location_no_inv t_i t_l (physHist : history) absHist vm SVm FVm
         PVm ℓ (e_i : positive) (s_i : ST) :
     t_i ≤ t_l →
     dom (gset _) physHist = dom _ absHist →
     absHist !! t_i = Some e_i →
     decode e_i = Some s_i →
     increasing_map (encode_relation (⊑@{ST})) absHist →
-    map_Forall (λ (t : nat) (msg : message), atomic_loc_inv ℓ t msg) physHist →
     physHist !! t_l = Some (Msg vm SVm FVm PVm) →
     ∃ s_l e_l,
       absHist !! t_l = Some e_l ∧
+      decode e_l = Some s_l ∧
+      (* SVm !!0 ℓ = t_l ∧ *)
+      (* FVm = PVm ∧ *)
+      s_i ⊑ s_l.
+  Proof.
+    intros le domEq ? decodeEnc ? ?.
+    assert (is_Some (absHist !! t_l)) as (e_l & ?).
+    { apply elem_of_dom. rewrite <- domEq. apply elem_of_dom. naive_solver. }
+    (* The loaded state must be greater than [s_i]. *)
+    assert (encode_relation (⊑@{ST}) e_i e_l) as orderRelated.
+    { eapply increasing_map_increasing_base; try done.
+      rewrite /encode_relation. rewrite decodeEnc. simpl. done. }
+    epose proof (encode_relation_inv _ _ _ orderRelated)
+      as (? & s_l & eqX & decodeS' & s3InclS').
+    assert (x = s_i) as -> by congruence.
+   exists s_l, e_l. done.
+  Qed.
+
+  Lemma read_atomic_location t_i t_l offset (physHist : history) absHist vm SVm FVm
+        PVm ℓ (e_i : positive) (s_i : ST) :
+    t_i ≤ t_l + offset →
+    dom (gset _) physHist = dom _ absHist →
+    absHist !! t_i = Some e_i →
+    decode e_i = Some s_i →
+    increasing_map (encode_relation (⊑@{ST})) absHist →
+    (* map_Forall (λ (t : nat) (msg : message), atomic_loc_inv ℓ t msg) physHist → *)
+    map_Forall (λ (t : nat) (msg : message), atomic_loc_inv ℓ t msg)
+               (drop_prefix physHist offset) →
+   physHist !! (t_l + offset) = Some (Msg vm SVm FVm PVm) →
+    ∃ s_l e_l,
+      absHist !! (t_l + offset) = Some e_l ∧
       decode e_l = Some s_l ∧
       SVm !!0 ℓ = t_l ∧
       FVm = PVm ∧
@@ -537,22 +576,19 @@ Section wp_at_rules.
   Proof.
     intros le domEq ? decodeEnc ? atInvs ?.
     eassert _ as temp.
-    { eapply map_Forall_lookup_1; [apply atInvs|done]. }
+    { eapply map_Forall_lookup_1; first apply atInvs.
+      rewrite drop_prefix_lookup. done. }
     rewrite /atomic_loc_inv /= in temp. destruct temp as [SV'lookup <-].
-
-    assert (is_Some (absHist !! t_l)) as (e_l & ?).
+    assert (is_Some (absHist !! (t_l + offset))) as (e_l & ?).
     { apply elem_of_dom. rewrite <- domEq. apply elem_of_dom. naive_solver. }
-
     (* The loaded state must be greater than [s_i]. *)
     assert (encode_relation (⊑@{ST}) e_i e_l) as orderRelated.
     { eapply increasing_map_increasing_base; try done.
       rewrite /encode_relation. rewrite decodeEnc. simpl. done. }
-
     epose proof (encode_relation_inv _ _ _ orderRelated)
       as (? & s_l & eqX & decodeS' & s3InclS').
     assert (x = s_i) as -> by congruence.
-
-    exists s_l, e_l. done.
+   exists s_l, e_l. done.
   Qed.
 
   Lemma wp_load_at ℓ s Q prot st E :
@@ -746,8 +782,8 @@ Section wp_at_rules.
       assert (is_Some (physHist !! t_c)) as [[????] look2].
       { rewrite -elem_of_dom domEq elem_of_dom. done. }
 
-      eassert _ as  temp. { eapply (read_atomic_location t_i t_c); done || lia. }
-      destruct temp as (s_c & encSC & ? & decodeS' & ? & <- & orderRelated).
+      eassert _ as  temp. { eapply (read_atomic_location_no_inv t_i t_c); done || lia. }
+      destruct temp as (s_c & encSC & ? & decodeS' & orderRelated).
       simplify_eq.
       rewrite /encode_relation. rewrite decode_encode. rewrite decodeS'.
 
@@ -858,7 +894,7 @@ Section wp_at_rules.
       #ℓ <-_AT v_t @ st; E
     {{{ RET #(); store_lb ℓ prot s_t ∗ Q s_t }}}.
   Proof.
-  Admitted.
+  Abort.
 
   (** [Q1] is the resource we want to extract in case of success and and [Q2] is
   the resource we want to extract in case of failure. *)
@@ -974,7 +1010,6 @@ Section wp_at_rules.
         ⌜increasing_map (encode_relation sqsubseteq) (<[(t_l + offset + 1)%nat := encode s_t]> absHist)⌝
       )%I as %incri.
       {
-
         iApply (bi.pure_mono).
         { apply
             (increasing_map_insert_succ _ _ _ _ (encode s_t) increasing
@@ -985,8 +1020,8 @@ Section wp_at_rules.
         assert (is_Some (physHist !! t_c)) as [[v_c cSV cFV ?] look2].
         { rewrite -elem_of_dom domEq elem_of_dom. done. }
 
-        eassert _ as  temp. { eapply (read_atomic_location (t_l + offset) t_c); done || lia. }
-        destruct temp as (s_c & encSC & ? & decodeS' & ? & <- & orderRelated2).
+        eassert _ as  temp. { eapply (read_atomic_location_no_inv (t_l + offset) t_c); try done || lia. }
+        destruct temp as (s_c & encSC & ? & decodeS' & orderRelated2).
         simplify_eq.
         rewrite /encode_relation. rewrite decode_encode. rewrite decodeS'.
         simpl.
@@ -1037,7 +1072,6 @@ Section wp_at_rules.
         destruct TV' as [[??]?].
         repeat split; last done.
         - eapply view_lub_le; solve_view_le.
-          admit.
         - solve_view_le. }
 
       iModIntro.
@@ -1056,7 +1090,7 @@ Section wp_at_rules.
         repeat destruct_thread_view; repeat destruct_thread_view_le.
         rewrite thread_view_lub.
         assert (SV ⊔ SVm ⊑ <[ℓ:=MaxNat (t_l + 1)]> (SV ⊔ SVm)) as le2.
-        { apply view_insert_le. rewrite lookup_zero_lub. admit. } (* lia. } *)
+        { apply view_insert_le. rewrite lookup_zero_lub. lia. }
         apply thread_view_le.
         - etrans; last apply le2. solve_view_le.
         - apply view_lub_le; solve_view_le.
@@ -1113,7 +1147,7 @@ Section wp_at_rules.
       { repeat split; eauto using view_le_r, view_empty_least.
         rewrite assoc. apply view_le_r. }
       { etrans; first done. etrans; first done. repeat split; auto using view_le_l. }
-    Admitted.
+  Qed.
 
   (** [Q1] is the resource we want to extract in case of success and and [Q2] is
   the resource we want to extract in case of failure. *)
