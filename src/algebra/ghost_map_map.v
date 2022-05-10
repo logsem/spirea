@@ -311,6 +311,22 @@ Section lemmas.
     iExists _, _. iFrame.
   Qed.
 
+  Lemma full_entry_lookup_big γ k dq mi mi2 :
+    full_entry γ k dq mi -∗
+    ([∗ map] k2 ↦ v ∈ mi2, frag_entry γ k k2 v) -∗
+    ⌜ mi2 ⊆ mi ⌝.
+  Proof.
+    rewrite /full_entry /frag_entry.
+    iDestruct 1 as ([γauth γfrac]) "(#topPts & frag & M)".
+    iIntros "H". simpl.
+    iApply (ghost_map_lookup_big with "M").
+    iApply (big_sepM_impl with "H").
+    iModIntro. iIntros (???).
+    iIntros "(% & % & hi & ho)".
+    iDestruct (ghost_map_elem_agree with "topPts hi") as %[= -> ->].
+    naive_solver.
+  Qed.
+
 End lemmas.
 
 Opaque full_map.

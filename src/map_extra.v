@@ -293,6 +293,10 @@ Section map_sequence.
     - apply IH. done.
   Qed.
 
+  Lemma map_sequence_singleton t x :
+    map_sequence {[ t := x ]} t t [x].
+  Proof. simpl. split; last done. apply lookup_singleton. Qed.
+
 End map_sequence.
 
 Section map_no_later.
