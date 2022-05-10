@@ -86,6 +86,36 @@ Section points_to_at.
     AsFractional (mapsto_na ℓ prot q v) (λ q, mapsto_na ℓ prot q v)%I q.
   Proof. split; [done | apply _]. Qed.
 
+  Program Definition have_msg_after_fence msg : dProp Σ :=
+    MonPred (λ TV,
+      ⌜ msg.(msg_store_view) ⊑ (store_view TV) ⌝ ∗
+      ⌜ msg.(msg_persisted_after_view) ⊑ (flush_view TV ⊔ buffer_view TV) ⌝
+    )%I _.
+  Next Obligation. solve_proper. Qed.
+
+  Global Instance have_msg_after_fence_persistent msg :
+    Persistent (have_msg_after_fence msg).
+  Proof. apply monPred_persistent=> j. apply _. Qed.
+
+  Definition mapsto_at ℓ prot ss : dProp Σ :=
+    (∃ (abs_hist : gmap time ST) (phys_hist : gmap time message) tLo tS offset s,
+      "%lastEq" ∷ ⌜ last ss = Some s ⌝ ∗
+      "%slice" ∷ ⌜ map_sequence abs_hist tLo tS ss ⌝ ∗
+      "#isAtLoc" ∷ ⎡ is_at_loc ℓ ⎤ ∗
+      "#locationProtocol" ∷ ⎡ know_protocol ℓ prot ⎤ ∗
+      "#absHist" ∷
+        ⎡ ([∗ map] t ↦ s ∈ abs_hist, know_frag_history_loc ℓ t s) ⎤ ∗
+      "#physHist" ∷
+        ([∗ map] t ↦ msg ∈ phys_hist,
+          have_msg_after_fence msg ∗
+          ⎡ auth_map_map_frag_singleton phys_history_name ℓ t msg ⎤) ∗
+      "#offset" ∷ ⎡ ℓ ↪[offset_name]□ offset ⎤ ∗
+      "#tSLe" ∷ have_SV ℓ (tS - offset)).
+
+  Global Instance mapsto_na_persistent ℓ prot ss :
+    Persistent (mapsto_at ℓ prot ss).
+  Proof. apply _. Qed.
+
   Definition lb_base ℓ prot offset tS (s : ST) : dProp Σ :=
     "#locationProtocol" ∷ ⎡ know_protocol ℓ prot ⎤ ∗
     "#knowFragHist" ∷ ⎡ know_frag_history_loc ℓ tS s ⎤ ∗
@@ -96,17 +126,9 @@ Section points_to_at.
     ∃ (tS : nat) (offset : nat),
       "#lbBase" ∷ lb_base ℓ prot offset tS s.
 
-      (* "#locationProtocol" ∷ ⎡ know_protocol ℓ prot ⎤ ∗ *)
-      (* "#knowFragHist" ∷ ⎡ know_frag_history_loc ℓ (offset + tS) s ⎤ ∗ *)
-      (* "#offset" ∷ ⎡ ℓ ↪[offset_name] offset ⎤ ∗ *)
-      (* "#tSLe" ∷ have_SV ℓ tS. *)
-
   Definition flush_lb ℓ prot (s : ST) : dProp Σ :=
     ∃ (tF : nat) offset,
       "#lbBase" ∷ lb_base ℓ prot offset tF s ∗
-      (* "#locationProtocol" ∷ ⎡ know_protocol ℓ prot ⎤ ∗ *)
-      (* "knowFragHist" ∷ ⎡ know_frag_history_loc ℓ tF s ⎤ ∗ *)
-      (* "#tSLe" ∷ have_SV ℓ tF ∗ *)
       (* Either we have something in the flush view or the location is
       persisted. The later case is for after a crash where we don't have
       anything in the flush view. *)
@@ -116,10 +138,7 @@ Section points_to_at.
   Program Definition persist_lb ℓ prot (sP : ST) : dProp Σ :=
     ∃ tP offset,
       "#lbBase" ∷ lb_base ℓ prot offset tP sP ∗
-      (* "#locationProtocol" ∷ ⎡ know_protocol ℓ prot ⎤ ∗ *)
-      (* "knowFragHist" ∷ ⎡ know_frag_history_loc ℓ tP sP ⎤ ∗ *)
       (* We have the persisted state in our store view. *)
-      (* "#tSLe" ∷ have_SV ℓ tP ∗ *)
       "#tPLe" ∷ have_FV ℓ (tP - offset) ∗
       "persisted" ∷ ⎡ persisted_loc ℓ (tP - offset) ⎤.
 
@@ -128,9 +147,6 @@ Section points_to_at.
       "#persistLb" ∷ persist_lb ℓ prot (prot.(bumper) s) ∗
       "#crashed" ∷ ⎡ crashed_at CV ⎤ ∗
       "#crashedIn" ∷ ⎡ crashed_in_mapsto ℓ s ⎤ ∗
-      (* "#locationProtocol" ∷ ⎡ know_protocol ℓ prot ⎤ ∗ *)
-      (* "#pers" ∷ ⎡ persisted_loc ℓ 0 ⎤ ∗ *)
-      (* "#knowFragHist" ∷ ⎡ know_frag_history_loc ℓ 0 (bumper prot s) ⎤ ∗ *)
       "%inCV" ∷ ⌜ℓ ∈ dom (gset _) CV⌝.
 
   Global Instance crashed_in_persistent prot ℓ s :
@@ -142,15 +158,6 @@ Section points_to_at.
     ∃ CV,
       "#crashed" ∷ ⎡ crashed_at CV ⎤ ∗
       "%notInCV" ∷ ⌜ℓ ∉ dom (gset _) CV⌝.
-
-  (* Let's see if we want this.
-  Definition mapsto_shared ℓ s1 s2 s3 ϕ : dProp Σ :=
-    "knowPred" ∷ ⎡ know_pred ℓ ϕ ⎤ ∗
-    "isSharedLoc" ∷ ⎡ own shared_locs_name (◯ {[ ℓ ]}) ⎤ ∗
-    "globalPerLB" ∷ persist_lb ℓ s1 ∗
-    "persistLB" ∷ flush_lb ℓ s2 ∗
-    "storeLB" ∷ store_lb ℓ s3.
-  *)
 
   Lemma store_lb_protocol ℓ prot s :
     store_lb ℓ prot s -∗ ⎡ know_protocol ℓ prot ⎤.
@@ -179,7 +186,7 @@ Section points_to_at.
   Lemma persist_lb_to_store_lb ℓ prot s :
     persist_lb ℓ prot s -∗ store_lb ℓ prot s.
   Proof. iNamed 1. iExistsN. iFrame "∗#". Qed.
-  
+
   (* Lemma flush_lb_at_zero ℓ (s s' : ST) : *)
   (*   s ⊑ s' → *)
   (*   ⎡ know_frag_history_loc ℓ {[0 := s']} ⎤ -∗ *)
@@ -405,6 +412,8 @@ Notation "l ↦_{ prot }^{ q } ss" := (mapsto_na l prot q ss) (at level 20).
 
 (** Notation for the shared points-to predicate. *)
 (* Notation "l ↦ ( s1 , s2 , s3 )  | P" := (mapsto_shared l s1 s2 s3 P) (at level 20). *)
+
+Notation "l ↦_AT^{ prot } ss" := (mapsto_at l prot ss) (at level 20).
 
 Section points_to_at_more.
   Context `{nvmG Σ, hGD : nvmDeltaG, AbstractState ST}.
@@ -679,8 +688,9 @@ Section points_to_at_more.
 
 End points_to_at_more.
 
-Typeclasses Opaque mapsto_na.
-Typeclasses Opaque store_lb.
-Typeclasses Opaque flush_lb.
-Typeclasses Opaque persist_lb.
-Typeclasses Opaque crashed_in.
+Opaque mapsto_na.
+Opaque mapsto_at.
+Opaque store_lb.
+Opaque flush_lb.
+Opaque persist_lb.
+Opaque crashed_in.

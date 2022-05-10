@@ -263,7 +263,7 @@ Section wp_rules.
     iStartProof (iProp _).
     iIntros ([[sv pv] bv]) "lb".
     rewrite /store_lb.
-    iDestruct "lb" as (? offset) "H". iNamed "H". iNamed "lbBase".
+    iDestruct "lb" as (tS offset) "H". iNamed "H". iNamed "lbBase".
     iDestruct "tSLe" as %tSLe.
 
     iIntros ([[??]?] ?) "HΦ".

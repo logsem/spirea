@@ -1021,7 +1021,7 @@ Proof.
                  (li' & <- & ?)%lookup_fmap_Some) "pred".
       simplify_eq.
       iExists _.
-      iSplitPure. 
+      iSplitPure.
       { rewrite /preds. rewrite /mk_preds. rewrite lookup_fmap.
         rewrite H0. simpl. done. }
       iApply big_sepM2_singleton. simpl.
