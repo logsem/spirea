@@ -9,7 +9,7 @@ From iris.proofmode Require Import proofmode.
 
 From self.algebra Require Import ghost_map ghost_map_map.
 From self.lang Require Import lang.
-From self Require Import extra.
+From self Require Import extra ipm_tactics.
 
 (* For abstract history we need two types of fragmental knowledge. One that
 represents ownership about the entire abstract history of a location (for
@@ -84,6 +84,31 @@ Section abs_history_lemmas.
     iIntros "H1 (% & % & H2)".
     iDestruct (full_entry_frag_entry with "H1 H2") as %look.
     iPureIntro. eexists _. split_and!; done.
+  Qed.
+
+  Lemma history_full_entry_frag_lookup_big γ q ℓ enc_abs_hist hist :
+    history_full_entry_encoded γ ℓ q enc_abs_hist -∗
+    ([∗ map] t↦s ∈ hist, frag_entry_unenc γ ℓ t s) -∗
+    ⌜ ∃ hist_enc,
+      hist_enc ⊆ enc_abs_hist ∧
+      dom (gset _) hist = dom _ hist_enc ∧
+      map_Forall (λ k enc, ∃ s, decode enc = Some s ∧
+                                hist !! k = Some s) hist_enc ⌝.
+  Proof.
+    iIntros "F M".
+    rewrite /frag_entry_unenc.
+    iDestruct (big_sepM_exist_r with "M") as (hist_enc) "M".
+    iDestruct (full_entry_lookup_big _ _ _ _ hist_enc with "F [M]") as %sub.
+    { iApply big_sepM_forall.
+      iIntros (???).
+      iDestruct (big_sepM2_lookup_r with "M") as (???) "$"; first done. }
+    iExists hist_enc.
+    iSplit; first done.
+    iDestruct (big_sepM2_dom with "M") as %domeq.
+    iSplit; first done.
+    iIntros (?? look).
+    iDestruct (big_sepM2_lookup_r with "M") as (???) "hih"; first done.
+    iExists x1. done.
   Qed.
 
   Lemma own_frag_history_singleton_agreee γ ℓ t s1 s2 :

@@ -98,9 +98,11 @@ Section points_to_at.
   Proof. apply monPred_persistent=> j. apply _. Qed.
 
   Definition mapsto_at ℓ prot ss : dProp Σ :=
-    (∃ (abs_hist : gmap time ST) (phys_hist : gmap time message) tLo tS offset s,
-      "%lastEq" ∷ ⌜ last ss = Some s ⌝ ∗
+    (∃ (abs_hist : gmap time ST) (phys_hist : gmap time message) tLo tS offset s ms,
+      "%lastEq" ∷ ⌜ last ss = Some s ⌝ ∗ (* NOTE: Could we change this to non-empty? *)
       "%slice" ∷ ⌜ map_sequence abs_hist tLo tS ss ⌝ ∗
+      "%slicePhys" ∷ ⌜ map_sequence phys_hist tLo tS ms ⌝ ∗
+      "%absPhysHistDomEq" ∷ ⌜ dom (gset _) abs_hist = dom _ phys_hist ⌝ ∗
       "#isAtLoc" ∷ ⎡ is_at_loc ℓ ⎤ ∗
       "#locationProtocol" ∷ ⎡ know_protocol ℓ prot ⎤ ∗
       "#absHist" ∷
