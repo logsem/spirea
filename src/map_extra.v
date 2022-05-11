@@ -2,6 +2,7 @@
 
 From stdpp Require Import countable numbers gmap fin_maps list.
 From iris.proofmode Require Import tactics.
+From self Require Import extra.
 
 (** [map_no_later] *)
 
@@ -29,6 +30,7 @@ Section map_sequence.
         map_sequence m lo' hi xs
     end.
 
+  (* FIXME: Renamed to [le]. *)
   Lemma map_sequence_lt m lo hi xs : map_sequence m lo hi xs → lo ≤ hi.
   Proof.
     generalize dependent lo.
@@ -36,6 +38,18 @@ Section map_sequence.
     destruct xs as [|x2 xs]. { naive_solver. }
     intros lo (look & lo' & ? & between & slice).
     apply IH in slice. lia.
+  Qed.
+
+  Lemma map_sequence_eq m lo hi x :
+    map_sequence m lo hi [x] → lo = hi.
+  Proof. naive_solver. Qed.
+
+  Lemma map_sequence_lt' m lo hi x1 x2 xs :
+    map_sequence m lo hi (x1 :: x2 :: xs) → lo < hi.
+  Proof.
+    intros (look & (lo2 & lt & all & seq)).
+    apply map_sequence_lt in seq.
+    lia.
   Qed.
 
   Lemma map_sequence_lookup_between m lo hi xs t x :
@@ -297,7 +311,115 @@ Section map_sequence.
     map_sequence {[ t := x ]} t t [x].
   Proof. simpl. split; last done. apply lookup_singleton. Qed.
 
+  Lemma map_sequence_is_singleton m t xs :
+    map_sequence m t t xs → ∃ x, xs = [x].
+  Proof.
+    destruct xs as [|x1 [|x2 xs]].
+    - done.
+    - naive_solver.
+    - intros (? & (lo2 & ? & all & ?%map_sequence_lt)). lia.
+  Qed.
+
+  Lemma map_sequence_delete lo1 lo2 m hi ss :
+    lo1 < lo2  →
+    map_sequence m lo2 hi ss →
+    map_sequence (delete lo1 m) lo2 hi ss.
+  Proof.
+    intros lt. apply map_sequence_equiv. intros t le.
+    symmetry. apply lookup_delete_ne. lia.
+  Qed.
+
 End map_sequence.
+
+Section map_sequence_dom.
+  Context `{FinMapDom nat M D} {A : Type}.
+  Implicit Types m : M A.
+
+  Lemma map_sequence_lo_eq {B} lo lo2 lo2' m1 (m2 : M B) x xs y ys hi :
+    dom D m1 = dom D m2 →
+    map_sequence m1 lo2 hi (x :: xs) →
+    map_sequence m2 lo2' hi (y :: ys) →
+    lo < lo2 →
+    (∀ lo'' : nat, lo < lo'' < lo2 → m1 !! lo'' = None) →
+    lo < lo2' →
+    (∀ lo'' : nat, lo < lo'' < lo2' → m2 !! lo'' = None) →
+    lo2 = lo2'.
+  Proof.
+    intros domEq seq1 seq2 ? all1 ? all2.
+    (* We want to show that [lo2] is equal to [lo2']. We do this by considering
+    * three cases and by deriving contradictions in the other two. *)
+    assert (lo2 < lo2' ∨ lo2' < lo2 ∨ lo2 = lo2') as [lt|[lt|<-]] by lia.
+    - apply map_sequence_lookup_lo in seq1. simpl in seq1.
+      assert (m1 !! lo2 = None); last congruence.
+      apply not_elem_of_dom.
+      assert (m2 !! lo2 = None) as eq%not_elem_of_dom. { eapply all2. lia. }
+      rewrite domEq. apply eq.
+    - apply map_sequence_lookup_lo in seq2. simpl in seq2.
+      assert (m2 !! lo2' = None); last congruence.
+      apply not_elem_of_dom.
+      assert (m1 !! lo2' = None) as eq%not_elem_of_dom. { eapply all1. lia. }
+      rewrite -domEq. apply eq.
+    - done.
+  Qed.
+
+  Lemma map_sequence_dom_length {B} m1 (m2 : M B) lo hi xs ys :
+    map_sequence m1 lo hi xs →
+    map_sequence m2 lo hi ys →
+    dom D m1 = dom D m2 →
+    length xs = length ys.
+  Proof.
+    generalize dependent lo.
+    generalize dependent ys.
+    induction xs as [|x1 xs IH]; first done.
+    intros ys lo.
+    destruct ys as [|y1 ys]; first done.
+
+    destruct xs as [|x2 xs].
+    { intros [look1 ->]. intros [? ->]%map_sequence_is_singleton. done. }
+    destruct ys as [|y2 ys].
+    { intros ?%map_sequence_lt'.
+      intros ?%map_sequence_eq.
+      lia. }
+
+    intros [look1 (lo2 & ? & all1 & seq1)].
+    intros [look2 (lo2' & ? & all2 & seq2)].
+    intros domEq.
+    eassert (lo2 = lo2') as <-. { eapply map_sequence_lo_eq; done. }
+    simpl.
+    f_equiv.
+    apply (IH (y2 :: ys) lo2); done.
+  Qed.
+
+  Lemma map_sequence_zip {B} (m1 : M A) (m2 : M B) lo hi xs (ys : list B) :
+    dom D m1 = dom D m2 →
+    map_sequence m1 lo hi xs →
+    map_sequence m2 lo hi ys →
+    map_sequence (map_zip m1 m2) lo hi (zip xs ys).
+  Proof.
+    intros domEq seq1 seq2.
+    eassert _ as lenEq. { eapply map_sequence_dom_length; done. }
+    generalize dependent lo.
+    generalize dependent ys.
+    induction xs as [|x1 [|x2 xs] IH]; first done.
+    { intros [|y1 [|y2 ys]] ? ?; first done; last done.
+      intros [look1 ->] [look2 _].
+      split; last done.
+      apply map_lookup_zip_with_Some.
+      eexists _, _. split_and!; done. }
+    intros [|y1 [|y2 ys]] ? ?; [done|done|].
+    intros [look1 (lo2 & ? & all1 & seq1)].
+    intros [look2 (lo2' & ? & all2 & seq2)].
+    split. { apply map_lookup_zip_with_Some. naive_solver. }
+    exists lo2.
+    split; first done.
+    split. { intros. apply map_lookup_zip_with_None. auto. }
+    eassert (lo2 = lo2') as <-. { eapply map_sequence_lo_eq; done. }
+    apply IH; try done.
+    apply (inj S).
+    apply lenEq.
+  Qed.
+
+End map_sequence_dom.
 
 Section map_no_later.
   Context `{FinMap nat M} {A : Type}.
