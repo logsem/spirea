@@ -660,11 +660,27 @@ Section big_sepM2.
     iApply big_sepM2_update; eauto.
   Qed.
 
+  (* Could be upstreamed. *)
   Lemma monPred_at_big_sepM2 {I : biIndex} `{Countable K}
         i (Φ : K → A → B → monPred I PROP) (m1 : gmap K A) (m2 : gmap K B) :
-    ([∗ map] k↦x1;x2 ∈ m1;m2, Φ k x1 x2) i ⊣⊢ [∗ map] k↦x1;x2 ∈ m1;m2, Φ k x1 x2 i.
+    ([∗ map] k↦x1;x2 ∈ m1;m2, Φ k x1 x2) i ⊣⊢
+      [∗ map] k↦x1;x2 ∈ m1;m2, Φ k x1 x2 i.
   Proof.
-    by rewrite 2!big_sepM2_alt monPred_at_and monPred_at_pure monPred_at_big_sepM.
+    by rewrite 2!big_sepM2_alt monPred_at_and monPred_at_pure
+      monPred_at_big_sepM.
+  Qed.
+
+  (* Could be upstreamed. *)
+  Lemma monPred_at_big_sepL2 {I : biIndex}
+        i (Φ : A → B → monPred I PROP) (m1 : list A) (m2 : list B) :
+    ([∗ list] k↦x1;x2 ∈ m1;m2, Φ x1 x2) i ⊣⊢
+      [∗ list] k↦x1;x2 ∈ m1;m2, Φ x1 x2 i.
+  Proof.
+    rewrite 2!big_sepL2_alt.
+    rewrite monPred_at_and.
+    rewrite monPred_at_pure.
+    rewrite monPred_at_big_sepL.
+    done.
   Qed.
 
 End big_sepM2.

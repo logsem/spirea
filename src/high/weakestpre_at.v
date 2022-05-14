@@ -568,7 +568,7 @@ Section wp_at_rules.
     increasing_map (encode_relation (⊑@{ST})) absHist →
     map_Forall (λ (t : nat) (msg : message), atomic_loc_inv ℓ t msg)
                (drop_prefix physHist offset) →
-   physHist !! (t_l + offset) = Some (Msg vm SVm FVm PVm) →
+    physHist !! (t_l + offset) = Some (Msg vm SVm FVm PVm) →
     ∃ s_l e_l,
       absHist !! (t_l + offset) = Some e_l ∧
       decode e_l = Some s_l ∧
@@ -602,7 +602,7 @@ Section wp_at_rules.
     intros domEq sub1 sub2.
   Admitted.
 
-  Lemma map_sequence_big_sepM_sepL {A} (m : gmap nat A) lo hi ss (ϕ : A  → dProp Σ) :
+  Lemma map_sequence_big_sepM_sepL {A} (m : gmap nat A) lo hi ss (ϕ : A  → iProp Σ) :
     map_sequence m lo hi ss →
     ([∗ map] k ↦ y ∈ m, ϕ y) -∗
     ([∗ list] y ∈ ss, ϕ y) ∗ (([∗ list] y ∈ ss, ϕ y) -∗ [∗ map] k ↦ y ∈ m, ϕ y).
@@ -627,15 +627,9 @@ Section wp_at_rules.
     iFrame.
   Qed.
 
-  Lemma map_sequence_zip {B} m1 (m2 : M B) lo hi xs ys :
-    map_sequence m1 lo hi xs →
-    map_sequence m2 lo hi ys →
-    map_sequence (map_zip m1 m2) lo hi (zip xs ys).
-
-
   Lemma map_sequence_big_sepM2_sepL2 {A B}
     (m1 : gmap nat A) (m2 : gmap nat B) tLo tHi ss ms
-    (ϕ : A  → B → dProp Σ) :
+    (ϕ : A  → B → iProp Σ) :
     map_sequence m1 tLo tHi ss →
     map_sequence m2 tLo tHi ms →
     ([∗ map] k ↦ y1;y2 ∈ m1;m2, ϕ y1 y2) -∗
@@ -647,24 +641,52 @@ Section wp_at_rules.
     rewrite big_sepL2_alt.
     iIntros "(%domEq & M)".
     apply dom_eq_alt_L in domEq.
-    assert (length ss = length ms) as lenEq. { eapply map_sequence_dom_length; done. }
+    assert (length ss = length ms) as lenEq.
+    { eapply map_sequence_dom_length; done. }
     iFrame (lenEq).
+    iDestruct (map_sequence_big_sepM_sepL with "M") as "[L Lreins]".
+    { apply map_sequence_zip; done. }
+    iFrame "L".
+    iIntros "[_ L]".
+    iDestruct ("Lreins" with "L") as "$".
+    iPureIntro. apply dom_eq_alt_L. done.
   Qed.
 
-  Lemma bingo {A B} (m1 : gmap nat A) (m2 : gmap nat B) tLo tHi ss ms
-    (ϕ : A  → B → dProp Σ) :
-    map_sequence m1 tLo tHi ss →
-    map_sequence m2 tLo tHi ms →
-    ⊢ ([∗ list] y1;y2 ∈ ss;ms, ϕ y1 y2) ∗-∗ ([∗ map] k ↦ y1;y2 ∈ m1;m2, ϕ y1 y2).
-  Proof.
-    iIntros (seq1 seq2).
-  Qed.
+  (* Lemma bingo {A B} (m1 : gmap nat A) (m2 : gmap nat B) tLo tHi ss ms *)
+  (*   (ϕ : A  → B → dProp Σ) : *)
+  (*   map_sequence m1 tLo tHi ss → *)
+  (*   map_sequence m2 tLo tHi ms → *)
+  (*   ⊢ ([∗ list] y1;y2 ∈ ss;ms, ϕ y1 y2) ∗-∗ ([∗ map] k ↦ y1;y2 ∈ m1;m2, ϕ y1 y2). *)
+  (* Proof. *)
+  (*   iIntros (seq1 seq2). *)
+  (* Qed. *)
+
+  Lemma omap_encode_decode `{FinMap K M} `{Countable A} (m : M positive) :
+    map_Forall (λ k (v : positive), is_Some (decode v : option A)) m →
+    encode <$> (omap decode m : M A) = m.
+  Proof. Admitted.
+
+  (* Lemma big_sepM2_union {A B} (Φ : nat → A → B → iProp Σ) (m1 m2 : gmap nat A) *)
+  (*     (n1 n2 : gmap nat B) : *)
+  (*   m1 ##ₘ m2 → *)
+  (*   n1 ##ₘ n2 → *)
+  (*   ([∗ map] k↦y1;y2 ∈ (m1 ∪ m2);(n1 ∪ n2), Φ k y1 y2) *)
+  (*   ⊣⊢ ([∗ map] k↦y1;y2 ∈ m1;n1, Φ k y1 y2) ∗ ([∗ map] k↦y1;y2 ∈ m2;n2, Φ k y1 y2). *)
+  (* Proof. *)
+  (*   intros disj1 disj2. *)
+  (*   rewrite !big_sepM2_alt. *)
+  (*   rewrite big_sepM_union. *)
+  (*   apply big_opM_union. *)
+  (* Qed. *)
 
   Lemma foobar abs_hist (phys_hist : history) tLo tS ss ms prot ℓ q absHist physHist
       (pred : enc_predicateO) TV :
     phys_hist ⊆ physHist →
     map_sequence abs_hist tLo tS ss →
     map_sequence phys_hist tLo tS ms →
+    map_Forall (λ t msg,
+      msg_store_view msg ⊑ store_view TV ∧
+        msg_persisted_after_view msg ⊑ flush_view TV) phys_hist →
     dom (gset nat) abs_hist = dom (gset nat) phys_hist →
     (pred ≡ encode_predicate (protocol.pred prot)) -∗
     know_full_encoded_history_loc ℓ q absHist -∗
@@ -676,12 +698,19 @@ Section wp_at_rules.
         encoded_predicate_hold physHist absHist pred ∗
         know_full_encoded_history_loc ℓ q absHist).
   Proof.
-    iIntros (physSub seqAbs seqPhys domEq) "equiv F P M".
+    iIntros (physSub seqAbs seqPhys msgIncl domEq) "#equiv F P M".
 
     rewrite /encoded_predicate_hold.
 
     iDestruct (history_full_entry_frag_lookup_big with "F M")
       as %(encAbsHist & subset & domEq2 & map).
+    assert (abs_hist = omap decode encAbsHist) as ->.
+    { apply map_eq. intros t.
+      rewrite lookup_omap. destruct (encAbsHist !! t) as [enc|] eqn:look.
+      - destruct (map t enc look) as (s & ? & ->). done.
+      - simpl.
+        eapply map_dom_eq_lookup_None; done. }
+
     replace absHist with (encAbsHist ∪ (absHist ∖ encAbsHist)).
     2: { apply map_difference_union. done. }
 
@@ -697,20 +726,63 @@ Section wp_at_rules.
 
     rewrite big_sepL2_fmap_r.
 
-    iAssert (
-      [∗ map] x;y ∈ phys_hist;abs_hist,
-         (protocol.pred prot) y
-                               (msg_val x) hG
-                               (msg_store_view x,
-                               msg_persisted_after_view x, ∅))%I
-                               with "P1"
-                               as "HIP".
+    eassert _ as seqEncAbs. { eapply (map_sequence_fmap (encode (A := ST))). apply seqAbs. }
+    erewrite omap_encode_decode in seqEncAbs.
 
+   iDestruct (map_sequence_big_sepM2_sepL2 with "P1") as "[P1 Lreins]"; first done.
+   { done. }
+   2: { eapply map_Forall_impl; naive_solver. }
+   rewrite big_sepL2_fmap_r.
+   iSplitL "P1".
+   { rewrite big_sepL2_flip.
+     rewrite monPred_at_big_sepL2.
+     iApply (big_sepL2_impl with "P1").
+     iIntros "!>" (idx s msg ? msLook) "pred".
+     iApply predicate_holds_phi; first reflexivity. iApply "equiv".
+     iApply (encoded_predicate_holds_mono with "pred").
 
-    (* destruct ss as [|ss']. *)
-    (* - *) 
-  (* Admitted. *)
+     destruct TV as [[??]?].
 
+     eapply map_sequence_list_lookup in msLook as (? & ? & look); last apply seqPhys.
+     apply msgIncl in look as [??].
+     repeat split; try done. apply view_empty_least. }
+   iIntros "H".
+   iFrame "F".
+   rewrite H1.
+   iDestruct ("Lreins" with "[H]") as "L".
+   { rewrite big_sepL2_flip.
+     rewrite monPred_at_big_sepL2.
+     iApply (big_sepL2_impl with "H").
+     iIntros "!>" (idx s msg msLook ?) "pred".
+     iApply predicate_holds_phi; first reflexivity. iApply "equiv".
+
+  Admitted.
+
+  Lemma wp_load_at ℓ ss s Q1 Q2 prot st E :
+    {{{
+      ℓ ↦_AT^{prot} (ss ++ [s]) ∗
+      (* The case where we read an already known write. *)
+      ((∀ vs vL, ∃ P,
+        ⌜ last vs = Some vL ⌝ -∗
+        (* Extract knowledge from all the predicates. *)
+        (([∗ list] s; v ∈ ss ++ [s];vs, prot.(pred) s v _) -∗ □ P) ∗
+        (* Using the [P] and the predicate for the loaded location show [Q1]. *)
+        (P -∗ <obj> (prot.(pred) s vL _ -∗ Q1 vL ∗ prot.(pred) s vL _))) ∧
+      (* The case where we read a new write. *)
+      (∀ vs vL sL, ∃ P,
+        ⌜ s ⊑ sL ⌝ -∗
+        (* Extract knowledge from all the predicates. *)
+        (([∗ list] s; v ∈ ss ++ [s; sL];vs ++ [vL], prot.(pred) s v _) -∗ □ P) ∗
+        (P -∗ <obj> (prot.(pred) sL vL _ -∗ prot.(pred) sL vL _ ∗ Q2 sL vL))))
+    }}}
+      !_AT #ℓ @ st; E
+    {{{ vL, RET vL;
+      (∃ sL, ℓ ↦_AT^{prot} (ss ++ [s; sL]) ∗ <fence> Q2 sL vL) ∨
+      <fence> Q1 vL
+    }}}.
+
+  (*
+  (* FIXME: This rule is not sound as is. *)
   Lemma wp_load_at ℓ ss s Q1 Q2 prot st E :
     {{{
       ℓ ↦_AT^{prot} (ss ++ [s]) ∗
@@ -731,11 +803,13 @@ Section wp_at_rules.
       (∃ s', ℓ ↦_AT^{prot} (ss ++ [s] ++ [s']) ∗ <fence> Q2 s' v) ∨
       <fence> Q1 v
     }}}.
+   *)
   Proof.
     intros Φ.
     iStartProof (iProp _). iIntros (TV).
     iDestruct 1 as "(pts & pToQ)".
     iDestruct "pts" as (abs_hist phys_hist tLo tS offset s' ms) "H". iNamed "H".
+    assert (s' = s) as ->. { apply (inj Some). rewrite -lastEq. apply last_snoc. }
     iDestruct "tSLe" as %tSLe.
     (* iDestruct (store_lb_protocol with "storeLb") as "#knowProt". *)
     iDestruct (know_protocol_extract with "locationProtocol")
@@ -770,7 +844,7 @@ Section wp_at_rules.
 
     iApply (wp_load_acquire (extra := {| extra_state_interp := True |})
              with "[$pts $val]").
-    iIntros "!>" (tL v' SV' PV' _PV') "(%look & %gt & #val' & pts)".
+    iIntros "!>" (tL vL SV' PV' _PV') "(%look & %gt & #val' & pts)".
 
     iFrame "val'".
 
@@ -779,13 +853,67 @@ Section wp_at_rules.
     assert (tS ≤ tL + offset) as lte2 by lia.
     rewrite drop_prefix_lookup in look.
 
-    destruct (decide (tS - offset = tL)) as [eq|neq].
+    assert (abs_hist !! tS = Some s).
+    { rewrite -lastEq. eapply map_sequence_lookup_hi; done. }
+    iDestruct (big_sepM_lookup with "absHist") as "hist"; first done.
+    iDestruct (history_full_entry_frag_lookup with "fullHist hist")
+      as %(enc & lookTS & decodeEnc).
+
+    destruct (decide (tS = tL + offset)) as [eq|neq].
     - iDestruct "pToQ" as "[pToQ _]".
       subst.
 
-      iDestruct (foobar with "predEquiv fullHist predHolds absHist") as "T".
-      { done. } { done. }
-      iDestruct "T" as (vs physSlice) "(LS & reestablish)".
+      assert (last (msg_val <$> ms) = Some vL).
+      { rewrite fmap_last.
+        erewrite <- map_sequence_lookup_hi.
+      (* map_subseteq_spec: *)
+        2: { apply slicePhys. }
+        admit. }
+
+      iDestruct ("pToQ" $! (msg_val <$> ms) vL) as (P) "pToQ".
+      iDestruct ("pToQ" with "[]") as "[getP getQ]".
+      { iPureIntro. done. }
+
+      set (TVfinal := (SV ⊔ SV', PV ⊔ (BV ⊔ PV'), BV ⊔ PV')).
+      assert (TV ⊑ TVfinal).
+      { etrans; first apply incl. etrans; first apply incl2.
+        rewrite /TVfinal.
+        solve_view_le. }
+      iEval (monPred_simpl) in "getP".
+      iDestruct ("getP" $! TVfinal with "[//] [-]") as "#P".
+      { iDestruct (foobar _ _ _ _ _ _ _ _ _ _ _ _ TVfinal
+          with "predEquiv fullHist predHolds absHist") as "[L T]".
+        { done. } { done. } { done. }
+        { admit. }
+        { done. }
+        iApply monPred_mono; last iFrame "L".
+        solve_view_le. }
+      iEval (monPred_simpl) in "getQ".
+      iDestruct ("getQ" with "[//] P") as "bing".
+      rewrite monPred_at_objectively.
+
+      eassert _ as temp.
+      { eapply map_Forall_lookup_1; first apply atInvs.
+        rewrite drop_prefix_lookup. done. }
+      simpl.
+      destruct temp as (? & pvEq).
+      simpl in pvEq.
+      (* eassert _ as temp. { eapply read_atomic_location; try done. } *)
+      (* destruct temp as (sL & encSL & ? & ? & ? & <- & orderRelated). *)
+      (* assert (sL = s) as ->. *)
+      (* { apply (inj Some). *)
+      (*   rewrite -H6. *)
+      (*   rewrite -decodeEnc. *)
+      (*   rewrite -lookTS -H5. rewrite -H6. *)
+
+      (* iDestruct (foobar _ _ _ _ _ _ _ _ _ _ _ _ TVfinal *)
+      (*   with "predEquiv fullHist predHolds absHist") as "T". *)
+      (* { done. } { done. } { done. } *)
+      (* { admit. } *)
+      (* { done. } *)
+      (* { simpl. admit. } *)
+
+      (* iDestruct "T" as "(LS & reestablish)". *)
 
       (* destruct temp as (sL & encSL & ? & ? & ? & <- & orderRelated). *)
 
@@ -797,16 +925,20 @@ Section wp_at_rules.
       (*   rewrite /frag_entry_unenc. *)
       (*   iDestruct "H" as (??) "HI". *)
 
-      (* iDestruct (big_sepM2_lookup_acc with "predHolds") as "[predHolds predMap]"; *)
-      (*   [done|done|]. *)
-      (* simpl. *)
+      iDestruct (big_sepM2_lookup_acc with "predHolds") as "[predHolds predMap]";
+        [done|apply lookTS|].
+      simpl.
 
-      (* iDestruct (predicate_holds_phi_decode with "predEquiv predHolds") as "PH"; *)
-      (*   first done. *)
-      iSpecialize ("pToQ" $! (SV ⊔ SV', PV ⊔ (BV ⊔ PV'), BV ⊔ PV') vs v'). (* Move buffer view *)
-      iSpecialize ("pToQ" with "[] LS"). (* Move buffer view *)
-      { admit. }
-      iDestruct "pToQ" as "[LS Q1]".
+      iDestruct (predicate_holds_phi_decode with "predEquiv predHolds") as "PH";
+        first done.
+      iDestruct ("bing" $! _ with "PH") as "[Q predHolds]".
+
+
+      (* iSpecialize ("pToQ" $! (SV ⊔ SV', PV ⊔ (BV ⊔ PV'), BV ⊔ PV') *)
+      (*                        (msg_val <$> ms) vL). (1* Move buffer view *1) *)
+      (* iSpecialize ("pToQ" with "[] LS"). (1* Move buffer view *1) *)
+      (* { admit. } *)
+      (* iDestruct "pToQ" as "[LS Q1]". *)
 
       (* iSpecialize ("pToQ" $! (SV', PV', ∅) sL v'). *)
       (* iEval (monPred_simpl) in "pToQ". *)
@@ -815,18 +947,19 @@ Section wp_at_rules.
       (* iDestruct ("pToQ" $! (SV', PV', ∅) with "[//] [%] [//] PH") as "[Q phi]". *)
       (* { done. } *)
       (* (1* Reinsert into the predicate map. *1) *)
-      (* iDestruct ("predMap" with "[phi]") as "predMap". *)
-      (* { iApply (predicate_holds_phi_decode with "predEquiv phi"). assumption. } *)
+      iDestruct ("predMap" with "[predHolds]") as "predMap".
+      { iApply (predicate_holds_phi_decode with "predEquiv predHolds").
+        assumption. }
 
       iModIntro.
       rewrite -assoc.
       iSplit. { iPureIntro. solve_view_le. }
 
       (* We re-establish [interp]. *)
-      iDestruct ("reestablish" with "LS") as "(predHolds & fullHist)".
+      (* iDestruct ("reestablish" with "LS") as "(predHolds & fullHist)". *)
       iDestruct ("reins" with "[$] [$] [$]") as "$".
 
-      iSpecialize ("Φpost" $! v').
+      iSpecialize ("Φpost" $! vL).
       monPred_simpl.
       iApply "Φpost".
       { iPureIntro.
@@ -835,8 +968,11 @@ Section wp_at_rules.
       (* The thread view we started with [TV] is smaller than the view we ended
       with. *)
       assert (TV ⊑ (SV ⊔ SV', PV, BV ⊔ PV')).
-      { do 2 (etrans; first done). repeat split; auto using view_le_l. }
-      iRight. simpl. iFrame "Q1".
+      { clear H4. do 2 (etrans; first done). repeat split; auto using view_le_l. }
+      iRight. simpl.
+      iApply monPred_mono; last iFrame "Q".
+      rewrite -pvEq.
+      solve_view_le.
     - iDestruct "pToQ" as "[pToQ _]".
 
       (* eassert _ as temp. { eapply read_atomic_location; try done. } *)
@@ -845,10 +981,13 @@ Section wp_at_rules.
       (* iDestruct (big_sepM2_lookup_acc with "predHolds") as "[predHolds predMap]"; *)
       (*   [done|done|]. *)
       (* simpl. *)
+  Admitted.
 
+  (*
       (* iDestruct (predicate_holds_phi_decode with "predEquiv predHolds") as "PH"; *)
       (*   first done. *)
-      (* iSpecialize ("pToQ" $! (SV', PV', ∅) sL v'). *)
+      iSpecialize ("pToQ" $! (SV', PV', ∅) (msg_val <$> ms) vL with "[]").
+      { admit. }
       (* iEval (monPred_simpl) in "pToQ". *)
       (* iEval (setoid_rewrite monPred_at_wand) in "pToQ". *)
 
@@ -864,16 +1003,18 @@ Section wp_at_rules.
       iDestruct ("reins" with "[$] [$] [$]") as "$".
 
       iSplit. { iPureIntro. solve_view_le. }
-      iSpecialize ("Φpost" $! sL v').
+      iSpecialize ("Φpost" $! vL).
       monPred_simpl.
       iApply "Φpost".
       { iPureIntro.
         etrans. eassumption.
-        repeat split; try done; try apply view_le_l. }
+        repeat split; try done; apply view_le_l. }
+      iRight. simpl.
       (* The thread view we started with [TV] is smaller than the view we ended
       with. *)
       assert (TV ⊑ (SV ⊔ SV', PV, BV ⊔ PV')).
       { do 2 (etrans; first done). repeat split; auto using view_le_l. }
+      iApply "pToQ".
       iSplitR "Q".
       - iFrameNamed.
         iExists (tL + offset), offset.
@@ -891,6 +1032,36 @@ Section wp_at_rules.
         * rewrite assoc. apply view_le_r.
         * apply view_empty_least.
   Qed.
+  *)
+
+  (* Definition open_subjective (I P : dProp Σ) := <obj> I -∗ P ∗ I. *)
+
+  (* This is a load lemma that allows for a sort of "threading" of resources
+   * though all the invariants. The idea has some flaws (the order is arbitrary
+   * for instance) but maybe it can be used to come up witha stronger load lemma. *)
+  Lemma wp_load_at_strong ℓ ss s (QS : list (val → dProp Σ)) Q1 Q2 prot st E :
+    length QS = length ss →
+    {{{
+      ℓ ↦_AT^{prot} (ss ++ [s]) ∗
+      (* Based on all the existing writes we can show [Q1]. *)
+      ((∀ vs,
+        ([∗ list] i ↦ s; v ∈ ss ++ [s];vs, ∃ Q Q',
+          ⌜ QS !! i = Some Q ⌝ -∗
+          ⌜ (QS ++ [Q1]) !! (S i) = Some Q' ⌝ -∗
+          <obj> prot.(pred) s v _ -∗ Q v -∗  prot.(pred) s v _ ∗ Q' v)) ∧
+      (* In case of a new write we can show [Q2] *)
+      <obj> (∀ v v' s',
+        ⌜ s ⊑ s' ⌝ -∗
+        prot.(pred) s' v _ -∗
+        Q1 v -∗
+        prot.(pred) s' v' _ ∗ Q2 s' v'))
+    }}}
+      !_AT #ℓ @ st; E
+    {{{ v, RET v;
+      (∃ s', ℓ ↦_AT^{prot} (ss ++ [s] ++ [s']) ∗ <fence> Q2 s' v) ∨
+      <fence> Q1 v
+    }}}.
+  Proof. Abort.
 
   Lemma wp_store_at ℓ s_i s_t v_t (prot : LocationProtocol ST) st E :
     {{{
@@ -927,7 +1098,7 @@ Section wp_at_rules.
     { apply prim_step_store_rel_no_fork. }
 
     iIntros "interp".
-    iDestruct (interp_get_at_loc with "interp isAt knowProt hist offset")
+    iDestruct (interp_get_at_loc with "interp isAt knowProt offset")
       as (physHist absHist pred) "(R & [reins _])".
     iNamed "R".
 
@@ -1134,7 +1305,7 @@ Section wp_at_rules.
     { apply prim_step_cmpxchg_no_fork. }
 
     iIntros "interp".
-    iDestruct (interp_get_at_loc with "interp isAt knowProt hist offset")
+    iDestruct (interp_get_at_loc with "interp isAt knowProt offset")
       as (physHist absHist pred) "(R & reins)".
     iNamed "R".
 
@@ -1385,3 +1556,4 @@ Section wp_at_rules.
   Qed.
 
 End wp_at_rules.
+

@@ -18,7 +18,7 @@ Section map_sequence.
 
   (** Expresses that the map [m] contains, in order, the values [xs] from the
   indeces starting at exactly [lo] ending at exactly [hi]. *)
-  Fixpoint map_sequence m (lo hi : nat) (xs : list A) :=
+  Fixpoint map_sequence (m : M A) (lo hi : nat) (xs : list A) :=
     match xs with
     | [] => False
     | [x] => m !! hi = Some x ∧ lo = hi
@@ -289,25 +289,7 @@ Section map_sequence.
     rewrite last_cons. rewrite lastEq. done.
   Qed.
 
-  Lemma map_sequence_fmap f m lo hi xs :
-    map_sequence m lo hi xs →
-    map_sequence (f <$> m) lo hi (f <$> xs).
-  Proof.
-    generalize dependent lo.
-    induction xs as [|x1 xs IH]; first done.
-    intros lo.
-    destruct xs as [|x2 xs].
-    { simpl. intros [look ?]. rewrite lookup_fmap. rewrite look. done. }
-    (* simpl. *)
-    intros [look (lo' & ? & all & ?)].
-    split. { rewrite lookup_fmap. rewrite look. done. }
-    exists lo'. split; first done.
-    split.
-    - intros. rewrite lookup_fmap. rewrite all; done.
-    - apply IH. done.
-  Qed.
-
-  Lemma map_sequence_singleton t x :
+  Lemma map_sequence_singleton t (x : A) :
     map_sequence {[ t := x ]} t t [x].
   Proof. simpl. split; last done. apply lookup_singleton. Qed.
 
@@ -330,6 +312,24 @@ Section map_sequence.
   Qed.
 
 End map_sequence.
+
+Lemma map_sequence_fmap `{FinMap nat M} {A B} (f : A  → B) (m : M A) lo hi xs :
+  map_sequence m lo hi xs →
+  map_sequence (f <$> m) lo hi (f <$> xs).
+Proof.
+  generalize dependent lo.
+  induction xs as [|x1 xs IH]; first done.
+  intros lo.
+  destruct xs as [|x2 xs].
+  { simpl. intros [look ?]. rewrite lookup_fmap. rewrite look. done. }
+  (* simpl. *)
+  intros [look (lo' & ? & all & ?)].
+  split. { rewrite lookup_fmap. rewrite look. done. }
+  exists lo'. split; first done.
+  split.
+  - intros. rewrite lookup_fmap. rewrite all; done.
+  - apply IH. done.
+Qed.
 
 Section map_sequence_dom.
   Context `{FinMapDom nat M D} {A : Type}.
