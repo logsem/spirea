@@ -4,6 +4,49 @@ From stdpp Require Import countable numbers gmap fin_maps list.
 From iris.proofmode Require Import tactics.
 From self Require Import extra.
 
+Section lemmas.
+  Context `{FinMapDom K M D}.
+
+  Lemma map_eq_dom {A} (m1 m2 : M A) :
+    dom D m1 = dom _ m2 →
+    m1 = m2 ↔ (∀ (i : K) (x y : A), m1 !! i = Some x → m2 !! i = Some y → x = y).
+  Proof.
+    intros domEq.
+    rewrite map_eq_iff. split.
+    - intros ? ? ? ? ? ?. apply (inj Some). congruence.
+    - intros l k1.
+      destruct (m1 !! k1) as [mi|] eqn:eq.
+      * assert (is_Some (m2 !! k1)) as [mi' eq2].
+        { apply elem_of_dom. rewrite -domEq. apply elem_of_dom. done. }
+        rewrite eq2.
+        f_equal.
+        eapply l; try done.
+      * symmetry.
+        apply not_elem_of_dom.
+        rewrite -domEq.
+        apply not_elem_of_dom.
+        done.
+  Qed.
+
+  Lemma map_eq_dom_subseteq {A} (m1 m2 m3 : M A) :
+    dom D m1 = dom D m2 →
+    m1 ⊆ m3 →
+    m2 ⊆ m3 →
+    m1 = m2.
+  Proof.
+    intros domEq sub1 sub2.
+    eapply map_eq_dom; first apply domEq.
+    setoid_rewrite (map_subseteq_spec m1 m3) in sub1.
+    setoid_rewrite (map_subseteq_spec m2 m3) in sub2.
+    intros k x y look1 look2.
+    apply (inj Some).
+    erewrite <- sub1; last done.
+    erewrite <- sub2; last done.
+    done.
+  Qed.
+
+End lemmas.
+
 (** [map_no_later] *)
 
 (** The map [m] is undefined for all natural numbers greater than [t]. *)

@@ -179,27 +179,6 @@ Section lemmas.
     iCombine "B C" as "$".
   Qed.
 
-  Lemma map_eq_dom m1 m2 :
-    dom (gset _) m1 = dom _ m2 →
-    m1 = m2 ↔ (∀ i x y, m1 !! i = Some x → m2 !! i = Some y → x = y).
-  Proof.
-    intros domEq.
-    rewrite map_eq_iff. split.
-    - intros ? ? ? ? ? ?. apply (inj Some). congruence.
-    - intros l k1.
-      destruct (m1 !! k1) as [mi|] eqn:eq.
-      * assert (is_Some (m2 !! k1)) as [mi' eq2].
-        { apply elem_of_dom. rewrite -domEq. apply elem_of_dom. done. }
-        rewrite eq2.
-        f_equal.
-        eapply l; try done.
-      * symmetry.
-        apply not_elem_of_dom.
-        rewrite -domEq.
-        apply not_elem_of_dom.
-        done.
-  Qed.
-
   Lemma full_entry_valid γ k1 dq mi : full_entry γ k1 dq mi -∗ ⌜ ✓ dq ⌝.
   Proof.
     iDestruct 1 as (?) "(_ & dq & _)".
