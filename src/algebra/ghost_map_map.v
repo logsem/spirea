@@ -8,7 +8,7 @@ From iris.bi Require Import lib.fractional.
 From iris.base_logic.lib Require Import own.
 From iris.proofmode Require Import proofmode.
 
-From self Require Import extra.
+From self Require Import extra map_extra.
 From self.algebra Require Import ghost_map.
 
 Class ghost_map_mapG Σ (K1 K2 V : Type) `{Countable K1, Countable K2} :=

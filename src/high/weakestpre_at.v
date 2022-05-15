@@ -593,15 +593,6 @@ Section wp_at_rules.
    exists s_l, e_l. done.
   Qed.
 
-  Lemma map_eq_dom_subseteq (m1 m2 m3 : history) :
-    dom (gset _) m1 = dom (gset _) m2 →
-    m1 ⊆ m3 →
-    m2 ⊆ m3 →
-    m1 = m2.
-  Proof.
-    intros domEq sub1 sub2.
-  Admitted.
-
   Lemma map_sequence_big_sepM_sepL {A} (m : gmap nat A) lo hi ss (ϕ : A  → iProp Σ) :
     map_sequence m lo hi ss →
     ([∗ map] k ↦ y ∈ m, ϕ y) -∗
@@ -661,11 +652,6 @@ Section wp_at_rules.
   (*   iIntros (seq1 seq2). *)
   (* Qed. *)
 
-  Lemma omap_encode_decode `{FinMap K M} `{Countable A} (m : M positive) :
-    map_Forall (λ k (v : positive), is_Some (decode v : option A)) m →
-    encode <$> (omap decode m : M A) = m.
-  Proof. Admitted.
-
   (* Lemma big_sepM2_union {A B} (Φ : nat → A → B → iProp Σ) (m1 m2 : gmap nat A) *)
   (*     (n1 n2 : gmap nat B) : *)
   (*   m1 ##ₘ m2 → *)
@@ -679,8 +665,8 @@ Section wp_at_rules.
   (*   apply big_opM_union. *)
   (* Qed. *)
 
-  Lemma foobar abs_hist (phys_hist : history) tLo tS ss ms prot ℓ q absHist physHist
-      (pred : enc_predicateO) TV :
+  Lemma extract_list_of_preds abs_hist (phys_hist : history) tLo tS ss ms prot
+    ℓ q absHist physHist (pred : enc_predicateO) TV :
     phys_hist ⊆ physHist →
     map_sequence abs_hist tLo tS ss →
     map_sequence phys_hist tLo tS ms →
@@ -692,11 +678,7 @@ Section wp_at_rules.
     know_full_encoded_history_loc ℓ q absHist -∗
     encoded_predicate_hold physHist absHist pred -∗
     ([∗ map] t↦s ∈ abs_hist, know_frag_history_loc ℓ t s) -∗
-      let vs := msg_val <$> ms in
-      ([∗ list] s;v ∈ ss;vs, protocol.pred prot s v hG) TV ∗
-      (([∗ list] s;v ∈ ss;vs, protocol.pred prot s v hG) TV -∗
-        encoded_predicate_hold physHist absHist pred ∗
-        know_full_encoded_history_loc ℓ q absHist).
+    ([∗ list] s;v ∈ ss;(msg_val <$> ms), protocol.pred prot s v hG) TV.
   Proof.
     iIntros (physSub seqAbs seqPhys msgIncl domEq) "#equiv F P M".
 
@@ -727,36 +709,27 @@ Section wp_at_rules.
     rewrite big_sepL2_fmap_r.
 
     eassert _ as seqEncAbs. { eapply (map_sequence_fmap (encode (A := ST))). apply seqAbs. }
-    erewrite omap_encode_decode in seqEncAbs.
-
-   iDestruct (map_sequence_big_sepM2_sepL2 with "P1") as "[P1 Lreins]"; first done.
-   { done. }
-   2: { eapply map_Forall_impl; naive_solver. }
-   rewrite big_sepL2_fmap_r.
-   iSplitL "P1".
-   { rewrite big_sepL2_flip.
-     rewrite monPred_at_big_sepL2.
-     iApply (big_sepL2_impl with "P1").
-     iIntros "!>" (idx s msg ? msLook) "pred".
-     iApply predicate_holds_phi; first reflexivity. iApply "equiv".
-     iApply (encoded_predicate_holds_mono with "pred").
-
-     destruct TV as [[??]?].
-
-     eapply map_sequence_list_lookup in msLook as (? & ? & look); last apply seqPhys.
-     apply msgIncl in look as [??].
-     repeat split; try done. apply view_empty_least. }
-   iIntros "H".
-   iFrame "F".
-   rewrite H1.
-   iDestruct ("Lreins" with "[H]") as "L".
-   { rewrite big_sepL2_flip.
-     rewrite monPred_at_big_sepL2.
-     iApply (big_sepL2_impl with "H").
-     iIntros "!>" (idx s msg msLook ?) "pred".
-     iApply predicate_holds_phi; first reflexivity. iApply "equiv".
-
-  Admitted.
+    iDestruct (big_sepM2_impl_dom_subseteq _ _ _ _ phys_hist (omap decode encAbsHist) with "P1 []") as "P1".
+    { done. }
+    { rewrite domeqq. rewrite -domEq2. done. }
+    { iIntros "!>" (t m es m2 s ? encLook ? ?) "H".
+      apply map in encLook as (? & ? & ?).
+      assert (m = m2) as <- by congruence.
+      assert (s = x) as <- by congruence.
+      iDestruct (predicate_holds_phi_decode_1 with "equiv H") as "H"; first done.
+      iApply "H". }
+    iDestruct (map_sequence_big_sepM2_sepL2 with "P1") as "[P1 Lreins]"; first done.
+    { done. }
+    rewrite big_sepL2_flip.
+    rewrite monPred_at_big_sepL2.
+    iApply (big_sepL2_impl with "P1").
+    iIntros "!>" (idx s msg ? msLook) "pred".
+    iApply monPred_mono; last iApply "pred".
+    destruct TV as [[??]?].
+    eapply map_sequence_list_lookup in msLook as (? & ? & look); last apply seqPhys.
+    apply msgIncl in look as [??].
+    repeat split; try done. apply view_empty_least.
+  Qed.
 
   Lemma wp_load_at ℓ ss s Q1 Q2 prot st E :
     {{{
@@ -830,7 +803,8 @@ Section wp_at_rules.
       as (physHist absHist pred) "(R & [_ reins])".
     iNamed "R".
 
-    assert (phys_hist ⊆ physHist). { admit. }
+    assert (phys_hist ⊆ physHist).
+    { admit. }
 
     (* We add this to prevent Coq from trying to use [highExtraStateInterp]. *)
     set (extra := (Build_extraStateInterp _ _)).
@@ -881,8 +855,8 @@ Section wp_at_rules.
         solve_view_le. }
       iEval (monPred_simpl) in "getP".
       iDestruct ("getP" $! TVfinal with "[//] [-]") as "#P".
-      { iDestruct (foobar _ _ _ _ _ _ _ _ _ _ _ _ TVfinal
-          with "predEquiv fullHist predHolds absHist") as "[L T]".
+      { iDestruct (extract_list_of_preds _ _ _ _ _ _ _ _ _ _ _ _ TVfinal
+          with "predEquiv fullHist predHolds absHist") as "L".
         { done. } { done. } { done. }
         { admit. }
         { done. }
@@ -906,7 +880,7 @@ Section wp_at_rules.
       (*   rewrite -decodeEnc. *)
       (*   rewrite -lookTS -H5. rewrite -H6. *)
 
-      (* iDestruct (foobar _ _ _ _ _ _ _ _ _ _ _ _ TVfinal *)
+      (* iDestruct (extract_list_of_preds _ _ _ _ _ _ _ _ _ _ _ _ TVfinal *)
       (*   with "predEquiv fullHist predHolds absHist") as "T". *)
       (* { done. } { done. } { done. } *)
       (* { admit. } *)
