@@ -446,38 +446,6 @@ Section encoded_predicate.
     (enc_state : positive) (v : val) TV : iProp Σ :=
     (∃ P, (enc_pred enc_state v ≡ Some P) ∗ P _ TV).
 
-  Lemma predicate_holds_phi ϕ s encS (encϕ : enc_predicateO) v TV :
-    encS = encode s →
-    (encϕ ≡ encode_predicate ϕ)%I -∗
-    (encoded_predicate_holds encϕ encS v TV ∗-∗ ϕ s v _ TV).
-  Proof.
-    iIntros (eqEncS) "predsEquiv".
-    iSplit.
-    - iDestruct 1 as (P) "[eqP PH]".
-      do 2 iEval (setoid_rewrite discrete_fun_equivI) in "predsEquiv".
-      iSpecialize ("predsEquiv" $! encS v).
-      rewrite /encode_predicate.
-      rewrite {2}eqEncS.
-      rewrite decode_encode.
-      simpl.
-      iRewrite "eqP" in "predsEquiv".
-      rewrite option_equivI.
-      iEval (setoid_rewrite discrete_fun_equivI) in "predsEquiv".
-      iSpecialize ("predsEquiv" $! hG).
-      by iRewrite -"predsEquiv".
-    - iIntros "phi".
-      rewrite /encoded_predicate_holds.
-      do 2 iEval (setoid_rewrite discrete_fun_equivI) in "predsEquiv".
-      iSpecialize ("predsEquiv" $! encS v).
-      rewrite /encode_predicate. rewrite eqEncS. rewrite decode_encode.
-      simpl.
-      destruct (encϕ (encode s) v); rewrite option_equivI; last done.
-      iExists _. iSplit; first done.
-      iEval (setoid_rewrite discrete_fun_equivI) in "predsEquiv".
-      iSpecialize ("predsEquiv" $! hG).
-      by iRewrite "predsEquiv".
-  Qed.
-
   Lemma predicate_holds_phi_decode ϕ s encS (encϕ : enc_predicateO) v TV :
     decode encS = Some s →
     (encϕ ≡ encode_predicate ϕ)%I -∗
@@ -509,6 +477,37 @@ Section encoded_predicate.
       iEval (setoid_rewrite discrete_fun_equivI) in "predsEquiv".
       iSpecialize ("predsEquiv" $! hG).
       by iRewrite "predsEquiv".
+  Qed.
+
+  Lemma predicate_holds_phi_decode_1 ϕ s encS (encϕ : enc_predicateO) v TV :
+    decode encS = Some s →
+    (encϕ ≡ encode_predicate ϕ)%I -∗
+    (encoded_predicate_holds encϕ encS v TV -∗ ϕ s v _ TV).
+  Proof.
+    iIntros (?) "H1 H2".
+    iApply (predicate_holds_phi_decode with "H1 H2").
+    done.
+  Qed.
+
+  Lemma predicate_holds_phi_decode_2 ϕ s encS (encϕ : enc_predicateO) v TV :
+    decode encS = Some s →
+    (encϕ ≡ encode_predicate ϕ)%I -∗
+    ϕ s v _ TV -∗
+    encoded_predicate_holds encϕ encS v TV.
+  Proof.
+    iIntros (?) "H1 H2".
+    iApply (predicate_holds_phi_decode with "H1 H2").
+    done.
+  Qed.
+
+  Lemma predicate_holds_phi ϕ s encS (encϕ : enc_predicateO) v TV :
+    encS = encode s →
+    (encϕ ≡ encode_predicate ϕ)%I -∗
+    (encoded_predicate_holds encϕ encS v TV ∗-∗ ϕ s v _ TV).
+  Proof.
+    iIntros (eqEncS) "predsEquiv".
+    iApply predicate_holds_phi_decode; last done.
+    rewrite eqEncS. apply decode_encode.
   Qed.
 
   Global Instance encoded_predicate_holds_mono encϕ encS v :
