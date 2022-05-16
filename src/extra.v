@@ -155,7 +155,7 @@ Section map_zip_with.
     (dom D m1 = dom D m2).
   Proof. unfold_leibniz. apply dom_eq_alt. Qed.
 
-  (* Could be upstreamed. *)
+  (* Could be upstreamed. Could be made bidirectional. *)
   Lemma dom_omap_id `{FinMapDom K M D} {A B} (f : A → option B) (m : M A) :
     map_Forall (λ _ v, is_Some (f v)) m → dom D (omap f m) ≡ dom D m.
   Proof.
@@ -438,16 +438,16 @@ Section big_sepM2.
   Context `{Countable K} {A B : Type}.
   Implicit Types Φ Ψ : K → A → B → PROP.
 
-  Lemma map_dom_eq_lookup_Some {V W} (a : gmap K V) (b : gmap K W) v k :
-    dom (gset _) a = dom (gset _) b →
+  Lemma map_dom_eq_lookup_Some `{FinMapDom K M D} {V W} (a : M V) (b : M W) v k :
+    dom D a = dom D b →
     b !! k = Some v →
     is_Some (a !! k).
   Proof.
     intros domEq look. rewrite -elem_of_dom domEq elem_of_dom. done.
   Qed.
 
-  Lemma map_dom_eq_lookup_None {V W} (a : gmap K V) (b : gmap K W) k :
-    dom (gset _) a = dom (gset _) b →
+  Lemma map_dom_eq_lookup_None `{FinMapDom K M D} {V W} (a : M V) (b : M W) k :
+    dom D a = dom D b →
     b !! k = None →
     a !! k = None.
   Proof.

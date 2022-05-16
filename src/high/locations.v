@@ -102,6 +102,7 @@ Section points_to_at.
       "%lastEq" ∷ ⌜ last ss = Some s ⌝ ∗ (* NOTE: Could we change this to non-empty? *)
       "%slice" ∷ ⌜ map_sequence abs_hist tLo tS ss ⌝ ∗
       "%slicePhys" ∷ ⌜ map_sequence phys_hist tLo tS ms ⌝ ∗
+      "%nolater" ∷ ⌜ map_no_later abs_hist tS ⌝ ∗
       "%absPhysHistDomEq" ∷ ⌜ dom (gset _) abs_hist = dom _ phys_hist ⌝ ∗
       "#isAtLoc" ∷ ⎡ is_at_loc ℓ ⎤ ∗
       "#locationProtocol" ∷ ⎡ know_protocol ℓ prot ⎤ ∗

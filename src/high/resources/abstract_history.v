@@ -86,14 +86,17 @@ Section abs_history_lemmas.
     iPureIntro. eexists _. split_and!; done.
   Qed.
 
-  Lemma history_full_entry_frag_lookup_big γ q ℓ enc_abs_hist hist :
-    history_full_entry_encoded γ ℓ q enc_abs_hist -∗
+  Lemma history_full_entry_frag_lookup_big γ q ℓ full_enc_hist hist :
+    history_full_entry_encoded γ ℓ q full_enc_hist -∗
     ([∗ map] t↦s ∈ hist, frag_entry_unenc γ ℓ t s) -∗
-    ⌜ ∃ hist_enc,
-      hist_enc ⊆ enc_abs_hist ∧
-      dom (gset _) hist = dom _ hist_enc ∧
+    ⌜ ∃ enc_hist,
+      enc_hist ⊆ full_enc_hist ∧
+      dom (gset _) hist = dom _ enc_hist ∧
+      omap decode enc_hist = hist ∧
+      (* The last conjunc here is "bonus" and can be removed unless users of
+       * the lemma make use of it. *)
       map_Forall (λ k enc, ∃ s, decode enc = Some s ∧
-                                hist !! k = Some s) hist_enc ⌝.
+                                hist !! k = Some s) enc_hist ⌝.
   Proof.
     iIntros "F M".
     rewrite /frag_entry_unenc.
@@ -106,6 +109,13 @@ Section abs_history_lemmas.
     iSplit; first done.
     iDestruct (big_sepM2_dom with "M") as %domeq.
     iSplit; first done.
+    iSplit.
+    { rewrite map_eq_iff. iIntros (t).
+      rewrite lookup_omap. destruct (hist_enc !! t) eqn:look.
+      - iDestruct (big_sepM2_lookup_r with "M") as (?  look2 ?) "hih"; first done.
+        rewrite look2. done.
+      - iPureIntro. simpl. symmetry.
+        eapply map_dom_eq_lookup_None; done. }
     iIntros (?? look).
     iDestruct (big_sepM2_lookup_r with "M") as (???) "hih"; first done.
     iExists x1. done.

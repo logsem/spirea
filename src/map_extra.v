@@ -345,10 +345,19 @@ Section map_sequence.
     - intros (? & (lo2 & ? & all & ?%map_sequence_lt)). lia.
   Qed.
 
-  Lemma map_sequence_delete lo1 lo2 m hi ss :
+  Lemma map_sequence_delete_below lo1 lo2 m hi ss :
     lo1 < lo2  →
     map_sequence m lo2 hi ss →
     map_sequence (delete lo1 m) lo2 hi ss.
+  Proof.
+    intros lt. apply map_sequence_equiv. intros t le.
+    symmetry. apply lookup_delete_ne. lia.
+  Qed.
+
+  Lemma map_sequence_delete_above lo m hi1 hi2 ss :
+    hi1 < hi2  →
+    map_sequence m lo hi1 ss →
+    map_sequence (delete hi2 m) lo hi1 ss.
   Proof.
     intros lt. apply map_sequence_equiv. intros t le.
     symmetry. apply lookup_delete_ne. lia.
@@ -513,8 +522,24 @@ Section map_no_later.
     rewrite lookup_insert_ne; last lia.
     apply nolater. lia.
   Qed.
-
 End map_no_later.
+
+Section map_no_later_dom.
+  Context `{FinMapDom nat M D} {A : Type}.
+
+  Implicit Types m : M A.
+
+  Lemma map_no_later_dom {B} (m1 : M A) (m2 : M B) t :
+    dom D m1 = dom _ m2 → map_no_later m1 t → map_no_later m2 t.
+  Proof.
+    intros domEq.
+    rewrite /map_no_later.
+    intros no t2 le.
+    eapply map_dom_eq_lookup_None; first done.
+    apply no. done.
+  Qed.
+
+End map_no_later_dom.
 
 Definition drop_above {A} t (m : gmap nat A) : gmap nat A :=
   filter (λ '(t', ev), t' ≤ t) m.
