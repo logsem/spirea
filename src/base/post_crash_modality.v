@@ -353,16 +353,17 @@ Class IntoCrash {Σ} `{nvmBaseFixedG Σ, nvmBaseDeltaG}
 
 Section IntoCrash.
   Context `{hG : !nvmBaseFixedG Σ, hDG : nvmBaseDeltaG}.
-(*   Global Instance sep_into_crash P P' Q Q': *)
-(*     IntoCrash P P' → *)
-(*     IntoCrash Q Q' → *)
-(*     IntoCrash (P ∗ Q)%I (λ hG, P' hG ∗ Q' hG)%I. *)
-(*   Proof. *)
-(*     iIntros (H1 H2). rewrite /IntoCrash. *)
-(*     rewrite (@into_crash _ _ P). *)
-(*     rewrite (@into_crash _ _ Q). *)
-(*     rewrite post_crash_sep //. *)
-(*   Qed. *)
+
+  Global Instance sep_into_crash P P' Q Q':
+    IntoCrash P P' →
+    IntoCrash Q Q' →
+    IntoCrash (P ∗ Q)%I (λ hG, P' hG ∗ Q' hG)%I.
+  Proof.
+    iIntros (H1 H2). rewrite /IntoCrash.
+    rewrite (@into_crash _ _ _ P).
+    rewrite (@into_crash _ _ _ Q).
+    apply post_crash_sep.
+  Qed.
 
 (*   Global Instance or_into_crash P P' Q Q': *)
 (*     IntoCrash P P' → *)
@@ -391,22 +392,22 @@ Section IntoCrash.
     IntoCrash (⌜ P ⌝%I) (λ _, ⌜ P ⌝%I).
   Proof. rewrite /IntoCrash. iIntros "%". by iApply post_crash_pure. Qed.
 
-(*   Global Instance exist_into_crash {A} Φ Ψ: *)
-(*     (∀ x : A, IntoCrash (Φ x) (λ hG, Ψ hG x)) → *)
-(*     IntoCrash (∃ x, Φ x)%I (λ hG, (∃ x, Ψ hG x)%I). *)
-(*   Proof. *)
-(*     rewrite /IntoCrash. *)
-(*     iIntros (?) "H". iDestruct "H" as (?) "HΦ". iPoseProof (H with "[$]") as "HΦ". *)
-(*     iApply (post_crash_mono with "HΦ"). eauto. *)
-(*   Qed. *)
+  Global Instance exist_into_crash {A} Φ Ψ:
+    (∀ x : A, IntoCrash (Φ x) (λ hG, Ψ hG x)) →
+    IntoCrash (∃ x, Φ x)%I (λ hG, (∃ x, Ψ hG x)%I).
+  Proof.
+    rewrite /IntoCrash.
+    iIntros (?) "H". iDestruct "H" as (?) "HΦ". iPoseProof (H with "[$]") as "HΦ".
+    iApply (post_crash_mono with "HΦ"). eauto.
+  Qed.
 
-(*   Global Instance forall_into_crash {A} Φ Ψ: *)
-(*     (∀ x : A, IntoCrash (Φ x) (λ hG, Ψ hG x)) → *)
-(*     IntoCrash (∀ x, Φ x)%I (λ hG, (∀ x, Ψ hG x)%I). *)
-(*   Proof. *)
-(*     rewrite /IntoCrash. *)
-(*     iIntros (?) "H". iApply post_crash_forall; last eauto. iIntros (?). iApply H. *)
-(*   Qed. *)
+  (* Global Instance forall_into_crash {A} Φ Ψ: *)
+  (*   (∀ x : A, IntoCrash (Φ x) (λ hG, Ψ hG x)) → *)
+  (*   IntoCrash (∀ x, Φ x)%I (λ hG, (∀ x, Ψ hG x)%I). *)
+  (* Proof. *)
+  (*   rewrite /IntoCrash. *)
+  (*   iIntros (?) "H". iApply post_crash_forall; last eauto. iIntros (?). iApply H. *)
+  (* Qed. *)
 
 (*   (* *)
 (*   Global Instance post_crash_into_crash P : *)
@@ -414,18 +415,18 @@ Section IntoCrash.
 (*   Proof. rewrite /IntoCrash. by iApply post_crash_mono. Qed. *)
 (*    *) *)
 
-(*   Lemma into_crash_proper P P' Q Q': *)
-(*     IntoCrash P Q → *)
-(*     (P ⊣⊢ P') → *)
-(*     (∀ hG, Q hG ⊣⊢ Q' hG) → *)
-(*     IntoCrash P' Q'. *)
-(*   Proof. *)
-(*     rewrite /IntoCrash. *)
-(*     iIntros (HD Hwand1 Hwand2) "HP". *)
-(*     iApply post_crash_mono; last first. *)
-(*     { iApply HD. iApply Hwand1. eauto. } *)
-(*     intros. simpl. by rewrite Hwand2. *)
-(*   Qed. *)
+  Lemma into_crash_proper P P' Q Q':
+    IntoCrash P Q →
+    (P ⊣⊢ P') →
+    (∀ hG, Q hG ⊣⊢ Q' hG) →
+    IntoCrash P' Q'.
+  Proof.
+    rewrite /IntoCrash.
+    iIntros (HD Hwand1 Hwand2) "HP".
+    iApply post_crash_mono; last first.
+    { iApply HD. iApply Hwand1. eauto. }
+    intros. simpl. by rewrite Hwand2.
+  Qed.
 
 (*   Global Instance big_sepL_into_crash: *)
 (*     ∀ (A : Type) Φ (Ψ : nvmBaseFixedG Σ, nvmBaseDeltaG → nat → A → iProp Σ) (l : list A), *)
@@ -444,22 +445,22 @@ Section IntoCrash.
 (*       * intros. setoid_rewrite Nat.add_succ_r. setoid_rewrite <-Nat.add_succ_l. eauto. *)
 (*   Qed. *)
 
-(*   Global Instance big_sepM_into_crash `{Countable K} : *)
-(*     ∀ (A : Type) Φ (Ψ : nvmBaseFixedG Σ, nvmBaseDeltaG → K → A → iProp Σ) (m : gmap K A), *)
-(*     (∀ (k : K) (x : A), IntoCrash (Φ k x) (λ hG, Ψ hG k x)) → *)
-(*     IntoCrash ([∗ map] k↦x ∈ m, Φ k x)%I (λ hG, [∗ map] k↦x ∈ m, Ψ hG k x)%I. *)
-(*   Proof. *)
-(*     intros. induction m using map_ind. *)
-(*     - eapply (into_crash_proper True%I _ (λ _, True%I)). *)
-(*       { apply _. } *)
-(*       * rewrite big_sepM_empty; eauto. *)
-(*       * intros. rewrite big_sepM_empty; eauto. *)
-(*     - eapply (into_crash_proper (Φ i x ∗ [∗ map] k↦x0 ∈ m, Φ k x0) _ *)
-(*                                 (λ _, (Ψ _ i x ∗ [∗ map] k↦x0 ∈ m, Ψ _ k x0)%I)). *)
-(*       { apply _. } *)
-(*       * rewrite big_sepM_insert //=. *)
-(*       * intros. rewrite big_sepM_insert //=. *)
-(*   Qed. *)
+  Global Instance big_sepM_into_crash `{Countable K} :
+    ∀ (A : Type) Φ (Ψ : nvmBaseDeltaG → K → A → iProp Σ) (m : gmap K A),
+    (∀ (k : K) (x : A), IntoCrash (Φ k x) (λ hG, Ψ hG k x)) →
+    IntoCrash ([∗ map] k↦x ∈ m, Φ k x)%I (λ hG, [∗ map] k↦x ∈ m, Ψ hG k x)%I.
+  Proof.
+    intros. induction m using map_ind.
+    - eapply (into_crash_proper True%I _ (λ _, True%I)).
+      * apply _.
+      * rewrite big_sepM_empty; auto.
+      * intros. rewrite big_sepM_empty; auto.
+    - eapply (into_crash_proper (Φ i x ∗ [∗ map] k↦x0 ∈ m, Φ k x0) _
+                                (λ _, (Ψ _ i x ∗ [∗ map] k↦x0 ∈ m, Ψ _ k x0)%I)).
+      * apply _.
+      * rewrite big_sepM_insert //=.
+      * intros. rewrite big_sepM_insert //=.
+  Qed.
 
 (*   Global Instance big_sepS_into_crash `{Countable K} : *)
 (*     ∀ Φ (Ψ : nvmBaseFixedG Σ, nvmBaseDeltaG → K → iProp Σ) (m : gset K), *)

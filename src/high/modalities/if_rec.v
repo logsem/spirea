@@ -156,18 +156,28 @@ Section if_rec.
 
   Global Instance into_if_rec_intro ℓ P : IntoIfRec ℓ P P := if_rec_intro ℓ P.
 
-  Global Instance if_rec_into_if_rec ℓ P : IntoIfRec ℓ (if_rec ℓ P) P.
+  Global Instance into_if_rec_if_rec ℓ P : IntoIfRec ℓ (if_rec ℓ P) P.
   Proof. done. Qed.
 
-  (* Global Instance into_if_rec_or_lost_with_t ℓ P : *)
-  (*   IntoIfRec ℓ (or_lost_with_t ℓ P) (∃ t, P t). *)
-  (* Proof. *)
-  (*   rewrite /IntoIfRec. *)
-  (*   iIntros "H". *)
-  (*   ifRecIntro. destruct look as [[?]?]. *)
-  (*   iDestruct (or_lost_with_t_get with "[$] H") as "H"; first done. *)
-  (*   naive_solver. *)
-  (* Qed. *)
+  Global Instance into_if_rec_sep ℓ P P' Q Q' :
+    IntoIfRec ℓ P P' →
+    IntoIfRec ℓ Q Q' →
+    IntoIfRec ℓ (P ∗ Q) (P' ∗ Q').
+  Proof.
+    intros ? ?. rewrite /IntoIfRec.
+    iIntros "[? ?]". iModIntro. iFrame.
+  Qed.
+
+  Global Instance big_sepM_into_if_rec `{Countable K} :
+    ∀ ℓ (A : Type) Φ (Ψ : K → A → dProp Σ) (m : gmap K A),
+    (∀ (k : K) (x : A), IntoIfRec ℓ (Φ k x) (Ψ k x)) →
+    IntoIfRec ℓ ([∗ map] k↦x ∈ m, Φ k x)%I ([∗ map] k↦x ∈ m, Ψ k x)%I.
+  Proof.
+    intros. induction m using map_ind; rewrite /IntoIfRec.
+    - rewrite 2!big_sepM_empty. iIntros "? !>". done.
+    - rewrite !big_sepM_insert //.
+      iIntros "[??]". iModIntro. iFrame.
+  Qed.
 
 End if_rec.
 

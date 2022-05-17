@@ -398,9 +398,9 @@ Section post_crash_interact.
   Qed.
 
   Lemma post_crash_frag_history ℓ t offset bumper (s : ST) :
-    ⎡ know_preorder_loc ℓ (abs_state_relation (ST := ST)) ⎤ ∗
-    ⎡ ℓ ↪[offset_name]□ offset ⎤ ∗
-    ⎡ know_bumper ℓ bumper ⎤ ∗
+    ⎡ know_preorder_loc ℓ (abs_state_relation (ST := ST)) ⎤ -∗
+    ⎡ ℓ ↪[offset_name]□ offset ⎤ -∗
+    ⎡ know_bumper ℓ bumper ⎤ -∗
     ⎡ know_frag_history_loc ℓ t s ⎤ -∗
     post_crash (λ hG',
       (if_rec ℓ (∃ s2, ∃ CV tC,
@@ -409,12 +409,13 @@ Section post_crash_interact.
         ⎡ crashed_in_mapsto ℓ s2 ⎤ ∗
         ⎡ know_frag_history_loc ℓ (offset + tC) (bumper s2) ⎤ ∗
         (⌜ t ≤ offset + tC ⌝ -∗
-          (* ⎡ know_preorder_loc ℓ (abs_state_relation (ST := ST)) ⎤ ∗ *)
-          (* ⎡ know_bumper ℓ bumper ⎤ ∗ *)
           ⌜ s ⊑ s2 ⌝ ∗ ⎡ know_frag_history_loc ℓ t (bumper s) ⎤)))).
   Proof.
     iStartProof (iProp _).
-    iIntros (?) "(order & offset & bumper & hist)".
+    iIntros (?) "order".
+    iIntros (??) "offset".
+    iIntros (??) "bumper".
+    iIntros (??) "hist".
     iIntrosPostCrash.
     iDestruct (base.post_crash_modality.post_crash_nodep with "order") as "order".
     iDestruct (base.post_crash_modality.post_crash_nodep with "offset") as "offset".
@@ -598,9 +599,51 @@ Section IntoCrash.
 
   (* Arguments IntoCrash {_} {_} {_} _%I hi%I. *)
 
+  Global Instance sep_into_crash (P Q : dProp Σ) (P' Q' : _ → dProp Σ) :
+    IntoCrash P P' →
+    IntoCrash Q Q' →
+    IntoCrash (P ∗ Q)%I (λ hD, P' hD ∗ Q' hD)%I.
+  Proof.
+    rewrite /IntoCrash.
+    iIntros (Pi Qi) "[P Q]".
+    iDestruct (Pi with "P") as "P".
+    iDestruct (Qi with "Q") as "Q".
+    iApply (post_crash_sep). iFrame.
+  Qed.
+
   Global Instance pure_into_crash (P : Prop) :
     IntoCrash (⌜ P ⌝) (λ _, ⌜ P ⌝)%I.
   Proof. rewrite /IntoCrash. iIntros "%". by iApply post_crash_pure. Qed.
+
+  Lemma into_crash_proper P P' Q Q':
+    IntoCrash P Q →
+    (P ⊣⊢ P') →
+    (∀ hG, Q hG ⊣⊢ Q' hG) →
+    IntoCrash P' Q'.
+  Proof.
+    rewrite /IntoCrash.
+    iIntros (HD Hwand1 Hwand2) "HP".
+    iApply post_crash_mono; last first.
+    { iApply HD. iApply Hwand1. eauto. }
+    intros. simpl. by rewrite Hwand2.
+  Qed.
+
+  Global Instance big_sepM_into_crash `{Countable K} :
+    ∀ (A : Type) Φ (Ψ : nvmDeltaG → K → A → dProp Σ) (m : gmap K A),
+    (∀ (k : K) (x : A), IntoCrash (Φ k x) (λ hG, Ψ hG k x)) →
+    IntoCrash ([∗ map] k↦x ∈ m, Φ k x)%I (λ hG, [∗ map] k↦x ∈ m, Ψ hG k x)%I.
+  Proof.
+    intros. induction m using map_ind.
+    - eapply (into_crash_proper True%I _ (λ _, True%I)).
+      * apply _.
+      * rewrite big_sepM_empty. apply bi.True_emp.
+      * intros. rewrite big_sepM_empty. apply bi.True_emp.
+    - eapply (into_crash_proper (Φ i x ∗ [∗ map] k↦x0 ∈ m, Φ k x0) _
+                                (λ _, (Ψ _ i x ∗ [∗ map] k↦x0 ∈ m, Ψ _ k x0)%I)).
+      * apply _.
+      * rewrite big_sepM_insert //=.
+      * intros. rewrite big_sepM_insert //=.
+  Qed.
 
   Global Instance lifted_embed_nodep_into_crash (P : iProp Σ) :
     IntoCrash (⎡ P ⎤) (λ _, ⎡ P ⎤)%I | 1000.
@@ -623,16 +666,6 @@ Section IntoCrash.
 
   Global Instance emp_into_crash : IntoCrash emp (λ hD, emp)%I.
   Proof. lift_into_crash post_crash_emp. Qed.
-
-  Global Instance sep_into_crash (P Q : dProp Σ) (P' Q' : _ → dProp Σ) :
-    IntoCrash P P' → IntoCrash Q Q' → IntoCrash (P ∗ Q)%I (λ hD, P' hD ∗ Q' hD)%I.
-  Proof.
-    rewrite /IntoCrash.
-    iIntros (Pi Qi) "[P Q]".
-    iDestruct (Pi with "P") as "P".
-    iDestruct (Qi with "Q") as "Q".
-    iApply (post_crash_sep). iFrame.
-  Qed.
 
   Global Instance disj_into_crash (P Q : dProp Σ) (P' Q' : _ → dProp Σ) :
     IntoCrash P P' → IntoCrash Q Q' → IntoCrash (P ∨ Q)%I (λ hD, P' hD ∨ Q' hD)%I.
@@ -669,9 +702,12 @@ Section IntoCrash.
   Global Instance into_crash_preorder `{AbstractState ST} ℓ :
     IntoCrash _ _ := post_crash_preorder (ST := ST) ℓ.
 
-  Global Instance frag_history_into_crash `{AbstractState ST}
-         ℓ bumper t offset (s : ST) : IntoCrash _ _ :=
-    post_crash_frag_history ℓ bumper t offset s.
+  (* NOTE: We don't have an instance for [know_frag_history_loc] due to the
+   * extra assumptions for the post crash behavior that makes such an instance
+   * implactical. *)
+  (* Global Instance frag_history_into_crash `{AbstractState ST} *)
+  (*        ℓ bumper t offset (s : ST) : IntoCrash _ _ := *)
+  (*   post_crash_frag_history ℓ bumper t offset s. *)
 
   Global Instance know_pred_into_crash `{Countable ST}
          ℓ (ϕ : ST → _ → _ → dProp Σ) :
