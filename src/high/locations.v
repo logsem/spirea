@@ -433,7 +433,7 @@ Section points_to_at_more.
     iNamed 1. iNamed "lbBase".
     rewrite /know_protocol.
     iDestruct "locationProtocol" as "(-#pred & #order & #bumper)".
-    iDestruct (post_crash_frag_history with "[$order $offset $bumper $knowFragHist]") as "-#H".
+    iDestruct (post_crash_frag_history with "order offset bumper knowFragHist") as "-#H".
     iDestruct "offset" as "-#offset".
     iDestruct "bumper" as "-#bumper".
     iDestruct "order" as "-#order".
@@ -500,7 +500,7 @@ Section points_to_at_more.
     iDestruct (know_protocol_extract with "locationProtocol")
       as "(#pred & #order & #bumper)".
     iDestruct (post_crash_frag_history
-    with "[$order $bumper $knowFragHist $offset]") as "-#H".
+      with "order offset bumper knowFragHist") as "-#H".
     iDestruct "pred" as "-#pred".
     iDestruct "offset" as "-#offset".
     iDestruct "bumper" as "-#bumper".
@@ -640,7 +640,8 @@ Section points_to_at_more.
   Proof.
     iNamed 1. iNamed "lbBase".
     iDestruct "locationProtocol" as "(-#pred & #order & #bumper)".
-    iDestruct (post_crash_frag_history with "[$]") as "HI".
+    iDestruct (post_crash_frag_history
+      with "order offset bumper knowFragHist") as "-#HI".
     iDestruct (post_crash_flush_post_crash with "HI") as "-#HI".
     iDestruct "offset" as "-#offset".
     iDestruct "bumper" as "-#bumper".
@@ -688,6 +689,64 @@ Section points_to_at_more.
 
   Global Instance know_flush_into_crash ℓ prot (s : ST) :
     IntoCrashFlush (flush_lb ℓ prot s) _ := post_crash_flush_flush_lb ℓ prot s.
+
+  Global Instance post_crash_into_crash P :
+    IntoCrash (post_crash P) P.
+  Proof. done. Qed.
+
+  Lemma post_crash_mapsto_at ℓ prot (ss : list ST) sF :
+    head ss = Some sF →
+    ℓ ↦_AT^{prot} ss -∗
+    post_crash (λ hG',
+      if_rec ℓ (∃ sC,
+        crashed_in prot ℓ sC ∗
+        (* At least one of our states are still there. *)
+        (∃ ss' s,
+          ⌜ ss' `prefix_of` ss ⌝ ∗
+          ⌜ last ss' = Some s ⌝ ∗
+          ⌜ s ⊑ sC ⌝ ∗
+          ℓ ↦_AT^{prot} (prot.(bumper) <$> ss') ∨
+        (* None of our states where recovered. *)
+        ⌜ sC ⊑ sF ∧ sC ≠ sF ⌝ ∗ ℓ ↦_AT^{prot} [prot.(bumper) sC])
+      )
+    ).
+  Proof.
+    rewrite /mapsto_at.
+    iIntros (headEq).
+    iNamed 1.
+    iDestruct "locationProtocol" as "(-#pred & order & bumper)".
+    iAssert (□ ∀ t s, ⎡ know_frag_history_loc ℓ t s ⎤ -∗ _)%I as "#impl".
+    { iIntros "!>" (??).
+      iApply (post_crash_frag_history with "order offset bumper"). }
+    iDestruct "isAtLoc" as "-#isAtLoc".
+    rewrite embed_big_sepM.
+    iDestruct (big_sepM_impl with "absHist []") as "-#HI".
+    { iIntros "!>" (???).
+      iApply "impl". }
+    iDestruct "offset" as "-#offset".
+    iCrash.
+    iDestruct (if_rec_is_persisted ℓ) as "persisted".
+    (* TODO: Why is this [IntoIfRec] instance not picked up automatically. *)
+    iDestruct (into_if_rec with "HI") as "HH".
+    { apply big_sepM_into_if_rec. intros. apply into_if_rec_if_rec. }
+    iModIntro.
+    iDestruct "offset" as (tC CV cvLook) "(crashed & offset)".
+    iDestruct (big_sepM_lookup with "HH") as (sC CV' tC' ?) "(#hi & #crashedIn & #hoho)".
+    { erewrite <- lastEq. eapply map_sequence_lookup_hi. done. }
+    iDestruct (crashed_at_agree with "crashed hi") as %<-.
+    assert (tC = tC') as <- by congruence.
+    (* Note, [sC] is the last location that was recovered after the crash.
+     * However, this location may not be among the locations in [ss]. *)
+    iExists (sC).
+    iFrameF "crashedIn".
+
+    (* Sketch: Case on wether tC+offset is below tLo or not. If it is above
+     * show left disjunct. Case on whether sC is equal to sF. If it is equal
+     * show left disjunct. If not show right disjunct. *)
+    destruct (decide (tC + offset ≤ tLo)).
+    - admit.
+    - admit.
+  Admitted.
 
 End points_to_at_more.
 

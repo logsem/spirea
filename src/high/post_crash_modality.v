@@ -704,7 +704,7 @@ Section IntoCrash.
 
   (* NOTE: We don't have an instance for [know_frag_history_loc] due to the
    * extra assumptions for the post crash behavior that makes such an instance
-   * implactical. *)
+   * impractical. *)
   (* Global Instance frag_history_into_crash `{AbstractState ST} *)
   (*        ℓ bumper t offset (s : ST) : IntoCrash _ _ := *)
   (*   post_crash_frag_history ℓ bumper t offset s. *)
