@@ -316,7 +316,9 @@ Section wp_at_rules.
       know_full_encoded_history_loc ℓ 1 absHist -∗
       ⌜ increasing_map (encode_relation (⊑@{ST})) (<[ t := es ]>absHist) ⌝ -∗
       ℓ ↦h (drop_prefix (<[t := msg ]> physHist) offset) ==∗
-      know_frag_history_loc ℓ t s ∗ interp.
+      know_frag_history_loc ℓ t s ∗
+      auth_map_map_frag_singleton phys_history_name ℓ t msg ∗
+      interp.
 
   Definition lookup_impl ℓ prot pred physHists physHist absHist offset : iProp Σ :=
     auth_map_map_auth phys_history_name physHists -∗
@@ -425,8 +427,7 @@ Section wp_at_rules.
         as "allPredsHold".
       { iExists pred. rewrite naViewLook. iFrame "predHolds". done. }
 
-      iMod (auth_map_map_insert with "physHists") as "[physHists unusedFrag]";
-        [try done|try done|].
+      iMod (auth_map_map_insert with "physHists") as "(physHists & _ & physHistFrag)"; [try done|try done|].
 
       iDestruct (big_sepM2_insert_delete with "[$ordered2 $order]") as "ordered3".
       rewrite (insert_id orders); last congruence.
@@ -435,6 +436,7 @@ Section wp_at_rules.
 
       iModIntro.
       iSplit; first (iApply frag_history_equiv; rewrite -encEs; iFrame "histFrag").
+      iFrameF "physHistFrag".
       (* We re-establish [interp]. *)
       repeat iExists _.
       iFrameF "ptsMap".
@@ -1101,32 +1103,34 @@ Section wp_at_rules.
     }}}.
   Proof. Abort.
 
-  Lemma wp_store_at ℓ s_i s_t v_t (prot : LocationProtocol ST) st E :
+  Lemma wp_store_at ℓ ss s_i s_t v_t (prot : LocationProtocol ST) st E :
     {{{
-      ⌜ s_i ⊑ s_t ⌝ ∗
-      ⎡ is_at_loc ℓ ⎤ ∗
-      store_lb ℓ prot s_i ∗
+      ℓ ↦_AT^{prot} (ss ++ [s_i]) ∗
       prot.(pred) s_t v_t _ ∗
       (* NOTE: This does _not_ work. *)
       (* "phi" ∷ (∀ v_i, ϕ s_i v_i _ -∗ ϕ s_t v_t _ ∗ ϕ s_i v_i _) ∗ *)
       (* NOTE: This should work and be more general. *)
       (* "phi" ∷ (∀ v_i, (<obj> (ϕ s_i v_i -∗ ϕ s_i_v ∗ R)) ∗ (R -∗ ϕ s_t v_t)) ∗ *)
-      (* The new state must be greater than the possible current states. *)
+      ⌜ s_i ⊑ s_t ⌝ ∗
+      (* The new state must be concurrent with possible other states. *)
       (∀ v_i s_c v_c, ⌜ s_i ⊑ s_c ⌝ -∗
+        (* NOTE: We could give predicates for all states in ss here. *)
         prot.(pred) s_i v_i _ ∗ prot.(pred) s_t v_t _ ∗ prot.(pred) s_c v_c _ -∗
           ⌜ s_t ⊑ s_c ∧ s_c ⊑ s_t ⌝)
     }}}
       #ℓ <-_AT v_t @ st; E
-    {{{ RET #(); store_lb ℓ prot s_t }}}.
+    {{{ RET #(); ℓ ↦_AT^{prot} ((ss ++ [s_i]) ++ [s_t]) }}}.
   Proof.
     intros Φ. iStartProof (iProp _). iIntros (TV).
-    iIntros "(%targetGt & isAt & storeLb & phi & greater)".
-    iDestruct (store_lb_protocol with "storeLb") as "#knowProt".
-    iDestruct (know_protocol_extract with "knowProt")
+    iIntros "(pts & phi & %targetGt & greater)".
+    iDestruct "pts" as (abs_hist phys_hist tLo t_i offset s' ms) "H". iNamed "H".
+    iDestruct "tSLe" as %tSLe.
+    (* iDestruct (store_lb_protocol with "storeLb") as "#knowProt". *)
+    iDestruct (know_protocol_extract with "locationProtocol")
       as "(#knowPred & #knowPreorder & #knowBumper)".
 
     rewrite /store_lb.
-    iDestruct "storeLb" as (t_i offset) "(#prot & #hist & #offset & %tSLe)".
+    (* iDestruct "storeLb" as (t_i offset) "(#prot & #hist & #offset & %tSLe)". *)
     (* We unfold the WP. *)
     iIntros (TV' incl) "Φpost".
     iApply wp_unfold_at.
@@ -1136,7 +1140,7 @@ Section wp_at_rules.
     { apply prim_step_store_rel_no_fork. }
 
     iIntros "interp".
-    iDestruct (interp_get_at_loc with "interp isAt knowProt offset")
+    iDestruct (interp_get_at_loc with "interp isAtLoc locationProtocol offset")
       as (physHists physHist absHist pred) "(R & [reins _])".
     iNamed "R".
 
@@ -1146,13 +1150,14 @@ Section wp_at_rules.
 
     iApply (wp_store_release with "[$pts $val]").
     iIntros "!>" (t_t) "(%look & %gt & #valNew & pts)".
+    simpl in gt.
+    simpl in tSLe.
     rewrite drop_prefix_lookup in look.
 
     (* We can conclude that [t_t] is strictly greater than [t_i]. *)
     assert (t_i - offset < t_t) as tILtTt.
     { destruct TV as [[??]?].
       destruct TV' as [[??]?].
-      simpl in tSLe. simpl in gt.
       destruct incl as [[??]?].
       destruct incl2 as [[??]?].
       eapply gt_le_trans; first done.
@@ -1162,6 +1167,11 @@ Section wp_at_rules.
     assert (t_i < t_t + offset) as ? by lia.
 
     iFrame "valNew".
+
+    iDestruct (big_sepM_lookup with "absHist") as "hist".
+    { eapply map_sequence_lookup_hi in slice.
+      rewrite last_snoc in slice.
+      apply slice. }
 
     iDestruct (history_full_entry_frag_lookup with "fullHist hist") as %look'.
     destruct look' as (e_i & absHistLook' & hip).
@@ -1234,7 +1244,8 @@ Section wp_at_rules.
     rewrite drop_prefix_insert.
 
     iMod ("reins" $! (t_t + offset) s_t
-      with "[%] [//] [//] [] [] [$] [predHolds phi] fullHist [//] pts") as "(#frag & $)".
+      with "[%] [//] [//] [] [] [$] [predHolds phi] fullHist [//] pts")
+        as "(#frag & #physHistFrag & $)".
     { lia. }
     { iPureIntro. simpl.
       replace (t_t + offset - offset) with t_t by lia.
@@ -1252,29 +1263,56 @@ Section wp_at_rules.
       destruct TV' as [[??]?].
       repeat split; last done.
       - simpl. etrans; first apply incl. etrans; first apply incl2.
-        simpl in gt.
         apply view_insert_le'; [done|lia].
       - simpl.
         etrans; first apply incl.
         apply incl2. }
     (* We are done updating ghost state. *)
     iModIntro.
-    iSplit. { iPureIntro. repeat split; try done. apply view_insert_le. lia. }
+    iSplit. { iPureIntro. simpl. solve_view_le. }
 
     iEval (rewrite monPred_at_wand) in "Φpost".
     iApply "Φpost".
-    - iPureIntro. destruct TV' as [[??]?].
-      repeat split.
-      * etrans; first apply incl2. apply view_insert_le. lia.
-      * apply incl2.
-      * apply incl2.
-    - iExists _, _.
-      iFrame "frag".
-      iFrame "knowProt".
-      iFrameF "offset".
-      iPureIntro.
-      rewrite lookup_zero_insert.
-      lia.
+    - iPureIntro. solve_view_le.
+    - iExistsN.
+
+      iSplitPure. { rewrite last_snoc. reflexivity. }
+      iSplitPure. { eapply map_sequence_insert_snoc; try done. }
+      iSplitPure.
+      { eapply map_sequence_insert_snoc; last done; first lia.
+        eapply map_no_later_dom; last apply nolater.
+        done. }
+      iSplitPure.
+      { eapply map_no_later_insert; last done. lia. }
+      iSplitPure.
+      { rewrite 2!dom_insert_L. rewrite absPhysHistDomEq. done. }
+      iFrameF "isAtLoc".
+      rewrite big_sepM_insert. 2: { apply nolater. lia. }
+      rewrite big_sepM_insert.
+      2: {
+        eapply map_dom_eq_lookup_None; first done.
+        apply nolater. lia. }
+      iFrameF "locationProtocol".
+      iSplit. { iFrame "frag absHist". }
+      iFrame "offset".
+      (* iSplit. *)
+      (* { iExists _. *)
+      (*   iSplitPure; first done. *)
+      (*   iApply (big_sepM_lookup with "frags"). done. } *)
+      iSplit; last first.
+      { simpl. iPureIntro.
+        rewrite lookup_zero_insert.
+        lia. }
+      simpl.
+      (* rewrite -assoc. *)
+
+      iSplit.
+      { iFrame "physHistFrag". solve_view_le. }
+      (* iEval (rewrite -monPred_at_big_sepM) in "physHist". *)
+      iApply monPred_mono; last iApply "physHist".
+      etrans; first apply incl.
+      etrans; first apply incl2.
+      repeat split; solve_view_le.
   Qed.
 
   (* Rule for store on an atomic. *)
@@ -1459,7 +1497,8 @@ Section wp_at_rules.
       assert (t_l + 1 + offset = t_l + offset + 1) as eq by lia.
       rewrite eq in H2. rewrite eq.
       iMod ("reins" $! (t_l + offset + 1) s_t
-        with "[%] [//] [//] [] [] physHists [HI predMap] fullHist [//] pts") as "(#frag & $)".
+        with "[%] [//] [//] [] [] physHists [HI predMap] fullHist [//] pts")
+          as "(#frag & #physHistFrag & $)".
       { lia. }
       { iPureIntro. simpl. rewrite lookup_zero_insert. lia. }
       { done. }
