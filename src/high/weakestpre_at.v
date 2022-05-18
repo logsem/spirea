@@ -742,12 +742,15 @@ Section wp_at_rules.
       !_AT #ℓ @ st; E
     {{{ vL, RET vL;
       (∃ sL, ℓ ↦_AT^{prot} ((ss ++ [s]) ++ [sL]) ∗ <fence> Q2 sL vL) ∨
-      <fence> Q1 vL
+      (* We didn't have to give the points-to predicate back here, but doing
+       * that is useful for users of the lemma. *)
+      (ℓ ↦_AT^{prot} (ss ++ [s]) ∗ <fence> Q1 vL)
     }}}.
   Proof.
     intros Φ.
     iStartProof (iProp _). iIntros (TV).
-    iDestruct 1 as "(pts & pToQ)".
+    iDestruct 1 as "(#pts & pToQ)".
+    iAssert (_) as "ptsCopy". { iApply "pts". }
     iDestruct "pts" as (abs_hist phys_hist tLo tS offset s' ms) "H". iNamed "H".
     assert (s' = s) as ->. { apply (inj Some). rewrite -lastEq. apply last_snoc. }
     iDestruct "tSLe" as %tSLe.
@@ -904,6 +907,24 @@ Section wp_at_rules.
       { clear H4. do 2 (etrans; first done). repeat split; auto using view_le_l. }
        *)
       iRight. simpl.
+      iSplit. {
+        iExistsN.
+        iFrameF (lastEq).
+        iFrameF (slice).
+        iFrameF (slicePhys).
+        iFrameF (nolater).
+        iFrameF (absPhysHistDomEq).
+        iFrameF "isAtLoc".
+        iFrameF "locationProtocol".
+        iFrameF "absHist".
+        iSplit.
+        { iApply monPred_mono;
+            last (rewrite monPred_at_big_sepM; iApply "physHist").
+            etrans; first apply incl.
+            etrans; first apply incl2.
+            solve_view_le. }
+        iApply monPred_mono.
+        iFrame "ptsCopy".
       iApply monPred_mono; last iFrame "Q".
       rewrite -pvEq.
       solve_view_le.
