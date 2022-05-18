@@ -135,11 +135,11 @@ Section proof.
   Qed.
 
   (* Prove right crash condition. *)
-  Ltac whack_right_cc :=
+  Ltac solve_right_cc :=
     iSplit;
     first iApply (right_crash_condition_impl with "zPer zPts").
 
-  Ltac whack_left_cc :=
+  Ltac solve_left_cc :=
     iSplit;
     first iApply (left_crash_condition_impl with "xPer xPts").
 
@@ -156,7 +156,7 @@ Section proof.
     (* Evaluate the first load. *)
     rewrite /rightProg.
     wpc_bind (!_AT _)%E.
-    iApply wpc_atomic_no_mask. whack_right_cc.
+    iApply wpc_atomic_no_mask. solve_right_cc.
     iApply (wp_load_at _ _ (λ s v, (⌜v = #true⌝ ∗ flush_lb x inv_x true) ∨ ⌜v = #false⌝)%I inv_y with "[$yShared $yLb]").
     { iModIntro. iIntros (?? incl) "a". rewrite /inv_y.
       destruct s'.
@@ -168,32 +168,32 @@ Section proof.
     { iIntros "[[-> _]|->]"; naive_solver. }
     2: {
       (* We loaded [false] and this case is trivial. *)
-      whack_right_cc.
+      solve_right_cc.
       iModIntro.
       wpc_pures.
       { iApply (right_crash_condition_impl with "zPer zPts"). }
       iModIntro.
       iRight. iFrame. }
     (* We loaded [true]. *)
-    whack_right_cc.
+    solve_right_cc.
     iModIntro.
     wpc_pures.
     { iApply (right_crash_condition_impl with "zPer zPts"). }
     wpc_bind (Fence).
-    iApply wpc_atomic_no_mask. whack_right_cc.
+    iApply wpc_atomic_no_mask. solve_right_cc.
     iApply wp_fence. do 2 iModIntro.
     iDestruct "disj" as "[[_ #xLb] | %]"; last congruence.
-    whack_right_cc.
+    solve_right_cc.
     iModIntro.
     wpc_pures.
     { iApply (right_crash_condition_impl with "zPer zPts"). }
 
-    iApply wpc_atomic_no_mask. whack_right_cc.
+    iApply wpc_atomic_no_mask. solve_right_cc.
     iApply (wp_store_na _ inv_z _ _ _ true with "[$zPts]"); eauto.
     { simpl. iFrame "xLb". done. }
 
     iIntros "!> zPts /=".
-    whack_right_cc.
+    solve_right_cc.
     iModIntro.
     iLeft. iFrame.
   Qed.
@@ -249,18 +249,18 @@ Section proof.
         iSplit; last naive_solver.
         iIntros "!> zPts".
         iApply (right_crash_condition_impl with "zPer zPts").
-    - whack_left_cc. iNext.
+    - solve_left_cc. iNext.
       wpc_pures.
       { iApply (left_crash_condition_impl with "xPer xPts"). }
       rewrite /leftProg.
       wpc_bind (_ <-_NA _)%E.
-      iApply wpc_atomic_no_mask. whack_left_cc.
+      iApply wpc_atomic_no_mask. solve_left_cc.
       iApply (wp_store_na x _ _ _ _ true with "[$xPts]").
       { reflexivity. } { done. }
       { rewrite /inv_x. done. }
       simpl.
       iNext. iIntros "xPts".
-      whack_left_cc.
+      solve_left_cc.
       iModIntro.
       wpc_pures;
         first iApply (left_crash_condition_impl with "xPer xPts").
@@ -268,26 +268,26 @@ Section proof.
       (* Flush *)
       wpc_bind (Flush _)%E.
       iApply wpc_atomic_no_mask.
-      whack_left_cc.
+      solve_left_cc.
       iApply (wp_flush_ex with "xPts"); first reflexivity.
       iNext.
       iIntros "(xPts & #xLowerBound & ?)".
-      whack_left_cc.
+      solve_left_cc.
       iModIntro.
       wpc_pures;
         first iApply (left_crash_condition_impl with "xPer xPts").
 
       (* The fence. *)
       wpc_bind (Fence)%E.
-      iApply wpc_atomic_no_mask. whack_left_cc.
+      iApply wpc_atomic_no_mask. solve_left_cc.
       iApply wp_fence. do 2 iModIntro.
-      whack_left_cc.
+      solve_left_cc.
       iModIntro.
       wpc_pures;
         first iApply (left_crash_condition_impl with "xPer xPts").
 
       wpc_bind (_ <-_AT _)%E.
-      iApply wpc_atomic_no_mask. whack_left_cc.
+      iApply wpc_atomic_no_mask. solve_left_cc.
       iApply (wp_store_at _ false true).
       { iFrame.
         iPureGoal. { done. }
@@ -299,7 +299,7 @@ Section proof.
           iIntros "? ([? O1] & [??] & [? O2])".
           by iDestruct (own_valid_2 with "O1 O2") as %HI%exclusive_l. }
       iIntros "!> yLb2".
-      whack_left_cc.
+      solve_left_cc.
       done.
   Qed.
 

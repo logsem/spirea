@@ -105,7 +105,7 @@ Section definitions.
        bumper v := v |}.
   Next Obligation. iIntros (?[?]?) "H". iCrashFlush. done. Qed.
   Next Obligation. destruct s. simpl. apply _. Qed.
-  
+
   (* Definition toNext_prot : loc_pred (singl val) := *)
   (*   λ '(mk_singl v) v' _, ⌜ v = v' ⌝%I. *)
 
