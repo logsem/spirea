@@ -2,9 +2,6 @@ From iris.proofmode Require Import coq_tactics reduction.
 From iris.proofmode Require Export tactics.
 From Perennial.program_logic Require Export weakestpre.
 From Perennial.program_logic Require Import atomic.
-(* From Perennial.goose_lang Require Import lifting proofmode. *)
-(* From Perennial.goose_lang.lib Require Import struct.struct. *)
-(* From Perennial.program_logic Require Export crash_weakestpre staged_invariant. *)
 From Perennial.Helpers Require Export ipm NamedProps ProofCaching.
 
 From self Require Import ipm_tactics.
@@ -399,7 +396,6 @@ Ltac wpc_bind_seq :=
 
 Ltac wpc_frame_seq := wpc_bind_seq; wpc_frame.
 
-(*
 Tactic Notation "wpc_atomic" :=
   iApply wpc_atomic_no_mask;
   iSplit; [ crash_case | ].
@@ -418,7 +414,6 @@ Tactic Notation "wpc_apply_core" open_constr(lem) tactic(tac) :=
       | Some (_,?P) =>
         lazymatch P with
         | wpc _ ?E1' ?e' _ _ =>
-          first [ unify k k' | fail 1 "wpc_apply: cannot apply, k mismatch:" k' "≠" k ];
           first [ unify E1 E1' | fail 1 "wpc_apply: cannot apply E1 mismatch:" E1' "≠" E1 ];
           first [ unify e e' | fail 1 "wpc_apply: cannot apply" P ];
           fail "wpc_apply: cannot apply" P
@@ -430,6 +425,7 @@ Tactic Notation "wpc_apply_core" open_constr(lem) tactic(tac) :=
 Tactic Notation "wpc_apply" open_constr(lem) :=
   wpc_apply_core lem (fun H => iApplyHyp H; (try (iSplit; [ iFromCache | try iNext ]))).
 
+(*
 Tactic Notation "wpc_if_destruct" :=
   match goal with
   | |- envs_entails _ (wpc _ _ _ (if: Val $ LitV $ LitBool ?cond then _ else _) _ _) =>
