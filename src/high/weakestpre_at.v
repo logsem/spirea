@@ -729,6 +729,7 @@ Section wp_at_rules.
       ((∀ vs vL, ∃ P,
         ⌜ last vs = Some vL ⌝ -∗
         (* Extract knowledge from all the predicates. *)
+        (* NOTE: Maybe demand that [P] is persistent instead of pers. mod. *)
         (([∗ list] s; v ∈ ss ++ [s];vs, prot.(pred) s v _) -∗ □ P) ∗
         (* Using the [P] and the predicate for the loaded location show [Q1]. *)
         (P -∗ <obj> (prot.(pred) s vL _ -∗ Q1 vL ∗ prot.(pred) s vL _))) ∧
@@ -923,8 +924,11 @@ Section wp_at_rules.
             etrans; first apply incl.
             etrans; first apply incl2.
             solve_view_le. }
-        iApply monPred_mono.
-        iFrame "ptsCopy".
+        iFrameF "offset".
+        iPureIntro.
+        etrans; first apply tSLe.
+        f_equiv.
+        solve_view_le. }
       iApply monPred_mono; last iFrame "Q".
       rewrite -pvEq.
       solve_view_le.

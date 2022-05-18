@@ -360,6 +360,24 @@ Section wp_rules.
     iFrame.
   Qed.
 
+  Lemma wp_flush_at ℓ prot ss s st E :
+    {{{ ℓ ↦_AT^{prot} (ss ++ [s]) }}}
+      Flush #ℓ @ st; E
+    {{{ RET #();
+      ℓ ↦_AT^{prot} (ss ++ [s]) ∗
+      <fence> flush_lb ℓ prot s ∗
+      <fence_sync> persist_lb ℓ prot s  }}}.
+  Proof.
+    iIntros (Φ) "pts".
+    iDestruct (mapsto_at_store_lb with "pts") as "#lb".
+    iIntros "HP".
+    iApply wp_flush_lb; first done.
+    iNext.
+    iIntros "lb'".
+    iApply "HP".
+    iFrame.
+  Qed.
+
   Lemma wp_fence (st : stuckness) (E : coPset) (Φ : val → dProp Σ) :
     <fence> ▷ Φ #() -∗ WP Fence @ st; E {{ v, Φ v }}.
   Proof.

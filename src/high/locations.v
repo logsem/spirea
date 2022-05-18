@@ -694,25 +694,40 @@ Section points_to_at_more.
     IntoCrash (post_crash P) P.
   Proof. done. Qed.
 
-  Lemma post_crash_mapsto_at ℓ prot (ss : list ST) sF :
-    head ss = Some sF →
+  Lemma mapsto_at_store_lb ℓ prot ss s :
+    ℓ ↦_AT^{prot} (ss ++ [s]) -∗ store_lb ℓ prot s.
+  Proof.
+    iNamed 1.
+    iExists tS, offset.
+    simplify_eq.
+    iFrame "#".
+    rewrite embed_big_sepM.
+    iDestruct (big_sepM_lookup with "absHist") as "frag".
+    { apply map_sequence_lookup_hi in slice.
+      rewrite last_snoc in slice.
+      done. }
+    iFrame "frag".
+  Qed.
+
+  Lemma post_crash_mapsto_at ℓ prot (ss : list ST) :
     ℓ ↦_AT^{prot} ss -∗
     post_crash (λ hG',
       if_rec ℓ (∃ sC,
         crashed_in prot ℓ sC ∗
         (* At least one of our states are still there. *)
-        (∃ ss' s,
-          ⌜ ss' `prefix_of` ss ⌝ ∗
-          ⌜ last ss' = Some s ⌝ ∗
+        ((∃ ss' s,
+          ⌜ (ss' ++ [s]) `prefix_of` ss ⌝ ∗
+          (* ⌜ last ss' = Some s ⌝ ∗ *)
           ⌜ s ⊑ sC ⌝ ∗
-          ℓ ↦_AT^{prot} (prot.(bumper) <$> ss') ∨
+          ℓ ↦_AT^{prot} ((prot.(bumper) <$> ss') ++ [prot.(bumper) s])) ∨
         (* None of our states where recovered. *)
-        ⌜ sC ⊑ sF ∧ sC ≠ sF ⌝ ∗ ℓ ↦_AT^{prot} [prot.(bumper) sC])
+      ∃ sF,
+        ⌜ head ss = Some sF ∧ sC ⊑ sF ∧ sC ≠ sF ⌝ ∗
+        ℓ ↦_AT^{prot} [prot.(bumper) sC])
       )
     ).
   Proof.
     rewrite /mapsto_at.
-    iIntros (headEq).
     iNamed 1.
     iDestruct "locationProtocol" as "(-#pred & order & bumper)".
     iAssert (□ ∀ t s, ⎡ know_frag_history_loc ℓ t s ⎤ -∗ _)%I as "#impl".
@@ -747,6 +762,9 @@ Section points_to_at_more.
     - admit.
     - admit.
   Admitted.
+
+  Global Instance mapsto_at_into_crash ℓ prot ss :
+    IntoCrash _ _ := post_crash_mapsto_at ℓ prot ss.
 
 End points_to_at_more.
 
