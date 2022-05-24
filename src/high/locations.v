@@ -106,6 +106,7 @@ Section points_to_at.
       "%absPhysHistDomEq" ∷ ⌜ dom (gset _) abs_hist = dom _ phys_hist ⌝ ∗
       "#isAtLoc" ∷ ⎡ is_at_loc ℓ ⎤ ∗
       "#locationProtocol" ∷ ⎡ know_protocol ℓ prot ⎤ ∗
+      "%incrMap" ∷ ⌜ increasing_map (⊑@{ST}) abs_hist ⌝ ∗
       "#absHist" ∷
         ⎡ ([∗ map] t ↦ s ∈ abs_hist, know_frag_history_loc ℓ t s) ⎤ ∗
       "#physHist" ∷
@@ -709,27 +710,34 @@ Section points_to_at_more.
     iFrame "frag".
   Qed.
 
+  Lemma mapsto_at_increasing ℓ prot ss :
+    ℓ ↦_AT^{prot} ss -∗ ⌜ increasing_list (⊑) ss ⌝.
+  Proof.
+    iNamed 1. iPureIntro. eapply increasing_map_to_increasing_list; done.
+  Qed.
+
   Lemma post_crash_mapsto_at ℓ prot (ss : list ST) :
     ℓ ↦_AT^{prot} ss -∗
     post_crash (λ hG',
       if_rec ℓ (∃ sC,
         crashed_in prot ℓ sC ∗
         (* At least one of our states are still there. *)
-        ((∃ ss' s,
-          ⌜ (ss' ++ [s]) `prefix_of` ss ⌝ ∗
-          (* ⌜ last ss' = Some s ⌝ ∗ *)
+        ((∃ ss1 s ss2,
+          ⌜ ss1 ++ [s] ++ ss2 = ss ⌝ ∗
+          ⌜ ∀ s2, head ss2 = Some s2 → sC ⊑ s2 ⌝ ∗
           ⌜ s ⊑ sC ⌝ ∗
-          ℓ ↦_AT^{prot} ((prot.(bumper) <$> ss') ++ [prot.(bumper) s])) ∨
+          ℓ ↦_AT^{prot} ((prot.(bumper) <$> ss1) ++ [prot.(bumper) s])) ∨
         (* None of our states where recovered. *)
-      ∃ sF,
-        ⌜ head ss = Some sF ∧ sC ⊑ sF ∧ sC ≠ sF ⌝ ∗
-        ℓ ↦_AT^{prot} [prot.(bumper) sC])
+        ∃ sF,
+          ⌜ head ss = Some sF ∧ sC ⊑ sF ∧ sC ≠ sF ⌝ ∗
+          ℓ ↦_AT^{prot} [prot.(bumper) sC])
       )
     ).
   Proof.
     rewrite /mapsto_at.
     iNamed 1.
-    iDestruct "locationProtocol" as "(-#pred & order & bumper)".
+    iDestruct (know_protocol_extract with "locationProtocol")
+      as "(-#pred & order & bumper)".
     iAssert (□ ∀ t s, ⎡ know_frag_history_loc ℓ t s ⎤ -∗ _)%I as "#impl".
     { iIntros "!>" (??).
       iApply (post_crash_frag_history with "order offset bumper"). }
@@ -739,32 +747,76 @@ Section points_to_at_more.
     { iIntros "!>" (???).
       iApply "impl". }
     iDestruct "offset" as "-#offset".
+    iDestruct "locationProtocol" as "-#locationProtocol".
     iCrash.
     iDestruct (if_rec_is_persisted ℓ) as "persisted".
     (* TODO: Why is this [IntoIfRec] instance not picked up automatically. *)
     iDestruct (into_if_rec with "HI") as "HH".
     { apply big_sepM_into_if_rec. intros. apply into_if_rec_if_rec. }
     iModIntro.
-    iDestruct "offset" as (tC CV cvLook) "(crashed & offset)".
-    iDestruct (big_sepM_lookup with "HH") as (sC CV' tC' ?) "(#hi & #crashedIn & #hoho)".
+    iDestruct "locationProtocol" as "#locationProtocol".
+    iDestruct "offset" as (tC CV cvLook) "(crashed & #offset)".
+    iDestruct (big_sepM_lookup with "HH") as (sC CV' tC' ?) "(#hi & #crashedIn & #frag & #hi2)".
     { erewrite <- lastEq. eapply map_sequence_lookup_hi. done. }
     iDestruct (crashed_at_agree with "crashed hi") as %<-.
     assert (tC = tC') as <- by congruence.
     (* Note, [sC] is the last location that was recovered after the crash.
      * However, this location may not be among the locations in [ss]. *)
     iExists (sC).
-    iFrameF "crashedIn".
+    iSplitL "".
+    { iExists _. iFrame "hi crashedIn".
+      iSplit; last first.
+      - iPureIntro. apply elem_of_dom. done.
+      - rewrite /persist_lb.
+        iExists (offset + tC), (offset + tC).
+        replace (offset + tC - (offset + tC)) with 0 by lia.
+        iFrame "persisted".
+        iDestruct (have_FV_0) as "$".
+        rewrite /lb_base.
+        iFrameF "locationProtocol".
+        iFrameF "frag".
+        iFrameF "offset".
+        replace (offset + tC - (offset + tC)) with 0 by lia.
+        iDestruct (have_SV_0) as "$". }
 
     (* Sketch: Case on wether tC+offset is below tLo or not. If it is above
      * show left disjunct. Case on whether sC is equal to sF. If it is equal
      * show left disjunct. If not show right disjunct. *)
-    destruct (decide (tC + offset ≤ tLo)).
-    - admit.
+    destruct (decide (tLo ≤ tC + offset)).
+    - iLeft.
+      admit.
     - admit.
   Admitted.
 
-  Global Instance mapsto_at_into_crash ℓ prot ss :
-    IntoCrash _ _ := post_crash_mapsto_at ℓ prot ss.
+  Global Instance mapsto_at_into_crash ℓ prot ss : IntoCrash _ _ :=
+  post_crash_mapsto_at ℓ prot ss.
+
+  Global Instance mapsto_at_into_crash_flush ℓ prot ss : IntoCrashFlush _ _ :=
+      into_crash_into_crash_flushed _ _ (post_crash_mapsto_at ℓ prot ss).
+
+  Lemma post_crash_mapsto_na_flush_lb ℓ prot ss (s : ST) :
+    flush_lb ℓ prot s -∗
+    ℓ ↦_AT^{prot} (ss ++ [s]) -∗
+    <PCF> _,
+      persist_lb ℓ prot (prot.(bumper) s) ∗
+      ℓ ↦_AT^{prot} ((prot.(bumper) <$> ss) ++ [prot.(bumper) s]).
+  Proof.
+    iIntros "fLb pts".
+    iDestruct (mapsto_at_increasing with "pts") as %incr.
+    iCrashFlush.
+    iDestruct "fLb" as "[pLb (%sC & %le & #xCr)]".
+    iDestruct (crashed_in_if_rec with "xCr pts") as (?) "(xCr' & disj)".
+    iDestruct (crashed_in_agree with "xCr xCr'") as %<-.
+    iDestruct "disj" as "[H|H]"; last first.
+    { iDestruct "H" as (? ([= eq] & le2 & neq)) "H".
+      rewrite head_lookup in eq.
+      assert (s = sC).
+      { admit. }
+      eapply increasing_list_last_greatest in incr; try done.
+      2: { apply _. }
+      2: { apply last_snoc. }
+      destruct sC; try done.
+  Abort.
 
 End points_to_at_more.
 
