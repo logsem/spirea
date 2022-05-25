@@ -1055,6 +1055,47 @@ Section wp_at_rules.
     Unshelve. done.
   Qed.
 
+  Lemma wp_load_at_simple ℓ sI Q prot st E :
+      {{{
+        ℓ ↦_AT^{prot} [sI] ∗
+        <obj> (∀ sL vL, ⌜ sI ⊑ sL ⌝ -∗ prot.(pred) sL vL _ -∗ Q sL vL ∗ prot.(pred) sL vL _)
+      }}}
+        !_AT #ℓ @ st; E
+      {{{ sL vL, RET vL;
+        ℓ ↦_AT^{prot} [sL] ∗
+        post_fence (Q sL vL) }}}.
+    Proof.
+      iIntros (Φ) "[pts impl] post".
+      iApply (wp_load_at _ [] _ (λ v, Q sI v) Q with "[$pts impl]").
+      { iSplit.
+        * iIntros (??).
+          iExists True%I.
+          iIntros (?).
+          iSplitL ""; first naive_solver.
+          iIntros "_".
+          iApply (monPred_objectively_mono with "impl").
+          iIntros "impl P".
+          iApply ("impl" with "[//] P").
+        * iIntros (???).
+          iExists True%I.
+          iIntros (?).
+          iSplitL ""; first naive_solver.
+          iIntros "_".
+          iApply (monPred_objectively_mono with "impl").
+          iIntros "impl P".
+          iApply ("impl" with "[//] P"). }
+      iNext.
+      iIntros (?).
+      iIntros "[L|R]".
+      - iDestruct "L" as (?) "[pts Q]".
+        iApply "post".
+        iFrame "Q".
+        iApply mapsto_na_drop.
+        done.
+      - iApply "post".
+        iApply "R".
+    Qed.
+
  (*
       (* iDestruct (predicate_holds_phi_decode with "predEquiv predHolds") as "PH"; *)
       (*   first done. *)

@@ -295,6 +295,31 @@ Section points_to_at.
     iNamed 1. iPureIntro. eapply increasing_map_to_increasing_list; done.
   Qed.
 
+  (* Forgets all states except the last one for a [mapsto_at]. We could keep any
+  subsequence of the initial list, but this less general lemma suffices. *)
+  Lemma mapsto_na_drop ℓ prot ss s :
+    mapsto_at ℓ prot (ss ++ [s]) -∗ mapsto_at ℓ prot [s].
+  Proof.
+    iNamed 1.
+    apply map_sequence_lookup_hi_alt in slicePhys as (msg & ? & ?).
+    iExists {[ tS := s ]}, {[ tS := msg ]}. iExistsN.
+    iSplitPure; first done.
+    iSplitPure; first apply map_sequence_singleton.
+    iSplitPure; first apply map_sequence_singleton.
+    iSplitPure; first apply map_no_later_singleton.
+    iSplitPure; first set_solver.
+    iFrame "#".
+    iSplitPure; first apply increasing_map_singleton.
+    rewrite 2!big_sepM_singleton.
+    rewrite embed_big_sepM.
+    iDestruct (big_sepM_lookup with "absHist") as "$".
+    { apply map_sequence_lookup_hi in slice.
+      rewrite slice.
+      apply last_snoc. }
+    iApply (big_sepM_lookup with "physHist").
+    done.
+  Qed.
+
   Lemma mapsto_na_persist_lb ℓ prot q ss s1 s2 s3 :
     ¬(s2 ⊑ s1) →
     mapsto_na ℓ prot q (s1 :: s3 :: ss) -∗

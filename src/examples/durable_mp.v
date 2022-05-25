@@ -144,26 +144,27 @@ Section proof.
     first iApply (left_crash_condition_impl with "xPer xPts").
 
   Lemma right_prog_spec s E1 :
-    store_lb y inv_y false -∗
-    ⎡ is_at_loc y ⎤ -∗
+    y ↦_AT^{inv_y} [false] -∗
     persist_lb z inv_z false -∗
     z ↦_{inv_z} [false] -∗
     WPC rightProg y z @ s; E1
     {{ v, z ↦_{inv_z} [false; true] ∨ z ↦_{inv_z} [false] }}
     {{ <PC> _, right_crash_condition }}.
   Proof.
-    iIntros "#yLb #yShared #zPer zPts".
+    iIntros "yPts #zPer zPts".
     (* Evaluate the first load. *)
     rewrite /rightProg.
     wpc_bind (!_AT _)%E.
     iApply wpc_atomic_no_mask. solve_right_cc.
-    iApply (wp_load_at _ _ (λ s v, (⌜v = #true⌝ ∗ flush_lb x inv_x true) ∨ ⌜v = #false⌝)%I inv_y with "[$yShared $yLb]").
+    iApply (wp_load_at_simple _ _
+              (λ s v, (⌜v = #true⌝ ∗ flush_lb x inv_x true) ∨ ⌜v = #false⌝)%I
+              inv_y with "[$yPts]").
     { iModIntro. iIntros (?? incl) "a". rewrite /inv_y.
-      destruct s'.
+      destruct sL.
       - iDestruct "a" as "[% #?]". iFrame "#". naive_solver.
       - iDestruct "a" as "[% O]". naive_solver. }
     iNext.
-    iIntros (??) "[yLb' disj]".
+    iIntros (? v) "[yPts disj]".
     iDestruct (post_fence_extract' _ (⌜v = #true ∨ v = #false⌝)%I with "disj []") as %[-> | ->].
     { iIntros "[[-> _]|->]"; naive_solver. }
     2: {
@@ -202,15 +203,14 @@ Section proof.
     ⎡ pre_borrow ⎤ ∗
     persist_lb x inv_x false ∗
     x ↦_{inv_x} [false] ∗
-    store_lb y inv_y false ∗
-    ⎡ is_at_loc y ⎤ ∗
+    y ↦_AT^{inv_y} [false] ∗
     persist_lb z inv_z false ∗
     z ↦_{inv_z} [false] -∗
     WPC prog x y z @ ⊤
     {{ v, True }}
     {{ <PC> _, crash_condition }}.
   Proof.
-    iIntros "(pb & #xPer & xPts & #yLb & #yShared & #zPer & zPts)".
+    iIntros "(pb & #xPer & xPts & #yPts & #zPer & zPts)".
     rewrite /prog.
 
     (* We create a crash borrow in order to transfer resources to the forked
@@ -228,7 +228,12 @@ Section proof.
       iNamed "L".
       iNamed "R".
       iExists _, _, _, _.
-      iFrame "∗#%". }
+      iFrame "xPts".
+      iFrame "zPts".
+      iFrame "xPer".
+      iFrame "zPer".
+      iFrame (xLast).
+      iFrame (zLast). }
     Unshelve. 2: { apply _. }
 
     wpc_bind (Fork _)%E.
@@ -238,7 +243,7 @@ Section proof.
       iNext. iSplit; first done.
       iIntros "zPts".
 
-      iDestruct (right_prog_spec with "yLb yShared zPer zPts") as "wp".
+      iDestruct (right_prog_spec with "yPts zPer zPts") as "wp".
       iApply (wpc_mono' with "[] [] wp"); last naive_solver.
       iIntros (?) "[zPts | zPts]".
       * iExists (z ↦_{_} (_ : list bool)). iFrame.
@@ -288,7 +293,7 @@ Section proof.
 
       wpc_bind (_ <-_AT _)%E.
       iApply wpc_atomic_no_mask. solve_left_cc.
-      iApply (wp_store_at _ false true).
+      iApply (wp_store_at _ [] false true).
       { iFrame.
         iPureGoal. { done. }
         iFrame "#".
@@ -302,5 +307,7 @@ Section proof.
       solve_left_cc.
       done.
   Qed.
+
+  (* FIXME: Verify the recovery program. *)
 
 End proof.
