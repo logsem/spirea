@@ -61,12 +61,10 @@ Section specification.
 
   Definition crash_condition {hD : nvmDeltaG} ℓa ℓb : dProp Σ :=
     ("pts" ∷ ∃ nas nbs (na nb : nat),
-      "lastA" ∷ ⌜ last nas = Some na ⌝ ∗
-      "lastB" ∷ ⌜ last nbs = Some nb ⌝ ∗
       "aPer" ∷ persist_lb ℓa ϕa na ∗
       "bPer" ∷ persist_lb ℓb (ϕb ℓa) nb ∗
-      "aPts" ∷ ℓa ↦_{ϕa} nas ∗
-      "bPts" ∷ ℓb ↦_{ϕb ℓa} nbs)%I.
+      "aPts" ∷ ℓa ↦_{ϕa} (nas ++ [na]) ∗
+      "bPts" ∷ ℓb ↦_{ϕb ℓa} (nbs ++ [nb]))%I.
 
   Lemma prove_crash_condition {hD : nvmDeltaG} ℓa ℓb na nb (ssA ssB : list nat) :
     persist_lb ℓa ϕa na -∗
@@ -79,15 +77,15 @@ Section specification.
     iCrash.
     iDestruct "perA" as "[perA (% & ? & #recA)]".
     iDestruct "perB" as "[perB (% & ? & #recB)]".
-    iDestruct (crashed_in_if_rec with "recA aPts") as (????) "[recA' ptsA]".
+    iDestruct (crashed_in_if_rec with "recA aPts") as (???) "[recA' ptsA]".
     iDestruct (crashed_in_agree with "recA recA'") as %<-.
-    iDestruct (crashed_in_if_rec with "recB bPts") as (????) "[recB' ptsB]".
+    iDestruct (crashed_in_if_rec with "recB bPts") as (???) "[recB' ptsB]".
     iDestruct (crashed_in_agree with "recB recB'") as %<-.
     iExistsN.
     iDestruct (crashed_in_persist_lb with "recA'") as "$".
     iDestruct (crashed_in_persist_lb with "recB'") as "$".
     rewrite !list_fmap_id.
-    iFrame "%∗".
+    iFrame "ptsA ptsB".
   Qed.
 
   Lemma wp_incr_both ℓa ℓb s E :
@@ -288,8 +286,10 @@ Proof.
     iApply persist_lb_to_flush_lb. iApply "pa". }
 
   iApply (wpr_mono with "[ptsA ptsB]").
-  { iApply (incr_safe with "[$] [$] ptsA ptsB"). }
+  { iApply (incr_safe with "pa pb ptsA ptsB"). }
   iSplit.
   - iIntros. done.
   - iModIntro. done.
 Qed.
+
+(* Print Assumptions incr_safe_proof. *)

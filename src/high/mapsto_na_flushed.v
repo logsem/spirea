@@ -86,16 +86,20 @@ Section mapsto_na_flushed.
     iCrashFlush.
     iDestruct "flushLb" as "(persistLb & (%sPC & %le & #crashedIn))".
     iDestruct (crashed_in_if_rec with "crashedIn pts")
-      as "(%ss' & %s' & %pre & %last & chr2 & pts)".
+      as "(%ss' & %s' & %pre & chr2 & pts)".
     iDestruct (crashed_in_agree with "crashedIn chr2") as %->.
     assert (s = s') as <-.
     { apply (anti_symm (⊑@{ST})); first done.
-      rewrite last_lookup in last.
       apply: increasing_list_last_greatest; try done.
-      eapply prefix_lookup; done. }
+      eapply prefix_lookup; last done.
+      apply lookup_app_Some.
+      right.
+      split; first done.
+      replace (length ss' - length ss') with 0 by lia.
+      done. }
     iFrame.
     iExists _. iFrame "pts".
-    iSplitPure. { rewrite fmap_last. rewrite last. done. }
+    iSplitPure. { apply last_snoc. }
     rewrite /persist_lb.
     iDestruct "persistLb" as (??) "((? & ? & offset & ?) & ? & per)".
     iExists _, _. iFrame.

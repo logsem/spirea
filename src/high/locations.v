@@ -558,12 +558,11 @@ Section points_to_at_more.
 
   Lemma post_crash_mapsto_na ℓ prot q (ss : list ST) :
     ℓ ↦_{prot}^{q} ss -∗
-    post_crash (λ hG',
+    <PC> nD',
       if_rec ℓ (∃ ss' s,
-        ⌜ ss' `prefix_of` ss ⌝ ∗
-        ⌜ last ss' = Some s ⌝ ∗
+        ⌜ (ss' ++ [s]) `prefix_of` ss ⌝ ∗
         crashed_in prot ℓ s ∗
-        ℓ ↦_{prot}^{q} (bumper prot <$> ss'))).
+        ℓ ↦_{prot}^{q} ((bumper prot <$> ss') ++ [prot.(bumper) s])).
   Proof.
     rewrite /mapsto_na.
     iNamed 1.
@@ -588,10 +587,10 @@ Section points_to_at_more.
       - iDestruct (crashed_at_agree with "crashed crashed'") as %<-.
         simplify_eq. iPureIntro. lia.
       - iPureIntro. lia. }
-    eassert _ as HT. { eapply map_sequence_prefix; done. }
-    destruct HT as (ss' & prefix & slice' & lastEq').
+    eassert _ as HT. { eapply map_sequence_prefix_alt; done. }
+    destruct HT as (ss' & prefix & slice').
+
     iExists ss', s2.
-    iSplitPure; first done.
     iSplitPure; first done.
     iSplit.
     { rewrite /crashed_in.
@@ -607,7 +606,7 @@ Section points_to_at_more.
       iDestruct (have_FV_0) as "$". }
     iExists tLo, (offset + tC), (offset + tC), ∅, _, (Msg _ ∅ ∅ ∅), _.
     iFrame. iFrame "#".
-    iPureGoal. { rewrite fmap_last. rewrite lastEq'. done. }
+    iPureGoal. { apply last_snoc. }
     iPureGoal.
     { apply: increasing_map_fmap.
       apply increasing_map_filter.
@@ -621,7 +620,8 @@ Section points_to_at_more.
       apply map_no_later_fmap.
       apply map_no_later_drop_above. }
     iPureGoal.
-    { apply map_sequence_fmap.
+    { rewrite -fmap_snoc.
+      apply map_sequence_fmap.
       apply map_sequence_drop_above.
       done. }
     iPureGoal; first lia.
@@ -645,13 +645,13 @@ Section points_to_at_more.
   Proof.
     iIntros "pts".
     iCrash. iModIntro.
-    iDestruct "pts" as (????) "(crashed & pts)".
+    iDestruct "pts" as (???) "(crashed & pts)".
     iExists s.
     iSplitPure.
     { eapply elem_of_list_lookup_2.
       eapply prefix_lookup; last done.
       erewrite <- last_lookup.
-      done. }
+      apply last_snoc. }
     iDestruct (crashed_in_persist_lb with "[$]") as "#per".
   Abort. (* This should be true but is a bit annoying to show. *)
 

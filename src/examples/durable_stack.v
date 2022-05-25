@@ -415,7 +415,7 @@ Section proof.
       iDestruct (mapsto_na_last with "headPts") as %[[]?].
       wp_apply (wp_load_na with "[$headPts]").
       { done. }
-      { iModIntro. iIntros (?) "#eq". iFrame "eq". iDestruct "eq" as "-#eq". 
+      { iModIntro. iIntros (?) "#eq". iFrame "eq". iDestruct "eq" as "-#eq".
         rewrite right_id. iAccu. }
       simpl.
       iIntros (v) "[headPts <-]".
