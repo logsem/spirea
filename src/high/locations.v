@@ -815,7 +815,7 @@ Section points_to_at_more.
       eapply increasing_list_last_greatest in incr; try done.
       2: { apply _. }
       2: { apply last_snoc. }
-      destruct sC; try done.
+      (* destruct sC; try done. *)
   Abort.
 
 End points_to_at_more.

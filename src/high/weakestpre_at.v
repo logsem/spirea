@@ -141,6 +141,7 @@ Section wp_at_rules.
       iSplitPure. { apply map_no_later_singleton. }
       iSplitPure. { set_solver+. }
       iFrame "prot offset isShared".
+      iSplitPure. { apply increasing_map_singleton. }
       iEval (rewrite 2!big_sepM_singleton).
       iDestruct (frag_history_equiv with "fragHist") as "$".
       iFrame "physHistFrag".
@@ -917,6 +918,8 @@ Section wp_at_rules.
         iFrameF (absPhysHistDomEq).
         iFrameF "isAtLoc".
         iFrameF "locationProtocol".
+        iSplitPure; first done.
+
         iFrameF "absHist".
         iSplit.
         { iApply monPred_mono;
@@ -1028,11 +1031,15 @@ Section wp_at_rules.
       2: {
         eapply map_dom_eq_lookup_None; first done.
         apply nolater. lia. }
-      iFrame "#".
+      iFrameF "locationProtocol".
+      iSplitPure.
+      { apply: increasing_map_insert_last; try done. lia. }
+      iFrame "absHist".
       iSplit.
       { iExists _.
         iSplitPure; first done.
         iApply (big_sepM_lookup with "frags"). done. }
+      iFrame "#".
       iSplit; last first.
       { simpl. iPureIntro.
         rewrite lookup_zero_lub.
@@ -1193,10 +1200,11 @@ Section wp_at_rules.
 
     iFrame "valNew".
 
-    iDestruct (big_sepM_lookup with "absHist") as "hist".
+    assert (abs_hist !! t_i = Some s_i).
     { eapply map_sequence_lookup_hi in slice.
       rewrite last_snoc in slice.
       apply slice. }
+    iDestruct (big_sepM_lookup with "absHist") as "hist"; first done.
 
     iDestruct (history_full_entry_frag_lookup with "fullHist hist") as %look'.
     destruct look' as (e_i & absHistLook' & hip).
@@ -1318,6 +1326,8 @@ Section wp_at_rules.
         eapply map_dom_eq_lookup_None; first done.
         apply nolater. lia. }
       iFrameF "locationProtocol".
+      iSplitPure.
+      { apply: increasing_map_insert_last; done. }
       iSplit. { iFrame "frag absHist". }
       iFrame "offset".
       (* iSplit. *)
