@@ -83,24 +83,20 @@ Section proof.
   crash. *)
   Definition crash_condition {hD : nvmDeltaG} : dProp Σ :=
     ∃ (xss zss : list bool) (bx bz : bool),
-      "%xLast" ∷ ⌜ last xss = Some bx ⌝ ∗
-      "%zLast" ∷ ⌜ last zss = Some bz ⌝ ∗
       "#xPer" ∷ persist_lb x inv_x bx ∗
       "#zPer" ∷ persist_lb z inv_z bz ∗
-      x ↦_{inv_x} xss ∗
-      z ↦_{inv_z} zss.
+      x ↦_{inv_x} (xss ++ [bx]) ∗
+      z ↦_{inv_z} (zss ++ [bz]).
 
   Definition left_crash_condition {hD : nvmDeltaG} : dProp Σ :=
     ∃ xss (bx : bool),
-      "%xLast" ∷ ⌜ last xss = Some bx ⌝ ∗
       "#xPer" ∷ persist_lb x inv_x bx ∗
-      "xPts" ∷ x ↦_{inv_x} xss.
+      "xPts" ∷ x ↦_{inv_x} (xss ++ [bx]).
 
   Definition right_crash_condition {hD : nvmDeltaG} : dProp Σ :=
     ∃ zss (bz : bool),
-      "%zLast" ∷ ⌜ last zss = Some bz ⌝ ∗
       "#zPer" ∷ persist_lb z inv_z bz ∗
-      "zPts" ∷ z ↦_{inv_z} zss.
+      "zPts" ∷ z ↦_{inv_z} (zss ++ [bz]).
 
   Lemma left_crash_condition_impl {hD : nvmDeltaG} (sx : list bool) :
     persist_lb x inv_x false -∗
@@ -110,12 +106,10 @@ Section proof.
     iIntros "xPer xPts".
     iCrash.
     iDestruct "xPer" as "[#xPer (% & % & #xRec)]".
-    iDestruct (crashed_in_if_rec with "xRec xPts") as (????) "[cras xPts]".
+    iDestruct (crashed_in_if_rec with "xRec xPts") as (???) "[cras xPts]".
     iDestruct (crashed_in_agree with "xRec cras") as %->.
     iDestruct (crashed_in_persist_lb with "xRec") as "#per2".
-    iExists _, _. iSplitPure; first done. iFrame "∗#".
-    rewrite list_fmap_id.
-    done.
+    iExists _, _. iFrame "∗#".
   Qed.
 
   Lemma right_crash_condition_impl {hD : nvmDeltaG} (sz : list bool) :
@@ -126,12 +120,10 @@ Section proof.
     iIntros "zPer zPts".
     iCrash.
     iDestruct "zPer" as "[#zPer (% & % & #zRec)]".
-    iDestruct (crashed_in_if_rec with "zRec zPts") as (????) "[cras zPts]".
+    iDestruct (crashed_in_if_rec with "zRec zPts") as (???) "[cras zPts]".
     iDestruct (crashed_in_agree with "zRec cras") as %->.
     iDestruct (crashed_in_persist_lb with "zRec") as "#per2".
-    iExists _, _. iSplitPure; first done. iFrame "∗#".
-    rewrite list_fmap_id.
-    done.
+    iExists _, _. iFrame "∗#".
   Qed.
 
   (* Prove right crash condition. *)
@@ -231,9 +223,7 @@ Section proof.
       iFrame "xPts".
       iFrame "zPts".
       iFrame "xPer".
-      iFrame "zPer".
-      iFrame (xLast).
-      iFrame (zLast). }
+      iFrame "zPer". }
     Unshelve. 2: { apply _. }
 
     wpc_bind (Fork _)%E.

@@ -60,13 +60,16 @@ Section specification.
   Qed.
 
   Definition crash_condition {hD : nvmDeltaG} ℓa ℓb : dProp Σ :=
-    ("pts" ∷ ∃ nas nbs (na nb : nat),
+    ("pts" ∷ ∃ (na nb : nat),
       "aPer" ∷ persist_lb ℓa ϕa na ∗
       "bPer" ∷ persist_lb ℓb (ϕb ℓa) nb ∗
-      "aPts" ∷ ℓa ↦_{ϕa} (nas ++ [na]) ∗
-      "bPts" ∷ ℓb ↦_{ϕb ℓa} (nbs ++ [nb]))%I.
+      "aPts" ∷ ℓa ↦_{ϕa} [na] ∗
+      "bPts" ∷ ℓb ↦_{ϕb ℓa} [nb])%I.
 
   Lemma prove_crash_condition {hD : nvmDeltaG} ℓa ℓb na nb (ssA ssB : list nat) :
+    (* TODO: Add strictly increasing list requirement. *)
+    (* (ssA = [0] ∨ ssA = [1] ∨ ssA = [0; 1]) → *)
+    (* (ssB = [0] ∨ ssB = [1] ∨ ssB = [0; 1]) → *)
     persist_lb ℓa ϕa na -∗
     persist_lb ℓb (ϕb ℓa) nb -∗
     ℓa ↦_{ϕa} ssA -∗
@@ -85,8 +88,21 @@ Section specification.
     iDestruct (crashed_in_persist_lb with "recA'") as "$".
     iDestruct (crashed_in_persist_lb with "recB'") as "$".
     rewrite !list_fmap_id.
-    iFrame "ptsA ptsB".
-  Qed.
+    (* iSplitL "ptsA". *)
+    (* - destruct ssAEq as [-> | ->]. *)
+    (*   * admit. *)
+    (*   * admit. *)
+    (* - destruct ssBEq as [-> | ->]. *)
+    (*   * admit. *)
+    (*   * admit. *)
+  Admitted.
+    (* iFrame "ptsA ptsB". *)
+  (* Qed. *)
+
+  Ltac solve_cc :=
+    try iModIntro (|={_}=> _)%I;
+    iApply (prove_crash_condition with "aPer bPer aPts bPts");
+      naive_solver.
 
   Lemma wp_incr_both ℓa ℓb s E :
     ⊢ persist_lb ℓa ϕa 0 -∗
@@ -103,50 +119,46 @@ Section specification.
     (* The first store *)
     wpc_bind (_ <-_NA _)%E.
     iApply wpc_atomic_no_mask.
-    iSplit. { iApply (prove_crash_condition with "aPer bPer aPts bPts"). }
+    iSplit; first solve_cc.
     iApply (@wp_store_na with "[$aPts]").
     { reflexivity. }
     { suff leq : (0 ≤ 1); first apply leq. lia. }
     { done. }
     simpl.
     iNext. iIntros "aPts".
-    iSplit. { iModIntro. iApply (prove_crash_condition with "aPer bPer aPts bPts"). }
+    iSplit; first solve_cc.
     iModIntro.
-    wpc_pures.
-    { iApply (prove_crash_condition with "aPer bPer aPts bPts"). }
+    wpc_pures; first solve_cc.
 
     (* The write back *)
     wpc_bind (Flush _)%E.
     iApply wpc_atomic_no_mask.
-    iSplit. { iApply (prove_crash_condition with "aPer bPer aPts bPts"). }
+    iSplit; first solve_cc.
     iApply (wp_flush_ex with "aPts"); first reflexivity.
     iNext.
     iIntros "(aPts & #pLowerBound & _)".
-    iSplit; first iApply (prove_crash_condition with "aPer bPer aPts bPts").
+    iSplit; first solve_cc.
     iModIntro.
-    wpc_pures.
-    { iApply (prove_crash_condition with "aPer bPer aPts bPts"). }
+    wpc_pures; first solve_cc.
 
     (* The fence. *)
     wpc_bind (Fence)%E.
     iApply wpc_atomic_no_mask.
-    iSplit; first iApply (prove_crash_condition with "aPer bPer aPts bPts").
+    iSplit; first solve_cc.
     iApply wp_fence. iModIntro. iModIntro.
-    iSplit. {
-      iModIntro. iApply (prove_crash_condition with "aPer bPer aPts bPts"). }
+    iSplit; first solve_cc.
     iModIntro.
-    wpc_pures. { iApply (prove_crash_condition with "aPer bPer aPts bPts"). }
+    wpc_pures; first solve_cc.
 
     (* The last store *)
     iApply wpc_atomic_no_mask.
-    iSplit. { iApply (prove_crash_condition with "aPer bPer aPts bPts"). }
+    iSplit; first solve_cc.
     iApply (wp_store_na with "[$bPts]").
     { reflexivity. }
     { suff leq : (0 ≤ 1); first apply leq. lia. }
     { iFrame "#". iPureGoal; first done. naive_solver. }
     iNext. iIntros "bPts".
-    iSplit.
-    { iModIntro. iApply (prove_crash_condition with "aPer bPer aPts bPts"). }
+    iSplit; first solve_cc.
     iModIntro.
     iFrame "aPts bPts".
   Qed.
@@ -165,39 +177,36 @@ Section specification.
     (* Load [ℓa]. *)
     wpc_bind (!_NA _)%E.
     iApply wpc_atomic_no_mask.
-    iSplit; first iApply (prove_crash_condition with "aPer bPer aPts bPts").
+    iSplit; first solve_cc.
 
     iApply (wp_load_na _ _ _ _ (λ v, ⌜v = #sA⌝)%I with "[$aPts]"); first done.
     { iModIntro. naive_solver. }
     iIntros "!>" (?) "[aPts ->]".
-    iSplit.
-    { iModIntro. iApply (prove_crash_condition with "aPer bPer aPts bPts"). }
+    iSplit; first solve_cc.
 
     iModIntro.
-    wpc_pures.
-    { iApply (prove_crash_condition with "aPer bPer aPts bPts"). }
+    wpc_pures; first solve_cc.
 
     (* Load [ℓb]. *)
     wpc_bind (!_NA _)%E.
     iApply wpc_atomic_no_mask.
-    iSplit; first iApply (prove_crash_condition with "aPer bPer aPts bPts").
+    iSplit; first solve_cc.
     iApply (wp_load_na _ _ _ _ (λ v, ∃ sB', ⌜ sB ⊑ sB' ⌝ ∗ ⌜v = #sB⌝ ∗ flush_lb ℓa _ sB')%I
               with "[$bPts]"); first done.
     { iModIntro. iIntros (?) "(-> & (%sB' & % & #?))".
       iSplit. { iExists _. iFrame "#". naive_solver. }
       rewrite /ϕb. iFrame "#". naive_solver. }
     iIntros "!>" (?) "(bPts & (%sB' & %incl2 & -> & lub))".
-    iSplit.
-    { iModIntro. iApply (prove_crash_condition with "aPer bPer aPts bPts"). }
+    iSplit; first solve_cc.
 
     iModIntro.
-    wpc_pures; first iApply (prove_crash_condition with "aPer bPer aPts bPts").
+    wpc_pures; first solve_cc.
 
     iDestruct (mapsto_na_flush_lb_incl with "lub aPts") as %incl; first done.
     rewrite bool_decide_eq_false_2.
     2: { rewrite subseteq_nat_le in incl. rewrite subseteq_nat_le in incl2. lia. }
 
-    wpc_pures; first iApply (prove_crash_condition with "aPer bPer aPts bPts").
+    wpc_pures; first solve_cc.
 
     by iModIntro.
   Qed.

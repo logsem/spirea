@@ -169,7 +169,7 @@ Section definitions.
       iCrashFlush.
       iDestruct "lb" as "[#lb (% & ? & rec)]".
       iDestruct (crashed_in_if_rec with "rec nodePts") as "nodePts".
-      iDestruct "nodePts" as (????) "(? & nodePts)".
+      iDestruct "nodePts" as (???) "(? & nodePts)".
       iExists _, _. iFrame "nodePts".
       iApply persist_lb_to_flush_lb.
       iFrame "lb".
@@ -179,7 +179,7 @@ Section definitions.
       iDestruct "nodeFlushLb" as "[toNextLb (% & % & nodeRec)]".
       iDestruct "toNextFlush" as "[toNextFlush toNextRec]".
       iDestruct (crashed_in_if_rec with "nodeRec nodePts") as "nodePts".
-      iDestruct "nodePts" as (????) "[? nodePts]".
+      iDestruct "nodePts" as (???) "[? nodePts]".
       iExists _, _, _, _, _, _.
       rewrite !list_fmap_id.
       iFrame.

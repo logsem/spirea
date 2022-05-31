@@ -139,8 +139,26 @@ Section proof.
   Next Obligation.
     iIntros (? [|] v); last first.
     { iIntros "H". iCrashFlush. done. }
-    iIntros "(-> & (%s & shot & fLb & [[A B]|[A B]]))".
-    - admit.
+    iIntros "(-> & (%s & shot & fLb & [[-> B]|[-> B]]))".
+    - iDestruct (useful x prot_x _ x_one with "[fLb]") as "bbB".
+      {
+        iFrame "fLb".
+      iCrashFlush.
+      iSplitPure; first done.
+      iDestruct "fLb" as "[pLb (%sC & %le & #xCr)]".
+      iDestruct (crashed_in_if_rec with "xCr B") as (?) "(xCr' & disj)".
+      iDestruct (crashed_in_agree with "xCr xCr'") as %<-.
+      iDestruct "disj" as "[H|H]"; last first.
+      { iDestruct "H" as (? ([= <-] & le2 & neq)) "H".
+        destruct sC; done. }
+      iDestruct "H" as (? ? ? ?) "H".
+      iExists x_one.
+      iFrame "shot".
+      rewrite -persist_lb_to_flush_lb.
+      iFrame "pLb".
+      iLeft.
+      iSplitPure; first done.
+      admit.
     - admit.
   Admitted.
   Next Obligation. Admitted.
