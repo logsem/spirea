@@ -134,7 +134,7 @@ Section specification.
     wpc_bind (Flush _)%E.
     iApply wpc_atomic_no_mask.
     iSplit; first solve_cc.
-    iApply (wp_flush_ex with "aPts"); first reflexivity.
+    iApply (wp_flush_na _ _ _ _ [0] with "[$aPts]").
     iNext.
     iIntros "(aPts & #pLowerBound & _)".
     iSplit; first solve_cc.
@@ -171,15 +171,15 @@ Section specification.
   Proof.
     iNamed 1.
     rewrite /recover.
-    iDestruct (mapsto_na_last with "aPts") as %[sA saEq].
-    iDestruct (mapsto_na_last with "bPts") as %[sB sbEq].
+    (* iDestruct (mapsto_na_last with "aPts") as %[sA saEq]. *)
+    (* iDestruct (mapsto_na_last with "bPts") as %[sB sbEq]. *)
 
     (* Load [ℓa]. *)
     wpc_bind (!_NA _)%E.
     iApply wpc_atomic_no_mask.
     iSplit; first solve_cc.
 
-    iApply (wp_load_na _ _ _ _ (λ v, ⌜v = #sA⌝)%I with "[$aPts]"); first done.
+    iApply (wp_load_na _ _ _ _ (λ v, ⌜v = #na⌝)%I with "[$aPts]"); first done.
     { iModIntro. naive_solver. }
     iIntros "!>" (?) "[aPts ->]".
     iSplit; first solve_cc.
@@ -191,7 +191,7 @@ Section specification.
     wpc_bind (!_NA _)%E.
     iApply wpc_atomic_no_mask.
     iSplit; first solve_cc.
-    iApply (wp_load_na _ _ _ _ (λ v, ∃ sB', ⌜ sB ⊑ sB' ⌝ ∗ ⌜v = #sB⌝ ∗ flush_lb ℓa _ sB')%I
+    iApply (wp_load_na _ _ _ _ (λ v, ∃ nb', ⌜ nb ⊑ nb' ⌝ ∗ ⌜v = #nb⌝ ∗ flush_lb ℓa _ nb')%I
               with "[$bPts]"); first done.
     { iModIntro. iIntros (?) "(-> & (%sB' & % & #?))".
       iSplit. { iExists _. iFrame "#". naive_solver. }
@@ -202,7 +202,7 @@ Section specification.
     iModIntro.
     wpc_pures; first solve_cc.
 
-    iDestruct (mapsto_na_flush_lb_incl with "lub aPts") as %incl; first done.
+    iDestruct (mapsto_na_flush_lb_incl [] with "lub aPts") as %incl.
     rewrite bool_decide_eq_false_2.
     2: { rewrite subseteq_nat_le in incl. rewrite subseteq_nat_le in incl2. lia. }
 

@@ -111,10 +111,9 @@ Section fence_sync.
     { done. }
     iIntros "pts".
     wp_pures.
-    wp_apply (wp_flush_ex with "pts"); first reflexivity.
+    wp_apply (wp_flush_na with "pts").
     iIntros "(pts & _ & lb) /=".
     wp_pures.
-    (* iApply wp_fence_sync. *)
     wp_apply wp_fence_sync.
     iModIntro.
     simpl.

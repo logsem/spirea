@@ -248,18 +248,19 @@ Section points_to_at.
   (* Lemmas for [mapsto_na] *)
 
   Lemma mapsto_na_store_lb ℓ prot q ss s :
-    last ss = Some s →
-    mapsto_na ℓ prot q ss -∗
+    mapsto_na ℓ prot q (ss ++ [s]) -∗
     store_lb ℓ prot s.
   Proof.
-    iIntros (last). iNamed 1.
+    iNamed 1.
     iExists tHi, offset.
+    rewrite last_snoc in lastEq.
     simplify_eq.
     iFrame "#".
     iApply monPred_in_have_SV; done.
   Qed.
 
-  Lemma mapsto_na_last ℓ prot q ss : mapsto_na ℓ prot q ss -∗ ⌜∃ s, last ss = Some s⌝.
+  Lemma mapsto_na_last ℓ prot q ss :
+    mapsto_na ℓ prot q ss -∗ ⌜ ∃ s, last ss = Some s ⌝.
   Proof.
     rewrite /mapsto_na.
     iNamed 1.
@@ -267,26 +268,25 @@ Section points_to_at.
     naive_solver.
   Qed.
 
-  Lemma mapsto_na_store_lb_incl ℓ prot q ss s1 s2 :
-    last ss = Some s1 →
-    store_lb ℓ prot s2 -∗
-    mapsto_na ℓ prot q ss -∗
-    ⌜s2 ⊑ s1⌝.
+  Lemma mapsto_na_store_lb_incl ss s1 s2 ℓ prot q :
+    store_lb ℓ prot s1 -∗
+    mapsto_na ℓ prot q (ss ++ [s2]) -∗
+    ⌜ s1 ⊑ s2 ⌝.
   Proof.
-    iIntros (lastSome) "storeLb".
+    iIntros "storeLb".
     iNamed 1.
-    assert (s = s1) as -> by congruence.
+    rewrite last_snoc in lastEq.
+    assert (s = s2) as -> by congruence.
     iDestruct "storeLb" as (t ?) "(_ & histFrag' & _)".
     iDestruct (full_entry_frag_entry_unenc with "hist histFrag'") as %look.
     eassert _ as le. { eapply map_no_later_Some; done. }
     eapply increasing_map_increasing in incrMap; done.
   Qed.
 
-  Lemma mapsto_na_flush_lb_incl ℓ prot q ss s1 s2 :
-    last ss = Some s1 →
-    flush_lb ℓ prot s2 -∗
-    mapsto_na ℓ prot q ss -∗
-    ⌜s2 ⊑ s1⌝.
+  Lemma mapsto_na_flush_lb_incl ss s1 s2 ℓ prot q :
+    flush_lb ℓ prot s1 -∗
+    mapsto_na ℓ prot q (ss ++ [s2]) -∗
+    ⌜ s1 ⊑ s2 ⌝.
   Proof. rewrite flush_lb_to_store_lb. apply mapsto_na_store_lb_incl. Qed.
 
   Lemma mapsto_na_increasing ℓ prot q ss :

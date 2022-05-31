@@ -28,7 +28,7 @@ Section wp_na_rules.
   Lemma wp_alloc_na v s prot st E :
     {{{ prot.(pred) s v _ }}}
       ref_NA v @ st; E
-    {{{ ℓ, RET #ℓ; ℓ ↦_{prot} [s] }}}.
+    {{{ ℓ, RET #ℓ; ℓ ↦_{prot} ([] ++ [s]) }}}.
   Proof.
     intros Φ. iStartProof (iProp _). iIntros (TV). iIntros "phi".
     iIntros (TV' incl) "Φpost".

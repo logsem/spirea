@@ -253,7 +253,6 @@ Section proof.
       iApply (wp_store_na x _ _ _ _ true with "[$xPts]").
       { reflexivity. } { done. }
       { rewrite /inv_x. done. }
-      simpl.
       iNext. iIntros "xPts".
       solve_left_cc.
       iModIntro.
@@ -264,7 +263,7 @@ Section proof.
       wpc_bind (Flush _)%E.
       iApply wpc_atomic_no_mask.
       solve_left_cc.
-      iApply (wp_flush_ex with "xPts"); first reflexivity.
+      iApply (wp_flush_na with "xPts").
       iNext.
       iIntros "(xPts & #xLowerBound & ?)".
       solve_left_cc.

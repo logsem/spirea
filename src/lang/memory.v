@@ -183,7 +183,7 @@ Section memory.
   | MEvStore (a : memory_access) ℓ v
   (* RMW are special *)
   | MEvRMW ℓ (vExp vNew : val) (* read-modify-write *)
-  | MEvRMWFail ℓ (v1Exp : val) (v2Exp : val) (* for failed RMWs *)
+  | MEvRMWFail ℓ (vExp : val) (vRead : val) (* for failed RMWs *)
   (* Persistent memory specific. *)
   | MEvFlush ℓ
   | MEvFence

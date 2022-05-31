@@ -343,15 +343,16 @@ Section wp_rules.
     iFrame "#∗%".
   Qed.
 
-  Lemma wp_flush_ex ℓ prot s q ss st E :
-    last ss = Some s →
-    {{{ mapsto_na ℓ prot q ss }}}
+  Lemma wp_flush_na ℓ prot s q ss st E :
+    {{{ mapsto_na ℓ prot q (ss ++ [s]) }}}
       Flush #ℓ @ st; E
-    {{{ RET #(); mapsto_na ℓ prot q ss ∗ <fence> flush_lb ℓ prot s ∗
-                 <fence_sync> persist_lb ℓ prot s  }}}.
+    {{{ RET #();
+      mapsto_na ℓ prot q (ss ++ [s]) ∗ <fence> flush_lb ℓ prot s ∗
+      <fence_sync> persist_lb ℓ prot s
+    }}}.
   Proof.
-    iIntros (eq Φ) "pts".
-    iDestruct (mapsto_na_store_lb with "pts") as "#lb"; first done.
+    iIntros (Φ) "pts".
+    iDestruct (mapsto_na_store_lb with "pts") as "#lb".
     iIntros "HP".
     iApply wp_flush_lb; first done.
     iNext.
