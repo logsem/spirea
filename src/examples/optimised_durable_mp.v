@@ -120,11 +120,13 @@ Section proof.
     iIntros "xPer xPts".
     iCrash.
     iDestruct "xPer" as "[#xPer (% & % & #xRec)]".
-    iDestruct (crashed_in_if_rec with "xRec xPts") as (????) "[cras xPts]".
+    iDestruct (crashed_in_if_rec with "xRec xPts") as (???) "[cras xPts]".
     iDestruct (crashed_in_agree with "xRec cras") as %->.
     iDestruct (crashed_in_persist_lb with "xRec") as "#per2".
-    iExists _, _. iSplitPure; first done. iFrame "∗#".
-    rewrite list_fmap_id.
+    iExists _, _.
+    iFrame "xPts per2".
+    iPureIntro.
+    rewrite last_snoc.
     done.
   Qed.
 
@@ -136,11 +138,12 @@ Section proof.
     iIntros "zPer zPts".
     iCrash.
     iDestruct "zPer" as "[#zPer (% & % & #zRec)]".
-    iDestruct (crashed_in_if_rec with "zRec zPts") as (????) "[cras zPts]".
+    iDestruct (crashed_in_if_rec with "zRec zPts") as (???) "[cras zPts]".
     iDestruct (crashed_in_agree with "zRec cras") as %->.
     iDestruct (crashed_in_persist_lb with "zRec") as "#per2".
-    iExists _, _. iSplitPure; first done. iFrame "∗#".
-    rewrite list_fmap_id.
+    iExists _, _.
+    iFrame "per2 zPts".
+    rewrite last_snoc.
     done.
   Qed.
 
@@ -161,26 +164,26 @@ Section proof.
   Proof. rewrite /IntoNoFlush no_flush_or. by intros <- <-. Qed.
 
   Lemma right_prog_spec s E1 :
-    store_lb y prot_y (Some false) -∗
-    ⎡ is_at_loc y ⎤ -∗
+    y ↦_AT^{prot_y} [Some false] -∗
     persist_lb z inv_z false -∗
     z ↦_{inv_z} [false] -∗
     WPC rightProg x y z @ s; E1
     {{ v, z ↦_{inv_z} [false; true] ∨ z ↦_{inv_z} [false] }}
     {{ <PC> _, right_crash_condition }}.
   Proof.
-    iIntros "#yLb #yShared #zPer zPts".
+    iIntros "#yPts #zPer zPts".
     (* Evaluate the first load. *)
     rewrite /rightProg.
     wpc_bind (!_AT _)%E.
     iApply wpc_atomic_no_mask. whack_right_cc.
-    iApply (wp_load_at _ _ (λ s v, (⌜v = #true⌝ ∗ store_lb x inv_x true) ∨ ⌜v = #false⌝)%I prot_y with "[$yShared $yLb]").
-    { iModIntro. iIntros (?? incl) "a". rewrite /prot_y.
+    iApply (wp_load_at_simple _ _ (λ s v, (⌜v = #true⌝ ∗ store_lb x inv_x true) ∨ ⌜v = #false⌝)%I prot_y
+      with "[$yPts]").
+    { iModIntro. iIntros (s' ? incl) "a". simpl.
       destruct s' as [[|]|]; last done.
       - iDestruct "a" as "[% #?]". iFrame "#". naive_solver.
       - iDestruct "a" as "[% O]". naive_solver. }
     iNext.
-    iIntros (??) "[yLb' disj]".
+    iIntros (? v) "[yLb' disj]".
     iDestruct (post_fence_extract' _ (⌜v = #true ∨ v = #false⌝)%I with "disj []") as %[-> | ->].
     { iIntros "[[-> _]|->]"; naive_solver. }
     2: {
@@ -237,15 +240,14 @@ Section proof.
     (* know_protocol x inv_x ∗ know_protocol y prot_y ∗ know_protocol z inv_z ∗ *)
     persist_lb x inv_x false ∗
     x ↦_{inv_x} [false] ∗
-    store_lb y prot_y (Some false) ∗
-    ⎡ is_at_loc y ⎤ ∗
+    y ↦_AT^{prot_y} [Some false] ∗
     persist_lb z inv_z false ∗
     z ↦_{inv_z} [false] -∗
     WPC prog x y z @ ⊤
     {{ v, True }}
     {{ <PC> _, crash_condition }}.
   Proof.
-    iIntros "(pb & #xPer & xPts & #yLb & #yShared & #zPer & zPts)".
+    iIntros "(pb & #xPer & xPts & #yPts & #zPer & zPts)".
     rewrite /prog.
 
     (* We create a crash borrow in order to transfer resources to the forked
@@ -263,6 +265,9 @@ Section proof.
       iNamed "L".
       iNamed "R".
       iExists _, _, _, _.
+      iFrameF (xLast).
+      iFrameF (zLast).
+      iFrame "xPts zPts".
       iFrame "∗#%". }
     Unshelve. 2: { apply _. }
 
@@ -273,7 +278,7 @@ Section proof.
       iNext. iSplit; first done.
       iIntros "zPts".
 
-      iDestruct (right_prog_spec with "yLb yShared zPer zPts") as "wp".
+      iDestruct (right_prog_spec with "yPts zPer zPts") as "wp".
       iApply (wpc_mono' with "[] [] wp"); last naive_solver.
       iIntros (?) "[zPts | zPts]".
       * iExists (z ↦_{_} (_ : list bool)). iFrame.
@@ -293,20 +298,19 @@ Section proof.
       iApply (wp_store_na x _ _ _ _ true with "[$xPts]").
       { reflexivity. } { done. }
       { rewrite /inv_x. done. }
-      simpl.
       iNext. iIntros "xPts".
       whack_left_cc.
       iModIntro.
       wpc_pures;
         first iApply (left_crash_condition_impl with "xPer xPts").
 
-      iDestruct (mapsto_na_store_lb with "xPts") as "#xStoreLb";
-        first reflexivity.
+      iDestruct (mapsto_na_store_lb with "xPts") as "#xStoreLb".
       wpc_bind (_ <-_AT _)%E.
       iApply wpc_atomic_no_mask. whack_left_cc.
-      iApply (wp_store_at _ (Some false) (Some true)).
+      iApply (wp_store_at _ [] (Some false) (Some true)).
       { iFrame.
         iPureGoal. { done. }
+        iFrameF "yPts".
         iFrame "#".
         iSplitL.
         - naive_solver.

@@ -225,8 +225,7 @@ Section definitions.
   Definition is_stack `{nvmDeltaG} (v : val) : dProp Σ :=
     ∃ (ℓtoHead : loc),
       ⌜ v = #ℓtoHead ⌝ ∗
-      ⎡ is_at_loc ℓtoHead ⎤ ∗
-      store_lb ℓtoHead toHead_prot ().
+      ℓtoHead ↦_AT^{toHead_prot} [()].
 
 End definitions.
 
@@ -245,15 +244,12 @@ Section proof.
   Lemma is_stack_post_crash ℓ :
     is_stack ϕ #ℓ -∗ <PC> _, if_rec ℓ (is_stack ϕ #ℓ).
   Proof.
-    iDestruct 1 as (? [= <-]) "prot".
-    iDestruct "prot" as "(a & c)".
-    iDestruct (post_crash_store_lb with "c")  as "c".
+    iDestruct 1 as (? [= <-]) "pts".
     iCrash.
     iModIntro.
-    iDestruct "c" as ([]) "c".
+    iDestruct "pts" as ([]) "[c pts]".
     iExists _. iSplitPure; first done.
     iFrame.
-    iApply persist_lb_to_store_lb. iFrame.
   Qed.
 
   Lemma wp_mk_stack :
@@ -266,7 +262,7 @@ Section proof.
     wp_pures.
     wp_apply (wp_alloc_na _ () nil_node_prot with "[//]").
     iIntros (ℓnil) "nilPts".
-    iDestruct (mapsto_na_store_lb with "nilPts") as "#storeLb"; first done.
+    iDestruct (mapsto_na_store_lb with "nilPts") as "#storeLb".
     wp_pures.
     wp_apply (wp_flush_lb with "[$]").
     iIntros "[#flushLb _]".
@@ -280,7 +276,7 @@ Section proof.
       iSplitPure; first reflexivity.
       simpl. iFrame "#".
       iExists _, _. iFrame. }
-    iNext. iIntros (?) "(? & ?)".
+    iNext. iIntros (?) "?".
     iApply "ϕpost".
     iExists _. naive_solver.
   Qed.
@@ -290,8 +286,7 @@ Section proof.
       push stack x @ s ; E
     {{{ RET #(); True }}}.
   Proof.
-    iIntros (Φ)
-      "[#(%ℓstack & -> & #(stackSh & stackLb)) #phi] ϕpost".
+    iIntros (Φ) "[#(%ℓstack & -> & stackPts) #phi] ϕpost".
     rewrite /push.
     wp_pures.
     wp_apply (wp_alloc_na _ (mk_numbered 0 _) toNext_prot with "[]").
@@ -302,7 +297,7 @@ Section proof.
     { done. } (* rewrite /cons_node_prot. iFrame. done. } *)
     iIntros (ℓnode) "nodePts".
     wp_pures.
-    wp_apply (wp_flush_ex with "nodePts"); first reflexivity.
+    wp_apply (wp_flush_na with "nodePts").
     iIntros "(nodePts & #nodeFlushLb & _)".
     wp_pure1. wp_pure1. wp_pure1.
     iAssert (∃ xs x', ⌜ last xs = Some x' ⌝ ∗ ℓtoNext ↦_{_} xs)%I with "[toNextPts]" as "toNextPts".
@@ -312,9 +307,9 @@ Section proof.
     wp_pures.
 
     (* The load of the pointer to the head. *)
-    wp_apply (wp_load_at _ _ (λ _ v, (∃ (ℓhead : loc) xs, ⌜v = #ℓhead⌝ ∗ is_node ℓhead xs ∗ _)%I) with "[]").
-    { iFrame "stackSh stackLb".
-      iModIntro.
+    wp_apply (wp_load_at_simple _ _ (λ _ v, (∃ (ℓhead : loc) xs, ⌜v = #ℓhead⌝ ∗ is_node ℓhead xs ∗ _)%I)
+    with "[$stackPts]").
+    { iModIntro.
       iIntros ([] v le) "toHead".
       iNamed "toHead".
       iDestruct (is_node_split with "isNode") as "[node1 node2]".
@@ -331,7 +326,7 @@ Section proof.
     simpl.
     iIntros "toNextPts".
     wp_pures.
-    wp_apply (wp_flush_ex with "toNextPts"). { apply last_app. done. }
+    wp_apply (wp_flush_na with "toNextPts").
     iIntros "(toNextPts & #toNextPtsFl & _)".
     wp_pures.
     wp_apply wp_fence. do 2 iModIntro.
@@ -339,7 +334,8 @@ Section proof.
     wp_pures.
 
     wp_apply (wp_cas_at (λ _, True)%I (λ _, True)%I with "[nodePts toNextPts isNode]").
-    { iFrame "stackSh stackLb".
+    {
+      (* iFrame "stackSh stackLb". *)
       iIntros (???).
       iSplitL "". { iIntros "_". iPureIntro. left. done. }
       iSplit.
