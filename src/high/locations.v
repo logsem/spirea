@@ -97,6 +97,11 @@ Section points_to_at.
     Persistent (have_msg_after_fence msg).
   Proof. apply monPred_persistent=> j. apply _. Qed.
 
+  Lemma have_msg_after_fence_empty v PV : ⊢ have_msg_after_fence (Msg v ∅ PV ∅).
+  Proof.
+    iModel. simpl. iPureIntro. split; apply view_empty_least.
+  Qed.
+
   Definition mapsto_at ℓ prot ss : dProp Σ :=
     (∃ (abs_hist : gmap time ST) (phys_hist : gmap time message) tLo tS offset s ms,
       "%lastEq" ∷ ⌜ last ss = Some s ⌝ ∗ (* NOTE: Could we change this to non-empty? *)
@@ -471,7 +476,7 @@ Section points_to_at_more.
     iDestruct (crashed_at_agree with "crashed crashed'") as %<-.
     iClear "crashed'".
     simplify_eq.
-    iDestruct "H" as (????) "(#crashed' & ? & #hist & impl)".
+    iDestruct "H" as (sC ????) "(#crashed' & ? & #hist & ? & impl)".
     iDestruct (crashed_at_agree with "crashed crashed'") as %<-.
     iClear "crashed'".
     assert (tC = tC0) as <- by congruence.
@@ -483,7 +488,7 @@ Section points_to_at_more.
       iFrame "persisted".
       iDestruct (have_SV_0) as "$".
       iDestruct (have_FV_0) as "$".
-    * iExists s2. iSplitPure; first done.
+    * iExists sC. iSplitPure; first done.
       iExists _. iFrame "crashed". iFrame.
       iSplit; last (iPureIntro; apply elem_of_dom; done).
       iExists (offset + tC), (offset + tC).
@@ -534,7 +539,7 @@ Section points_to_at_more.
     iCrash.
     iDestruct (if_rec_is_persisted ℓ) as "pers".
     iModIntro.
-    iDestruct "H" as (????) "(crashed & ? & ? & ?)".
+    iDestruct "H" as (sC ????) "(#crashed & ? & ? & ? & impl)".
     iDestruct "offset" as (???) "(crashed' & ?)".
     iDestruct (crashed_at_agree with "crashed crashed'") as %->.
     simplify_eq.
@@ -690,7 +695,7 @@ Section points_to_at_more.
     iDestruct (crashed_at_agree with "crashed crashed'") as %<-.
     iClear "crashed'".
     simplify_eq.
-    iDestruct "HI" as (????) "(#crashed' & ? & #hist & impl)".
+    iDestruct "HI" as (?????) "(#crashed' & ? & #hist & ? & impl)".
     iDestruct (crashed_at_agree with "crashed crashed'") as %<-.
     iClear "crashed'".
     simplify_eq.
@@ -702,7 +707,7 @@ Section points_to_at_more.
       iDestruct (have_SV_0) as "$".
       iDestruct (have_FV_0) as "$".
       iFrame "persisted".
-    - iExists s2.
+    - iExists sC.
       iFrame (incl).
       iExists _. iFrame "∗#".
       iSplit; last (iPureIntro; apply elem_of_dom; try naive_solver).
@@ -741,6 +746,84 @@ Section points_to_at_more.
     iNamed 1. iPureIntro. eapply increasing_map_to_increasing_list; done.
   Qed.
 
+  Lemma post_crash_mapsto_at_singleton ℓ prot (ss : list ST) :
+    ℓ ↦_AT^{prot} ss -∗
+    <PC> _,
+      if_rec ℓ (∃ sC,
+        crashed_in prot ℓ sC ∗
+        ℓ ↦_AT^{prot} [prot.(bumper) sC]).
+  Proof.
+    rewrite /mapsto_at.
+    iNamed 1.
+    iDestruct (know_protocol_extract with "locationProtocol")
+      as "(-#pred & order & bumper)".
+    iAssert (□ ∀ t s, ⎡ know_frag_history_loc ℓ t s ⎤ -∗ _)%I as "#impl".
+    { iIntros "!>" (??).
+      iApply (post_crash_frag_history with "order offset bumper"). }
+    iDestruct "isAtLoc" as "-#isAtLoc".
+    rewrite embed_big_sepM.
+    iDestruct (big_sepM_impl with "absHist []") as "-#HI".
+    { iIntros "!>" (???).
+      iApply "impl". }
+    iDestruct "offset" as "-#offset".
+    iDestruct "locationProtocol" as "-#locationProtocol".
+    iCrash.
+    iDestruct (if_rec_is_persisted ℓ) as "persisted".
+    (* TODO: Why is this [IntoIfRec] instance not picked up automatically. *)
+    iDestruct (into_if_rec with "HI") as "HH".
+    { apply big_sepM_into_if_rec. intros. apply into_if_rec_if_rec. }
+    iModIntro.
+    iDestruct "locationProtocol" as "#locationProtocol".
+    iDestruct "offset" as (tC CV cvLook) "(crashed & #offset)".
+    iDestruct (big_sepM_lookup with "HH")
+      as (sC CV' tC' ? ?) "(#hi & #crashedIn & #frag & #phys & #hi2)".
+    { erewrite <- lastEq. eapply map_sequence_lookup_hi. done. }
+    iDestruct (crashed_at_agree with "crashed hi") as %<-.
+    assert (tC = tC') as <- by congruence.
+    (* Note, [sC] is the last location that was recovered after the crash.
+     * However, this location may not be among the locations in [ss]. *)
+    iExists (sC).
+    iSplitL "".
+    { iExists _. iFrame "hi crashedIn".
+      iSplit; last first.
+      - iPureIntro. apply elem_of_dom. done.
+      - rewrite /persist_lb.
+        iExists (offset + tC), (offset + tC).
+        replace (offset + tC - (offset + tC)) with 0 by lia.
+        iFrame "persisted".
+        iDestruct (have_FV_0) as "$".
+        rewrite /lb_base.
+        iFrameF "locationProtocol".
+        iFrameF "frag".
+        iFrameF "offset".
+        replace (offset + tC - (offset + tC)) with 0 by lia.
+        iDestruct (have_SV_0) as "$". }
+
+    iExists ({[ (offset + tC) := _ ]}). iExistsN.
+    iSplitPure; first by reflexivity.
+    iFrame "#∗".
+    iSplitPure.
+    { split; first apply lookup_singleton. reflexivity. }
+    iSplitPure.
+    { apply map_sequence_singleton. }
+    iSplitPure.
+    { apply map_no_later_singleton. }
+    iSplitPure.
+    { rewrite 2!dom_singleton_L. done. }
+    iSplitPure; first apply increasing_map_singleton.
+    rewrite !big_sepM_singleton.
+    iFrameF "frag".
+    iSplit.
+    { iFrame "phys".
+      iApply have_msg_after_fence_empty. }
+    simpl.
+    replace (offset + tC - (offset + tC)) with 0 by lia.
+    iApply have_SV_0.
+  Qed.
+
+  (* NOTE: This lemma is (very likely) sound and is strictly stronger than the
+   * lemma above. We have, however, not had a need for it yet and thus the
+   * proof is aborted (for now). *)
   Lemma post_crash_mapsto_at ℓ prot (ss : list ST) :
     ℓ ↦_AT^{prot} ss -∗
     post_crash (λ hG',
@@ -781,7 +864,8 @@ Section points_to_at_more.
     iModIntro.
     iDestruct "locationProtocol" as "#locationProtocol".
     iDestruct "offset" as (tC CV cvLook) "(crashed & #offset)".
-    iDestruct (big_sepM_lookup with "HH") as (sC CV' tC' ?) "(#hi & #crashedIn & #frag & #hi2)".
+    iDestruct (big_sepM_lookup with "HH")
+      as (sC CV' tC' ??) "(#hi & #crashedIn & #frag & ? & #hi2)".
     { erewrite <- lastEq. eapply map_sequence_lookup_hi. done. }
     iDestruct (crashed_at_agree with "crashed hi") as %<-.
     assert (tC = tC') as <- by congruence.
@@ -811,13 +895,13 @@ Section points_to_at_more.
     - iLeft.
       admit.
     - admit.
-  Admitted.
+  Abort.
 
   Global Instance mapsto_at_into_crash ℓ prot ss : IntoCrash _ _ :=
-  post_crash_mapsto_at ℓ prot ss.
+    post_crash_mapsto_at_singleton ℓ prot ss.
 
   Global Instance mapsto_at_into_crash_flush ℓ prot ss : IntoCrashFlush _ _ :=
-      into_crash_into_crash_flushed _ _ (post_crash_mapsto_at ℓ prot ss).
+      into_crash_into_crash_flushed _ _ (post_crash_mapsto_at_singleton ℓ prot ss).
 
   Lemma post_crash_mapsto_na_flush_lb ℓ prot ss (s : ST) :
     flush_lb ℓ prot s -∗
@@ -826,21 +910,21 @@ Section points_to_at_more.
       persist_lb ℓ prot (prot.(bumper) s) ∗
       ℓ ↦_AT^{prot} ((prot.(bumper) <$> ss) ++ [prot.(bumper) s]).
   Proof.
-    iIntros "fLb pts".
-    iDestruct (mapsto_at_increasing with "pts") as %incr.
-    iCrashFlush.
-    iDestruct "fLb" as "[pLb (%sC & %le & #xCr)]".
-    iDestruct (crashed_in_if_rec with "xCr pts") as (?) "(xCr' & disj)".
-    iDestruct (crashed_in_agree with "xCr xCr'") as %<-.
-    iDestruct "disj" as "[H|H]"; last first.
-    { iDestruct "H" as (? ([= eq] & le2 & neq)) "H".
-      rewrite head_lookup in eq.
-      assert (s = sC).
-      { admit. }
-      eapply increasing_list_last_greatest in incr; try done.
-      2: { apply _. }
-      2: { apply last_snoc. }
-      (* destruct sC; try done. *)
+    (* iIntros "fLb pts". *)
+    (* iDestruct (mapsto_at_increasing with "pts") as %incr. *)
+    (* iCrashFlush. *)
+    (* iDestruct "fLb" as "[pLb (%sC & %le & #xCr)]". *)
+    (* iDestruct (crashed_in_if_rec with "xCr pts") as (?) "(xCr' & disj)". *)
+    (* iDestruct (crashed_in_agree with "xCr xCr'") as %<-. *)
+    (* iDestruct "disj" as "[H|H]"; last first. *)
+    (* { iDestruct "H" as (? ([= eq] & le2 & neq)) "H". *)
+    (*   rewrite head_lookup in eq. *)
+    (*   assert (s = sC). *)
+    (*   { admit. } *)
+    (*   eapply increasing_list_last_greatest in incr; try done. *)
+    (*   2: { apply _. } *)
+    (*   2: { apply last_snoc. } *)
+    (*   (1* destruct sC; try done. *1) *)
   Abort.
 
 End points_to_at_more.

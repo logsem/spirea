@@ -709,6 +709,15 @@ Section wpr.
         assert _ as encodeBumper by apply temp.
         apply encode_bumper_Some_decode in temp as (recS & decEq2 & <-).
 
+        assert (is_Some (phys_hists !! ℓ)) as [physHist physHistsLook].
+        { rewrite -elem_of_dom domPhysHistsEqAbsHists elem_of_dom. done. }
+
+        eassert (is_Some (physHist !! _)) as [msg physHistLook].
+        { apply elem_of_dom.
+          erewrite physAbsHistTimestamps; [ | done | done].
+          apply elem_of_dom.
+          done. }
+
         eassert _ as applyBumper.
         { eapply map_Forall_lookup_1.
           apply bumperSome.
@@ -717,7 +726,8 @@ Section wpr.
         assert _ as encodeBumper2 by apply temp.
         apply encode_bumper_Some_decode in temp as (? & decEq' & <-).
         simplify_eq.
-        iExists _.
+
+        iExists _, _.
 
         iDestruct (big_sepM_lookup with "crashedInPts") as "#crashedIn".
         { rewrite lookup_fmap.
@@ -742,7 +752,15 @@ Section wpr.
           iExists _.
           iFrame "HI2".
           rewrite decode_encode. done. }
-        iFrame "frag".
+        iFrameF "frag".
+
+        iDestruct (auth_map_map_frag_lookup_singleton with "newPhysHistFrag") as "$".
+        { rewrite /newPhysHists. rewrite lookup_fmap. rewrite /drop_all_above.
+          rewrite map_lookup_zip_with.
+          rewrite newOffsetsLook /=. rewrite physHistsLook /=.
+          done. }
+        { rewrite lookup_fmap drop_above_lookup_t physHistLook. done. }
+
         iIntros ([lt | ->]%le_lt_or_eq).
         2: { assert (s = recS) as -> by congruence. iFrame "frag". done. }
 

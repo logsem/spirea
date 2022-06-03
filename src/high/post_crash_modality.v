@@ -135,9 +135,10 @@ Definition post_crash_frag_history_impl `{hG : nvmG Σ}
       ℓ ↪[@offset_name (@nvm_delta_high nD)]□  offset -∗
       know_bumper (nD := nD) ℓ bumper -∗
       know_frag_history_loc (nD := nD) ℓ t s -∗
-      (or_lost_post_crash ℓ (λ tC, ∃ s2,
+      (or_lost_post_crash ℓ (λ tC, ∃ s2 v,
         crashed_in_mapsto ℓ s2 ∗
         know_frag_history_loc (nD := nD') ℓ (offset + tC) (bumper s2) ∗
+        know_phys_hist_msg ℓ (offset + tC) (Msg v ∅ ∅ ∅) ∗
         (⌜ t ≤ offset + tC ⌝ -∗
           ⌜ s ⊑ s2 ⌝ ∗
           know_frag_history_loc (nD := nD') ℓ t (bumper s)))).
@@ -403,13 +404,14 @@ Section post_crash_interact.
     ⎡ know_bumper ℓ bumper ⎤ -∗
     ⎡ know_frag_history_loc ℓ t s ⎤ -∗
     post_crash (λ hG',
-      (if_rec ℓ (∃ s2, ∃ CV tC,
+      (if_rec ℓ (∃ sC CV tC v,
         ⌜ CV !! ℓ = Some (MaxNat tC) ⌝ ∗
         ⎡ crashed_at CV ⎤ ∗
-        ⎡ crashed_in_mapsto ℓ s2 ⎤ ∗
-        ⎡ know_frag_history_loc ℓ (offset + tC) (bumper s2) ⎤ ∗
+        ⎡ crashed_in_mapsto ℓ sC ⎤ ∗
+        ⎡ know_frag_history_loc ℓ (offset + tC) (bumper sC) ⎤ ∗
+        ⎡ know_phys_hist_msg ℓ (offset + tC) (Msg v ∅ ∅ ∅) ⎤ ∗
         (⌜ t ≤ offset + tC ⌝ -∗
-          ⌜ s ⊑ s2 ⌝ ∗ ⎡ know_frag_history_loc ℓ t (bumper s) ⎤)))).
+          ⌜ s ⊑ sC ⌝ ∗ ⎡ know_frag_history_loc ℓ t (bumper s) ⎤)))).
   Proof.
     iStartProof (iProp _).
     iIntros (?) "order".
@@ -427,10 +429,11 @@ Section post_crash_interact.
     iApply or_lost_if_rec_at.
     iApply (or_lost_post_crash_mono with "[] hist").
     iIntros (tC ?) "(? & crashed & %cvLook) impl".
-    iDestruct "impl" as (s2) "(#crashedIn & hist & impl)".
+    iDestruct "impl" as (s2 v) "(#crashedIn & hist & physHist & impl)".
     monPred_simpl. iExists (s2).
     monPred_simpl. iExists (CV).
     monPred_simpl. iExists (tC).
+    monPred_simpl. iExists (v).
     iSplitPure. { done. }
     iFrame.
     iFrameF "crashedIn".
