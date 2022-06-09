@@ -910,6 +910,7 @@ Section wp_at_rules.
        *)
       iRight. simpl.
       iSplit. {
+        (* We show what is, essentially, the points-to predicate that we started with. *)
         iExistsN.
         iFrameF (lastEq).
         iFrameF (slice).
@@ -1351,7 +1352,7 @@ Section wp_at_rules.
     - iExistsN.
 
       iSplitPure. { rewrite last_snoc. reflexivity. }
-      iSplitPure. { eapply map_sequence_insert_snoc; try done. }
+      iSplitPure. { eapply map_sequence_insert_snoc; done. }
       iSplitPure.
       { eapply map_sequence_insert_snoc; last done; first lia.
         eapply map_no_later_dom; last apply nolater.
@@ -1392,10 +1393,9 @@ Section wp_at_rules.
   Qed.
 
   (* Rule for store on an atomic. *)
-  Lemma wp_store_at_strong R Q ℓ s_i s_t v_t (prot : LocationProtocol ST) st E :
+  Lemma wp_store_at_strong R Q ℓ ss s_i s_t v_t (prot : LocationProtocol ST) st E :
     {{{
-      ⎡ is_at_loc ℓ ⎤ ∗
-      store_lb ℓ prot s_i ∗
+      ℓ ↦_AT^{prot} (ss ++ [s_i]) ∗
       (* [s_l] is the state of the store that ours end up just after in the
       history. *)
       (∀ s_l v_l, ⌜ s_i ⊑ s_l ⌝ -∗ ∃ s_t,
@@ -1417,10 +1417,9 @@ Section wp_at_rules.
 
   (** [Q1] is the resource we want to extract in case of success and and [Q2] is
   the resource we want to extract in case of failure. *)
-  Lemma wp_cmpxchg_at Q1 Q2 Q3 ℓ prot s_i (v_i : val) v_t R s_t st E :
+  Lemma wp_cmpxchg_at Q1 Q2 Q3 ℓ prot ss s_i (v_i : val) v_t R s_t st E :
     {{{
-      ⎡ is_at_loc ℓ ⎤ ∗
-      store_lb ℓ prot s_i ∗
+      ℓ ↦_AT^{prot} (ss ++ [s_i]) ∗
       (∀ s_l v_l, ⌜ s_i ⊑ s_l ⌝ -∗
         ((▷ prot.(pred) s_l v_l _) -∗ ⌜ vals_compare_safe v_i v_l ⌝) ∗
         (((* in case of success *)
@@ -1438,17 +1437,16 @@ Section wp_at_rules.
     }}}
       CmpXchg #ℓ v_i v_t @ st; E
     {{{ v b s_l, RET (v, #b);
-      (⌜ b = true ⌝ ∗ <fence> Q1 s_l ∗ store_lb ℓ prot s_t) ∨
-      (⌜ b = false ⌝ ∗ ⌜ s_i ⊑ s_l ⌝ ∗ <fence> (Q2 s_l) ∗ Q3)
+      (⌜ b = true ⌝ ∗ <fence> Q1 s_l ∗ ℓ ↦_AT^{prot} ((ss ++ [s_i]) ++ [s_t])) ∨
+      (⌜ b = false ⌝ ∗ ⌜ s_i ⊑ s_l ⌝ ∗ ℓ ↦_AT^{prot} (ss ++ [s_i]) ∗ <fence> (Q2 s_l) ∗ Q3)
     }}}.
   Proof.
     intros Φ. iStartProof (iProp _). iIntros (TV).
-    iIntros "(isAt & storeLb & impl)".
-    iDestruct (store_lb_protocol with "storeLb") as "#knowProt".
-    iDestruct (know_protocol_extract with "knowProt")
-      as "(#knowPred & #knowPreorder & #knowBumper)".
-    rewrite /store_lb.
-    iDestruct "storeLb" as (t_i offset) "(#prot & #hist & #offset & %tSLe)".
+    iIntros "(pts & impl)".
+
+    iDestruct "pts" as (abs_hist phys_hist tLo t_i offset s' ms) "H". iNamed "H".
+    iDestruct "tSLe" as %tSLe.
+
     (* We unfold the WP. *)
     iIntros (TV' incl) "Φpost".
     iApply wp_unfold_at.
@@ -1457,13 +1455,19 @@ Section wp_at_rules.
     { apply prim_step_cmpxchg_no_fork. }
 
     iIntros "interp".
-    iDestruct (interp_get_at_loc with "interp isAt knowProt offset")
+    iDestruct (interp_get_at_loc with "interp isAtLoc locationProtocol offset")
       as (physHists physHist absHist pred) "(R & reins)".
     iNamed "R".
 
     set (extra := (Build_extraStateInterp _ _)).
     iApply wp_fupd.
 
+    assert (abs_hist !! t_i = Some s_i).
+    { eapply map_sequence_lookup_hi in slice.
+      rewrite last_snoc in slice.
+      apply slice. }
+
+    iDestruct (big_sepM_lookup with "absHist") as "hist"; first done.
     iDestruct (history_full_entry_frag_lookup with "fullHist hist")
       as %(enc & lookTS & decodeEnc).
 
@@ -1503,8 +1507,8 @@ Section wp_at_rules.
       assert (t_i - offset ≤ t_l) as lte.
       { etrans; first done. etrans; last done. f_equiv. solve_view_le. }
       assert (t_i ≤ t_l + offset) as ? by lia.
-      rewrite drop_prefix_lookup in H1.
       rewrite drop_prefix_lookup in H2.
+      rewrite drop_prefix_lookup in H3.
 
       eassert _ as  temp. { eapply read_atomic_location; done. }
       destruct temp as (s_l & encSL & absHistLook & ? & ? & <- & orderRelated).
@@ -1571,7 +1575,7 @@ Section wp_at_rules.
 
       rewrite drop_prefix_insert.
       assert (t_l + 1 + offset = t_l + offset + 1) as eq by lia.
-      rewrite eq in H2. rewrite eq.
+      rewrite eq in H3. rewrite eq.
       iMod ("reins" $! (t_l + offset + 1) s_t
         with "[%] [//] [//] [] [] physHists [HI predMap] fullHist [//] pts")
           as "(#frag & #physHistFrag & $)".
@@ -1615,9 +1619,43 @@ Section wp_at_rules.
         - etrans; last apply le2. solve_view_le.
         - apply view_lub_le; solve_view_le.
         - simpl_view. solve_view_le. }
-      iExists _, _.
-      iFrame "#".
-      simpl. iPureIntro. rewrite lookup_zero_insert. lia.
+      iExists _, _, _, (t_l + offset + 1). iExistsN.
+      iSplitPure. { rewrite last_snoc. reflexivity. }
+      iSplitPure. { eapply map_sequence_insert_snoc; try done. lia. }
+      iSplitPure.
+      { eapply map_sequence_insert_snoc; last done; first lia.
+        eapply map_no_later_dom; last apply nolater.
+        done. }
+
+      iSplitPure.
+      { eapply map_no_later_insert; last done. lia. }
+      iSplitPure.
+      { rewrite 2!dom_insert_L. rewrite absPhysHistDomEq. done. }
+      iFrameF "isAtLoc".
+      rewrite big_sepM_insert. 2: { apply nolater. lia. }
+      rewrite big_sepM_insert.
+      2: {
+        eapply map_dom_eq_lookup_None; first done.
+        apply nolater. lia. }
+      iFrameF "locationProtocol".
+      iSplitPure.
+      { apply: increasing_map_insert_last; try done. lia.
+        etrans; done. }
+      iSplit. { iFrame "frag absHist". }
+      iFrame "offset".
+      iSplit; last first.
+      { simpl. iPureIntro.
+        rewrite lookup_zero_insert.
+        lia. }
+      simpl.
+
+      iSplit.
+      { iFrame "physHistFrag". solve_view_le. }
+      iApply monPred_mono; last iApply "physHist".
+      etrans; first apply incl.
+      etrans; first apply incl2.
+      repeat split; solve_view_le.
+
     - (* failure *)
       iDestruct "reins" as "[_ reins]".
       iModIntro.
@@ -1627,8 +1665,8 @@ Section wp_at_rules.
       { etrans; first done. etrans; last done. f_equiv. solve_view_le. }
       assert (t_i ≤ t_l + offset) as ? by lia.
 
-      rewrite drop_prefix_lookup in H1.
       rewrite drop_prefix_lookup in H2.
+      rewrite drop_prefix_lookup in H3.
       eassert _ as  temp. { eapply read_atomic_location; done. }
       destruct temp as (s_l & encSL & ? & ? & ? & <- & orderRelated).
 
@@ -1663,6 +1701,29 @@ Section wp_at_rules.
       iSplitPure; first done.
       iSplitPure; first done.
       rewrite /post_fence. simpl.
+      iSplit.
+      { (* We show what is, essentially, the points-to predicate that we started with. *)
+        iExistsN.
+        iFrameF (lastEq).
+        iFrameF (slice).
+        iFrameF (slicePhys).
+        iFrameF (nolater).
+        iFrameF (absPhysHistDomEq).
+        iFrameF "isAtLoc".
+        iFrameF "locationProtocol".
+        iSplitPure; first done.
+
+        iFrameF "absHist".
+        iSplit.
+        { iApply monPred_mono; last iApply "physHist".
+          etrans; first apply incl.
+          etrans; first apply incl2.
+          solve_view_le. }
+        iFrameF "offset".
+        iPureIntro.
+        etrans; first apply tSLe.
+        f_equiv.
+        solve_view_le. }
       iSplitL "Q2"; iApply monPred_mono; try iFrame.
       { repeat split; eauto using view_le_r, view_empty_least.
         rewrite assoc. apply view_le_r. }
@@ -1671,10 +1732,9 @@ Section wp_at_rules.
 
   (** [Q1] is the resource we want to extract in case of success and and [Q2] is
   the resource we want to extract in case of failure. *)
-  Lemma wp_cas_at Q1 Q2 Q3 ℓ prot s_i (v_i v_t : val) R s_t st E :
+  Lemma wp_cas_at Q1 Q2 Q3 ℓ prot ss s_i (v_i v_t : val) R s_t st E :
     {{{
-      ⎡ is_at_loc ℓ ⎤ ∗
-      store_lb ℓ prot s_i ∗
+      ℓ ↦_AT^{prot} (ss ++ [s_i]) ∗
       (∀ s_l v_l, ⌜ s_i ⊑ s_l ⌝ -∗
         ((▷ prot.(pred) s_l v_l _) -∗ ⌜ vals_compare_safe v_i v_l ⌝) ∗
         (((* in case of success *)
@@ -1692,8 +1752,8 @@ Section wp_at_rules.
     }}}
       CAS #ℓ v_i v_t @ st; E
     {{{ b s_l, RET #b;
-      (⌜ b = true ⌝ ∗ <fence> Q1 s_l ∗ store_lb ℓ prot s_t) ∨
-      (⌜ b = false ⌝ ∗ ⌜ s_i ⊑ s_l ⌝ ∗ <fence> (Q2 s_l) ∗ Q3)
+      (⌜ b = true ⌝ ∗ <fence> Q1 s_l ∗ ℓ ↦_AT^{prot} ((ss ++ [s_i]) ++ [s_t])) ∨
+      (⌜ b = false ⌝ ∗ ⌜ s_i ⊑ s_l ⌝ ∗ ℓ ↦_AT^{prot} (ss ++ [s_i]) ∗ <fence> (Q2 s_l) ∗ Q3)
     }}}.
   Proof.
     intros Φ.

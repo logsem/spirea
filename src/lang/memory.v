@@ -289,7 +289,7 @@ Section memory.
      σ !! ℓ = Some h →
      SV !!0 ℓ ≤ t →
      h !! t = Some (Msg v_i MV MP _MP) → (* We read an event at time [t]. *)
-     (* All values that we could have reads are comparable to [v_i]. *)
+     (* All values that we could have read are comparable to [v_i]. *)
      (∀ t' msg, SV !!0 ℓ ≤ t' → h !! t' = Some msg → vals_compare_safe v_i msg.(msg_val)) →
      h !! (t + 1) = None → (* The next timestamp is available, ensures that no other RMW read this event. *)
      SV' = (<[ ℓ := MaxNat (t + 1) ]>(SV ⊔ MV)) → (* SV' incorporates the new event in the threads view. *)
