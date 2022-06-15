@@ -18,8 +18,6 @@ From self.high Require Import dprop abstract_state_instances modalities
      recovery_weakestpre lifted_modalities protocol no_buffer mapsto_na_flushed.
 From self.high.modalities Require Import fence.
 
-(* TODO: Add the necessary fences in this example. *)
-
 (* A node is a pointer to a value and a pointer to the next node. *)
 (* NOTE: The [mk_node] function is currently unused. *)
 (* Definition mk_node : expr := *)
@@ -45,20 +43,20 @@ Definition push : expr :=
     let: "toNext" := ref_NA #() in
     let: "newNode" := ref_NA (InjR ("val", "toNext")) in
     Flush "newNode" ;;
-  (rec: "loop" <> :=
-      let: "head" := !_AT "toHead" in
-       "toNext" <-_NA "head" ;;
-       Flush "toNext" ;;
-       Fence ;;
-       if: CAS "toHead" "head" "newNode"
-       then #()
-       else "loop" #()
-    ) #().
+    (rec: "loop" <> :=
+        let: "head" := !_AT "toHead" in
+        "toNext" <-_NA "head" ;;
+        Flush "toNext" ;;
+        Fence ;;
+        if: CAS "toHead" "head" "newNode"
+        then #()
+        else "loop" #()
+      ) #().
 
 (* Pop takes the stack and returns an option that contains the first value or
 none if the stack is empty. *)
 Definition pop : expr :=
-  rec: "pop" "toHead" :=
+  rec: "loop" "toHead" :=
     let: "head" := !_AT "toHead" in
     Fence ;;
     match: !_NA "head" with
@@ -67,7 +65,7 @@ Definition pop : expr :=
         let: "nextNode" := !_NA (Snd "pair") in
         if: CAS "toHead" "head" "nextNode"
         then SOME (Fst "pair")
-        else "pop" "toHead"
+        else "loop" "toHead"
     end.
 
 Section constant_prot.
@@ -333,9 +331,9 @@ Section proof.
     iDestruct "fence" as (ℓhead xs ->) "[isNode #phis]".
     wp_pures.
 
-    wp_apply (wp_cas_at (λ _, True)%I (λ _, True)%I with "[nodePts toNextPts isNode]").
+    wp_apply (wp_cas_at (λ _, True)%I (λ _, True)%I _ _ _ [] with "[nodePts toNextPts isNode]").
     {
-      (* iFrame "stackSh stackLb". *)
+      iFrame "stackPts".
       iIntros (???).
       iSplitL "". { iIntros "_". iPureIntro. left. done. }
       iSplit.
@@ -357,7 +355,7 @@ Section proof.
         iExists _, _. iFrame "toNextPts toNextPtsFl".
         iPureIntro. apply last_app. done. }
       iSplitL ""; first iIntros "!> $ //". iAccu. }
-    iIntros (b ?) "[(-> & H & lb)|(-> & le & _ & (nodePts & toNextPts & isNode))]".
+    iIntros (b ?) "[(-> & ? & ?)|(-> & le & _ & (? & nodePts & toNextPts & isNode))]".
     (* The CAS succeeded. *)
     - wp_pures. iModIntro. iApply "ϕpost". done.
     (* The CAS failed. *)
@@ -372,14 +370,16 @@ Section proof.
     {{{ v, RET v;
         (⌜ v = NONEV ⌝) ∨ (∃ x, ⌜ v = InjRV x ⌝ ∗ ϕ x _) }}}.
   Proof.
-    iIntros (Φ) "#(%ℓstack & -> & #(stackSh & stackLb)) ϕpost".
+    iIntros (Φ) "#(%ℓstack & -> & #stackPts) ϕpost".
     rewrite /pop.
     wp_pure1.
     iLöb as "IH".
     wp_pures.
-    wp_apply (wp_load_at _ _
+    wp_apply (wp_load_at_simple _ _
       (λ _ v, (∃ (ℓhead : loc) xs, ⌜v = #ℓhead⌝ ∗ is_node ℓhead xs ∗ _)%I) with "[]").
-    { iFrame "stackSh stackLb".
+    {
+      simpl.
+      iFrame "stackPts".
       iModIntro.
       iIntros ([] v le) "toHead".
       iNamed "toHead".
@@ -425,21 +425,22 @@ Section proof.
       iIntros (?) "(toNextPts & <-)".
       wp_pures.
 
-      wp_apply (wp_cas_at (λ _, True)%I (λ _, True)%I with "[node]").
-      { iFrame "stackSh stackLb".
+      wp_apply (wp_cas_at _ _ _ _ _ [] with "[node]").
+      { iFrame "stackPts".
         iIntros (???).
         iSplitL "". { iIntros "_". iPureIntro. left. done. }
         iSplit.
         { iSplitPure. { destruct s_l. reflexivity. }
           iSplitL "". { iIntros (???) "??". done. }
-          iSplitL "". { iIntros "!> $". naive_solver. }
-          simpl. iIntros "_". simpl. rewrite right_id.
+          iSplitL "". { iIntros "!> $". iSplit; first done. iAccu. }
+          simpl. iIntros "_". simpl. iSplitL; last iAccu.
           rewrite /toHead_prot.
           iExists _, xs.
           iSplitPure; first done.
           iFrame "node phis". }
         (* iIntros (??). *)
-        iSplitL ""; first iIntros "!> $ //". iAccu. }
+        iSplitL ""; last iAccu.
+        iIntros "!> $ //". rewrite left_id. iAccu. }
       iIntros (b ?) "[(-> & H & lb)|(-> & ?)]".
       * (* The CAS succeeded. *)
         wp_pures.
