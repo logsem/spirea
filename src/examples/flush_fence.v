@@ -67,37 +67,50 @@ Section specification.
       "bPts" ∷ ℓb ↦_{ϕb ℓa} [nb])%I.
 
   Lemma prove_crash_condition {hD : nvmDeltaG} ℓa ℓb na nb (ssA ssB : list nat) :
-    (* TODO: Add strictly increasing list requirement. *)
-    (* (ssA = [0] ∨ ssA = [1] ∨ ssA = [0; 1]) → *)
-    (* (ssB = [0] ∨ ssB = [1] ∨ ssB = [0; 1]) → *)
+    (* We need to know that both lists are strictly increasing list. *)
+    ((∃ n, ssA = [n]) ∨ ssA = [0; 1]) →
+    ((∃ m, ssB = [m]) ∨ ssB = [0; 1]) →
     persist_lb ℓa ϕa na -∗
     persist_lb ℓb (ϕb ℓa) nb -∗
     ℓa ↦_{ϕa} ssA -∗
     ℓb ↦_{ϕb ℓa} ssB -∗
     <PC> hG, crash_condition ℓa ℓb.
   Proof.
-    iIntros "perA perB aPts bPts".
+    iIntros (ssAEq ssBEq) "perA perB aPts bPts".
     iCrash.
     iDestruct "perA" as "[perA (% & ? & #recA)]".
     iDestruct "perB" as "[perB (% & ? & #recB)]".
-    iDestruct (crashed_in_if_rec with "recA aPts") as (???) "[recA' ptsA]".
+    iDestruct (crashed_in_if_rec with "recA aPts") as (?? prefA) "[recA' ptsA]".
     iDestruct (crashed_in_agree with "recA recA'") as %<-.
-    iDestruct (crashed_in_if_rec with "recB bPts") as (???) "[recB' ptsB]".
+    iDestruct (crashed_in_if_rec with "recB bPts") as (?? prefB) "[recB' ptsB]".
     iDestruct (crashed_in_agree with "recB recB'") as %<-.
     iExistsN.
     iDestruct (crashed_in_persist_lb with "recA'") as "$".
     iDestruct (crashed_in_persist_lb with "recB'") as "$".
     rewrite !list_fmap_id.
-    (* iSplitL "ptsA". *)
-    (* - destruct ssAEq as [-> | ->]. *)
-    (*   * admit. *)
-    (*   * admit. *)
-    (* - destruct ssBEq as [-> | ->]. *)
-    (*   * admit. *)
-    (*   * admit. *)
-  Admitted.
-    (* iFrame "ptsA ptsB". *)
-  (* Qed. *)
+    simpl.
+    iSplitL "ptsA".
+    - destruct ssAEq as [[? ->] | ->].
+      * apply prefix_app_singleton in prefA as [-> ->].
+        iFrame "ptsA".
+      * apply prefix_app_two in prefA as [[-> ->] | [-> ->]];
+          first iFrame "ptsA".
+        iDestruct (crashed_in_persist_lb with "recA") as "P".
+        iApply (mapsto_na_persist_lb with "ptsA P").
+        simpl.
+        rewrite /sqsubseteq.
+        lia.
+    - destruct ssBEq as [[? ->] | ->].
+      * apply prefix_app_singleton in prefB as [-> ->].
+        iFrame.
+      * apply prefix_app_two in prefB as [[-> ->] | [-> ->]];
+          first iFrame "ptsB".
+        iDestruct (crashed_in_persist_lb with "recB") as "P".
+        iApply (mapsto_na_persist_lb with "ptsB P").
+        simpl.
+        rewrite /sqsubseteq.
+        lia.
+  Qed.
 
   Ltac solve_cc :=
     try iModIntro (|={_}=> _)%I;
@@ -177,6 +190,7 @@ Section specification.
     (* Load [ℓa]. *)
     wpc_bind (!_NA _)%E.
     iApply wpc_atomic_no_mask.
+
     iSplit; first solve_cc.
 
     iApply (wp_load_na _ _ _ _ (λ v, ⌜v = #na⌝)%I with "[$aPts]"); first done.

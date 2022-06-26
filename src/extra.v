@@ -696,3 +696,30 @@ Definition mapply {A B} `{MBind M, FMap M} (mf : M (A → B)) (a : M A) :=
   mf ≫= (λ f, f <$> a).
 
 Notation "mf <*> a" := (mapply mf a) (at level 61, left associativity).
+
+Lemma prefix_app_singleton {A} l (x y : A) :
+  l ++ [x] `prefix_of` [y] →
+  l = [] ∧ x = y.
+Proof.
+  destruct l; simpl.
+  - intros ?%prefix_cons_inv_1. done.
+  - intros eq%prefix_cons_inv_2.
+    apply prefix_nil_inv in eq.
+    apply app_eq_nil in eq as [??].
+    congruence.
+  Qed.
+
+Lemma prefix_cons_inv {A} (x y : A) l1 l2 :
+  x :: l1 `prefix_of` y :: l2 → x = y ∧ l1 `prefix_of` l2.
+Proof. intros [k ?]; simplify_eq/=. split; first done. by exists k. Qed.
+
+Lemma prefix_app_two {A} l (x y1 y2 : A) :
+  l ++ [x] `prefix_of` [y1; y2] →
+  (l = [] ∧ x = y1) ∨ (l = [y1] ∧ x = y2).
+Proof.
+  destruct l; simpl.
+  - intros ?%prefix_cons_inv_1. left. done.
+  - intros [-> eq]%prefix_cons_inv.
+    apply prefix_app_singleton in eq as [-> ->].
+    right. done.
+  Qed.
