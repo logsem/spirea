@@ -189,10 +189,11 @@ Section memory.
   | MEvFence
   | MEvFenceSync.
 
+  Definition view_access a V := match a with NA => ∅ | AT => V end.
+
   (* Takes a value and creates an initial history for that value. *)
   Definition initial_history (a : memory_access) SV FV v : history :=
-    let view_access V := match a with NA => ∅ | AT => V end
-    in {[0 := Msg v (view_access SV) (view_access FV) FV]}.
+    {[0 := Msg v (view_access a SV) (view_access a FV) FV]}.
 
   (* Convert an array into a store. *)
   Fixpoint heap_array ℓ a SV FV (vs : list val) : store :=
@@ -327,10 +328,10 @@ Section memory.
   (* The crash step is different from the other steps in that it does not depend
   on any current thread. We therefore define it as a separate type. *)
   Inductive crash_step : mem_config → mem_config → Prop :=
-  | MCrashStep σ p p' :
-     p ⊑ p' →
-     consistent_cut p' σ →
-     crash_step (σ, p) (slice_of_store p' σ, view_to_zero p').
+  | MCrashStep σ PV CV :
+     PV ⊑ CV →
+     consistent_cut CV σ →
+     crash_step (σ, PV) (slice_of_store CV σ, view_to_zero CV).
 
   (* It is always possible to allocate a section of memory. *)
   Lemma alloc_fresh v (len : nat) a σ p SV FV BV :

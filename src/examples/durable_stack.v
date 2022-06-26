@@ -44,14 +44,14 @@ Definition push : expr :=
     let: "newNode" := ref_NA (InjR ("val", "toNext")) in
     Flush "newNode" ;;
     (rec: "loop" <> :=
-        let: "head" := !_AT "toHead" in
-        "toNext" <-_NA "head" ;;
-        Flush "toNext" ;;
-        Fence ;;
-        if: CAS "toHead" "head" "newNode"
-        then #()
-        else "loop" #()
-      ) #().
+      let: "head" := !_AT "toHead" in
+      "toNext" <-_NA "head" ;;
+      Flush "toNext" ;;
+      Fence ;;
+      if: CAS "toHead" "head" "newNode"
+      then #()
+      else "loop" #()
+    ) #().
 
 (* Pop takes the stack and returns an option that contains the first value or
 none if the stack is empty. *)

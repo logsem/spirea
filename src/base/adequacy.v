@@ -130,20 +130,20 @@ Section base_adequacy.
   (* Similar to the [recv_adequate] in Perennial except that:
     1. The invariant is removed.
     2. We ignore the global state (which is [unit] for nvm_lang). *)
-  Record recv_adequate (s : stuckness) (e1 r1: thread_state) (σ1 : state nvm_lang)
+  Record recv_adequate (s : stuckness) (e1 r1 : thread_state) (σ1 : state nvm_lang)
         (φ φr: thread_val → state nvm_lang → Prop) := {
     recv_adequate_result_normal t2 σ2 v2 :
-      erased_rsteps (CS := nvm_crash_lang) r1 ([e1], (σ1,()))
-                    (thread_of_val v2 :: t2, (σ2,())) Normal →
-    φ v2 σ2;
+      erased_rsteps (CS := nvm_crash_lang) r1 ([e1], (σ1, ())) (* NOTE: The unit is the unused global state. *)
+                    (thread_of_val v2 :: t2, (σ2, ())) Normal →
+      φ v2 σ2;
     recv_adequate_result_crashed t2 σ2 v2 :
-      erased_rsteps (CS := nvm_crash_lang) r1 ([e1], (σ1,()))
-                    (thread_of_val v2 :: t2, (σ2,())) Crashed →
-    φr v2 σ2;
+      erased_rsteps (CS := nvm_crash_lang) r1 ([e1], (σ1, ()))
+                    (thread_of_val v2 :: t2, (σ2, ())) Crashed →
+      φr v2 σ2;
     recv_adequate_not_stuck t2 σ2 e2 stat :
-    s = NotStuck →
-    erased_rsteps (CS := nvm_crash_lang) r1 ([e1], (σ1,())) (t2, (σ2,())) stat →
-    e2 ∈ t2 → (is_Some (thread_to_val e2) ∨ reducible (Λ := nvm_lang) e2 σ2 ());
+      s = NotStuck →
+      erased_rsteps (CS := nvm_crash_lang) r1 ([e1], (σ1,())) (t2, (σ2,())) stat →
+      e2 ∈ t2 → (is_Some (thread_to_val e2) ∨ reducible (Λ := nvm_lang) e2 σ2 ());
   }.
 
   Lemma adequacy_impl (s : stuckness) (e1 r1: thread_state) (σ1 : state nvm_lang)
