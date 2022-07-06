@@ -792,12 +792,6 @@ Section wp_at_rules.
     set (extra := (Build_extraStateInterp _ _)).
     iApply wp_fupd.
 
-    (* iDestruct (history_full_entry_frag_lookup_big with "fullHist absHist") *)
-    (*   as %(encAbsHist & subset & map). *)
-    (* { admit. } *)
-    (* iDestruct (history_full_entry_frag_lookup with "fullHist hist") as %look. *)
-    (* destruct look as (enc & lookTS & decodeEnc). *)
-
     iApply (wp_load_acquire (extra := {| extra_state_interp := True |})
              with "[$pts $val]").
     iIntros "!>" (tL vL SV' PV' _PV') "(%look & %gt & #val' & pts)".
@@ -1096,57 +1090,6 @@ Section wp_at_rules.
       - iApply "post".
         iApply "R".
     Qed.
-
- (*
-      (* iDestruct (predicate_holds_phi_decode with "predEquiv predHolds") as "PH"; *)
-      (*   first done. *)
-      iSpecialize ("pToQ" $! (SV', PV', ∅) (msg_val <$> ms) vL with "[]").
-      { admit. }
-      (* iEval (monPred_simpl) in "pToQ". *)
-      (* iEval (setoid_rewrite monPred_at_wand) in "pToQ". *)
-
-      (* iDestruct ("pToQ" $! (SV', PV', ∅) with "[//] [%] [//] PH") as "[Q phi]". *)
-      (* { done. } *)
-      (* (1* Reinsert into the predicate map. *1) *)
-      (* iDestruct ("predMap" with "[phi]") as "predMap". *)
-      (* { iApply (predicate_holds_phi_decode with "predEquiv phi"). assumption. } *)
-
-      iModIntro.
-
-      (* We re-establish [interp]. *)
-      iDestruct ("reins" with "[$] [$] [$]") as "$".
-
-      iSplit. { iPureIntro. solve_view_le. }
-      iSpecialize ("Φpost" $! vL).
-      monPred_simpl.
-      iApply "Φpost".
-      { iPureIntro.
-        etrans. eassumption.
-        repeat split; try done; apply view_le_l. }
-      iRight. simpl.
-      (* The thread view we started with [TV] is smaller than the view we ended
-      with. *)
-      assert (TV ⊑ (SV ⊔ SV', PV, BV ⊔ PV')).
-      { do 2 (etrans; first done). repeat split; auto using view_le_l. }
-      iApply "pToQ".
-      iSplitR "Q".
-      - iFrameNamed.
-        iExists (tL + offset), offset.
-        iFrame "knowPred knowPreorder knowBumper offset".
-        iSplit.
-        { iExists _.
-          iSplitPure; first done.
-          iApply (big_sepM_lookup with "frags"). done. }
-        iPureIntro.
-        subst. rewrite lookup_zero_lub. lia.
-      - simpl.
-        iApply monPred_mono; last iApply "Q".
-        repeat split.
-        * apply view_le_r.
-        * rewrite assoc. apply view_le_r.
-        * apply view_empty_least.
-  Qed.
-  *)
 
   (* Definition open_subjective (I P : dProp Σ) := <obj> I -∗ P ∗ I. *)
 

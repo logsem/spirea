@@ -226,7 +226,6 @@ Section wp_rules.
   (*   iFrame "Hv". *)
   (*   iSplitL "Hpost". *)
   (*   - iApply "Hpost". *)
-  (*     admit. *)
   (*   - (* Re-establish interp. *) *)
   (*     rewrite /interp. *)
   (*     iExists _, _. *)

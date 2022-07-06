@@ -892,9 +892,8 @@ Section points_to_at_more.
      * show left disjunct. Case on whether sC is equal to sF. If it is equal
      * show left disjunct. If not show right disjunct. *)
     destruct (decide (tLo ≤ tC + offset)).
-    - iLeft.
-      admit.
-    - admit.
+    (* - iLeft. *)
+    (* - *)
   Abort.
 
   Global Instance mapsto_at_into_crash ℓ prot ss : IntoCrash _ _ :=
@@ -920,7 +919,6 @@ Section points_to_at_more.
     (* { iDestruct "H" as (? ([= eq] & le2 & neq)) "H". *)
     (*   rewrite head_lookup in eq. *)
     (*   assert (s = sC). *)
-    (*   { admit. } *)
     (*   eapply increasing_list_last_greatest in incr; try done. *)
     (*   2: { apply _. } *)
     (*   2: { apply last_snoc. } *)
