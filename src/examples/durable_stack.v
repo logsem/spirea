@@ -68,6 +68,11 @@ Definition pop : expr :=
         else "loop" "toHead"
     end.
 
+Definition sync : expr :=
+  λ: "toHead",
+    Flush "toHead" ;;
+    FenceSync.
+
 Section constant_prot.
   Context `{Σ : gFunctors}.
   Context `{nvmG Σ}.
@@ -134,21 +139,17 @@ Section definitions.
   (* Representation predicate for a node. *)
   Fixpoint is_node `{nvmDeltaG} ℓnode (xs : list val) : dProp Σ :=
     match xs with
-    | [] => ∃ q ss,
-        ℓnode ↦_{nil_node_prot}^{q} ss ∗
-        (* know_protocol ℓnode nil_node_prot ∗ *)
+    | [] => ∃ q,
+        ℓnode ↦_{nil_node_prot}^{q} [()] ∗
         flush_lb ℓnode nil_node_prot ()
-    | x :: xs' => ∃ (ℓtoNext ℓnext : loc) ss q1 q2 i,
+    | x :: xs' => ∃ (ℓtoNext ℓnext : loc) q1 q2 i,
         (* ℓnode *)
-        ℓnode ↦_{cons_node_prot x ℓtoNext}^{q1} ss ∗
-        (* know_protocol ℓnode (cons_node_prot x ℓtoNext) ∗ *)
+        ℓnode ↦_{cons_node_prot x ℓtoNext}^{q1} [()] ∗
         flush_lb ℓnode (cons_node_prot x ℓtoNext) () ∗
         (* ℓtoNext *)
-        (* know_protocol ℓtoNext toNext_prot ∗ *)
         mapsto_na_flushed ℓtoNext toNext_prot q2 (mk_numbered i #ℓnext) ∗
-        (* know_protocol ℓnext (constant_prot #ℓnode) ∗ *)
         is_node ℓnext xs'
-    end.
+  end.
 
   Global Instance into_no_buffer_is_node `{nvmDeltaG} ℓnode xs :
     IntoNoBuffer (is_node ℓnode xs) (is_node ℓnode xs).
@@ -163,22 +164,24 @@ Section definitions.
     rewrite /IntoCrashFlush.
     generalize dependent ℓnode.
     induction xs as [|x xs IH]; iIntros (ℓnode).
-    - iDestruct 1 as (??) "(nodePts & lb)".
+    - iDestruct 1 as (?) "(nodePts & lb)".
       iCrashFlush.
       iDestruct "lb" as "[#lb (% & ? & rec)]".
       iDestruct (crashed_in_if_rec with "rec nodePts") as "nodePts".
-      iDestruct "nodePts" as (???) "(? & nodePts)".
-      iExists _, _. iFrame "nodePts".
+      iDestruct "nodePts" as (?? [-> ->]%prefix_app_singleton) "(? & nodePts)".
+      iExists _.
+      simpl.
+      iFrame "nodePts".
       iApply persist_lb_to_flush_lb.
       iFrame "lb".
-    - iDestruct 1 as (??????) "(nodePts & nodeFlushLb & toNextFlush & node)".
+    - iDestruct 1 as (?????) "(nodePts & nodeFlushLb & toNextFlush & node)".
       iApply IH in "node".
       iCrashFlush.
       iDestruct "nodeFlushLb" as "[toNextLb (% & % & nodeRec)]".
       iDestruct "toNextFlush" as "[toNextFlush toNextRec]".
       iDestruct (crashed_in_if_rec with "nodeRec nodePts") as "nodePts".
-      iDestruct "nodePts" as (???) "[? nodePts]".
-      iExists _, _, _, _, _, _.
+      iDestruct "nodePts" as (?? [-> ->]%prefix_app_singleton) "[? nodePts]".
+      iExists _, _, _, _, _.
       rewrite !list_fmap_id.
       iFrame.
       iApply persist_lb_to_flush_lb.
@@ -190,9 +193,9 @@ Section definitions.
   Proof.
     generalize dependent ℓnode.
     induction xs as [|x xs IH]; iIntros (ℓnode).
-    - iDestruct 1 as (q ?) "([pts1 pts2] & #r)".
+    - iDestruct 1 as (q) "([pts1 pts2] & #r)".
       iSplitL "pts1"; iFrame "r"; naive_solver.
-    - iDestruct 1 as (??????) "([pts1 pts2] & #? & toNextPts & node)".
+    - iDestruct 1 as (?????) "([pts1 pts2] & #? & toNextPts & node)".
       rewrite -(Qp_div_2 q2).
       iDestruct (mapsto_na_flushed_split with "toNextPts") as "[toNextPts1 toNextPts2]".
       iDestruct (IH with "node") as "[node1 node2]".
@@ -220,10 +223,11 @@ Section definitions.
   Qed.
 
   (* The representation predicate for the entire stack. *)
-  Definition is_stack `{nvmDeltaG} (v : val) : dProp Σ :=
-    ∃ (ℓtoHead : loc),
-      ⌜ v = #ℓtoHead ⌝ ∗
-      ℓtoHead ↦_AT^{toHead_prot} [()].
+  Definition is_stack `{nvmDeltaG} (ℓtoHead : loc) : dProp Σ :=
+    ℓtoHead ↦_AT^{toHead_prot} [()].
+
+  Definition is_synced `{nvmDeltaG} (ℓtoHead : loc) : dProp Σ :=
+    persist_lb ℓtoHead toHead_prot ().
 
 End definitions.
 
@@ -240,20 +244,29 @@ Section proof.
 
   (* The stack is crash safe. *)
   Lemma is_stack_post_crash ℓ :
-    is_stack ϕ #ℓ -∗ <PC> _, if_rec ℓ (is_stack ϕ #ℓ).
+    is_stack ϕ ℓ -∗ <PC> _, if_rec ℓ (is_stack ϕ ℓ).
   Proof.
-    iDestruct 1 as (? [= <-]) "pts".
+    iIntros "pts".
     iCrash.
     iModIntro.
     iDestruct "pts" as ([]) "[c pts]".
-    iExists _. iSplitPure; first done.
     iFrame.
+  Qed.
+
+  Lemma is_stack_synced_post_crash ℓ :
+    is_stack ϕ ℓ -∗ is_synced ϕ ℓ -∗ <PC> _, (is_stack ϕ ℓ).
+  Proof.
+    iIntros "pts S".
+    iCrash.
+    iDestruct "S" as "[per (% & % & crashed)]".
+    iDestruct (crashed_in_if_rec with "crashed pts") as ([]) "[crashed pts]".
+    iFrame "pts".
   Qed.
 
   Lemma wp_mk_stack :
     {{{ True }}}
       mk_stack #()
-    {{{ v, RET v; is_stack ϕ v }}} .
+    {{{ ℓ, RET #ℓ; is_stack ϕ ℓ }}} .
   Proof.
     iIntros (Φ) "_ ϕpost".
     rewrite /mk_stack.
@@ -273,18 +286,19 @@ Section proof.
       iExists _, [].
       iSplitPure; first reflexivity.
       simpl. iFrame "#".
-      iExists _, _. iFrame. }
+      iExists _. iFrame. }
     iNext. iIntros (?) "?".
     iApply "ϕpost".
-    iExists _. naive_solver.
+    iFrame.
   Qed.
 
   Lemma wpc_push stack x s E :
     {{{ is_stack ϕ stack ∗ ϕ x _ }}}
-      push stack x @ s ; E
+      push #stack x @ s ; E
     {{{ RET #(); True }}}.
   Proof.
-    iIntros (Φ) "[#(%ℓstack & -> & stackPts) #phi] ϕpost".
+    rewrite /is_stack.
+    iIntros (Φ) "[#stackPts #phi] ϕpost".
     rewrite /push.
     wp_pures.
     wp_apply (wp_alloc_na _ (mk_numbered 0 _) toNext_prot with "[]").
@@ -306,7 +320,7 @@ Section proof.
 
     (* The load of the pointer to the head. *)
     wp_apply (wp_load_at_simple _ _ (λ _ v, (∃ (ℓhead : loc) xs, ⌜v = #ℓhead⌝ ∗ is_node ℓhead xs ∗ _)%I)
-    with "[$stackPts]").
+      with "[$stackPts]").
     { iModIntro.
       iIntros ([] v le) "toHead".
       iNamed "toHead".
@@ -352,7 +366,7 @@ Section proof.
         iExists _, _ , _, _, _.
         iFrame "isNode".
         iFrame "nodePts nodeFlushLb".
-        iExists _, _. iFrame "toNextPts toNextPtsFl".
+        iExists _. iFrame "toNextPts toNextPtsFl".
         iPureIntro. apply last_app. done. }
       iSplitL ""; first iIntros "!> $ //". iAccu. }
     iIntros (b ?) "[(-> & ? & ?)|(-> & le & _ & (? & nodePts & toNextPts & isNode))]".
@@ -366,11 +380,11 @@ Section proof.
 
   Lemma wpc_pop stack s E :
     {{{ is_stack ϕ stack }}}
-      pop stack @ s ; E
+      pop #stack @ s ; E
     {{{ v, RET v;
         (⌜ v = NONEV ⌝) ∨ (∃ x, ⌜ v = InjRV x ⌝ ∗ ϕ x _) }}}.
   Proof.
-    iIntros (Φ) "#(%ℓstack & -> & #stackPts) ϕpost".
+    iIntros (Φ) "#stackPts ϕpost".
     rewrite /pop.
     wp_pure1.
     iLöb as "IH".
@@ -395,7 +409,7 @@ Section proof.
     wp_pures.
     destruct xs as [|x xs]; simpl.
     - (* The queue is empty. *)
-      iDestruct "node" as (??) "(headPts & #headLb)".
+      iDestruct "node" as (?) "(headPts & #headLb)".
       iDestruct (mapsto_na_last with "headPts") as %[[]?].
       wp_apply (wp_load_na with "[$headPts]").
       { done. }
@@ -407,7 +421,7 @@ Section proof.
       iApply "ϕpost". iLeft. done.
     - (* The queue is non-empty. *)
       iDestruct "phis" as "[phi phis]".
-      iDestruct "node" as (??????) "(headPts & #headFlushLb & toNextPts & node)".
+      iDestruct "node" as (?????) "(headPts & #headFlushLb & toNextPts & node)".
       iDestruct (mapsto_na_last with "headPts") as %[[]?].
       wp_apply (wp_load_na with "[$headPts]").
       { done. }
@@ -449,6 +463,24 @@ Section proof.
       * (* The CAS failed. *)
         wp_pure _.
         iApply ("IH" with "ϕpost").
+  Qed.
+
+  Lemma wpc_sync (stack : loc) s E :
+    {{{ is_stack ϕ stack }}}
+      sync #stack @ s ; E
+    {{{ RET #(); is_synced ϕ stack }}}.
+  Proof.
+    iIntros (Φ) "#stackPts ϕpost".
+    rewrite /sync.
+    wp_pures.
+    wp_apply (wp_flush_at _ _ [] with "stackPts").
+    iIntros "(_ & PF & PFS)".
+    wp_pures.
+    iApply (wp_fence_sync s E Φ).
+    iNext. iModIntro.
+    iApply "ϕpost".
+    rewrite /is_synced.
+    iFrame "PFS".
   Qed.
 
 End proof.

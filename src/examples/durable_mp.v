@@ -41,9 +41,9 @@ Section program.
   Definition prog (x y z : loc) : expr :=
     Fork (rightProg y z) ;; leftProg x y.
 
-  Definition recovery x z : expr :=
-    if: !_NA z = #true
-    then assert: !_NA x = #true
+  Definition recovery (x z : loc) : expr :=
+    if: !_NA #z = #true
+    then assert: !_NA #x = #true
     else #().
 
 End program.
@@ -76,7 +76,23 @@ Section proof.
   Qed.
   Next Obligation. intros ? [|]; apply _. Qed.
 
-  Definition inv_z := inv_y.
+  (* Definition inv_z := inv_y. *)
+  Program Definition inv_z : LocationProtocol bool :=
+    {| pred b v _ :=
+         match b with
+           false => ⌜ v = #false ⌝
+         | true => ⌜ v = #true ⌝ ∗ flush_lb x inv_x true
+         end%I;
+       bumper := id |}.
+  Next Obligation.
+    iIntros (? [|] ?); simpl.
+    - iIntros "[% lb]". iCrashFlush.
+      iFrame "%".
+      iApply persist_lb_to_flush_lb.
+      iDestruct "lb" as "($ & ?)".
+    - iIntros "H". iCrashFlush. done.
+  Qed.
+  Next Obligation. intros ? [|]; apply _. Qed.
 
   (* Note: The recovery code does not use the [y] location, hence the crash
   condition does not mention [y] as we don't need it to be available after a
@@ -85,8 +101,8 @@ Section proof.
     ∃ (xss zss : list bool) (bx bz : bool),
       "#xPer" ∷ persist_lb x inv_x bx ∗
       "#zPer" ∷ persist_lb z inv_z bz ∗
-      x ↦_{inv_x} (xss ++ [bx]) ∗
-      z ↦_{inv_z} (zss ++ [bz]).
+      "xPts" ∷ x ↦_{inv_x} (xss ++ [bx]) ∗
+      "zPts" ∷ z ↦_{inv_z} (zss ++ [bz]).
 
   Definition left_crash_condition {hD : nvmDeltaG} : dProp Σ :=
     ∃ xss (bx : bool),
@@ -297,6 +313,40 @@ Section proof.
       done.
   Qed.
 
-  (* FIXME: Verify the recovery program. *)
+  Lemma recovery_prog_spec `{hD : nvmDeltaG} s E :
+    crash_condition -∗
+    WPC recovery x z @ s; E
+      {{ _, True }}
+      {{ <PC> H0, crash_condition }}.
+  Proof.
+    iNamed 1.
+    rewrite /recovery.
+    wpc_bind (!_NA _)%E.
+    iApply wpc_atomic_no_mask.
+    iSplit.
+    { iDestruct "xPer" as "-#xPer".
+      iDestruct "zPer" as "-#zPer".
+      iCrash.
+      iDestruct "xPer" as "[#xPer (% & % & #xRec)]".
+      iDestruct (crashed_in_if_rec with "xRec xPts") as (???) "[cras xPts]".
+      iDestruct (crashed_in_agree with "xRec cras") as %->.
+      iDestruct (crashed_in_persist_lb with "xRec") as "#per2".
+
+      iDestruct "zPer" as "[#zPer (% & % & #zRec)]".
+      iDestruct (crashed_in_if_rec with "zRec zPts") as (???) "[cras1 zPts]".
+      iDestruct (crashed_in_agree with "zRec cras1") as %->.
+      iDestruct (crashed_in_persist_lb with "zRec") as "#per3".
+
+      iExists _, _, _, _.
+      iFrameF "xPer".
+      iFrameF "zPer".
+
+      rewrite !list_fmap_id.
+      iFrame "xPts".
+
+    iApply (wp_load_at_simple _ _
+              (λ s v, (⌜v = #true⌝ ∗ flush_lb x inv_x true) ∨ ⌜v = #false⌝)%I
+              inv_y with "[$yPts]").
+  Qed.
 
 End proof.
