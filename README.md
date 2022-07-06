@@ -1,4 +1,4 @@
-# Iris NVM
+# Spirea
 
 ## Overview of the development
 
@@ -27,6 +27,7 @@
     _atomic_ location.
 * [`extra`.v](src/extra.v) - Auxiliary definitions and lemmas that are not
   specific to the logic.
+* [`examples`](src/examples) - Contains examples.
 
 ## Development
 
