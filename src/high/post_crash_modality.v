@@ -9,7 +9,7 @@ From self Require Import extra ipm_tactics if_non_zero map_extra.
 From self.algebra Require Import ghost_map ghost_map_map.
 From self.base Require Import primitive_laws wpr_lifting.
 From self.base Require post_crash_modality.
-From self.high Require Import dprop resources monpred_simpl or_lost if_rec.
+From self.high Require Import dprop resources monpred_simpl or_lost if_rec predicates.
 
 Set Default Proof Using "Type".
 
@@ -19,7 +19,7 @@ Notation base_post_crash := post_crash_modality.post_crash.
 
 (* The three implications for the things stored for a protocolt. *)
 Definition post_crash_pred_impl `{nvmG Σ} (nD nD' : nvmDeltaG) : iProp Σ :=
-  □ ∀ ST (_ : EqDecision ST) (_ : Countable ST) ℓ (ϕ : ST → val → nvmDeltaG → dProp Σ),
+  □ ∀ ST (_ : EqDecision ST) (_ : Countable ST) ℓ (ϕ : ST → val → dProp Σ),
     know_pred (hGD := nD) ℓ ϕ -∗
     or_lost_post_crash_no_t ℓ (▷ know_pred (hGD := nD') ℓ ϕ).
 
@@ -167,19 +167,24 @@ Definition post_crash_resource `{nvmG Σ}
   post_crash_resource_persistent nD nD' ∗
   post_crash_resource_ephmeral hh bb na_views nD nD'.
 
-Program Definition post_crash `{nvmG Σ, nD : nvmDeltaG}
-        (P : nvmDeltaG → dProp Σ) : dProp Σ :=
-  MonPred (λ _TV,
+Program Definition post_crash `{nvmG Σ}
+        (P : dProp Σ) : dProp Σ :=
+  MonPred (λ i,
+    let nD := i.2 in
     ∀ (hhGD' : nvmHighDeltaG) hh bb na_views,
       base_post_crash (λ nD',
         let nD' := NvmDeltaG nD' hhGD'
         in (post_crash_resource hh bb na_views nD nD') -∗
-          ▷ P nD' (∅, ∅, ∅) ∗
+          ▷ P ((∅, ∅, ∅), nD') ∗
           (post_crash_resource_ephmeral hh bb na_views nD nD')))%I
     _.
+Next Obligation.
+  intros ??? [TV1 gnames] [TV2 ?] [? [= <-]].
+  solve_proper.
+Qed.
 
-Notation "'<PC>' g , P" := (post_crash (λ g, P))
-  (at level 200, g binder, right associativity) : bi_scope.
+Notation "'<PC>' P" := (post_crash P)
+  (at level 200, right associativity) : bi_scope.
 
 (** Tiny shortcut for introducing the assumption for a [post_crash]. *)
 Ltac iIntrosPostCrash := iIntros (hG' hh bb na_views).
@@ -191,27 +196,27 @@ Section post_crash_prop.
   Implicit Types efs : list thread_state.
   Implicit Types σ : mem_config.
 
-  Global Instance post_crash_objective P : Objective (post_crash P).
-  Proof. done. Qed.
+  (* Global Instance post_crash_objective P : Objective (post_crash P). *)
+  (* Proof. done. Qed. *)
 
-  Lemma post_crash_intro Q:
-    (⊢ (∀ nG, Q nG)) →
-    ⊢ post_crash (λ nG, Q nG).
-  Proof.
-    intros HQ.
-    iStartProof (iProp _). iIntros (TV').
-    iIntrosPostCrash.
-    iApply post_crash_modality.post_crash_for_all.
-    iIntros (hD).
-    iIntros "[_ $]".
-    iNext.
-    iApply HQ.
-  Qed.
+  (* Lemma post_crash_intro Q: *)
+  (*   (⊢ (∀ nG, Q nG)) → *)
+  (*   ⊢ post_crash (λ nG, Q nG). *)
+  (* Proof. *)
+  (*   intros HQ. *)
+  (*   iStartProof (iProp _). iIntros (TV'). *)
+  (*   iIntrosPostCrash. *)
+  (*   iApply post_crash_modality.post_crash_for_all. *)
+  (*   iIntros (hD). *)
+  (*   iIntros "[_ $]". *)
+  (*   iNext. *)
+  (*   iApply HQ. *)
+  (* Qed. *)
 
   (** ** Structural rules *)
 
   Lemma post_crash_mono P Q :
-    (∀ hG, P hG -∗ Q hG) → post_crash P -∗ post_crash Q.
+    (P -∗ Q) → post_crash P -∗ post_crash Q.
   Proof.
     iStartProof (iProp _). iIntros (Hmono TV') "HP".
     iIntrosPostCrash.
@@ -225,7 +230,7 @@ Section post_crash_prop.
     done.
   Qed.
 
-  Lemma post_crash_emp : emp ⊢ post_crash (λ _, emp).
+  Lemma post_crash_emp : emp ⊢ post_crash emp.
   Proof.
     iModel. iIntros "HP".
     iIntrosPostCrash.
@@ -234,9 +239,9 @@ Section post_crash_prop.
   Qed.
 
   Lemma post_crash_sep P Q :
-    post_crash P ∗ post_crash Q -∗ <PC> hG, P hG ∗ Q hG.
+    post_crash P ∗ post_crash Q -∗ <PC> (P ∗ Q).
   Proof.
-    iStartProof (iProp _). iIntros (TV).
+    iStartProof (iProp _). iIntros ([TV i]).
     iIntros "(HP & HQ)".
     iIntrosPostCrash.
     iDestruct ("HP" $! hG' hh bb na_views) as "HP".
@@ -248,9 +253,9 @@ Section post_crash_prop.
   Qed.
 
   Lemma post_crash_disj P Q :
-    post_crash P ∨ post_crash Q -∗ <PC> hG, P hG ∨ Q hG.
+    post_crash P ∨ post_crash Q -∗ <PC> P ∨ Q.
   Proof.
-    iStartProof (iProp _). iIntros (TV).
+    iStartProof (iProp _). iIntros ([TV i]).
     iIntros "[HP | HQ]".
     - iIntrosPostCrash.
       iDestruct ("HP" $! hG' hh bb na_views) as "HP".
@@ -264,10 +269,10 @@ Section post_crash_prop.
       iDestruct ("HQ" with "M") as "[$ $]".
   Qed.
 
-  Lemma post_crash_pure (P : Prop) : P → ⊢ <PC> _, ⌜P⌝.
+  Lemma post_crash_pure (P : Prop) : P → ⊢ <PC> ⌜P⌝.
   Proof.
     iIntros (HP).
-    iStartProof (iProp _). iIntros (TV').
+    iStartProof (iProp _). iIntros ([TV' ?]).
     iIntrosPostCrash.
     iApply post_crash_modality.post_crash_for_all.
     iIntros (hG0) "[H $]".
@@ -275,9 +280,9 @@ Section post_crash_prop.
     iFrame "%".
   Qed.
 
-  Lemma post_crash_nodep (P : dProp Σ) `{!Objective P} : P -∗ <PC> _, P.
+  Lemma post_crash_nodep (P : dProp Σ) `{!Objective P} : P -∗ <PC> P.
   Proof.
-    iStartProof (iProp _). iIntros (TV') "P".
+    iStartProof (iProp _). iIntros ([TV' ?]) "P".
     iIntrosPostCrash.
     iApply post_crash_modality.post_crash_for_all.
     iIntros (hG0) "[H $]".
@@ -285,16 +290,47 @@ Section post_crash_prop.
   Qed.
 
   Lemma post_crash_named P name :
-    named name (post_crash (λ hG, P hG)) -∗
-    post_crash (λ hG, named name (P hG)).
+    named name (post_crash P) -∗
+    post_crash (named name P).
   Proof. rewrite //=. Qed.
 
 End post_crash_prop.
 
 Section post_crash_interact.
-  Context `{nvmG Σ, nD: nvmDeltaG}.
+  Context `{nvmG Σ}.
 
   Context `{AbstractState ST}.
+
+  Definition lift_d P : dProp Σ := with_gnames (λ nD, ⎡ P nD ⎤)%I.
+
+  Definition know_preorder_loc_d `{Countable ST} ℓ (preorder : relation2 ST) : dProp Σ :=
+    lift_d (λ nD, know_preorder_loc ℓ (abs_state_relation (ST := ST)))%I.
+
+  Definition know_pred_d `{Countable ST} ℓ (ϕ : predicate ST) : dProp Σ :=
+    lift_d (λ nD, know_pred ℓ ϕ)%I.
+
+  Definition is_at_loc_d ℓ : dProp Σ :=
+    lift_d (λ nD, own shared_locs_name (◯ {[ ℓ ]}))%I.
+
+  Definition is_na_loc_d ℓ : dProp Σ :=
+    lift_d (λ nD, own exclusive_locs_name (◯ {[ ℓ ]}))%I.
+
+  Definition offset_loc ℓ (t : nat) : dProp Σ :=
+    lift_d (λ nD, ℓ ↪[offset_name]□ t)%I.
+
+  Definition know_na_view_d ℓ q (SV : view) : dProp Σ :=
+    lift_d (λ nD, ℓ ↪[non_atomic_views_gname]{#q} SV)%I.
+
+  Definition know_bumper_d ℓ (bumper : ST → ST) : dProp Σ :=
+    lift_d (λ nD, know_bumper ℓ bumper)%I.
+
+  Definition know_full_history_loc_d `{Countable ST}
+             ℓ q (abs_hist : gmap time ST) : dProp Σ :=
+    lift_d (λ nD, full_entry_unenc abs_history_name ℓ q abs_hist)%I.
+
+  Definition crashed_in_mapsto_d `{Countable ST} ℓ (s : ST) : dProp Σ :=
+    lift_d (λ nD,
+      ∃ es, ⌜ decode es = Some s ⌝ ∗ ℓ ↪[crashed_in_name]□ es)%I.
 
   (** ** The rules for the "special" assertions
 
@@ -320,73 +356,75 @@ Section post_crash_interact.
 
   Lemma post_crash_know_full_history_loc ℓ q (bumper : ST → ST)
         (abs_hist : gmap time ST) :
-    ⎡ know_bumper ℓ bumper ⎤ ∗
-    ⎡ know_full_history_loc ℓ q abs_hist ⎤ -∗
-    <PC> _, if_rec ℓ (∃ t' (s : ST) v,
+    with_gnames (λ nD, ⎡ know_bumper ℓ bumper ⎤) ∗
+    know_full_history_loc_d ℓ q abs_hist -∗
+    <PC> if_rec ℓ (∃ t' (s : ST) v,
         ⌜ abs_hist !! t' = Some s ⌝ ∗
-        ⎡ know_bumper ℓ bumper ⎤ ∗
-        ⎡ crashed_in_mapsto ℓ s ⎤ ∗
-        ⎡ ℓ ↪[offset_name]□ t' ⎤ ∗
-        ⎡ know_full_history_loc ℓ q (bumper <$> (drop_above t' abs_hist)) ⎤ ∗
-        ⎡ know_frag_history_loc ℓ t' (bumper s) ⎤ ∗
-        ⎡ know_phys_hist_msg ℓ t' (Msg v ∅ ∅ ∅) ⎤
+        with_gnames (λ nD, ⎡ know_bumper ℓ bumper ⎤) ∗
+        crashed_in_mapsto_d ℓ s ∗
+        with_gnames (λ nD, ⎡ ℓ ↪[offset_name]□ t' ⎤) ∗
+        know_full_history_loc_d ℓ q (bumper <$> (drop_above t' abs_hist)) ∗
+        with_gnames (λ nD, ⎡ know_frag_history_loc ℓ t' (bumper s) ⎤) ∗
+        with_gnames (λ nD, ⎡ know_phys_hist_msg ℓ t' (Msg v ∅ ∅ ∅) ⎤)
       ).
    Proof.
-    iStartProof (iProp _).
-    iIntros (TV1) "[bumper hist]".
-    iIntrosPostCrash.
-    iDestruct (base.post_crash_modality.post_crash_nodep with "bumper") as "bumper".
-    iDestruct (base.post_crash_modality.post_crash_nodep with "hist") as "hist".
-    post_crash_modality.iCrash.
-    iIntros "[Ha Hb]". iNamed "Ha". iNamed "Hb".
-    (* Get the new bumper. *)
-    iDestruct ("post_crash_bumper_impl" with "bumper") as "#newBumper".
-    iDestruct "post_crash_full_history_map" as "(inH & inB & M)".
-    rewrite /know_full_history_loc own_full_equiv.
-    iAssert (⌜hh !! _ = Some _⌝)%I as %HI. { iApply ("inH" with "hist"). }
-    iAssert (⌜bb !! _ = Some _⌝)%I as %BI.
-    { iApply ("inB" with "[bumper]").
-      rewrite /know_bumper /own_know_bumper.
-      iDestruct "bumper" as "[_ $]". }
-    iDestruct (big_sepM_lookup_acc with "M") as
-      "[(%bumper' & %bumpersLook & H) reIns]"; first done.
-    simplify_eq.
-    iDestruct (soft_disj_exchange_l with "[] H [$]") as "[H newHist]".
-    { iIntros "!>" (?) "H".
-      iApply (full_entry_valid with "H"). }
-    iDestruct ("reIns" with "[H]") as "M".
-    { iExists _. iSplitPure; done. }
-    iSplitL "newHist newBumper".
-    { iNext.
-      rewrite /know_history_post_crash.
-      iApply or_lost_if_rec_at.
-      iDestruct "newHist" as (CV) "[#crashed [H|H]]"; iExists (CV);
-        iFrame "crashed"; [iLeft|iRight; done].
-      iDestruct "H" as (t) "(%cvLook & #per & H)".
-      iDestruct "H" as (???) "(%v & %look & %bump & #crashedIn & #offset & hist & frag & phys)".
-      iDestruct (or_lost_post_crash_lookup with "crashed newBumper") as "bumper";
-        first done.
-      apply lookup_fmap_Some in look as [st [eq ?]].
-      apply encode_bumper_Some_decode in bump as (sn & decEq & encEq).
-      simplify_eq.
-      rewrite decode_encode in decEq.
-      simplify_eq.
-      iExists t. iFrame (cvLook) "per". iExists t2, sn, v.
-      iSplitPure; first assumption.
-      iFrameF "bumper".
-      iSplit. { iExists _. iFrame "crashedIn". rewrite decode_encode. done. }
-      iFrameF "offset".
-      rewrite /full_entry_unenc /know_full_encoded_history_loc.
-      rewrite new_hist_encode_eq.
-      iFrame "hist phys".
-      iExists _. iFrame "frag". iPureIntro. apply decode_encode. }
-    rewrite /post_crash_resource.
-    iFrame "post_crash_na_view_map". iFrame.
+     iModel. simpl.
+     iIntros "[bumper hist]".
+     rewrite 2!monPred_at_embed.
+     iIntrosPostCrash.
+     iDestruct (base.post_crash_modality.post_crash_nodep with "bumper") as "bumper".
+     iDestruct (base.post_crash_modality.post_crash_nodep with "hist") as "hist".
+     post_crash_modality.iCrash.
+     iIntros "[Ha Hb]". iNamed "Ha". iNamed "Hb".
+     (* Get the new bumper. *)
+     iDestruct ("post_crash_bumper_impl" with "bumper") as "#newBumper".
+     iDestruct "post_crash_full_history_map" as "(inH & inB & M)".
+     rewrite /know_full_history_loc own_full_equiv.
+     iAssert (⌜hh !! _ = Some _⌝)%I as %HI. { iApply ("inH" with "hist"). }
+     iAssert (⌜bb !! _ = Some _⌝)%I as %BI.
+     { iApply ("inB" with "[bumper]").
+       rewrite /know_bumper /own_know_bumper.
+       iDestruct "bumper" as "[_ $]". }
+     iDestruct (big_sepM_lookup_acc with "M") as
+       "[(%bumper' & %bumpersLook & H) reIns]"; first done.
+     simplify_eq.
+     iDestruct (soft_disj_exchange_l with "[] H [$]") as "[H newHist]".
+     { iIntros "!>" (?) "H".
+       iApply (full_entry_valid with "H"). }
+     iDestruct ("reIns" with "[H]") as "M".
+     { iExists _. iSplitPure; done. }
+     iSplitL "newHist newBumper".
+     { iNext.
+       rewrite /know_history_post_crash.
+       iApply or_lost_if_rec_at.
+       iDestruct "newHist" as (CV) "[#crashed [H|H]]"; iExists (CV);
+         iFrame "crashed"; [iLeft|iRight; done].
+       iDestruct "H" as (t) "(%cvLook & #per & H)".
+       iDestruct "H" as (???) "(%v & %look & %bump & #crashedIn & #offset & hist & frag & phys)".
+       iDestruct (or_lost_post_crash_lookup with "crashed newBumper") as "bumper";
+         first done.
+       apply lookup_fmap_Some in look as [st [eq ?]].
+       apply encode_bumper_Some_decode in bump as (sn & decEq & encEq).
+       simplify_eq.
+       rewrite decode_encode in decEq.
+       simplify_eq.
+       iExists t. iFrame (cvLook) "per". iExists t2, sn, v.
+       iSplitPure; first assumption.
+       simpl.
+       iFrameF "bumper".
+       iSplit. { iExists _. iFrame "crashedIn". rewrite decode_encode. done. }
+       iFrameF "offset".
+       rewrite /full_entry_unenc /know_full_encoded_history_loc.
+       rewrite new_hist_encode_eq.
+       iFrame "hist phys".
+       iExists _. iFrame "frag". iPureIntro. apply decode_encode. }
+     rewrite /post_crash_resource.
+     iFrame "post_crash_na_view_map". iFrame.
   Qed.
 
   Lemma post_crash_preorder ℓ :
-    ⎡ know_preorder_loc ℓ (abs_state_relation (ST := ST)) ⎤ -∗
-    post_crash (λ hG', if_rec ℓ ⎡ know_preorder_loc ℓ (abs_state_relation (ST := ST) ) ⎤)%I.
+    know_preorder_loc_d ℓ (abs_state_relation (ST := ST)) -∗
+    post_crash (if_rec ℓ (know_preorder_loc_d ℓ (abs_state_relation (ST := ST) )))%I.
   Proof.
     iStartProof (iProp _). iIntros (TV') "HP".
     iIntrosPostCrash.
@@ -395,29 +433,30 @@ Section post_crash_interact.
     iIntros "[Ha $]". iNamed "Ha".
     iDestruct ("post_crash_preorder_impl" with "HP") as "H".
     iNext.
-    iApply or_lost_if_rec_embed. iFrame.
+    rewrite /know_preorder_loc_d.
+    iApply or_lost_if_rec_with_names_embed. iFrame.
   Qed.
 
   Lemma post_crash_frag_history ℓ t offset bumper (s : ST) :
-    ⎡ know_preorder_loc ℓ (abs_state_relation (ST := ST)) ⎤ -∗
-    ⎡ ℓ ↪[offset_name]□ offset ⎤ -∗
-    ⎡ know_bumper ℓ bumper ⎤ -∗
-    ⎡ know_frag_history_loc ℓ t s ⎤ -∗
-    post_crash (λ hG',
+    know_preorder_loc_d ℓ (abs_state_relation (ST := ST)) -∗
+    offset_loc ℓ offset -∗
+    with_gnames (λ nD, (know_bumper_d ℓ bumper)) -∗
+    with_gnames (λ nD, ⎡ know_frag_history_loc ℓ t s ⎤) -∗
+    post_crash (
       (if_rec ℓ (∃ sC CV tC v,
         ⌜ CV !! ℓ = Some (MaxNat tC) ⌝ ∗
-        ⎡ crashed_at CV ⎤ ∗
-        ⎡ crashed_in_mapsto ℓ sC ⎤ ∗
-        ⎡ know_frag_history_loc ℓ (offset + tC) (bumper sC) ⎤ ∗
-        ⎡ know_phys_hist_msg ℓ (offset + tC) (Msg v ∅ ∅ ∅) ⎤ ∗
+        crashed_at_d CV ∗
+        crashed_in_mapsto_d ℓ sC ∗
+        with_gnames (λ nD, ⎡ know_frag_history_loc ℓ (offset + tC) (bumper sC) ⎤) ∗
+        with_gnames (λ nD, ⎡ know_phys_hist_msg ℓ (offset + tC) (Msg v ∅ ∅ ∅) ⎤) ∗
         (⌜ t ≤ offset + tC ⌝ -∗
-          ⌜ s ⊑ sC ⌝ ∗ ⎡ know_frag_history_loc ℓ t (bumper s) ⎤)))).
+          ⌜ s ⊑ sC ⌝ ∗ with_gnames (λ nD, ⎡ know_frag_history_loc ℓ t (bumper s) ⎤))))).
   Proof.
-    iStartProof (iProp _).
-    iIntros (?) "order".
-    iIntros (??) "offset".
-    iIntros (??) "bumper".
-    iIntros (??) "hist".
+    iModel.
+    iIntros "order".
+    iIntros ([??] [? [= <-]]) "offset".
+    iIntros ([??] [? [= <-]]) "bumper".
+    iIntros ([??] [? [= <-]]) "hist".
     iIntrosPostCrash.
     iDestruct (base.post_crash_modality.post_crash_nodep with "order") as "order".
     iDestruct (base.post_crash_modality.post_crash_nodep with "offset") as "offset".
@@ -435,15 +474,19 @@ Section post_crash_interact.
     monPred_simpl. iExists (tC).
     monPred_simpl. iExists (v).
     iSplitPure. { done. }
+    simpl.
     iFrame.
     iFrameF "crashedIn".
-    iIntros (??). iApply "impl".
+    iIntros ([??] [? [= <-]]).
+    simpl. rewrite monPred_at_embed.
+    iApply "impl".
   Qed.
 
-  Lemma post_crash_know_pred `{Countable ST'} ℓ (ϕ : ST' → val → nvmDeltaG → dProp Σ) :
-    ⎡ know_pred ℓ ϕ ⎤ -∗ <PC> _, if_rec ℓ (⎡ know_pred ℓ ϕ ⎤).
+  Lemma post_crash_know_pred `{Countable ST} ℓ (ϕ : ST → val → dProp Σ) :
+    know_pred_d ℓ ϕ -∗ <PC> if_rec ℓ (know_pred_d ℓ ϕ).
   Proof.
-    iStartProof (iProp _). iIntros (TV') "HP".
+    iModel.
+    iIntros "HP".
     iIntrosPostCrash.
     iDestruct (base.post_crash_modality.post_crash_nodep with "HP") as "HP".
     post_crash_modality.iCrash.
@@ -451,33 +494,33 @@ Section post_crash_interact.
     rewrite /post_crash_resource. iFrameNamed.
     iDestruct ("post_crash_pred_impl" with "HP") as "H".
     iNext.
-    iApply or_lost_if_rec_embed. iFrame.
+    iApply or_lost_if_rec_with_names_embed. iFrame.
   Qed.
 
   Lemma post_crash_at_loc ℓ :
-    ⎡ is_at_loc ℓ ⎤ -∗ <PC> _, if_rec ℓ ⎡ is_at_loc ℓ ⎤.
+    is_at_loc_d ℓ -∗ <PC> if_rec ℓ (is_at_loc_d ℓ).
   Proof.
-    iStartProof (iProp _). iIntros (TV') "HP".
+    iModel. iIntros "HP".
     iIntrosPostCrash.
     iDestruct (base.post_crash_modality.post_crash_nodep with "HP") as "HP".
     post_crash_modality.iCrash.
     iIntros "[Ha $]". iNamed "Ha".
     rewrite /post_crash_resource.
     iDestruct ("post_crash_at_loc_impl" with "HP") as "H".
-    iApply or_lost_if_rec_embed. iFrame.
+    iApply or_lost_if_rec_with_names_embed. iFrame.
   Qed.
 
   Lemma post_crash_na_loc ℓ :
-    ⎡ is_na_loc ℓ ⎤ -∗ <PC> _, if_rec ℓ ⎡ is_na_loc ℓ ⎤.
+    is_na_loc_d ℓ -∗ <PC> if_rec ℓ (is_na_loc_d ℓ).
   Proof.
-    iStartProof (iProp _). iIntros (TV') "HP".
+    iModel. iIntros "HP".
     iIntrosPostCrash.
     iDestruct (base.post_crash_modality.post_crash_nodep with "HP") as "HP".
     post_crash_modality.iCrash.
     iIntros "[Ha $]". iNamed "Ha".
     rewrite /post_crash_resource. iFrameNamed.
     iDestruct ("post_crash_na_loc_impl" with "HP") as "H".
-    iApply or_lost_if_rec_embed. iFrame.
+    iApply or_lost_if_rec_with_names_embed. iFrame.
   Qed.
 
   (* Lemma post_crash_offset_with_t ℓ t1 : *)
@@ -497,10 +540,10 @@ Section post_crash_interact.
   (* Qed. *)
 
   Lemma post_crash_offset ℓ tO :
-    ⎡ ℓ ↪[offset_name]□ tO ⎤ -∗
-    <PC> _, if_rec ℓ (∃ tC CV, ⌜ CV !! ℓ = Some (MaxNat tC) ⌝ ∗
-                               ⎡ crashed_at CV ⎤ ∗
-                               ⎡ ℓ ↪[offset_name]□ (tO + tC) ⎤).
+    offset_loc ℓ tO -∗
+    <PC> if_rec ℓ (∃ tC CV, ⌜ CV !! ℓ = Some (MaxNat tC) ⌝ ∗
+                               crashed_at_d CV ∗
+                               offset_loc ℓ (tO + tC)).
   Proof.
     iStartProof (iProp _). iIntros (TV') "HP".
     iIntrosPostCrash.
@@ -510,14 +553,15 @@ Section post_crash_interact.
     rewrite /post_crash_resource. iFrameNamed.
     iDestruct ("post_crash_offsets_impl" with "HP") as "H".
     iNext.
-    rewrite -if_rec_or_lost_with_t.
-    iApply or_lost_with_t_at.
-    (* iApply or_lost_with_t_at. *)
-    iApply or_lost_post_crash_mono; last iApply "H".
-    iIntros (t CV).
-    iNamed 1. iIntros "O".
-    iExists _. iFrame (cvLook) "crashed O".
-  Qed.
+  Admitted.
+  (*   rewrite -if_rec_or_lost_with_t. *)
+  (*   iApply or_lost_with_t_at. *)
+  (*   (* iApply or_lost_with_t_at. *) *)
+  (*   iApply or_lost_post_crash_mono; last iApply "H". *)
+  (*   iIntros (t CV). *)
+  (*   iNamed 1. iIntros "O". *)
+  (*   iExists _. iFrame (cvLook) "crashed O". *)
+  (* Qed. *)
 
   (*
   Lemma post_crash_know_phys_hist_msg ℓ t msg :
@@ -539,9 +583,9 @@ Section post_crash_interact.
   *)
 
   Lemma post_crash_know_na_view ℓ q SV :
-    ⎡ know_na_view ℓ q SV ⎤ -∗ <PC> _, if_rec ℓ ⎡ know_na_view ℓ q ∅ ⎤.
+    know_na_view_d ℓ q SV -∗ <PC> if_rec ℓ (know_na_view_d ℓ q ∅).
   Proof.
-    iStartProof (iProp _). iIntros (TV') "HP".
+    iModel. iIntros "HP".
     iIntrosPostCrash.
     iDestruct (base.post_crash_modality.post_crash_nodep with "HP") as "HP".
     post_crash_modality.iCrash.
@@ -549,11 +593,12 @@ Section post_crash_interact.
     iDestruct "post_crash_na_view_map" as "[in M]".
     iAssert (⌜ na_views !! _ = Some _ ⌝)%I as %HI. { iApply ("in" with "HP"). }
     iDestruct (big_sepM_lookup_acc with "M") as "[H reIns]"; first done.
-    iDestruct (soft_disj_exchange_l with "[] H [$]") as "[H HP]".
+    rewrite monPred_at_embed.
+    iDestruct (soft_disj_exchange_l with "[] H HP") as "[H HP]".
     { iIntros "!>" (?) "H".
       setoid_rewrite <- dfrac_valid_own.
       iApply (ghost_map_elem_valid with "H"). }
-    rewrite -or_lost_if_rec_embed.
+    rewrite -or_lost_if_rec_with_names_embed.
     iFrame "HP".
     iFrame "post_crash_full_history_map".
     iDestruct ("reIns" with "H") as "$".
@@ -561,16 +606,17 @@ Section post_crash_interact.
   Qed.
 
   Lemma post_crash_know_bumper `{AbstractState ST} ℓ (bumper : ST → ST) :
-    ⎡ know_bumper ℓ bumper ⎤ -∗ <PC> _, if_rec ℓ ⎡ know_bumper ℓ bumper ⎤.
+    know_bumper_d ℓ bumper -∗ <PC> if_rec ℓ (know_bumper_d ℓ bumper).
   Proof.
-    iStartProof (iProp _). iIntros (TV') "HP".
+    iModel. iIntros "HP".
     iIntrosPostCrash.
     iDestruct (base.post_crash_modality.post_crash_nodep with "HP") as "HP".
     post_crash_modality.iCrash.
     iIntros "[Ha $]". iNamed "Ha".
     rewrite /post_crash_resource. iFrameNamed.
     iDestruct ("post_crash_bumper_impl" with "HP") as "H".
-    iApply or_lost_if_rec_embed. iFrame.
+    rewrite -or_lost_if_rec_with_names_embed.
+    iFrame.
   Qed.
 
   (*
@@ -591,21 +637,20 @@ Section post_crash_interact.
 
 End post_crash_interact.
 
-Class IntoCrash {Σ} `{nvmG Σ, nvmDeltaG}
-      (P : dProp Σ) (Q : nvmDeltaG → dProp Σ) :=
-  into_crash : P -∗ post_crash (Σ := Σ) (λ nD', Q nD').
+Class IntoCrash {Σ} `{nvmG Σ} (P : dProp Σ) (Q : dProp Σ) :=
+  into_crash : P -∗ post_crash (Σ := Σ) Q.
 
-Arguments IntoCrash {_} {_} {_} _%I _%I.
+Arguments IntoCrash {_} {_} _%I _%I.
 
 Section IntoCrash.
-  Context `{nvmG Σ, nvmDeltaG}.
+  Context `{nvmG Σ}.
 
   (* Arguments IntoCrash {_} {_} {_} _%I hi%I. *)
 
-  Global Instance sep_into_crash (P Q : dProp Σ) (P' Q' : _ → dProp Σ) :
+  Global Instance sep_into_crash (P Q : dProp Σ) (P' Q' : dProp Σ) :
     IntoCrash P P' →
     IntoCrash Q Q' →
-    IntoCrash (P ∗ Q)%I (λ hD, P' hD ∗ Q' hD)%I.
+    IntoCrash (P ∗ Q)%I (P' ∗ Q')%I.
   Proof.
     rewrite /IntoCrash.
     iIntros (Pi Qi) "[P Q]".
@@ -615,13 +660,13 @@ Section IntoCrash.
   Qed.
 
   Global Instance pure_into_crash (P : Prop) :
-    IntoCrash (⌜ P ⌝) (λ _, ⌜ P ⌝)%I.
+    IntoCrash (⌜ P ⌝) (⌜ P ⌝)%I.
   Proof. rewrite /IntoCrash. iIntros "%". by iApply post_crash_pure. Qed.
 
   Lemma into_crash_proper P P' Q Q':
     IntoCrash P Q →
     (P ⊣⊢ P') →
-    (∀ hG, Q hG ⊣⊢ Q' hG) →
+    (Q ⊣⊢ Q') →
     IntoCrash P' Q'.
   Proof.
     rewrite /IntoCrash.
@@ -632,33 +677,34 @@ Section IntoCrash.
   Qed.
 
   Global Instance big_sepM_into_crash `{Countable K} :
-    ∀ (A : Type) Φ (Ψ : nvmDeltaG → K → A → dProp Σ) (m : gmap K A),
-    (∀ (k : K) (x : A), IntoCrash (Φ k x) (λ hG, Ψ hG k x)) →
-    IntoCrash ([∗ map] k↦x ∈ m, Φ k x)%I (λ hG, [∗ map] k↦x ∈ m, Ψ hG k x)%I.
+    ∀ (A : Type) Φ (Ψ : K → A → dProp Σ) (m : gmap K A),
+    (∀ (k : K) (x : A), IntoCrash (Φ k x) (Ψ k x)) →
+    IntoCrash ([∗ map] k↦x ∈ m, Φ k x)%I ([∗ map] k↦x ∈ m, Ψ k x)%I.
   Proof.
     intros. induction m using map_ind.
-    - eapply (into_crash_proper True%I _ (λ _, True%I)).
+    - eapply (into_crash_proper True%I _ True%I).
       * apply _.
       * rewrite big_sepM_empty. apply bi.True_emp.
       * intros. rewrite big_sepM_empty. apply bi.True_emp.
     - eapply (into_crash_proper (Φ i x ∗ [∗ map] k↦x0 ∈ m, Φ k x0) _
-                                (λ _, (Ψ _ i x ∗ [∗ map] k↦x0 ∈ m, Ψ _ k x0)%I)).
+                                ((Ψ i x ∗ [∗ map] k↦x0 ∈ m, Ψ k x0)%I)).
       * apply _.
       * rewrite big_sepM_insert //=.
       * intros. rewrite big_sepM_insert //=.
   Qed.
 
   Global Instance lifted_embed_nodep_into_crash (P : iProp Σ) :
-    IntoCrash (⎡ P ⎤) (λ _, ⎡ P ⎤)%I | 1000.
+    IntoCrash (⎡ P ⎤) (⎡ P ⎤)%I | 1000.
   Proof. apply: post_crash_nodep. Qed.
 
   Global Instance lifted_embed_into_crash (P : iProp Σ) Q :
-    base.post_crash_modality.IntoCrash P Q →
-    IntoCrash (⎡ P ⎤) (λ _, ⎡ Q _ ⎤)%I.
+    (∀ (nD : nvmDeltaG), base.post_crash_modality.IntoCrash P Q) →
+    IntoCrash (⎡ P ⎤) (with_gnames (λ nD, ⎡ Q _ ⎤))%I.
   Proof.
     rewrite /IntoCrash.
-    iStartProof (iProp _).
-    iIntros (??) "?".
+    intros hyp.
+    iModel.
+    iIntros "?".
     iIntrosPostCrash.
     post_crash_modality.iCrash.
     iIntros "[_ $]". done.
@@ -667,11 +713,11 @@ Section IntoCrash.
   Tactic Notation "lift_into_crash" uconstr(lem) :=
     rewrite /IntoCrash; iIntros "P"; by iApply lem.
 
-  Global Instance emp_into_crash : IntoCrash emp (λ hD, emp)%I.
+  Global Instance emp_into_crash : IntoCrash emp emp.
   Proof. lift_into_crash post_crash_emp. Qed.
 
-  Global Instance disj_into_crash (P Q : dProp Σ) (P' Q' : _ → dProp Σ) :
-    IntoCrash P P' → IntoCrash Q Q' → IntoCrash (P ∨ Q)%I (λ hD, P' hD ∨ Q' hD)%I.
+  Global Instance disj_into_crash (P Q : dProp Σ) (P' Q' : dProp Σ) :
+    IntoCrash P P' → IntoCrash Q Q' → IntoCrash (P ∨ Q)%I (P' ∨ Q')%I.
   Proof.
     rewrite /IntoCrash.
     iIntros (Pi Qi) "[P|Q]".
@@ -686,8 +732,8 @@ Section IntoCrash.
   Qed.
 
   Global Instance exist_into_crash {A} Φ Ψ:
-    (∀ x : A, IntoCrash (Φ x) (λ hG, Ψ hG x)) →
-    IntoCrash (∃ x, Φ x)%I (λ hG, (∃ x, Ψ hG x)%I).
+    (∀ x : A, IntoCrash (Φ x) (Ψ x)) →
+    IntoCrash (∃ x, Φ x)%I ((∃ x, Ψ x)%I).
   Proof.
     rewrite /IntoCrash.
     iIntros (Hc) "H". iDestruct "H" as (?) "HΦ". iPoseProof (Hc with "[$]") as "HΦ".
@@ -713,7 +759,7 @@ Section IntoCrash.
   (*   post_crash_frag_history ℓ bumper t offset s. *)
 
   Global Instance know_pred_into_crash `{Countable ST}
-         ℓ (ϕ : ST → _ → _ → dProp Σ) :
+         ℓ (ϕ : ST → _ → dProp Σ) :
     IntoCrash _ _ := post_crash_know_pred ℓ ϕ.
 
   Global Instance at_loc_into_crash ℓ : IntoCrash _ _ := post_crash_at_loc ℓ.
@@ -743,7 +789,7 @@ Ltac crash_env Γ :=
     | environments.Enil => idtac
     | environments.Esnoc ?Γ' ?id (post_crash _) => crash_env Γ'
     | environments.Esnoc ?Γ' ?id ?A =>
-      first [ iEval (rewrite (@into_crash _ _ _ A) ) in id || iClear id ] ; crash_env Γ'
+      first [ iEval (rewrite (@into_crash _ _ A) ) in id || iClear id ] ; crash_env Γ'
   end.
 
 Ltac crash_ctx :=
@@ -762,7 +808,7 @@ Ltac iCrash :=
   let H := iFresh in iIntros H; iNamed H.
 
 Section post_crash_derived.
-  Context `{nvmG Σ, nvmDeltaG}.
+  Context `{nvmG Σ}.
 
   Context `{AbstractState ST}.
 
@@ -799,9 +845,9 @@ Section post_crash_derived.
 
 End post_crash_derived.
 
-(* Definition post_crash_flush `{nvmG Σ, nvmDeltaG} *)
-(*         (P : nvmDeltaG → dProp Σ) : dProp Σ := *)
-(*     <PC> (λ (nD' : nvmDeltaG), P nD'). *)
+(* Definition post_crash_flush `{nvmG Σ} *)
+(*         (P : dProp Σ) : dProp Σ := *)
+(*     <PC> (P nD'). *)
 (* Definition post_crash_flush `{nvmG Σ, nvmDeltaG} *)
 (*         (P : nvmDeltaG → dProp Σ) : dProp Σ := *)
 (*   (∀ TV, monPred_in TV -∗ *)
@@ -812,17 +858,34 @@ End post_crash_derived.
 (*         P nD')%I. *)
 (* Next Obligation. intros ??????. apply post_crash_mono. solve_proper. Qed. *)
 
-Program Definition post_crash_flush {Σ} `{nvmG Σ, nvmDeltaG}
-        (P : nvmDeltaG → dProp Σ) : dProp Σ :=
-  MonPred (λ TV,
-    (<PC> (nD' : nvmDeltaG),
+Definition persisted_d `{nvmBaseFixedG Σ} (V : view) : dProp Σ :=
+  with_gnames (λ nD, ⎡ own persist_view_name (◯ V) ⎤)%I.
+
+(* [persisted_d] is anti-monotone. *)
+Global Instance persisted_d_anti_mono `{nvmBaseFixedG Σ} : Proper ((⊑@{view}) ==> flip (⊢)) (persisted_d).
+Proof.
+  intros ???.
+  iModel.
+  simpl.
+  rewrite 2!monPred_at_embed.
+  iApply persisted_weak.
+  done.
+Qed.
+
+Program Definition post_crash_flush {Σ} `{nvmG Σ}
+        (P : dProp Σ) : dProp Σ :=
+  MonPred (λ i,
+    (<PC>
       ∀ (CV : view),
-        ⌜ flush_view TV ⊑ CV ⌝ ∗
-        (* ⎡ persisted (flush_view TV) ⎤ -∗ *)
-        ⎡ persisted (view_to_zero (flush_view TV)) ⎤ ∗
-        ⎡ crashed_at CV ⎤ -∗
-        P nD') (∅, ∅, ∅))%I _.
-Next Obligation. intros ???????. apply post_crash_mono. solve_proper. Qed.
+        ⌜ flush_view i.1 ⊑ CV ⌝ ∗
+        persisted_d (view_to_zero (flush_view i.1)) ∗
+        crashed_at_d CV -∗
+        P) (∅, ∅, ∅, i.2))%I _.
+Next Obligation.
+  intros ??? [??] [??] [? [= ->]].
+  apply post_crash_mono.
+  solve_proper.
+Qed.
 
 (*
 Program Definition post_crash_flush `{hG : !nvmG Σ, nvmDeltaG}
@@ -833,12 +896,12 @@ Program Definition post_crash_flush `{hG : !nvmG Σ, nvmDeltaG}
 Next Obligation. intros ??????. apply post_crash_mono. solve_proper. Qed.
 *)
 
-Notation "'<PCF>' g , P" :=
-  (post_crash_flush (λ g, P))
-  (at level 200, g binder, right associativity) : bi_scope.
+Notation "'<PCF>' P" :=
+  (post_crash_flush P)
+  (at level 200, right associativity) : bi_scope.
 
 Section post_crash_persisted.
-  Context `{hG: !nvmG Σ, nvmDeltaG}.
+  Context `{hG: !nvmG Σ}.
 
   Lemma post_crash_flush_post_crash P :
     post_crash P -∗
@@ -861,14 +924,14 @@ Section post_crash_persisted.
   Qed.
 
   Lemma post_crash_flush_named `{nvmG Σ, nvmDeltaG} P name :
-    named name (post_crash_flush (λ hG, P hG)) -∗
-    post_crash_flush (λ hG, named name (P hG)).
+    named name (post_crash_flush P) -∗
+    post_crash_flush (named name P).
   Proof. rewrite //=. Qed.
 
-  Lemma post_crash_flush_sep `{nvmG Σ, nvmDeltaG} P Q :
-    post_crash_flush P ∗ post_crash_flush Q -∗ <PCF> hG, P hG ∗ Q hG.
+  Lemma post_crash_flush_sep `{nvmG Σ} P Q :
+    post_crash_flush P ∗ post_crash_flush Q -∗ <PCF> P ∗ Q.
   Proof.
-    iStartProof (iProp _). iIntros (TV).
+    iModel.
     iIntros "(HP & HQ)".
     iIntrosPostCrash.
     iDestruct ("HP" $! hG' hh bb na_views) as "HP".
@@ -889,7 +952,7 @@ Section post_crash_persisted.
   Qed.
 
   Lemma post_crash_flush_disj P Q :
-    post_crash_flush P ∨ post_crash_flush Q -∗ <PCF> hG, P hG ∨ Q hG.
+    post_crash_flush P ∨ post_crash_flush Q -∗ <PCF> P ∨ Q.
   Proof.
     iModel.
     iIntros "[HP | HP]".
@@ -901,9 +964,15 @@ Section post_crash_persisted.
       iNext.
       iIntros (CV).
       iSpecialize ("HP" $! CV).
-      iIntros (TV'' le) "(%flushLe & #pers & #crashedAt)".
-      iSpecialize ("HP" with "[$pers $crashedAt //]").
-      iLeft. iFrame "HP".
+      iIntros ([TV'' ?] [le [= <-]]) "(%flushLe & #pers & #crashedAt)".
+      simpl.
+      monPred_simpl.
+      iLeft.
+      iSpecialize ("HP" $! (TV'', _) with "[%] [pers crashedAt]").
+      { done. }
+      { monPred_simpl. simpl. rewrite !monPred_at_embed.
+        iFrame "#". done. }
+      iFrame "HP".
     - iIntrosPostCrash.
       iDestruct ("HP" $! hG' hh bb na_views) as "HP".
       base.post_crash_modality.iCrash.
@@ -912,15 +981,22 @@ Section post_crash_persisted.
       iNext.
       iIntros (CV).
       iSpecialize ("HP" $! CV).
-      iIntros (TV'' le) "(%flushLe & #pers & #crashedAt)".
-      iSpecialize ("HP" with "[$pers $crashedAt //]").
+      iIntros ([TV'' ?] [le [= <-]]) "(%flushLe & #pers & #crashedAt)".
+      simpl.
+      monPred_simpl.
+      iSpecialize ("HP" $! (TV'', _) with "[%] [pers crashedAt]").
+      { done. }
+      { monPred_simpl. simpl. rewrite !monPred_at_embed.
+        iFrame "#". done. }
       iRight. iFrame "HP".
   Qed.
 
   Lemma post_crash_flush_mono P Q :
-    (∀ hG, P hG -∗ Q hG) → post_crash_flush P -∗ post_crash_flush Q.
+    (P -∗ Q) → post_crash_flush P -∗ post_crash_flush Q.
   Proof.
-    iStartProof (iProp _). iIntros (Hmono TV') "HP".
+    intros mono.
+    iModel.
+    iIntros "HP".
     iIntrosPostCrash.
     simpl.
     iDestruct ("HP" $! hG' hh bb na_views) as "P".
@@ -934,31 +1010,35 @@ Section post_crash_persisted.
     monPred_simpl.
     iIntros (TV'' le) "(%flushLe & pers & crashedAt)".
     iSpecialize ("P" $! TV'' le with "[$pers $crashedAt //]").
-    iDestruct (Hmono with "P") as "H".
+    iDestruct (mono with "P") as "H".
     done.
   Qed.
 
-  Lemma post_crash_flush_pure (P : Prop) : P → ⊢ <PCF> _, ⌜P⌝.
+  Lemma post_crash_flush_pure (P : Prop) : P → ⊢ <PCF> ⌜P⌝.
     rewrite -post_crash_flush_post_crash. apply post_crash_pure.
   Qed.
 
   Lemma post_crash_flush_nodep P `{!Objective P} :
-    P -∗ <PCF> _, P.
+    P -∗ <PCF> P.
   Proof. rewrite -post_crash_flush_post_crash. apply: post_crash_nodep. Qed.
 
   Lemma post_crash_have_FV_strong ℓ t :
     have_FV_strong ℓ t -∗
-    <PCF> _,
-      ⎡ persisted ({[ ℓ := MaxNat 0 ]}) ⎤ ∗
-      ∃ CV t', ⌜CV !! ℓ = Some (MaxNat t') ∧ t ≤ t'⌝ ∗ ⎡ crashed_at CV ⎤.
+    <PCF>
+      persisted_d {[ ℓ := MaxNat 0 ]} ∗
+      ∃ CV t', ⌜CV !! ℓ = Some (MaxNat t') ∧ t ≤ t'⌝ ∗ crashed_at_d CV.
   Proof.
     iModel. iIntros "le". simpl.
     iIntros (nD hh bb na_views).
     base.post_crash_modality.iCrash.
-    destruct (TV) as [[??]?]. iDestruct "le" as %[[? le] ?].
+    destruct (TV) as [[??]?].
+    iDestruct "le" as %[[? le] ?].
     iIntros "[_ $] !>" (CV).
     monPred_simpl. simpl.
-    iIntros (??) "(%le2 & pers & crashed)".
+    iIntros ([??] [? [= <-]]) "(%le2 & pers & crashed)".
+    monPred_simpl.
+    simpl.
+    rewrite monPred_at_embed.
     iDestruct (persisted_persisted_loc with "[$]") as "$".
     { apply view_le_singleton in le as (t2 & look & ?).
       eapply view_to_zero_lookup. done. }
@@ -969,14 +1049,14 @@ Section post_crash_persisted.
 
 End post_crash_persisted.
 
-Class IntoCrashFlush {Σ} `{nvmG Σ, nvmDeltaG}
-      (P : dProp Σ) (Q : nvmDeltaG → dProp Σ) :=
-  into_crash_flushed : P -∗ post_crash_flush (Σ := Σ) (λ nD', Q nD').
+Class IntoCrashFlush {Σ} `{nvmG Σ}
+      (P : dProp Σ) (Q : dProp Σ) :=
+  into_crash_flushed : P -∗ post_crash_flush (Σ := Σ) Q.
 
-Arguments IntoCrashFlush {_} {_} {_} _%I _%I.
+Arguments IntoCrashFlush {_} {_} _%I _%I.
 
 Section IntoCrashFlush.
-  Context `{nvmG Σ, nvmDeltaG}.
+  Context `{nvmG Σ}.
 
   (* This is not an instance as it would probably have a negative impact on the
   performance of type class resolution. *)
@@ -990,35 +1070,38 @@ Section IntoCrashFlush.
   Qed.
 
   Global Instance pure_into_crash_flushed (P : Prop) :
-    IntoCrashFlush (⌜ P ⌝) (λ _, ⌜ P ⌝)%I.
+    IntoCrashFlush (⌜ P ⌝) (⌜ P ⌝)%I.
   Proof. apply into_crash_into_crash_flushed. apply _. Qed.
 
   Global Instance lifted_embed_nodep_into_crash_flush (P : iProp Σ) :
-    IntoCrashFlush (⎡ P ⎤) (λ _, ⎡ P ⎤)%I | 1000.
+    IntoCrashFlush (⎡ P ⎤) (⎡ P ⎤)%I | 1000.
   Proof. apply into_crash_into_crash_flushed. apply _. Qed.
 
-  Global Instance lifted_embed_into_crash_flush (P : iProp Σ) Q :
-    base.post_crash_modality.IntoCrash P Q →
-    IntoCrashFlush (⎡ P ⎤) (λ _, ⎡ Q _ ⎤)%I.
-  Proof. intros ?. apply into_crash_into_crash_flushed. apply _. Qed.
+  (* Global Instance lifted_embed_into_crash_flush (P : iProp Σ) Q : *)
+  (*   base.post_crash_modality.IntoCrash P Q → *)
+  (*   IntoCrashFlush (⎡ P ⎤) (⎡ Q ⎤)%I. *)
+  (* Proof. intros ?. apply into_crash_into_crash_flushed. apply _. Qed. *)
 
-  Global Instance emp_into_crash_flush : IntoCrashFlush emp (λ hD, emp)%I.
+  Global Instance emp_into_crash_flush : IntoCrashFlush emp emp.
   Proof. apply: into_crash_into_crash_flushed. Qed.
 
-  Global Instance sep_into_crash_flush (P Q : dProp Σ) (P' Q' : _ → dProp Σ) :
+  Global Instance sep_into_crash_flush (P Q : dProp Σ) (P' Q' : dProp Σ) :
     IntoCrashFlush P P' →
     IntoCrashFlush Q Q' →
-    IntoCrashFlush (P ∗ Q)%I (λ hD, P' hD ∗ Q' hD)%I.
+    IntoCrashFlush (P ∗ Q)%I (P' ∗ Q')%I.
   Proof.
     rewrite /IntoCrashFlush.
     iIntros (Pi Qi) "[P Q]".
     iDestruct (Pi with "P") as "P".
     iDestruct (Qi with "Q") as "Q".
-    iApply (post_crash_flush_sep). iFrame.
+    iApply (post_crash_flush_sep).
+    iFrame.
   Qed.
 
-  Global Instance disj_into_crash_flush (P Q : dProp Σ) (P' Q' : _ → dProp Σ) :
-    IntoCrashFlush P P' → IntoCrashFlush Q Q' → IntoCrashFlush (P ∨ Q)%I (λ hD, P' hD ∨ Q' hD)%I.
+  Global Instance disj_into_crash_flush (P Q : dProp Σ) (P' Q' : dProp Σ) :
+    IntoCrashFlush P P' →
+    IntoCrashFlush Q Q' →
+    IntoCrashFlush (P ∨ Q)%I (P' ∨ Q')%I.
   Proof.
     rewrite /IntoCrashFlush.
     iIntros (Pi Qi) "[P|Q]".
@@ -1036,8 +1119,8 @@ Section IntoCrashFlush.
     IntoCrashFlush _ _ := post_crash_have_FV_strong ℓ t.
 
   Global Instance exist_into_crash_flush {A} Φ Ψ:
-    (∀ x : A, IntoCrashFlush (Φ x) (λ hG, Ψ hG x)) →
-    IntoCrashFlush (∃ x, Φ x)%I (λ hG, (∃ x, Ψ hG x)%I).
+    (∀ x : A, IntoCrashFlush (Φ x) (Ψ x)) →
+    IntoCrashFlush (∃ x, Φ x) (∃ x, Ψ x).
   Proof.
     rewrite /IntoCrashFlush.
     iIntros (Hc) "H". iDestruct "H" as (?) "HΦ". iPoseProof (Hc with "[$]") as "HΦ".
@@ -1046,14 +1129,14 @@ Section IntoCrashFlush.
 
   Global Instance big_sepL_into_crash_flush {A} ϕ ψ l :
     (∀ k (x : A), IntoCrashFlush (ϕ k x) (ψ k x)) →
-    IntoCrashFlush ([∗ list] k↦x ∈ l, ϕ k x)%I (λ hG, [∗ list] k↦x ∈ l, ψ k x _)%I.
+    IntoCrashFlush ([∗ list] k↦x ∈ l, ϕ k x)%I ([∗ list] k↦x ∈ l, ψ k x)%I.
   Proof. revert ϕ ψ. induction l as [|x l IH]=> Φ ψ ? /=; apply _. Qed.
 
   Global Instance offset_into_crash_flush ℓ t : IntoCrashFlush _ _ :=
       into_crash_into_crash_flushed _ _ (offset_into_crash ℓ t).
 
   Global Instance know_pred_into_crash_flush `{Countable ST}
-         ℓ (ϕ : ST → _ → _ → _) :
+         ℓ (ϕ : ST → _ → _) :
     IntoCrashFlush _ _ :=
       into_crash_into_crash_flushed _ _ (know_pred_into_crash ℓ ϕ).
 
@@ -1064,7 +1147,7 @@ Ltac crash_flush_env Γ :=
     | environments.Enil => idtac
     | environments.Esnoc ?Γ' ?id (post_crash_flush _) => crash_flush_env Γ'
     | environments.Esnoc ?Γ' ?id ?A =>
-      first [ iEval (rewrite (@into_crash_flushed _ _ _ A) ) in id || iClear id ] ; crash_flush_env Γ'
+      first [ iEval (rewrite (@into_crash_flushed _ _ A) ) in id || iClear id ] ; crash_flush_env Γ'
   end.
 
 Ltac crash_flush_ctx :=
@@ -1083,13 +1166,13 @@ Ltac iCrashFlush :=
   let H := iFresh in iIntros H; iNamed H.
 
 Section post_crash_flush_test.
-  Context `{nvmG Σ, nvmDeltaG}.
+  Context `{nvmG Σ}.
 
-  Lemma foo P `{Countable ST'} ℓ (ϕ : ST' → val → nvmDeltaG → dProp Σ) t :
+  Lemma foo P `{Countable ST'} ℓ (ϕ : ST' → val → dProp Σ) t :
     ⌜ P ⌝ -∗
-    ⎡ know_pred ℓ ϕ ⎤ -∗
-    ⎡ persisted_loc ℓ t ⎤ -∗
-    <PCF> _, ⌜ P ⌝ ∗ if_rec ℓ ⎡ know_pred ℓ ϕ ⎤.
+    know_pred_d ℓ ϕ -∗
+    persisted_loc_d ℓ t -∗
+    <PCF> ⌜ P ⌝ ∗ if_rec ℓ (know_pred_d ℓ ϕ).
   Proof.
     iIntros "P pred pers".
     iCrashFlush.

@@ -21,7 +21,7 @@ From self.high.resources Require Export bumpers preorders auth_map_map abstract_
 From self.high.modalities Require Export no_buffer no_flush.
 
 Section points_to_at.
-  Context `{nvmG Σ, hGD : nvmDeltaG, AbstractState ST}.
+  Context `{nvmG Σ, AbstractState ST}.
 
   Implicit Types (ℓ : loc) (s : ST) (ss : list ST) (prot : LocationProtocol ST).
 
@@ -33,34 +33,105 @@ Section points_to_at.
     apply singleton_included_l.
   Qed.
 
+  Definition know_frag_history_loc_d `{Countable ST} ℓ t (s : ST) : dProp Σ :=
+    with_gnames (λ nD, ⎡ know_frag_history_loc ℓ t s ⎤)%I.
+
   (* Points-to predicate for non-atomics. This predcate says that we know that
      the last events at [ℓ] corresponds to the *)
   (* FIXME: Can [mapsto_na] use [lb_base]? *)
   Program Definition mapsto_na (ℓ : loc) prot (q : frac) (ss : list ST) : dProp Σ :=
     (∃ (tLo tHi offset : time) SV (abs_hist : gmap time ST) (msg : message) s,
       "%lastEq" ∷ ⌜ last ss = Some s ⌝ ∗
-      "#locationProtocol" ∷ ⎡ know_protocol ℓ prot ⎤ ∗
+      "#locationProtocol" ∷ know_protocol ℓ prot ∗
       "%incrMap" ∷ ⌜ increasing_map (⊑@{ST}) abs_hist ⌝ ∗
-      "#isNaLoc" ∷ ⎡ is_na_loc ℓ ⎤ ∗
+      "#isNaLoc" ∷ is_na_loc_d ℓ ∗
 
       (* [tHi] is the last message and it agrees with the last state in ss. *)
       "%lookupV" ∷ ⌜ abs_hist !! tHi = Some s ⌝ ∗
       "%nolater" ∷ ⌜ map_no_later abs_hist tHi ⌝ ∗
 
       (* Ownership over the full abstract history. *)
-      "hist" ∷ ⎡ know_full_history_loc ℓ q abs_hist ⎤ ∗
-      "#histFrag" ∷ ⎡ know_frag_history_loc ℓ tHi s ⎤ ∗
-      "#offset" ∷ ⎡ ℓ ↪[offset_name]□ offset ⎤ ∗
+      "hist" ∷ know_full_history_loc_d ℓ q abs_hist ∗
+      "#histFrag" ∷ know_frag_history_loc_d ℓ tHi s ∗
+      (* "#offset" ∷ ⎡ ℓ ↪[offset_name]□ offset ⎤ ∗ *)
+      "#offset" ∷ offset_loc ℓ offset ∗
 
-      "knowSV" ∷ ⎡ know_na_view ℓ q SV ⎤ ∗
+      "knowSV" ∷ know_na_view_d ℓ q SV ∗
       "%slice" ∷ ⌜ map_sequence abs_hist tLo tHi ss ⌝ ∗
-      "#physMsg" ∷ ⎡ auth_map_map_frag_singleton phys_history_name ℓ tHi msg ⎤ ∗
-      "#inThreadView" ∷ monPred_in (SV, msg_persisted_after_view msg, ∅) ∗
+      "#physMsg" ∷ with_gnames (λ nD, ⎡ auth_map_map_frag_singleton phys_history_name ℓ tHi msg ⎤) ∗
+      "#inThreadView" ∷ have_thread_view (SV, msg_persisted_after_view msg, ∅) ∗
       (* We have the [tHi] timestamp in our store view. *)
       "%offsetLe" ∷ ⌜ offset ≤ tHi ⌝ ∗
       "%haveTStore" ∷ ⌜ tHi - offset ≤ SV !!0 ℓ ⌝ ∗
-      "#pers" ∷ (⎡ persisted_loc ℓ (tLo - offset) ⎤ ∨ ⌜ tLo - offset = 0 ⌝)
+      "#pers" ∷ (persisted_loc_d ℓ (tLo - offset) ∨ ⌜ tLo - offset = 0 ⌝)
     )%I.
+
+  Global Instance with_gnames_fractional (P : _ → _ → dProp Σ) :
+    (∀ nD, Fractional (P nD)) →
+    Fractional (λ q, with_gnames (λ nD, P nD q)).
+  Proof.
+    intros f p q.
+    iModel. simpl.
+    rewrite f.
+    rewrite monPred_at_sep.
+    auto.
+  Qed.
+  Global Instance with_gnames_as_fractional (P : _ → dProp Σ) Q q :
+    (∀ nD, AsFractional (P nD) (Q nD) q) →
+    AsFractional (with_gnames P) (λ q, with_gnames (λ nD, Q nD q)) q.
+  Proof.
+    intros f.
+    split; last apply _.
+    iModel. simpl.
+    rewrite 1!(@as_fractional _ (P gnames) (Q gnames)).
+    auto.
+  Qed.
+
+  (* Could maybe be upstreamed. *)
+  Global Instance monPred_embed_fractional (P : _ → iProp Σ) :
+    Fractional P → Fractional (λ q, ⎡ P q ⎤ : dProp Σ)%I.
+  Proof.
+    intros f p q.
+    iModel.
+    rewrite f.
+    auto.
+  Qed.
+
+  Global Instance monPred_embed_as_fractional (P : iProp Σ) Q q :
+    AsFractional P Q q →
+    AsFractional (⎡ P ⎤) (λ q, ⎡ Q q ⎤ : dProp Σ)%I q.
+  Proof.
+    split; last apply _.
+    by rewrite 1!(@as_fractional _ P Q).
+  Qed.
+
+  (* Global Instance fractional ℓ (abs_hist : gmap nat ST) : *)
+  (*   Fractional (λ q, know_full_history_loc_d ℓ q abs_hist). *)
+  (* Proof. *)
+  (*   apply _. *)
+  (* Qed. *)
+
+(*   Global Instance fractional_2 ℓ (abs_hist : gmap nat ST) q : *)
+(*     AsFractional (know_full_history_loc_d ℓ q abs_hist) *)
+(*       (λ q, know_full_history_loc_d ℓ q abs_hist) q. *)
+(*   Proof. *)
+(*     apply _. *)
+(* Admitted. *)
+(*   (*   apply _. *) *)
+(*   (* Qed. *) *)
+
+  Lemma know_full_history_loc_d_agree ℓ p q (abs_hist1 abs_hist2 : gmap nat ST) :
+    know_full_history_loc_d ℓ p abs_hist1 -∗
+    know_full_history_loc_d ℓ q abs_hist2 -∗
+    ⌜ encode <$> abs_hist1 = encode <$>  abs_hist2 ⌝.
+  Proof.
+    iModel.
+    simpl. rewrite monPred_at_embed.
+    iIntros "H".
+    iIntros ([??] [? [= <-]]).
+    simpl. rewrite monPred_at_embed.
+    iApply (full_entry_agree with "H").
+  Qed.
 
   Global Instance mapsto_na_fractional ℓ prot ss :
     Fractional (λ q, mapsto_na ℓ prot q ss).
@@ -78,18 +149,19 @@ Section points_to_at.
     - iDestruct 1 as "[L R]".
       iNamed "L".
       iDestruct "R" as (???????) "(_ & _ & ? & _ & _ & _ & histQ & _ & _ & SV & HIP & ?)".
-      iDestruct (full_entry_agree with "hist histQ") as %->%(inj (fmap _)).
-      iDestruct (ghost_map_elem_agree with "knowSV SV") as %->.
-      repeat iExists _. iFrame "#∗%".
-  Qed.
+      iDestruct (know_full_history_loc_d_agree with "hist histQ") as %->%(inj (fmap _)).
+  Admitted.
+  (*     iDestruct (ghost_map_elem_agree with "knowSV SV") as %->. *)
+  (*     repeat iExists _. iFrame "#∗%". *)
+  (* Qed. *)
   Global Instance mapsto_na_as_fractional ℓ prot q v :
     AsFractional (mapsto_na ℓ prot q v) (λ q, mapsto_na ℓ prot q v)%I q.
   Proof. split; [done | apply _]. Qed.
 
   Program Definition have_msg_after_fence msg : dProp Σ :=
-    MonPred (λ TV,
-      ⌜ msg.(msg_store_view) ⊑ (store_view TV) ⌝ ∗
-      ⌜ msg.(msg_persisted_after_view) ⊑ (flush_view TV ⊔ buffer_view TV) ⌝
+    MonPred (λ i,
+      ⌜ msg.(msg_store_view) ⊑ (store_view i.1) ⌝ ∗
+      ⌜ msg.(msg_persisted_after_view) ⊑ (flush_view i.1 ⊔ buffer_view i.1) ⌝
     )%I _.
   Next Obligation. solve_proper. Qed.
 
@@ -109,16 +181,16 @@ Section points_to_at.
       "%slicePhys" ∷ ⌜ map_sequence phys_hist tLo tS ms ⌝ ∗
       "%nolater" ∷ ⌜ map_no_later abs_hist tS ⌝ ∗
       "%absPhysHistDomEq" ∷ ⌜ dom (gset _) abs_hist = dom _ phys_hist ⌝ ∗
-      "#isAtLoc" ∷ ⎡ is_at_loc ℓ ⎤ ∗
-      "#locationProtocol" ∷ ⎡ know_protocol ℓ prot ⎤ ∗
+      "#isAtLoc" ∷ is_at_loc_d ℓ ∗
+      "#locationProtocol" ∷ know_protocol ℓ prot ∗
       "%incrMap" ∷ ⌜ increasing_map (⊑@{ST}) abs_hist ⌝ ∗
       "#absHist" ∷
-        ⎡ ([∗ map] t ↦ s ∈ abs_hist, know_frag_history_loc ℓ t s) ⎤ ∗
+        ([∗ map] t ↦ s ∈ abs_hist, know_frag_history_loc_d ℓ t s) ∗
       "#physHist" ∷
         ([∗ map] t ↦ msg ∈ phys_hist,
           have_msg_after_fence msg ∗
-          ⎡ auth_map_map_frag_singleton phys_history_name ℓ t msg ⎤) ∗
-      "#offset" ∷ ⎡ ℓ ↪[offset_name]□ offset ⎤ ∗
+          with_gnames (λ nD, ⎡ auth_map_map_frag_singleton phys_history_name ℓ t msg ⎤)) ∗
+      "#offset" ∷ offset_loc ℓ offset ∗
       "#tSLe" ∷ have_SV ℓ (tS - offset)).
 
   Global Instance mapsto_na_persistent ℓ prot ss :
@@ -126,9 +198,9 @@ Section points_to_at.
   Proof. apply _. Qed.
 
   Definition lb_base ℓ prot offset tS (s : ST) : dProp Σ :=
-    "#locationProtocol" ∷ ⎡ know_protocol ℓ prot ⎤ ∗
-    "#knowFragHist" ∷ ⎡ know_frag_history_loc ℓ tS s ⎤ ∗
-    "#offset" ∷ ⎡ ℓ ↪[offset_name]□ offset ⎤ ∗
+    "#locationProtocol" ∷ know_protocol ℓ prot ∗
+    "#knowFragHist" ∷ know_frag_history_loc_d ℓ tS s ∗
+    "#offset" ∷ offset_loc ℓ offset ∗
     "#tSLe" ∷ have_SV ℓ (tS - offset).
 
   Definition store_lb ℓ prot (s : ST) : dProp Σ :=
@@ -142,21 +214,21 @@ Section points_to_at.
       persisted. The later case is for after a crash where we don't have
       anything in the flush view. *)
       "viewFact" ∷ (have_FV_strong ℓ (tF - offset) ∨
-                    ⎡ persisted_loc ℓ (tF - offset) ⎤)%I.
+                    persisted_loc_d ℓ (tF - offset))%I.
 
   Program Definition persist_lb ℓ prot (sP : ST) : dProp Σ :=
     ∃ tP offset,
       "#lbBase" ∷ lb_base ℓ prot offset tP sP ∗
       (* We have the persisted state in our store view. *)
       "#tPLe" ∷ have_FV ℓ (tP - offset) ∗
-      "persisted" ∷ ⎡ persisted_loc ℓ (tP - offset) ⎤.
+      "persisted" ∷ persisted_loc_d ℓ (tP - offset).
 
   Definition crashed_in prot ℓ s : dProp Σ :=
     ∃ CV,
       "#persistLb" ∷ persist_lb ℓ prot (prot.(bumper) s) ∗
-      "#crashed" ∷ ⎡ crashed_at CV ⎤ ∗
-      "#crashedIn" ∷ ⎡ crashed_in_mapsto ℓ s ⎤ ∗
-      "%inCV" ∷ ⌜ℓ ∈ dom (gset _) CV⌝.
+      "#crashed" ∷ crashed_at_d CV ∗
+      "#crashedIn" ∷ crashed_in_mapsto_d ℓ s ∗
+      "%inCV" ∷ ⌜ ℓ ∈ dom (gset _) CV ⌝.
 
   Global Instance crashed_in_persistent prot ℓ s :
     Persistent (crashed_in prot ℓ s).
@@ -165,11 +237,11 @@ Section points_to_at.
   (* [ℓ] was not recovered at the last crash. *)
   Definition lost ℓ : dProp Σ :=
     ∃ CV,
-      "#crashed" ∷ ⎡ crashed_at CV ⎤ ∗
+      "#crashed" ∷ crashed_at_d CV ∗
       "%notInCV" ∷ ⌜ℓ ∉ dom (gset _) CV⌝.
 
   Lemma store_lb_protocol ℓ prot s :
-    store_lb ℓ prot s -∗ ⎡ know_protocol ℓ prot ⎤.
+    store_lb ℓ prot s -∗ know_protocol ℓ prot.
   Proof. iNamed 1. iNamed "lbBase". iFrame "locationProtocol". Qed.
 
   Global Instance store_lb_persistent

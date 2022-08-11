@@ -11,12 +11,14 @@ From self.base Require Import primitive_laws.
 From self.high Require Import dprop resources.
 
 Program Definition post_fence {Σ} (P : dProp Σ) : dProp Σ :=
-  MonPred (λ TV, P (store_view TV,
-                    (flush_view TV ⊔ buffer_view TV),
-                    buffer_view TV)) _.
+  MonPred (λ i, P ((store_view (i.1),
+                     (flush_view i.1 ⊔ buffer_view i.1),
+                     buffer_view i.1), i.2)) _.
   (* MonPred (λ '(s, p, b), P (s, (p ⊔ b), ∅)) _. *)
 Next Obligation.
-  intros Σ P. intros [[??]?] [[??]?] [[??]?]. simpl.
+  intros Σ P.
+  do 2 intros [[[??]?]?].
+  intros [[[??]?] [= ->]].
   assert (g0 ⊔ g1 ⊑ g3 ⊔ g4). { solve_proper. }
   apply monPred_mono.
   rewrite !subseteq_prod'.
@@ -28,15 +30,18 @@ Notation "'<fence>' P" :=
 
 Program Definition post_fence_sync `{nvmBaseFixedG Σ, nvmBaseDeltaG}
         (P : dProp Σ) : dProp Σ :=
-  MonPred (λ TV,
+  MonPred (λ i,
     bi_wand
-      (persisted (buffer_view TV))
-      (P (store_view TV,
-          (flush_view TV ⊔ buffer_view TV),
-           buffer_view TV))
+      (persisted (buffer_view i.1))
+      (P ((store_view i.1,
+          (flush_view i.1 ⊔ buffer_view i.1),
+           buffer_view i.1), i.2))
   ) _.
 Next Obligation.
-  intros Σ ?? P. intros [[??]?] [[??]?] [[??]?]. simpl.
+  intros Σ ?? P.
+  do 2 intros [[[??]?]?].
+  intros [[[??]?] [= ->]].
+  simpl.
   assert (g0 ⊔ g1 ⊑ g3 ⊔ g4). { solve_proper. }
   iIntros "pers P".
   iApply monPred_mono; last iApply "pers".
@@ -49,9 +54,11 @@ Notation "'<fence_sync>' P" :=
   (post_fence_sync P) (at level 20, right associativity) : bi_scope.
 
 Program Definition no_buffer `{Σ : gFunctors} (P : dProp Σ) : dProp Σ :=
-  MonPred (λ TV, P (store_view TV, flush_view TV, ∅)) _.
+  MonPred (λ i, P (store_view i.1, flush_view i.1, ∅, i.2)) _.
 Next Obligation.
-  intros Σ P. intros [[??]?] [[??]?] [[??]?]. simpl.
+  intros Σ P.
+  do 2 intros [[[??]?]?]. intros [[[??]?] [= ->]].
+  simpl.
   apply monPred_mono.
   rewrite !subseteq_prod'.
   done.
@@ -61,9 +68,10 @@ Notation "'<nobuf>' P" :=
   (no_buffer P) (at level 20, right associativity) : bi_scope.
 
 Program Definition no_flush `{Σ : gFunctors} (P : dProp Σ) : dProp Σ :=
-  MonPred (λ TV, P (store_view TV, ∅, ∅)) _.
+  MonPred (λ i, P (store_view i.1, ∅, ∅, i.2)) _.
 Next Obligation.
-  intros Σ P. intros [[??]?] [[??]?] [[??]?]. simpl.
+  intros Σ P.
+  do 2 intros [[[??]?]?]. intros [[[??]?] [= ->]].
   apply monPred_mono.
   rewrite !subseteq_prod'.
   done.

@@ -34,15 +34,15 @@ Global Arguments NC_name {_ _} _ _%Qp.
  crash weakest precondition following the same pattern that is used in Perennial
  to define Perennial's wpr on top of Perennial's wpc. *)
 Definition wpr_pre `{nvmG Σ} (s : stuckness)
-    (wpr : nvmDeltaG -d> coPset -d> expr -d> expr -d> (val -d> dPropO Σ) -d>
-                     (nvmDeltaG -d> val -d> dPropO Σ) -d> dPropO Σ) :
-  nvmDeltaG -d> coPset -d> expr -d> expr -d> (val -d> dPropO Σ) -d>
-  (nvmDeltaG -d> val -d> dPropO Σ) -d> dPropO Σ :=
-  λ hGD E e e_rec Φ Φr,
+    (wpr : coPset -d> expr -d> expr -d> (val -d> dPropO Σ) -d>
+                     (val -d> dPropO Σ) -d> dPropO Σ) :
+  coPset -d> expr -d> expr -d> (val -d> dPropO Σ) -d>
+  (val -d> dPropO Σ) -d> dPropO Σ :=
+  λ E e e_rec Φ Φr,
   (WPC e @ s ; E
     {{ Φ }}
     {{ ∀ σ mj D σ' (HC : crash_prim_step nvm_crash_lang σ σ') ns n, (* The [n] here actually doesn't matter. *)
-      ⎡ (* interp -∗ *)
+      with_gnames (λ _, ⎡ (* interp -∗ *)
         state_interp σ n -∗
         global_state_interp (Λ := nvm_lang) () ns mj D [] -∗
         ∀ (γcrash : gname) q,
@@ -54,15 +54,31 @@ Definition wpr_pre `{nvmG Σ} (s : stuckness)
           ▷ state_interp σ' 0 ∗
           global_state_interp (Λ := nvm_lang) () (step_count_next ns) mj D [] ∗
           validV ∅ ∗
-          ▷ (monPred_at (wpr hD' E e_rec e_rec (λ v, Φr hD' v) Φr) (∅, ∅, ∅)) ∗
-          NC q ⎤
+          ▷ (monPred_at (wpr E e_rec e_rec (λ v, Φr v) Φr) (∅, ∅, ∅, hD')) ∗
+          NC q ⎤)
     }})%I.
+
+Global Instance with_gnames_ne `{nvmG Σ} n :
+  Proper (((=) ==> dist n) ==> dist n) (with_gnames (Σ := Σ)).
+Proof.
+  rewrite /with_gnames.
+  intros ?? eq.
+  split.
+  intros [??].
+  simpl.
+  f_equiv.
+  apply eq.
+  done.
+Qed.
 
 Local Instance wpr_pre_contractive `{nvmG Σ} s : Contractive (wpr_pre s).
 Proof.
-  rewrite /wpr_pre. intros ??? Hwp ??????.
-  apply wpc_ne; eauto;
-  repeat (f_contractive || f_equiv). apply Hwp.
+  rewrite /wpr_pre. intros ??? Hwp ?????.
+  apply wpc_ne; eauto; first done.
+  repeat f_equiv.
+  intros ?? ->.
+  repeat (f_contractive || f_equiv).
+  apply Hwp.
 Qed.
 
 Definition wpr_def `{nvmG Σ} (s : stuckness) := fixpoint (wpr_pre s).
@@ -72,8 +88,8 @@ Definition wpr_eq `{nvmG Σ} : wpr' = @wpr_def _ := wpr_aux.(seal_eq).
 (* Lemma wpr_eq `{nvmG Σ} : @wpr' Σ = @wpr_def Σ. *)
 (* Proof. rewrite /wpr'. rewrite wpr_aux.(seal_eq). done. Qed. *)
 
-Lemma wpr_unfold `{nvmG Σ, hGD : nvmDeltaG} st E e rec Φ Φc :
-  wpr' _ st hGD E e rec Φ Φc ⊣⊢ wpr_pre st (wpr' _ st) hGD E e rec Φ Φc.
+Lemma wpr_unfold `{nvmG Σ} st E e rec Φ Φc :
+  wpr' _ st E e rec Φ Φc ⊣⊢ wpr_pre st (wpr' _ st) E e rec Φ Φc.
 Proof.
   rewrite wpr_eq. rewrite /wpr_def.
   apply (fixpoint_unfold (wpr_pre st)).
@@ -114,20 +130,22 @@ Proof.
   iFrame.
 Qed.
 
-Definition wpr `{nvmG Σ, nvmDeltaG} s := wpr' _ s _.
+Definition wpr `{nvmG Σ} s := wpr' _ s.
 
-Lemma wpr_mono `{nvmG Σ, nvmDeltaG} s E e rec Φ Ψ Φr Ψr :
+Lemma wpr_mono `{nvmG Σ} s E e rec Φ Ψ Φr Ψr :
   wpr s E e rec Φ Φr -∗
-      ((∀ v, Φ v ==∗ Ψ v) ∧ <obj> (∀ nD v, Φr nD v ==∗ Ψr nD v)) -∗
+      ((∀ v, Φ v ==∗ Ψ v) ∧ <obj> (∀ v, Φr v ==∗ Ψr v)) -∗
   wpr s E e rec Ψ Ψr.
 Proof.
-  iStartProof (iProp _).
-  iLöb as "IH" forall (H0 e E Φ Ψ Φr Ψr).
-  iIntros (?).
-  iIntros "H" (??).
+  iModel.
+  iLöb as "IH" forall (gnames e E Φ Ψ Φr Ψr).
+  iIntros "H" ([TV1 ?] incl).
   iIntros "HΦ".
   rewrite /wpr !wpr_unfold /wpr_pre.
   iApply (wpc_strong_mono' with "H"); auto.
+  { admit. } (* Fix with new notion of objective. *)
+  { admit. }
+  destruct incl as [? [= <-]].
   iSplit.
   { iDestruct "HΦ" as "(H & _)".
     iIntros (v ? le) "Hi".
@@ -135,24 +153,35 @@ Proof.
     monPred_simpl.
     iMod ("H" $! _ le with "Hi").
     done. }
-  iIntros (??) "H".
+  iIntros ([??] [? [= <-]]) "H".
   iModIntro.
-  iIntros (???????) "Hσ Hg".
+  iIntros (???????).
+  simpl.
+  rewrite monPred_at_embed.
+  iIntros "Hσ Hg".
   iIntros (??) "NC".
-  iMod ("H" with "[//] Hσ Hg NC") as "H".
+  setoid_rewrite monPred_at_embed.
+  iSpecialize ("H" with "[//]").
+  iMod ("H" $! _ _ with "Hσ Hg NC") as "H".
   iModIntro.
   iDestruct "H" as (nD') "(HNC & ? & ? & ? & H & ?)".
   iExists nD'. iFrame.
   iNext.
-  iApply ("IH" with "[H] [HΦ]").
-  { iApply monPred_mono; last iApply "H". solve_view_le. }
+  iSpecialize ("IH" with "[H] [HΦ]").
+  { iApply monPred_mono; last iApply "H".
+    split; last done.
+    solve_view_le. }
   iDestruct "HΦ" as "[_ HΦ]".
   rewrite monPred_at_objectively.
   iSplit.
-  - iApply ("HΦ" $! (∅, ∅, ∅) _).
+  - iIntros (v).
+    iSpecialize ("HΦ" $! (∅, ∅, ∅, nD') v).
+    iApply monPred_mono; last iApply "HΦ".
+    split; last done.
+    solve_view_le.
   - rewrite monPred_at_objectively.
     iApply "HΦ".
-Qed.
+Admitted.
 
 Lemma view_to_zero_lookup V ℓ x :
   V !! ℓ = Some x → (view_to_zero V) !! ℓ = Some (MaxNat 0).
@@ -418,13 +447,13 @@ Section wpr.
   Lemma nvm_reinit (hGD : nvmDeltaG) n P TV σ σ' (Hinv : invGS Σ) γcrash :
     crash_step σ σ' →
     ⊢ state_interp σ n -∗
-      ((post_crash P) TV) ==∗
+      ((post_crash P) (TV, hGD)) ==∗
       ∃ (hD' : nvmDeltaG),
         ⌜ γcrash = get_crash_name hD' ⌝ ∗
         validV ∅ ∗
-        ▷ interp (hGD := hD') ∗
+        ▷ interp (nD := hD') ∗
         nvm_heap_ctx (hG := _) σ' ∗
-        ▷ P hD' (∅, ∅, ∅).
+        ▷ P (∅, ∅, ∅, hD').
   Proof.
     iIntros ([store PV CV pIncl cut]).
     iIntros "[H1 H2] P".
@@ -645,6 +674,7 @@ Section wpr.
 
     iFrame "baseInterp".
     rewrite /nvm_heap_ctx. rewrite /post_crash.
+    simpl.
     iDestruct ("P" $! _ (restrict na_locs abs_hists) bumpers na_views (store, _) _
                 with "persImpl baseMap") as "(baseMap & P)".
     iDestruct
@@ -1205,6 +1235,7 @@ Section wpr.
       iSplit. { rewrite eq2. done. }
       iNext.
       iApply "H".
+      simpl.
       iFrame "newCrashedAt".
       iDestruct (big_sepM2_lookup with "oldViewsDiscarded") as %disc; [done|done|].
       assert (msg_persisted_after_view msg ⊑ CV).
@@ -1269,56 +1300,58 @@ Section wpr.
       eapply map_Forall_lookup_1 in bumperBumpToValid as [spa equi]; last done; first done.
       rewrite equi.
       done. }
-  Qed.
+  Admitted.
+  (* Qed. *)
 
   (* _The_ lemma for showing a recovery weakest precondition. *)
-  Lemma idempotence_wpr `{hGD : nvmDeltaG} s E1 e rec Φ Φr Φc `{∀ hG, Objective (Φc hG)} :
-    ⊢ WPC e @ s ; E1 {{ Φ }} {{ Φc _ }} -∗
-      (<obj> □ ∀ (hG' : nvmDeltaG),
-            Φc hG' -∗ post_crash (λ hG', (WPC rec @ s ; E1 {{ Φr hG' }} {{ Φc hG' }}))) -∗
+  Lemma idempotence_wpr s E1 e rec Φ Φr (Φc : dProp Σ) `{!Objective Φc} :
+    ⊢ WPC e @ s ; E1 {{ Φ }} {{ Φc }} -∗
+      (<obj> □
+            Φc -∗ post_crash (WPC rec @ s ; E1 {{ Φr }} {{ Φc }})) -∗
       wpr s E1 e rec Φ Φr.
   Proof.
-    iStartProof (iProp _).
-    iLöb as "IH" forall (e Φ hGD).
+    iModel.
+    iLöb as "IH" forall (e Φ gnames).
 
-    iIntros (?). monPred_simpl.
+    monPred_simpl.
     iIntros "wpc".
     iIntros (? ?).
-    iIntros "#Hidemp".
-    rewrite /wpr.
-    rewrite wpr_unfold.
-    rewrite /wpr_pre.
-    iApply (wpc_strong_mono' with  "wpc"); try reflexivity.
-    iSplit. { iIntros (?). monPred_simpl. setoid_rewrite monPred_at_fupd. auto. }
-    monPred_simpl.
-    iIntros (??).
-    iIntros "phiC".
-    iModIntro.
-    iIntros (???? step ns ?).
-    iDestruct ("Hidemp" with "phiC") as "idemp'".
-    iIntros "state global".
-    iIntros (γcrash ?) "NC".
-    (* Allocate the new ghost state. *)
-    iMod (nvm_reinit _ _ _ _ _ _ _ γcrash with "state idemp'")
-      as (names) "(%crEq & val & stateInterp & HIHI & idemp)".
-    { apply step. }
-    iDestruct "global" as "($ & Hc & $ & $)".
-    assert (exists k, ns + k = step_count_next ns) as [k' eq].
-    { simpl. eexists _. rewrite -assoc. reflexivity. }
-    iMod (cred_frag.cred_interp_incr_k _ k' with "Hc") as "(Hc & _)".
-    rewrite eq.
+  Admitted.
+  (*   iIntros "#Hidemp". *)
+  (*   rewrite /wpr. *)
+  (*   rewrite wpr_unfold. *)
+  (*   rewrite /wpr_pre. *)
+  (*   iApply (wpc_strong_mono' with  "wpc"); try reflexivity. *)
+  (*   iSplit. { iIntros (?). monPred_simpl. setoid_rewrite monPred_at_fupd. auto. } *)
+  (*   monPred_simpl. *)
+  (*   iIntros (??). *)
+  (*   iIntros "phiC". *)
+  (*   iModIntro. *)
+  (*   iIntros (???? step ns ?). *)
+  (*   iDestruct ("Hidemp" with "phiC") as "idemp'". *)
+  (*   iIntros "state global". *)
+  (*   iIntros (γcrash ?) "NC". *)
+  (*   (* Allocate the new ghost state. *) *)
+  (*   iMod (nvm_reinit _ _ _ _ _ _ _ γcrash with "state idemp'") *)
+  (*     as (names) "(%crEq & val & stateInterp & HIHI & idemp)". *)
+  (*   { apply step. } *)
+  (*   iDestruct "global" as "($ & Hc & $ & $)". *)
+  (*   assert (exists k, ns + k = step_count_next ns) as [k' eq]. *)
+  (*   { simpl. eexists _. rewrite -assoc. reflexivity. } *)
+  (*   iMod (cred_frag.cred_interp_incr_k _ k' with "Hc") as "(Hc & _)". *)
+  (*   rewrite eq. *)
 
-    iModIntro (|={E1}=> _)%I.
-    iExists names.
-    iSplit; first done.
-    simpl.
-    rewrite /get_crash_name in crEq. rewrite -crEq.
-    iFrame "NC".
-    iFrame.
-    monPred_simpl.
-    iSpecialize ("IH" $! _ _ names (∅, ∅, ∅) with "idemp [Hidemp]").
-    { monPred_simpl. done. }
-    iApply "IH".
-  Qed.
+  (*   iModIntro (|={E1}=> _)%I. *)
+  (*   iExists names. *)
+  (*   iSplit; first done. *)
+  (*   simpl. *)
+  (*   rewrite /get_crash_name in crEq. rewrite -crEq. *)
+  (*   iFrame "NC". *)
+  (*   iFrame. *)
+  (*   monPred_simpl. *)
+  (*   iSpecialize ("IH" $! _ _ names (∅, ∅, ∅) with "idemp [Hidemp]"). *)
+  (*   { monPred_simpl. done. } *)
+  (*   iApply "IH". *)
+  (* Qed. *)
 
 End wpr.

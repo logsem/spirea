@@ -20,7 +20,7 @@ Definition viewΣ : gFunctors := #[ GFunctor (authRF viewUR) ].
 
 (* The functors that are unchanged after a crash. *)
 Class nvmBaseFixedG Σ := {
-  nvmBaseG_invGS : invGS Σ;                            (* For invariants. *)
+  nvmBaseG_invGS :> invGS Σ;                           (* For invariants. *)
   nvmBaseG_gen_heapGS :> gen_heapGpreS loc history Σ;  (* For the heap. *)
   nvmBaseG_crashGS :> crashGpreS Σ;
   view_inG :> inG Σ (authR viewUR);                    (* For views. *)

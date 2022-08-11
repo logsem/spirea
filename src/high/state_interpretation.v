@@ -5,7 +5,7 @@ From iris_named_props Require Import named_props.
 From self Require Import extra view_slice.
 From self.algebra Require Import ghost_map ghost_map_map.
 From self.base Require Import primitive_laws.
-From self.high Require Export dprop resources post_crash_modality increasing_map.
+From self.high Require Export dprop resources post_crash_modality increasing_map predicates.
 
 (* Convert a message to a thread_view corresponding to what is stored in the
 message. *)
@@ -60,13 +60,13 @@ Definition shared_locs_inv (locs : gmap loc (gmap time message)) :=
   map_map_Forall atomic_loc_inv locs.
 
 Section state_interpretation.
-  Context `{nvmG Σ, hGD : nvmDeltaG}.
+  Context `{nvmG Σ, nD : nvmDeltaG}.
 
   Implicit Types (TV : thread_view).
 
   Definition pred_post_crash_implication {ST}
-             (ϕ : ST → val → _ → dProp Σ) bumper : dProp Σ :=
-    □ ∀ (hD : nvmDeltaG) s v, ϕ s v hD -∗ <PCF> hD', ϕ (bumper s) v hD'.
+             (ϕ : ST → val → dProp Σ) bumper : dProp Σ :=
+    □ ∀ s v, ϕ s v -∗ <PCF> ϕ (bumper s) v.
 
   (** This is our analog to the state interpretation in the Iris weakest
   precondition. We keep this in our crash weakest precondition ensuring that it
@@ -141,7 +141,7 @@ Section state_interpretation.
                  pred
                  encS
                  msg.(msg_val)
-                 ((default msg.(msg_store_view) (na_views !! ℓ)), msg.(msg_persisted_after_view), ∅))) ∗
+                 ((default msg.(msg_store_view) (na_views !! ℓ)), msg.(msg_persisted_after_view), ∅, nD))) ∗
 
       (** * Bump-back function *)
       (* We know about all the bumpers. *)
@@ -152,9 +152,9 @@ Section state_interpretation.
                          ⌜order e1 e2⌝ → ⌜order e1' e2'⌝) ∗
       (* The predicate holds after a crash for the bumped state. *)
       "#predPostCrash" ∷ ([∗ map] ℓ ↦ pred; bump ∈ predicates; bumpers,
-        □ (∀ (e : positive) (v : val) (hG : nvmDeltaG) TV (P : nvmDeltaG -d> dPropO Σ) e',
-          ⌜bump e = Some e'⌝ ∗ pred e v ≡ Some P ∗ P hG TV -∗
-          ∃ P', ⌜pred e' v = Some P'⌝ ∗ ((post_crash_flush P') TV))) ∗
+        □ (∀ (e : positive) (v : val) (hG : nvmDeltaG) TV (P : dPropO Σ) e',
+          ⌜bump e = Some e'⌝ ∗ pred e v ≡ Some P ∗ P (TV, hG) -∗
+          ∃ P', ⌜pred e' v = Some P'⌝ ∗ ((post_crash_flush P') (TV, hG)))) ∗
       (* Bumpers map valid input to valid output. *)
       "%bumperBumpToValid" ∷
         ⌜ map_Forall

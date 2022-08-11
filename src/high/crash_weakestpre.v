@@ -11,22 +11,23 @@ From self.high Require Export dprop resources lifted_modalities monpred_simpl
      post_crash_modality increasing_map state_interpretation wpc_notation.
 
 Section wpc.
-  Context `{nvmG Σ, hGD : nvmDeltaG}.
+  Context `{nvmG Σ}.
 
   Implicit Types (TV : thread_view).
 
   Program Definition wpc_def s E e (Φ : val → dProp Σ) (Φc : dProp Σ) : dProp Σ :=
     (* monPred_objectively Φc ∗ *)
-    MonPred (λ V,
+    MonPred (λ i,
+      let nD := i.2 in
       ∀ TV,
-        ⌜V ⊑ TV⌝ -∗
+        ⌜ i.1 ⊑ TV ⌝ -∗
         validV (store_view TV) -∗
         crash_weakestpre.wpc s E (ThreadState e TV) (λ res,
           (let '(ThreadVal v TV') := res return _ in
             ⌜TV ⊑ TV'⌝ ∗ (* The operational semantics always grow the thread
             view, encoding this in the WPC is convenient. *)
-            validV (store_view TV') ∗ Φ v TV')
-        ) (* interp ∗ *) (Φc ⊥)
+            validV (store_view TV') ∗ Φ v (TV', nD))
+        ) (* interp ∗ *) (Φc (⊥, nD))
         (* WPC (ThreadState e TV) @ s; E {{ λ res, *)
         (*   (let '(ThreadVal v TV') := res return _ in *)
         (*     ⌜TV ⊑ TV'⌝ ∗ (* The operational semantics always grow the thread *)
@@ -34,7 +35,9 @@ Section wpc.
         (*     validV (store_view TV') ∗ Φ v TV') *)
         (* }}{{ (* interp ∗ *) Φc ⊥ }} *)
     )%I _.
-  Next Obligation. solve_proper. Qed.
+  Next Obligation.
+  Admitted.
+    (* solve_proper. Qed. *)
 
   (* This sealing follows the same ritual as the [wp] in Iris. *)
   Definition wpc_aux : seal (@wpc_def). by eexists. Qed.
@@ -136,22 +139,23 @@ Section wpc.
   Qed.
   *)
 
-  Lemma wpc_strong_mono s1 s2 E1 E2 e Φ Ψ Φc Ψc
+  Lemma wpc_strong_mono s1 s2 E1 E2 (e : expr) (Φ Ψ : val → dProp Σ) (Φc Ψc : dProp Σ)
         `{!Objective Φc, !Objective Ψc} :
     s1 ⊑ s2 → E1 ⊆ E2 →
     WPC e @ s1; E1 {{ Φ }} {{ Φc }} -∗
     (∀ v, Φ v -∗ |NC={E2}=> Ψ v) ∧ (Φc -∗ |C={E2}=> Ψc) -∗
-    WPC e @ s2; E2 {{ Ψ }} {{ Ψc }}.
+    WPC e @ s2; E2 {{ Ψ }} {{ Ψc }}%I.
   Proof.
     intros ? HE.
     rewrite wpc_eq.
     rewrite /wpc_def.
-    iStartProof (iProp _). iIntros (tv).
+    iModel.
     monPred_simpl. simpl.
     iIntros "wpc".
-    iIntros (tv' ?) "conj".
-    iIntros (TV ?) "?".
-    iSpecialize ("wpc" $! TV with "[%] [$]"); try eassumption.
+    iIntros ([TV1 ?] [? [= <-]]) "conj".
+    simpl.
+    iIntros (TV2 ?) "val".
+    iSpecialize ("wpc" $! TV2 with "[%] val"); try eassumption.
     { etrans; eassumption. }
     iApply (wpc_strong_mono with "wpc"); try eassumption.
     iSplit.
@@ -161,7 +165,8 @@ Section wpc.
       iSpecialize ("conj" $! _).
       monPred_simpl.
       iSpecialize ("conj" $! _ with "[%] phi").
-      { etrans. eassumption. eassumption. }
+      { split; last done.
+        etrans. eassumption. eassumption. }
       rewrite ncfupd_unfold_at.
       iMod "conj" as "conj".
       iModIntro.
@@ -170,14 +175,15 @@ Section wpc.
       iDestruct ("conj") as "[_ conj]".
       iIntros "phi".
       monPred_simpl.
-      iSpecialize ("conj" $! tv' with "[% //]").
+      iSpecialize ("conj" $! (TV1, _) with "[% //]").
       rewrite /cfupd.
       iIntros "HC".
       (* iFrame "interp". *)
+      simpl.
       monPred_simpl.
       iSpecialize ("conj" with "[phi]").
       { iApply objective_at. iApply "phi". }
-      iSpecialize ("conj" $! tv' with "[% //] [HC]").
+      iSpecialize ("conj" $! (TV1, _) with "[% //] [HC]").
       { iApply monPred_at_embed. done. }
       iApply objective_at.
       done.
@@ -193,9 +199,9 @@ Section wpc.
     iIntros (??) "? H".
     iApply (wpc_strong_mono with "[$] [-]"); auto.
     iSplit.
-    - iDestruct "H" as "(H&_)". iIntros. iMod ("H" with "[$]"). auto.
-    - iDestruct "H" as "(_&H)".
-      iIntros "HΦc C". iApply "H". iAssumption.
+    - iDestruct "H" as "(H & _)". iIntros. iMod ("H" with "[$]"). auto.
+    - iDestruct "H" as "(_ & H)".
+      iIntros "HΦc C". simpl. iApply "H". iAssumption.
   Qed.
 
   Lemma ncfupd_wpc s E1 e Φ Φc `{!Objective Φc} :
@@ -203,7 +209,7 @@ Section wpc.
     WPC e @ s; E1 {{ Φ }} {{ Φc }}.
   Proof.
     rewrite wpc_eq.
-    iStartProof (iProp _). iIntros (TV).
+    iStartProof (iProp _). iIntros ([TV ?]).
     iIntros "H".
     simpl.
     iIntros (?) "%incl val".
@@ -230,7 +236,7 @@ Section wpc.
     WPC e @ s; E1 {{ Φ }} {{ Φc }}.
   Proof.
     rewrite wpc_eq.
-    iStartProof (iProp _). iIntros (TV).
+    iStartProof (iProp _). iIntros ([TV ?]).
     iIntros "H".
     simpl.
     iIntros (?) "%incl val".
@@ -273,7 +279,7 @@ Section wpc.
     (|C={E1}=> Φc) ⊢ WPC of_val v @ s; E1 {{ Φ }} {{ Φc }}.
   Proof.
     rewrite wpc_eq.
-    iStartProof (iProp _). iIntros (TV).
+    iModel.
     simpl.
     iIntros "H".
     iIntros (TV') "%lec hv".
@@ -283,7 +289,8 @@ Section wpc.
       rewrite ncfupd_unfold_at.
       iMod "H" as "H".
       iModIntro.
-      iFrame.
+      iSplit; first done.
+      iApply monPred_mono; last iApply "H".
       done.
     - iDestruct "H" as "(_ & HO)".
       rewrite cfupd_unfold_at.

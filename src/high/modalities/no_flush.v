@@ -17,10 +17,12 @@ Section no_flush.
   Context `{Σ : gFunctors}.
   Implicit Types (P : dProp Σ).
 
-  Lemma no_flush_at_alt P SV PV BV : ((<noflush> P) (SV, PV, BV) = P (SV, ∅, ∅))%I.
+  Lemma no_flush_at_alt P SV PV BV gnames :
+    ((<noflush> P) (SV, PV, BV, gnames) = P (SV, ∅, ∅, gnames))%I.
   Proof. done. Qed.
 
-  Lemma no_flush_at P TV : ((<noflush> P) TV = P (store_view TV, ∅, ∅))%I.
+  Lemma no_flush_at P TV gnames :
+    ((<noflush> P) (TV, gnames) = P (store_view TV, ∅, ∅, gnames))%I.
   Proof. destruct TV as [[??]?]. apply no_flush_at_alt. Qed.
 
   Lemma no_flush_pure φ : ⌜φ⌝ -∗ <noflush> (⌜φ⌝ : dProp Σ).
@@ -99,26 +101,37 @@ Section no_flush.
     iModIntro. naive_solver.
   Qed.
 
-  Lemma into_no_flush_at P Q SV FV BV `{!IntoNoFlush P Q} :
-    P (SV, FV, BV) ⊢ Q (SV, ∅, ∅).
+  Lemma into_no_flush_at P Q SV FV BV gnames `{!IntoNoFlush P Q} :
+    P (SV, FV, BV, gnames) ⊢ Q (SV, ∅, ∅, gnames).
   Proof.
     erewrite <- no_flush_at_alt.
     apply into_no_flush.
     done.
   Qed.
 
-  Lemma no_flush_monPred_in SV FV PV :
-    monPred_in (SV, FV, PV) ⊢@{dPropI Σ} <noflush> monPred_in (SV, ∅, ∅).
+  Lemma no_flush_have_thread_view SV FV PV :
+    have_thread_view (SV, FV, PV) ⊢@{dPropI Σ} <noflush> have_thread_view (SV, ∅, ∅).
   Proof.
     iModel.
     iIntros (le). destruct TV as [[??]?]. rewrite no_flush_at.
-    iApply monPred_at_in. iPureIntro.
+    iPureIntro.
     repeat split; try apply le; done.
   Qed.
 
+  (* Lemma no_flush_monPred_in SV FV PV : *)
+  (*   monPred_in (SV, FV, PV) ⊢@{dPropI Σ} <noflush> monPred_in (SV, ∅, ∅). *)
+  (* Proof. *)
+  (*   iModel. *)
+  (*   iIntros (le). destruct TV as [[??]?]. rewrite no_flush_at. *)
+  (*   iApply monPred_at_in. iPureIntro. *)
+  (*   repeat split; try apply le; done. *)
+  (* Qed. *)
+
   Global Instance into_no_flush_monPred_in SV FV PV :
-    IntoNoFlush (monPred_in (SV, FV, PV) : dProp Σ) (monPred_in (SV, ∅, ∅)).
-  Proof. apply no_flush_monPred_in. Qed.
+    IntoNoFlush (have_thread_view (SV, FV, PV) : dProp Σ) (have_thread_view (SV, ∅, ∅)).
+  Proof.
+    apply no_flush_have_thread_view.
+  Qed.
 
   Global Instance big_sepL_nil_no_flush {A} (Φ : _ → A → dProp Σ) :
     FlushFree ([∗ list] k↦x ∈ [], Φ k x).

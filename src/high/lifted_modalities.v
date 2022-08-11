@@ -6,6 +6,13 @@ From iris.proofmode Require Import base tactics classes.
 From Perennial.base_logic.lib Require Import ncfupd.
 From Perennial.program_logic Require Import crash_weakestpre cfupd.
 
+From self.algebra Require Import ghost_map.
+From self Require Import extra.
+From self.base Require Import primitive_laws class_instances.
+From self.high Require Export dprop resources monpred_simpl
+     post_crash_modality increasing_map state_interpretation wpc_notation.
+
+From self.base Require Import primitive_laws class_instances.
 From self.high Require Import dprop monpred_simpl.
 
 Program Definition uPred_fupd_split_level_def `{!invGS Σ}
@@ -79,12 +86,19 @@ Section lifted_fupd_level.
 
 End lifted_fupd_level.
 
-Program Definition ncfupd_def `{!invGS Σ, !crashGS Σ} (E1 E2 : coPset) (P : dProp Σ) : dProp Σ :=
-  MonPred (λ TV, ncfupd E1 E2 (P TV))%I _.
-Next Obligation. solve_proper. Qed.
-Definition ncfupd_aux `{!invGS Σ, !crashGS Σ} : seal (ncfupd_def). Proof. by eexists. Qed.
-Definition ncfupd `{!invGS Σ, !crashGS Σ} := ncfupd_aux.(unseal).
-Definition ncfupd_eq `{!invGS Σ, !crashGS Σ} : ncfupd = ncfupd_def := ncfupd_aux.(seal_eq).
+Program Definition ncfupd_def `{!nvmG Σ} (E1 E2 : coPset) (P : dProp Σ) : dProp Σ :=
+  MonPred (λ i, let nD := i.2 in ncfupd E1 E2 (P i))%I _.
+Next Obligation.
+  intros.
+  intros [??] [??] [? [= <-]].
+  simpl.
+  apply ncfupd_mono.
+  apply monPred_mono.
+  done.
+Qed.
+Definition ncfupd_aux `{!nvmG Σ} : seal (ncfupd_def). Proof. by eexists. Qed.
+Definition ncfupd `{!nvmG Σ} := ncfupd_aux.(unseal).
+Definition ncfupd_eq `{!nvmG Σ} : ncfupd = ncfupd_def := ncfupd_aux.(seal_eq).
 
 Notation "|NC={ E1 }=> Q" := (ncfupd E1 E1 Q)
   (at level 99, E1 at level 50, Q at level 200,
@@ -99,8 +113,8 @@ Notation "|NC={ E1 } [ E2 ]▷=>^ n Q" := (Nat.iter n (λ P, |NC={E1}[E2]▷=> P
   (at level 99, E1, E2 at level 50, n at level 9, Q at level 200,
    format "'[  ' |NC={ E1 } [ E2 ]▷=>^ n  '/' Q ']'").
 
-Program Definition cfupd `{!invGS Σ, !crashGS Σ} E1 (P : dProp Σ) :=
-  (⎡C⎤ -∗ |={E1}=> P)%I.
+Program Definition cfupd `{!nvmG Σ} E1 (P : dProp Σ) :=
+  (with_gnames (λ nD, ⎡ C ⎤) -∗ |={E1}=> P)%I.
   (* MonPred (λ TV, cfupd k E1 (P TV))%I _. *)
 (* Next Obligation. solve_proper. Qed. *)
 
@@ -109,7 +123,7 @@ Notation "|C={ E1 }=> P" := (cfupd E1 P)
        format "'[  ' |C={ E1 }=>  '/' P ']'").
 
 Section lifted_modalities.
-  Context `{crashGS Σ, invGS Σ}.
+  Context `{nvmG Σ}.
 
   (*** ncfupd *)
 
@@ -120,15 +134,16 @@ Section lifted_modalities.
     iIntros "$". rewrite ncfupd.ncfupd_eq. iIntros (q) "$". done.
   Qed.
 
-  Lemma ncfupd_unfold_at E1 E2 P TV :
-    (ncfupd E1 E2 P) TV = ncfupd.ncfupd E1 E2 (P TV).
+  Lemma ncfupd_unfold_at E1 E2 P TV gnames :
+    (ncfupd E1 E2 P) (TV, gnames) = ncfupd.ncfupd E1 E2 (P (TV, gnames)).
   Proof. rewrite ncfupd_eq /ncfupd_def. reflexivity. Qed.
 
   Global Instance elim_modal_bupd_ncfupd p E1 E2 P Q :
     ElimModal True p false (|==> P) P (|NC={E1,E2}=> Q) (|NC={E1,E2}=> Q) | 10.
   Proof.
     rewrite /ElimModal.
-    iStartProof (iProp _). iIntros (_ TV).
+    intros ?.
+    iModel.
     rewrite ncfupd_eq.
     monPred_simpl. simpl.
     rewrite bi.intuitionistically_if_elim (bupd_ncfupd E1).
@@ -143,7 +158,7 @@ Section lifted_modalities.
   Lemma ncfupd_frame_r E1 E2 P R:
     (|NC={E1,E2}=> P) ∗ R ⊢ |NC={E1,E2}=> P ∗ R.
   Proof.
-    iStartProof (iProp _). iIntros (TV).
+    iModel.
     rewrite 2!ncfupd_unfold_at.
     rewrite monPred_at_sep.
     iApply ncfupd_frame_r.
@@ -151,7 +166,7 @@ Section lifted_modalities.
 
   Lemma ncfupd_trans E1 E2 E3 P : (|NC={E1,E2}=> |NC={E2,E3}=> P) ⊢ |NC={E1,E3}=> P.
   Proof.
-    iStartProof (iProp _). iIntros (TV).
+    iModel.
     rewrite 3!ncfupd_unfold_at.
     iApply ncfupd_trans.
   Qed.
@@ -165,10 +180,11 @@ Section lifted_modalities.
 
   Lemma ncfupd_mono E1 E2 P Q : (P ⊢ Q) → (|NC={E1,E2}=> P) ⊢ |NC={E1,E2}=> Q.
   Proof.
-    iStartProof (iProp _). iIntros (I TV).
+    intro wand.
+    iModel.
     rewrite 2!ncfupd_unfold_at.
     iApply ncfupd_mono.
-    iApply I.
+    iApply wand.
   Qed.
 
   Global Instance ncfupd_mono' E1 E2 : Proper ((⊢) ==> (⊢)) (ncfupd E1 E2).
@@ -185,9 +201,9 @@ Section lifted_modalities.
     done.
   Qed.
 
-  Lemma fupd_ncfupd E1 E2 P : (|={E1,E2}=> P) ⊢ |NC={E1,E2}=> P.
+  Lemma fupd_ncfupd E1 E2 (P : dProp Σ) : (|={E1,E2}=> P) ⊢ |NC={E1,E2}=> P.
   Proof.
-    iStartProof (iProp _). iIntros (TV).
+    iModel.
     rewrite ncfupd_unfold_at.
     iApply fupd_ncfupd.
   Qed.
@@ -201,17 +217,21 @@ Section lifted_modalities.
 
   (*** cfupd *)
 
-  Lemma cfupd_unfold_at E1 P TV :
-    (cfupd E1 P) TV ⊣⊢ cfupd.cfupd E1 (P TV).
+  Lemma cfupd_unfold_at E1 P TV gnames :
+    (cfupd E1 P) (TV, gnames) ⊣⊢ cfupd.cfupd E1 (P (TV, gnames)).
   Proof.
     rewrite /cfupd. rewrite /cfupd.cfupd.
     monPred_simpl.
     setoid_rewrite monPred_at_fupd.
     setoid_rewrite monPred_at_embed.
     iSplit.
-    - iIntros "H". iApply "H". done.
-    - iIntros "H". iIntros (? incl) "C".
+    - iIntros "H".
+      iSpecialize ("H" $! (TV, gnames)).
+      iApply "H".
+      done.
+    - iIntros "H". iIntros ([??] incl) "C".
       iApply monPred_mono; first apply incl.
+      destruct incl as [? [= <-]].
       iApply "H". iFrame.
   Qed.
 
@@ -219,8 +239,12 @@ Section lifted_modalities.
     FromModal True modality_id (cfupd E1 P) (cfupd E1 P) (P).
   Proof.
     rewrite /FromModal /=.
-    iIntros (_) "HP _".
-    iModIntro. by iFrame.
+    intros _.
+    iModel.
+    rewrite cfupd_unfold_at.
+    iIntros "HP".
+    iModIntro.
+    iFrame.
   Qed.
 
 End lifted_modalities.

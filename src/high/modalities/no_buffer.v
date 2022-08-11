@@ -45,10 +45,12 @@ Section no_buffer.
   Context `{Σ : gFunctors}.
   Implicit Types (P : dProp Σ).
 
-  Lemma no_buffer_at_alt P SV PV BV : ((<nobuf> P) (SV, PV, BV) = P (SV, PV, ∅))%I.
+  Lemma no_buffer_at_alt P SV PV BV gnames :
+    ((<nobuf> P) (SV, PV, BV, gnames) = P (SV, PV, ∅, gnames))%I.
   Proof. done. Qed.
 
-  Lemma no_buffer_at P TV : ((<nobuf> P) TV = P (store_view TV, flush_view TV, ∅))%I.
+  Lemma no_buffer_at P TV gnames :
+    ((<nobuf> P) (TV, gnames) = P ((store_view TV, flush_view TV, ∅), gnames))%I.
   Proof. destruct TV as [[??]?]. apply no_buffer_at_alt. Qed.
 
   Lemma no_buffer_pure φ : ⌜φ⌝ -∗ <nobuf> (⌜φ⌝ : dProp Σ).
@@ -127,16 +129,16 @@ Section no_buffer.
     iModIntro. naive_solver.
   Qed.
 
-  Lemma into_no_buffer_at P Q SV FV BV `{!IntoNoBuffer P Q} :
-    P (SV, FV, BV) ⊢ Q (SV, FV, ∅).
+  Lemma into_no_buffer_at P Q SV FV BV gnames `{!IntoNoBuffer P Q} :
+    P (SV, FV, BV, gnames) ⊢ Q (SV, FV, ∅, gnames).
   Proof.
     erewrite <- no_buffer_at_alt.
     apply into_no_buffer.
     done.
   Qed.
 
-  Lemma no_buffer_monPred_in SV FV PV :
-    monPred_in (SV, FV, PV) ⊢@{dPropI Σ} <nobuf> monPred_in (SV, FV, ∅).
+  Lemma no_buffer_monPred_in SV FV PV gn :
+    monPred_in (SV, FV, PV, gn) ⊢@{dPropI Σ} <nobuf> monPred_in (SV, FV, ∅, gn).
   Proof.
     iModel.
     iIntros (le). destruct TV as [[??]?]. rewrite no_buffer_at.
@@ -144,8 +146,8 @@ Section no_buffer.
     repeat split; try apply le; done.
   Qed.
 
-  Global Instance into_no_buffer_monPred_in SV FV PV :
-    IntoNoBuffer (monPred_in (SV, FV, PV) : dProp Σ) (monPred_in (SV, FV, ∅)).
+  Global Instance into_no_buffer_monPred_in SV FV PV gn :
+    IntoNoBuffer (monPred_in (SV, FV, PV, gn) : dProp Σ) (monPred_in (SV, FV, ∅, gn)).
   Proof. apply no_buffer_monPred_in. Qed.
 
   Global Instance big_sepL_nil_no_buffer {A} (Φ : _ → A → dProp Σ) :
