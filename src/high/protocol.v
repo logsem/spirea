@@ -83,6 +83,10 @@ Section protocol.
       know_bumper_d ℓ prot.(bumper).
   Proof. iNamed 1. iFrame "#". Qed.
 
+  Global Instance know_protocol_buffer_free ℓ prot :
+    BufferFree (know_protocol ℓ prot).
+  Proof. apply _. Qed.
+
 End protocol.
 
 Opaque know_protocol.

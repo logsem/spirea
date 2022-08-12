@@ -3,7 +3,8 @@ From iris.bi Require Import bi.
 From iris.bi Require Import derived_laws.
 From iris.base_logic Require Import iprop.
 
-From self.high Require Import dprop resources modalities.
+From self Require Import solve_view_le.
+From self.high Require Import dprop dprop_liftings resources modalities.
 
 (* Class BufferFree {Σ} (P : dProp Σ) := buffer_free : P ⊢ <nobuf> P. *)
 (* Global Arguments BufferFree {_} _%I : simpl never. *)
@@ -68,6 +69,9 @@ Section no_buffer.
   Lemma no_buffer_and P Q : <nobuf> (P ∧ Q) ⊣⊢ <nobuf> P ∧ <nobuf> Q.
   Proof. iModel. rewrite !no_buffer_at. rewrite monPred_at_and. naive_solver. Qed.
 
+  Lemma no_buffer_or P Q : <nobuf> (P ∨ Q) ⊣⊢ <nobuf> P ∨ <nobuf> Q.
+  Proof. iModel. rewrite !no_buffer_at. rewrite monPred_at_or. naive_solver. Qed.
+
   Lemma no_buffer_sep P Q : <nobuf> (P ∗ Q) ⊣⊢ <nobuf> P ∗ <nobuf> Q.
   Proof. iModel. rewrite !no_buffer_at. rewrite monPred_at_sep. naive_solver. Qed.
 
@@ -104,6 +108,22 @@ Section no_buffer.
     rewrite no_buffer_at. simpl. iApply objective_at.
   Qed.
 
+  Global Instance into_no_buffer_with_gnames (P Q : _ → dProp Σ) :
+    (∀ nD, IntoNoBuffer (P nD) (Q nD)) →
+    IntoNoBuffer (with_gnames P) (with_gnames Q).
+  Proof.
+    rewrite /IntoNoBuffer.
+    intros Hi.
+    iModel.
+    simpl.
+    rewrite Hi.
+    auto.
+  Qed.
+
+  Global Instance buffer_free_lift_d (Φ : _ → iProp Σ) :
+    BufferFree (lift_d Φ).
+  Proof. apply _. Qed.
+
   Global Instance into_no_buffer_if (b : bool) (P P' Q Q' : dProp Σ) :
     IntoNoBuffer P P' →
     IntoNoBuffer Q Q' →
@@ -113,6 +133,10 @@ Section no_buffer.
   Global Instance into_no_buffer_emp :
     IntoNoBuffer (emp : dProp Σ)%I (emp)%I.
   Proof. rewrite /IntoNoBuffer. apply no_buffer_emp. Qed.
+
+  Global Instance into_no_buffer_or (P P' Q Q' : dProp Σ) :
+    IntoNoBuffer P P' → IntoNoBuffer Q Q' → IntoNoBuffer (P ∨ Q)%I (P' ∨ Q')%I.
+  Proof. rewrite /IntoNoBuffer no_buffer_or. by intros <- <-. Qed.
 
   Global Instance into_no_buffer_sep (P P' Q Q' : dProp Σ) :
     IntoNoBuffer P P' → IntoNoBuffer Q Q' → IntoNoBuffer (P ∗ Q)%I (P' ∗ Q')%I.
@@ -156,6 +180,22 @@ Section no_buffer.
   Global Instance big_sepL_no_buffer {A} (Φ : _ → A → dProp Σ) l :
     (∀ k x, BufferFree (Φ k x)) → BufferFree ([∗ list] k↦x ∈ l, Φ k x).
   Proof. revert Φ. induction l as [|x l IH]=> Φ ? /=; try apply _. Qed.
+
+  Global Instance buffer_free_have_SV ℓ t :
+    BufferFree (have_SV ℓ t : dProp Σ).
+  Proof. rewrite /IntoNoBuffer. iModel. destruct TV as [[??]?]. done. Qed.
+
+  Global Instance buffer_free_have_FV ℓ t :
+    BufferFree (have_FV ℓ t : dProp Σ).
+  Proof. rewrite /IntoNoBuffer. iModel. destruct TV as [[??]?]. done. Qed.
+
+  Global Instance buffer_free_have_FV_strong ℓ t :
+    BufferFree (have_FV_strong ℓ t : dProp Σ).
+  Proof.
+    rewrite /IntoNoBuffer. iModel. destruct TV as [[??]?]. simpl.
+    iPureIntro.
+    repeat split; solve_view_le.
+  Qed.
 
 End no_buffer.
 

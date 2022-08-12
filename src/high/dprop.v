@@ -122,6 +122,14 @@ Section definitions.
     done.
   Qed.
 
+  Global Instance with_gnames_mono : Proper (((=) ==> (⊢)) ==> (⊢)) with_gnames.
+  Proof.
+    intros ?? impl.
+    iModel.
+    simpl.
+    rewrite impl; auto.
+  Qed.
+
   Definition know_gnames (gnames : nvmDeltaG) : dProp Σ :=
     with_gnames (λ gnames', ⌜ gnames = gnames' ⌝)%I.
 
