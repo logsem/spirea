@@ -10,12 +10,12 @@ From iris.algebra Require Import gset gmap excl auth.
 From iris.proofmode Require Import reduction monpred tactics.
 From iris_named_props Require Import named_props.
 
-From self Require Import extra ipm_tactics.
+From self Require Import extra ipm_tactics solve_view_le.
 From self.algebra Require Import ghost_map ghost_map_map.
 From self.base Require Import primitive_laws post_crash_modality.
 From self.lang Require Import lang.
 From self.high Require Import increasing_map monpred_simpl.
-From self.high Require Import dprop abstract_state lifted_modalities if_rec or_lost.
+From self.high Require Import dprop dprop_liftings abstract_state lifted_modalities if_rec or_lost.
 From self.high Require Export abstract_state resources protocol modalities post_crash_modality.
 From self.high.resources Require Export bumpers preorders auth_map_map abstract_history.
 From self.high.modalities Require Export no_buffer no_flush.
@@ -32,9 +32,6 @@ Section points_to_at.
     setoid_rewrite <-(Some_included_total x).
     apply singleton_included_l.
   Qed.
-
-  Definition know_frag_history_loc_d `{Countable ST} ℓ t (s : ST) : dProp Σ :=
-    with_gnames (λ nD, ⎡ know_frag_history_loc ℓ t s ⎤)%I.
 
   (* Points-to predicate for non-atomics. This predcate says that we know that
      the last events at [ℓ] corresponds to the *)
@@ -292,11 +289,26 @@ Section points_to_at.
 
   (* Lemmas for [crashed_in]. *)
 
+  Lemma crashed_in_mapsto_d_agree `{Countable ST} ℓ (s1 s2 : ST) :
+    crashed_in_mapsto_d ℓ s1 -∗ crashed_in_mapsto_d ℓ s2 -∗ ⌜ s1 = s2 ⌝.
+  Proof.
+    iModel.
+    simpl.
+    iDestruct 1 as (? eq1) "pts1".
+    simpl.
+    monPred_simpl.
+    iIntros ([??] [? [= <-]]).
+    simpl. iDestruct 1 as (? e2) "pts2".
+    iDestruct (ghost_map_elem_agree with "pts1 pts2") as %->.
+    iPureIntro.
+    congruence.
+  Qed.
+
   Lemma crashed_in_agree prot ℓ s s' :
     crashed_in prot ℓ s -∗ crashed_in prot ℓ s' -∗ ⌜ s = s' ⌝. Proof.
     iNamed 1.
     iDestruct 1 as (?) "(? & ? & ? & ?)".
-    iDestruct (crashed_in_mapsto_agree with "crashedIn [$]") as %->.
+    iDestruct (crashed_in_mapsto_d_agree with "crashedIn [$]") as %->.
     done.
   Qed.
 
@@ -312,7 +324,7 @@ Section points_to_at.
     crashed_in prot ℓ s -∗ if_rec ℓ P -∗ P.
   Proof.
     iNamed 1. iNamed "persistLb". iIntros "P".
-    iDestruct (persisted_loc_weak with "persisted") as "persisted2".
+    iDestruct (persisted_loc_d_weak with "persisted") as "persisted2".
     { apply le_0_n. }
     iApply "P"; iFrame "#%".
     iPureIntro. apply elem_of_dom. done.
@@ -355,7 +367,7 @@ Section points_to_at.
     rewrite last_snoc in lastEq.
     assert (s = s2) as -> by congruence.
     iDestruct "storeLb" as (t ?) "(_ & histFrag' & _)".
-    iDestruct (full_entry_frag_entry_unenc with "hist histFrag'") as %look.
+    iDestruct (know_full_entry_frag_entry_unenc with "hist histFrag'") as %look.
     eassert _ as le. { eapply map_no_later_Some; done. }
     eapply increasing_map_increasing in incrMap; done.
   Qed.
@@ -388,7 +400,6 @@ Section points_to_at.
     iFrame "#".
     iSplitPure; first apply increasing_map_singleton.
     rewrite 2!big_sepM_singleton.
-    rewrite embed_big_sepM.
     iDestruct (big_sepM_lookup with "absHist") as "$".
     { apply map_sequence_lookup_hi in slice.
       rewrite slice.
@@ -411,7 +422,7 @@ Section points_to_at.
     apply map_sequence_cons_drop in slice as (tP3 & lt & noin & slice).
     iExists tP3, tHi, offset, SV, abs_hist, msg, s.
     (* The non-trivial task now is to show that [tP2] is larger than [tP3]. *)
-    iDestruct (full_entry_frag_entry_unenc with "hist frag") as %lookTP2.
+    iDestruct (know_full_entry_frag_entry_unenc with "hist frag") as %lookTP2.
     assert (tLo < tP2). {
       apply (increasing_map_lookup_lt abs_hist _ _ s1 s2 incrMap); done. }
     destruct (decide (tP3 ≤ tP2)).
@@ -419,14 +430,14 @@ Section points_to_at.
       assert (tLo < tP2 < tP3) as order by lia.
       specialize (noin tP2 order).
       congruence. }
-    iDestruct (ghost_map_elem_agree with "offset [$]") as %<-.
+    iDestruct (offset_loc_agree with "offset [$]") as %<-.
     iFrameF (lastEq). iFrameF "locationProtocol". iFrameF (incrMap).
     iFrameF "isNaLoc". iFrameF (lookupV). iFrameF (nolater).
     iFrameF "hist". iFrameF "histFrag". iFrameF "offset". iFrameF "knowSV".
     iFrameF (slice). iFrame "physMsg". iFrame "inThreadView".
     iSplitPure; first done.
     iFrameF (haveTStore).
-    iLeft. iApply persisted_loc_weak; last done. lia.
+    iLeft. iApply persisted_loc_d_weak; last done. lia.
   Qed.
 
   Lemma mapsto_na_persist_lb_last ℓ prot q ss s :
@@ -457,44 +468,33 @@ Section points_to_at.
   (* Proof. *)
   (* (* Instances. *) *)
 
-  Lemma no_buffer_flush_lb ℓ prot (s : ST) :
+  Lemma flush_lb_no_buffer ℓ prot (s : ST) :
     flush_lb ℓ prot s -∗ <nobuf> flush_lb ℓ prot s.
-  Proof.
-    rewrite /flush_lb.
-    iModel. destruct TV as [[??]?].
-    simpl.
-    iNamed 1.
-    iExists _, _. iFrame "#∗".
-    iDestruct "viewFact" as "[%incl | $]".
-    iLeft. iPureIntro. repeat split; try apply view_empty_least.
-    apply incl.
-  Qed.
+  Proof. iNamed 1. iModIntro. iExists _, _. iFrame "#∗". Qed.
 
   Global Instance buffer_free_flush_lb ℓ prot (s : ST) :
     BufferFree (flush_lb ℓ prot s).
-  Proof. rewrite /IntoNoBuffer. eauto using no_buffer_flush_lb. Qed.
+  Proof. rewrite /IntoNoBuffer. eauto using flush_lb_no_buffer. Qed.
 
-  Lemma no_flush_store_lb ℓ prot (s : ST) :
-    store_lb ℓ prot s -∗ <noflush> store_lb ℓ prot s.
-  Proof.
-    rewrite /store_lb.
-    iModel.
-    simpl.
-    iDestruct 1 as (?) "HI". iExists _. iFrame.
-  Qed.
-
-  Global Instance flush_free_flush_lb ℓ prot (s : ST) :
-    FlushFree (store_lb ℓ prot s).
-  Proof. rewrite /IntoNoFlush. eauto using no_flush_store_lb. Qed.
+  (* TODO: Prove this in the same way as [flush_lb_no_buffer]. We need more noflush instances. *)
+  (* Lemma no_flush_store_lb ℓ prot (s : ST) : *)
+  (*   store_lb ℓ prot s -∗ <noflush> store_lb ℓ prot s. *)
+  (* Proof. *)
+  (*   iNamed 1. *)
+  (*   iNamed "lbBase". *)
+  (*   iModIntro. *)
+  (*   rewrite /store_lb. *)
+  (*   iModel. *)
+  (*   simpl. *)
+  (*   iDestruct 1 as (?) "HI". iExists _. iFrame. *)
+  (* Qed. *)
+  (* Global Instance flush_free_flush_lb ℓ prot (s : ST) : *)
+  (*   FlushFree (store_lb ℓ prot s). *)
+  (* Proof. rewrite /IntoNoFlush. eauto using no_flush_store_lb. Qed. *)
 
   Lemma no_buffer_store_lb ℓ prot (s : ST) :
     store_lb ℓ prot s -∗ <nobuf> store_lb ℓ prot s.
-  Proof.
-    rewrite /store_lb.
-    iModel.
-    simpl.
-    iDestruct 1 as (?) "HI". iExists _. iFrame.
-  Qed.
+  Proof. iNamed 1. iModIntro. iExists _, _. iFrame "#∗". Qed.
 
   Global Instance into_no_buffer_store_lb ℓ prot (s : ST) :
     BufferFree (store_lb ℓ prot s).
@@ -502,7 +502,7 @@ Section points_to_at.
 
   Global Instance mapsto_na_buffer_free ℓ prot q (ss : list ST) :
     BufferFree (mapsto_na ℓ prot q ss).
-  Proof. rewrite /mapsto_na. apply _. Qed.
+  Proof. rewrite /mapsto_na. Admitted. (* apply _. Qed. *)
 
 End points_to_at.
 
@@ -529,7 +529,7 @@ Section points_to_at_more.
 
   Lemma post_crash_persist_lb (ℓ : loc) prot (s : ST) :
     persist_lb ℓ prot s -∗
-    <PC> _,
+    <PC>
       persist_lb ℓ prot (prot.(bumper) s) ∗
       ∃ s', ⌜ s ⊑ s' ⌝ ∗ crashed_in prot ℓ s'.
   Proof.

@@ -4,12 +4,12 @@ From Perennial.Helpers Require Import ipm NamedProps.
 
 From self Require Import extra ipm_tactics.
 From self.base Require Import primitive_laws wpr_lifting.
-From self.high Require Import dprop monpred_simpl.
+From self.high Require Import dprop dprop_liftings monpred_simpl.
 
 Set Default Proof Using "Type".
 
 Section or_lost_post_crash.
-  Context `{nvmBaseFixedG Σ, nD: nvmBaseDeltaG}.
+  Context `{nvmBaseFixedG Σ, nvmBaseDeltaG}.
 
   Definition or_lost_post_crash ℓ (P : nat → iProp Σ) :=
     (∃ (CV : view),
@@ -28,12 +28,17 @@ Section or_lost_post_crash.
     Proper ((⊣⊢) ==> (⊣⊢)) (or_lost_post_crash_no_t ℓ).
   Proof. solve_proper. Qed.
 
+End or_lost_post_crash.
+
+Section or_lost_with_t.
+  Context `{nvmBaseFixedG Σ}.
+
   (* A [dProp] version of [or_lost_post_crash]. *)
   Definition or_lost_with_t ℓ (P : time → dProp Σ) : dProp Σ :=
     ∃ CV,
-      ⎡ crashed_at CV ⎤ ∗
-      ((∃ t, ⌜CV !! ℓ = Some (MaxNat t)⌝ ∗ ⎡ persisted_loc ℓ 0 ⎤ ∗ P t) ∨
-        ⌜CV !! ℓ = None⌝).
+      crashed_at_d CV ∗
+      ((∃ t, ⌜CV !! ℓ = Some (MaxNat t)⌝ ∗ persisted_loc_d ℓ 0 ∗ P t) ∨
+        ⌜ CV !! ℓ = None ⌝).
 
   Global Instance or_lost_with_t_proper ℓ :
     Proper (pointwise_relation _ (⊣⊢) ==> (⊣⊢)) (or_lost_with_t ℓ).
@@ -47,7 +52,7 @@ Section or_lost_post_crash.
     Proper ((⊣⊢) ==> (⊣⊢)) (or_lost ℓ).
   Proof. solve_proper. Qed.
 
-  Lemma or_lost_post_crash_lookup (CV : view) ℓ t P :
+  Lemma or_lost_post_crash_lookup `{nvmBaseDeltaG} (CV : view) ℓ t P :
     CV !! ℓ = Some (MaxNat t) →
     crashed_at CV -∗
     or_lost_post_crash ℓ P -∗
@@ -68,7 +73,7 @@ Section or_lost_post_crash.
   (*   P. *)
   (* Proof. apply or_lost_post_crash_lookup. Qed. *)
 
-  Lemma or_lost_post_crash_sep ℓ P Q :
+  Lemma or_lost_post_crash_sep `{nvmBaseDeltaG} ℓ P Q :
     or_lost_post_crash ℓ (λ t, P t ∗ Q t) ⊣⊢
     or_lost_post_crash ℓ (λ t, P t) ∗ or_lost_post_crash ℓ (λ t, Q t).
   Proof.
@@ -84,7 +89,7 @@ Section or_lost_post_crash.
       * iExists _. iFrame. iRight. done.
   Qed.
 
-  Lemma or_lost_post_crash_mono ℓ P Q :
+  Lemma or_lost_post_crash_mono `{nvmBaseDeltaG} ℓ P Q :
     (∀ t CV,
       ("#per" ∷ persisted_loc ℓ 0 ∗
        "#crashed" ∷ crashed_at CV ∗
@@ -98,7 +103,7 @@ Section or_lost_post_crash.
     - iRight. iFrame (lost).
   Qed.
 
-  Global Instance or_lost_post_crash_fractional ℓ P :
+  Global Instance or_lost_post_crash_fractional `{nvmBaseDeltaG} ℓ P :
     (∀ t, Fractional (P t)) →
     Fractional (λ q, or_lost_post_crash ℓ (λ t, P t q)).
   Proof.
@@ -111,12 +116,15 @@ Section or_lost_post_crash.
   (* Lemma or_lost_to_with_t ℓ P : or_lost ℓ P ⊣⊢ or_lost_with_t ℓ (λ _, P). *)
   (* Proof. rewrite /or_lost. done. Qed. *)
 
-  Lemma or_lost_with_t_at ℓ (P : _ → dProp Σ) TV :
-    or_lost_post_crash ℓ (λ t, P t TV) -∗
-    (or_lost_with_t ℓ P) TV.
+  Lemma or_lost_with_t_at ℓ (P : _ → dProp Σ) TV gnames :
+    or_lost_post_crash ℓ (λ t, P t (TV, gnames)) -∗
+    (or_lost_with_t ℓ P) (TV, gnames).
   Proof.
     iDestruct 1 as (CV) "[crash disj]".
-    iExists _. iFrame "crash disj".
+    iExists _.
+    simpl.
+    setoid_rewrite monPred_at_embed.
+    iFrame "crash disj".
   Qed.
 
   Lemma or_lost_with_t_sep ℓ (P Q : _ → dProp Σ) :
@@ -124,7 +132,7 @@ Section or_lost_post_crash.
   Proof.
     iSplit.
     - iIntros "[(%CV & crash & MP) (%CV' & crash' & MQ)]".
-      iDestruct (crashed_at_agree with "crash crash'") as %<-.
+      iDestruct (crashed_at_d_agree with "crash crash'") as %<-.
       iExists CV. iFrame.
       iDestruct "MP" as "[(% & % & #per & P)|%]"; iDestruct "MQ" as "[(% & % & #? & Q)|%]";
         try (by iRight).
@@ -144,15 +152,15 @@ Section or_lost_post_crash.
   Lemma or_lost_with_t_mono_strong ℓ (P Q : _ → dProp Σ) :
     (∀ t CV,
        ("%look" ∷ ⌜ CV !! ℓ = Some (MaxNat t) ⌝ ∗
-        "#per" ∷ ⎡ persisted_loc ℓ 0 ⎤ ∗
-        "#crashed" ∷ ⎡ crashed_at CV ⎤) -∗
+        "#per" ∷ persisted_loc_d ℓ 0 ∗
+        "#crashed" ∷ crashed_at_d CV) -∗
       P t -∗ Q t) -∗
     or_lost_with_t ℓ P -∗ or_lost_with_t ℓ Q.
   Proof.
     iIntros "pToQ (%CV & #crashed & disj)".
     iExists CV. iFrame "crashed". iDestruct "disj" as "[(% & % & #per & P) | %lost]".
     - iLeft. iExists _. iFrame "#%". (* iSplitPure; first done. *)
-      iApply ("pToQ" with "[] P"); first by iFrame "#%".
+      iApply ("pToQ" with "[] P"). iFrame "#%".
     - iRight. iFrame (lost).
   Qed.
 
@@ -168,31 +176,33 @@ Section or_lost_post_crash.
     (P -∗ Q) -∗ or_lost ℓ P -∗ or_lost ℓ Q.
   Proof. iIntros "I". iApply or_lost_with_t_mono. iIntros (_). done. Qed.
 
-  Lemma or_lost_embed ℓ P TV :
-    or_lost_post_crash_no_t ℓ P -∗ or_lost ℓ ⎡ P ⎤ TV.
+  Lemma or_lost_embed ℓ P TV gnames :
+    or_lost_post_crash_no_t ℓ P -∗ or_lost ℓ ⎡ P ⎤ (TV, gnames).
   Proof.
-    iDestruct 1 as (CV) "[crash disj]". iExists _. iFrame "crash". done.
+    iDestruct 1 as (CV) "[crash disj]". iExists _.
+    simpl. setoid_rewrite monPred_at_embed.
+    iFrame "crash". done.
   Qed.
 
   Lemma or_lost_get CV ℓ P :
-    is_Some (CV !! ℓ) → ⎡ crashed_at CV ⎤ -∗ or_lost ℓ P -∗ P.
+    is_Some (CV !! ℓ) → crashed_at_d CV -∗ or_lost ℓ P -∗ P.
   Proof.
     iIntros ([[t] look]) "crash (%CV' & crash' & [(% & ? & #per & $)|%look'])".
-    iDestruct (crashed_at_agree with "crash crash'") as %<-.
+    iDestruct (crashed_at_d_agree with "crash crash'") as %<-.
     congruence.
   Qed.
 
   Lemma or_lost_with_t_get CV ℓ t P :
-    CV !! ℓ = Some (MaxNat t) → ⎡ crashed_at CV ⎤ -∗ or_lost_with_t ℓ P -∗ P t.
+    CV !! ℓ = Some (MaxNat t) → crashed_at_d CV -∗ or_lost_with_t ℓ P -∗ P t.
   Proof.
     rewrite /or_lost_with_t.
     iIntros (look) "crash (%CV' & crash' & [(%t' & %look' & #per & P)|%look'])";
-    iDestruct (crashed_at_agree with "crash crash'") as %<-.
+    iDestruct (crashed_at_d_agree with "crash crash'") as %<-.
     - simplify_eq. iFrame "P".
     - congruence.
   Qed.
 
-End or_lost_post_crash.
+End or_lost_with_t.
 
 Opaque or_lost_with_t.
 Opaque or_lost_post_crash.

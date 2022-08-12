@@ -9,7 +9,7 @@ From self Require Import extra ipm_tactics if_non_zero map_extra.
 From self.algebra Require Import ghost_map ghost_map_map.
 From self.base Require Import primitive_laws wpr_lifting.
 From self.base Require post_crash_modality.
-From self.high Require Import dprop resources monpred_simpl or_lost if_rec predicates.
+From self.high Require Import dprop dprop_liftings resources monpred_simpl or_lost if_rec predicates.
 
 Set Default Proof Using "Type".
 

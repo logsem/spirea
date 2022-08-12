@@ -4,13 +4,7 @@ From iris.bi Require Import derived_laws.
 From iris.base_logic Require Import iprop.
 
 From self.base Require Import primitive_laws wpr_lifting.
-From self.high Require Import dprop resources modalities or_lost monpred_simpl.
-
-Definition crashed_at_d `{nvmBaseFixedG Σ} CV : dProp Σ :=
-  with_gnames (λ nD, ⎡ crashed_at CV ⎤)%I.
-
-Definition persisted_loc_d `{nvmBaseFixedG Σ} ℓ t : dProp Σ :=
-  with_gnames (λ nD, ⎡ persisted_loc ℓ t ⎤)%I.
+From self.high Require Import dprop dprop_liftings resources modalities or_lost monpred_simpl.
 
 (* The predicate [P] holds for [ℓ] or [ℓ] has been lost. *)
 Definition if_rec `{nvmBaseFixedG Σ}
