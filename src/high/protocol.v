@@ -64,8 +64,7 @@ Section protocol.
     know_protocol ℓ prot -∗ <PC> if_rec ℓ (know_protocol ℓ prot).
   Proof.
     iIntros "(a & b & c)".
-    iDestruct (post_crash_know_pred with "a") as "a".
-    iCrash. iModIntro. iFrame.
+    iModIntro. iModIntro. iFrame.
   Qed.
 
   Global Instance know_protocol_into_crash ℓ prot :

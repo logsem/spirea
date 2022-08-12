@@ -540,7 +540,7 @@ Section points_to_at_more.
     iDestruct "offset" as "-#offset".
     iDestruct "bumper" as "-#bumper".
     iDestruct "order" as "-#order".
-    iCrash.
+    iModIntro.
     iDestruct "persisted" as "(#persisted & (% & %tC & [% %] & #crashed))".
     iApply (if_rec_get with "crashed persisted"); first done.
     iModIntro.

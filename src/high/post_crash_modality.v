@@ -189,6 +189,11 @@ Notation "'<PC>' P" := (post_crash P)
 (** Tiny shortcut for introducing the assumption for a [post_crash]. *)
 Ltac iIntrosPostCrash := iIntros (hG' hh bb na_views).
 
+Class IntoCrash {Σ} `{nvmG Σ} (P : dProp Σ) (Q : dProp Σ) :=
+  into_crash : P -∗ post_crash (Σ := Σ) Q.
+
+Arguments IntoCrash {_} {_} _%I _%I.
+
 Section post_crash_prop.
   Context `{nvmG Σ, nD: nvmDeltaG}.
 
@@ -238,10 +243,18 @@ Section post_crash_prop.
     iIntros "[_ $]". done.
   Qed.
 
+  (* Lemma post_crash_and P Q : *)
+  (*   post_crash P ∧ post_crash Q -∗ <PC> (P ∧ Q). *)
+  (* Proof. *)
+  (*   iModel. *)
+  (*   iIntros "HPQ". *)
+  (*   iIntrosPostCrash. *)
+  (* Admitted. *)
+
   Lemma post_crash_sep P Q :
     post_crash P ∗ post_crash Q -∗ <PC> (P ∗ Q).
   Proof.
-    iStartProof (iProp _). iIntros ([TV i]).
+    iModel.
     iIntros "(HP & HQ)".
     iIntrosPostCrash.
     iDestruct ("HP" $! hG' hh bb na_views) as "HP".
@@ -251,6 +264,26 @@ Section post_crash_prop.
     iDestruct ("HP" with "[$M1 $M2]") as "[$ M2]".
     iDestruct ("HQ" with "[$M1 $M2]") as "[$ $]".
   Qed.
+
+  Lemma modality_post_crash_mixin :
+    modality_mixin (@post_crash Σ _)
+      (MIEnvClear) (MIEnvTransform IntoCrash).
+  Proof.
+    split; simpl; split_and?;
+    eauto using bi.equiv_entails_1_2, post_crash_emp,
+      post_crash_mono, post_crash_sep.
+  Qed.
+  Definition modality_post_crash :=
+    Modality _ modality_post_crash_mixin.
+
+  Global Instance from_modal_post_crash P :
+    FromModal True (modality_post_crash) (<PC> P) (<PC> P) P.
+  Proof. by rewrite /FromModal. Qed.
+
+  (* NOTE: This might be true, but we can't prove it. *)
+  Lemma post_crash_intuitionistically_2 P :
+    (□ <PC> P)%I ⊢ <PC> □ P.
+  Proof. Abort.
 
   Lemma post_crash_disj P Q :
     post_crash P ∨ post_crash Q -∗ <PC> P ∨ Q.
@@ -440,14 +473,14 @@ Section post_crash_interact.
   Lemma post_crash_frag_history ℓ t offset bumper (s : ST) :
     know_preorder_loc_d ℓ (abs_state_relation (ST := ST)) -∗
     offset_loc ℓ offset -∗
-    with_gnames (λ nD, (know_bumper_d ℓ bumper)) -∗
-    with_gnames (λ nD, ⎡ know_frag_history_loc ℓ t s ⎤) -∗
+    know_bumper_d ℓ bumper -∗
+    know_frag_history_loc_d ℓ t s -∗
     post_crash (
       (if_rec ℓ (∃ sC CV tC v,
         ⌜ CV !! ℓ = Some (MaxNat tC) ⌝ ∗
         crashed_at_d CV ∗
         crashed_in_mapsto_d ℓ sC ∗
-        with_gnames (λ nD, ⎡ know_frag_history_loc ℓ (offset + tC) (bumper sC) ⎤) ∗
+        know_frag_history_loc_d ℓ (offset + tC) (bumper sC) ∗
         with_gnames (λ nD, ⎡ know_phys_hist_msg ℓ (offset + tC) (Msg v ∅ ∅ ∅) ⎤) ∗
         (⌜ t ≤ offset + tC ⌝ -∗
           ⌜ s ⊑ sC ⌝ ∗ with_gnames (λ nD, ⎡ know_frag_history_loc ℓ t (bumper s) ⎤))))).
@@ -637,11 +670,6 @@ Section post_crash_interact.
 
 End post_crash_interact.
 
-Class IntoCrash {Σ} `{nvmG Σ} (P : dProp Σ) (Q : dProp Σ) :=
-  into_crash : P -∗ post_crash (Σ := Σ) Q.
-
-Arguments IntoCrash {_} {_} _%I _%I.
-
 Section IntoCrash.
   Context `{nvmG Σ}.
 
@@ -781,32 +809,6 @@ Section IntoCrash.
 
 End IntoCrash.
 
-Lemma modus_ponens {Σ} (P Q : dProp Σ)  : P -∗ (P -∗ Q) -∗ Q.
-Proof. iIntros "HP Hwand". by iApply "Hwand". Qed.
-
-Ltac crash_env Γ :=
-  match Γ with
-    | environments.Enil => idtac
-    | environments.Esnoc ?Γ' ?id (post_crash _) => crash_env Γ'
-    | environments.Esnoc ?Γ' ?id ?A =>
-      first [ iEval (rewrite (@into_crash _ _ A) ) in id || iClear id ] ; crash_env Γ'
-  end.
-
-Ltac crash_ctx :=
-  match goal with
-  | [ |- environments.envs_entails ?Γ _] =>
-    let spatial := pm_eval (environments.env_spatial Γ) in
-    let intuit := pm_eval (environments.env_intuitionistic Γ) in
-    crash_env spatial; crash_env intuit
-  end.
-
-Ltac iCrash :=
-  crash_ctx;
-  iApply (modus_ponens with "[-]"); [ iNamedAccu | ];
-  rewrite ?post_crash_named ?post_crash_sep; iApply post_crash_mono;
-  intros; simpl;
-  let H := iFresh in iIntros H; iNamed H.
-
 Section post_crash_derived.
   Context `{nvmG Σ}.
 
@@ -886,6 +888,12 @@ Next Obligation.
   apply post_crash_mono.
   solve_proper.
 Qed.
+
+Class IntoCrashFlush {Σ} `{nvmG Σ}
+      (P : dProp Σ) (Q : dProp Σ) :=
+  into_crash_flushed : P -∗ post_crash_flush (Σ := Σ) Q.
+
+Arguments IntoCrashFlush {_} {_} _%I _%I.
 
 (*
 Program Definition post_crash_flush `{hG : !nvmG Σ, nvmDeltaG}
@@ -1014,6 +1022,29 @@ Section post_crash_persisted.
     done.
   Qed.
 
+  Lemma post_crash_flush_emp : emp ⊢ post_crash_flush emp.
+  Proof.
+    rewrite -post_crash_flush_post_crash. apply post_crash_emp.
+  Qed.
+
+  Lemma modality_post_crash_flush_mixin :
+    modality_mixin (@post_crash_flush Σ _)
+      (MIEnvClear) (MIEnvTransform IntoCrashFlush).
+  Proof.
+    split; simpl; split_and?;
+    eauto using bi.equiv_entails_1_2, post_crash_flush_emp,
+      post_crash_flush_mono, post_crash_flush_sep.
+
+    (* intros P Q. rewrite /IntoCrash. => ->. *)
+    (* by rewrite post_crash_flush_intuitionistically_2. *)
+  Qed.
+  Definition modality_post_crash_flush :=
+    Modality _ modality_post_crash_flush_mixin.
+
+  Global Instance from_modal_post_crash_flush P :
+    FromModal True (modality_post_crash_flush) (<PCF> P) (<PCF> P) P.
+  Proof. by rewrite /FromModal. Qed.
+
   Lemma post_crash_flush_pure (P : Prop) : P → ⊢ <PCF> ⌜P⌝.
     rewrite -post_crash_flush_post_crash. apply post_crash_pure.
   Qed.
@@ -1048,12 +1079,6 @@ Section post_crash_persisted.
   Qed.
 
 End post_crash_persisted.
-
-Class IntoCrashFlush {Σ} `{nvmG Σ}
-      (P : dProp Σ) (Q : dProp Σ) :=
-  into_crash_flushed : P -∗ post_crash_flush (Σ := Σ) Q.
-
-Arguments IntoCrashFlush {_} {_} _%I _%I.
 
 Section IntoCrashFlush.
   Context `{nvmG Σ}.
@@ -1142,29 +1167,6 @@ Section IntoCrashFlush.
 
 End IntoCrashFlush.
 
-Ltac crash_flush_env Γ :=
-  match Γ with
-    | environments.Enil => idtac
-    | environments.Esnoc ?Γ' ?id (post_crash_flush _) => crash_flush_env Γ'
-    | environments.Esnoc ?Γ' ?id ?A =>
-      first [ iEval (rewrite (@into_crash_flushed _ _ A) ) in id || iClear id ] ; crash_flush_env Γ'
-  end.
-
-Ltac crash_flush_ctx :=
-  match goal with
-  | [ |- environments.envs_entails ?Γ _] =>
-    let spatial := pm_eval (environments.env_spatial Γ) in
-    let intuit := pm_eval (environments.env_intuitionistic Γ) in
-    crash_flush_env spatial; crash_flush_env intuit
-  end.
-
-Ltac iCrashFlush :=
-  crash_flush_ctx;
-  iApply (modus_ponens with "[-]"); [ iNamedAccu | ];
-  rewrite ?post_crash_flush_named ?post_crash_flush_sep; iApply post_crash_flush_mono;
-  intros; simpl;
-  let H := iFresh in iIntros H; iNamed H.
-
 Section post_crash_flush_test.
   Context `{nvmG Σ}.
 
@@ -1175,7 +1177,7 @@ Section post_crash_flush_test.
     <PCF> ⌜ P ⌝ ∗ if_rec ℓ (know_pred_d ℓ ϕ).
   Proof.
     iIntros "P pred pers".
-    iCrashFlush.
+    iModIntro.
     iFrame.
   Qed.
 
