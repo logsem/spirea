@@ -42,6 +42,9 @@ Definition dPropI Σ := monPredI thread_view_bi_index (iPropI Σ).
 
 Ltac iModel := iStartProof (iProp _); iIntros ([TV gnames]).
 
+Tactic Notation "introsIndex" simple_intropattern(x) simple_intropattern(y) :=
+  iIntros ([x ?] [y [= <-]]).
+
 (* [bi_scope] is the scope associated with the scope key [I] from Iris. We bind
 it to the [dProp] type such that we avoid having to type `%I` to get the right
 scope when writing definitions of type [dProp]. *)
@@ -116,7 +119,8 @@ Section definitions.
   Program Definition with_gnames (P : nvmDeltaG → dProp Σ) : dProp Σ :=
     MonPred (λ i, P i.2 i) _.
   Next Obligation.
-    intros ? [? ?] [? gnames] [? [= ->]].
+    intros ? [? ?].
+    introsIndex ? ?.
     simpl.
     apply monPred_mono.
     done.

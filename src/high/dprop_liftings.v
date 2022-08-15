@@ -47,6 +47,9 @@ Section lift_d_lemmas.
     iApply "impl".
   Qed.
 
+  Lemma lift_d_at P TV nD : lift_d (Σ := Σ) P (TV, nD) ⊣⊢ P nD.
+  Proof. apply monPred_at_embed. Qed.
+
 End lift_d_lemmas.
 
 (* This tactic eases the proof of lemmas for definitions involving [lift_d].
@@ -61,6 +64,21 @@ Ltac lift_d_extract :=
 
 Definition crashed_at_d `{nvmBaseFixedG Σ} CV : dProp Σ :=
   lift_d (λ nD, crashed_at CV)%I.
+
+Definition persisted_d `{nvmBaseFixedG Σ} (PV : view) : dProp Σ :=
+  lift_d (λ nD, persisted PV).
+
+(* [persisted_d] is anti-monotone. *)
+Global Instance persisted_d_anti_mono `{nvmBaseFixedG Σ} :
+  Proper ((⊑@{view}) ==> flip (⊢)) (persisted_d).
+Proof.
+  intros ???.
+  iModel.
+  simpl.
+  rewrite 2!monPred_at_embed.
+  iApply persisted_weak.
+  done.
+Qed.
 
 Definition persisted_loc_d `{nvmBaseFixedG Σ} ℓ t : dProp Σ :=
   lift_d (λ nD, persisted_loc ℓ t)%I.

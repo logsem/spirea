@@ -18,13 +18,13 @@ Section post_fence.
   Context `{Σ : gFunctors}.
   Implicit Types (P : dProp Σ).
 
-  Lemma post_fence_at P TV :
-    ((<fence> P) TV =
-       P (store_view TV, (flush_view TV ⊔ buffer_view TV), buffer_view TV))%I.
+  Lemma post_fence_at P TV gnames :
+    ((<fence> P) (TV, gnames) =
+       P (store_view TV, (flush_view TV ⊔ buffer_view TV), buffer_view TV, gnames))%I.
   Proof. done. Qed.
 
-  Lemma post_fence_at_alt P SV PV BV :
-    ((<fence> P) (SV, PV, BV) = P (SV, PV ⊔ BV, BV))%I.
+  Lemma post_fence_at_alt P SV PV BV gnames :
+    ((<fence> P) (SV, PV, BV, gnames) = P (SV, PV ⊔ BV, BV, gnames))%I.
   Proof. done. Qed.
 
   Lemma post_fence_mono P Q : (P ⊢ Q) → <fence> P ⊢ <fence> Q.
@@ -35,11 +35,12 @@ Section post_fence.
 
   Lemma post_fence_wand P Q : (P -∗ Q) -∗ <fence> P -∗ <fence> Q.
   Proof.
-    iModel. iIntros "H". iIntros (TV2 le) "P".
+    iModel. iIntros "H".
+    introsIndex TV2 le.
     rewrite !post_fence_at.
     monPred_simpl.
-    iApply "H". { iPureIntro. solve_view_le. }
-    done.
+    iApply "H".
+    iPureIntro. split; last done. solve_view_le.
   Qed.
 
   Lemma post_fence_idemp P : <fence> <fence> P ⊢ <fence> P.
@@ -66,7 +67,7 @@ Section post_fence.
 
   Lemma post_fence_sep P Q : <fence> (P ∗ Q) ⊣⊢ <fence> P ∗ <fence> Q.
   Proof.
-    iStartProof (iProp _). iIntros ([[sv pv] bv]).
+    iModel.
     cbn.
     rewrite monPred_at_sep.
     iSplit; iIntros "$".
@@ -108,7 +109,7 @@ Section post_fence.
 
   Lemma post_fence_objective' P : post_fence (<obj> P) ⊢ P.
   Proof.
-    iStartProof (iProp _). iIntros (TV).
+    iModel.
     rewrite post_fence_at.
     rewrite monPred_at_objectively.
     naive_solver.
@@ -118,7 +119,7 @@ Section post_fence.
   Proof.
     iModel.
     rewrite post_fence_at. rewrite into_no_flush_at.
-    iApply monPred_mono. solve_view_le.
+    iApply monPred_mono. split; last done. solve_view_le.
   Qed.
 
   Lemma post_fence_flush_free P `{FlushFree P} : post_fence P ⊢ P.
@@ -126,7 +127,7 @@ Section post_fence.
     rewrite -> (into_no_flush P P) at 1.
     iModel.
     rewrite post_fence_at. rewrite into_no_flush_at.
-    iApply monPred_mono. solve_view_le.
+    iApply monPred_mono. split; last done. solve_view_le.
   Qed.
 
   Global Instance post_fence_persistent P :
@@ -134,8 +135,8 @@ Section post_fence.
   Proof.
     rewrite /Persistent.
     intros pers.
-    iStartProof (iProp _).
-    iIntros (TV) "H".
+    iModel.
+    iIntros "H".
     rewrite post_fence_at.
     iApply pers.
     iApply "H".
@@ -259,7 +260,7 @@ Section post_fence_sync.
   Qed.
 
   Lemma modality_post_fence_sync_mixin :
-    modality_mixin (@post_fence_sync _ _ _)
+    modality_mixin (@post_fence_sync _ _)
       (MIEnvTransform IntoFenceSync) (MIEnvTransform IntoFenceSync).
   Proof.
     split; simpl; split_and?;

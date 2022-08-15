@@ -8,7 +8,7 @@ From Perennial.base_logic.lib Require Import ncfupd.
 From self.algebra Require Import view.
 From self.lang Require Import memory.
 From self.base Require Import primitive_laws.
-From self.high Require Import dprop resources.
+From self.high Require Import dprop dprop_liftings resources.
 
 Program Definition post_fence {Σ} (P : dProp Σ) : dProp Σ :=
   MonPred (λ i, P ((store_view (i.1),
@@ -28,9 +28,10 @@ Qed.
 Notation "'<fence>' P" :=
   (post_fence P) (at level 20, right associativity) : bi_scope.
 
-Program Definition post_fence_sync `{nvmBaseFixedG Σ, nvmBaseDeltaG}
+Program Definition post_fence_sync `{nvmBaseFixedG Σ}
         (P : dProp Σ) : dProp Σ :=
   MonPred (λ i,
+    let nD := i.2 in
     bi_wand
       (persisted (buffer_view i.1))
       (P ((store_view i.1,
@@ -38,7 +39,7 @@ Program Definition post_fence_sync `{nvmBaseFixedG Σ, nvmBaseDeltaG}
            buffer_view i.1), i.2))
   ) _.
 Next Obligation.
-  intros Σ ?? P.
+  intros Σ ??.
   do 2 intros [[[??]?]?].
   intros [[[??]?] [= ->]].
   simpl.

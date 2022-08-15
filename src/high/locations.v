@@ -545,11 +545,11 @@ Section points_to_at_more.
     iApply (if_rec_get with "crashed persisted"); first done.
     iModIntro.
     iDestruct "offset" as (???) "[crashed' offset]".
-    iDestruct (crashed_at_agree with "crashed crashed'") as %<-.
+    iDestruct (crashed_at_d_agree with "crashed crashed'") as %<-.
     iClear "crashed'".
     simplify_eq.
     iDestruct "H" as (sC ????) "(#crashed' & ? & #hist & ? & impl)".
-    iDestruct (crashed_at_agree with "crashed crashed'") as %<-.
+    iDestruct (crashed_at_d_agree with "crashed crashed'") as %<-.
     iClear "crashed'".
     assert (tC = tC0) as <- by congruence.
     iDestruct ("impl" with "[%]") as "[% ?]"; first lia.
@@ -597,7 +597,7 @@ Section points_to_at_more.
 
   Lemma post_crash_store_lb (ℓ : loc) prot (s : ST) :
     store_lb ℓ prot s -∗
-    <PC> hG, if_rec ℓ (∃ (s' : ST), persist_lb ℓ prot s').
+    <PC> if_rec ℓ (∃ (s' : ST), persist_lb ℓ prot s').
   Proof.
     iNamed 1. iNamed "lbBase".
     iDestruct (know_protocol_extract with "locationProtocol")
@@ -608,12 +608,12 @@ Section points_to_at_more.
     iDestruct "offset" as "-#offset".
     iDestruct "bumper" as "-#bumper".
     iDestruct "order" as "-#order".
-    iCrash.
+    iModIntro.
     iDestruct (if_rec_is_persisted ℓ) as "pers".
     iModIntro.
     iDestruct "H" as (sC ????) "(#crashed & ? & ? & ? & impl)".
     iDestruct "offset" as (???) "(crashed' & ?)".
-    iDestruct (crashed_at_agree with "crashed crashed'") as %->.
+    iDestruct (crashed_at_d_agree with "crashed crashed'") as %->.
     simplify_eq.
     iExistsN.
     iFrame.
@@ -635,7 +635,7 @@ Section points_to_at_more.
 
   Lemma post_crash_mapsto_na ℓ prot q (ss : list ST) :
     ℓ ↦_{prot}^{q} ss -∗
-    <PC> nD',
+    <PC>
       if_rec ℓ (∃ ss' s,
         ⌜ (ss' ++ [s]) `prefix_of` ss ⌝ ∗
         crashed_in prot ℓ s ∗
@@ -649,19 +649,19 @@ Section points_to_at_more.
     iDestruct "physMsg" as "-#physMsg".
     iDestruct "pers" as "-#pers".
     iDestruct "offset" as "-#offset".
-    iCrash.
+    iModIntro.
     iDestruct (if_rec_is_persisted ℓ) as "persisted".
     iModIntro.
     iDestruct "offset" as (tC CV cvLook) "(crashed & offset)".
     iDestruct "H" as (? s2 v absHistLook)
       "(bumper & #crashedIn & offset' & fullHist & fragHist & #phys)".
-    iDestruct (ghost_map_elem_agree with "offset offset'") as %<-.
+    iDestruct (offset_loc_agree with "offset offset'") as %<-.
     iClear "offset'".
     assert (offset + tC ≤ tHi). { eapply map_no_later_Some; done. }
 
     iAssert (⌜ tLo ≤ offset + tC ⌝)%I as %?.
     { iDestruct "pers" as "[(_ & (%CV' & % & [% %] & crashed'))|%eq]".
-      - iDestruct (crashed_at_agree with "crashed crashed'") as %<-.
+      - iDestruct (crashed_at_d_agree with "crashed crashed'") as %<-.
         simplify_eq. iPureIntro. lia.
       - iPureIntro. lia. }
     eassert _ as HT. { eapply map_sequence_prefix_alt; done. }
@@ -714,14 +714,13 @@ Section points_to_at_more.
   not want to preserve the prefix after a crash. *)
   Lemma post_crash_mapsto_na_singleton ℓ prot q (ss : list ST) :
     ℓ ↦_{prot}^{q} ss -∗
-    post_crash (λ hG',
-      if_rec ℓ (∃ s,
+    <PC> if_rec ℓ (∃ s,
         ⌜ s ∈ ss ⌝ ∗
         crashed_in prot ℓ s ∗
-        ℓ ↦_{prot}^{q} [prot.(bumper) s])).
+        ℓ ↦_{prot}^{q} [prot.(bumper) s]).
   Proof.
     iIntros "pts".
-    iCrash. iModIntro.
+    iModIntro. iModIntro.
     iDestruct "pts" as (???) "(crashed & pts)".
     iExists s.
     iSplitPure.
@@ -738,7 +737,7 @@ Section points_to_at_more.
 
   Lemma post_crash_flush_flush_lb (ℓ : loc) prot (s : ST) :
     flush_lb ℓ prot s -∗
-    <PCF> hG, persist_lb ℓ prot (bumper prot s) ∗
+    <PCF> persist_lb ℓ prot (bumper prot s) ∗
               ∃ s__pc, ⌜ s ⊑ s__pc ⌝ ∗ crashed_in prot ℓ s__pc.
   Proof.
     iNamed 1. iNamed "lbBase".
@@ -753,7 +752,7 @@ Section points_to_at_more.
     iDestruct (post_crash_flush_post_crash with "bumper") as "bumper".
     iDestruct (post_crash_preorder with "order") as "order".
     iDestruct (post_crash_flush_post_crash with "order") as "order".
-    iCrashFlush.
+    iModIntro.
     iAssert (_)%I with "[viewFact]" as "pers".
     { iDestruct "viewFact" as "[pers | pers]".
       - iApply "pers".
@@ -764,11 +763,11 @@ Section points_to_at_more.
     iModIntro.
 
     iDestruct "offset" as (???) "[crashed' offset]".
-    iDestruct (crashed_at_agree with "crashed crashed'") as %<-.
+    iDestruct (crashed_at_d_agree with "crashed crashed'") as %<-.
     iClear "crashed'".
     simplify_eq.
     iDestruct "HI" as (?????) "(#crashed' & ? & #hist & ? & impl)".
-    iDestruct (crashed_at_agree with "crashed crashed'") as %<-.
+    iDestruct (crashed_at_d_agree with "crashed crashed'") as %<-.
     iClear "crashed'".
     simplify_eq.
     iDestruct ("impl" with "[%]") as "[%incl ?]"; first lia.
@@ -804,7 +803,6 @@ Section points_to_at_more.
     iExists tS, offset.
     simplify_eq.
     iFrame "#".
-    rewrite embed_big_sepM.
     iDestruct (big_sepM_lookup with "absHist") as "frag".
     { apply map_sequence_lookup_hi in slice.
       rewrite last_snoc in slice.
@@ -820,7 +818,7 @@ Section points_to_at_more.
 
   Lemma post_crash_mapsto_at_singleton ℓ prot (ss : list ST) :
     ℓ ↦_AT^{prot} ss -∗
-    <PC> _,
+    <PC>
       if_rec ℓ (∃ sC,
         crashed_in prot ℓ sC ∗
         ℓ ↦_AT^{prot} [prot.(bumper) sC]).
@@ -829,17 +827,16 @@ Section points_to_at_more.
     iNamed 1.
     iDestruct (know_protocol_extract with "locationProtocol")
       as "(-#pred & order & bumper)".
-    iAssert (□ ∀ t s, ⎡ know_frag_history_loc ℓ t s ⎤ -∗ _)%I as "#impl".
+    iAssert (□ ∀ t s, know_frag_history_loc_d ℓ t s -∗ _)%I as "#impl".
     { iIntros "!>" (??).
       iApply (post_crash_frag_history with "order offset bumper"). }
     iDestruct "isAtLoc" as "-#isAtLoc".
-    rewrite embed_big_sepM.
     iDestruct (big_sepM_impl with "absHist []") as "-#HI".
     { iIntros "!>" (???).
       iApply "impl". }
     iDestruct "offset" as "-#offset".
     iDestruct "locationProtocol" as "-#locationProtocol".
-    iCrash.
+    iModIntro.
     iDestruct (if_rec_is_persisted ℓ) as "persisted".
     (* TODO: Why is this [IntoIfRec] instance not picked up automatically. *)
     iDestruct (into_if_rec with "HI") as "HH".
@@ -850,7 +847,7 @@ Section points_to_at_more.
     iDestruct (big_sepM_lookup with "HH")
       as (sC CV' tC' ? ?) "(#hi & #crashedIn & #frag & #phys & #hi2)".
     { erewrite <- lastEq. eapply map_sequence_lookup_hi. done. }
-    iDestruct (crashed_at_agree with "crashed hi") as %<-.
+    iDestruct (crashed_at_d_agree with "crashed hi") as %<-.
     assert (tC = tC') as <- by congruence.
     (* Note, [sC] is the last location that was recovered after the crash.
      * However, this location may not be among the locations in [ss]. *)
@@ -898,8 +895,7 @@ Section points_to_at_more.
    * proof is aborted (for now). *)
   Lemma post_crash_mapsto_at ℓ prot (ss : list ST) :
     ℓ ↦_AT^{prot} ss -∗
-    post_crash (λ hG',
-      if_rec ℓ (∃ sC,
+    <PC> if_rec ℓ (∃ sC,
         crashed_in prot ℓ sC ∗
         (* At least one of our states are still there. *)
         ((∃ ss1 s ss2,
@@ -911,24 +907,22 @@ Section points_to_at_more.
         ∃ sF,
           ⌜ head ss = Some sF ∧ sC ⊑ sF ∧ sC ≠ sF ⌝ ∗
           ℓ ↦_AT^{prot} [prot.(bumper) sC])
-      )
-    ).
+      ).
   Proof.
     rewrite /mapsto_at.
     iNamed 1.
     iDestruct (know_protocol_extract with "locationProtocol")
       as "(-#pred & order & bumper)".
-    iAssert (□ ∀ t s, ⎡ know_frag_history_loc ℓ t s ⎤ -∗ _)%I as "#impl".
+    iAssert (□ ∀ t s, know_frag_history_loc_d ℓ t s -∗ _)%I as "#impl".
     { iIntros "!>" (??).
       iApply (post_crash_frag_history with "order offset bumper"). }
     iDestruct "isAtLoc" as "-#isAtLoc".
-    rewrite embed_big_sepM.
     iDestruct (big_sepM_impl with "absHist []") as "-#HI".
     { iIntros "!>" (???).
       iApply "impl". }
     iDestruct "offset" as "-#offset".
     iDestruct "locationProtocol" as "-#locationProtocol".
-    iCrash.
+    iModIntro.
     iDestruct (if_rec_is_persisted ℓ) as "persisted".
     (* TODO: Why is this [IntoIfRec] instance not picked up automatically. *)
     iDestruct (into_if_rec with "HI") as "HH".
@@ -939,7 +933,7 @@ Section points_to_at_more.
     iDestruct (big_sepM_lookup with "HH")
       as (sC CV' tC' ??) "(#hi & #crashedIn & #frag & ? & #hi2)".
     { erewrite <- lastEq. eapply map_sequence_lookup_hi. done. }
-    iDestruct (crashed_at_agree with "crashed hi") as %<-.
+    iDestruct (crashed_at_d_agree with "crashed hi") as %<-.
     assert (tC = tC') as <- by congruence.
     (* Note, [sC] is the last location that was recovered after the crash.
      * However, this location may not be among the locations in [ss]. *)
@@ -977,7 +971,7 @@ Section points_to_at_more.
   Lemma post_crash_mapsto_na_flush_lb ℓ prot ss (s : ST) :
     flush_lb ℓ prot s -∗
     ℓ ↦_AT^{prot} (ss ++ [s]) -∗
-    <PCF> _,
+    <PCF>
       persist_lb ℓ prot (prot.(bumper) s) ∗
       ℓ ↦_AT^{prot} ((prot.(bumper) <$> ss) ++ [prot.(bumper) s]).
   Proof.
