@@ -160,15 +160,15 @@ Section post_fence.
 
 End post_fence.
 
-Class IntoFenceSync `{nvmG Σ, nvmDeltaG}
+Class IntoFenceSync `{nvmG Σ}
       (P: dProp Σ) (Q : dProp Σ) :=
   into_fence_sync : P ⊢ <fence_sync> Q.
-Global Arguments IntoFenceSync {_} {_} {_} _%I _%I.
+Global Arguments IntoFenceSync  {_} {_} _%I _%I.
 Global Arguments into_fence_sync {_} _%I _%I {_}.
-Global Hint Mode IntoFenceSync - - + ! -  : typeclass_instances.
+Global Hint Mode IntoFenceSync - + ! -  : typeclass_instances.
 
 Section post_fence_sync.
-  Context `{nvmG Σ, nvmDeltaG}.
+  Context `{nvmG Σ}.
 
   Implicit Types (P : dProp Σ).
 

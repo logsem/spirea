@@ -334,39 +334,7 @@ Section post_crash_interact.
 
   Context `{AbstractState ST}.
 
-  Definition lift_d P : dProp Σ := with_gnames (λ nD, ⎡ P nD ⎤)%I.
-
-  Definition know_preorder_loc_d `{Countable ST} ℓ (preorder : relation2 ST) : dProp Σ :=
-    lift_d (λ nD, know_preorder_loc ℓ (abs_state_relation (ST := ST)))%I.
-
-  Definition know_pred_d `{Countable ST} ℓ (ϕ : predicate ST) : dProp Σ :=
-    lift_d (λ nD, know_pred ℓ ϕ)%I.
-
-  Definition is_at_loc_d ℓ : dProp Σ :=
-    lift_d (λ nD, own shared_locs_name (◯ {[ ℓ ]}))%I.
-
-  Definition is_na_loc_d ℓ : dProp Σ :=
-    lift_d (λ nD, own exclusive_locs_name (◯ {[ ℓ ]}))%I.
-
-  Definition offset_loc ℓ (t : nat) : dProp Σ :=
-    lift_d (λ nD, ℓ ↪[offset_name]□ t)%I.
-
-  Definition know_na_view_d ℓ q (SV : view) : dProp Σ :=
-    lift_d (λ nD, ℓ ↪[non_atomic_views_gname]{#q} SV)%I.
-
-  Definition know_bumper_d ℓ (bumper : ST → ST) : dProp Σ :=
-    lift_d (λ nD, know_bumper ℓ bumper)%I.
-
-  Definition know_full_history_loc_d `{Countable ST}
-             ℓ q (abs_hist : gmap time ST) : dProp Σ :=
-    lift_d (λ nD, full_entry_unenc abs_history_name ℓ q abs_hist)%I.
-
-  Definition crashed_in_mapsto_d `{Countable ST} ℓ (s : ST) : dProp Σ :=
-    lift_d (λ nD,
-      ∃ es, ⌜ decode es = Some s ⌝ ∗ ℓ ↪[crashed_in_name]□ es)%I.
-
   (** ** The rules for the "special" assertions
-
   How the post crash modality interacts with the assertions in the logic. *)
 
   Lemma new_hist_encode_eq t bumper (abs_hist : gmap time ST) :
@@ -389,11 +357,11 @@ Section post_crash_interact.
 
   Lemma post_crash_know_full_history_loc ℓ q (bumper : ST → ST)
         (abs_hist : gmap time ST) :
-    with_gnames (λ nD, ⎡ know_bumper ℓ bumper ⎤) ∗
+    know_bumper_d ℓ bumper ∗
     know_full_history_loc_d ℓ q abs_hist -∗
     <PC> if_rec ℓ (∃ t' (s : ST) v,
         ⌜ abs_hist !! t' = Some s ⌝ ∗
-        with_gnames (λ nD, ⎡ know_bumper ℓ bumper ⎤) ∗
+        know_bumper_d ℓ bumper ∗
         crashed_in_mapsto_d ℓ s ∗
         with_gnames (λ nD, ⎡ ℓ ↪[offset_name]□ t' ⎤) ∗
         know_full_history_loc_d ℓ q (bumper <$> (drop_above t' abs_hist)) ∗
@@ -807,12 +775,62 @@ Section IntoCrash.
   Global Instance know_bumper_into_crash `{AbstractState ST} ℓ (bumper : ST → ST) :
     IntoCrash _ _ := post_crash_know_bumper ℓ bumper.
 
+  Global Instance post_crash_into_crash P : IntoCrash (<PC> P) P.
+  Proof. done. Qed.
+
 End IntoCrash.
 
 Section post_crash_derived.
   Context `{nvmG Σ}.
 
   Context `{AbstractState ST}.
+
+  Lemma post_crash_persisted_d PV :
+    persisted_d PV -∗
+    <PC> (persisted_d (view_to_zero PV) ∗ ∃ CV, ⌜ PV ⊑ CV ⌝ ∗ crashed_at_d CV).
+  Proof.
+    iModel.
+    simpl.
+    rewrite monPred_at_embed.
+    iIntros "P".
+    iIntrosPostCrash.
+    base.post_crash_modality.iCrash.
+    iIntros "[_ $]".
+    iNext.
+    simpl.
+    monPred_simpl.
+    simpl.
+    rewrite monPred_at_embed.
+    iDestruct "P" as "[$ (%CV & ho)]".
+    iExists (CV).
+    monPred_simpl.
+    simpl.
+    monPred_simpl.
+    iFrame.
+  Qed.
+
+  Global Instance into_crash_persisted_d PV :
+    IntoCrash _ _ := post_crash_persisted_d PV.
+
+  Lemma post_crash_persisted_loc_d ℓ t :
+    persisted_loc_d ℓ t -∗
+    <PC> (
+      persisted_loc_d ℓ 0 ∗
+      ∃ CV t', ⌜ CV !! ℓ = Some (MaxNat t') ∧ t ≤ t' ⌝ ∗ crashed_at_d CV)%I.
+  Proof.
+    iIntros "P".
+    iDestruct (post_crash_persisted_d with "P") as "P".
+    iApply (post_crash_mono with "P").
+    rewrite view_to_zero_singleton.
+    iIntros "[$ M]".
+    setoid_rewrite view_le_singleton.
+    setoid_rewrite bi.pure_exist.
+    setoid_rewrite bi.sep_exist_r.
+    done.
+  Qed.
+
+  Global Instance into_crash_persisted_loc_d ℓ t :
+    IntoCrash _ _ := post_crash_persisted_loc_d ℓ t.
 
   (* Lemma post_crash_know_frag_history_loc ℓ t (s : ST) : *)
   (*   ⎡ know_preorder_loc ℓ (⊑@{ST}) ∗ *)
@@ -859,20 +877,6 @@ End post_crash_derived.
 (*         ⎡ crashed_at CV ⎤ -∗ *)
 (*         P nD')%I. *)
 (* Next Obligation. intros ??????. apply post_crash_mono. solve_proper. Qed. *)
-
-Definition persisted_d `{nvmBaseFixedG Σ} (V : view) : dProp Σ :=
-  with_gnames (λ nD, ⎡ own persist_view_name (◯ V) ⎤)%I.
-
-(* [persisted_d] is anti-monotone. *)
-Global Instance persisted_d_anti_mono `{nvmBaseFixedG Σ} : Proper ((⊑@{view}) ==> flip (⊢)) (persisted_d).
-Proof.
-  intros ???.
-  iModel.
-  simpl.
-  rewrite 2!monPred_at_embed.
-  iApply persisted_weak.
-  done.
-Qed.
 
 Program Definition post_crash_flush {Σ} `{nvmG Σ}
         (P : dProp Σ) : dProp Σ :=
@@ -1164,6 +1168,20 @@ Section IntoCrashFlush.
          ℓ (ϕ : ST → _ → _) :
     IntoCrashFlush _ _ :=
       into_crash_into_crash_flushed _ _ (know_pred_into_crash ℓ ϕ).
+
+  Global Instance post_crash_flush_into_crash_flush P : IntoCrashFlush (<PCF> P) P.
+  Proof. done. Qed.
+
+  Global Instance post_crash_into_crash_flush P : IntoCrashFlush (<PC> P) P.
+  Proof. apply into_crash_into_crash_flushed. done. Qed.
+
+  Global Instance lifted_persisted_d_into_crash_flush PV :
+    IntoCrashFlush _ _%I :=
+    into_crash_into_crash_flushed _ _ (into_crash_persisted_d PV).
+
+  Global Instance lifted_persisted_loc_d_into_crash_flush ℓ t :
+    IntoCrashFlush _ _%I :=
+    into_crash_into_crash_flushed _ _ (into_crash_persisted_loc_d ℓ t).
 
 End IntoCrashFlush.
 

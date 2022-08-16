@@ -245,10 +245,11 @@ Section post_crash_prop.
     iDestruct ("perToRec" with "pers") as "[$ $]".
   Qed.
 
-  Lemma post_crash_persisted_singleton ℓ t :
-    (persisted {[ ℓ := MaxNat t ]}) -∗
-    post_crash (λ hG', persisted ({[ ℓ := MaxNat 0 ]}) ∗
-                       ∃ CV t', ⌜CV !! ℓ = Some (MaxNat t') ∧ t ≤ t'⌝ ∗ crashed_at CV)%I.
+  Lemma post_crash_persisted_loc ℓ t :
+    persisted_loc ℓ t -∗
+    post_crash (λ hG',
+      persisted_loc ℓ 0 ∗
+      ∃ CV t', ⌜CV !! ℓ = Some (MaxNat t') ∧ t ≤ t'⌝ ∗ crashed_at CV)%I.
   Proof.
     iIntros "pers".
     iDestruct (post_crash_persisted with "pers") as "H".
@@ -493,12 +494,12 @@ Section IntoCrash.
                       ∃ CV, ⌜PV ⊑ CV⌝ ∗ crashed_at CV)%I.
   Proof. rewrite /IntoCrash. iApply post_crash_persisted. Qed.
 
-  Global Instance persisted_singleton_into_crash ℓ t :
+  Global Instance persisted_loc_into_crash ℓ t :
     IntoCrash
-      (persisted {[ ℓ := MaxNat t ]})
-      (λ hG', persisted ({[ ℓ := MaxNat 0 ]}) ∗
+      (persisted_loc ℓ t)
+      (λ hG', persisted_loc ℓ 0 ∗
               ∃ CV t', ⌜CV !! ℓ = Some (MaxNat t') ∧ t ≤ t'⌝ ∗ crashed_at CV)%I.
-  Proof. rewrite /IntoCrash. iApply post_crash_persisted_singleton. Qed.
+  Proof. rewrite /IntoCrash. iApply post_crash_persisted_loc. Qed.
 
 End IntoCrash.
 
@@ -535,7 +536,7 @@ Section post_crash_modality_test.
   Context `{Hi2: !IntoCrash Q Q'}.
 
   Lemma test R ℓ t :
-    P -∗ persisted {[ ℓ := MaxNat t ]} -∗ ⌜ R ⌝ -∗ post_crash (λ hG', P' hG').
+    P -∗ persisted_loc ℓ t -∗ ⌜ R ⌝ -∗ post_crash (λ hG', P' hG').
   Proof using All.
     iIntros "HP HQ HR".
     iCrash.
