@@ -103,7 +103,7 @@ Section proof.
     bumper b := b;
   |}.
   Next Obligation.
-    iIntros (? [| |] ?) "H"; simpl; iCrashFlush; done.
+    iIntros (? [| |] ?) "H"; simpl; iModIntro; done.
   Qed.
   Next Obligation. Admitted.
 
@@ -138,12 +138,12 @@ Section proof.
       bumper b := b; |}.
   Next Obligation.
     iIntros (? [|] v); last first.
-    { iIntros "H". iCrashFlush. done. }
+    { iIntros "H". iModIntro. done. }
     iIntros "(-> & (%s & shot & fLb & [[-> B]|[-> B]]))".
     - iDestruct (useful x prot_x _ x_one with "[fLb]") as "bbB".
       {
         iFrame "fLb".
-      iCrashFlush.
+      iModIntro.
       iSplitPure; first done.
       iDestruct "fLb" as "[pLb (%sC & %le & #xCr)]".
       iDestruct (crashed_in_if_rec with "xCr B") as (?) "(xCr' & disj)".

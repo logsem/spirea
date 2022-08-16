@@ -149,6 +149,15 @@ Section post_crash_interact.
     iApply full_entry_frag_entry_unenc.
   Qed.
 
+  Lemma know_full_history_loc_d_agree ℓ p q (abs_hist1 abs_hist2 : gmap nat ST) :
+    know_full_history_loc_d ℓ p abs_hist1 -∗
+    know_full_history_loc_d ℓ q abs_hist2 -∗
+    ⌜ abs_hist1 = abs_hist2 ⌝.
+  Proof.
+    lift_d_extract.
+    iApply full_entry_unenc_agree.
+  Qed.
+
   Lemma offset_loc_agree ℓ t1 t2 :
     offset_loc ℓ t1 -∗
     offset_loc ℓ t2 -∗

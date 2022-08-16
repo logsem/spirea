@@ -14,7 +14,7 @@ From iris_named_props Require Import named_props.
 
 From self.algebra Require Export ghost_map.
 From self Require Export extra ipm_tactics solve_view_le.
-From self.high Require Export dprop.
+From self.high Require Export dprop dprop_liftings.
 From self Require Export view.
 From self Require Export lang.
 From self.base Require Import primitive_laws.
@@ -23,7 +23,7 @@ From self.high Require Import resources crash_weakestpre lifted_modalities
      monpred_simpl modalities protocol locations.
 
 Section wp.
-  Context `{!nvmG Σ, nvmDeltaG}.
+  Context `{!nvmG Σ}.
 
   Implicit Types (Φ : val → dProp Σ) (e : expr).
 
@@ -92,7 +92,7 @@ Section wp.
   (* Note: This proof broke when [interp] was added to the recovery condition in
   the definition of our WPR. It should still be probable though. Maybe by doing
   induction in [n] and using [wpc_pure_step_fupd] from Perennial. *)
-  Lemma wp_pure_step_fupd `{!Inhabited (state Λ)} s E E' e1 e2 φ n Φ :
+  Lemma wp_pure_step_fupd `{!Inhabited (state nvm_lang)} s E E' e1 e2 φ n Φ :
     PureExecBase φ n e1 e2 →
     φ →
     (|={E}[E']▷=>^n WP e2 @ s; E {{ Φ }}) ⊢ WP e1 @ s; E {{ Φ }}.
@@ -117,6 +117,7 @@ Section wp.
     iApply wpc_pure_step_fupd.
     { econstructor; last done. eassumption. }
     { constructor. }
+    Unshelve. 2: { done. } 2: { done. }
     iSplit.
     2: { iFrame. done. }
     simpl.
@@ -139,13 +140,13 @@ Section wp.
 
   (* This lemma "unfolds" the high-level WP into the low-level WP when the
   former is applied to a thread view. *)
-  Lemma wp_unfold_at e st E (Φ : val → dProp Σ) TV1 :
+  Lemma wp_unfold_at e st E (Φ : val → dProp Σ) TV1 nD :
     (∀ TV2, ⌜ TV1 ⊑ TV2 ⌝ -∗ validV (store_view TV2) -∗
       WP e `at` TV2 @ st; E
         {{ res,
           let '(v `at` TV3)%V := res
-          in ⌜ TV2 ⊑ TV3 ⌝ ∗ validV (store_view TV3) ∗ Φ v TV3 }}) -∗
-    (WP e @ st; E {{ Φ }}) TV1.
+          in ⌜ TV2 ⊑ TV3 ⌝ ∗ validV (store_view TV3) ∗ Φ v (TV3, nD) }}) -∗
+    (WP e @ st; E {{ Φ }}) (TV1, nD).
   Proof.
     iStartProof (iProp _).
     iIntros "impl".
@@ -160,7 +161,7 @@ End wp.
 
 Section wp_rules.
   Context `{AbstractState ST}.
-  Context `{!nvmG Σ, hG : nvmDeltaG}.
+  Context `{!nvmG Σ}.
 
   Implicit Types (ℓ : loc) (s : ST) (ϕ : ST → val → nvmDeltaG → dProp Σ).
 
@@ -259,13 +260,14 @@ Section wp_rules.
     }}}.
   Proof.
     intros Φ.
-    iStartProof (iProp _).
-    iIntros ([[sv pv] bv]) "lb".
+    iModel.
+    destruct TV as [[? ?] ?].
+    iIntros "lb".
     rewrite /store_lb.
     iDestruct "lb" as (tS offset) "H". iNamed "H". iNamed "lbBase".
     iDestruct "tSLe" as %tSLe.
 
-    iIntros ([[??]?] ?) "HΦ".
+    iIntros ([[[??]?] ?] [? [= <-]]) "HΦ".
     iApply wp_unfold_at.
     iIntros ([[SV PV] BV] incl) "#val".
 
@@ -276,11 +278,13 @@ Section wp_rules.
     (* Get the points-to predicate. *)
     iDestruct (know_protocol_extract with "locationProtocol")
       as "(_ & order & _)".
+    rewrite /know_preorder_loc_d lift_d_at.
     iDestruct (ghost_map_lookup with "allOrders order") as %look.
     iDestruct (big_sepM2_dom with "ordered") as %domEq.
     iDestruct (big_sepM2_dom with "predsHold") as %domEq2.
     assert (is_Some (phys_hists !! ℓ)) as [physHist ?].
     { apply elem_of_dom. rewrite domEq2 domEq. apply elem_of_dom. naive_solver. }
+    rewrite /offset_loc lift_d_at.
     iDestruct (ghost_map_lookup with "offsets offset") as %?.
     iDestruct (big_sepM_lookup_acc with "ptsMap") as "[pts ptsMap]".
     { apply map_lookup_zip_with_Some. naive_solver. }
@@ -290,7 +294,7 @@ Section wp_rules.
     iDestruct ("ptsMap" with "pts") as "ptsMap".
 
     assert (tS - offset ≤ SV !!0 ℓ) as tSLe2.
-    { etrans; first apply tSLe.
+    { etrans; first apply tSLe. simpl.
       f_equiv. etrans; first apply H1. apply incl. }
     rewrite -assoc.
     iSplitPure.
@@ -298,11 +302,13 @@ Section wp_rules.
     iFrame "val".
     iSplitL "HΦ".
     { iEval (monPred_simpl) in "HΦ". iApply "HΦ".
-      { iPureIntro. solve_view_le. }
+      { iPureIntro. split; last done. solve_view_le. }
       iSplitL.
       - simpl.
         rewrite /flush_lb.
         iExistsN.
+        simpl.
+        rewrite !monPred_at_embed.
         iFrame "locationProtocol".
         iFrame "knowFragHist".
         iFrame "offset".
@@ -317,6 +323,7 @@ Section wp_rules.
         iIntros "#pers".
         rewrite /persist_lb.
         iExistsN.
+        simpl. rewrite !monPred_at_embed.
         iFrame "locationProtocol".
         iFrame "knowFragHist".
         iFrame "offset".
@@ -381,7 +388,7 @@ Section wp_rules.
   Lemma wp_fence (st : stuckness) (E : coPset) (Φ : val → dProp Σ) :
     <fence> ▷ Φ #() -∗ WP Fence @ st; E {{ v, Φ v }}.
   Proof.
-    iStartProof (iProp _). iIntros ([[sv pv] bv]).
+    iModel. destruct TV as [[sv pv] bv].
     iIntros "H".
     iApply wp_unfold_at.
     iIntros ([[SV PV] BV] incl) "#val".
@@ -392,7 +399,9 @@ Section wp_rules.
     iFrame "#∗".
     iSplit. { iPureIntro. repeat split; try done. apply view_le_l. }
     iApply monPred_mono; last iApply "H".
+
     repeat split; try apply incl.
+
     f_equiv; apply incl.
   Qed.
 
@@ -402,9 +411,9 @@ Section wp_rules.
     {{{ RET #(); P }}}.
   Proof.
     intros Φ.
-    iStartProof (iProp _). iIntros ([[sv pv] bv]).
+    iModel. destruct TV as [[sv pv] bv].
     rewrite monPred_at_wand.
-    iIntros "P". iIntros (tv' incl) "HΦ".
+    iIntros "P". iIntros ([tv' ?] [incl [= <-]]) "HΦ".
     iApply wp_unfold_at.
     iIntros ([[SV PV] BV] incl2) "#val".
     iApply (primitive_laws.wp_fence with "[//]").
@@ -414,10 +423,13 @@ Section wp_rules.
     iSplit. { iPureIntro. repeat split; try done. apply view_le_l. }
     rewrite monPred_at_wand.
     iApply "HΦ".
-    - iPureIntro. etrans. apply incl2. repeat split; try done.
+    - iPureIntro.
+      split; last done.
+      etrans. apply incl2. repeat split; try done.
       apply view_le_l.
     - iApply monPred_mono; last iApply "P".
-      eassert ((sv, pv, bv) ⊑ _) as incl3. { etrans; [apply incl|apply incl2]. }
+      eassert ((sv, pv, bv) ⊑ _) as incl3.
+      { etrans; [apply incl|apply incl2]. }
       destruct tv' as [[??]?].
       repeat split; try apply incl3.
       f_equiv; apply incl3.
@@ -426,7 +438,7 @@ Section wp_rules.
   Lemma wp_fence_sync (st : stuckness) (E : coPset) (Φ : val → dProp Σ) :
     ▷ <fence_sync> Φ #() -∗ WP FenceSync @ st; E {{ v, Φ v }}.
   Proof.
-    iStartProof (iProp _). iIntros ([[sv pv] bv]).
+    iModel. destruct TV as [[sv pv] bv].
     iIntros "H".
     iApply wp_unfold_at.
     iIntros ([[SV PV] BV] incl) "#val".

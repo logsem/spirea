@@ -33,25 +33,25 @@ End program.
 
 (* This is a simple example with a flush and a fence. *)
 Section specification.
-  Context `{nvmG Σ, nvmDeltaG}.
+  Context `{nvmG Σ}.
 
   (* After a crash the following is possible: [a = 0, b = 0], [a = 1, b = 0],
   and [a = 1, b = 1]. The case that is _not_ possible is: [a = 0, b = 1]. *)
 
   (* Predicate used for the location [a]. *)
   Program Definition ϕa : LocationProtocol nat :=
-    {| pred := λ n v _, ⌜v = #n⌝%I;
+    {| pred := λ n v, ⌜v = #n⌝%I;
        bumper n := n |}.
   Next Obligation. iIntros. by iApply post_crash_flush_pure. Qed.
 
   (* Predicate used for the location [b]. *)
   Program Definition ϕb ℓa : LocationProtocol nat :=
-    {| pred := λ n v _, (⌜v = #n⌝ ∗ ∃ m, ⌜ n ≤ m ⌝ ∗ flush_lb ℓa ϕa m)%I;
+    {| pred := λ n v, (⌜v = #n⌝ ∗ ∃ m, ⌜ n ≤ m ⌝ ∗ flush_lb ℓa ϕa m)%I;
        bumper n := n |}.
   Next Obligation.
-    iIntros (????) "[% lb]".
+    iIntros (???) "[% lb]".
     iDestruct "lb" as (m ?) "lb".
-    iCrashFlush.
+    iModIntro.
     iDestruct "lb" as "[H ?]".
     iPureGoal; first done.
     iExists _.
@@ -59,14 +59,18 @@ Section specification.
     iPureIntro. etrans; done.
   Qed.
 
-  Definition crash_condition {hD : nvmDeltaG} ℓa ℓb : dProp Σ :=
+  Definition crash_condition ℓa ℓb : dProp Σ :=
     ("pts" ∷ ∃ (na nb : nat),
       "aPer" ∷ persist_lb ℓa ϕa na ∗
       "bPer" ∷ persist_lb ℓb (ϕb ℓa) nb ∗
       "aPts" ∷ ℓa ↦_{ϕa} [na] ∗
       "bPts" ∷ ℓb ↦_{ϕb ℓa} [nb])%I.
 
-  Lemma prove_crash_condition {hD : nvmDeltaG} ℓa ℓb na nb (ssA ssB : list nat) :
+  (* Fix with new notion of objective. *)
+  Instance crash_condition_objective ℓa ℓb : Objective (crash_condition ℓa ℓb).
+  Proof. Admitted.
+
+  Lemma prove_crash_condition ℓa ℓb na nb (ssA ssB : list nat) :
     (* We need to know that both lists are strictly increasing list. *)
     ((∃ n, ssA = [n]) ∨ ssA = [0; 1]) →
     ((∃ m, ssB = [m]) ∨ ssB = [0; 1]) →
@@ -74,10 +78,10 @@ Section specification.
     persist_lb ℓb (ϕb ℓa) nb -∗
     ℓa ↦_{ϕa} ssA -∗
     ℓb ↦_{ϕb ℓa} ssB -∗
-    <PC> hG, crash_condition ℓa ℓb.
+    <PC> crash_condition ℓa ℓb.
   Proof.
     iIntros (ssAEq ssBEq) "perA perB aPts bPts".
-    iCrash.
+    iModIntro.
     iDestruct "perA" as "[perA (% & ? & #recA)]".
     iDestruct "perB" as "[perB (% & ? & #recB)]".
     iDestruct (crashed_in_if_rec with "recA aPts") as (?? prefA) "[recA' ptsA]".
@@ -124,7 +128,7 @@ Section specification.
       ℓb ↦_{ϕb ℓa} [0] -∗
       WPC (incr_both ℓa ℓb) @ s; E
         {{ λ _, ℓa ↦_{ϕa} [0; 1] ∗ ℓb ↦_{ϕb ℓa} [0; 1] }}
-        {{ <PC> _, crash_condition ℓa ℓb }}.
+        {{ <PC> crash_condition ℓa ℓb }}.
   Proof.
     iIntros "#aPer #bPer aPts bPts".
     rewrite /incr_both.
@@ -176,7 +180,7 @@ Section specification.
     iFrame "aPts bPts".
   Qed.
 
-  Lemma wpc_recover `{hD : nvmDeltaG} ℓa ℓb s E :
+  Lemma wpc_recover ℓa ℓb s E :
     crash_condition ℓa ℓb -∗
     WPC recover ℓa ℓb @ s; E
       {{ _, True }}
@@ -251,7 +255,7 @@ Section specification.
     { iApply (wp_incr_both _ _ s E with "a b c d"). }
     do 2 iModIntro.
     iIntros (hG') "R".
-    iCrash.
+    iModIntro.
     iApply (wpc_recover with "R").
   Qed.
 

@@ -1,4 +1,5 @@
 From iris.proofmode Require Import tactics.
+From iris.bi Require Import monpred.
 
 From self.base Require Import primitive_laws.
 From self.lang Require Import lang.
@@ -22,7 +23,7 @@ Definition pure : expr :=
   "a" + "b".
 
 Section specs.
-  Context `{!nvmG Σ, nvmDeltaG}.
+  Context `{!nvmG Σ}.
 
   Lemma wp_bin_op : ⊢ WP (#1 + #2) {{ v, ⌜1 = 1⌝ }}.
   Proof.
@@ -63,15 +64,14 @@ Section specs.
 
 End specs.
 
-Lemma wpr_pure `{!nvmG Σ, nvmDeltaG} s E :
-  ⊢ wpr s E pure pure (λ v, ⌜ v = #8 ⌝)%I (λ _ v, ⌜ v = #8 ⌝)%I.
+Lemma wpr_pure `{!nvmG Σ} s E :
+  ⊢ wpr s E pure pure (λ v, ⌜ v = #8 ⌝)%I (λ v, ⌜ v = #8 ⌝)%I.
 Proof.
   iApply idempotence_wpr.
   2: { iApply wpc_with_let. }
   { apply _. }
-  iModIntro. iModIntro. iIntros (?) "_".
-  iApply post_crash_intro.
-  iIntros (?).
+  iIntros "H".
+  iModIntro.
   iApply wpc_with_let.
 Qed.
 
@@ -91,11 +91,11 @@ Definition program (ℓ : loc) : expr :=
   #().
 
 Section fence_sync.
-  Context `{!nvmG Σ, nvmDeltaG}.
+  Context `{!nvmG Σ}.
 
   (* Predicate used for the location [a]. *)
   Program Definition prot : LocationProtocol nat :=
-    {| pred := λ n v _, ⌜v = #n⌝%I;
+    {| pred := λ n v, ⌜v = #n⌝%I;
        bumper n := n |}.
   Next Obligation. iIntros. by iApply post_crash_flush_pure. Qed.
 

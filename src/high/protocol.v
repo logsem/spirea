@@ -3,7 +3,7 @@ From iris.proofmode Require Import reduction monpred tactics.
 From iris_named_props Require Import named_props.
 
 From self Require Import encode_relation.
-From self.high Require Import dprop resources modalities post_crash_modality
+From self.high Require Import dprop dprop_liftings resources modalities post_crash_modality
       monpred_simpl or_lost if_rec predicates.
 From self.lang Require Import lang.
 From self.high.modalities Require Import no_buffer.
@@ -56,7 +56,7 @@ Proof.
 Qed.
 
 Section protocol.
-  Context `{nvmG Σ, nvmDeltaG, AbstractState ST}.
+  Context `{nvmG Σ, AbstractState ST}.
 
   Implicit Types (prot : LocationProtocol ST).
 
@@ -85,6 +85,17 @@ Section protocol.
   Global Instance know_protocol_buffer_free ℓ prot :
     BufferFree (know_protocol ℓ prot).
   Proof. apply _. Qed.
+
+  Lemma know_protocol_at ℓ prot TV gnames :
+    (know_protocol ℓ prot) (TV, gnames) ⊣⊢
+      know_pred ℓ prot.(pred) ∗
+      know_preorder_loc ℓ (⊑@{ST}) ∗
+      know_bumper ℓ prot.(bumper).
+  Proof.
+    rewrite /know_protocol. rewrite !monPred_at_sep.
+    simpl. rewrite !monPred_at_embed.
+    done.
+  Qed.
 
 End protocol.
 

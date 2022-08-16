@@ -44,17 +44,17 @@ Section program.
 End program.
 
 Section proof.
-  Context `{nvmG Σ, nvmDeltaG, inG Σ (exclR unitO)}.
+  Context `{nvmG Σ, inG Σ (exclR unitO)}.
   Context `{!stagedG Σ}.
 
   Context (x y z : loc) (γ__ex : gname).
 
   Program Definition inv_x : LocationProtocol bool :=
-    {| pred (b : bool) v _ :=  ⌜v = #b⌝%I;
+    {| pred (b : bool) v :=  ⌜v = #b⌝%I;
        bumper b := b; |}.
   Next Obligation. iIntros. by iApply post_crash_flush_pure. Qed.
 
-  Definition pred_y (s : option bool) (v : val) (hG : nvmDeltaG) :=
+  Definition pred_y (s : option bool) (v : val) :=
     match s with
       None => True
     | Some b =>
@@ -66,32 +66,32 @@ Section proof.
 
   Program Definition prot_y := {| pred := pred_y; bumper _ := None; |}.
   Next Obligation.
-    iIntros (???) "H /=". iApply post_crash_flush_nodep. done.
+    iIntros (??) "H /=". iApply post_crash_flush_nodep. done.
   Qed.
-  Next Obligation. intros ? [|]; apply _. Qed.
+  Next Obligation. intros [|]; apply _. Qed.
 
   Program Definition inv_z :=
-    {| pred (b : bool) (v : val) (hG : nvmDeltaG) :=
+    {| pred (b : bool) (v : val) :=
         match b with
           false => ⌜ v = #false ⌝ ∗ ⎡ own γ__ex (Excl ()) ⎤
         | true => ⌜ v = #true ⌝ ∗ flush_lb x inv_x true
         end%I;
       bumper := id; |}.
   Next Obligation.
-    iIntros (? [|] ?); simpl.
-    - iIntros "[% lb]". iCrashFlush.
+    iIntros ([|] ?); simpl.
+    - iIntros "[% lb]". iModIntro.
       iDestruct "lb" as "(le & ?)".
       iFrame "%".
       iApply persist_lb_to_flush_lb. iFrame.
-    - iIntros "[% H]". iCrashFlush. iFrame. done.
+    - iIntros "[% H]". iModIntro. iFrame. done.
   Qed.
-  Next Obligation. intros ? [|]; apply _. Qed.
+  Next Obligation. intros [|]; apply _. Qed.
 
 
   (* Note: The recovery code does not use the [y] location, hence the crash
   condition does not mention [y] as we don't need it to be available after a
   crash. *)
-  Definition crash_condition {hD : nvmDeltaG} : dProp Σ :=
+  Definition crash_condition : dProp Σ :=
     ∃ (xss zss : list bool) (bx bz : bool),
       "%xLast" ∷ ⌜ last xss = Some bx ⌝ ∗
       "%zLast" ∷ ⌜ last zss = Some bz ⌝ ∗
@@ -100,25 +100,34 @@ Section proof.
       x ↦_{inv_x} xss ∗
       z ↦_{inv_z} zss.
 
-  Definition left_crash_condition {hD : nvmDeltaG} : dProp Σ :=
+  Definition left_crash_condition : dProp Σ :=
     ∃ xss (bx : bool),
       "%xLast" ∷ ⌜ last xss = Some bx ⌝ ∗
       "#xPer" ∷ persist_lb x inv_x bx ∗
       "xPts" ∷ x ↦_{inv_x} xss.
 
-  Definition right_crash_condition {hD : nvmDeltaG} : dProp Σ :=
+  Definition right_crash_condition : dProp Σ :=
     ∃ zss (bz : bool),
       "%zLast" ∷ ⌜ last zss = Some bz ⌝ ∗
       "#zPer" ∷ persist_lb z inv_z bz ∗
       "zPts" ∷ z ↦_{inv_z} zss.
 
-  Lemma left_crash_condition_impl {hD : nvmDeltaG} (sx : list bool) :
+  Instance : Objective (<PC> right_crash_condition).
+  Proof. Admitted.
+
+  Instance : Objective (<PC> left_crash_condition).
+  Proof. Admitted.
+
+  Instance : Objective (<PC> crash_condition).
+  Proof. Admitted.
+
+  Lemma left_crash_condition_impl (sx : list bool) :
     persist_lb x inv_x false -∗
     x ↦_{inv_x} sx -∗
-    <PC> hD, left_crash_condition.
+    <PC> left_crash_condition.
   Proof.
     iIntros "xPer xPts".
-    iCrash.
+    iModIntro.
     iDestruct "xPer" as "[#xPer (% & % & #xRec)]".
     iDestruct (crashed_in_if_rec with "xRec xPts") as (???) "[cras xPts]".
     iDestruct (crashed_in_agree with "xRec cras") as %->.
@@ -130,13 +139,13 @@ Section proof.
     done.
   Qed.
 
-  Lemma right_crash_condition_impl {hD : nvmDeltaG} (sz : list bool) :
+  Lemma right_crash_condition_impl (sz : list bool) :
     persist_lb z inv_z false -∗
     z ↦_{inv_z} sz -∗
-    <PC> hD, right_crash_condition.
+    <PC> right_crash_condition.
   Proof.
     iIntros "zPer zPts".
-    iCrash.
+    iModIntro.
     iDestruct "zPer" as "[#zPer (% & % & #zRec)]".
     iDestruct (crashed_in_if_rec with "zRec zPts") as (???) "[cras zPts]".
     iDestruct (crashed_in_agree with "zRec cras") as %->.
@@ -169,7 +178,7 @@ Section proof.
     z ↦_{inv_z} [false] -∗
     WPC rightProg x y z @ s; E1
     {{ v, z ↦_{inv_z} [false; true] ∨ z ↦_{inv_z} [false] }}
-    {{ <PC> _, right_crash_condition }}.
+    {{ <PC> right_crash_condition }}.
   Proof.
     iIntros "#yPts #zPer zPts".
     (* Evaluate the first load. *)
@@ -245,23 +254,23 @@ Section proof.
     z ↦_{inv_z} [false] -∗
     WPC prog x y z @ ⊤
     {{ v, True }}
-    {{ <PC> _, crash_condition }}.
+    {{ <PC> crash_condition }}.
   Proof.
     iIntros "(pb & #xPer & xPts & #yPts & #zPer & zPts)".
     rewrite /prog.
 
     (* We create a crash borrow in order to transfer resources to the forked
     thread. *)
-    iApply (wpc_crash_borrow_inits _ _ _ _ _ (<PC> _, right_crash_condition)%I
+    iApply (wpc_crash_borrow_inits _ _ _ _ _ (<PC> right_crash_condition)%I
              with "pb [zPts]").
     { iAccu. }
     { iModIntro. iIntros "zPts".
       iApply (right_crash_condition_impl with "zPer zPts"). }
     iIntros "cb".
 
-    iApply (wpc_crash_mono _ _ _ _ _ (<PC> _, left_crash_condition)%I).
+    iApply (wpc_crash_mono _ _ _ _ _ (<PC> left_crash_condition)%I).
     { iIntros "L R".
-      iCrash.
+      iModIntro.
       iNamed "L".
       iNamed "R".
       iExists _, _, _, _.

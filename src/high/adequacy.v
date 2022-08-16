@@ -17,7 +17,7 @@ From self Require Import ipm_tactics extra encode_relation view_slice.
 From self.lang Require Import lang.
 From self.algebra Require Import ghost_map ghost_map_map.
 From self.base Require Import cred_frag crash_borrow adequacy. (* To get [recv_adequace]. *)
-From self.high Require Import crash_borrow.
+From self.high Require Import dprop_liftings crash_borrow.
 From self.high Require Import crash_weakestpre resources monpred_simpl.
 From self.high Require Import recovery_weakestpre locations protocol.
 (* From Perennial.program_logic Require Export crash_lang recovery_weakestpre. *)
@@ -48,8 +48,8 @@ Section recovery_adequacy.
   Context {Σ : gFunctors}.
   Implicit Types s : stuckness.
   Implicit Types Φ : val → dProp Σ.
-  Implicit Types Φinv : nvmDeltaG → dProp Σ.
-  Implicit Types Φr : nvmDeltaG → val → dProp Σ.
+  Implicit Types Φinv : dProp Σ.
+  Implicit Types Φr : val → dProp Σ.
   Implicit Types v : val.
   Implicit Types te : thread_state.
   Implicit Types e : expr.
@@ -107,7 +107,7 @@ Section recovery_adequacy.
     global_state_interp g1 ncurr mj D (κs ++ κs') -∗
     (* crash_weakestpre.interp -∗ *)
     validV (store_view TV1) -∗
-    ((wpr s (* Hc t *) ⊤ e1 r1 Φ (* Φinv *) Φr) ⊥) -∗
+    ((wpr s (* Hc t *) ⊤ e1 r1 Φ (* Φinv *) Φr) (⊥, nD)) -∗
     wptp s t1 -∗
     NC 1-∗ (
       (||={⊤|⊤,∅|∅}=> ||▷=>^(steps_sum num_laters_per_step step_count_next ncurr n) ||={∅|∅,⊤|⊤}=>
@@ -117,7 +117,7 @@ Section recovery_adequacy.
           (⌜ ∀ te2, s = NotStuck → te2 ∈ t2 → not_stuck te2 σ2 g2 ⌝) ∗
       state_interp σ2 (length t2') ∗
       global_state_interp g2 (Nat.iter n step_count_next ncurr) mj D κs' ∗
-      from_option (λ v, Φ v TV2) True (to_val e2) ∗
+      from_option (λ v, Φ v (TV2, nD)) True (to_val e2) ∗
       (* ([∗ list] v ∈ omap to_val t2', fork_post v) ∗ *) (* We don't have post
       conditions for forked threads. *)
       NC 1
@@ -159,7 +159,7 @@ Section recovery_adequacy.
     global_state_interp g1 ncurr mj D (κs ++ κs') -∗
     (* crash_weakestpre.interp -∗ *)
     validV (store_view TV1) -∗
-    (wpr s ⊤ e1 r1 Φ Φr) ⊥ -∗
+    (wpr s ⊤ e1 r1 Φ Φr) (⊥, _) -∗
     wptp s t1 -∗
     NC 1 -∗
     step_fupdN_fresh ncurr ns t (λ hD,
@@ -173,7 +173,7 @@ Section recovery_adequacy.
           (⌜ ∀ te, s = NotStuck → te ∈ t2 → not_stuck te σ2 g2⌝) ∗
       state_interp σ2 (length t2') ∗
       global_state_interp g2 ntot' mj D κs' ∗
-      from_option (λ v, Φr hD v TV2) True (to_val e2) ∗
+      from_option (λ v, Φr v (TV2, hD)) True (to_val e2) ∗
       (* ([∗ list] v ∈ omap to_val t2', fork_post v) ∗ *)
       NC 1))).
   Proof.
@@ -289,7 +289,7 @@ Section recovery_adequacy.
     global_state_interp g1 ncurr mj D (κs ++ κs') -∗
     (* crash_weakestpre.interp -∗ *)
     validV (store_view TV1) -∗
-    ((wpr s (* Hc t *) ⊤ e1 r1 Φ Φr) ⊥) -∗
+    ((wpr s (* Hc t *) ⊤ e1 r1 Φ Φr) (⊥, _)) -∗
     (* □ (∀ Hc' t', Φinv Hc' t' -∗ □ Φinv' Hc' t') -∗ *)
     wptp s t1 -∗
     NC 1 -∗
@@ -308,9 +308,9 @@ Section recovery_adequacy.
        | Normal =>
           ⌜ (* Hc' = Hc ∧ *) hD' = hD ⌝ ∗
           (* from_option Φ True (to_val e2) *)
-          from_option (λ v, Φ v TV2) True (to_val e2)
+          from_option (λ v, Φ v (TV2, _)) True (to_val e2)
        | Crashed =>
-          from_option (λ v, Φr hD' v TV2) True (to_val e2)
+          from_option (λ v, Φr v (TV2, hD')) True (to_val e2)
            (* from_option (Φr Hc' t') True (to_val e2) ∗ □ Φinv' Hc' t' *)
       end)  ∗
       (* ([∗ list] v ∈ omap to_val t2', fork_post v) ∗ *)
@@ -430,14 +430,8 @@ Proof.
   rewrite laterN_plus.
   iMod (iter $! inv) as (nF nD (* _ _ *) eqInv) "it".
   iDestruct (step_fupdN_fresh_plain _ ns ncurr k) as "H".
-  Set Printing All.
   rewrite -eqInv.
   simpl.
-  assert ((@iris_invGS nvm_lang Σ (@nvmBase_irisGS Σ (@nvmG_baseG Σ nF)
-                                  (@nvm_delta_base _) _)) =
-          (@nvmBaseG_invGS Σ (@nvmG_baseG Σ nF))) as ->.
-  { done. }
-  Unset Printing All.
   iApply "H".
   iApply "it".
   Unshelve.
@@ -550,7 +544,7 @@ Lemma high_recv_adequacy Σ `{hPre : !nvmGpreS Σ} s e r σ PV (φ φr : val →
       (* Note: We need to add the resources that can be used to prove the [wpr].
        These should require the user to decide which locations should be
        shared/exclusive, location invariants, etc. *)
-      (wpr s ⊤ e r (λ v, ⌜ φ v ⌝) (λ _ v, ⌜ φr v ⌝))) →
+      (wpr s ⊤ e r (λ v, ⌜ φ v ⌝) (λ  v, ⌜ φr v ⌝))) →
   recv_adequate s (ThreadState e ⊥) (ThreadState r ⊥) (σ, PV)
                 (λ v _, φ v.(val_val)) (λ v _, φr v.(val_val)).
 Proof.
@@ -710,13 +704,16 @@ Proof.
   done.
 Qed.
 
+Definition pre_borrowN_d `{nvmG Σ} (n : nat) :=
+  lift_d (λ _, pre_borrowN n).
+
 Lemma high_recv_adequacy_2 Σ `{hPre : !nvmGpreS Σ} st e r (φ φr : val → Prop) n
       (init_heap : gmap loc val) (na_locs at_locs : gset loc) :
   na_locs ## at_locs →
   dom _ init_heap = na_locs ∪ at_locs →
   (∀ (nF : nvmG Σ),
    ∃ (lif : gmap loc loc_info), dom (gset _) lif = dom _ init_heap ∧
-   ∀ (nD : nvmDeltaG),
+   (* ∀ (nD : nvmDeltaG), *)
     ⊢ (* Resources for NA locations. *)
       ([∗ map] ℓ ↦ v ∈ restrict na_locs init_heap, ∃ li,
         ⌜ lif !! ℓ = Some li ⌝ ∗
@@ -725,12 +722,12 @@ Lemma high_recv_adequacy_2 Σ `{hPre : !nvmGpreS Σ} st e r (φ φr : val → Pr
       (* Resources for AT locations. *)
       ([∗ map] ℓ ↦ v ∈ restrict at_locs init_heap, ∃ li,
         ⌜ lif !! ℓ = Some li ⌝ ∗
-        ⎡ is_at_loc ℓ ⎤ ∗
+        is_at_loc_d ℓ ∗
         persist_lb ℓ (loc_prot li) (loc_init li)) -∗
-      ⎡ pre_borrowN n ⎤ -∗
+      pre_borrowN_d n -∗
       ([∗ map] ℓ ↦ v; li ∈ init_heap; lif,
-        (pred (loc_prot li)) (loc_init li) v _) ∗
-      (wpr st ⊤ e r (λ v, ⌜ φ v ⌝) (λ _ v, ⌜ φr v ⌝))) →
+        (pred (loc_prot li)) (loc_init li) v) ∗
+      (wpr st ⊤ e r (λ v, ⌜ φ v ⌝) (λ v, ⌜ φr v ⌝))) →
   recv_adequate st
                 (e `at` ⊥) (r `at` ⊥)
                 (initial_heap init_heap, const (MaxNat 0) <$> init_heap)
@@ -829,10 +826,12 @@ Proof.
   rewrite big_sepM_union. 2: { apply restrict_disjoint. done. }
   iDestruct ("histPts") as "[naHistPts atHistPts]".
 
-  iDestruct (Hwp (NvmDeltaG names hD)) as "-#Hwp".
-  iDestruct (@cred_frag_to_pre_borrowN _ _ _ _ n with "[ Hpre ]") as "Hpre".
+  set (gnames := (NvmDeltaG names hD)).
+  (* iDestruct (Hwp (NvmDeltaG names hD)) as "-#Hwp". *)
+  iDestruct (@cred_frag_to_pre_borrowN _ _ _ _ n with "[Hpre]") as "Hpre".
   { rewrite /fixed. iFrame "Hpre". }
-  iDestruct ("Hwp" $! (∅, ∅, ∅) with "[naHistPts naViewsF] [] [$Hpre]") as "[predsHold Hwpr]".
+  iDestruct (Hwp $! ((∅, ∅, ∅), gnames)) as "-#Hwp".
+  iDestruct ("Hwp" with "[naHistPts naViewsF] [] [Hpre]") as "[predsHold Hwpr]".
   { (* Non-atomic locations. *)
     rewrite monPred_at_big_sepM.
     iDestruct (big_sepM_sep_zip with "[$naHistPts $naViewsF]") as "na".
@@ -859,9 +858,11 @@ Proof.
     simplify_eq.
     iIntros ([? _]%restrict_lookup_Some) "[E naView]".
     iExists li.
+    simpl.
     iSplitPure; first done. rewrite /persist_lb. rewrite /mapsto_na.
     iSplit.
     { iExists 0, 0.
+      rewrite !monPred_at_embed.
       iDestruct (persisted_persisted_loc with "pers") as "$".
       { rewrite /PV. rewrite lookup_fmap. rewrite H. done. }
       simpl.
@@ -888,11 +889,11 @@ Proof.
       rewrite view_lookup_zero_empty.
       done. }
     iExists 0, 0, 0, _, _, _, _.
+    rewrite !monPred_at_embed.
     iSplitPure; first done.
     iSplit.
-    { rewrite /know_protocol.
-      rewrite /know_pred.
-      iDestruct (predicates_frag_lookup with "[$predsFrag]") as "$".
+    { rewrite /know_pred.
+      iDestruct (predicates_frag_lookup _ _ ℓ with "[$predsFrag]") as "$".
       { rewrite /preds /mk_preds. rewrite lookup_fmap. rewrite lifLook. done. }
       iDestruct (big_sepM_lookup with "fragOrders") as "$".
       { rewrite /mk_order. rewrite lookup_fmap. rewrite lifLook. done. }
@@ -933,6 +934,7 @@ Proof.
     { apply elem_of_dom. rewrite domEq. apply elem_of_dom. done. }
     iExists li. iSplitPure; first done.
     rewrite /persist_lb. simpl.
+    rewrite !monPred_at_embed.
     iSplit. { iApply location_sets_lookup; done. }
     iExists 0, 0.
     iDestruct (persisted_persisted_loc with "pers") as "$".
@@ -960,6 +962,7 @@ Proof.
       iFrame "hf". }
     rewrite view_lookup_zero_empty.
     done. }
+  { simpl. rewrite monPred_at_embed. iFrame "Hpre". }
   iModIntro.
   iSplitPure; first done.
   iDestruct (wptp_recv_strong_adequacy _ _ [] _ (NvmDeltaG names hD)

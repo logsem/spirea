@@ -12,7 +12,7 @@ From self.high Require Import dprop abstract_state_instances modalities
      recovery_weakestpre protocol no_buffer.
 From self.high.modalities Require Import fence.
 
-Definition mapsto_na_flushed `{nvmG Σ, nvmDeltaG, AbstractState ST}
+Definition mapsto_na_flushed `{nvmG Σ, AbstractState ST}
            ℓ (prot : LocationProtocol ST) q (s : ST) : dProp Σ :=
   ∃ (ss : list ST),
     "%lastEq" ∷ ⌜ last ss = Some s ⌝ ∗
@@ -20,7 +20,7 @@ Definition mapsto_na_flushed `{nvmG Σ, nvmDeltaG, AbstractState ST}
     "#flushLb" ∷ flush_lb ℓ prot s.
 
 Section mapsto_na_flushed.
-  Context `{nvmG Σ, nvmDeltaG, AbstractState ST}.
+  Context `{nvmG Σ, AbstractState ST}.
 
   Global Instance buffer_free_mapsto_na_flushed ℓ prot q (s : ST) :
     BufferFree (mapsto_na_flushed ℓ prot q s).
@@ -36,7 +36,7 @@ Section mapsto_na_flushed.
     simplify_eq.
     iDestruct "pts'" as (???????) "(% & ? & ? & ? & %look & %nolater' & ? & ? & ?)".
     simplify_eq.
-    iDestruct (full_entry_unenc_agree with "hist [$]") as %<-.
+    iDestruct (know_full_history_loc_d_agree with "hist [$]") as %<-.
     iPureIntro.
     apply (inj Some).
     rewrite -lookupV -look.
@@ -76,14 +76,13 @@ Section mapsto_na_flushed.
         ℓ prot q (s : ST) :
     IntoCrashFlush
       (mapsto_na_flushed ℓ prot q s)
-      (λ _, mapsto_na_flushed ℓ prot q (bumper prot s) ∗
-            crashed_in prot ℓ s)%I.
+      (mapsto_na_flushed ℓ prot q (bumper prot s) ∗ crashed_in prot ℓ s)%I.
   Proof.
     rewrite /IntoCrashFlush.
     iNamed 1.
     iDestruct "flushLb" as "-#flushLb".
     iDestruct (mapsto_na_increasing_list with "pts") as %incr.
-    iCrashFlush.
+    iModIntro.
     iDestruct "flushLb" as "(persistLb & (%sPC & %le & #crashedIn))".
     iDestruct (crashed_in_if_rec with "crashedIn pts")
       as "(%ss' & %s' & %pre & chr2 & pts)".
@@ -107,7 +106,7 @@ Section mapsto_na_flushed.
 
 End mapsto_na_flushed.
 
-(* Global Instance mapsto_na_flushed_as_fractional `{nvmG Σ, nvmDeltaG, AbstractState ST} per l q v : *)
+(* Global Instance mapsto_na_flushed_as_fractional `{nvmG Σ, AbstractState ST} per l q v : *)
 (*   AsFractional (mapsto_na per l q v) (λ q, mapsto_na per l q v)%I q. *)
 (* Proof. split; [done | apply _]. Qed. *)
 

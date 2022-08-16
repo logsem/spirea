@@ -4,23 +4,47 @@ From Perennial.program_logic Require Import staged_invariant.
 From self.base Require Import crash_borrow.
 From self.high Require Import proofmode wpc_proofmode.
 From self.lang Require Import lang.
-From self.high Require Import crash_weakestpre.
+From self.high Require Import dprop_liftings crash_weakestpre.
 
 Section crash_borrow_high.
-  Context `{nvmG Σ, nvmDeltaG}.
+  Context `{nvmG Σ}.
   Context `{!stagedG Σ}.
 
+  (* Program Definition crash_borrow (Ps : dProp Σ) (Pc : dProp Σ) `{!Objective Pc} : dProp Σ := *)
+  (*   MonPred (λ TV, *)
+  (*             (□ (Ps -∗ Pc)) TV ∗ *)
+  (*             (* □ (∀ TV', TV ⊑ TV') ∗ *) *)
+  (*             crash_borrow (Ps TV) (Pc (⊥, TV.2)) *)
+  (*           )%I _. *)
+  (* Next Obligation. *)
+  (*   intros Ps Pc ?. intros TV1 TV2 incl. *)
+  (*   rewrite 2!monPred_at_intuitionistically. *)
+  (*   iIntros "[#impl cb]". *)
+  (*   iSplitR. { naive_solver. } *)
+  (*   iApply (crash_borrow_conseq with "[] [] [] cb"). *)
+  (*   - iIntros "!> H". *)
+  (*     iSpecialize ("impl" with "H"). *)
+  (*     by iApply objective_at. *)
+  (*   - naive_solver. *)
+  (*   - naive_solver. *)
+  (* Qed. *)
+
   Program Definition crash_borrow (Ps : dProp Σ) (Pc : dProp Σ) `{!Objective Pc} : dProp Σ :=
-    MonPred (λ TV,
-              (□ (Ps -∗ Pc)) TV ∗
-              (* □ (∀ TV', TV ⊑ TV') ∗ *)
-              crash_borrow (Ps TV) (Pc ⊥)
-            )%I _.
+    MonPred (λ i,
+        let gnames := i.2
+        in (□ (Ps -∗ Pc)) i ∗
+           (* □ (∀ TV', TV ⊑ TV') ∗ *)
+           crash_borrow (Ps i) (Pc (⊥, i.2))
+    )%I _.
   Next Obligation.
-    intros Ps Pc ?. intros TV1 TV2 incl.
+    intros Ps Pc ?.
+    intros [TV gnames]. introsIndex TV2 incl.
+    simpl.
     rewrite 2!monPred_at_intuitionistically.
     iIntros "[#impl cb]".
+    assert ((TV, gnames) ⊑ (TV2, gnames)) by done.
     iSplitR. { naive_solver. }
+
     iApply (crash_borrow_conseq with "[] [] [] cb").
     - iIntros "!> H".
       iSpecialize ("impl" with "H").
@@ -28,6 +52,8 @@ Section crash_borrow_high.
     - naive_solver.
     - naive_solver.
   Qed.
+
+  Definition pre_borrow_d := lift_d (λ nD, pre_borrow).
 
   (*
   (* Kripke-style crash borrow. Will it work? Who knows ¯\_(ツ)_/¯. *)
@@ -44,40 +70,39 @@ Section crash_borrow_high.
 
   Lemma crash_borrow_crash_wand P Pc `{!Objective Pc}:
     crash_borrow P Pc -∗ □ (P -∗ Pc).
-  Proof.
-    iStartProof (iProp _). iIntros (?).
-    iDestruct 1 as "(H & _)". iApply "H".
-  Qed.
+  Proof. iModel. iDestruct 1 as "(H & _)". iApply "H". Qed.
 
   Lemma wpc_crash_borrow_inits s (e : expr) (Φ : _ → dProp Σ) Φc (P : dProp Σ)
         Pc `{!Objective Pc} :
-    ⎡ pre_borrow ⎤ -∗
+    pre_borrow_d -∗
     P -∗
     □ (P -∗ Pc) -∗
     (crash_borrow P Pc -∗ WPC e @ s; ⊤ {{ Φ }} {{ Pc -∗ Φc }}) -∗
     WPC e @ s; ⊤ {{ Φ }} {{ Φc }}.
   Proof.
-    iStartProof (iProp _). iIntros (?).
-    monPred_simpl. iIntros "H" (? ?) "P".
-    monPred_simpl. iIntros (? ?) "#wand".
-    monPred_simpl. iIntros (? ?).
+    iModel.
+    simpl.
+    monPred_simpl. iIntros "H". introsIndex ??. iIntros "P".
+    monPred_simpl. introsIndex ??. iIntros "#wand".
+    monPred_simpl. introsIndex ??.
     monPred_simpl.
     iIntros "wpc".
     rewrite wpc_eq /wpc_def. simpl.
     iIntros (? ?) "#val".
+
     iApply (wpc_crash_borrow_inits with "H [P]"); last first.
     { iIntros "cb".
-      iSpecialize ("wpc" $! j1 with "[] [$cb]").
+      iSpecialize ("wpc" $! (p1, _) with "[] [$cb]").
       { done. }
-      { iModIntro. monPred_simpl. iIntros (? ?). iApply "wand".
-        iPureIntro. etrans; done. }
-      iSpecialize ("wpc" $! TV with "[//] [$]").
+      { iModIntro. monPred_simpl. introsIndex ??. iApply "wand".
+        iPureIntro. split; last done. etrans; done. }
+      iSpecialize ("wpc" $! TV0 with "[//] [$]").
       iApply (program_logic.crash_weakestpre.wpc_mono with "wpc").
       { naive_solver. }
       { iDestruct 1 as "H". monPred_simpl. iApply "H". done. }
     }
-    { iIntros "!> P". iApply objective_at. iApply ("wand" with "[//] P"). }
-    { iApply (monPred_mono with "P"). etrans; done. }
+    { iIntros "!> P". iApply objective_at. iApply ("wand" with "[] P"). done. }
+    { iApply (monPred_mono with "P"). split; last done. etrans; done. }
   Qed.
 
   Lemma wpc_crash_borrow_open_modify E1 e Φ Φc P Pc `{!Objective Φc, !Objective Pc} :
@@ -89,9 +114,10 @@ Section crash_borrow_high.
                   {{ Φc ∗ Pc }})) -∗
     WPC e @ E1 {{ Φ }} {{ Φc }}.
   Proof.
-    iStartProof (iProp _). iIntros (Hnv).
-    iIntros (?) "cb".
-    monPred_simpl. iIntros (? ?) "wp".
+    intros Hnv.
+    iModel.
+    iIntros "cb".
+    monPred_simpl. introsIndex ??. iIntros "wp".
     rewrite wpc_eq /wpc_def. simpl.
     iIntros (??) "#val".
     iApply (wpc_crash_borrow_open_modify with "[cb]").
@@ -102,14 +128,14 @@ Section crash_borrow_high.
     iIntros "P".
     iDestruct "wp" as "[_ wp]".
     monPred_simpl.
-    iSpecialize ("wp" with "[%] [P] [] val").
+    iSpecialize ("wp" with "[%] [P]").
     { reflexivity. }
-    { iFrame "P". }
-    { done. }
+    { iApply monPred_mono; last iFrame "P". done. }
+    iSpecialize ("wp" with "[//] val").
     monPred_simpl.
     iApply (program_logic.crash_weakestpre.wpc_mono with "wp"); last done.
     iIntros ([v vTV]) "(% & Hi & (%P' & ? & #impl & H))".
-    iExists (P' vTV).
+    iExists (P' (vTV, gnames)).
     iFrame.
     iSplitL "impl".
     { iIntros "!> P'".
@@ -117,7 +143,7 @@ Section crash_borrow_high.
       iApply "impl"; done. }
     iIntros "Hip".
     iEval (monPred_simpl) in "H".
-    iSpecialize ("H" $! vTV with "[//] [Hip]").
+    iSpecialize ("H" $! (vTV, _) with "[//] [Hip]").
     { simpl. iFrame.
       rewrite monPred_at_intuitionistically. iModIntro. iApply "impl". }
     iSplit.

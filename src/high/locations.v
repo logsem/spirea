@@ -117,19 +117,6 @@ Section points_to_at.
 (*   (*   apply _. *) *)
 (*   (* Qed. *) *)
 
-  Lemma know_full_history_loc_d_agree ℓ p q (abs_hist1 abs_hist2 : gmap nat ST) :
-    know_full_history_loc_d ℓ p abs_hist1 -∗
-    know_full_history_loc_d ℓ q abs_hist2 -∗
-    ⌜ encode <$> abs_hist1 = encode <$>  abs_hist2 ⌝.
-  Proof.
-    iModel.
-    simpl. rewrite monPred_at_embed.
-    iIntros "H".
-    iIntros ([??] [? [= <-]]).
-    simpl. rewrite monPred_at_embed.
-    iApply (full_entry_agree with "H").
-  Qed.
-
   Global Instance mapsto_na_fractional ℓ prot ss :
     Fractional (λ q, mapsto_na ℓ prot q ss).
   Proof.
@@ -146,7 +133,7 @@ Section points_to_at.
     - iDestruct 1 as "[L R]".
       iNamed "L".
       iDestruct "R" as (???????) "(_ & _ & ? & _ & _ & _ & histQ & _ & _ & SV & HIP & ?)".
-      iDestruct (know_full_history_loc_d_agree with "hist histQ") as %->%(inj (fmap _)).
+      iDestruct (know_full_history_loc_d_agree with "hist histQ") as %->.
   Admitted.
   (*     iDestruct (ghost_map_elem_agree with "knowSV SV") as %->. *)
   (*     repeat iExists _. iFrame "#∗%". *)
@@ -977,7 +964,7 @@ Section points_to_at_more.
   Proof.
     (* iIntros "fLb pts". *)
     (* iDestruct (mapsto_at_increasing with "pts") as %incr. *)
-    (* iCrashFlush. *)
+    (* iModIntro. *)
     (* iDestruct "fLb" as "[pLb (%sC & %le & #xCr)]". *)
     (* iDestruct (crashed_in_if_rec with "xCr pts") as (?) "(xCr' & disj)". *)
     (* iDestruct (crashed_in_agree with "xCr xCr'") as %<-. *)

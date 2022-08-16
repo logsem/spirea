@@ -78,7 +78,7 @@ Section constant_prot.
   Context `{nvmG Σ}.
 
   Program Definition constant_prot v1 : LocationProtocol unit :=
-    {| pred := λ _ v2 _, ⌜ v1 = v2 ⌝%I;
+    {| pred := λ _ v2, ⌜ v1 = v2 ⌝%I;
        bumper v := v |}.
   Next Obligation. iIntros. by iApply post_crash_flush_pure. Qed.
 
@@ -89,11 +89,11 @@ Section definitions.
   Context `{nvmG Σ}.
 
   (* We assume a per-element predicate. *)
-  Context (ϕ : val → nvmDeltaG → dProp Σ).
+  Context (ϕ : val → dProp Σ).
   (* The per-element predicate must be stable under the <PCF> modality and not
   use anything from the buffer. *)
-  Context `{∀ a nD, IntoCrashFlush (ϕ a nD) (ϕ a),
-            ∀ a nD, BufferFree (ϕ a nD)}.
+  Context `{∀ a, IntoCrashFlush (ϕ a) (ϕ a),
+            ∀ a, BufferFree (ϕ a)}.
 
   (* There are four types of locations in the stack:
      * toHead - AT - The pointer to the first element in the stack.
@@ -104,9 +104,9 @@ Section definitions.
    *)
 
   Program Definition toNext_prot : LocationProtocol (numbered val) :=
-    {| pred := λ '(mk_numbered t v) v' _, ⌜ v = v' ⌝%I;
+    {| pred := λ '(mk_numbered t v) v', ⌜ v = v' ⌝%I;
        bumper v := v |}.
-  Next Obligation. iIntros (?[?]?) "H". iCrashFlush. done. Qed.
+  Next Obligation. iIntros ([?] ? ?). iModIntro. done. Qed.
   Next Obligation. destruct s. simpl. apply _. Qed.
 
   (* Definition toNext_prot : loc_pred (singl val) := *)
@@ -117,13 +117,13 @@ Section definitions.
   Definition cons_node_prot (x : val) (ℓtoNext : loc) :=
     constant_prot (InjRV (x, #ℓtoNext)).
 
-    (* λ (_ : unit) (v : val) (hG : nvmDeltaG), *)
+    (* λ (_ : unit) (v : val), *)
     (*   (⌜ v = InjRV (x, #ℓtoNext)%V ⌝)%I. *)
     (* ∗ ϕ x hG)%I. *)
 
   (* Program Instance toNext_prot_prot : *)
   (*   LocationProtocol toNext_prot := { bumper n := n }. *)
-  (* Next Obligation. iIntros (?[?]?) "H". iCrashFlush. done. Qed. *)
+  (* Next Obligation. iIntros (?[?]?) "H". iModIntro. done. Qed. *)
   (* Next Obligation. destruct s. apply _. Qed. *)
 
   (* Program Instance cons_node_prot_prot x ℓ : *)
@@ -133,11 +133,11 @@ Section definitions.
   (*   rewrite /cons_node_prot. *)
   (*   iIntros "?". *)
   (*   (* iDestruct 1 as "[A B]". *) *)
-  (*   iCrashFlush. naive_solver. *)
+  (*   iModIntro. naive_solver. *)
   (* Qed. *)
 
   (* Representation predicate for a node. *)
-  Fixpoint is_node `{nvmDeltaG} ℓnode (xs : list val) : dProp Σ :=
+  Fixpoint is_node ℓnode (xs : list val) : dProp Σ :=
     match xs with
     | [] => ∃ q,
         ℓnode ↦_{nil_node_prot}^{q} [()] ∗
@@ -151,21 +151,21 @@ Section definitions.
         is_node ℓnext xs'
   end.
 
-  Global Instance into_no_buffer_is_node `{nvmDeltaG} ℓnode xs :
+  Global Instance into_no_buffer_is_node ℓnode xs :
     IntoNoBuffer (is_node ℓnode xs) (is_node ℓnode xs).
   Proof.
     generalize dependent ℓnode.
     induction xs as [|x xs]; apply _.
   Qed.
 
-  Global Instance into_crash_flushed_mapsto_na_flushed `{nvmDeltaG} ℓnode xs :
-    IntoCrashFlush (is_node ℓnode xs) (λ _, is_node ℓnode xs).
+  Global Instance into_crash_flushed_mapsto_na_flushed ℓnode xs :
+    IntoCrashFlush (is_node ℓnode xs) (is_node ℓnode xs).
   Proof.
     rewrite /IntoCrashFlush.
     generalize dependent ℓnode.
     induction xs as [|x xs IH]; iIntros (ℓnode).
     - iDestruct 1 as (?) "(nodePts & lb)".
-      iCrashFlush.
+      iModIntro.
       iDestruct "lb" as "[#lb (% & ? & rec)]".
       iDestruct (crashed_in_if_rec with "rec nodePts") as "nodePts".
       iDestruct "nodePts" as (?? [-> ->]%prefix_app_singleton) "(? & nodePts)".
@@ -176,7 +176,7 @@ Section definitions.
       iFrame "lb".
     - iDestruct 1 as (?????) "(nodePts & nodeFlushLb & toNextFlush & node)".
       iApply IH in "node".
-      iCrashFlush.
+      iModIntro.
       iDestruct "nodeFlushLb" as "[toNextLb (% & % & nodeRec)]".
       iDestruct "toNextFlush" as "[toNextFlush toNextRec]".
       iDestruct (crashed_in_if_rec with "nodeRec nodePts") as "nodePts".
@@ -188,7 +188,7 @@ Section definitions.
       iFrame.
   Qed.
 
-  Lemma is_node_split `{nvmDeltaG} ℓnode xs :
+  Lemma is_node_split ℓnode xs :
     is_node ℓnode xs -∗ is_node ℓnode xs ∗ is_node ℓnode xs.
   Proof.
     generalize dependent ℓnode.
@@ -206,58 +206,58 @@ Section definitions.
 
   (* The invariant for the location that points to the first node in the
   stack. *)
-  Program Definition toHead_prot `{nvmDeltaG} :=
-    {| pred (_ : unit) (v : val) _ :=
+  Program Definition toHead_prot :=
+    {| pred (_ : unit) (v : val) :=
         (∃ (ℓnode : loc) xs,
           "%vEqNode" ∷ ⌜ v = #ℓnode ⌝ ∗
           "isNode" ∷ is_node ℓnode xs ∗
-          "#phis" ∷ ([∗ list] x ∈ xs, ϕ x _))%I;
+          "#phis" ∷ ([∗ list] x ∈ xs, ϕ x))%I;
       bumper s := s;
     |}.
   Next Obligation.
-    iIntros (????).
+    iIntros (??).
     iNamed 1.
-    iCrashFlush.
+    iModIntro.
     iExists ℓnode, _.
     iFrame. done.
   Qed.
 
   (* The representation predicate for the entire stack. *)
-  Definition is_stack `{nvmDeltaG} (ℓtoHead : loc) : dProp Σ :=
+  Definition is_stack (ℓtoHead : loc) : dProp Σ :=
     ℓtoHead ↦_AT^{toHead_prot} [()].
 
-  Definition is_synced `{nvmDeltaG} (ℓtoHead : loc) : dProp Σ :=
+  Definition is_synced (ℓtoHead : loc) : dProp Σ :=
     persist_lb ℓtoHead toHead_prot ().
 
 End definitions.
 
 Section proof.
   Implicit Types (ℓ : loc).
-  Context `{nvmG Σ, nvmDeltaG}.
+  Context `{nvmG Σ}.
 
-  Context (ϕ : val → nvmDeltaG → dProp Σ).
+  Context (ϕ : val → dProp Σ).
   (* The per-element predicate must be stable under the <PCF> modality and not
   use anything from the buffer. *)
-  Context `{∀ a nD, IntoCrashFlush (ϕ a nD) (ϕ a),
-            ∀ a nD, BufferFree (ϕ a nD),
-            ∀ a nD, Persistent (ϕ a nD)}.
+  Context `{∀ a, IntoCrashFlush (ϕ a) (ϕ a),
+            ∀ a, BufferFree (ϕ a),
+            ∀ a, Persistent (ϕ a)}.
 
   (* The stack is crash safe. *)
   Lemma is_stack_post_crash ℓ :
-    is_stack ϕ ℓ -∗ <PC> _, if_rec ℓ (is_stack ϕ ℓ).
+    is_stack ϕ ℓ -∗ <PC> if_rec ℓ (is_stack ϕ ℓ).
   Proof.
     iIntros "pts".
-    iCrash.
+    iModIntro.
     iModIntro.
     iDestruct "pts" as ([]) "[c pts]".
     iFrame.
   Qed.
 
   Lemma is_stack_synced_post_crash ℓ :
-    is_stack ϕ ℓ -∗ is_synced ϕ ℓ -∗ <PC> _, (is_stack ϕ ℓ).
+    is_stack ϕ ℓ -∗ is_synced ϕ ℓ -∗ <PC> (is_stack ϕ ℓ).
   Proof.
     iIntros "pts S".
-    iCrash.
+    iModIntro.
     iDestruct "S" as "[per (% & % & crashed)]".
     iDestruct (crashed_in_if_rec with "crashed pts") as ([]) "[crashed pts]".
     iFrame "pts".
@@ -293,7 +293,7 @@ Section proof.
   Qed.
 
   Lemma wpc_push stack x s E :
-    {{{ is_stack ϕ stack ∗ ϕ x _ }}}
+    {{{ is_stack ϕ stack ∗ ϕ x }}}
       push #stack x @ s ; E
     {{{ RET #(); True }}}.
   Proof.
@@ -382,7 +382,7 @@ Section proof.
     {{{ is_stack ϕ stack }}}
       pop #stack @ s ; E
     {{{ v, RET v;
-        (⌜ v = NONEV ⌝) ∨ (∃ x, ⌜ v = InjRV x ⌝ ∗ ϕ x _) }}}.
+        (⌜ v = NONEV ⌝) ∨ (∃ x, ⌜ v = InjRV x ⌝ ∗ ϕ x) }}}.
   Proof.
     iIntros (Φ) "#stackPts ϕpost".
     rewrite /pop.
