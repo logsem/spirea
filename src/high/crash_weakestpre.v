@@ -7,7 +7,7 @@ From Perennial.program_logic Require crash_weakestpre.
 From self.algebra Require Import ghost_map.
 From self Require Import extra.
 From self.base Require Import primitive_laws class_instances.
-From self.high Require Export dprop resources lifted_modalities monpred_simpl
+From self.high Require Export dprop viewobjective resources lifted_modalities monpred_simpl
      post_crash_modality increasing_map state_interpretation wpc_notation.
 
 Section wpc.
@@ -98,7 +98,7 @@ Section wpc.
     iPureIntro. etrans; eassumption.
   Qed.
 
-  Lemma wpc_pure_step_later s E1 e1 e2 φ Φ Φc `{!Objective Φc} :
+  Lemma wpc_pure_step_later s E1 e1 e2 φ Φ Φc `{!ViewObjective Φc} :
     PureExecBase φ 1 e1 e2 →
     φ →
     ▷ WPC e2 @ s; E1 {{ Φ }} {{ Φc }} ∧ Φc
@@ -106,7 +106,7 @@ Section wpc.
   Proof.
     intros Hexec ?.
     rewrite wpc_eq /wpc_def.
-    iStartProof (iProp _). iIntros (TV).
+    iModel.
     simpl.
     iIntros "WP".
     iIntros (TV') "%incl val".
@@ -114,7 +114,7 @@ Section wpc.
     rewrite -crash_weakestpre.wpc_pure_step_later; last done.
     iSplit.
     - iNext. iApply ("WP" with "[//] val").
-    - iFrame. iApply objective_at. iDestruct "WP" as "[_ $]".
+    - iFrame. iApply view_objective_at. iDestruct "WP" as "[_ $]".
   Qed.
 
   Lemma wp_wpc s E1 e Φ:
@@ -140,7 +140,7 @@ Section wpc.
   *)
 
   Lemma wpc_strong_mono s1 s2 E1 E2 (e : expr) (Φ Ψ : val → dProp Σ) (Φc Ψc : dProp Σ)
-        `{!Objective Φc, !Objective Ψc} :
+        `{!ViewObjective Φc, !ViewObjective Ψc} :
     s1 ⊑ s2 → E1 ⊆ E2 →
     WPC e @ s1; E1 {{ Φ }} {{ Φc }} -∗
     (∀ v, Φ v -∗ |NC={E2}=> Ψ v) ∧ (Φc -∗ |C={E2}=> Ψc) -∗
@@ -182,15 +182,15 @@ Section wpc.
       simpl.
       monPred_simpl.
       iSpecialize ("conj" with "[phi]").
-      { iApply objective_at. iApply "phi". }
+      { iApply view_objective_at. iApply "phi". }
       iSpecialize ("conj" $! (TV1, _) with "[% //] [HC]").
       { iApply monPred_at_embed. done. }
-      iApply objective_at.
+      iApply view_objective_at.
       done.
   Qed.
 
   Lemma wpc_strong_mono' s1 s2 E1 E2 e Φ Ψ Φc Ψc
-        `{!Objective Φc, !Objective Ψc} :
+        `{!ViewObjective Φc, !ViewObjective Ψc} :
     s1 ⊑ s2 → E1 ⊆ E2 →
     WPC e @ s1; E1 {{ Φ }} {{ Φc }} -∗
     (∀ v, Φ v ={E2}=∗ Ψ v) ∧ (Φc ={E2}=∗ Ψc) -∗
@@ -204,7 +204,7 @@ Section wpc.
       iIntros "HΦc C". simpl. iApply "H". iAssumption.
   Qed.
 
-  Lemma ncfupd_wpc s E1 e Φ Φc `{!Objective Φc} :
+  Lemma ncfupd_wpc s E1 e Φ Φc `{!ViewObjective Φc} :
     (cfupd E1 Φc) ∧ (|NC={E1}=> WPC e @ s; E1 {{ Φ }} {{ Φc }}) ⊢
     WPC e @ s; E1 {{ Φ }} {{ Φc }}.
   Proof.
@@ -220,7 +220,7 @@ Section wpc.
       iDestruct "H" as ">H".
       iModIntro.
       iFrame.
-      iApply objective_at.
+      iApply view_objective_at.
       iApply "H".
     - iDestruct "H" as "[_ H]".
       rewrite ncfupd_unfold_at.
@@ -230,7 +230,7 @@ Section wpc.
   Qed.
 
   Lemma wpc_atomic_crash_modality s E1 e Φ Φc
-        `{!AtomicBase StronglyAtomic e, !Objective Φc} :
+        `{!AtomicBase StronglyAtomic e, !ViewObjective Φc} :
     (cfupd E1 (Φc)) ∧
     (WP e @ s; E1 {{ v, |={E1}=> (|={E1}=>Φ v) ∧ cfupd E1 (Φc) }}) ⊢
     WPC e @ s; E1 {{ Φ }} {{ Φc }}.
@@ -246,7 +246,7 @@ Section wpc.
       iMod "H".
       iModIntro.
       iFrame.
-      iApply objective_at.
+      iApply view_objective_at.
       iApply "H".
     - rewrite wp_eq. rewrite /wp_def.
       rewrite wpc_eq. rewrite /wpc_def.
@@ -269,12 +269,12 @@ Section wpc.
         iMod "H".
         iModIntro.
         iFrame.
-        iApply objective_at.
+        iApply view_objective_at.
         iApply "H".
   Qed.
 
   Lemma wpc_value s E1 (Φ : val → dProp Σ) (Φc : dProp Σ)
-        `{!Objective Φc} (v : val) :
+        `{!ViewObjective Φc} (v : val) :
     ((|NC={E1}=> Φ v) : dProp _) ∧
     (|C={E1}=> Φc) ⊢ WPC of_val v @ s; E1 {{ Φ }} {{ Φc }}.
   Proof.
@@ -294,11 +294,11 @@ Section wpc.
       done.
     - iDestruct "H" as "(_ & HO)".
       rewrite cfupd_unfold_at.
-      rewrite objective_at.
+      rewrite view_objective_at.
       iFrame.
   Qed.
 
-  Lemma wpc_value' s E1 Φ Φc `{!Objective Φc} v :
+  Lemma wpc_value' s E1 Φ Φc `{!ViewObjective Φc} v :
     Φ v ∧ Φc ⊢ WPC of_val v @ s; E1 {{ Φ }} {{ Φc }}.
   Proof.
     iIntros "H". iApply wpc_value.
@@ -309,7 +309,7 @@ Section wpc.
 
   (** * Derived rules *)
 
-  Lemma wpc_crash_mono stk E1 e Φ Φc Φc' `{!Objective Φc, !Objective Φc'} :
+  Lemma wpc_crash_mono stk E1 e Φ Φc Φc' `{!ViewObjective Φc, !ViewObjective Φc'} :
     (Φc' -∗ Φc) -∗
     WPC e @ stk; E1 {{ Φ }} {{ Φc' }} -∗
     WPC e @ stk; E1 {{ Φ }} {{ Φc }}.
@@ -321,7 +321,7 @@ Section wpc.
     by iApply "Hweaken".
   Qed.
 
-  Lemma wpc_mono s E1 e Φ Ψ Φc Ψc `{!Objective Φc, !Objective Ψc} :
+  Lemma wpc_mono s E1 e Φ Ψ Φc Ψc `{!ViewObjective Φc, !ViewObjective Ψc} :
     (∀ v, Φ v ⊢ Ψ v) →
     (Φc ⊢ Ψc) →
     WPC e @ s; E1 {{ Φ }} {{ Φc }} ⊢
@@ -333,7 +333,7 @@ Section wpc.
     - iIntros "? !>". by iApply HΦc.
   Qed.
 
-  Lemma wpc_mono' s E1 e Φ Ψ Φc Ψc `{!Objective Φc, !Objective Ψc} :
+  Lemma wpc_mono' s E1 e Φ Ψ Φc Ψc `{!ViewObjective Φc, !ViewObjective Ψc} :
     (∀ v, Φ v -∗ Ψ v) -∗ (Φc -∗ Ψc) -∗ WPC e @ s; E1 {{ Φ }} {{ Φc }} -∗
     WPC e @ s; E1  {{ Ψ }} {{ Ψc }}.
   Proof.
@@ -347,7 +347,7 @@ Section wpc.
     (∀ v, Φ v ⊢ Ψ v) → WP e @ s; E {{ Φ }} ⊢ WP e @ s; E {{ Ψ }}.
   Proof. intros Hpost. rewrite wp_eq. apply: wpc_mono; done. Qed.
 
-  Lemma wpc_atomic s E1 e (Φ : val → dProp Σ) Φc `{!AtomicBase StronglyAtomic e, !Objective Φc} :
+  Lemma wpc_atomic s E1 e (Φ : val → dProp Σ) Φc `{!AtomicBase StronglyAtomic e, !ViewObjective Φc} :
     (|={E1}=> Φc) ∧ WP e @ s; E1 {{ v, (|={E1}=> Φ v) ∧ |={E1}=> Φc }} ⊢
     WPC e @ s; E1 {{ Φ }} {{ Φc }}.
   Proof.
@@ -363,7 +363,7 @@ Section wpc.
   (* Note that this also reverses the postcondition and crash condition, so we
   prove the crash condition first *)
   Lemma wpc_atomic_no_mask s E1 e Φ Φc
-        `{!AtomicBase StronglyAtomic e, !Objective Φc} :
+        `{!AtomicBase StronglyAtomic e, !ViewObjective Φc} :
     Φc ∧ WP e @ s; E1 {{ v, (|={E1}=> Φc) ∧ (|={E1}=> Φ v) }} ⊢
     WPC e @ s; E1 {{ Φ }} {{ Φc }}.
    Proof.

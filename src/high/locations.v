@@ -464,9 +464,9 @@ Section points_to_at.
   Proof. rewrite /IntoNoBuffer. eauto using flush_lb_no_buffer. Qed.
 
   (* TODO: Prove this in the same way as [flush_lb_no_buffer]. We need more noflush instances. *)
-  (* Lemma no_flush_store_lb ℓ prot (s : ST) : *)
-  (*   store_lb ℓ prot s -∗ <noflush> store_lb ℓ prot s. *)
-  (* Proof. *)
+  Lemma no_flush_store_lb ℓ prot (s : ST) :
+    store_lb ℓ prot s -∗ <noflush> store_lb ℓ prot s.
+  Proof. iNamed 1. iModIntro. iExists _, _. iFrame "#∗". Qed.
   (*   iNamed 1. *)
   (*   iNamed "lbBase". *)
   (*   iModIntro. *)
@@ -475,9 +475,9 @@ Section points_to_at.
   (*   simpl. *)
   (*   iDestruct 1 as (?) "HI". iExists _. iFrame. *)
   (* Qed. *)
-  (* Global Instance flush_free_flush_lb ℓ prot (s : ST) : *)
-  (*   FlushFree (store_lb ℓ prot s). *)
-  (* Proof. rewrite /IntoNoFlush. eauto using no_flush_store_lb. Qed. *)
+  Global Instance flush_free_flush_lb ℓ prot (s : ST) :
+    FlushFree (store_lb ℓ prot s).
+  Proof. rewrite /IntoNoFlush. eauto using no_flush_store_lb. Qed.
 
   Lemma no_buffer_store_lb ℓ prot (s : ST) :
     store_lb ℓ prot s -∗ <nobuf> store_lb ℓ prot s.

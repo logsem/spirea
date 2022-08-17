@@ -66,10 +66,6 @@ Section specification.
       "aPts" ∷ ℓa ↦_{ϕa} [na] ∗
       "bPts" ∷ ℓb ↦_{ϕb ℓa} [nb])%I.
 
-  (* Fix with new notion of objective. *)
-  Instance crash_condition_objective ℓa ℓb : Objective (crash_condition ℓa ℓb).
-  Proof. Admitted.
-
   Lemma prove_crash_condition ℓa ℓb na nb (ssA ssB : list nat) :
     (* We need to know that both lists are strictly increasing list. *)
     ((∃ n, ssA = [n]) ∨ ssA = [0; 1]) →
@@ -184,7 +180,7 @@ Section specification.
     crash_condition ℓa ℓb -∗
     WPC recover ℓa ℓb @ s; E
       {{ _, True }}
-      {{ <PC> H0, crash_condition ℓa ℓb }}.
+      {{ <PC> crash_condition ℓa ℓb }}.
   Proof.
     iNamed 1.
     rewrite /recover.
@@ -247,14 +243,15 @@ Section specification.
       ℓa ↦_{ϕa} [0] -∗
       ℓb ↦_{ϕb ℓa} [0] -∗
       wpr s E (incr_both ℓa ℓb) (recover ℓa ℓb)
-        (λ _, ℓa ↦_{ϕa} [0; 1] ∗ ℓb ↦_{ϕb ℓa} [0; 1]) (λ _ _, True%I).
+        (λ _, ℓa ↦_{ϕa} [0; 1] ∗ ℓb ↦_{ϕb ℓa} [0; 1]) (λ _, True%I).
   Proof.
     iIntros "a b c d".
-    iApply (idempotence_wpr _ _ _ _ _ _ (λ _, <PC> _, crash_condition ℓa ℓb)%I
+    iApply (idempotence_wpr _ _ _ _ _ _ (<PC> crash_condition ℓa ℓb)%I
               with "[a b c d] []").
     { iApply (wp_incr_both _ _ s E with "a b c d"). }
-    do 2 iModIntro.
-    iIntros (hG') "R".
+    rewrite monPred_objectively_elim. (* FIXME: More <PC> instances to make this unnecesssary. *)
+    rewrite bi.intuitionistically_elim.
+    iIntros "R".
     iModIntro.
     iApply (wpc_recover with "R").
   Qed.
@@ -288,7 +285,6 @@ Proof.
   exists lif.
   rewrite /lif.
   split; first set_solver.
-  intros nnD .
   iIntros "M _ _".
   setoid_rewrite (restrict_id {[ℓa; ℓb]}); last set_solver.
   rewrite /init_heap.

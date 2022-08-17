@@ -112,15 +112,6 @@ Section proof.
       "#zPer" ∷ persist_lb z inv_z bz ∗
       "zPts" ∷ z ↦_{inv_z} zss.
 
-  Instance : Objective (<PC> right_crash_condition).
-  Proof. Admitted.
-
-  Instance : Objective (<PC> left_crash_condition).
-  Proof. Admitted.
-
-  Instance : Objective (<PC> crash_condition).
-  Proof. Admitted.
-
   Lemma left_crash_condition_impl (sx : list bool) :
     persist_lb x inv_x false -∗
     x ↦_{inv_x} sx -∗
@@ -245,7 +236,7 @@ Section proof.
   Qed.
 
   Lemma prog_spec :
-    ⎡ pre_borrow ⎤ ∗
+    pre_borrow_d ∗
     (* know_protocol x inv_x ∗ know_protocol y prot_y ∗ know_protocol z inv_z ∗ *)
     persist_lb x inv_x false ∗
     x ↦_{inv_x} [false] ∗

@@ -10,7 +10,7 @@ Section crash_borrow_high.
   Context `{nvmG Σ}.
   Context `{!stagedG Σ}.
 
-  (* Program Definition crash_borrow (Ps : dProp Σ) (Pc : dProp Σ) `{!Objective Pc} : dProp Σ := *)
+  (* Program Definition crash_borrow (Ps : dProp Σ) (Pc : dProp Σ) `{!ViewObjective Pc} : dProp Σ := *)
   (*   MonPred (λ TV, *)
   (*             (□ (Ps -∗ Pc)) TV ∗ *)
   (*             (* □ (∀ TV', TV ⊑ TV') ∗ *) *)
@@ -24,12 +24,12 @@ Section crash_borrow_high.
   (*   iApply (crash_borrow_conseq with "[] [] [] cb"). *)
   (*   - iIntros "!> H". *)
   (*     iSpecialize ("impl" with "H"). *)
-  (*     by iApply objective_at. *)
+  (*     by iApply view_objective_at. *)
   (*   - naive_solver. *)
   (*   - naive_solver. *)
   (* Qed. *)
 
-  Program Definition crash_borrow (Ps : dProp Σ) (Pc : dProp Σ) `{!Objective Pc} : dProp Σ :=
+  Program Definition crash_borrow (Ps : dProp Σ) (Pc : dProp Σ) `{!ViewObjective Pc} : dProp Σ :=
     MonPred (λ i,
         let gnames := i.2
         in (□ (Ps -∗ Pc)) i ∗
@@ -48,7 +48,7 @@ Section crash_borrow_high.
     iApply (crash_borrow_conseq with "[] [] [] cb").
     - iIntros "!> H".
       iSpecialize ("impl" with "H").
-      by iApply objective_at.
+      by iApply view_objective_at.
     - naive_solver.
     - naive_solver.
   Qed.
@@ -57,7 +57,7 @@ Section crash_borrow_high.
 
   (*
   (* Kripke-style crash borrow. Will it work? Who knows ¯\_(ツ)_/¯. *)
-  Program Definition crash_borrow (Ps : dProp Σ) (Pc : dProp Σ) `{!Objective Pc} : dProp Σ :=
+  Program Definition crash_borrow (Ps : dProp Σ) (Pc : dProp Σ) `{!ViewObjective Pc} : dProp Σ :=
     MonPred (λ TV, ∀ TV', ⌜ TV ⊑ TV' ⌝ -∗
               crash_borrow (Ps TV') (Pc ⊥)
             )%I _.
@@ -68,12 +68,12 @@ Section crash_borrow_high.
   Qed.
   *)
 
-  Lemma crash_borrow_crash_wand P Pc `{!Objective Pc}:
+  Lemma crash_borrow_crash_wand P Pc `{!ViewObjective Pc}:
     crash_borrow P Pc -∗ □ (P -∗ Pc).
   Proof. iModel. iDestruct 1 as "(H & _)". iApply "H". Qed.
 
   Lemma wpc_crash_borrow_inits s (e : expr) (Φ : _ → dProp Σ) Φc (P : dProp Σ)
-        Pc `{!Objective Pc} :
+        Pc `{!ViewObjective Pc} :
     pre_borrow_d -∗
     P -∗
     □ (P -∗ Pc) -∗
@@ -101,11 +101,11 @@ Section crash_borrow_high.
       { naive_solver. }
       { iDestruct 1 as "H". monPred_simpl. iApply "H". done. }
     }
-    { iIntros "!> P". iApply objective_at. iApply ("wand" with "[] P"). done. }
+    { iIntros "!> P". iApply view_objective_at. iApply ("wand" with "[] P"). done. }
     { iApply (monPred_mono with "P"). split; last done. etrans; done. }
   Qed.
 
-  Lemma wpc_crash_borrow_open_modify E1 e Φ Φc P Pc `{!Objective Φc, !Objective Pc} :
+  Lemma wpc_crash_borrow_open_modify E1 e Φ Φc P Pc `{!ViewObjective Φc, !ViewObjective Pc} :
     to_val e = None →
     crash_borrow P Pc -∗
     (Φc ∧
@@ -124,7 +124,7 @@ Section crash_borrow_high.
     { simpl. rewrite /thread_to_val. rewrite Hnv. done. }
     { iDestruct "cb" as "[_ $]". }
     iSplit.
-    { iApply objective_at. iDestruct "wp" as "[$ _]". }
+    { iApply view_objective_at. iDestruct "wp" as "[$ _]". }
     iIntros "P".
     iDestruct "wp" as "[_ wp]".
     monPred_simpl.
@@ -139,7 +139,7 @@ Section crash_borrow_high.
     iFrame.
     iSplitL "impl".
     { iIntros "!> P'".
-      iApply objective_at.
+      iApply view_objective_at.
       iApply "impl"; done. }
     iIntros "Hip".
     iEval (monPred_simpl) in "H".
@@ -147,11 +147,11 @@ Section crash_borrow_high.
     { simpl. iFrame.
       rewrite monPred_at_intuitionistically. iModIntro. iApply "impl". }
     iSplit.
-    - iApply objective_at. iDestruct "H" as "[$ _]".
+    - iApply view_objective_at. iDestruct "H" as "[$ _]".
     - iDestruct "H" as "[_ $]". done.
   Qed.
 
-  Lemma wpc_crash_borrow_open E1 e Φ Φc P Pc `{!Objective Φc, !Objective Pc} :
+  Lemma wpc_crash_borrow_open E1 e Φ Φc P Pc `{!ViewObjective Φc, !ViewObjective Pc} :
     to_val e = None →
     crash_borrow P Pc -∗
     (Φc ∧ (P -∗ WPC e @ E1

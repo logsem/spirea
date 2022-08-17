@@ -114,15 +114,6 @@ Section proof.
       "#zPer" ∷ persist_lb z inv_z bz ∗
       "zPts" ∷ z ↦_{inv_z} (zss ++ [bz]).
 
-  Instance : Objective (<PC> right_crash_condition).
-  Proof. Admitted. (* Fix with new notion of objective. *)
-
-  Instance : Objective (<PC> left_crash_condition).
-  Proof. Admitted. (* Fix with new notion of objective. *)
-
-  Instance : Objective (<PC> crash_condition).
-  Proof. Admitted. (* Fix with new notion of objective. *)
-
   Lemma left_crash_condition_impl (sx : list bool) :
     persist_lb x inv_x false -∗
     x ↦_{inv_x} sx -∗

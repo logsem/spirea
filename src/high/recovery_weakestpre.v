@@ -143,8 +143,6 @@ Proof.
   iIntros "HΦ".
   rewrite /wpr !wpr_unfold /wpr_pre.
   iApply (wpc_strong_mono' with "H"); auto.
-  { admit. } (* Fix with new notion of objective. *)
-  { admit. }
   destruct incl as [? [= <-]].
   iSplit.
   { iDestruct "HΦ" as "(H & _)".
@@ -1304,7 +1302,7 @@ Section wpr.
   (* Qed. *)
 
   (* _The_ lemma for showing a recovery weakest precondition. *)
-  Lemma idempotence_wpr s E1 e rec Φ Φr (Φc : dProp Σ) `{!Objective Φc} :
+  Lemma idempotence_wpr s E1 e rec Φ Φr (Φc : dProp Σ) `{!ViewObjective Φc} :
     ⊢ WPC e @ s ; E1 {{ Φ }} {{ Φc }} -∗
       (<obj> □
             Φc -∗ post_crash (WPC rec @ s ; E1 {{ Φr }} {{ Φc }})) -∗

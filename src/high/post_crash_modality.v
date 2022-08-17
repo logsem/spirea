@@ -9,7 +9,8 @@ From self Require Import extra ipm_tactics if_non_zero map_extra.
 From self.algebra Require Import ghost_map ghost_map_map.
 From self.base Require Import primitive_laws wpr_lifting.
 From self.base Require post_crash_modality.
-From self.high Require Import dprop dprop_liftings resources monpred_simpl or_lost if_rec predicates.
+From self.high Require Import dprop dprop_liftings viewobjective resources
+  monpred_simpl or_lost if_rec predicates.
 
 Set Default Proof Using "Type".
 
@@ -201,8 +202,19 @@ Section post_crash_prop.
   Implicit Types efs : list thread_state.
   Implicit Types σ : mem_config.
 
-  (* Global Instance post_crash_objective P : Objective (post_crash P). *)
-  (* Proof. done. Qed. *)
+  Global Instance post_crash_objective P : ViewObjective (post_crash P).
+  Proof.
+    intros ???.
+    iIntros "PC".
+    iIntrosPostCrash.
+    simpl.
+    iDestruct ("PC" $! hG') as "P".
+    iApply (post_crash_modality.post_crash_mono with "P").
+    iIntros (hG2).
+    iIntros "P M".
+    iDestruct ("P" with "M") as "[P $]".
+    done.
+  Qed.
 
   (* Lemma post_crash_intro Q: *)
   (*   (⊢ (∀ nG, Q nG)) → *)

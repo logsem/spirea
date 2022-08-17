@@ -3,7 +3,7 @@ From iris.bi Require Import bi.
 From iris.bi Require Import derived_laws.
 From iris.base_logic Require Import iprop.
 
-From self.high Require Import dprop resources modalities.
+From self.high Require Import dprop viewobjective resources modalities.
 
 Class IntoNoFlush {Σ} (P : dProp Σ) (Q : dProp Σ) :=
   into_no_flush : P ⊢ <noflush> Q.
@@ -43,6 +43,9 @@ Section no_flush.
   Lemma no_flush_sep P Q : <noflush> (P ∗ Q) ⊣⊢ <noflush> P ∗ <noflush> Q.
   Proof. iModel. rewrite !no_flush_at. rewrite monPred_at_sep. naive_solver. Qed.
 
+  Lemma no_flush_or P Q : <noflush> (P ∨ Q) ⊣⊢ <noflush> P ∨ <noflush> Q.
+  Proof. iModel. rewrite !no_flush_at. rewrite monPred_at_or. naive_solver. Qed.
+
   Lemma no_flush_intuitionistically_2 P : □ <noflush> P ⊢ <noflush> □ P.
   Proof.
     iModel. rewrite !no_flush_at monPred_at_intuitionistically. naive_solver.
@@ -76,6 +79,14 @@ Section no_flush.
     rewrite no_flush_at. simpl. iApply objective_at.
   Qed.
 
+  Global Instance flush_free_view_objective P : ViewObjective P → FlushFree P.
+  Proof.
+    intros O.
+    rewrite /IntoNoFlush.
+    iModel. destruct TV as [[??]?].
+    rewrite no_flush_at. simpl. iApply view_objective_at.
+  Qed.
+
   Global Instance into_no_flush_if (b : bool) (P P' Q Q' : dProp Σ) :
     IntoNoFlush P P' →
     IntoNoFlush Q Q' →
@@ -89,6 +100,10 @@ Section no_flush.
   Global Instance into_no_flush_sep (P P' Q Q' : dProp Σ) :
     IntoNoFlush P P' → IntoNoFlush Q Q' → IntoNoFlush (P ∗ Q)%I (P' ∗ Q')%I.
   Proof. rewrite /IntoNoFlush no_flush_sep. by intros <- <-. Qed.
+
+  Global Instance into_no_flush_or (P P' Q Q' : dProp Σ) :
+    IntoNoFlush P P' → IntoNoFlush Q Q' → IntoNoFlush (P ∨ Q)%I (P' ∨ Q')%I.
+  Proof. rewrite /IntoNoFlush no_flush_or. by intros <- <-. Qed.
 
   Global Instance into_no_flush_no_flush P : IntoNoFlush (<noflush> P) P.
   Proof. rewrite /IntoNoFlush. by iApply no_flush_mono. Qed.
@@ -118,14 +133,14 @@ Section no_flush.
     repeat split; try apply le; done.
   Qed.
 
-  (* Lemma no_flush_monPred_in SV FV PV : *)
-  (*   monPred_in (SV, FV, PV) ⊢@{dPropI Σ} <noflush> monPred_in (SV, ∅, ∅). *)
-  (* Proof. *)
-  (*   iModel. *)
-  (*   iIntros (le). destruct TV as [[??]?]. rewrite no_flush_at. *)
-  (*   iApply monPred_at_in. iPureIntro. *)
-  (*   repeat split; try apply le; done. *)
-  (* Qed. *)
+  Lemma no_flush_monPred_in SV FV PV i :
+    monPred_in (SV, FV, PV, i) ⊢@{dPropI Σ} <noflush> monPred_in (SV, ∅, ∅, i).
+  Proof.
+    iModel.
+    iIntros (le). destruct TV as [[??]?]. rewrite no_flush_at.
+    iApply monPred_at_in. iPureIntro.
+    repeat split; try apply le; done.
+  Qed.
 
   Global Instance into_no_flush_monPred_in SV FV PV :
     IntoNoFlush (have_thread_view (SV, FV, PV) : dProp Σ) (have_thread_view (SV, ∅, ∅)).
@@ -139,6 +154,9 @@ Section no_flush.
   Global Instance big_sepL_no_flush {A} (Φ : _ → A → dProp Σ) l :
     (∀ k x, FlushFree (Φ k x)) → FlushFree ([∗ list] k↦x ∈ l, Φ k x).
   Proof. revert Φ. induction l as [|x l IH]=> Φ ? /=; try apply _. Qed.
+
+  Global Instance flush_free_have_SV ℓ t : FlushFree (have_SV ℓ t : dProp Σ).
+  Proof. done. Qed.
 
 End no_flush.
 

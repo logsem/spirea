@@ -153,5 +153,4 @@ Section definitions.
     done.
   Qed.
 
- End definitions.
-
+End definitions.
