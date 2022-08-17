@@ -173,7 +173,7 @@ Section points_to_at.
       "#physHist" ∷
         ([∗ map] t ↦ msg ∈ phys_hist,
           have_msg_after_fence msg ∗
-          with_gnames (λ nD, ⎡ auth_map_map_frag_singleton phys_history_name ℓ t msg ⎤)) ∗
+          lift_d (λ nD, auth_map_map_frag_singleton phys_history_name ℓ t msg)) ∗
       "#offset" ∷ offset_loc ℓ offset ∗
       "#tSLe" ∷ have_SV ℓ (tS - offset)).
 

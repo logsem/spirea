@@ -357,8 +357,8 @@ Section wp_at_rules.
     iIntros "isAt".
     rewrite /know_protocol.
     iDestruct 1 as "(#knowPred & #knowPreorder & #knowBumper)".
-    simpl.
-    rewrite !monPred_at_embed.
+    rewrite /know_pred_d /know_preorder_loc_d /know_bumper_d.
+    rewrite !lift_d_at.
     iIntros "offset".
 
     iDestruct (own_all_preds_pred with "predicates knowPred")
@@ -470,98 +470,95 @@ Section wp_at_rules.
       iFrame "crashedAt".
       iFrame "atLocs".
       iFrame "naView naLocs allBumpers bumpMono".
-    Admitted.
-  (*     iFrame "predPostCrash". *)
-  (*     (* oldViewsDiscarded *) *)
-  (*     iSplit. *)
-  (*     { iEval (erewrite <- (insert_id offsets); last done). *)
-  (*       iApply (big_sepM2_insert_2 with "[] oldViewsDiscarded"). *)
-  (*       iIntros (t2 ?). *)
-  (*       iDestruct (big_sepM2_lookup _ _ _ ℓ with "oldViewsDiscarded") as %hi; *)
-  (*         [done|done|]. *)
-  (*       destruct (decide (t_i = t2)) as [->|neq]. *)
-  (*       - iIntros (?). lia. *)
-  (*       - rewrite lookup_insert_ne; last done. *)
-  (*         iPureIntro. apply hi. } *)
-  (*     (* historyFragments *) *)
-  (*     iSplit. *)
-  (*     { iApply (big_sepM_insert_2 with "[] historyFragments"). *)
-  (*       iApply (big_sepM_insert_2 with "histFrag []"). *)
-  (*       iApply (big_sepM_lookup with "historyFragments"). *)
-  (*       done. } *)
-  (*     iSplitPure; first apply locsDisjoint. *)
-  (*     (* [histDomLocs] *) *)
-  (*     iSplit. { iPureIntro. set_solver. } *)
-  (*     (* [naViewsDom] *) *)
-  (*     iSplitPure; first done. *)
-  (*     (* [mapShared] - We need to show that the newly inserted message satisfied *)
+      (* oldViewsDiscarded *)
+      iSplit.
+      { iEval (erewrite <- (insert_id offsets); last done).
+        iApply (big_sepM2_insert_2 with "[] oldViewsDiscarded").
+        iIntros (t2 ?).
+        iDestruct (big_sepM2_lookup _ _ _ ℓ with "oldViewsDiscarded") as %hi;
+          [done|done|].
+        destruct (decide (t_i = t2)) as [->|neq].
+        - iIntros (?). lia.
+        - rewrite lookup_insert_ne; last done.
+          iPureIntro. apply hi. }
+      (* historyFragments *)
+      iSplit.
+      { iApply (big_sepM_insert_2 with "[] historyFragments").
+        iApply (big_sepM_insert_2 with "histFrag []").
+        iApply (big_sepM_lookup with "historyFragments").
+        done. }
+      iSplitPure; first apply locsDisjoint.
+      (* [histDomLocs] *)
+      iSplit. { iPureIntro. set_solver. }
+      (* [naViewsDom] *)
+      iSplitPure; first done.
+      (* [mapShared] - We need to show that the newly inserted message satisfied *)
   (*     the restriction on shared locations that their persist view and their *)
-  (*     persisted after view is equal. *) *)
-  (*     iSplit. *)
-  (*     { iPureIntro. *)
-  (*       erewrite <- (insert_id offsets); last done. *)
-  (*       rewrite -map_insert_zip_with. *)
-  (*       setoid_rewrite (restrict_insert ℓ); last done. *)
-  (*       rewrite /shared_locs_inv. *)
-  (*       apply Nat.le_exists_sub in H2 as (tE & -> & ?). *)
-  (*       rewrite -drop_prefix_insert. *)
-  (*       apply map_map_Forall_insert_2. *)
-  (*       - apply restrict_lookup_Some_2; last done. *)
-  (*         apply map_lookup_zip_with_Some. naive_solver. *)
-  (*       - simpl. *)
-  (*         rewrite /atomic_loc_inv. *)
-  (*         split; last done. *)
-  (*         rewrite viewLook. lia. *)
-  (*       - done. } *)
-  (*     iSplitL "atLocsHistories". *)
-  (*     { *)
-  (*       rewrite /know_full_encoded_history_loc. *)
-  (*       (* NOTE: This rewrite is mega-slow. *) *)
-  (*       iEval (setoid_rewrite (restrict_insert ℓ at_locs (<[t_i:=es]> absHist) abs_hists ℓSh)). *)
-  (*       iFrame. } *)
-  (*     iFrame (bumperBumpToValid). *)
-  (*     (* "bumperSome" *) *)
-  (*     iApply (big_sepM2_update_left with "bumperSome"); eauto. *)
-  (*     iPureIntro. intros bumperSome. *)
-  (*     apply map_Forall_insert_2; eauto. *)
-  (*     rewrite /encode_bumper. rewrite -encEs decode_encode. done. } *)
-  (*   { *)
-  (*     iIntros "physHists predHolds fullHist pts". *)
+  (*     persisted after view is equal. *)
+      iSplit.
+      { iPureIntro.
+        erewrite <- (insert_id offsets); last done.
+        rewrite -map_insert_zip_with.
+        setoid_rewrite (restrict_insert ℓ); last done.
+        rewrite /shared_locs_inv.
+        apply Nat.le_exists_sub in H2 as (tE & -> & ?).
+        rewrite -drop_prefix_insert.
+        apply map_map_Forall_insert_2.
+        - apply restrict_lookup_Some_2; last done.
+          apply map_lookup_zip_with_Some. naive_solver.
+        - simpl.
+          rewrite /atomic_loc_inv.
+          split; last done.
+          rewrite viewLook. lia.
+        - done. }
+      iSplitL "atLocsHistories".
+      {
+        rewrite /know_full_encoded_history_loc.
+        (* NOTE: This rewrite is mega-slow. *)
+        iEval (setoid_rewrite (restrict_insert ℓ at_locs (<[t_i:=es]> absHist) abs_hists ℓSh)).
+        iFrame. }
+      iFrameF "predPostCrash".
+      iFrame (bumperBumpToValid).
+      (* "bumperSome" *)
+      iApply (big_sepM2_update_left with "bumperSome"); eauto.
+      iPureIntro. intros bumperSome.
+      apply map_Forall_insert_2; eauto.
+      rewrite /encode_bumper. rewrite -encEs decode_encode. done. }
+      { iIntros "physHists predHolds fullHist pts".
+        iDestruct (big_sepM_insert_delete with "[$atLocsHistories $fullHist]")
+          as "atLocsHistories".
+        iDestruct (big_sepM_insert_delete with "[$ptsMap $pts]") as "ptsMap".
+        iDestruct (big_sepM2_insert_delete with "[$ordered2]") as "ordered3";
+          first done.
+        iDestruct (big_sepM2_insert_delete with "[$allPredsHold predHolds]")
+          as "allPredsHold".
+        { iExists pred. rewrite naViewLook. iFrame "predHolds". done. }
 
-  (*     iDestruct (big_sepM_insert_delete with "[$atLocsHistories $fullHist]") *)
-  (*       as "atLocsHistories". *)
-  (*     iDestruct (big_sepM_insert_delete with "[$ptsMap $pts]") as "ptsMap". *)
-  (*     iDestruct (big_sepM2_insert_delete with "[$ordered2]") as "ordered3"; *)
-  (*       first done. *)
-  (*     iDestruct (big_sepM2_insert_delete with "[$allPredsHold predHolds]") *)
-  (*       as "allPredsHold". *)
-  (*     { iExists pred. rewrite naViewLook. iFrame "predHolds". done. } *)
+        rewrite (insert_id orders); last congruence.
+        iEval (rewrite map_insert_zip_with) in "ptsMap".
+        iEval (rewrite (insert_id offsets); last done) in "ptsMap".
+        rewrite (insert_id phys_hists); last congruence.
+        rewrite (insert_id abs_hists); last congruence.
+        rewrite (insert_id (restrict at_locs abs_hists)).
+        2: { apply restrict_lookup_Some_2; done. }
 
-  (*     rewrite (insert_id orders); last congruence. *)
-  (*     iEval (rewrite map_insert_zip_with) in "ptsMap". *)
-  (*     iEval (rewrite (insert_id offsets); last done) in "ptsMap". *)
-  (*     rewrite (insert_id phys_hists); last congruence. *)
-  (*     rewrite (insert_id abs_hists); last congruence. *)
-  (*     rewrite (insert_id (restrict at_locs abs_hists)). *)
-  (*     2: { apply restrict_lookup_Some_2; done. } *)
-
-  (*     (* We re-establish [interp]. *) *)
-  (*     repeat iExists _. *)
-  (*     iFrameF "ptsMap". *)
-  (*     iFrameF "offsets". *)
-  (*     iFrameF "physHists". *)
-  (*     iFrameF "oldViewsDiscarded". *)
-  (*     iFrame "allOrders". *)
-  (*     iFrame "ordered". *)
-  (*     iFrame "allPredsHold". *)
-  (*     iFrame "history predicates". *)
-  (*     iFrame "crashedAt". *)
-  (*     iFrame "atLocs". *)
-  (*     iFrame "naView naLocs allBumpers bumpMono predPostCrash atLocsHistories". *)
-  (*     iFrame "bumperSome". *)
-  (*     iFrame "historyFragments". *)
-  (*     iFrame "%". } *)
-  (* Qed. *)
+        (* We re-establish [interp]. *)
+        repeat iExists _.
+        iFrameF "ptsMap".
+        iFrameF "offsets".
+        iFrameF "physHists".
+        iFrameF "oldViewsDiscarded".
+        iFrame "allOrders".
+        iFrame "ordered".
+        iFrame "allPredsHold".
+        iFrame "history predicates".
+        iFrame "crashedAt".
+        iFrame "atLocs".
+        iFrame "naView naLocs allBumpers bumpMono predPostCrash atLocsHistories".
+        iFrame "bumperSome".
+        iFrame "historyFragments".
+        iFrame "%". }
+  Qed.
 
   Lemma read_atomic_location_no_inv t_i t_l (physHist : history) absHist vm SVm FVm
         PVm ℓ (e_i : positive) (s_i : ST) :
@@ -949,16 +946,21 @@ Section wp_at_rules.
         rewrite 3!monPred_at_embed.
         iFrameF "locationProtocol".
         iSplitPure; first done.
-    Admitted.
-    (*
-
+        rewrite /know_frag_history_loc_d.
+        rewrite monPred_at_big_sepM.
+        iEval (setoid_rewrite lift_d_at).
         iFrameF "absHist".
         iSplit.
-        { iApply monPred_mono;
-            last (rewrite monPred_at_big_sepM; iApply "physHist").
+        { iApply (monPred_mono _ (TV, _)).
+          { split; last done.
             etrans; first apply incl.
             etrans; first apply incl2.
             solve_view_le. }
+            rewrite monPred_at_big_sepM.
+            setoid_rewrite monPred_at_sep.
+            simpl.
+            setoid_rewrite monPred_at_embed.
+            iApply "physHist". }
         iFrameF "offset".
         iPureIntro.
         etrans; first apply tSLe.
@@ -966,6 +968,7 @@ Section wp_at_rules.
         solve_view_le. }
       iApply monPred_mono; last iFrame "Q".
       rewrite -pvEq.
+      split; last done.
       solve_view_le.
     - iDestruct "pToQ" as "[_ pToQ]".
 
@@ -978,7 +981,7 @@ Section wp_at_rules.
       iDestruct ("pToQ" $! (msg_val <$> ms) vL sL) as (P) "pToQ".
       iDestruct ("pToQ" with "[//]") as "[getP getQ]".
       iEval (monPred_simpl) in "getP".
-      iDestruct ("getP" $! TVfinal with "[//] [-]") as "#P".
+      iDestruct ("getP" $! (TVfinal, _) with "[//] [-]") as "#P".
       { iDestruct (big_sepM2_delete with "predHolds") as "[phiI predHolds]".
         { apply look. } { done. }
         iDestruct (predicate_holds_phi_decode with "predEquiv phiI") as "phiI";
@@ -986,7 +989,7 @@ Section wp_at_rules.
         simpl.
         rewrite big_sepL2_snoc.
         iSplitR "phiI".
-        - iDestruct (extract_list_of_preds
+        - iDestruct (extract_list_of_preds _
             (delete (tL + offset) abs_hist)
             (delete (tL + offset) phys_hist) tLo tS _ _ _ _ _ _ TVfinal
             with "predEquiv [predHolds]") as "$".
@@ -1010,9 +1013,11 @@ Section wp_at_rules.
               done.
         - iApply monPred_mono; last iApply "phiI".
           rewrite /TVfinal.
+          split; last done.
           solve_view_le. }
       iEval (monPred_simpl) in "getQ".
-      iDestruct ("getQ" with "[//] P") as "bing".
+      iDestruct ("getQ" with "[%] P") as "bing".
+      { done. }
       rewrite monPred_at_objectively.
 
       eassert _ as temp.
@@ -1041,11 +1046,13 @@ Section wp_at_rules.
       monPred_simpl.
       iApply "Φpost".
       { iPureIntro.
+        split; last done.
         etrans. eassumption.
         repeat split; try done; try apply view_le_l. }
       iLeft. iExists (sL).
       iSplitR "Q"; last first.
-      { simpl. iApply monPred_mono; last iFrame "Q". solve_view_le. }
+      { simpl. iApply monPred_mono; last iFrame "Q".
+        split; last done. solve_view_le. }
       iExists (<[ tL + offset := sL ]>abs_hist). iExistsN.
       iSplitPure. { rewrite last_snoc. reflexivity. }
       iSplitPure. { eapply map_sequence_insert_snoc; try done. lia. }
@@ -1057,15 +1064,22 @@ Section wp_at_rules.
       { eapply map_no_later_insert; last done. lia. }
       iSplitPure.
       { rewrite 2!dom_insert_L. rewrite absPhysHistDomEq. done. }
+      rewrite /is_at_loc_d lift_d_at.
       iFrameF "isAtLoc".
       rewrite big_sepM_insert. 2: { apply nolater. lia. }
       rewrite big_sepM_insert.
       2: {
         eapply map_dom_eq_lookup_None; first done.
         apply nolater. lia. }
+      rewrite /know_pred_d /know_preorder_loc_d /know_bumper_d.
+      rewrite 3!lift_d_at.
       iFrameF "locationProtocol".
       iSplitPure.
       { apply: increasing_map_insert_last; try done. lia. }
+      rewrite /know_frag_history_loc_d.
+      rewrite monPred_at_sep.
+      rewrite monPred_at_big_sepM.
+      setoid_rewrite lift_d_at.
       iFrame "absHist".
       iSplit.
       { iExists _.
@@ -1077,16 +1091,22 @@ Section wp_at_rules.
         rewrite lookup_zero_lub.
         rewrite H5. lia. }
       simpl.
-      iSplitPure. { solve_view_le. }
-      iEval (rewrite -monPred_at_big_sepM) in "physHist".
-      iApply monPred_mono; last iApply "physHist".
-      etrans; first apply incl.
-      etrans; first apply incl2.
-      solve_view_le.
-    Unshelve. done.
-    Unshelve. done.
+      iSplit.
+      { rewrite lift_d_at. simpl.
+        iFrame "physHistFrag". solve_view_le. }
+      iApply (monPred_mono _ (TV, _)).
+      { split; last done.
+        etrans; first apply incl.
+        etrans; first apply incl2.
+        solve_view_le. }
+      rewrite monPred_at_big_sepM.
+      setoid_rewrite monPred_at_sep.
+      setoid_rewrite lift_d_at.
+      simpl.
+      iFrame "physHist".
+      Unshelve. done.
+      Unshelve. done.
   Qed.
-*)
 
   Lemma wp_load_at_simple ℓ sI Q prot st E :
       {{{
