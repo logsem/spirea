@@ -80,9 +80,8 @@ Section mapsto_na_flushed.
   Proof.
     rewrite /IntoCrashFlush.
     iNamed 1.
-    iDestruct "flushLb" as "-#flushLb".
     iDestruct (mapsto_na_increasing_list with "pts") as %incr.
-    iModIntro.
+    iCrashIntro.
     iDestruct "flushLb" as "(persistLb & (%sPC & %le & #crashedIn))".
     iDestruct (crashed_in_if_rec with "crashedIn pts")
       as "(%ss' & %s' & %pre & chr2 & pts)".

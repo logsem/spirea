@@ -325,9 +325,7 @@ Section proof.
     wpc_bind (!_NA _)%E.
     iApply wpc_atomic_no_mask.
     iSplit.
-    { iDestruct "xPer" as "-#xPer".
-      iDestruct "zPer" as "-#zPer".
-      iModIntro.
+    { iCrashIntro.
       iDestruct "xPer" as "[#xPer (% & % & #xRec)]".
       iDestruct (crashed_in_if_rec with "xRec xPts") as (???) "[cras xPts]".
       iDestruct (crashed_in_agree with "xRec cras") as %->.

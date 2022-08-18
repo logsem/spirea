@@ -1215,3 +1215,70 @@ End post_crash_flush_test.
 
 Typeclasses Opaque post_crash.
 Typeclasses Opaque post_crash_flush.
+
+(* Since the post crash modality does not satisfy
+   [post_crash_intuitionistically_2] the [iModIntro] tactic clears the
+   intuitionistic context when introducing the post crash modality. This is quite
+   unfortunate. To improve the situation we define [iCrashIntro] which improves on
+   this by moving the entire intuitionistic context into the spatial context before
+   introducing the post crash modality.
+
+   The tactic works both with <PC> and with <PCF>.
+ *)
+
+From iris.bi Require Import bi.
+Import bi.
+From iris.proofmode Require Import tactics environments intro_patterns monpred.
+
+Section icrash.
+  Context {PROP : bi}.
+
+  Implicit Types Γ Γp Γs : env PROP.
+  Implicit Types Δ : envs PROP.
+  Implicit Types P Q : PROP.
+
+  Lemma envs_clear_intuitionistic_sound Δ :
+    of_envs Δ ⊢ of_envs (envs_clear_intuitionistic Δ) ∗ □ [∧] env_intuitionistic Δ.
+  Proof.
+    rewrite !of_envs_eq /envs_clear_intuitionistic /=.
+    apply pure_elim_l=> Hwf.
+    rewrite intuitionistically_True_emp.
+    rewrite left_id.
+    rewrite -persistent_and_sep_assoc. apply and_intro; [|by rewrite comm].
+    apply pure_intro. destruct Hwf; constructor; simpl; auto using Enil_wf.
+  Qed.
+
+  Lemma big_opL_and_sep (l : list PROP) : □ [∧] l -∗ [∗] l.
+  Proof.
+    iInduction (l) as [|??] "IH"; simpl; first done.
+    iIntros "#[$ ?]". iApply "IH". done.
+  Qed.
+
+  Definition envs_intuitionistic_to_spatial {PROP} (Δ : envs PROP) : option (envs PROP) :=
+    envs_app false (env_intuitionistic Δ) (envs_clear_intuitionistic Δ).
+
+  Lemma envs_intuitionistic_to_spatial_sound Δ Δ' P :
+    envs_app false (env_intuitionistic Δ) (envs_clear_intuitionistic Δ) = Some Δ' →
+    envs_entails Δ' P →
+    envs_entails Δ P.
+  Proof.
+    intros eq.
+    rewrite envs_entails_eq.
+    intros <-.
+    apply envs_app_sound in eq.
+    apply wand_elim_l' in eq.
+    rewrite <- eq.
+    rewrite envs_clear_intuitionistic_sound.
+    rewrite -big_opL_and_sep.
+    done.
+  Qed.
+
+End icrash.
+
+(* Moves the intuitionistic context to the spatial context. *)
+Tactic Notation "iIntuitToSpatial" :=
+  eapply envs_intuitionistic_to_spatial_sound;
+    [ done
+    | cbv [ env_spatial ]].
+
+Tactic Notation "iCrashIntro" := iIntuitToSpatial; iModIntro.

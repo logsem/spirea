@@ -522,12 +522,9 @@ Section points_to_at_more.
   Proof.
     iNamed 1. iNamed "lbBase".
     rewrite /know_protocol.
-    iDestruct "locationProtocol" as "(-#pred & #order & #bumper)".
-    iDestruct (post_crash_frag_history with "order offset bumper knowFragHist") as "-#H".
-    iDestruct "offset" as "-#offset".
-    iDestruct "bumper" as "-#bumper".
-    iDestruct "order" as "-#order".
-    iModIntro.
+    iNamed "locationProtocol".
+    iDestruct (post_crash_frag_history with "knowPreorder offset knowBumper knowFragHist") as "H".
+    iCrashIntro.
     iDestruct "persisted" as "(#persisted & (% & %tC & [% %] & #crashed))".
     iApply (if_rec_get with "crashed persisted"); first done.
     iModIntro.
@@ -567,9 +564,9 @@ Section points_to_at_more.
   (* Proof. *)
   (*   iNamed 1. *)
   (*   iDestruct (know_protocol_extract with "locationProtocol") *)
-  (*     as "(-#pred & -#order & -#bumper)". *)
+  (*     as "(pred & order & bumper)". *)
   (*   iDestruct (post_crash_frag_history with "[$order $bumper $knowFragHist]") as "H". *)
-  (*   iCrash. *)
+  (*   iCrashIntro. *)
   (*   iDestruct (if_rec_or_lost_with_t with "H") as "H". *)
   (*   iDestruct (if_rec_is_persisted ℓ) as "pers". *)
   (*   iModIntro. *)
@@ -587,15 +584,10 @@ Section points_to_at_more.
     <PC> if_rec ℓ (∃ (s' : ST), persist_lb ℓ prot s').
   Proof.
     iNamed 1. iNamed "lbBase".
-    iDestruct (know_protocol_extract with "locationProtocol")
-      as "(#pred & #order & #bumper)".
+    iNamed "locationProtocol".
     iDestruct (post_crash_frag_history
-      with "order offset bumper knowFragHist") as "-#H".
-    iDestruct "pred" as "-#pred".
-    iDestruct "offset" as "-#offset".
-    iDestruct "bumper" as "-#bumper".
-    iDestruct "order" as "-#order".
-    iModIntro.
+      with "knowPreorder offset knowBumper knowFragHist") as "#H".
+    iCrashIntro.
     iDestruct (if_rec_is_persisted ℓ) as "pers".
     iModIntro.
     iDestruct "H" as (sC ????) "(#crashed & ? & ? & ? & impl)".
@@ -630,13 +622,9 @@ Section points_to_at_more.
   Proof.
     rewrite /mapsto_na.
     iNamed 1.
-    iDestruct "locationProtocol" as "(-#pred & -#order & -#bumper)".
-    iDestruct "isNaLoc" as "-#isNaLoc".
-    iDestruct (post_crash_know_full_history_loc with "[$bumper $hist]") as "H".
-    iDestruct "physMsg" as "-#physMsg".
-    iDestruct "pers" as "-#pers".
-    iDestruct "offset" as "-#offset".
-    iModIntro.
+    iNamed "locationProtocol".
+    iDestruct (post_crash_know_full_history_loc with "[$knowBumper $hist]") as "H".
+    iCrashIntro.
     iDestruct (if_rec_is_persisted ℓ) as "persisted".
     iModIntro.
     iDestruct "offset" as (tC CV cvLook) "(crashed & offset)".
@@ -728,18 +716,12 @@ Section points_to_at_more.
               ∃ s__pc, ⌜ s ⊑ s__pc ⌝ ∗ crashed_in prot ℓ s__pc.
   Proof.
     iNamed 1. iNamed "lbBase".
-    iDestruct "locationProtocol" as "(-#pred & #order & #bumper)".
+    iNamed "locationProtocol".
     iDestruct (post_crash_frag_history
-      with "order offset bumper knowFragHist") as "-#HI".
-    iDestruct (post_crash_flush_post_crash with "HI") as "-#HI".
-    iDestruct "offset" as "-#offset".
-    iDestruct "bumper" as "-#bumper".
-    iDestruct "order" as "-#order".
-    iDestruct (post_crash_know_bumper with "bumper") as "bumper".
-    iDestruct (post_crash_flush_post_crash with "bumper") as "bumper".
-    iDestruct (post_crash_preorder with "order") as "order".
-    iDestruct (post_crash_flush_post_crash with "order") as "order".
-    iModIntro.
+      with "knowPreorder offset knowBumper knowFragHist") as "HI".
+    iDestruct (post_crash_know_bumper with "knowBumper") as "bumper".
+    iDestruct (post_crash_preorder with "knowPreorder") as "order".
+    iCrashIntro.
     iAssert (_)%I with "[viewFact]" as "pers".
     { iDestruct "viewFact" as "[pers | pers]".
       - iApply "pers".
@@ -813,23 +795,19 @@ Section points_to_at_more.
     rewrite /mapsto_at.
     iNamed 1.
     iDestruct (know_protocol_extract with "locationProtocol")
-      as "(-#pred & order & bumper)".
+      as "(pred & knowPreorder & knowBumper)".
     iAssert (□ ∀ t s, know_frag_history_loc_d ℓ t s -∗ _)%I as "#impl".
     { iIntros "!>" (??).
-      iApply (post_crash_frag_history with "order offset bumper"). }
-    iDestruct "isAtLoc" as "-#isAtLoc".
-    iDestruct (big_sepM_impl with "absHist []") as "-#HI".
+      iApply (post_crash_frag_history with "knowPreorder offset knowBumper"). }
+    iDestruct (big_sepM_impl with "absHist []") as "HI".
     { iIntros "!>" (???).
       iApply "impl". }
-    iDestruct "offset" as "-#offset".
-    iDestruct "locationProtocol" as "-#locationProtocol".
-    iModIntro.
+    iCrashIntro.
     iDestruct (if_rec_is_persisted ℓ) as "persisted".
     (* TODO: Why is this [IntoIfRec] instance not picked up automatically. *)
     iDestruct (into_if_rec with "HI") as "HH".
     { apply big_sepM_into_if_rec. intros. apply into_if_rec_if_rec. }
     iModIntro.
-    iDestruct "locationProtocol" as "#locationProtocol".
     iDestruct "offset" as (tC CV cvLook) "(crashed & #offset)".
     iDestruct (big_sepM_lookup with "HH")
       as (sC CV' tC' ? ?) "(#hi & #crashedIn & #frag & #phys & #hi2)".
@@ -839,7 +817,7 @@ Section points_to_at_more.
     (* Note, [sC] is the last location that was recovered after the crash.
      * However, this location may not be among the locations in [ss]. *)
     iExists (sC).
-    iSplitL "".
+    iSplitL "locationProtocol".
     { iExists _. iFrame "hi crashedIn".
       iSplit; last first.
       - iPureIntro. apply elem_of_dom. done.
@@ -899,17 +877,14 @@ Section points_to_at_more.
     rewrite /mapsto_at.
     iNamed 1.
     iDestruct (know_protocol_extract with "locationProtocol")
-      as "(-#pred & order & bumper)".
+      as "(pred & order & bumper)".
     iAssert (□ ∀ t s, know_frag_history_loc_d ℓ t s -∗ _)%I as "#impl".
     { iIntros "!>" (??).
       iApply (post_crash_frag_history with "order offset bumper"). }
-    iDestruct "isAtLoc" as "-#isAtLoc".
-    iDestruct (big_sepM_impl with "absHist []") as "-#HI".
+    iDestruct (big_sepM_impl with "absHist []") as "HI".
     { iIntros "!>" (???).
       iApply "impl". }
-    iDestruct "offset" as "-#offset".
-    iDestruct "locationProtocol" as "-#locationProtocol".
-    iModIntro.
+    iCrashIntro.
     iDestruct (if_rec_is_persisted ℓ) as "persisted".
     (* TODO: Why is this [IntoIfRec] instance not picked up automatically. *)
     iDestruct (into_if_rec with "HI") as "HH".
