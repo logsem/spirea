@@ -88,7 +88,7 @@ Section state_interpretation.
       corresponding abstract value. *)
       "ptsMap" ∷ ([∗ map] ℓ ↦ hist ∈ (map_zip_with drop_prefix phys_hists offsets), ℓ ↦h hist) ∗
       "offsets" ∷ ghost_map_auth offset_name (DfracOwn 1) offsets ∗
-      (* "%offsetDom" ∷ ⌜ dom (gset _) offsets = dom _ phys_hists ⌝ ∗ *)
+      (* "%offsetDom" ∷ ⌜ dom (gset _) offsets = dom phys_hists ⌝ ∗ *)
 
       "physHist" ∷ auth_map_map_auth phys_history_name phys_hists ∗
       (* The messages in [phys_hists] that precede their corresponding offset
@@ -112,12 +112,12 @@ Section state_interpretation.
 
       (* Seperation of locations. *)
       "%locsDisjoint" ∷ ⌜ na_locs ## at_locs ⌝ ∗
-      "%histDomLocs" ∷ ⌜ dom _ abs_hists = na_locs ∪ at_locs ⌝ ∗
+      "%histDomLocs" ∷ ⌜ dom abs_hists = na_locs ∪ at_locs ⌝ ∗
       "naLocs" ∷ own exclusive_locs_name (● na_locs) ∗
       "atLocs" ∷ own shared_locs_name (● at_locs) ∗
 
       (* Non-atomic locations. *)
-      "%naViewsDom" ∷ ⌜ dom _ na_views = na_locs ⌝ ∗ (* NOTE: If this equality persists we could remove na_locs *)
+      "%naViewsDom" ∷ ⌜ dom na_views = na_locs ⌝ ∗ (* NOTE: If this equality persists we could remove na_locs *)
       "naView" ∷ ghost_map_auth non_atomic_views_gname (DfracOwn 1) na_views ∗
 
       (* Atomic locations. *)

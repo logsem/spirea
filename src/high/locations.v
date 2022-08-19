@@ -164,7 +164,7 @@ Section points_to_at.
       "%slice" ∷ ⌜ map_sequence abs_hist tLo tS ss ⌝ ∗
       "%slicePhys" ∷ ⌜ map_sequence phys_hist tLo tS ms ⌝ ∗
       "%nolater" ∷ ⌜ map_no_later abs_hist tS ⌝ ∗
-      "%absPhysHistDomEq" ∷ ⌜ dom (gset _) abs_hist = dom _ phys_hist ⌝ ∗
+      "%absPhysHistDomEq" ∷ ⌜ dom abs_hist = dom phys_hist ⌝ ∗
       "#isAtLoc" ∷ is_at_loc_d ℓ ∗
       "#locationProtocol" ∷ know_protocol ℓ prot ∗
       "%incrMap" ∷ ⌜ increasing_map (⊑@{ST}) abs_hist ⌝ ∗
@@ -212,7 +212,7 @@ Section points_to_at.
       "#persistLb" ∷ persist_lb ℓ prot (prot.(bumper) s) ∗
       "#crashed" ∷ crashed_at_d CV ∗
       "#crashedIn" ∷ crashed_in_mapsto_d ℓ s ∗
-      "%inCV" ∷ ⌜ ℓ ∈ dom (gset _) CV ⌝.
+      "%inCV" ∷ ⌜ ℓ ∈ dom CV ⌝.
 
   Global Instance crashed_in_persistent prot ℓ s :
     Persistent (crashed_in prot ℓ s).
@@ -222,7 +222,7 @@ Section points_to_at.
   Definition lost ℓ : dProp Σ :=
     ∃ CV,
       "#crashed" ∷ crashed_at_d CV ∗
-      "%notInCV" ∷ ⌜ℓ ∉ dom (gset _) CV⌝.
+      "%notInCV" ∷ ⌜ℓ ∉ dom CV⌝.
 
   Lemma store_lb_protocol ℓ prot s :
     store_lb ℓ prot s -∗ know_protocol ℓ prot.

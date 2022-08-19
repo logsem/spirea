@@ -129,7 +129,7 @@ Proof.
     by intros ?%option_not_included_None.
 Qed.
 
-Lemma view_le_dom_subseteq V W : V ⊑ W → dom (gset _) V ⊆ dom _ W.
+Lemma view_le_dom_subseteq V W : V ⊑ W → dom V ⊆ dom W.
 Proof. rewrite subseteq_view_incl. intros ?. apply dom_included. done. Qed.
 
 Lemma view_le_look ℓ V W t :

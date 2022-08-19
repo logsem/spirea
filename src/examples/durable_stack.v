@@ -196,7 +196,7 @@ Section definitions.
     - iDestruct 1 as (q) "([pts1 pts2] & #r)".
       iSplitL "pts1"; iFrame "r"; naive_solver.
     - iDestruct 1 as (?????) "([pts1 pts2] & #? & toNextPts & node)".
-      rewrite -(Qp_div_2 q2).
+      rewrite -(Qp.div_2 q2).
       iDestruct (mapsto_na_flushed_split with "toNextPts") as "[toNextPts1 toNextPts2]".
       iDestruct (IH with "node") as "[node1 node2]".
       iSplitL "pts1 toNextPts1 node1".
@@ -367,7 +367,7 @@ Section proof.
         iFrame "isNode".
         iFrame "nodePts nodeFlushLb".
         iExists _. iFrame "toNextPts toNextPtsFl".
-        iPureIntro. apply last_app. done. }
+        iPureIntro. rewrite last_app. done. }
       iSplitL ""; first iIntros "!> $ //". iAccu. }
     iIntros (b ?) "[(-> & ? & ?)|(-> & le & _ & (? & nodePts & toNextPts & isNode))]".
     (* The CAS succeeded. *)
@@ -375,7 +375,7 @@ Section proof.
     (* The CAS failed. *)
     - wp_pure _.
       iApply ("IH" with "ϕpost nodePts [toNextPts]").
-      { iExists _, _. iFrame "toNextPts". iPureIntro. apply last_app. done. }
+      { iExists _, _. iFrame "toNextPts". iPureIntro. rewrite last_app. done. }
   Qed.
 
   Lemma wpc_pop stack s E :

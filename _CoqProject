@@ -3,17 +3,18 @@
 -arg -w -arg -notation-overridden,-redundant-canonical-projection
 
 -Q src self
--Q external/perennial/external/stdpp/theories stdpp
--Q external/perennial/external/iris/iris iris
--Q external/perennial/external/iris/iris_heap_lang iris.heap_lang
 -Q external/perennial/src Perennial
 
 # Included to ensure that Perennial can find what it is looking for
+# This section should be kept up to date with what Perennial has in their _CoqProject
+-Q external/perennial/external/stdpp/stdpp stdpp
+-Q external/perennial/external/stdpp/stdpp_unstable stdpp.unstable
+-Q external/perennial/external/iris/iris iris
 -Q external/perennial/external/iris/iris_deprecated iris.deprecated
--Q external/perennial/external/iris/iris_staging iris.staging
+-Q external/perennial/external/iris/iris_unstable iris.unstable
 -Q external/perennial/external/iris/iris_heap_lang iris.heap_lang
--Q external/perennial/external/iris-named-props/src iris_named_props
 -Q external/perennial/external/coqutil/src/coqutil coqutil
 -Q external/perennial/external/Goose Goose
 -Q external/perennial/external/record-update/src RecordUpdate
 -Q external/perennial/external/coq-tactical/src Tactical
+-Q external/perennial/external/iris-named-props/src iris_named_props

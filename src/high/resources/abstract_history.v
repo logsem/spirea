@@ -91,7 +91,7 @@ Section abs_history_lemmas.
     ([∗ map] t↦s ∈ hist, frag_entry_unenc γ ℓ t s) -∗
     ⌜ ∃ enc_hist,
       enc_hist ⊆ full_enc_hist ∧
-      dom (gset _) hist = dom _ enc_hist ∧
+      dom hist = dom enc_hist ∧
       omap decode enc_hist = hist ∧
       (* The last conjunc here is "bonus" and can be removed unless users of
        * the lemma make use of it. *)

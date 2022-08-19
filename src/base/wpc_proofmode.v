@@ -69,7 +69,7 @@ Lemma tac_wpc_pure_ctx `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG,
   (envs_entails Δ Φc → envs_entails Δ' (WPC (ThreadState (fill K e2) TV) @ s; E1 {{ Φ }} {{ Φc }})) →
   envs_entails Δ (WPC (ThreadState (fill K e1) TV) @ s; E1 {{ Φ }} {{ Φc }}).
 Proof.
-  rewrite envs_entails_eq=> ??? Hcrash HΔ'.
+  rewrite envs_entails_unseal=> ??? Hcrash HΔ'.
   pose proof @pure_exec_base_fill.
   rewrite -wpc_pure_step_later //. apply and_intro; auto.
   rewrite into_laterN_env_sound /=.
@@ -84,7 +84,7 @@ Lemma tac_wpc_pure_no_later_ctx `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBa
   (envs_entails Δ Φc → envs_entails Δ (WPC (fill K (ThreadState e2 TV)) @ s; E1 {{ Φ }} {{ Φc }})) →
   envs_entails Δ (WPC (fill K (ThreadState e1 TV)) @ s; E1 {{ Φ }} {{ Φc }}).
 Proof.
-  rewrite envs_entails_eq=> ?? Hcrash HΔ'.
+  rewrite envs_entails_unseal=> ?? Hcrash HΔ'.
   pose proof @pure_exec_fill.
   specialize (HΔ' Hcrash).
   rewrite -wpc_pure_step_later //. apply and_intro; auto.
@@ -98,7 +98,7 @@ Lemma tac_wpc_value `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG} Δ
   envs_entails Δ Φc →
   envs_entails Δ (WPC (ThreadState (Val v) TV) @ s; E1 {{ Φ }} {{ Φc }}).
 Proof.
-  rewrite envs_entails_eq.
+  rewrite envs_entails_unseal.
   rewrite thread_of_val_fold.
   rewrite -wpc_value => H1 H2.
   apply and_intro.
@@ -112,7 +112,7 @@ Lemma tac_wpc_value_fupd `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDelta
   envs_entails Δ (WPC (ThreadState (Val v) TV) @ s; E1 {{ v, |={E1}=> Φ v }} {{ Φc }})%I.
 Proof.
   rewrite thread_of_val_fold.
-  rewrite envs_entails_eq -wpc_value => H1 H2.
+  rewrite envs_entails_unseal -wpc_value => H1 H2.
   apply and_intro.
   - rewrite H1. iIntros ">?". eauto.
   - rewrite H2. iIntros. iModIntro; auto.
@@ -124,7 +124,7 @@ Lemma tac_wpc_value_noncfupd `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseD
   envs_entails Δ (WPC (ThreadState (Val v) TV) @ s; E1 {{ Φ }} {{ Φc }}).
 Proof.
   rewrite thread_of_val_fold.
-  rewrite envs_entails_eq -wpc_value => H1 H2.
+  rewrite envs_entails_unseal -wpc_value => H1 H2.
   apply and_intro.
   - rewrite H1. eauto.
   - rewrite H2. iIntros. iModIntro; auto.
@@ -275,7 +275,7 @@ Lemma tac_wpc_bind `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG, !cr
   envs_entails Δ (WPC (ThreadState e TV) @ s; E1 {{ tv, WPC (ThreadState (f $ Val tv.(val_val)) (tv.(val_view))) @ s; E1 {{ Φ }} {{ Φc }} }} {{ Φc }})%I →
   envs_entails Δ (WPC (ThreadState (fill K e) TV) @ s; E1 {{ Φ }} {{ Φc }}).
 Proof.
-  rewrite envs_entails_eq=> -> ->.
+  rewrite envs_entails_unseal=> -> ->.
   rewrite nvm_fill_fill.
   setoid_rewrite nvm_fill_fill.
   apply: wpc_bind.
@@ -294,7 +294,7 @@ Lemma tac_wpc_wp_frame `{ffi_sem: ext_semantics} `{!ffi_interp ffi}
   envs_entails Δ (WPC e @ s; E1 {{ Φ }} {{ Φc }}).
 Proof.
   destruct (envs_split d js Δ) as [[Δ1 Δ2]|] eqn:Hsplit; [ | contradiction ].
-  rewrite envs_entails_eq=> Hentails.
+  rewrite envs_entails_unseal=> Hentails.
   destruct Hentails as [HΦc Hwp].
   rewrite (envs_split_sound _ _ _ _ _ Hsplit).
   rewrite {}Hwp.
@@ -326,7 +326,7 @@ Lemma tac_wpc_wp_frame_cache `{ffi_sem: ext_semantics} `{!ffi_interp ffi}
   end →
   envs_entails Δ (WPC e @ stk; E1 {{ Φ }} {{ Φc }}).
 Proof.
-  rewrite envs_entails_eq=> Hcache H.
+  rewrite envs_entails_unseal=> Hcache H.
   destruct (envs_split Left (cache_names c) Δ) as [[Δ1 Δ2]|] eqn:Hsplit;
     [ | contradiction ].
   destruct H as (Hcenv & Hwp).

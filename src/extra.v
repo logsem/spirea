@@ -123,41 +123,41 @@ Section map_zip_with.
 
   (* Upstream this. *)
   Lemma dom_map_zip_with_fst `{FinMapDom K M D} {A B C}
-        (f : A → B → C) (ma : M A) (mb : M B) : dom D (map_zip_with f ma mb) ⊆ dom D ma.
+        (f : A → B → C) (ma : M A) (mb : M B) : dom (map_zip_with f ma mb) ⊆ dom ma.
   Proof.
     intros ?. rewrite 2!elem_of_dom. intros [? ?%map_lookup_zip_with_Some].
     naive_solver.
   Qed.
 
   Lemma dom_map_zip_with_snd `{FinMapDom K M D} {A B C}
-        (f : A → B → C) (ma : M A) (mb : M B) : dom D (map_zip_with f ma mb) ⊆ dom D mb.
+        (f : A → B → C) (ma : M A) (mb : M B) : dom (map_zip_with f ma mb) ⊆ dom mb.
   Proof. rewrite map_zip_with_flip. apply dom_map_zip_with_fst. Qed.
 
   Lemma dom_map_zip_with_eq_l `{FinMapDom K M D} {A B C}
         (f : A → B → C) (ma : M A) (mb : M B) :
-    dom D ma ⊆ dom D mb →
-    dom D (map_zip_with f ma mb) ≡ dom D ma.
+    dom ma ⊆ dom mb →
+    dom (map_zip_with f ma mb) ≡ dom ma.
   Proof. rewrite dom_map_zip_with. set_solver. Qed.
 
   Lemma dom_map_zip_with_eq_r `{FinMapDom K M D} {A B C}
         (f : A → B → C) (ma : M A) (mb : M B) :
-    dom D mb ⊆ dom D ma →
-    dom D (map_zip_with f ma mb) ≡ dom D mb.
+    dom mb ⊆ dom ma →
+    dom (map_zip_with f ma mb) ≡ dom mb.
   Proof. rewrite dom_map_zip_with. set_solver. Qed.
 
   Lemma dom_eq_alt `{FinMapDom K M D} {A B} (m1 : M A) (m2 : M B) :
     (∀ k : K, is_Some (m1 !! k) ↔ is_Some (m2 !! k)) ↔
-    (dom D m1 ≡ dom D m2).
+    (dom m1 ≡ dom m2).
   Proof. setoid_rewrite <- elem_of_dom. rewrite set_equiv. done. Qed.
 
   Lemma dom_eq_alt_L `{FinMapDom K M D} `{!LeibnizEquiv D} {A B} (m1 : M A) (m2 : M B) :
     (∀ k : K, is_Some (m1 !! k) ↔ is_Some (m2 !! k)) ↔
-    (dom D m1 = dom D m2).
+    (dom m1 = dom m2).
   Proof. unfold_leibniz. apply dom_eq_alt. Qed.
 
   (* Could be upstreamed. Could be made bidirectional. *)
   Lemma dom_omap_id `{FinMapDom K M D} {A B} (f : A → option B) (m : M A) :
-    map_Forall (λ _ v, is_Some (f v)) m → dom D (omap f m) ≡ dom D m.
+    map_Forall (λ _ v, is_Some (f v)) m → dom (omap f m) ≡ dom m.
   Proof.
     intros Ha. apply set_equiv. intros k.
     rewrite !elem_of_dom. unfold is_Some. setoid_rewrite lookup_omap_Some.
@@ -168,7 +168,7 @@ Section map_zip_with.
   Qed.
 
   Lemma dom_omap_id_L `{FinMapDom K M D} `{!LeibnizEquiv D} {A B} (f : A → option B) (m : M A) :
-    map_Forall (λ _ v, is_Some (f v)) m → dom D (omap f m) = dom D m.
+    map_Forall (λ _ v, is_Some (f v)) m → dom (omap f m) = dom m.
   Proof. unfold_leibniz. apply dom_omap_id. Qed.
 
 End map_zip_with.
@@ -266,7 +266,7 @@ Section restrict_dom.
   Context {A : Type}.
   Implicit Types (s : D) (m : M A) (k : K).
 
-  Lemma restrict_dom s m : dom _ (restrict s m) ≡ s ∩ dom _ m.
+  Lemma restrict_dom s m : dom (restrict s m) ≡ s ∩ dom m.
   Proof.
     apply dom_filter => i.
     rewrite elem_of_intersection.
@@ -275,11 +275,11 @@ Section restrict_dom.
     naive_solver.
   Qed.
 
-  Lemma restrict_dom_subseteq s m : dom _ (restrict s m) ⊆ s.
+  Lemma restrict_dom_subseteq s m : dom (restrict s m) ⊆ s.
   Proof. rewrite restrict_dom. set_solver. Qed.
 
   Lemma restrict_superset_id (s : D) (m : M A) :
-    dom _ m ⊆ s → restrict s m = m.
+    dom m ⊆ s → restrict s m = m.
   Proof.
     rewrite /restrict.
     intros Hsub.
@@ -288,7 +288,7 @@ Section restrict_dom.
     set_solver.
   Qed.
 
-  Lemma restrict_id (s : D) (m : M A) : dom _ m = s → restrict s m = m.
+  Lemma restrict_id (s : D) (m : M A) : dom m = s → restrict s m = m.
   Proof. intros eq. apply restrict_superset_id. set_solver. Qed.
 
   Lemma restrict_union (s1 s2 : D) (m : M A) :
@@ -322,11 +322,11 @@ Section restrict_dom.
   Qed.
 
   Lemma restrict_dom_subset (s : D) (m : M A) :
-    s ⊆ dom _ m → dom _ (restrict s m) ≡ s.
+    s ⊆ dom m → dom (restrict s m) ≡ s.
   Proof. rewrite restrict_dom. set_solver. Qed.
 
   Lemma restrict_disjoint_union s1 s2 m :
-    s1 ∪ s2 = dom _ m →
+    s1 ∪ s2 = dom m →
     m = restrict s1 m ∪ restrict s2 m.
   Proof.
     intros domEq.
@@ -345,11 +345,11 @@ Section restrict_leibniz.
   Context {A : Type}.
   Context `{!LeibnizEquiv D}.
 
-  Lemma restrict_dom_L (s : D) (m : M A) : dom _ (restrict s m) = s ∩ dom _ m.
+  Lemma restrict_dom_L (s : D) (m : M A) : dom (restrict s m) = s ∩ dom m.
   Proof. unfold_leibniz. apply restrict_dom. Qed.
 
   Lemma restrict_dom_subset_L (s : D) (m : M A) :
-    s ⊆ dom _ m → dom _ (restrict s m) = s.
+    s ⊆ dom m → dom (restrict s m) = s.
   Proof. unfold_leibniz. apply restrict_dom_subset. Qed.
 
 End restrict_leibniz.
@@ -410,7 +410,7 @@ End big_sepM.
 
 Lemma big_sepM_impl_dom_subseteq_with_resource {PROP : bi} `{Countable K} {A B : Type}
     R (Φ : K → A → PROP) (Ψ : K → B → PROP) (m1 : gmap K A) (m2 : gmap K B) :
-  dom (gset _) m2 ⊆ dom _ m1 →
+  dom m2 ⊆ dom m1 →
   R -∗
   ([∗ map] k↦x ∈ m1, Φ k x) -∗
   □ (∀ (k : K) (x : A) (y : B),
@@ -439,7 +439,7 @@ Section big_sepM2.
   Implicit Types Φ Ψ : K → A → B → PROP.
 
   Lemma map_dom_eq_lookup_Some `{FinMapDom K M D} {V W} (a : M V) (b : M W) v k :
-    dom D a = dom D b →
+    dom a = dom b →
     b !! k = Some v →
     is_Some (a !! k).
   Proof.
@@ -447,7 +447,7 @@ Section big_sepM2.
   Qed.
 
   Lemma map_dom_eq_lookup_None `{FinMapDom K M D} {V W} (a : M V) (b : M W) k :
-    dom D a = dom D b →
+    dom a = dom b →
     b !! k = None →
     a !! k = None.
   Proof.
@@ -459,7 +459,8 @@ Section big_sepM2.
     ([∗ map] k↦y1;y2 ∈ m1;m2, Φ k y1 y2) ⊢ emp.
   Proof.
     intros disj.
-    rewrite big_sepM2_eq /big_sepM2_def. apply pure_elim_l => Hl.
+    rewrite big_sepM2_alt.
+    apply pure_elim_l => Hl.
     assert (m1 = ∅ ∧ m2 = ∅) as [-> ->].
     { apply dom_eq_alt_L in Hl.
       destruct disj as [-> | ->].
@@ -529,8 +530,8 @@ Section big_sepM2.
 
   Lemma big_sepM2_impl_dom_subseteq_with_resource `{!BiAffine PROP}
         Φ Ψ m1 m2 n1 n2 R :
-    dom (gset _) n1 ⊆ dom (gset _) m1 →
-    dom (gset _) n1 = dom (gset _) n2 →
+    dom n1 ⊆ dom m1 →
+    dom n1 = dom n2 →
     R -∗
     ([∗ map] k↦x1;x2 ∈ m1;m2, Φ k x1 x2) -∗
     □ (∀ (k : K) x1 x2 y1 y2,
@@ -558,8 +559,8 @@ Section big_sepM2.
   rewrite the proof to not use the proofmode. *)
   Lemma big_sepM2_impl_dom_subseteq {C D} `{!BiAffine PROP}
         Φ (Ψ : K → C → D → _) m1 m2 n1 n2 :
-    dom (gset _) n1 ⊆ dom (gset _) m1 →
-    dom (gset _) n1 = dom (gset _) n2 →
+    dom n1 ⊆ dom m1 →
+    dom n1 = dom n2 →
     ([∗ map] k↦x1;x2 ∈ m1;m2, Φ k x1 x2) -∗
     □ (∀ (k : K) x1 x2 y1 y2,
         ⌜m1 !! k = Some x1⌝ → ⌜m2 !! k = Some x2⌝ →
@@ -569,7 +570,7 @@ Section big_sepM2.
     iIntros (sub1 domEq).
     rewrite !big_sepM2_alt.
     iIntros "[%impl sep] #impl".
-    assert (dom _ m1 = dom (gset _) m2) as domEq2.
+    assert (dom m1 = dom m2) as domEq2.
     { rewrite set_eq. setoid_rewrite elem_of_dom. done. }
     iSplit. { iPureIntro. intros k. rewrite -!elem_of_dom domEq. done. }
     iDestruct (big_sepM_impl_dom_subseteq with "sep []") as "[$ H]".
@@ -585,7 +586,7 @@ Section big_sepM2.
   Lemma big_sepM2_impl_subseteq `{!BiAffine PROP} (m1 n1 : gmap K A) (m2 n2 : gmap K B) Φ :
     n1 ⊆ m1 →
     n2 ⊆ m2 →
-    dom (gset _) n1 ≡ dom _ n2 →
+    dom n1 ≡ dom n2 →
     ([∗ map] k↦y1;y2 ∈ m1;m2, Φ k y1 y2) -∗
     [∗ map] k↦y1;y2 ∈ n1;n2, Φ k y1 y2.
   Proof.

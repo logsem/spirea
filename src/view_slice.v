@@ -48,7 +48,7 @@ Section slice_of_hist_props.
   Qed.
 
   Lemma slice_hist_dom_subset p hists :
-    dom (gset loc) (slice_hist p hists) ⊆ dom (gset loc) hists.
+    dom (slice_hist p hists) ⊆ dom hists.
   Proof.
     rewrite /slice_of_hist.
     intros l.
@@ -112,14 +112,14 @@ Section slice_of_hist_props.
   Qed.
 
   Lemma slice_of_hist_dom p hists :
-    dom (gset loc) (slice_of_hist p hists) =
-      dom (gset loc) p ∩ dom (gset loc) hists.
+    dom (slice_of_hist p hists) =
+      dom p ∩ dom hists.
   Proof.
     rewrite /slice_of_hist dom_fmap_L dom_map_zip_with_L. done.
   Qed.
 
   Lemma slice_of_hist_dom_subset p hists :
-    dom (gset loc) (slice_of_hist p hists) ⊆ dom (gset loc) hists.
+    dom (slice_of_hist p hists) ⊆ dom hists.
   Proof. rewrite /slice_of_hist dom_fmap_L. apply slice_hist_dom_subset. Qed.
 
   Lemma slice_of_hist_lookup_Some CV hists hist ℓ t s :
@@ -169,8 +169,8 @@ Section slice_of_hist_props.
   Qed.
 
   Lemma valid_slice_transfer {B} V hists1 (hists2 : gmap loc (gmap time B)) :
-    dom (gset _) hists1 = dom _ hists2 →
-    (∀ ℓ h1 h2, hists1 !! ℓ = Some h1 → hists2 !! ℓ = Some h2 → dom (gset _) h1 = dom _ h2) →
+    dom hists1 = dom hists2 →
+    (∀ ℓ h1 h2, hists1 !! ℓ = Some h1 → hists2 !! ℓ = Some h2 → dom h1 = dom h2) →
     valid_slice V hists1 → valid_slice V hists2.
   Proof.
     intros eq look val.

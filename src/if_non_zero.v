@@ -11,7 +11,7 @@ Set Default Proof Using "Type*".
 
 Lemma mk_Qp_Qp_to_Qc qp prf : (* Upstreamed *)
   mk_Qp (Qp_to_Qc qp) prf = qp.
-Proof. by apply Qp_to_Qc_inj_iff. Qed.
+Proof. by apply Qp.to_Qc_inj_iff. Qed.
 
 Section if_non_zero.
   Context `{BiAffine PROP}.
@@ -60,7 +60,7 @@ Section if_non_zero.
       iFrame.
       iPureIntro.
       subst.
-      rewrite -Qp_to_Qc_inj_add.
+      rewrite -Qp.to_Qc_inj_add.
       split.
       * apply Qp_prf.
       * rewrite (comm _ qp). done.
@@ -80,8 +80,8 @@ Section if_non_zero.
       destruct (decide (0 < q - Qp_to_Qc p)%Qc).
       * rewrite -fractional.
         eassert (qp = _) as ->; last iFrame.
-        apply Qp_to_Qc_inj_iff.
-        rewrite Qp_to_Qc_inj_add.
+        apply Qp.to_Qc_inj_iff.
+        rewrite Qp.to_Qc_inj_add.
         simpl.
         rewrite /Qcminus.
         rewrite -Qcplus_assoc.
@@ -101,7 +101,7 @@ Section if_non_zero.
           pose proof (Qp_prf qp).
           apply (Qclt_minus_iff (Qp_to_Qc p)).
           apply Qcle_lt_or_eq in le.
-          destruct le as [?|eq%Qp_to_Qc_inj_iff]; done.
+          destruct le as [?|eq%Qp.to_Qc_inj_iff]; done.
   Qed.
 
   Lemma if_non_zero_exchange_1 (q1 q2 : Qc) p (P Q : Qp → PROP)
@@ -116,10 +116,10 @@ Section if_non_zero.
   Qed.
 
   Lemma mk_Qp_1 prf : mk_Qp 1 prf = 1%Qp.
-  Proof. apply Qp_to_Qc_inj_iff. simpl. by rewrite Z2Qc_inj_1. Qed.
+  Proof. apply Qp.to_Qc_inj_iff. simpl. by rewrite Z2Qc_inj_1. Qed.
 
   (* Lemma mk_Qp_0 prf : mk_Qp 0 prf = 0%Qp. *)
-  (* Proof. apply Qp_to_Qc_inj_iff. simpl. by rewrite Z2Qc_inj_1. Qed. *)
+  (* Proof. apply Qp.to_Qc_inj_iff. simpl. by rewrite Z2Qc_inj_1. Qed. *)
 
   Lemma if_non_zero_0 (P : Qp → PROP) :
     if_non_zero 0%Qc P = (⌜0 = 0⌝)%Qc%I.
@@ -154,15 +154,15 @@ Section if_non_zero.
         rewrite eq.
         iDestruct ("Qval" with "Q") as %le.
         iPureIntro.
-        apply Qp_to_Qc_inj_le in le.
+        apply Qp.to_Qc_inj_le in le.
         apply le.
       - iDestruct "H" as (qp) "(%gt & %eq' & P')".
         iCombine "Q P'" as "Q".
         rewrite -fractional.
         iDestruct ("Qval" with "Q") as %le.
         iPureIntro.
-        apply Qp_to_Qc_inj_le in le.
-        rewrite Qp_to_Qc_inj_add in le.
+        apply Qp.to_Qc_inj_le in le.
+        rewrite Qp.to_Qc_inj_add in le.
         rewrite -eq' in le.
         simpl in le.
         assert (p' = 1 - q')%Qc as ->.

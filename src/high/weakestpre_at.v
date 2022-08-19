@@ -88,7 +88,7 @@ Section wp_at_rules.
     assert (abs_hists !! ℓ = None) as absHistsLook.
     { apply not_elem_of_dom. rewrite -domEq. apply not_elem_of_dom.
       assumption. }
-    assert (ℓ ∉ dom (gset _) abs_hists) as absHistsDomElem.
+    assert (ℓ ∉ dom abs_hists) as absHistsDomElem.
     { apply not_elem_of_dom. done. }
 
     (* We update ghost state. *)
@@ -177,7 +177,7 @@ Section wp_at_rules.
       simpl; rewrite big_sepM_singleton; iFrame "fragHist". }
     (* locsDisjoint *)
     iSplitPure. {
-      assert (ℓ ∉ dom (gset loc) abs_hists).
+      assert (ℓ ∉ dom abs_hists).
       { rewrite -domEq. apply not_elem_of_dom. done. }
       set_solver. }
     (* histDomLocs *)
@@ -309,7 +309,7 @@ Section wp_at_rules.
   Definition loc_info nG ℓ prot (pred : enc_predicateO) physHists physHist absHist offset : iProp Σ :=
     "physHists" ∷ auth_map_map_auth phys_history_name physHists ∗
     "%physHistsLook" ∷ ⌜ physHists !! ℓ = Some physHist ⌝ ∗
-    "%domEq" ∷ ⌜ dom (gset _) physHist = dom _ absHist ⌝ ∗
+    "%domEq" ∷ ⌜ dom physHist = dom absHist ⌝ ∗
     "%increasing" ∷ ⌜ increasing_map (encode_relation (⊑@{ST})) absHist ⌝ ∗
     "%atInvs" ∷
       ⌜ map_Forall (λ t msg, atomic_loc_inv ℓ t msg) (drop_prefix physHist offset) ⌝ ∗
@@ -563,7 +563,7 @@ Section wp_at_rules.
   Lemma read_atomic_location_no_inv t_i t_l (physHist : history) absHist vm SVm FVm
         PVm ℓ (e_i : positive) (s_i : ST) :
     t_i ≤ t_l →
-    dom (gset _) physHist = dom _ absHist →
+    dom physHist = dom absHist →
     absHist !! t_i = Some e_i →
     decode e_i = Some s_i →
     increasing_map (encode_relation (⊑@{ST})) absHist →
@@ -591,7 +591,7 @@ Section wp_at_rules.
   Lemma read_atomic_location t_i t_l offset (physHist : history) absHist vm SVm FVm
         PVm ℓ (e_i : positive) (s_i : ST) :
     t_i ≤ t_l + offset →
-    dom (gset _) physHist = dom _ absHist →
+    dom physHist = dom absHist →
     absHist !! t_i = Some e_i →
     decode e_i = Some s_i →
     increasing_map (encode_relation (⊑@{ST})) absHist →
@@ -711,7 +711,7 @@ Section wp_at_rules.
     map_Forall (λ t msg,
       msg_store_view msg ⊑ store_view TV ∧
         msg_persisted_after_view msg ⊑ flush_view TV) phys_hist →
-    dom (gset nat) abs_hist = dom (gset nat) phys_hist →
+    dom abs_hist = dom phys_hist →
     (pred ≡ encode_predicate (protocol.pred prot)) -∗
     encoded_predicate_hold hG phys_hist encAbsHist pred -∗
     ([∗ list] s;v ∈ ss;(msg_val <$> ms), protocol.pred prot s v) (TV, hG).

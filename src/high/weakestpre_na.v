@@ -99,7 +99,7 @@ Section wp_na_rules.
     assert (abs_hists !! ℓ = None) as absHistsLook.
     { apply not_elem_of_dom. rewrite -domEq. apply not_elem_of_dom.
       assumption. }
-    assert (ℓ ∉ dom (gset _) abs_hists) as absHistsDomElem.
+    assert (ℓ ∉ dom abs_hists) as absHistsDomElem.
     { apply not_elem_of_dom. done. }
     assert (ℓ ∉ at_locs).
     { set_solver+ locsDisjoint histDomLocs absHistsDomElem. }

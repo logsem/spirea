@@ -64,7 +64,7 @@ Section fmap_fmap_to_agree.
   Qed.
 
   Lemma fmap_fmap_to_agree_incl `{!LeibnizEquiv A} m m' :
-    dom (gset _) m ⊆ dom _ m' →
+    dom m ⊆ dom m' →
     (∀ ℓ mi mi', m !! ℓ = Some mi → m' !! ℓ = Some mi' → mi ⊆ mi') →
     (fmap_fmap_to_agree m) ≼ (fmap_fmap_to_agree m').
   Proof.

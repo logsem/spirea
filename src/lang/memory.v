@@ -64,7 +64,7 @@ Section consistent_cut.
   (* if [V] is a consistent cut of [σ] then the domain of [V] is included in
   [σ]. Intuitively, the recovered locations where all in the heap. *)
   Lemma consistent_cut_subseteq_dom V σ :
-    consistent_cut V σ → dom (gset _) V ⊆ dom _ σ.
+    consistent_cut V σ → dom V ⊆ dom σ.
   Proof.
     rewrite /consistent_cut.
     intros map.
@@ -102,7 +102,7 @@ Section consistent_cut.
   Qed.
 
   Lemma slice_of_store_dom_subset CV σ :
-    dom (gset _) (slice_of_store CV σ) ⊆ dom _ σ.
+    dom (slice_of_store CV σ) ⊆ dom σ.
   Proof. rewrite /slice_of_store dom_fmap. apply slice_of_hist_dom_subset. Qed.
 
   Lemma slice_of_store_lookup_Some_subseteq m1 m2 CV a ℓ :
@@ -335,7 +335,7 @@ Section memory.
 
   (* It is always possible to allocate a section of memory. *)
   Lemma alloc_fresh v (len : nat) a σ p SV FV BV :
-    let ℓ := fresh_locs (dom (gset loc) σ) in (* ℓ is directly after the largest allocated location. *)
+    let ℓ := fresh_locs (dom σ) in (* ℓ is directly after the largest allocated location. *)
     (0 < len)%Z →
     mem_step (σ, p) (SV, FV, BV)
              (MEvAllocN a ℓ len v)
@@ -350,7 +350,7 @@ End memory.
 
 (** Get the largest time of any message in a given history. *)
 Definition max_msg (h : history) : time :=
-  max_list (elements (dom (gset time) h)).
+  max_list (elements (dom h)).
 
 (** Convert a [store] to a [view] by taking the largest time for of any message
 for each location. We call this the "lub view" b.c., in an actual execution this

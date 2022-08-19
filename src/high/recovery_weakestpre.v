@@ -230,8 +230,8 @@ Section wpr.
       bumpers.
 
   Lemma new_abs_hist_dom abs_hists CV bumpers :
-    dom (gset loc) (new_abs_hist abs_hists CV bumpers) =
-    (dom _ abs_hists ∩ dom _ CV ∩ dom _ bumpers).
+    dom (new_abs_hist abs_hists CV bumpers) =
+    (dom abs_hists ∩ dom CV ∩ dom bumpers).
   Proof. rewrite !dom_map_zip_with_L. set_solver. Qed.
 
   (* Lemma new_abs_hist_lookup_simpl_inv abs_hists CV bumpers ℓ hist : *)
@@ -486,7 +486,7 @@ Section wpr.
     (* A name for the set of recovered locations. Per the above equalities this
     set could be expressed in a number of other ways (for instance by using
     [phys_hists] instead of [abs_hists].)*)
-    set (recLocs := dom (gset _) CV ∩ dom _ abs_hists).
+    set (recLocs := dom CV ∩ dom abs_hists).
 
     set newOffsets := offsets_add offsets CV.
 
@@ -499,10 +499,10 @@ Section wpr.
     iMod (full_map_alloc newAbsHists)
       as (new_abs_history_name) "(hists' & knowHistories & #fragHistories)".
 
-    assert (recLocs = (dom (gset _) newOffsets)) as domNewOffsets.
+    assert (recLocs = (dom newOffsets)) as domNewOffsets.
     { rewrite dom_map_zip_with_L.
       rewrite -offsetDom. rewrite domPhysHistsEqAbsHists. set_solver+. }
-    assert (recLocs = (dom (gset _) newAbsHists)) as domNewAbsHists.
+    assert (recLocs = (dom newAbsHists)) as domNewAbsHists.
     { rewrite new_abs_hist_dom.
       rewrite -domHistsEqBumpers.
       rewrite domNewOffsets.
@@ -621,7 +621,7 @@ Section wpr.
     (* The physical and abstract history has the same timestamps for all
     locations. We will need this when we apply [valid_slice_transfer] below. *)
     iAssert (
-      ⌜∀ ℓ h1 h2, phys_hists !! ℓ = Some h1 → abs_hists !! ℓ = Some h2 → dom (gset _) h1 = dom _ h2⌝
+      ⌜∀ ℓ h1 h2, phys_hists !! ℓ = Some h1 → abs_hists !! ℓ = Some h2 → dom h1 = dom h2⌝
     )%I as %physAbsHistTimestamps.
     { iIntros (?????).
       iDestruct (big_sepM2_lookup with "predsHold") as (??) "sep"; try eassumption.
@@ -656,7 +656,7 @@ Section wpr.
 
     assert (newNaLocs ## newAtLocs) as newLocsDisjoint.
     { rewrite /newNaLocs /newAtLocs. set_solver+ locsDisjoint. }
-    assert (dom _ newAbsHists = newNaLocs ∪ newAtLocs) as newHistDomLocs.
+    assert (dom newAbsHists = newNaLocs ∪ newAtLocs) as newHistDomLocs.
     { rewrite /newAbsHists /newNaLocs /newAtLocs /recLocs.
       rewrite -domNewAbsHists.
       rewrite /recLocs.
@@ -958,7 +958,7 @@ Section wpr.
           iCombine "H hist" as "H2".
           iDestruct (full_entry_valid with "H2") as %val.
           iPureIntro. exfalso.
-          apply (Qp_not_add_le_l 1 q).
+          apply (Qp.not_add_le_l 1 q).
           apply val. }
         iPureIntro.
         apply restrict_lookup_Some.

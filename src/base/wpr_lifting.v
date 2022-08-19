@@ -2,7 +2,6 @@ From stdpp Require Import numbers.
 From iris.proofmode Require Import tactics.
 From iris.algebra Require Import auth dfrac.
 From Perennial.base_logic.lib Require Import proph_map.
-From Perennial.algebra Require Import proph_map.
 From Perennial.program_logic Require Import recovery_weakestpre recovery_adequacy.
 
 From self Require Import extra map_extra ipm_tactics if_non_zero view_slice.
@@ -234,7 +233,7 @@ Section wpr.
       set (hGD' := hnames).
       iExists (nvmBase_generationGS (hGD := hGD')).
       iMod (global_state_interp_le (Λ := nvm_lang) _ _ () _ _ κs with "[$]") as "$";
-        first (simpl; lia).
+        first (rewrite /step_count_next; simpl; lia).
       iModIntro.
       rewrite /state_interp //=.
       rewrite cEq.

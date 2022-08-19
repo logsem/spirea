@@ -8,7 +8,7 @@ Section lemmas.
   Context `{FinMapDom K M D}.
 
   Lemma map_eq_dom {A} (m1 m2 : M A) :
-    dom D m1 = dom _ m2 →
+    dom m1 = dom m2 →
     m1 = m2 ↔ (∀ (i : K) (x y : A), m1 !! i = Some x → m2 !! i = Some y → x = y).
   Proof.
     intros domEq.
@@ -29,7 +29,7 @@ Section lemmas.
   Qed.
 
   Lemma map_eq_dom_subseteq {A} (m1 m2 m3 : M A) :
-    dom D m1 = dom D m2 →
+    dom m1 = dom m2 →
     m1 ⊆ m3 →
     m2 ⊆ m3 →
     m1 = m2.
@@ -402,7 +402,7 @@ Section map_sequence_dom.
   Implicit Types m : M A.
 
   Lemma map_sequence_lo_eq {B} lo lo2 lo2' m1 (m2 : M B) x xs y ys hi :
-    dom D m1 = dom D m2 →
+    dom m1 = dom m2 →
     map_sequence m1 lo2 hi (x :: xs) →
     map_sequence m2 lo2' hi (y :: ys) →
     lo < lo2 →
@@ -431,7 +431,7 @@ Section map_sequence_dom.
   Lemma map_sequence_dom_length {B} m1 (m2 : M B) lo hi xs ys :
     map_sequence m1 lo hi xs →
     map_sequence m2 lo hi ys →
-    dom D m1 = dom D m2 →
+    dom m1 = dom m2 →
     length xs = length ys.
   Proof.
     generalize dependent lo.
@@ -457,7 +457,7 @@ Section map_sequence_dom.
   Qed.
 
   Lemma map_sequence_zip {B} (m1 : M A) (m2 : M B) lo hi xs (ys : list B) :
-    dom D m1 = dom D m2 →
+    dom m1 = dom m2 →
     map_sequence m1 lo hi xs →
     map_sequence m2 lo hi ys →
     map_sequence (map_zip m1 m2) lo hi (zip xs ys).
@@ -544,7 +544,7 @@ Section map_no_later_dom.
   Implicit Types m : M A.
 
   Lemma map_no_later_dom {B} (m1 : M A) (m2 : M B) t :
-    dom D m1 = dom _ m2 → map_no_later m1 t → map_no_later m2 t.
+    dom m1 = dom m2 → map_no_later m1 t → map_no_later m2 t.
   Proof.
     intros domEq.
     rewrite /map_no_later.
@@ -596,8 +596,8 @@ Section drop_above.
 End drop_above.
 
 Lemma drop_above_dom_eq {A B} t (m1 : gmap nat A) (m2 : gmap nat B) :
-  dom (gset _) m1 = dom (gset _) m2 →
-  dom (gset _) (drop_above t m1) = dom (gset _) (drop_above t m2).
+  dom m1 = dom m2 →
+  dom (drop_above t m1) = dom (drop_above t m2).
 Proof.
   rewrite !set_eq.
   setoid_rewrite elem_of_dom. unfold is_Some.

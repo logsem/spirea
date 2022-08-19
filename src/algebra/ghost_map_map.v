@@ -67,14 +67,14 @@ Section lemmas.
     intros p q.
     rewrite /full_entry.
     iSplit.
-    - simpl. rewrite Qp_div_add_distr.
+    - simpl. rewrite Qp.div_add_distr.
       iDestruct 1 as ([γi γf]) "(#ptsa & [dq dq'] & [auth auth'])".
       iSplitL "dq auth"; iExists (γi, γf); iFrame "∗#".
     - iIntros "[(%γp & #pts & dq & auth) (%γp' & #pts' & dq' & auth')]".
       iDestruct (ghost_map_elem_agree with "pts pts'") as %<-.
       iCombine "auth auth'" as "auth".
       iCombine "dq dq'" as "dq".
-      rewrite -Qp_div_add_distr.
+      rewrite -Qp.div_add_distr.
       iExists γp; iFrame "∗#".
   Qed.
   Global Instance own_full_encoded_history_as_fractional γ ℓ q enc_abs_hist :

@@ -97,8 +97,8 @@ Lemma max_msg_insert t msg hist :
   max_msg (<[t:=msg]> hist) = t `max` max_msg hist.
 Proof.
   rewrite /max_msg. rewrite dom_insert.
-  destruct (decide (t ∈ (dom (gset time) hist))) as [Hin|Hin].
-  - replace ({[t]} ∪ dom (gset time) hist) with (dom (gset time) hist) by set_solver.
+  destruct (decide (t ∈ (dom hist))) as [Hin|Hin].
+  - replace ({[t]} ∪ dom hist) with (dom hist) by set_solver.
     symmetry. apply max_r.
     apply max_list_elem_of_le.
     apply elem_of_elements.
@@ -130,7 +130,7 @@ Definition nvm_heap_ctx `{hG : !nvmBaseFixedG Σ, hGD : nvmBaseDeltaG} σ : iPro
   "%Hop" ∷ ⌜valid_heap σ.1⌝ ∗
   "Hpers" ∷ own persist_view_name (● σ.2) ∗
   "crash" ∷ (∃ (CV : view),
-    "%cvSubset" ∷ ⌜dom (gset _) CV ⊆ dom _ σ.1⌝ ∗
+    "%cvSubset" ∷ ⌜dom CV ⊆ dom σ.1⌝ ∗
     "#crashedAt" ∷ own crashed_at_view_name (to_agree CV : agreeR viewO)).
 
 Definition borrowN := nroot .@ "borrow".
@@ -562,7 +562,7 @@ Section lifting.
 
   Ltac whack_global :=
     iMod (global_state_interp_le (Λ := nvm_lang) _ _ () _ _ _ with "[$]") as "$";
-      first (simpl; lia).
+      first (rewrite /step_count_next; simpl; lia).
 
   Lemma wp_fork s E (e : expr) TV (Φ : thread_val → iProp Σ) :
     ▷ WP (ThreadState e TV) @ s; ⊤ {{ _, True }} -∗
@@ -613,7 +613,7 @@ Section lifting.
         (ℓ +ₗ (i : nat)) ↦h initial_history a SV FV v) ∗
       ⌜ ∀ (i : Z), (0 ≤ i < n)%Z → SV !!0 (ℓ +ₗ i) = 0 ⌝ ∗
       (* The allocated locations are not in the last view we crashed at. *)
-      ([∗ list] i ∈ seq 0 (Z.to_nat n), (⌜ℓ +ₗ (i : nat) ∉ dom (gset _) CV⌝))
+      ([∗ list] i ∈ seq 0 (Z.to_nat n), (⌜ℓ +ₗ (i : nat) ∉ dom CV⌝))
     }}}.
   Proof.
     iIntros (Hn Φ) "Hval HΦ".
@@ -674,7 +674,7 @@ Section lifting.
     {{{ validV SV }}}
       Alloc a (Val v) `at` (SV, FV, BV) @ s; E
     {{{ ℓ CV, RET LitV (LitLoc ℓ) `at` (SV, FV, BV);
-        crashed_at CV ∗ ⌜ℓ ∉ dom (gset _) CV⌝ ∗ ⌜ SV !!0 ℓ = 0 ⌝ ∗
+        crashed_at CV ∗ ⌜ℓ ∉ dom CV⌝ ∗ ⌜ SV !!0 ℓ = 0 ⌝ ∗
         ℓ ↦h initial_history a SV FV v }}}.
   Proof.
     iIntros (Φ) "#Hval HΦ".
@@ -996,7 +996,6 @@ Section lifting.
        eapply impure_step; by econstructor; done.
     - iNext. iIntros (e2 σ2 [] efs Hstep).
       whack_global.
-      Unshelve. 2: { done. }
       inv_impure_thread_step. iSplitR=>//.
       iDestruct ("HΦ" with "pts") as "$".
       iModIntro. iFrame "∗%". naive_solver.
@@ -1015,7 +1014,7 @@ Section lifting.
        iExists [], _, _, _, _. simpl. iPureIntro.
        eapply impure_step; by econstructor; done.
     - iNext. iIntros (e2 σ2 [] efs Hstep).
-      whack_global. Unshelve. 2: { done. }
+      whack_global.
       inv_impure_thread_step. iSplitR=>//.
       iModIntro. iFrame "∗%". iApply "HΦ". done.
   Qed.
@@ -1035,7 +1034,7 @@ Section lifting.
        iExists [], _, _, _, _. simpl. iPureIntro.
        eapply impure_step; by econstructor; done.
     - iNext. iIntros (e2 σ2 [] efs Hstep).
-      whack_global. Unshelve. 2: { done. }
+      whack_global.
       inv_impure_thread_step. iSplitR=>//.
       iMod (auth_auth_view_grow_op with "Hpers") as "[$ perB]".
       iModIntro. iFrame "∗%". iDestruct ("HΦ" with "perB") as "$". naive_solver.
@@ -1075,7 +1074,7 @@ Section extra_state_interp.
     iIntros (????????) "[interp extra]". iIntros.
     iSpecialize ("H" with "extra").
     iDestruct ("H" $! mj) as "[H _]".
-    iSpecialize ("H" $! _ _ g1 _ _ κ [] 0 with "[$interp //] [$] [$]").
+    iSpecialize ("H" $! _ _ g1 _ _ κ [] 0 with "[$interp //] [$] [$] [$]").
 
     iMod "H".
     iModIntro.
@@ -1094,7 +1093,6 @@ Section extra_state_interp.
     iEval (rewrite right_id) in "A".
     iMod (wpc0_value_inv_option _ _ _ _ _ _ _ _ _ [] _ with "C Q AB")
       as "([Φ extra] & B & V)".
-    Unshelve. 2: { apply (). }
     simpl.
     iFrame.
     iMod "extra".
@@ -1105,6 +1103,7 @@ Section extra_state_interp.
 
     rewrite /= right_id.
     rewrite wpc0_unfold /wpc_pre.
+    iDestruct "A" as "[$ ?]".
     iFrame.
     iSplit. { iIntros. iFrame. done. }
     iIntros.

@@ -1237,39 +1237,54 @@ Section icrash.
   Implicit Types Δ : envs PROP.
   Implicit Types P Q : PROP.
 
-  Lemma envs_clear_intuitionistic_sound Δ :
-    of_envs Δ ⊢ of_envs (envs_clear_intuitionistic Δ) ∗ □ [∧] env_intuitionistic Δ.
+  Lemma envs_clear_spatial_sound Δ :
+    of_envs Δ ⊢ of_envs (envs_clear_spatial Δ) ∗ [∗] env_spatial Δ.
   Proof.
-    rewrite !of_envs_eq /envs_clear_intuitionistic /=.
-    apply pure_elim_l=> Hwf.
-    rewrite intuitionistically_True_emp.
-    rewrite left_id.
-    rewrite -persistent_and_sep_assoc. apply and_intro; [|by rewrite comm].
-    apply pure_intro. destruct Hwf; constructor; simpl; auto using Enil_wf.
+    rewrite !of_envs_eq /envs_clear_spatial /=. apply pure_elim_l=> Hwf.
+    rewrite -persistent_and_sep_assoc. apply and_intro.
+    - apply pure_intro. destruct Hwf; constructor; simpl; auto using Enil_wf.
+    - rewrite -persistent_and_sep_assoc. rewrite left_id. done.
   Qed.
 
-  Lemma big_opL_and_sep (l : list PROP) : □ [∧] l -∗ [∗] l.
+  Lemma envs_clear_intuitionistic_sound Δ :
+    of_envs Δ ⊢
+    env_and_persistently (env_intuitionistic Δ) ∗ of_envs (envs_clear_intuitionistic Δ).
+  Proof.
+    rewrite !of_envs_eq /envs_clear_spatial /=. apply pure_elim_l=> Hwf.
+    rewrite persistent_and_sep_1.
+    rewrite (pure_True); first by rewrite !left_id.
+    destruct Hwf. constructor; simpl; auto using Enil_wf.
+  Qed.
+
+  Lemma big_opL_and_sep (l : env PROP) : □ [∧] l -∗ [∗] l.
   Proof.
     iInduction (l) as [|??] "IH"; simpl; first done.
     iIntros "#[$ ?]". iApply "IH". done.
   Qed.
 
+  Lemma big_opL_env_and_sep `{BiAffine PROP} (l : env PROP) : env_and_persistently l -∗ [∗] l.
+  Proof.
+    iInduction (l) as [|??] "IH"; simpl; first done.
+    iIntros "[#$ ?]". iApply "IH". done.
+  Qed.
+
   Definition envs_intuitionistic_to_spatial {PROP} (Δ : envs PROP) : option (envs PROP) :=
     envs_app false (env_intuitionistic Δ) (envs_clear_intuitionistic Δ).
 
-  Lemma envs_intuitionistic_to_spatial_sound Δ Δ' P :
+  Lemma envs_intuitionistic_to_spatial_sound `{BiAffine PROP} Δ Δ' P :
     envs_app false (env_intuitionistic Δ) (envs_clear_intuitionistic Δ) = Some Δ' →
     envs_entails Δ' P →
     envs_entails Δ P.
   Proof.
     intros eq.
-    rewrite envs_entails_eq.
+    rewrite envs_entails_unseal.
     intros <-.
     apply envs_app_sound in eq.
     apply wand_elim_l' in eq.
     rewrite <- eq.
     rewrite envs_clear_intuitionistic_sound.
-    rewrite -big_opL_and_sep.
+    iIntros "[? $]".
+    rewrite -big_opL_env_and_sep.
     done.
   Qed.
 

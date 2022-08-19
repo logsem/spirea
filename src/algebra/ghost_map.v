@@ -181,7 +181,7 @@ Section lemmas.
   Global Instance ghost_map_auth_timeless γ dq m : Timeless (ghost_map_auth γ dq m).
   Proof. unseal. apply _. Qed.
   Global Instance ghost_map_auth_fractional γ m : Fractional (λ q, ghost_map_auth γ (DfracOwn q) m)%I.
-  Proof. intros p q. unseal. rewrite -own_op gmap_view_auth_frac_op //. Qed.
+  Proof. intros p q. unseal. rewrite -own_op -gmap_view_auth_dfrac_op //. Qed.
   Global Instance ghost_map_auth_as_fractional γ q m :
     AsFractional (ghost_map_auth γ (DfracOwn q) m) (λ q, ghost_map_auth γ (DfracOwn q) m)%I q.
   Proof. split; first done. apply _. Qed.
@@ -288,7 +288,7 @@ Section lemmas.
   Qed.
 
   Theorem ghost_map_update_big {γ m} m0 m1 :
-    dom (gset K) m0 = dom (gset K) m1 →
+    dom m0 = dom m1 →
     ghost_map_auth γ (DfracOwn 1) m -∗
     ([∗ map] k↦v ∈ m0, k ↪[γ] v) ==∗
     ghost_map_auth γ (DfracOwn 1) (m1 ∪ m) ∗
