@@ -126,6 +126,19 @@ Section definitions.
     done.
   Qed.
 
+  Global Instance with_gnames_ne n :
+    Proper (((=) ==> dist n) ==> dist n) with_gnames.
+  Proof.
+    rewrite /with_gnames.
+    intros ?? eq.
+    split.
+    intros [??].
+    simpl.
+    f_equiv.
+    apply eq.
+    done.
+  Qed.
+
   Global Instance with_gnames_mono : Proper (((=) ==> (⊢)) ==> (⊢)) with_gnames.
   Proof.
     intros ?? impl.

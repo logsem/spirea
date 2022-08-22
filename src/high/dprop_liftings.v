@@ -12,6 +12,16 @@ Definition lift_d {Σ} P : dProp Σ := with_gnames (λ nD, ⎡ P nD ⎤)%I.
 Section lift_d_lemmas.
   Context {Σ : gFunctors}.
 
+  Global Instance lift_d_ne n :
+    Proper (((=) ==> dist n) ==> dist n) (lift_d (Σ := Σ)).
+  Proof.
+    rewrite /lift_d.
+    intros ?? eq.
+    f_equiv.
+    intros ???.
+    rewrite eq; done.
+  Qed.
+
   Lemma lift_wand (P Q : _ → iProp Σ) :
     (lift_d (λ nD, Q nD -∗ P nD)) -∗
     (lift_d Q -∗ lift_d P).

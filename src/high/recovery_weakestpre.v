@@ -13,7 +13,7 @@ From Perennial.program_logic Require Import recovery_adequacy.
 From self.algebra Require Import ghost_map ghost_map_map.
 From self Require Import view extra ipm_tactics if_non_zero view_slice solve_view_le.
 From self.base Require Import primitive_laws wpr_lifting.
-From self.high Require Import dprop resources crash_weakestpre
+From self.high Require Import dprop dprop_liftings resources crash_weakestpre
      post_crash_modality or_lost.
 
 Set Default Proof Using "Type".
@@ -42,7 +42,7 @@ Definition wpr_pre `{nvmG Σ} (s : stuckness)
   (WPC e @ s ; E
     {{ Φ }}
     {{ ∀ σ mj D σ' (HC : crash_prim_step nvm_crash_lang σ σ') ns n, (* The [n] here actually doesn't matter. *)
-      with_gnames (λ _, ⎡ (* interp -∗ *)
+      lift_d (λ _, (* interp -∗ *)
         state_interp σ n -∗
         global_state_interp (Λ := nvm_lang) () ns mj D [] -∗
         ∀ (γcrash : gname) q,
@@ -55,21 +55,8 @@ Definition wpr_pre `{nvmG Σ} (s : stuckness)
           global_state_interp (Λ := nvm_lang) () (step_count_next ns) mj D [] ∗
           validV ∅ ∗
           ▷ (monPred_at (wpr E e_rec e_rec (λ v, Φr v) Φr) (∅, ∅, ∅, hD')) ∗
-          NC q ⎤)
+          NC q)
     }})%I.
-
-Global Instance with_gnames_ne `{nvmG Σ} n :
-  Proper (((=) ==> dist n) ==> dist n) (with_gnames (Σ := Σ)).
-Proof.
-  rewrite /with_gnames.
-  intros ?? eq.
-  split.
-  intros [??].
-  simpl.
-  f_equiv.
-  apply eq.
-  done.
-Qed.
 
 Local Instance wpr_pre_contractive `{nvmG Σ} s : Contractive (wpr_pre s).
 Proof.
