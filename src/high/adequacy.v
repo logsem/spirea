@@ -842,10 +842,8 @@ Proof.
                 (crash_adequacy.steps_sum f1 f2 (Nat.iter (sum_crash_steps ns') f2 nsinit) n')
                 (S (S (f1 (Nat.iter (n' + sum_crash_steps ns') f2 nsinit))))).
     iIntros (inv).
-
     iMod (allocate_empty_high_state_interp inv σ PV [] n)
       as (nF nD eq) "(validV & nc & pre & ptsMap & pers & global & int & high)"; first done.
-
     iDestruct (Hwp _ _ ) as "-#Hwp".
     iDestruct ("Hwp" $! (∅, ∅, ∅) with "pre") as "Hwpr".
     iModIntro.
@@ -862,24 +860,18 @@ Proof.
       simpl.
       reflexivity. }
     iSplitPure. { done. }
-
     iApply (step_fupdN_fresh_wand with "HIP").
     { rewrite /nsinit. rewrite /crash_borrow_ginv_number. done. }
     iModIntro.
     iIntros (hD).
     iIntros "H [Hlc1 Hlc2]".
     rewrite -eq.
-    iMod ("H" with "[Hlc1]") as "H".
-    { rewrite /num_laters_per_step.
-      rewrite /step_count_next.
-      done. }
-    (* simpl. *)
+    iMod ("H" with "Hlc1") as "H".
     iApply (step_fupd2N_wand with "H"); auto.
     iModIntro. iIntros "H".
     iMod "H" as (v2 TV2 ts2 ->) "(interp & global & Hv & nc)".
     destruct stat.
     * iDestruct "Hv" as "#Hv".
-      (* rewrite ?ncfupd_eq /ncfupd_def. *)
       iApply (@fupd2_mask_intro); [done..|].
       iIntros "_".
       iApply @step_fupd2N_later.
@@ -887,7 +879,6 @@ Proof.
       iIntros (v2' ? Heq). subst. inversion Heq; subst.
       rewrite to_of_val. naive_solver.
     * iDestruct "Hv" as "[-> #Hv]".
-      (* rewrite ?ncfupd_eq /ncfupd_def. *)
       iApply (@fupd2_mask_intro); [done..|].
       iIntros "_".
       iApply @step_fupd2N_later.
@@ -910,16 +901,13 @@ Proof.
     iModIntro.
     iExists _, _.
     iPureGoal. { done. }
-
     iDestruct (wptp_recv_progress with "[$int $high] global [validV] Hwpr [] nc") as "H";
       eauto.
-
     iExists _.
     iSplitPure; first done.
     iSplitPure. { simpl. reflexivity. }
     iSplitPure. { rewrite /step_count_next. simpl. reflexivity. }
     iSplitPure. { done. }
-
     iApply (step_fupdN_fresh_wand with "H").
     { auto. }
     iModIntro.
@@ -1065,131 +1053,203 @@ Proof.
   apply recv_adequate_alt.
   intros t2 σ2 stat.
   intros [ns [κs nstep]]%erased_rsteps_nrsteps.
-  destruct (nrsteps_snoc _ _ _ _ _ _ nstep) as (ns' & n' & ->).
+
   set (nsinit := (n * 4 + crash_borrow_ginv_number)).
-  (* Very beautiful! *)
-  set (n'' :=
-          S (S (3 ^ (Nat.iter (n' + sum_crash_steps ns')
-                    (λ n0 : nat,
-                       n0 + 1 +
-                       (n0 + 1 +
-                        (n0 + 1 +
-                         (n0 + 1 +
-                          (n0 + 1 +
-                           (n0 + 1 +
-                            (n0 + 1 + (n0 + 1 + (n0 + 1 + (n0 + 1 + 0))))))))))
-                    nsinit + 1)))).
-  (* We apply soundness of Perennial/Iris. *)
-  eapply (step_fupdN_fresh_soundness _ ns' nsinit _ n'').
-  iIntros (inv).
+  set (f1 := (λ n, 3 ^ (n + 1))%nat). (* [num_laters_per_step] *)
+  set (f2 := (λ n, 10 * (n + 1))%nat). (* [step_count_next] *)
 
-  set (σ := initial_heap init_heap).
-  set (PV := (const (MaxNat 0) <$> init_heap)).
+  split.
+  -
+    destruct (nrsteps_snoc _ _ _ _ _ _ nstep) as (ns' & n' & ->).
 
-  (* Begin allocate ghost state. *)
+    (* We apply soundness of Perennial/Iris. *)
+    eapply (step_fupdN_fresh_soundness _ ns' nsinit
+                (crash_adequacy.steps_sum f1 f2 (Nat.iter (sum_crash_steps ns') f2 nsinit) n')
+                (S (S (f1 (Nat.iter (n' + sum_crash_steps ns') f2 nsinit))))).
+    (* eapply (step_fupdN_fresh_soundness _ ns' nsinit _ n''). *)
+    iIntros (inv).
 
-  iMod NC_alloc_strong as (γcrash) "NC".
-  iMod (credit_name_init (n * 4 + crash_borrow_ginv_number)) as
-      (name_credit) "(credAuth & Hcred & Htok)".
-  iDestruct (cred_frag_split with "Hcred") as "(Hpre & Hcred)".
-  iAssert (|={⊤}=> crash_borrow_ginv)%I with "[Hcred]" as ">#Hinv".
-  { rewrite /crash_borrow_ginv. iApply (inv_alloc _). iNext. eauto. }
-  iMod (allocate_state_interp inv _ γcrash σ PV name_credit)
-    as (names) "(%crEq & ctx & Ha & #valid & #crashedAt & #pers)".
-  { apply valid_heap_initial_heap. }
-  rewrite <- crEq in *.
-  set (fixed := NvmFixedG _ (nvm_build_base _ _ inv _ name_credit) nvmPreG_high).
-  iExists (fixed).
+    set (σ := initial_heap init_heap).
+    set (PV := (const (MaxNat 0) <$> init_heap)).
 
-  (* We can now get all the protocols. *)
-  specialize (Hwp fixed) as (lif & domEq & Hwp).
+    (***** Begin allocate ghost state. *)
 
-  (* Allocate abstract history. *)
-  set (absHist := mk_abs_hist lif).
-  iMod (full_map_alloc absHist)
-    as (abs_history_name) "(hists' & histPts & #histFrag)".
+    iMod NC_alloc_strong as (γcrash) "NC".
+    iMod (credit_name_init (n * 4 + crash_borrow_ginv_number)) as
+        (name_credit) "(credAuth & Hcred & Htok)".
+    iDestruct (cred_frag_split with "Hcred") as "(Hpre & Hcred)".
+    iAssert (|={⊤}=> crash_borrow_ginv)%I with "[Hcred]" as ">#Hinv".
+    { rewrite /crash_borrow_ginv. iApply (inv_alloc _). iNext. eauto. }
+    iMod (allocate_state_interp inv _ γcrash σ PV name_credit)
+      as (names) "(%crEq & ctx & Ha & #valid & #crashedAt & #pers)".
+    { apply valid_heap_initial_heap. }
+    rewrite <- crEq in *.
+    set (fixed := NvmFixedG _ (nvm_build_base _ _ inv _ name_credit) nvmPreG_high).
+    iExists (fixed).
 
-  (* Allocate predicates. *)
-  set (preds := mk_preds lif).
-  iMod (know_predicates_alloc preds) as (predicates_name) "[preds #predsFrag]".
-  (* Allocate preorders. *)
-  iMod (own_all_preorders_gname_alloc (mk_order lif)) as (orders_name) "[orders #fragOrders]".
-  (* Allocate set of atomic locations. *)
-  iMod (own_alloc (● (at_locs : gsetUR _) ⋅ (◯ at_locs)))
-    as (shared_locs_name) "[atLocs #atLocsF]".
-  { apply auth_both_valid. done. }
-  (* Allocate set of non-atomic locations. *)
-  iMod (own_alloc (● (na_locs : gsetUR _) ⋅ (◯ na_locs)))
-    as (exclusive_locs_name) "[naLocs #naLocsF]".
-  { apply auth_both_valid. done. }
-  iMod (ghost_map_alloc (mk_na_views na_locs lif)) as (na_views_name) "(na_views & naViewsF)".
-  iMod (ghost_map_alloc_persistent (mk_offsets lif)) as (offsets_name) "(offsets & #offsetsPts)".
-  iMod (ghost_map_alloc (∅ : gmap loc positive)) as (crashed_in_name) "(crashedIn & _)".
-  iMod (own_all_bumpers_alloc (mk_bumpers lif)) as (bumpers_name) "[bumpers #bumpersFrag]".
-  iMod (auth_map_map_alloc σ) as (phys_hist_name) "[physHist #physHistF]".
-  set (hD := {|
-               abs_history_name := abs_history_name;
-               phys_history_name := phys_hist_name;
-               non_atomic_views_gname := na_views_name;
-               crashed_in_name := crashed_in_name;
-               predicates_name := predicates_name;
-               preorders_name := orders_name;
-               offset_name := offsets_name;
-               shared_locs_name := shared_locs_name;
-               exclusive_locs_name := exclusive_locs_name;
-               bumpers_name := bumpers_name;
-             |}).
-  iExists (NvmDeltaG names hD).
+    (* We can now get all the protocols. *)
+    specialize (Hwp fixed) as (lif & domEq & Hwp).
 
-  assert (dom init_heap = dom absHist) as domEq2.
-  { rewrite /absHist. rewrite /mk_abs_hist. rewrite dom_fmap_L. done. }
-  assert (dom σ = dom (mk_offsets lif)) as domEq3.
-  { rewrite /mk_offsets. rewrite dom_fmap_L. rewrite domEq.
-    rewrite /σ /initial_heap. apply dom_fmap_L. }
-  (* End allocate ghost state. *)
-  eassert (absHist = _ ∪ _) as split.
-  { eapply restrict_disjoint_union. rewrite -domEq2. symmetry. apply locsEq. }
-  iEval (rewrite split) in "histPts".
-  rewrite big_sepM_union. 2: { apply restrict_disjoint. done. }
-  iDestruct ("histPts") as "[naHistPts atHistPts]".
+    (* Allocate abstract history. *)
+    set (absHist := mk_abs_hist lif).
+    iMod (full_map_alloc absHist)
+      as (abs_history_name) "(hists' & histPts & #histFrag)".
 
-  set (gnames := (NvmDeltaG names hD)).
-  (* iDestruct (Hwp (NvmDeltaG names hD)) as "-#Hwp". *)
-  iDestruct (@cred_frag_to_pre_borrowN _ _ _ _ n with "[Hpre]") as "Hpre".
-  { rewrite /fixed. iFrame "Hpre". }
-  iDestruct (Hwp $! ((∅, ∅, ∅), gnames)) as "-#Hwp".
-  iDestruct ("Hwp" with "[naHistPts naViewsF] [] [Hpre]") as "[predsHold Hwpr]".
-  { (* Non-atomic locations. *)
-    rewrite monPred_at_big_sepM.
-    iDestruct (big_sepM_sep_zip with "[$naHistPts $naViewsF]") as "na".
-    { apply dom_eq_alt_L.
-      rewrite /mk_abs_hist /mk_na_views.
-      rewrite restrict_dom_L.
-      rewrite 2!dom_fmap_L.
-      rewrite restrict_dom_L.
-      done. }
-    iDestruct (big_sepM_impl_dom_subseteq with "na []") as "[$ H]".
-    { rewrite /mk_abs_hist /mk_na_views.
-      rewrite dom_map_zip_with.
-      rewrite !restrict_dom.
-      rewrite !dom_fmap_L.
-      rewrite !restrict_dom.
-      rewrite domEq.
-      set_solver+. }
-    iModIntro.
-    iIntros (ℓ [??] v [l1 l2]%map_lookup_zip_Some).
-    apply restrict_lookup_Some in l1 as [look inNa].
-    apply lookup_fmap_Some in look as (li & <- & lifLook).
-    rewrite /mk_na_views in l2.
-    apply lookup_fmap_Some in l2 as (li' & <- & [??]%restrict_lookup_Some).
-    simplify_eq.
-    iIntros ([? _]%restrict_lookup_Some) "[E naView]".
-    iExists li.
-    simpl.
-    iSplitPure; first done. rewrite /persist_lb. rewrite /mapsto_na.
-    iSplit.
-    { iExists 0, 0.
+    (* Allocate predicates. *)
+    set (preds := mk_preds lif).
+    iMod (know_predicates_alloc preds) as (predicates_name) "[preds #predsFrag]".
+    (* Allocate preorders. *)
+    iMod (own_all_preorders_gname_alloc (mk_order lif)) as (orders_name) "[orders #fragOrders]".
+    (* Allocate set of atomic locations. *)
+    iMod (own_alloc (● (at_locs : gsetUR _) ⋅ (◯ at_locs)))
+      as (shared_locs_name) "[atLocs #atLocsF]".
+    { apply auth_both_valid. done. }
+    (* Allocate set of non-atomic locations. *)
+    iMod (own_alloc (● (na_locs : gsetUR _) ⋅ (◯ na_locs)))
+      as (exclusive_locs_name) "[naLocs #naLocsF]".
+    { apply auth_both_valid. done. }
+    iMod (ghost_map_alloc (mk_na_views na_locs lif)) as (na_views_name) "(na_views & naViewsF)".
+    iMod (ghost_map_alloc_persistent (mk_offsets lif)) as (offsets_name) "(offsets & #offsetsPts)".
+    iMod (ghost_map_alloc (∅ : gmap loc positive)) as (crashed_in_name) "(crashedIn & _)".
+    iMod (own_all_bumpers_alloc (mk_bumpers lif)) as (bumpers_name) "[bumpers #bumpersFrag]".
+    iMod (auth_map_map_alloc σ) as (phys_hist_name) "[physHist #physHistF]".
+    set (hD := {|
+                abs_history_name := abs_history_name;
+                phys_history_name := phys_hist_name;
+                non_atomic_views_gname := na_views_name;
+                crashed_in_name := crashed_in_name;
+                predicates_name := predicates_name;
+                preorders_name := orders_name;
+                offset_name := offsets_name;
+                shared_locs_name := shared_locs_name;
+                exclusive_locs_name := exclusive_locs_name;
+                bumpers_name := bumpers_name;
+              |}).
+    iExists (NvmDeltaG names hD).
+
+    assert (dom init_heap = dom absHist) as domEq2.
+    { rewrite /absHist. rewrite /mk_abs_hist. rewrite dom_fmap_L. done. }
+    assert (dom σ = dom (mk_offsets lif)) as domEq3.
+    { rewrite /mk_offsets. rewrite dom_fmap_L. rewrite domEq.
+      rewrite /σ /initial_heap. apply dom_fmap_L. }
+    (* End allocate ghost state. *)
+    eassert (absHist = _ ∪ _) as split.
+    { eapply restrict_disjoint_union. rewrite -domEq2. symmetry. apply locsEq. }
+    iEval (rewrite split) in "histPts".
+    rewrite big_sepM_union. 2: { apply restrict_disjoint. done. }
+    iDestruct ("histPts") as "[naHistPts atHistPts]".
+
+    set (gnames := (NvmDeltaG names hD)).
+    (* iDestruct (Hwp (NvmDeltaG names hD)) as "-#Hwp". *)
+    iDestruct (@cred_frag_to_pre_borrowN _ _ _ _ n with "[Hpre]") as "Hpre".
+    { rewrite /fixed. iFrame "Hpre". }
+    iDestruct (Hwp $! ((∅, ∅, ∅), gnames)) as "-#Hwp".
+    iDestruct ("Hwp" with "[naHistPts naViewsF] [] [Hpre]") as "[predsHold Hwpr]".
+    { (* Non-atomic locations. *)
+      rewrite monPred_at_big_sepM.
+      iDestruct (big_sepM_sep_zip with "[$naHistPts $naViewsF]") as "na".
+      { apply dom_eq_alt_L.
+        rewrite /mk_abs_hist /mk_na_views.
+        rewrite restrict_dom_L.
+        rewrite 2!dom_fmap_L.
+        rewrite restrict_dom_L.
+        done. }
+      iDestruct (big_sepM_impl_dom_subseteq with "na []") as "[$ H]".
+      { rewrite /mk_abs_hist /mk_na_views.
+        rewrite dom_map_zip_with.
+        rewrite !restrict_dom.
+        rewrite !dom_fmap_L.
+        rewrite !restrict_dom.
+        rewrite domEq.
+        set_solver+. }
+      iModIntro.
+      iIntros (ℓ [??] v [l1 l2]%map_lookup_zip_Some).
+      apply restrict_lookup_Some in l1 as [look inNa].
+      apply lookup_fmap_Some in look as (li & <- & lifLook).
+      rewrite /mk_na_views in l2.
+      apply lookup_fmap_Some in l2 as (li' & <- & [??]%restrict_lookup_Some).
+      simplify_eq.
+      iIntros ([? _]%restrict_lookup_Some) "[E naView]".
+      iExists li.
+      simpl.
+      iSplitPure; first done. rewrite /persist_lb. rewrite /mapsto_na.
+      iSplit.
+      { iExists 0, 0.
+        rewrite !monPred_at_embed.
+        iDestruct (persisted_persisted_loc with "pers") as "$".
+        { rewrite /PV. rewrite lookup_fmap. rewrite H. done. }
+        simpl.
+        rewrite /know_protocol.
+        rewrite /know_pred.
+        iDestruct (predicates_frag_lookup with "[$predsFrag]") as "$".
+        { rewrite /preds /mk_preds. rewrite lookup_fmap. rewrite lifLook. done. }
+        iDestruct (big_sepM_lookup with "fragOrders") as "$".
+        { rewrite /mk_order. rewrite lookup_fmap. rewrite lifLook. done. }
+        rewrite /know_bumper.
+        iDestruct (big_sepM_lookup with "bumpersFrag") as "$".
+        { rewrite /mk_bumpers. rewrite lookup_fmap lifLook. done. }
+        iDestruct (big_sepM_lookup with "offsetsPts") as "$".
+        { rewrite /mk_offsets. rewrite lookup_fmap lifLook. done. }
+        rewrite -!assoc.
+        iSplitPure. { apply bumper_mono. }
+        iSplit.
+        { iExists (encode _).
+          iSplitPure. { setoid_rewrite decode_encode. done. }
+          iDestruct (big_sepM_lookup _ _ ℓ with "histFrag") as "hf".
+          { rewrite /mk_abs_hist. rewrite lookup_fmap lifLook. done. }
+          rewrite big_sepM_singleton.
+          iFrame "hf". }
+        rewrite view_lookup_zero_empty.
+        done. }
+      iExists 0, 0, 0, _, _, _, _.
       rewrite !monPred_at_embed.
+      iSplitPure; first done.
+      iSplit.
+      { rewrite /know_pred.
+        iDestruct (predicates_frag_lookup _ _ ℓ with "[$predsFrag]") as "$".
+        { rewrite /preds /mk_preds. rewrite lookup_fmap. rewrite lifLook. done. }
+        iDestruct (big_sepM_lookup with "fragOrders") as "$".
+        { rewrite /mk_order. rewrite lookup_fmap. rewrite lifLook. done. }
+        rewrite /know_bumper.
+        iDestruct (big_sepM_lookup with "bumpersFrag") as "$".
+        { rewrite /mk_bumpers. rewrite lookup_fmap lifLook. done. }
+        iPureIntro. apply bumper_mono. }
+      iSplitPure. { apply increasing_map_singleton. }
+      iSplit. { iApply location_sets_lookup; done. }
+      iSplitPure. { apply lookup_singleton. }
+      iSplitPure. { apply map_no_later_singleton. }
+      iSplitL "E".
+      { rewrite /know_full_history_loc /full_entry_unenc /=.
+        rewrite map_fmap_singleton. iFrame "E". }
+      iSplit.
+      { iExists (encode _).
+        iSplitPure. { setoid_rewrite decode_encode. done. }
+        iDestruct (big_sepM_lookup _ _ ℓ with "histFrag") as "hf".
+        { rewrite /mk_abs_hist. rewrite lookup_fmap lifLook. done. }
+        rewrite big_sepM_singleton. iFrame "hf". }
+      iDestruct (big_sepM_lookup with "offsetsPts") as "$".
+      { rewrite /mk_offsets. rewrite lookup_fmap lifLook. done. }
+      iFrameF "naView".
+      iSplitPure; first done.
+      iDestruct (auth_map_map_frag_lookup_singleton with "physHistF") as "$".
+      { rewrite /σ. rewrite lookup_fmap. rewrite H. simpl. done. }
+      { rewrite lookup_singleton. done. }
+      simpl.
+      iSplitPure. { done. }
+      iSplitPure. { done. }
+      iSplitPure. { done. }
+      iRight. done. }
+    { (* Atomic locations. *)
+      rewrite monPred_at_big_sepM.
+      iApply big_sepM_forall.
+      iIntros (ℓ ? [? inAt]%restrict_lookup_Some).
+      assert (is_Some (lif !! ℓ)) as (li & lifLook).
+      { apply elem_of_dom. rewrite domEq. apply elem_of_dom. done. }
+      iExists li. iSplitPure; first done.
+      rewrite /persist_lb. simpl.
+      rewrite !monPred_at_embed.
+      iSplit. { iApply location_sets_lookup; done. }
+      iExists 0, 0.
       iDestruct (persisted_persisted_loc with "pers") as "$".
       { rewrite /PV. rewrite lookup_fmap. rewrite H. done. }
       simpl.
@@ -1202,237 +1262,518 @@ Proof.
       rewrite /know_bumper.
       iDestruct (big_sepM_lookup with "bumpersFrag") as "$".
       { rewrite /mk_bumpers. rewrite lookup_fmap lifLook. done. }
-      iDestruct (big_sepM_lookup with "offsetsPts") as "$".
-      { rewrite /mk_offsets. rewrite lookup_fmap lifLook. done. }
       rewrite -!assoc.
       iSplitPure. { apply bumper_mono. }
+      iDestruct (big_sepM_lookup with "offsetsPts") as "$".
+      { rewrite /mk_offsets. rewrite lookup_fmap lifLook. done. }
       iSplit.
       { iExists (encode _).
         iSplitPure. { setoid_rewrite decode_encode. done. }
         iDestruct (big_sepM_lookup _ _ ℓ with "histFrag") as "hf".
-        { rewrite /mk_abs_hist. rewrite lookup_fmap lifLook. done. }
+        { rewrite /absHist /mk_abs_hist. rewrite lookup_fmap lifLook. done. }
         rewrite big_sepM_singleton.
         iFrame "hf". }
       rewrite view_lookup_zero_empty.
       done. }
-    iExists 0, 0, 0, _, _, _, _.
-    rewrite !monPred_at_embed.
+    { simpl. rewrite monPred_at_embed. iFrame "Hpre". }
+    iModIntro.
+    iExists _.
     iSplitPure; first done.
-    iSplit.
-    { rewrite /know_pred.
-      iDestruct (predicates_frag_lookup _ _ ℓ with "[$predsFrag]") as "$".
-      { rewrite /preds /mk_preds. rewrite lookup_fmap. rewrite lifLook. done. }
-      iDestruct (big_sepM_lookup with "fragOrders") as "$".
-      { rewrite /mk_order. rewrite lookup_fmap. rewrite lifLook. done. }
-      rewrite /know_bumper.
-      iDestruct (big_sepM_lookup with "bumpersFrag") as "$".
-      { rewrite /mk_bumpers. rewrite lookup_fmap lifLook. done. }
-      iPureIntro. apply bumper_mono. }
-    iSplitPure. { apply increasing_map_singleton. }
-    iSplit. { iApply location_sets_lookup; done. }
-    iSplitPure. { apply lookup_singleton. }
-    iSplitPure. { apply map_no_later_singleton. }
-    iSplitL "E".
-    { rewrite /know_full_history_loc /full_entry_unenc /=.
-      rewrite map_fmap_singleton. iFrame "E". }
-    iSplit.
-    { iExists (encode _).
-      iSplitPure. { setoid_rewrite decode_encode. done. }
-      iDestruct (big_sepM_lookup _ _ ℓ with "histFrag") as "hf".
-      { rewrite /mk_abs_hist. rewrite lookup_fmap lifLook. done. }
-      rewrite big_sepM_singleton. iFrame "hf". }
-    iDestruct (big_sepM_lookup with "offsetsPts") as "$".
-    { rewrite /mk_offsets. rewrite lookup_fmap lifLook. done. }
-    iFrameF "naView".
+    iSplitPure. { simpl. reflexivity. }
+    iSplitPure. { rewrite /step_count_next. simpl. reflexivity. }
+    iSplitPure. { done. }
     iSplitPure; first done.
-    iDestruct (auth_map_map_frag_lookup_singleton with "physHistF") as "$".
-    { rewrite /σ. rewrite lookup_fmap. rewrite H. simpl. done. }
-    { rewrite lookup_singleton. done. }
-    simpl.
-    iSplitPure. { done. }
-    iSplitPure. { done. }
-    iSplitPure. { done. }
-    iRight. done. }
-  { (* Atomic locations. *)
-    rewrite monPred_at_big_sepM.
-    iApply big_sepM_forall.
-    iIntros (ℓ ? [? inAt]%restrict_lookup_Some).
-    assert (is_Some (lif !! ℓ)) as (li & lifLook).
-    { apply elem_of_dom. rewrite domEq. apply elem_of_dom. done. }
-    iExists li. iSplitPure; first done.
-    rewrite /persist_lb. simpl.
-    rewrite !monPred_at_embed.
-    iSplit. { iApply location_sets_lookup; done. }
-    iExists 0, 0.
-    iDestruct (persisted_persisted_loc with "pers") as "$".
-    { rewrite /PV. rewrite lookup_fmap. rewrite H. done. }
-    simpl.
-    rewrite /know_protocol.
-    rewrite /know_pred.
-    iDestruct (predicates_frag_lookup with "[$predsFrag]") as "$".
-    { rewrite /preds /mk_preds. rewrite lookup_fmap. rewrite lifLook. done. }
-    iDestruct (big_sepM_lookup with "fragOrders") as "$".
-    { rewrite /mk_order. rewrite lookup_fmap. rewrite lifLook. done. }
-    rewrite /know_bumper.
-    iDestruct (big_sepM_lookup with "bumpersFrag") as "$".
-    { rewrite /mk_bumpers. rewrite lookup_fmap lifLook. done. }
-    rewrite -!assoc.
-    iSplitPure. { apply bumper_mono. }
-    iDestruct (big_sepM_lookup with "offsetsPts") as "$".
-    { rewrite /mk_offsets. rewrite lookup_fmap lifLook. done. }
-    iSplit.
-    { iExists (encode _).
-      iSplitPure. { setoid_rewrite decode_encode. done. }
-      iDestruct (big_sepM_lookup _ _ ℓ with "histFrag") as "hf".
-      { rewrite /absHist /mk_abs_hist. rewrite lookup_fmap lifLook. done. }
-      rewrite big_sepM_singleton.
-      iFrame "hf". }
-    rewrite view_lookup_zero_empty.
-    done. }
-  { simpl. rewrite monPred_at_embed. iFrame "Hpre". }
-  iModIntro.
-  iExists _.
-  iSplitPure; first done.
-  iSplitPure. { simpl. reflexivity. }
-  iSplitPure. { rewrite /step_count_next. simpl. reflexivity. }
-  iSplitPure. { done. }
-  iSplitPure; first done.
-  iDestruct (wptp_recv_strong_adequacy _ _ [] _ (NvmDeltaG names hD)
-    with "[predsHold bumpers ctx Ha hists' atLocs naLocs physHist offsets
-          crashedIn atHistPts preds orders na_views] [credAuth Htok]") as "HIP".
-  { done. }
-  { (* Show the state interpretaion. *)
-    simpl.
-    iFrame "ctx".
-    iExists _, _, preds, _, _, _, na_locs, at_locs. iExists (mk_offsets lif), _.
-    iFrame "physHist".
-    iFrame "offsets".
-    iSplitL "Ha".
-    {
-      assert (map_zip_with view_slice.drop_prefix σ (mk_offsets lif) = σ).
-      { rewrite /mk_offsets.
-        apply map_eq. intros ℓ.
-        rewrite map_lookup_zip_with.
-        destruct (σ !! ℓ) eqn:look; simpl; last done.
-        rewrite lookup_fmap.
-        assert (is_Some (lif !! ℓ)) as [? ->].
-        { apply elem_of_dom. rewrite domEq.
-          apply lookup_fmap_Some in look as (? & ? & ?).
-          apply elem_of_dom. done. }
-        simpl.
-        rewrite drop_prefix_zero. done. }
-      rewrite H.
-      iFrame "Ha". }
-    iFrame.
-    (* oldViewsDiscarded *)
-    iSplit.
-    { iApply big_sepM2_forall.
-      iSplitPure. { apply dom_eq_alt_L. apply domEq3. }
-      rewrite /mk_offsets.
-      iIntros (???? (? & <- & ?)%lookup_fmap_Some ?? lt). simpl in lt. lia. }
-    iFrameF "crashedAt".
-    iFrameF "histFrag".
-    iSplitPure; first done.
-    iSplitPure. { rewrite -domEq2. done. }
-    iSplitPure.
-    { rewrite /mk_na_views. rewrite dom_fmap_L.
-      eapply restrict_dom_subset_L.
-      rewrite domEq. set_solver. }
-    iSplitPure. { rewrite /σ. apply shared_locs_inv_initial_heap. done. }
-    iSplit.
-    { iApply big_sepM2_forall.
-      iPureIntro. split.
-      { rewrite dom_eq_alt_L. set_solver. }
-      intros ??? (? & <- & ?)%lookup_fmap_Some ?.
-      apply increasing_map_singleton. }
-    iSplitL "predsHold".
-    { rewrite monPred_at_big_sepM2.
-      iApply (big_sepM2_impl_dom_subseteq with "predsHold []").
-      { rewrite /σ. rewrite /initial_heap. rewrite dom_fmap_L. done. }
-      { rewrite /σ /mk_abs_hist. rewrite /initial_heap. rewrite !dom_fmap_L.
-        done. }
-      iModIntro.
-      iIntros (ℓ v li hist ??? (hip & <- & ?)%lookup_fmap_Some
-                 (li' & <- & ?)%lookup_fmap_Some) "pred".
-      simplify_eq.
-      iExists _.
+    iDestruct (wptp_recv_strong_adequacy _ _ [] _ (NvmDeltaG names hD)
+      with "[predsHold bumpers ctx Ha hists' atLocs naLocs physHist offsets
+            crashedIn atHistPts preds orders na_views] [credAuth Htok]") as "HIP".
+    { done. }
+    { (* Show the state interpretaion. *)
+      simpl.
+      iFrame "ctx".
+      iExists _, _, preds, _, _, _, na_locs, at_locs. iExists (mk_offsets lif), _.
+      iFrame "physHist".
+      iFrame "offsets".
+      iSplitL "Ha".
+      {
+        assert (map_zip_with view_slice.drop_prefix σ (mk_offsets lif) = σ).
+        { rewrite /mk_offsets.
+          apply map_eq. intros ℓ.
+          rewrite map_lookup_zip_with.
+          destruct (σ !! ℓ) eqn:look; simpl; last done.
+          rewrite lookup_fmap.
+          assert (is_Some (lif !! ℓ)) as [? ->].
+          { apply elem_of_dom. rewrite domEq.
+            apply lookup_fmap_Some in look as (? & ? & ?).
+            apply elem_of_dom. done. }
+          simpl.
+          rewrite drop_prefix_zero. done. }
+        rewrite H.
+        iFrame "Ha". }
+      iFrame.
+      (* oldViewsDiscarded *)
+      iSplit.
+      { iApply big_sepM2_forall.
+        iSplitPure. { apply dom_eq_alt_L. apply domEq3. }
+        rewrite /mk_offsets.
+        iIntros (???? (? & <- & ?)%lookup_fmap_Some ?? lt). simpl in lt. lia. }
+      iFrameF "crashedAt".
+      iFrameF "histFrag".
+      iSplitPure; first done.
+      iSplitPure. { rewrite -domEq2. done. }
       iSplitPure.
-      { rewrite /preds. rewrite /mk_preds. rewrite lookup_fmap.
-        rewrite H0. simpl. done. }
-      iApply big_sepM2_singleton. simpl.
-      iApply predicate_holds_phi.
-      { done. }
-      { done. }
-      rewrite mk_na_views_default_lookup.
-      iApply "pred". }
-    (* bumpMono *)
-    iSplit.
-    { iApply big_sepM2_forall. iPureIntro. simpl. split.
+      { rewrite /mk_na_views. rewrite dom_fmap_L.
+        eapply restrict_dom_subset_L.
+        rewrite domEq. set_solver. }
+      iSplitPure. { rewrite /σ. apply shared_locs_inv_initial_heap. done. }
+      iSplit.
+      { iApply big_sepM2_forall.
+        iPureIntro. split.
+        { rewrite dom_eq_alt_L. set_solver. }
+        intros ??? (? & <- & ?)%lookup_fmap_Some ?.
+        apply increasing_map_singleton. }
+      iSplitL "predsHold".
+      { rewrite monPred_at_big_sepM2.
+        iApply (big_sepM2_impl_dom_subseteq with "predsHold []").
+        { rewrite /σ. rewrite /initial_heap. rewrite dom_fmap_L. done. }
+        { rewrite /σ /mk_abs_hist. rewrite /initial_heap. rewrite !dom_fmap_L.
+          done. }
+        iModIntro.
+        iIntros (ℓ v li hist ??? (hip & <- & ?)%lookup_fmap_Some
+                  (li' & <- & ?)%lookup_fmap_Some) "pred".
+        simplify_eq.
+        iExists _.
+        iSplitPure.
+        { rewrite /preds. rewrite /mk_preds. rewrite lookup_fmap.
+          rewrite H0. simpl. done. }
+        iApply big_sepM2_singleton. simpl.
+        iApply predicate_holds_phi.
+        { done. }
+        { done. }
+        rewrite mk_na_views_default_lookup.
+        iApply "pred". }
+      (* bumpMono *)
+      iSplit.
+      { iApply big_sepM2_forall. iPureIntro. simpl. split.
+        { apply dom_eq_alt_L. rewrite /mk_order /mk_bumpers.
+          rewrite 2!dom_fmap_L. done. }
+        intros ???.
+        intros (li & ? & ?)%lookup_fmap_Some.
+        intros (? & ? & ?)%lookup_fmap_Some.
+        simplify_eq.
+        apply: encode_bumper_bump_mono. }
+      (* predPostCrash *)
+      iSplit.
+      { iApply big_sepM2_forall. iSplitPure.
+        { apply dom_eq_alt_L. rewrite /mk_order /mk_bumpers.
+          rewrite 2!dom_fmap_L. done. }
+        iIntros (ℓ ?? (li &?&?)%lookup_fmap_Some (? & ? & ?)%lookup_fmap_Some) "!>".
+        simplify_eq.
+
+        iIntros (??????) "(%eq & eq2 & P)".
+        iEval (rewrite /encode_predicate).
+        apply encode_bumper_Some_decode in eq.
+        destruct eq as (s & eq' & eq2').
+        rewrite -eq2'.
+        rewrite decode_encode.
+        iExists _.
+        iSplitPure.
+        { simpl. reflexivity. }
+        iDestruct (encode_predicate_extract with "eq2 P") as "pred".
+        { done. }
+        iApply (pred_condition with "pred"). }
+      iSplitPure.
+      { intros ?? (li & ? & ?)%lookup_fmap_Some.
+        simplify_eq.
+        apply encode_bumper_bump_to_valid. }
+
+      iApply big_sepM2_forall. iPureIntro. simpl. split.
       { apply dom_eq_alt_L. rewrite /mk_order /mk_bumpers.
         rewrite 2!dom_fmap_L. done. }
       intros ???.
       intros (li & ? & ?)%lookup_fmap_Some.
       intros (? & ? & ?)%lookup_fmap_Some.
       simplify_eq.
-      apply: encode_bumper_bump_mono. }
-    (* predPostCrash *)
-    iSplit.
-    { iApply big_sepM2_forall. iSplitPure.
+      apply map_Forall_singleton.
+      rewrite encode_bumper_encode. done. }
+    { iFrame "Hinv". iFrame. done. }
+
+    iClear "physHistF".
+    iSpecialize ("HIP" with "valid Hwpr [//] NC").
+
+    iApply (step_fupdN_fresh_wand with "HIP").
+    { rewrite /nsinit. rewrite /crash_borrow_ginv_number. done. }
+    iModIntro. iIntros (hD').
+    iIntros "H [Hlc1 Hlc2]".
+    iMod ("H" with "[Hlc1]") as "H".
+    { done. }
+    iApply (step_fupd2N_wand with "H"); auto.
+    iModIntro. iIntros "H".
+    iMod "H" as (v2 TV2 ts2 ->) "(interp & global & HIP & nc)".
+    destruct stat.
+    * iDestruct "valid" as "#Hv".
+      iApply (@fupd2_mask_intro); [done..|].
+      iIntros "_".
+      iApply @step_fupd2N_later.
+      repeat iNext.
+      iIntros (v2' ? Heq). subst. inversion Heq; subst.
+      rewrite to_of_val. naive_solver.
+    * iDestruct "HIP" as "[-> #Hv]".
+      iApply (@fupd2_mask_intro); [done..|].
+      iIntros "_".
+      iApply @step_fupd2N_later.
+      repeat iNext.
+      iIntros (v2' ? Heq). subst. inversion Heq; subst.
+      rewrite to_of_val. naive_solver.
+  -
+    intros e2 -> He2.
+    destruct (nrsteps_snoc _ _ _ _ _ _ nstep) as (ns' & n' & ->).
+
+    eapply (step_fupdN_fresh_soundness _ ns' nsinit
+                (crash_adequacy.steps_sum f1 f2 (Nat.iter (sum_crash_steps ns') f2 nsinit) n')
+                (f1 (Nat.iter (n' + sum_crash_steps ns') f2 nsinit) + 1)).
+    iIntros (inv).
+
+    set (σ := initial_heap init_heap).
+    set (PV := (const (MaxNat 0) <$> init_heap)).
+
+    (***** Begin allocate ghost state. *)
+    iMod NC_alloc_strong as (γcrash) "NC".
+    iMod (credit_name_init (n * 4 + crash_borrow_ginv_number)) as
+        (name_credit) "(credAuth & Hcred & Htok)".
+    iDestruct (cred_frag_split with "Hcred") as "(Hpre & Hcred)".
+    iAssert (|={⊤}=> crash_borrow_ginv)%I with "[Hcred]" as ">#Hinv".
+    { rewrite /crash_borrow_ginv. iApply (inv_alloc _). iNext. eauto. }
+    iMod (allocate_state_interp inv _ γcrash σ PV name_credit)
+      as (names) "(%crEq & ctx & Ha & #valid & #crashedAt & #pers)".
+    { apply valid_heap_initial_heap. }
+    rewrite <- crEq in *.
+    set (fixed := NvmFixedG _ (nvm_build_base _ _ inv _ name_credit) nvmPreG_high).
+    iExists (fixed).
+
+    (* We can now get all the protocols. *)
+    specialize (Hwp fixed) as (lif & domEq & Hwp).
+
+    (* Allocate abstract history. *)
+    set (absHist := mk_abs_hist lif).
+    iMod (full_map_alloc absHist)
+      as (abs_history_name) "(hists' & histPts & #histFrag)".
+
+    (* Allocate predicates. *)
+    set (preds := mk_preds lif).
+    iMod (know_predicates_alloc preds) as (predicates_name) "[preds #predsFrag]".
+    (* Allocate preorders. *)
+    iMod (own_all_preorders_gname_alloc (mk_order lif)) as (orders_name) "[orders #fragOrders]".
+    (* Allocate set of atomic locations. *)
+    iMod (own_alloc (● (at_locs : gsetUR _) ⋅ (◯ at_locs)))
+      as (shared_locs_name) "[atLocs #atLocsF]".
+    { apply auth_both_valid. done. }
+    (* Allocate set of non-atomic locations. *)
+    iMod (own_alloc (● (na_locs : gsetUR _) ⋅ (◯ na_locs)))
+      as (exclusive_locs_name) "[naLocs #naLocsF]".
+    { apply auth_both_valid. done. }
+    iMod (ghost_map_alloc (mk_na_views na_locs lif)) as (na_views_name) "(na_views & naViewsF)".
+    iMod (ghost_map_alloc_persistent (mk_offsets lif)) as (offsets_name) "(offsets & #offsetsPts)".
+    iMod (ghost_map_alloc (∅ : gmap loc positive)) as (crashed_in_name) "(crashedIn & _)".
+    iMod (own_all_bumpers_alloc (mk_bumpers lif)) as (bumpers_name) "[bumpers #bumpersFrag]".
+    iMod (auth_map_map_alloc σ) as (phys_hist_name) "[physHist #physHistF]".
+    set (hD := {|
+                abs_history_name := abs_history_name;
+                phys_history_name := phys_hist_name;
+                non_atomic_views_gname := na_views_name;
+                crashed_in_name := crashed_in_name;
+                predicates_name := predicates_name;
+                preorders_name := orders_name;
+                offset_name := offsets_name;
+                shared_locs_name := shared_locs_name;
+                exclusive_locs_name := exclusive_locs_name;
+                bumpers_name := bumpers_name;
+              |}).
+    iExists (NvmDeltaG names hD).
+
+    assert (dom init_heap = dom absHist) as domEq2.
+    { rewrite /absHist. rewrite /mk_abs_hist. rewrite dom_fmap_L. done. }
+    assert (dom σ = dom (mk_offsets lif)) as domEq3.
+    { rewrite /mk_offsets. rewrite dom_fmap_L. rewrite domEq.
+      rewrite /σ /initial_heap. apply dom_fmap_L. }
+    (* End allocate ghost state. *)
+    eassert (absHist = _ ∪ _) as split.
+    { eapply restrict_disjoint_union. rewrite -domEq2. symmetry. apply locsEq. }
+    iEval (rewrite split) in "histPts".
+    rewrite big_sepM_union. 2: { apply restrict_disjoint. done. }
+    iDestruct ("histPts") as "[naHistPts atHistPts]".
+
+    set (gnames := (NvmDeltaG names hD)).
+    (* iDestruct (Hwp (NvmDeltaG names hD)) as "-#Hwp". *)
+    iDestruct (@cred_frag_to_pre_borrowN _ _ _ _ n with "[Hpre]") as "Hpre".
+    { rewrite /fixed. iFrame "Hpre". }
+    iDestruct (Hwp $! ((∅, ∅, ∅), gnames)) as "-#Hwp".
+    iDestruct ("Hwp" with "[naHistPts naViewsF] [] [Hpre]") as "[predsHold Hwpr]".
+    { (* Non-atomic locations. *)
+      rewrite monPred_at_big_sepM.
+      iDestruct (big_sepM_sep_zip with "[$naHistPts $naViewsF]") as "na".
+      { apply dom_eq_alt_L.
+        rewrite /mk_abs_hist /mk_na_views.
+        rewrite restrict_dom_L.
+        rewrite 2!dom_fmap_L.
+        rewrite restrict_dom_L.
+        done. }
+      iDestruct (big_sepM_impl_dom_subseteq with "na []") as "[$ H]".
+      { rewrite /mk_abs_hist /mk_na_views.
+        rewrite dom_map_zip_with.
+        rewrite !restrict_dom.
+        rewrite !dom_fmap_L.
+        rewrite !restrict_dom.
+        rewrite domEq.
+        set_solver+. }
+      iModIntro.
+      iIntros (ℓ [??] v [l1 l2]%map_lookup_zip_Some).
+      apply restrict_lookup_Some in l1 as [look inNa].
+      apply lookup_fmap_Some in look as (li & <- & lifLook).
+      rewrite /mk_na_views in l2.
+      apply lookup_fmap_Some in l2 as (li' & <- & [??]%restrict_lookup_Some).
+      simplify_eq.
+      iIntros ([? _]%restrict_lookup_Some) "[E naView]".
+      iExists li.
+      simpl.
+      iSplitPure; first done. rewrite /persist_lb. rewrite /mapsto_na.
+      iSplit.
+      { iExists 0, 0.
+        rewrite !monPred_at_embed.
+        iDestruct (persisted_persisted_loc with "pers") as "$".
+        { rewrite /PV. rewrite lookup_fmap. rewrite H. done. }
+        simpl.
+        rewrite /know_protocol.
+        rewrite /know_pred.
+        iDestruct (predicates_frag_lookup with "[$predsFrag]") as "$".
+        { rewrite /preds /mk_preds. rewrite lookup_fmap. rewrite lifLook. done. }
+        iDestruct (big_sepM_lookup with "fragOrders") as "$".
+        { rewrite /mk_order. rewrite lookup_fmap. rewrite lifLook. done. }
+        rewrite /know_bumper.
+        iDestruct (big_sepM_lookup with "bumpersFrag") as "$".
+        { rewrite /mk_bumpers. rewrite lookup_fmap lifLook. done. }
+        iDestruct (big_sepM_lookup with "offsetsPts") as "$".
+        { rewrite /mk_offsets. rewrite lookup_fmap lifLook. done. }
+        rewrite -!assoc.
+        iSplitPure. { apply bumper_mono. }
+        iSplit.
+        { iExists (encode _).
+          iSplitPure. { setoid_rewrite decode_encode. done. }
+          iDestruct (big_sepM_lookup _ _ ℓ with "histFrag") as "hf".
+          { rewrite /mk_abs_hist. rewrite lookup_fmap lifLook. done. }
+          rewrite big_sepM_singleton.
+          iFrame "hf". }
+        rewrite view_lookup_zero_empty.
+        done. }
+      iExists 0, 0, 0, _, _, _, _.
+      rewrite !monPred_at_embed.
+      iSplitPure; first done.
+      iSplit.
+      { rewrite /know_pred.
+        iDestruct (predicates_frag_lookup _ _ ℓ with "[$predsFrag]") as "$".
+        { rewrite /preds /mk_preds. rewrite lookup_fmap. rewrite lifLook. done. }
+        iDestruct (big_sepM_lookup with "fragOrders") as "$".
+        { rewrite /mk_order. rewrite lookup_fmap. rewrite lifLook. done. }
+        rewrite /know_bumper.
+        iDestruct (big_sepM_lookup with "bumpersFrag") as "$".
+        { rewrite /mk_bumpers. rewrite lookup_fmap lifLook. done. }
+        iPureIntro. apply bumper_mono. }
+      iSplitPure. { apply increasing_map_singleton. }
+      iSplit. { iApply location_sets_lookup; done. }
+      iSplitPure. { apply lookup_singleton. }
+      iSplitPure. { apply map_no_later_singleton. }
+      iSplitL "E".
+      { rewrite /know_full_history_loc /full_entry_unenc /=.
+        rewrite map_fmap_singleton. iFrame "E". }
+      iSplit.
+      { iExists (encode _).
+        iSplitPure. { setoid_rewrite decode_encode. done. }
+        iDestruct (big_sepM_lookup _ _ ℓ with "histFrag") as "hf".
+        { rewrite /mk_abs_hist. rewrite lookup_fmap lifLook. done. }
+        rewrite big_sepM_singleton. iFrame "hf". }
+      iDestruct (big_sepM_lookup with "offsetsPts") as "$".
+      { rewrite /mk_offsets. rewrite lookup_fmap lifLook. done. }
+      iFrameF "naView".
+      iSplitPure; first done.
+      iDestruct (auth_map_map_frag_lookup_singleton with "physHistF") as "$".
+      { rewrite /σ. rewrite lookup_fmap. rewrite H. simpl. done. }
+      { rewrite lookup_singleton. done. }
+      simpl.
+      iSplitPure. { done. }
+      iSplitPure. { done. }
+      iSplitPure. { done. }
+      iRight. done. }
+    { (* Atomic locations. *)
+      rewrite monPred_at_big_sepM.
+      iApply big_sepM_forall.
+      iIntros (ℓ ? [? inAt]%restrict_lookup_Some).
+      assert (is_Some (lif !! ℓ)) as (li & lifLook).
+      { apply elem_of_dom. rewrite domEq. apply elem_of_dom. done. }
+      iExists li. iSplitPure; first done.
+      rewrite /persist_lb. simpl.
+      rewrite !monPred_at_embed.
+      iSplit. { iApply location_sets_lookup; done. }
+      iExists 0, 0.
+      iDestruct (persisted_persisted_loc with "pers") as "$".
+      { rewrite /PV. rewrite lookup_fmap. rewrite H. done. }
+      simpl.
+      rewrite /know_protocol.
+      rewrite /know_pred.
+      iDestruct (predicates_frag_lookup with "[$predsFrag]") as "$".
+      { rewrite /preds /mk_preds. rewrite lookup_fmap. rewrite lifLook. done. }
+      iDestruct (big_sepM_lookup with "fragOrders") as "$".
+      { rewrite /mk_order. rewrite lookup_fmap. rewrite lifLook. done. }
+      rewrite /know_bumper.
+      iDestruct (big_sepM_lookup with "bumpersFrag") as "$".
+      { rewrite /mk_bumpers. rewrite lookup_fmap lifLook. done. }
+      rewrite -!assoc.
+      iSplitPure. { apply bumper_mono. }
+      iDestruct (big_sepM_lookup with "offsetsPts") as "$".
+      { rewrite /mk_offsets. rewrite lookup_fmap lifLook. done. }
+      iSplit.
+      { iExists (encode _).
+        iSplitPure. { setoid_rewrite decode_encode. done. }
+        iDestruct (big_sepM_lookup _ _ ℓ with "histFrag") as "hf".
+        { rewrite /absHist /mk_abs_hist. rewrite lookup_fmap lifLook. done. }
+        rewrite big_sepM_singleton.
+        iFrame "hf". }
+      rewrite view_lookup_zero_empty.
+      done. }
+    { simpl. rewrite monPred_at_embed. iFrame "Hpre". }
+
+    iModIntro.
+    iExists _.
+    iSplitPure; first done.
+    iSplitPure. { simpl. reflexivity. }
+    iSplitPure. { rewrite /step_count_next. simpl. reflexivity. }
+    iSplitPure. { done. }
+    iSplitPure; first done.
+
+    iDestruct (wptp_recv_progress (NvmDeltaG names hD)
+      with "[predsHold bumpers ctx Ha hists' atLocs naLocs physHist offsets
+            crashedIn atHistPts preds orders na_views] [credAuth Htok]") as "HIP".
+    { done. }
+    { eauto. }
+    { (* Show the state interpretaion. *)
+      simpl.
+      iFrame "ctx".
+      iExists _, _, preds, _, _, _, na_locs, at_locs. iExists (mk_offsets lif), _.
+      iFrame "physHist".
+      iFrame "offsets".
+      iSplitL "Ha".
+      {
+        assert (map_zip_with view_slice.drop_prefix σ (mk_offsets lif) = σ).
+        { rewrite /mk_offsets.
+          apply map_eq. intros ℓ.
+          rewrite map_lookup_zip_with.
+          destruct (σ !! ℓ) eqn:look; simpl; last done.
+          rewrite lookup_fmap.
+          assert (is_Some (lif !! ℓ)) as [? ->].
+          { apply elem_of_dom. rewrite domEq.
+            apply lookup_fmap_Some in look as (? & ? & ?).
+            apply elem_of_dom. done. }
+          simpl.
+          rewrite drop_prefix_zero. done. }
+        rewrite H.
+        iFrame "Ha". }
+      iFrame.
+      (* oldViewsDiscarded *)
+      iSplit.
+      { iApply big_sepM2_forall.
+        iSplitPure. { apply dom_eq_alt_L. apply domEq3. }
+        rewrite /mk_offsets.
+        iIntros (???? (? & <- & ?)%lookup_fmap_Some ?? lt). simpl in lt. lia. }
+      iFrameF "crashedAt".
+      iFrameF "histFrag".
+      iSplitPure; first done.
+      iSplitPure. { rewrite -domEq2. done. }
+      iSplitPure.
+      { rewrite /mk_na_views. rewrite dom_fmap_L.
+        eapply restrict_dom_subset_L.
+        rewrite domEq. set_solver. }
+      iSplitPure. { rewrite /σ. apply shared_locs_inv_initial_heap. done. }
+      iSplit.
+      { iApply big_sepM2_forall.
+        iPureIntro. split.
+        { rewrite dom_eq_alt_L. set_solver. }
+        intros ??? (? & <- & ?)%lookup_fmap_Some ?.
+        apply increasing_map_singleton. }
+      iSplitL "predsHold".
+      { rewrite monPred_at_big_sepM2.
+        iApply (big_sepM2_impl_dom_subseteq with "predsHold []").
+        { rewrite /σ. rewrite /initial_heap. rewrite dom_fmap_L. done. }
+        { rewrite /σ /mk_abs_hist. rewrite /initial_heap. rewrite !dom_fmap_L.
+          done. }
+        iModIntro.
+        iIntros (ℓ v li hist ??? (hip & <- & ?)%lookup_fmap_Some
+                  (li' & <- & ?)%lookup_fmap_Some) "pred".
+        simplify_eq.
+        iExists _.
+        iSplitPure.
+        { rewrite /preds. rewrite /mk_preds. rewrite lookup_fmap.
+          rewrite H0. simpl. done. }
+        iApply big_sepM2_singleton. simpl.
+        iApply predicate_holds_phi.
+        { done. }
+        { done. }
+        rewrite mk_na_views_default_lookup.
+        iApply "pred". }
+      (* bumpMono *)
+      iSplit.
+      { iApply big_sepM2_forall. iPureIntro. simpl. split.
+        { apply dom_eq_alt_L. rewrite /mk_order /mk_bumpers.
+          rewrite 2!dom_fmap_L. done. }
+        intros ???.
+        intros (li & ? & ?)%lookup_fmap_Some.
+        intros (? & ? & ?)%lookup_fmap_Some.
+        simplify_eq.
+        apply: encode_bumper_bump_mono. }
+      (* predPostCrash *)
+      iSplit.
+      { iApply big_sepM2_forall. iSplitPure.
+        { apply dom_eq_alt_L. rewrite /mk_order /mk_bumpers.
+          rewrite 2!dom_fmap_L. done. }
+        iIntros (ℓ ?? (li &?&?)%lookup_fmap_Some (? & ? & ?)%lookup_fmap_Some) "!>".
+        simplify_eq.
+
+        iIntros (??????) "(%eq & eq2 & P)".
+        iEval (rewrite /encode_predicate).
+        apply encode_bumper_Some_decode in eq.
+        destruct eq as (s & eq' & eq2').
+        rewrite -eq2'.
+        rewrite decode_encode.
+        iExists _.
+        iSplitPure.
+        { simpl. reflexivity. }
+        iDestruct (encode_predicate_extract with "eq2 P") as "pred".
+        { done. }
+        iApply (pred_condition with "pred"). }
+      iSplitPure.
+      { intros ?? (li & ? & ?)%lookup_fmap_Some.
+        simplify_eq.
+        apply encode_bumper_bump_to_valid. }
+
+      iApply big_sepM2_forall. iPureIntro. simpl. split.
       { apply dom_eq_alt_L. rewrite /mk_order /mk_bumpers.
         rewrite 2!dom_fmap_L. done. }
-      iIntros (ℓ ?? (li &?&?)%lookup_fmap_Some (? & ? & ?)%lookup_fmap_Some) "!>".
+      intros ???.
+      intros (li & ? & ?)%lookup_fmap_Some.
+      intros (? & ? & ?)%lookup_fmap_Some.
       simplify_eq.
+      apply map_Forall_singleton.
+      rewrite encode_bumper_encode. done. }
+    { iFrame "Hinv". iFrame. done. }
 
-      iIntros (??????) "(%eq & eq2 & P)".
-      iEval (rewrite /encode_predicate).
-      apply encode_bumper_Some_decode in eq.
-      destruct eq as (s & eq' & eq2').
-      rewrite -eq2'.
-      rewrite decode_encode.
-      iExists _.
-      iSplitPure.
-      { simpl. reflexivity. }
-      iDestruct (encode_predicate_extract with "eq2 P") as "pred".
-      { done. }
-      iApply (pred_condition with "pred"). }
-    iSplitPure.
-    { intros ?? (li & ? & ?)%lookup_fmap_Some.
-      simplify_eq.
-      apply encode_bumper_bump_to_valid. }
+    iSpecialize ("HIP" with "valid Hwpr [//] NC").
 
-    iApply big_sepM2_forall. iPureIntro. simpl. split.
-    { apply dom_eq_alt_L. rewrite /mk_order /mk_bumpers.
-      rewrite 2!dom_fmap_L. done. }
-    intros ???.
-    intros (li & ? & ?)%lookup_fmap_Some.
-    intros (? & ? & ?)%lookup_fmap_Some.
-    simplify_eq.
-    apply map_Forall_singleton.
-    rewrite encode_bumper_encode. done. }
-  { iFrame "Hinv". iFrame. done. }
+    iModIntro.
+    iApply (step_fupdN_fresh_wand with "HIP").
+    { auto. }
+    iIntros (hD').
+    iIntros "H Hlc".
+    rewrite /nsinit.
 
-  iSpecialize ("HIP" with "valid Hwpr [//] NC").
-
-  iApply (step_fupdN_fresh_wand with "HIP").
-  { rewrite /nsinit. rewrite /crash_borrow_ginv_number. done. }
-  iModIntro. iIntros (hD').
-  iIntros "H Hlc".
-  iMod ("H" with "[Hlc]").
-  { admit. }
-  simpl.
-Admitted.
-(*   iApply (step_fupd2N_wand with "H"); auto. *)
-(*   iModIntro. iIntros "H". *)
-(*   iMod "H" as (v2 TV2 ts2 ->) "(stuck & interp & global & HIP & nc)". *)
-(*   destruct stat. *)
-(*   - iDestruct "HIP" as "#HIP". *)
-(*     iModIntro. *)
-(*     do 3 iNext. *)
-(*     iSplit; last naive_solver. *)
-(*     by iIntros (? ? [= ->]). *)
-(*   - iDestruct "HIP" as "[%eq'' #HIP]". *)
-(*     iModIntro. *)
-(*     do 3 iNext. *)
-(*     iSplit; last naive_solver. *)
-(*     by iIntros (? ? [= ->]). *)
-(* Qed. *)
+    iApply "H". iExactEq "Hlc". f_equiv.
+    done.
+    rewrite assoc. done.
+    Unshelve. apply [].
+Qed.
