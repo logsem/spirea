@@ -38,13 +38,14 @@ Section view_objective_instances.
   Implicit Types (P : dProp Σ).
   Implicit Types (Pi : iProp Σ).
 
-  Lemma monPred_objectively_unfold :
-    monPred_view_objectively = λ P, lift_d (λ nD, ∀ TV, P (TV, nD))%I.
-  Proof.
-    rewrite monPred_view_objectively_eq.
-    rewrite /monPred_view_objectively_def.
-    simpl.
-  Admitted.
+  (* Lemma monPred_view_objectively_unfold : *)
+  (*   monPred_view_objectively = λ P, lift_d (λ nD, ∀ TV, P (TV, nD))%I. *)
+  (* Proof. *)
+  (*   rewrite monPred_view_objectively_eq. *)
+  (*   rewrite /monPred_view_objectively_def. *)
+  (*   simpl. *)
+  (*   done. *)
+  (* Qed. *)
 
   Lemma view_objective_objective P : Objective P → ViewObjective P.
   Proof.

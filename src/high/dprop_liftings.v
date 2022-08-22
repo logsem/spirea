@@ -168,6 +168,15 @@ Section post_crash_interact.
     iApply full_entry_unenc_agree.
   Qed.
 
+  Lemma know_na_view_d_agree ℓ p q V V' :
+    know_na_view_d ℓ q V -∗
+    know_na_view_d ℓ p V' -∗
+    ⌜ V = V' ⌝.
+  Proof.
+    lift_d_extract.
+    iApply (ghost_map_elem_agree _ _ _ _ V).
+  Qed.
+
   Lemma offset_loc_agree ℓ t1 t2 :
     offset_loc ℓ t1 -∗
     offset_loc ℓ t2 -∗

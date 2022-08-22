@@ -174,6 +174,16 @@ Section no_buffer.
     IntoNoBuffer (monPred_in (SV, FV, PV, gn) : dProp Σ) (monPred_in (SV, FV, ∅, gn)).
   Proof. apply no_buffer_monPred_in. Qed.
 
+  Global Instance have_thread_view_buffer_free SV FV PV :
+    IntoNoBuffer (have_thread_view (SV, FV, PV) : dProp Σ) (have_thread_view (SV, FV, ∅)).
+  Proof.
+    rewrite /IntoNoBuffer. iModel.
+    destruct TV as [[??]?].
+    iIntros ([[??]?]).
+    iPureIntro.
+    repeat split; done.
+  Qed.
+
   Global Instance big_sepL_nil_no_buffer {A} (Φ : _ → A → dProp Σ) :
     BufferFree ([∗ list] k↦x ∈ [], Φ k x).
   Proof. simpl; apply _. Qed.
@@ -191,11 +201,7 @@ Section no_buffer.
 
   Global Instance buffer_free_have_FV_strong ℓ t :
     BufferFree (have_FV_strong ℓ t : dProp Σ).
-  Proof.
-    rewrite /IntoNoBuffer. iModel. destruct TV as [[??]?]. simpl.
-    iPureIntro.
-    repeat split; solve_view_le.
-  Qed.
+  Proof. apply _. Qed.
 
 End no_buffer.
 

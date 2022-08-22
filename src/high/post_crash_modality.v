@@ -255,14 +255,6 @@ Section post_crash_prop.
     iIntros "[_ $]". done.
   Qed.
 
-  (* Lemma post_crash_and P Q : *)
-  (*   post_crash P ∧ post_crash Q -∗ <PC> (P ∧ Q). *)
-  (* Proof. *)
-  (*   iModel. *)
-  (*   iIntros "HPQ". *)
-  (*   iIntrosPostCrash. *)
-  (* Admitted. *)
-
   Lemma post_crash_sep P Q :
     post_crash P ∗ post_crash Q -∗ <PC> (P ∗ Q).
   Proof.
@@ -566,15 +558,15 @@ Section post_crash_interact.
     rewrite /post_crash_resource. iFrameNamed.
     iDestruct ("post_crash_offsets_impl" with "HP") as "H".
     iNext.
-  Admitted.
-  (*   rewrite -if_rec_or_lost_with_t. *)
-  (*   iApply or_lost_with_t_at. *)
-  (*   (* iApply or_lost_with_t_at. *) *)
-  (*   iApply or_lost_post_crash_mono; last iApply "H". *)
-  (*   iIntros (t CV). *)
-  (*   iNamed 1. iIntros "O". *)
-  (*   iExists _. iFrame (cvLook) "crashed O". *)
-  (* Qed. *)
+    rewrite -if_rec_or_lost_with_t.
+    iApply or_lost_with_t_at.
+    iApply or_lost_post_crash_mono; last iApply "H".
+    iIntros (t CV).
+    iNamed 1. iIntros "O".
+    iExists _.
+    rewrite /crashed_at_d. rewrite /offset_loc. rewrite !lift_d_at.
+    iFrame (cvLook) "crashed O".
+  Qed.
 
   (*
   Lemma post_crash_know_phys_hist_msg ℓ t msg :

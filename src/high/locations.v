@@ -102,20 +102,14 @@ Section points_to_at.
     by rewrite 1!(@as_fractional _ P Q).
   Qed.
 
-  (* Global Instance fractional ℓ (abs_hist : gmap nat ST) : *)
-  (*   Fractional (λ q, know_full_history_loc_d ℓ q abs_hist). *)
-  (* Proof. *)
-  (*   apply _. *)
-  (* Qed. *)
+  Global Instance fractional ℓ (abs_hist : gmap nat ST) :
+    Fractional (λ q, know_full_history_loc_d ℓ q abs_hist).
+  Proof. apply _. Qed.
 
-(*   Global Instance fractional_2 ℓ (abs_hist : gmap nat ST) q : *)
-(*     AsFractional (know_full_history_loc_d ℓ q abs_hist) *)
-(*       (λ q, know_full_history_loc_d ℓ q abs_hist) q. *)
-(*   Proof. *)
-(*     apply _. *)
-(* Admitted. *)
-(*   (*   apply _. *) *)
-(*   (* Qed. *) *)
+  Global Instance fractional_2 ℓ (abs_hist : gmap nat ST) q :
+    AsFractional (know_full_history_loc_d ℓ q abs_hist)
+      (λ q, know_full_history_loc_d ℓ q abs_hist) q.
+  Proof. apply _. Qed.
 
   Global Instance mapsto_na_fractional ℓ prot ss :
     Fractional (λ q, mapsto_na ℓ prot q ss).
@@ -134,10 +128,16 @@ Section points_to_at.
       iNamed "L".
       iDestruct "R" as (???????) "(_ & _ & ? & _ & _ & _ & histQ & _ & _ & SV & HIP & ?)".
       iDestruct (know_full_history_loc_d_agree with "hist histQ") as %->.
-  Admitted.
-  (*     iDestruct (ghost_map_elem_agree with "knowSV SV") as %->. *)
-  (*     repeat iExists _. iFrame "#∗%". *)
-  (* Qed. *)
+      iDestruct (know_na_view_d_agree with "knowSV SV") as %->.
+      repeat iExists _.
+      iFrameF (lastEq).
+      iFrameF "locationProtocol".
+      iFrameF (incrMap).
+      iFrameF "isNaLoc".
+      iFrame "#∗%".
+      iCombine "hist histQ" as "$".
+      iCombine "knowSV SV" as "$".
+  Qed.
   Global Instance mapsto_na_as_fractional ℓ prot q v :
     AsFractional (mapsto_na ℓ prot q v) (λ q, mapsto_na ℓ prot q v)%I q.
   Proof. split; [done | apply _]. Qed.
@@ -489,7 +489,7 @@ Section points_to_at.
 
   Global Instance mapsto_na_buffer_free ℓ prot q (ss : list ST) :
     BufferFree (mapsto_na ℓ prot q ss).
-  Proof. rewrite /mapsto_na. Admitted. (* apply _. Qed. *)
+  Proof. apply _. Qed.
 
 End points_to_at.
 

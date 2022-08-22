@@ -163,15 +163,15 @@ Section if_rec.
     simpl. rewrite monPred_at_embed. iApply "H".
   Qed.
 
-  (* Lemma if_rec_or_lost_with_t ℓ P : *)
-  (*   or_lost_with_t ℓ P -∗ if_rec ℓ (∃ t, P t). *)
-  (* Proof. *)
-  (*   iIntros "(%CV' & #crashed' & disj)". *)
-  (*   ifRecIntro. destruct look as [??]. *)
-  (*   iDestruct (crashed_at_agree with "crashed crashed'") as %<-. *)
-  (*   iDestruct "disj" as "[(% & % & #per & P) | %lost]"; last congruence. *)
-  (*   iExists t. iFrame "P". *)
-  (* Qed. *)
+  Lemma if_rec_or_lost_with_t ℓ P :
+    or_lost_with_t ℓ P -∗ if_rec ℓ (∃ t, P t).
+  Proof.
+    iIntros "(%CV' & #crashed' & disj)".
+    ifRecIntro. destruct look as [??].
+    iDestruct (crashed_at_d_agree with "crashed crashed'") as %<-.
+    iDestruct "disj" as "[(% & % & #per & P) | %lost]"; last congruence.
+    iExists t. iFrame "P".
+  Qed.
 
   Global Instance into_if_rec_intro ℓ P : IntoIfRec ℓ P P := if_rec_intro ℓ P.
 

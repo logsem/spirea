@@ -36,8 +36,10 @@ Section wpc.
         (* }}{{ (* interp ∗ *) Φc ⊥ }} *)
     )%I _.
   Next Obligation.
-  Admitted.
-    (* solve_proper. Qed. *)
+    intros ?????.
+    intros [TV1 ?] [TV2 ?] [? [= ->]].
+    solve_proper.
+  Qed.
 
   (* This sealing follows the same ritual as the [wp] in Iris. *)
   Definition wpc_aux : seal (@wpc_def). by eexists. Qed.
