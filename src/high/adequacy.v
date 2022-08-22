@@ -656,13 +656,46 @@ Proof.
 Qed.
 *)
 
-Lemma step_fupdN_fresh_rearrange `{!nvmG Σ, nvmDeltaG} φ ns ncurr k k2 :
+Lemma step_fupdN_fresh_rearrange `{!nvmG Σ, nD : nvmDeltaG} φ ns ncurr k k2 :
   (|={⊤}=> step_fupdN_fresh ncurr ns _
               (λ _, £ (k + k2) -∗ ||={⊤|⊤,∅|∅}=> ||▷=>^k ||={∅|∅,∅|∅}=> ||▷=>^k2 ⌜φ⌝)) -∗
   £ (fresh_later_count num_laters_per_step step_count_next ncurr ns + k + k2) -∗
   ||={⊤|⊤,∅|∅}=> ||▷=>^(fresh_later_count num_laters_per_step step_count_next ncurr ns + S k + k2) ⌜φ⌝.
 Proof.
-Admitted.
+  iIntros "H Hlc".
+  iInduction ns as [| n' ns] "IH" forall (nD ncurr).
+  - rewrite /step_fupdN_fresh.
+    iMod "H". iMod ("H" with "Hlc") as "H". iModIntro.
+    rewrite fresh_later_count_nil.
+    replace (0 + S k) with (k + 1) by lia.
+    rewrite -!assoc -step_fupd2N_add.
+    iApply (step_fupd2N_wand with "H"). iIntros "H".
+    rewrite -step_fupd2N_add.
+    iMod "H". iApply (fupd2_mask_intro); [done..|]. iIntros "_".
+    done.
+  - iMod NC_alloc_strong as (γcrash) "NC".
+    rewrite /step_fupdN_fresh -/step_fupdN_fresh.
+    iMod "H".
+    rewrite fresh_later_count_cons.
+    iEval (rewrite !lc_split -assoc) in "Hlc".
+    iDestruct "Hlc" as "[[[Hlc1 _] Hlc2] Hlck]".
+    iMod ("H" with "Hlc1") as "H". iModIntro.
+    rewrite -!assoc -step_fupd2N_add.
+    iApply (step_fupd2N_wand with "H"). iIntros "H".
+    iApply step_fupd2_fupd2N; first lia.
+    do 2 iMod "H". iModIntro.
+    rewrite -step_fupd2N_add. replace 3 with (2+1) by lia.
+    rewrite -step_fupd2N_add.
+    iApply (step_fupd2N_wand with "H").
+    iIntros ">H".
+    iMod ("H" $! _ with "NC") as ">H".
+    do 2 iModIntro.
+    do 2 iMod "H".
+    iMod "H" as (nD') "[-> H]".
+    iMod ("IH" $! nD' with "H [Hlc2 Hlck]") as "H".
+    { iEval rewrite !lc_split. by iFrame. }
+    do 3 iModIntro. rewrite assoc. done.
+Qed.
 
 Lemma step_fupdN_fresh_soundness `{!nvmGpreS Σ} φ ns ncurr k k2 f g :
   (⊢ ∀ (Hi : invGS Σ),
