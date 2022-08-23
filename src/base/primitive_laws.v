@@ -650,7 +650,8 @@ Section lifting.
       iMod (store_view_alloc_big with "lubauth") as "$".
       { apply Hdisj. }
       iModIntro.
-      iPureGoal. { apply hist_inv_alloc; done. }
+      rewrite -!assoc.
+      iSplitPure. { apply hist_inv_alloc; done. }
       iFrame.
       iDestruct ("HΦ" with "[Hl Hm]") as "$"; last first.
       { iExists CV. iFrame "crashedAt". iPureIntro. set_solver. }
@@ -821,7 +822,7 @@ Section lifting.
       iFrame "lubauth".
       (* We now update the big op. *)
       iModIntro.
-      iPureGoal.
+      rewrite -!assoc. iSplitPure.
       { apply hist_inv_insert_msg; try done. apply view_empty_least. }
       iDestruct ("HΦ" with "[$ℓPts $Hval]") as "$". { done. }
       iFrame. iExists _. iFrame "#". iPureIntro. set_solver.
@@ -871,8 +872,8 @@ Section lifting.
       iMod (auth_both_max_view_insert with "lubauth Hval")
         as "[lubauth Hval]"; [done|].
       iFrame "lubauth".
-      (* We now update the big op. *)
-      iPureGoal.
+      iModIntro.
+      rewrite -!assoc. iSplitPure.
       { apply hist_inv_insert_msg; try done. apply max_view_incl_insert; done. }
       iDestruct ("HΦ" with "[$ℓPts $Hval]") as "$"; first done.
       iFrame. iExists _. iFrame "#". iPureIntro. set_solver.
@@ -934,7 +935,7 @@ Section lifting.
         assert (MV ⊑ max_view g) as incl2 by
           by eapply valid_heap_msg_lookup.
         iMod (own_update with "lubauth") as "[lubauth mvView]".
-        { apply: auth_frac.auth_frac_update_core_id; last apply incl2. }
+        { apply auth_frac.auth_frac_update_core_id; last apply incl2. apply _. }
         iCombine "Hval mvView" as "Hval".
         (* We must now update the authorative element for the max_view. *)
         iMod (auth_both_max_view_insert with "lubauth Hval")
@@ -961,7 +962,7 @@ Section lifting.
       * assert (MV ⊑ max_view g) as incl2 by
           by eapply valid_heap_msg_lookup.
         iMod (own_update with "lubauth") as "[lubauth mvView]".
-        { apply: auth_frac.auth_frac_update_core_id; last apply incl2. }
+        { apply auth_frac.auth_frac_update_core_id; last apply incl2. apply _. }
         iCombine "Hval mvView" as "Hval".
         iModIntro.
         iSplitPure; first done.

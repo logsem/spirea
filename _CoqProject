@@ -1,9 +1,17 @@
-# Cannot use non-canonical projections as it causes massive unification failures
-# (https://github.com/coq/coq/issues/6294).
--arg -w -arg -notation-overridden,-redundant-canonical-projection
-
 -Q src self
 -Q external/perennial/src Perennial
+
+# Perennial-disabled warnings
+-arg -w -arg -ssr-search-moved
+-arg -w -arg +deprecated-hint-without-locality
+-arg -w -arg -deprecated-instance-without-locality
+-arg -w -arg -future-coercion-class-field
+-arg -w -arg +deprecated-hint-rewrite-without-locality
+-arg -w -arg -deprecated-field-instance-without-locality
+-arg -w -arg +deprecated-tactic-notation
+
+# Iris-disabled warnings
+-arg -w -arg -notation-overridden,-redundant-canonical-projection,-deprecated-typeclasses-transparency-without-locality
 
 # Included to ensure that Perennial can find what it is looking for
 # This section should be kept up to date with what Perennial has in their _CoqProject

@@ -853,12 +853,9 @@ Proof.
     { done. }
     iSpecialize ("HIP" with "validV Hwpr [//] nc").
     iExists _.
-    iSplitPure; first done.
     iSplitPure. { simpl. reflexivity. }
-    iSplitPure. {
-      rewrite /step_count_next.
-      simpl.
-      reflexivity. }
+    iSplitPure. { rewrite /step_count_next. simpl. reflexivity. }
+    iSplitPure. { done. }
     iSplitPure. { done. }
     iApply (step_fupdN_fresh_wand with "HIP").
     { rewrite /nsinit. rewrite /crash_borrow_ginv_number. done. }
@@ -904,9 +901,9 @@ Proof.
     iDestruct (wptp_recv_progress with "[$int $high] global [validV] Hwpr [] nc") as "H";
       eauto.
     iExists _.
-    iSplitPure; first done.
     iSplitPure. { simpl. reflexivity. }
     iSplitPure. { rewrite /step_count_next. simpl. reflexivity. }
+    iSplitPure. { done. }
     iSplitPure. { done. }
     iApply (step_fupdN_fresh_wand with "H").
     { auto. }

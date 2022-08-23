@@ -505,7 +505,7 @@ Section big_sepM2.
         by rewrite -not_elem_of_dom -dom not_elem_of_dom.
       * apply exist_elim => m2.
         eapply pure_elim; first apply big_sepM2_dom. intros dom.
-        destruct (m2 !! i) as [|y] eqn:Hlook.
+        destruct (m2 !! i) as [|] eqn:Hlook.
         2: {
           apply not_elem_of_dom in Hlook.
           rewrite -dom in Hlook.

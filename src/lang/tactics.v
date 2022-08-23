@@ -1,6 +1,6 @@
 From stdpp Require Import fin_maps.
 From self.lang Require Import lang.
-From iris Require Import options.
+From iris.prelude Require Import options.
 
 (** The tactic [reshape_expr e tac] decomposes the expression [e] into an
 evaluation context [K] and a subexpression [e']. It calls the tactic [tac K e']

@@ -658,26 +658,26 @@ Section points_to_at_more.
       iDestruct (have_FV_0) as "$". }
     iExists tLo, (offset + tC), (offset + tC), ∅, _, (Msg _ ∅ ∅ ∅), _.
     iFrame. iFrame "#".
-    iPureGoal. { apply last_snoc. }
-    iPureGoal.
+    iSplitPure. { apply last_snoc. }
+    iSplitPure.
     { apply: increasing_map_fmap.
       apply increasing_map_filter.
       done. }
-    iPureGoal.
+    iSplitPure.
     { rewrite lookup_fmap.
       rewrite drop_above_lookup_t.
       rewrite absHistLook.
       done. }
-    iPureGoal. {
+    iSplitPure. {
       apply map_no_later_fmap.
       apply map_no_later_drop_above. }
-    iPureGoal.
+    iSplitPure.
     { rewrite -fmap_snoc.
       apply map_sequence_fmap.
       apply map_sequence_drop_above.
       done. }
-    iPureGoal; first lia.
     iSplit. { simpl. iApply monPred_in_bottom. }
+    iSplitPure; first lia.
     iSplitPure; first lia.
     iRight. iPureIntro. lia.
   Qed.

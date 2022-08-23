@@ -18,15 +18,15 @@ Section bi_monpred_extra.
 
 End bi_monpred_extra.
 
-Hint Rewrite (@monPred_at_forall thread_view_bi_index) : monpred_simpl.
-Hint Rewrite (@monPred_at_exist thread_view_bi_index) : monpred_simpl.
-Hint Rewrite (@monPred_at_and thread_view_bi_index) : monpred_simpl.
-Hint Rewrite (@monPred_at_or thread_view_bi_index) : monpred_simpl.
-Hint Rewrite (@monPred_at_wand thread_view_bi_index) : monpred_simpl.
-Hint Rewrite (@monPred_at_later thread_view_bi_index) : monpred_simpl.
-Hint Rewrite (@monPred_at_sep thread_view_bi_index) : monpred_simpl.
-Hint Rewrite (@monPred_at_objectively thread_view_bi_index) : monpred_simpl.
-Hint Rewrite (@monPred_at_pure thread_view_bi_index) : monpred_simpl.
-Hint Rewrite (@monPred_at_embed thread_view_bi_index) : monpred_simpl.
-Hint Rewrite (@monPred_at_if thread_view_bi_index) : monpred_simpl.
+#[export] Hint Rewrite (@monPred_at_forall thread_view_bi_index) : monpred_simpl.
+#[export] Hint Rewrite (@monPred_at_exist thread_view_bi_index) : monpred_simpl.
+#[export] Hint Rewrite (@monPred_at_and thread_view_bi_index) : monpred_simpl.
+#[export] Hint Rewrite (@monPred_at_or thread_view_bi_index) : monpred_simpl.
+#[export] Hint Rewrite (@monPred_at_wand thread_view_bi_index) : monpred_simpl.
+#[export] Hint Rewrite (@monPred_at_later thread_view_bi_index) : monpred_simpl.
+#[export] Hint Rewrite (@monPred_at_sep thread_view_bi_index) : monpred_simpl.
+#[export] Hint Rewrite (@monPred_at_objectively thread_view_bi_index) : monpred_simpl.
+#[export] Hint Rewrite (@monPred_at_pure thread_view_bi_index) : monpred_simpl.
+#[export] Hint Rewrite (@monPred_at_embed thread_view_bi_index) : monpred_simpl.
+#[export] Hint Rewrite (@monPred_at_if thread_view_bi_index) : monpred_simpl.
 Ltac monPred_simpl := autorewrite with monpred_simpl.

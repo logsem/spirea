@@ -372,11 +372,11 @@ Qed. *)
 (*   Proper (pointwise_relation _ (=) ==> (⊆) ==> (⊆)) (⊑). *)
 (* Proof. intros f g ? X Y. set_unfold; naive_solver. Qed. *)
 
-Hint Rewrite (insert_empty (M := gmap loc) (A := max_nat)) : view_simpl.
-Hint Rewrite (lookup_singleton (M := gmap loc) (A := max_nat)) : view_simpl.
-Hint Rewrite (view_lookup_zero_empty) : view_simpl.
-Hint Rewrite (left_id ∅ (⊔)) : view_simpl.
-Hint Rewrite (right_id ∅ (⊔)) : view_simpl.
-Hint Rewrite (lookup_singleton_ne (A := max_nat)) using assumption : view_simpl. (* FIXME: This hint doesn't seem to work. *)
+#[export] Hint Rewrite (insert_empty (M := gmap loc) (A := max_nat)) : view_simpl.
+#[export] Hint Rewrite (lookup_singleton (M := gmap loc) (A := max_nat)) : view_simpl.
+#[export] Hint Rewrite (view_lookup_zero_empty) : view_simpl.
+#[export] Hint Rewrite (left_id ∅ (⊔)) : view_simpl.
+#[export] Hint Rewrite (right_id ∅ (⊔)) : view_simpl.
+#[export] Hint Rewrite (lookup_singleton_ne (A := max_nat)) using assumption : view_simpl. (* FIXME: This hint doesn't seem to work. *)
 
 Ltac simpl_view := autorewrite with view_simpl.

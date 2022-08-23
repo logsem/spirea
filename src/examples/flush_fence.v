@@ -53,7 +53,7 @@ Section specification.
     iDestruct "lb" as (m ?) "lb".
     iModIntro.
     iDestruct "lb" as "[H ?]".
-    iPureGoal; first done.
+    iSplitPure; first done.
     iExists _.
     iDestruct (persist_lb_to_flush_lb with "H") as "$".
     iPureIntro. etrans; done.

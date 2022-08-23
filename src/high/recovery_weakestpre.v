@@ -1164,8 +1164,9 @@ Section wpr.
       rewrite -bi.later_exist_2.
       rewrite bi.sep_exist_l.
       iExists pred.
-      iPureGoal.
-      { rewrite /newPreds.
+      iAssert (⌜newPreds !! ℓ = Some pred⌝)%I as "$".
+      { iPureIntro.
+        rewrite /newPreds.
         apply restrict_lookup_Some_2; first done.
         apply elem_of_dom_2 in cvLook.
         apply elem_of_dom_2 in absHistsLook.
