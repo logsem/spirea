@@ -1,3 +1,5 @@
+(* This example is not complete. *)
+(*
 From stdpp Require Import numbers countable.
 
 From iris.algebra Require Import excl agree csum gset.
@@ -430,3 +432,4 @@ Section proof.
   Proof. Admitted.
 
 End proof.
+*)
