@@ -101,19 +101,16 @@ Definition nvmΣ := #[ nvmBaseΣ; nvmHighΣ ].
 Instance subG_nvmΣ {Σ} : subG nvmΣ Σ → nvmGpreS Σ.
 Proof. solve_inG. Qed.
 
+(* Getters for ghost names that take the ghost name record as an explicit argument. *)
+Definition get_offset_name (gnames : nvmDeltaG) := offset_name.
+Definition get_bumpers_name (gnames : nvmDeltaG) := bumpers_name.
+Definition get_at_locs_name (gnames : nvmDeltaG) := shared_locs_name.
+Definition get_na_locs_name (gnames : nvmDeltaG) := exclusive_locs_name.
+Definition get_na_views_name (gnames : nvmDeltaG) := non_atomic_views_gname.
+
 (* Wrappers around ownership of resources that extracts the ghost names from
-[nvmDeltaG]. These wrapper makes it easier to switch the ghost names around
-after a crash in [post_crash_modality.v]. *)
-
-Section location.
-  Context `{nvmG Σ, nD : nvmDeltaG}.
-
-  Definition is_na_loc ℓ := own exclusive_locs_name (◯ {[ ℓ ]}).
-
-  Definition is_at_loc ℓ := own shared_locs_name (◯ {[ ℓ ]}).
-
-End location.
-
+   [nvmDeltaG]. These wrapper makes it easier to switch the ghost names around
+   after a crash in [post_crash_modality.v]. *)
 Section ownership_wrappers.
   Context `{nvmG Σ, nD : nvmDeltaG}.
 
@@ -124,9 +121,6 @@ Section ownership_wrappers.
   Definition know_encoded_bumper (ℓ : loc)
              (encoded_bumper : positive → option positive) : iProp Σ :=
     ℓ ↪[bumpers_name]□ encoded_bumper.
-
-  Definition know_bumper `{AbstractState ST} ℓ (bumper : ST → ST) : iProp Σ :=
-    own_know_bumper bumpers_name ℓ bumper.
 
   Definition know_preorder_loc `{Countable ST} ℓ (preorder : relation2 ST) : iProp Σ :=
     own_know_preorder_loc preorders_name ℓ preorder.
@@ -144,24 +138,8 @@ Section ownership_wrappers.
   Definition know_frag_history_loc `{Countable ST} ℓ t (s : ST) : iProp Σ :=
     frag_entry_unenc abs_history_name ℓ t s.
 
-  (* The storeview of the most recent write to a na location. *)
-  Definition know_na_view ℓ q (SV : view) : iProp Σ :=
-    ℓ ↪[non_atomic_views_gname]{#q} SV.
-
   Definition know_phys_hist_msg ℓ t msg : iProp Σ :=
     auth_map_map_frag_singleton phys_history_name ℓ t msg.
-
-  Definition crashed_in_mapsto `{Countable ST} ℓ (s : ST) : iProp Σ :=
-    ∃ es, ⌜ decode es = Some s ⌝ ∗ ℓ ↪[crashed_in_name]□ es.
-
-  Lemma crashed_in_mapsto_agree `{Countable ST} ℓ (s1 s2 : ST) :
-    crashed_in_mapsto ℓ s1 -∗ crashed_in_mapsto ℓ s2 -∗ ⌜ s1 = s2 ⌝.
-  Proof.
-    iDestruct 1 as (? eq1) "pts1".
-    iDestruct 1 as (? e2) "pts2".
-    iDestruct (ghost_map_elem_agree with "pts1 pts2") as %->.
-    iPureIntro. congruence.
-  Qed.
 
 End ownership_wrappers.
 

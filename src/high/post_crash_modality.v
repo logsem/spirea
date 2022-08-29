@@ -35,25 +35,23 @@ Definition post_crash_bumper_impl `{nvmG Σ}
            (nD nD' : nvmDeltaG) : iProp Σ :=
   □ ∀ ST (_ : EqDecision ST) (_ : Countable ST) (_ : AbstractState ST)
       ℓ (bumper : ST → ST),
-    know_bumper (nD := nD) ℓ bumper -∗
-    or_lost_post_crash_no_t ℓ (know_bumper (nD := nD') ℓ bumper).
+    own_know_bumper (get_bumpers_name nD) ℓ bumper -∗
+    or_lost_post_crash_no_t ℓ (own_know_bumper (get_bumpers_name nD') ℓ bumper).
 
 Definition post_crash_at_loc_impl `{nvmG Σ}
            (nD nD' : nvmDeltaG) : iProp Σ :=
-  □ ∀ ℓ, is_at_loc (nD := nD) ℓ -∗
-    or_lost_post_crash_no_t ℓ (is_at_loc (nD := nD') ℓ).
+  □ ∀ ℓ, own (get_at_locs_name nD) (◯ {[ ℓ ]}) -∗
+    or_lost_post_crash_no_t ℓ (own (get_at_locs_name nD') (◯ {[ ℓ ]})).
 
 Definition post_crash_na_loc_impl `{nvmG Σ}
            (nD nD' : nvmDeltaG) : iProp Σ :=
-  □ ∀ ℓ, is_na_loc (nD := nD) ℓ -∗
-    or_lost_post_crash_no_t ℓ (is_na_loc (nD := nD') ℓ).
+  □ ∀ ℓ, own (get_na_locs_name nD) (◯ {[ ℓ ]}) -∗
+    or_lost_post_crash_no_t ℓ (own (get_na_locs_name nD') (◯ {[ ℓ ]})).
 
 Definition offsets_impl `{nvmG Σ}
            (nD nD' : nvmDeltaG) : iProp Σ :=
-  □ ∀ ℓ t, ℓ ↪[@offset_name (@nvm_delta_high nD)]□ t -∗
-    or_lost_post_crash
-      ℓ
-      (λ tC, ℓ ↪[@offset_name (@nvm_delta_high nD')]□ (t + tC)).
+  □ ∀ ℓ t, ℓ ↪[get_offset_name nD]□ t -∗
+    or_lost_post_crash ℓ (λ tC, ℓ ↪[get_offset_name nD']□ (t + tC)).
 
 (* We don't have a post crash rule for the physical history anymore, instead one
 gets the physical history knowledge from knowing the full abstract history. *)
@@ -67,14 +65,15 @@ gets the physical history knowledge from knowing the full abstract history. *)
 
 Definition post_crash_na_view_map `{nvmG Σ}
            (na_views : gmap loc view) (nD nD' : nvmDeltaG) : iProp Σ :=
-  (∀ ℓ q SV, know_na_view (nD := nD) ℓ q SV -∗ ⌜ na_views !! ℓ = Some SV ⌝) ∗
+  (∀ ℓ q SV,
+     ℓ ↪[get_na_views_name nD]{#q} SV -∗ ⌜ na_views !! ℓ = Some SV ⌝) ∗
   [∗ map] ℓ ↦ SV ∈ na_views,
     soft_disj
-      (λ q, know_na_view (nD := nD) ℓ q SV)
-      (λ q, or_lost_post_crash_no_t ℓ (know_na_view (nD := nD') ℓ q ∅)).
+      (λ q, ℓ ↪[get_na_views_name nD]{#q} SV)
+      (λ q, or_lost_post_crash_no_t ℓ (ℓ ↪[get_na_views_name nD']{#q} ∅)).
 
-Instance know_na_view_post_crash_fractional `{nvmG Σ, nvmDeltaG} ℓ :
-  Fractional (λ q0 : Qp, or_lost_post_crash_no_t ℓ (know_na_view ℓ q0 ∅)).
+Instance know_na_view_post_crash_fractional `{nvmG Σ, nD : nvmDeltaG} ℓ :
+  Fractional (λ q0 : Qp, or_lost_post_crash_no_t ℓ (ℓ ↪[get_na_views_name nD]{#q0} ∅)).
 Proof. apply or_lost_post_crash_fractional. apply _. Qed.
 
 Definition new_hist t (bumper : positive → option positive) (hist : gmap time positive) :=
@@ -119,8 +118,7 @@ Definition post_crash_full_history_map `{nvmG Σ}
   (* Used to conclude that the locations owned are included in the heap in question. *)
   (∀ ℓ q hist,
      know_full_encoded_history_loc (nD := nD) ℓ q hist -∗ ⌜hh !! ℓ = Some hist⌝) ∗
-  (∀ ℓ b,
-     know_encoded_bumper (nD := nD) ℓ b -∗ ⌜bb !! ℓ = Some b⌝) ∗
+  (∀ ℓ b, know_encoded_bumper (nD := nD) ℓ b -∗ ⌜bb !! ℓ = Some b⌝) ∗
   (* The map used to perform the exchange. *)
   [∗ map] ℓ ↦ hist ∈ hh, ∃ bumper,
     ⌜ bb !! ℓ = Some bumper ⌝ ∗
@@ -128,13 +126,25 @@ Definition post_crash_full_history_map `{nvmG Σ}
       (λ q, know_full_encoded_history_loc (nD := nD) ℓ q hist)
       (λ q, know_history_post_crash nD' ℓ q bumper hist).
 
+Definition crashed_in_mapsto `{nvmG Σ, nvmDeltaG} `{Countable ST} ℓ (s : ST) : iProp Σ :=
+  ∃ es, ⌜ decode es = Some s ⌝ ∗ ℓ ↪[crashed_in_name]□ es.
+
+Lemma crashed_in_mapsto_agree `{nvmG Σ, nvmDeltaG} `{Countable ST} ℓ (s1 s2 : ST) :
+  crashed_in_mapsto ℓ s1 -∗ crashed_in_mapsto ℓ s2 -∗ ⌜ s1 = s2 ⌝.
+Proof.
+  iDestruct 1 as (? eq1) "pts1".
+  iDestruct 1 as (? e2) "pts2".
+  iDestruct (ghost_map_elem_agree with "pts1 pts2") as %->.
+  iPureIntro. congruence.
+Qed.
+
 Definition post_crash_frag_history_impl `{hG : nvmG Σ}
            (nD nD' : nvmDeltaG) : iProp Σ :=
   □ ∀ ST (_ : EqDecision ST) (_ : Countable ST) (_ : AbstractState ST)
     ℓ (t offset : nat) (s : ST) (bumper : ST → ST),
       know_preorder_loc (nD := nD) ℓ (abs_state_relation (ST := ST)) -∗
       ℓ ↪[@offset_name (@nvm_delta_high nD)]□  offset -∗
-      know_bumper (nD := nD) ℓ bumper -∗
+      own_know_bumper (get_bumpers_name nD) ℓ bumper -∗
       know_frag_history_loc (nD := nD) ℓ t s -∗
       (or_lost_post_crash ℓ (λ tC, ∃ s2 v,
         crashed_in_mapsto ℓ s2 ∗
@@ -361,11 +371,11 @@ Section post_crash_interact.
 
   Lemma post_crash_know_full_history_loc ℓ q (bumper : ST → ST)
         (abs_hist : gmap time ST) :
-    know_bumper_d ℓ bumper ∗
+    know_bumper ℓ bumper ∗
     know_full_history_loc_d ℓ q abs_hist -∗
     <PC> if_rec ℓ (∃ t' (s : ST) v,
         ⌜ abs_hist !! t' = Some s ⌝ ∗
-        know_bumper_d ℓ bumper ∗
+        know_bumper ℓ bumper ∗
         crashed_in_mapsto_d ℓ s ∗
         with_gnames (λ nD, ⎡ ℓ ↪[offset_name]□ t' ⎤) ∗
         know_full_history_loc_d ℓ q (bumper <$> (drop_above t' abs_hist)) ∗
@@ -388,7 +398,7 @@ Section post_crash_interact.
      iAssert (⌜hh !! _ = Some _⌝)%I as %HI. { iApply ("inH" with "hist"). }
      iAssert (⌜bb !! _ = Some _⌝)%I as %BI.
      { iApply ("inB" with "[bumper]").
-       rewrite /know_bumper /own_know_bumper.
+       rewrite /own_know_bumper.
        iDestruct "bumper" as "[_ $]". }
      iDestruct (big_sepM_lookup_acc with "M") as
        "[(%bumper' & %bumpersLook & H) reIns]"; first done.
@@ -445,7 +455,7 @@ Section post_crash_interact.
   Lemma post_crash_frag_history ℓ t offset bumper (s : ST) :
     know_preorder_loc_d ℓ (abs_state_relation (ST := ST)) -∗
     offset_loc ℓ offset -∗
-    know_bumper_d ℓ bumper -∗
+    know_bumper ℓ bumper -∗
     know_frag_history_loc_d ℓ t s -∗
     post_crash (
       (if_rec ℓ (∃ sC CV tC v,
@@ -503,7 +513,7 @@ Section post_crash_interact.
   Qed.
 
   Lemma post_crash_at_loc ℓ :
-    is_at_loc_d ℓ -∗ <PC> if_rec ℓ (is_at_loc_d ℓ).
+    is_at_loc ℓ -∗ <PC> if_rec ℓ (is_at_loc ℓ).
   Proof.
     iModel. iIntros "HP".
     iIntrosPostCrash.
@@ -516,7 +526,7 @@ Section post_crash_interact.
   Qed.
 
   Lemma post_crash_na_loc ℓ :
-    is_na_loc_d ℓ -∗ <PC> if_rec ℓ (is_na_loc_d ℓ).
+    is_na_loc ℓ -∗ <PC> if_rec ℓ (is_na_loc ℓ).
   Proof.
     iModel. iIntros "HP".
     iIntrosPostCrash.
@@ -588,7 +598,7 @@ Section post_crash_interact.
   *)
 
   Lemma post_crash_know_na_view ℓ q SV :
-    know_na_view_d ℓ q SV -∗ <PC> if_rec ℓ (know_na_view_d ℓ q ∅).
+    know_na_view ℓ q SV -∗ <PC> if_rec ℓ (know_na_view ℓ q ∅).
   Proof.
     iModel. iIntros "HP".
     iIntrosPostCrash.
@@ -611,7 +621,7 @@ Section post_crash_interact.
   Qed.
 
   Lemma post_crash_know_bumper `{AbstractState ST} ℓ (bumper : ST → ST) :
-    know_bumper_d ℓ bumper -∗ <PC> if_rec ℓ (know_bumper_d ℓ bumper).
+    know_bumper ℓ bumper -∗ <PC> if_rec ℓ (know_bumper ℓ bumper).
   Proof.
     iModel. iIntros "HP".
     iIntrosPostCrash.
@@ -1229,14 +1239,14 @@ Section icrash.
   Implicit Types Δ : envs PROP.
   Implicit Types P Q : PROP.
 
-  Lemma envs_clear_spatial_sound Δ :
-    of_envs Δ ⊢ of_envs (envs_clear_spatial Δ) ∗ [∗] env_spatial Δ.
-  Proof.
-    rewrite !of_envs_eq /envs_clear_spatial /=. apply pure_elim_l=> Hwf.
-    rewrite -persistent_and_sep_assoc. apply and_intro.
-    - apply pure_intro. destruct Hwf; constructor; simpl; auto using Enil_wf.
-    - rewrite -persistent_and_sep_assoc. rewrite left_id. done.
-  Qed.
+  (* Lemma envs_clear_spatial_sound Δ : *)
+  (*   of_envs Δ ⊢ of_envs (envs_clear_spatial Δ) ∗ [∗] env_spatial Δ. *)
+  (* Proof. *)
+  (*   rewrite !of_envs_eq /envs_clear_spatial /=. apply pure_elim_l=> Hwf. *)
+  (*   rewrite -persistent_and_sep_assoc. apply and_intro. *)
+  (*   - apply pure_intro. destruct Hwf; constructor; simpl; auto using Enil_wf. *)
+  (*   - rewrite -persistent_and_sep_assoc. rewrite left_id. done. *)
+  (* Qed. *)
 
   Lemma envs_clear_intuitionistic_sound Δ :
     of_envs Δ ⊢

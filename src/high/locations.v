@@ -41,7 +41,7 @@ Section points_to_at.
       "%lastEq" ∷ ⌜ last ss = Some s ⌝ ∗
       "#locationProtocol" ∷ know_protocol ℓ prot ∗
       "%incrMap" ∷ ⌜ increasing_map (⊑@{ST}) abs_hist ⌝ ∗
-      "#isNaLoc" ∷ is_na_loc_d ℓ ∗
+      "#isNaLoc" ∷ is_na_loc ℓ ∗
 
       (* [tHi] is the last message and it agrees with the last state in ss. *)
       "%lookupV" ∷ ⌜ abs_hist !! tHi = Some s ⌝ ∗
@@ -53,7 +53,7 @@ Section points_to_at.
       (* "#offset" ∷ ⎡ ℓ ↪[offset_name]□ offset ⎤ ∗ *)
       "#offset" ∷ offset_loc ℓ offset ∗
 
-      "knowSV" ∷ know_na_view_d ℓ q SV ∗
+      "knowSV" ∷ know_na_view ℓ q SV ∗
       "%slice" ∷ ⌜ map_sequence abs_hist tLo tHi ss ⌝ ∗
       "#physMsg" ∷ with_gnames (λ nD, ⎡ auth_map_map_frag_singleton phys_history_name ℓ tHi msg ⎤) ∗
       "#inThreadView" ∷ have_thread_view (SV, msg_persisted_after_view msg, ∅) ∗
@@ -128,7 +128,7 @@ Section points_to_at.
       iNamed "L".
       iDestruct "R" as (???????) "(_ & _ & ? & _ & _ & _ & histQ & _ & _ & SV & HIP & ?)".
       iDestruct (know_full_history_loc_d_agree with "hist histQ") as %->.
-      iDestruct (know_na_view_d_agree with "knowSV SV") as %->.
+      iDestruct (know_na_view_agree with "knowSV SV") as %->.
       repeat iExists _.
       iFrameF (lastEq).
       iFrameF "locationProtocol".
@@ -165,7 +165,7 @@ Section points_to_at.
       "%slicePhys" ∷ ⌜ map_sequence phys_hist tLo tS ms ⌝ ∗
       "%nolater" ∷ ⌜ map_no_later abs_hist tS ⌝ ∗
       "%absPhysHistDomEq" ∷ ⌜ dom abs_hist = dom phys_hist ⌝ ∗
-      "#isAtLoc" ∷ is_at_loc_d ℓ ∗
+      "#isAtLoc" ∷ is_at_loc ℓ ∗
       "#locationProtocol" ∷ know_protocol ℓ prot ∗
       "%incrMap" ∷ ⌜ increasing_map (⊑@{ST}) abs_hist ⌝ ∗
       "#absHist" ∷

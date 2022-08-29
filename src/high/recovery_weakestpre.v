@@ -569,7 +569,7 @@ Section wpr.
     (* We show a few results that will be useful below. *)
     iAssert (
       □ ∀ `(AbstractState ST) ℓ (bumper : ST → ST), ⌜ is_Some (CV !! ℓ) ⌝ -∗
-        know_bumper ℓ bumper -∗
+        own_know_bumper (get_bumpers_name hGD) ℓ bumper -∗
         ⌜ bumpers !! ℓ = Some _ ⌝ ∗
         own_know_bumper new_bumpers_name ℓ bumper)%I as "#bumperImpl".
     { iIntros "!>" (???? ℓ bumper (t & cvLook)) "[mono pts]".
@@ -837,7 +837,6 @@ Section wpr.
         rewrite /post_crash_at_loc_impl.
         iIntros "!>" (ℓ) "sh".
         iApply "orLost". iIntros (t look).
-        rewrite /is_at_loc.
         iDestruct (own_valid_2 with "atLocs sh")
           as %[_ [elem _]]%auth_both_dfrac_valid_discrete.
         iApply (own_mono with "atLocsFrag").
@@ -862,7 +861,6 @@ Section wpr.
         rewrite /post_crash_na_loc_impl.
         iIntros "!>" (ℓ) "sh".
         iApply "orLost". iIntros (t look).
-        rewrite /is_na_loc.
         iDestruct (own_valid_2 with "naLocs sh")
           as %[_ [elem _]]%auth_both_dfrac_valid_discrete.
         iApply (own_mono with "naLocsFrag").

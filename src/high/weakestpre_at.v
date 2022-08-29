@@ -345,7 +345,7 @@ Section wp_at_rules.
   (* Get all information inside [interp] related to the location [ℓ]. *)
   Lemma interp_get_at_loc nG ℓ prot offset :
     interp -∗
-    is_at_loc ℓ -∗
+    own (get_at_locs_name nG) (◯ {[ ℓ ]}) -∗
     know_protocol ℓ prot (⊥, nG) -∗
     ℓ ↪[ offset_name ]□ offset -∗
     ∃ physHists physHist (absHist : gmap nat positive) pred,
@@ -357,7 +357,7 @@ Section wp_at_rules.
     iIntros "isAt".
     rewrite /know_protocol.
     iDestruct 1 as "(#knowPred & #knowPreorder & #knowBumper)".
-    rewrite /know_pred_d /know_preorder_loc_d /know_bumper_d.
+    rewrite /know_pred_d /know_preorder_loc_d /know_bumper.
     rewrite !lift_d_at.
     iIntros "offset".
 
@@ -1064,14 +1064,14 @@ Section wp_at_rules.
       { eapply map_no_later_insert; last done. lia. }
       iSplitPure.
       { rewrite 2!dom_insert_L. rewrite absPhysHistDomEq. done. }
-      rewrite /is_at_loc_d lift_d_at.
+      rewrite /is_at_loc lift_d_at.
       iFrameF "isAtLoc".
       rewrite big_sepM_insert. 2: { apply nolater. lia. }
       rewrite big_sepM_insert.
       2: {
         eapply map_dom_eq_lookup_None; first done.
         apply nolater. lia. }
-      rewrite /know_pred_d /know_preorder_loc_d /know_bumper_d.
+      rewrite /know_pred_d /know_preorder_loc_d /know_bumper.
       rewrite 3!lift_d_at.
       iFrameF "locationProtocol".
       iSplitPure.

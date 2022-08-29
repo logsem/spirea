@@ -1034,7 +1034,7 @@ Lemma high_recv_adequacy_2 Σ `{hPre : !nvmGpreS Σ} st e r (φ φr : val → Pr
       (* Resources for AT locations. *)
       ([∗ map] ℓ ↦ v ∈ restrict at_locs init_heap, ∃ li,
         ⌜ lif !! ℓ = Some li ⌝ ∗
-        is_at_loc_d ℓ ∗
+        is_at_loc ℓ ∗
         persist_lb ℓ (loc_prot li) (loc_init li)) -∗
       pre_borrowN_d n -∗
       ([∗ map] ℓ ↦ v; li ∈ init_heap; lif,
@@ -1182,7 +1182,6 @@ Proof.
         { rewrite /preds /mk_preds. rewrite lookup_fmap. rewrite lifLook. done. }
         iDestruct (big_sepM_lookup with "fragOrders") as "$".
         { rewrite /mk_order. rewrite lookup_fmap. rewrite lifLook. done. }
-        rewrite /know_bumper.
         iDestruct (big_sepM_lookup with "bumpersFrag") as "$".
         { rewrite /mk_bumpers. rewrite lookup_fmap lifLook. done. }
         iDestruct (big_sepM_lookup with "offsetsPts") as "$".
@@ -1207,7 +1206,6 @@ Proof.
         { rewrite /preds /mk_preds. rewrite lookup_fmap. rewrite lifLook. done. }
         iDestruct (big_sepM_lookup with "fragOrders") as "$".
         { rewrite /mk_order. rewrite lookup_fmap. rewrite lifLook. done. }
-        rewrite /know_bumper.
         iDestruct (big_sepM_lookup with "bumpersFrag") as "$".
         { rewrite /mk_bumpers. rewrite lookup_fmap lifLook. done. }
         iPureIntro. apply bumper_mono. }
@@ -1256,7 +1254,6 @@ Proof.
       { rewrite /preds /mk_preds. rewrite lookup_fmap. rewrite lifLook. done. }
       iDestruct (big_sepM_lookup with "fragOrders") as "$".
       { rewrite /mk_order. rewrite lookup_fmap. rewrite lifLook. done. }
-      rewrite /know_bumper.
       iDestruct (big_sepM_lookup with "bumpersFrag") as "$".
       { rewrite /mk_bumpers. rewrite lookup_fmap lifLook. done. }
       rewrite -!assoc.
@@ -1545,7 +1542,6 @@ Proof.
         { rewrite /preds /mk_preds. rewrite lookup_fmap. rewrite lifLook. done. }
         iDestruct (big_sepM_lookup with "fragOrders") as "$".
         { rewrite /mk_order. rewrite lookup_fmap. rewrite lifLook. done. }
-        rewrite /know_bumper.
         iDestruct (big_sepM_lookup with "bumpersFrag") as "$".
         { rewrite /mk_bumpers. rewrite lookup_fmap lifLook. done. }
         iDestruct (big_sepM_lookup with "offsetsPts") as "$".
@@ -1570,7 +1566,6 @@ Proof.
         { rewrite /preds /mk_preds. rewrite lookup_fmap. rewrite lifLook. done. }
         iDestruct (big_sepM_lookup with "fragOrders") as "$".
         { rewrite /mk_order. rewrite lookup_fmap. rewrite lifLook. done. }
-        rewrite /know_bumper.
         iDestruct (big_sepM_lookup with "bumpersFrag") as "$".
         { rewrite /mk_bumpers. rewrite lookup_fmap lifLook. done. }
         iPureIntro. apply bumper_mono. }
@@ -1619,7 +1614,6 @@ Proof.
       { rewrite /preds /mk_preds. rewrite lookup_fmap. rewrite lifLook. done. }
       iDestruct (big_sepM_lookup with "fragOrders") as "$".
       { rewrite /mk_order. rewrite lookup_fmap. rewrite lifLook. done. }
-      rewrite /know_bumper.
       iDestruct (big_sepM_lookup with "bumpersFrag") as "$".
       { rewrite /mk_bumpers. rewrite lookup_fmap lifLook. done. }
       rewrite -!assoc.

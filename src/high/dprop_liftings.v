@@ -122,20 +122,20 @@ Section post_crash_interact.
   Definition know_pred_d `{Countable ST} ℓ (ϕ : predicate ST) : dProp Σ :=
     lift_d (λ nD, know_pred ℓ ϕ)%I.
 
-  Definition is_at_loc_d ℓ : dProp Σ :=
+  Definition is_at_loc ℓ : dProp Σ :=
     lift_d (λ nD, own shared_locs_name (◯ {[ ℓ ]}))%I.
 
-  Definition is_na_loc_d ℓ : dProp Σ :=
+  Definition is_na_loc ℓ : dProp Σ :=
     lift_d (λ nD, own exclusive_locs_name (◯ {[ ℓ ]}))%I.
 
   Definition offset_loc ℓ (t : nat) : dProp Σ :=
     lift_d (λ nD, ℓ ↪[offset_name]□ t)%I.
 
-  Definition know_na_view_d ℓ q (SV : view) : dProp Σ :=
+  Definition know_na_view ℓ q (SV : view) : dProp Σ :=
     lift_d (λ nD, ℓ ↪[non_atomic_views_gname]{#q} SV)%I.
 
-  Definition know_bumper_d ℓ (bumper : ST → ST) : dProp Σ :=
-    lift_d (λ nD, know_bumper ℓ bumper)%I.
+  Definition know_bumper ℓ (bumper : ST → ST) : dProp Σ :=
+    lift_d (λ nD, own_know_bumper bumpers_name ℓ bumper)%I.
 
   Definition know_full_history_loc_d `{Countable ST}
              ℓ q (abs_hist : gmap time ST) : dProp Σ :=
@@ -168,9 +168,9 @@ Section post_crash_interact.
     iApply full_entry_unenc_agree.
   Qed.
 
-  Lemma know_na_view_d_agree ℓ p q V V' :
-    know_na_view_d ℓ q V -∗
-    know_na_view_d ℓ p V' -∗
+  Lemma know_na_view_agree ℓ p q V V' :
+    know_na_view ℓ q V -∗
+    know_na_view ℓ p V' -∗
     ⌜ V = V' ⌝.
   Proof.
     lift_d_extract.

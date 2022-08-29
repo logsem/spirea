@@ -38,7 +38,7 @@ Definition know_protocol `{AbstractState ST, nvmG Σ}
            ℓ (prot : LocationProtocol ST) : dProp Σ :=
   "#knowPred" ∷ know_pred_d ℓ prot.(pred) ∗
   "#knowPreorder" ∷ know_preorder_loc_d ℓ (⊑@{ST}) ∗
-  "#knowBumper" ∷ know_bumper_d ℓ prot.(bumper).
+  "#knowBumper" ∷ know_bumper ℓ prot.(bumper).
 
 Lemma encode_bumper_bump_mono `{AbstractState ST}
       (bumper : ST → ST) `{!Proper ((⊑@{ST}) ==> (⊑))%signature bumper}
@@ -79,7 +79,7 @@ Section protocol.
     know_protocol ℓ prot -∗
       know_pred_d ℓ prot.(pred) ∗
       know_preorder_loc_d ℓ (⊑@{ST}) ∗
-      know_bumper_d ℓ prot.(bumper).
+      know_bumper ℓ prot.(bumper).
   Proof. iNamed 1. iFrame "#". Qed.
 
   Global Instance know_protocol_buffer_free ℓ prot :
@@ -90,7 +90,7 @@ Section protocol.
     (know_protocol ℓ prot) (TV, gnames) ⊣⊢
       know_pred ℓ prot.(pred) ∗
       know_preorder_loc ℓ (⊑@{ST}) ∗
-      know_bumper ℓ prot.(bumper).
+      own_know_bumper (get_bumpers_name gnames) ℓ prot.(bumper).
   Proof.
     rewrite /know_protocol. rewrite !monPred_at_sep.
     simpl. rewrite !monPred_at_embed.
