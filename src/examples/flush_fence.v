@@ -249,8 +249,7 @@ Section specification.
     iApply (idempotence_wpr _ _ _ _ _ _ (<PC> crash_condition ℓa ℓb)%I
               with "[a b c d] []").
     { iApply (wp_incr_both _ _ s E with "a b c d"). }
-    rewrite monPred_objectively_elim. (* FIXME: More <PC> instances to make this unnecesssary. *)
-    rewrite bi.intuitionistically_elim.
+    iModIntro. iModIntro.
     iIntros "R".
     iModIntro.
     iApply (wpc_recover with "R").

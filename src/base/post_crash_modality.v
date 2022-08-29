@@ -73,10 +73,10 @@ Definition persisted_impl `{nvmBaseFixedG Σ} hGD hGD' : iProp Σ :=
 
 Definition post_crash `{nvmBaseFixedG Σ, hDG : nvmBaseDeltaG}
            (P : nvmBaseDeltaG → iProp Σ) : iProp Σ :=
-  (∀ (σ : mem_config) hDG',
+  (∀ (s : store) hDG',
     persisted_impl hDG hDG' -∗
-    post_crash_mapsto_map σ.1 hDG hDG' -∗
-    (post_crash_mapsto_map σ.1 hDG hDG' ∗ P hDG')).
+    post_crash_mapsto_map s hDG hDG' -∗
+    (post_crash_mapsto_map s hDG hDG' ∗ P hDG')).
 
 Notation "'<PC>' g , P" := (post_crash (λ g, P))
   (at level 200, g binder, right associativity) : bi_scope.

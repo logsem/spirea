@@ -199,7 +199,7 @@ Section wpr.
     rewrite /post_crash.
     (* set newBundle : nvmBaseDeltaG := *)
     (*   {| nvmBaseDeltaG' := hnames |}. *)
-    iSpecialize ("Pg" $! (store, p') hGD').
+    iSpecialize ("Pg" $! store hGD').
     (* rewrite /newBundle. *)
     iDestruct ("Pg" with "persImpl map") as "(map & Pg)".
     iExists _. iModIntro.

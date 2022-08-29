@@ -70,6 +70,7 @@ Proof.
   iApply idempotence_wpr.
   2: { iApply wpc_with_let. }
   { apply _. }
+  iModIntro. iModIntro.
   iIntros "H".
   iModIntro.
   iApply wpc_with_let.
