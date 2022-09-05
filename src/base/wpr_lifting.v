@@ -25,7 +25,7 @@ Section wpr.
   Implicit Types s : stuckness.
   Implicit Types P : iProp Σ.
   Implicit Types Φ : thread_val → iProp Σ.
-  Implicit Types Φc : iProp Σ.
+  Implicit Types Φc : nvmBaseDeltaG → iProp Σ.
   Implicit Types v : thread_val.
   Implicit Types e : thread_state.
 
@@ -206,26 +206,23 @@ Section wpr.
     iSplitPure; first done. iFrame.
   Qed.
 
-  Lemma idempotence_wpr `{!ffi_interp_adequacy}
-        `{hG : nvmBaseFixedG Σ, !extraStateInterp Σ, hGD : nvmBaseDeltaG} s E1 e rec Φx Φinv Φrx Φcx :
-    ⊢ WPC e @ s; E1 {{ Φx }} {{ Φcx hGD }} -∗
-    (□ ∀ (hG1 : nvmBaseDeltaG)
-         (* (Hpf : @nvmBaseG_invGS Σ (@nvm_base_inG _ hG) = *)
-         (*          @nvmBaseG_invGS Σ (@nvm_base_inG _ hG1)) *) σ σ'
-         (HC : crash_prim_step (nvm_crash_lang) σ σ'),
-         Φcx hG1 -∗ ▷ post_crash (λ hG2, (Φinv hG2 ∧ WPC rec @ s ; E1 {{ Φrx hG2 }} {{ Φcx hG2 }}))) -∗
-      wpr s E1 e rec Φx Φinv Φrx.
+  Lemma idempotence_wpr `{nG : nvmBaseFixedG Σ, !extraStateInterp Σ, nD : nvmBaseDeltaG}
+      s E1 e e_rec Φ Φinv Φr Φc :
+    ⊢ WPC e @ s; E1 {{ Φ }} {{ Φc nD }} -∗
+    (□ ∀ (nD1 : nvmBaseDeltaG),
+      Φc nD1 -∗ ▷ <PC> nD2, (Φinv nD2 ∧ WPC e_rec @ s ; E1 {{ Φr nD2 }} {{ Φc nD2 }})) -∗
+      wpr s E1 e e_rec Φ Φinv Φr.
   Proof.
     iIntros "Hwpc #Hidemp".
     iApply (
-      idempotence_wpr nvm_crash_lang s E1 e rec _ _ _
-                      (λ hGen, ∃ nvmD, ⌜hGen = nvmBase_generationGS (hGD := nvmD)⌝ ∗ Φcx nvmD)%I
+      idempotence_wpr nvm_crash_lang s E1 e e_rec _ _ _
+                      (λ hGen, ∃ nvmD, ⌜hGen = nvmBase_generationGS (hGD := nvmD)⌝ ∗ Φc nvmD)%I
                       with "[Hwpc] [Hidemp]"); first auto.
     { iApply (wpc_crash_mono with "[] Hwpc").
-      iIntros "HΦcx". iExists _. destruct hG. by iFrame. }
+      iIntros "HΦcx". iExists _. destruct nG. by iFrame. }
     { iModIntro. iIntros (HG' σ_pre_crash g σ_post_crash Hcrash ns mj D κs ?) "(%nvmD & %eq & phi)".
       iMod (NC_alloc_strong) as (γcrash) "HNC".
-      iSpecialize ("Hidemp" $! _ _ _ Hcrash with "phi").
+      iSpecialize ("Hidemp" $! _ with "phi").
       rewrite eq.
       iIntros "[interp extra] g !> !>".
       iMod (nvm_heap_reinit_alt _ _ _ _ γcrash _ Hcrash with "interp Hidemp")

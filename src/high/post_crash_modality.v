@@ -1232,7 +1232,7 @@ From iris.bi Require Import bi.
 Import bi.
 From iris.proofmode Require Import tactics environments intro_patterns monpred.
 
-Section icrash.
+Section intuit_to_spatial.
   Context {PROP : bi}.
 
   Implicit Types Γ Γp Γs : env PROP.
@@ -1274,10 +1274,11 @@ Section icrash.
     envs_app false (env_intuitionistic Δ) (envs_clear_intuitionistic Δ).
 
   Lemma envs_intuitionistic_to_spatial_sound `{BiAffine PROP} Δ Δ' P :
-    envs_app false (env_intuitionistic Δ) (envs_clear_intuitionistic Δ) = Some Δ' →
+    envs_intuitionistic_to_spatial Δ = Some Δ' →
     envs_entails Δ' P →
     envs_entails Δ P.
   Proof.
+    rewrite /envs_intuitionistic_to_spatial.
     intros eq.
     rewrite envs_entails_unseal.
     intros <-.
@@ -1290,7 +1291,7 @@ Section icrash.
     done.
   Qed.
 
-End icrash.
+End intuit_to_spatial.
 
 (* Moves the intuitionistic context to the spatial context. *)
 Tactic Notation "iIntuitToSpatial" :=

@@ -82,6 +82,13 @@ Section protocol.
       know_bumper ℓ prot.(bumper).
   Proof. iNamed 1. iFrame "#". Qed.
 
+  Lemma know_protocol_unfold ℓ prot i :
+    know_protocol ℓ prot i ⊣⊢
+       ("#knowPred" ∷ know_pred_d ℓ (pred prot) i ∗
+        "#knowPreorder" ∷ know_preorder_loc_d ℓ (⊑@{ST}) i ∗
+        "#knowBumper" ∷ know_bumper ℓ (bumper prot) i).
+  Proof. rewrite /know_protocol !monPred_at_sep //. Qed.
+
   Global Instance know_protocol_buffer_free ℓ prot :
     BufferFree (know_protocol ℓ prot).
   Proof. apply _. Qed.

@@ -161,4 +161,11 @@ Section view_objective_instances.
   (* Global Instance intuitionistically_if_view_objective P p `{!ViewObjective P} : ViewObjective (□?p P). *)
   (* Proof. rewrite /bi_intuitionistically_if. destruct p; apply _. Qed. *)
 
+  Global Instance big_sepM_view_objective `{Countable K} {A}
+        (Φ : K → A → dProp Σ) (m : gmap K A) `{∀ k x, ViewObjective (Φ k x)} :
+    ViewObjective ([∗ map] k↦x ∈ m, Φ k x).
+  Proof.
+    intros ???. rewrite !monPred_at_big_sepM. do 3 f_equiv. by apply view_objective_at.
+  Qed.
+
 End view_objective_instances.
