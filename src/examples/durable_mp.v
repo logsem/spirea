@@ -61,11 +61,10 @@ Section proof.
 
   Program Definition inv_y :=
     {| pred (b : bool) (v : val) :=
-        match b with
-          false => ⌜ v = #false ⌝ ∗ ⎡ own γ__ex (Excl ()) ⎤
-        | true => ⌜ v = #true ⌝ ∗ flush_lb x inv_x true
-        end%I;
-      bumper := id; |}.
+        if b
+        then ⌜ v = #true ⌝ ∗ flush_lb x inv_x true
+        else ⌜ v = #false ⌝ ∗ ⎡ own γ__ex (Excl ()) ⎤;
+      bumper := id; |}%I.
   Next Obligation.
     iIntros ([|] ?); simpl.
     - iIntros "[% lb]". iModIntro.
@@ -74,16 +73,14 @@ Section proof.
       iDestruct "lb" as "($ & ?)".
     - iIntros "[% H]". iModIntro. iFrame. done.
   Qed.
-  Next Obligation. intros [|]; apply _. Qed.
 
   (* Definition inv_z := inv_y. *)
   Program Definition inv_z : LocationProtocol bool :=
     {| pred b v :=
-         match b with
-           false => ⌜ v = #false ⌝
-         | true => ⌜ v = #true ⌝ ∗ flush_lb x inv_x true
-         end%I;
-       bumper := id |}.
+        if b
+        then ⌜ v = #true ⌝ ∗ flush_lb x inv_x true
+        else ⌜ v = #false ⌝;
+       bumper := id |}%I.
   Next Obligation.
     iIntros ([|] ?); simpl.
     - iIntros "[% lb]". iModIntro.
@@ -92,7 +89,6 @@ Section proof.
       iDestruct "lb" as "($ & ?)".
     - iIntros "H". iModIntro. done.
   Qed.
-  Next Obligation. intros [|]; apply _. Qed.
 
   (* Note: The recovery code does not use the [y] location, hence the crash
   condition does not mention [y] as we don't need it to be available after a
@@ -113,6 +109,36 @@ Section proof.
     ∃ zss (bz : bool),
       "#zPer" ∷ persist_lb z inv_z bz ∗
       "zPts" ∷ z ↦_{inv_z} (zss ++ [bz]).
+
+  Lemma crash_condition_impl xss zss bx bz :
+    persist_lb x inv_x bx -∗
+    persist_lb z inv_z bz -∗
+    x ↦_{ inv_x} (xss ++ [bx]) -∗
+    z ↦_{ inv_z} (zss ++ [bz]) -∗
+    <PC> crash_condition.
+  Proof.
+    iIntros "xPer zPer xPts zPts".
+    iCrashIntro.
+    iDestruct "xPer" as "[#xPer (% & % & #xRec)]".
+    iDestruct (crashed_in_if_rec with "xRec xPts") as (???) "[cras xPts]".
+    iDestruct (crashed_in_agree with "xRec cras") as %->.
+    iDestruct (crashed_in_persist_lb with "xRec") as "#per2".
+    iClear "xPer".
+
+    iDestruct "zPer" as "[#zPer (% & % & #zRec)]".
+    iDestruct (crashed_in_if_rec with "zRec zPts") as (???) "[cras1 zPts]".
+    iDestruct (crashed_in_agree with "zRec cras1") as %->.
+    iDestruct (crashed_in_persist_lb with "zRec") as "#per3".
+
+    rewrite /crash_condition.
+    iExists _, _, _, _.
+    iFrameF "per2".
+    iFrameF "per3".
+
+    rewrite !list_fmap_id.
+    iFrame "xPts".
+    iFrame "zPts".
+  Qed.
 
   Lemma left_crash_condition_impl (sx : list bool) :
     persist_lb x inv_x false -∗
@@ -150,6 +176,10 @@ Section proof.
   Ltac solve_left_cc :=
     iSplit;
     first iApply (left_crash_condition_impl with "xPer xPts").
+
+  Ltac solve_cc :=
+    iSplit;
+    iApply (crash_condition_impl with "xPer zPer xPts zPts").
 
   Lemma right_prog_spec s E1 :
     y ↦_AT^{inv_y} [false] -∗
@@ -314,6 +344,14 @@ Section proof.
       done.
   Qed.
 
+  Definition foo (b : bool) : iProp Σ := if b then ⌜ 1 = 1 ⌝ %I else ⌜ 2 = 2 ⌝%I.
+
+  Instance if_else_persistent {PROP : bi} (b : bool) (P Q : PROP) :
+    Persistent P →
+    Persistent Q →
+    Persistent (if b then P else Q).
+  Proof. intros ??. destruct b; done. Qed.
+
   Lemma recovery_prog_spec s E :
     crash_condition -∗
     WPC recovery x z @ s; E
@@ -325,30 +363,42 @@ Section proof.
     wpc_bind (!_NA _)%E.
     iApply wpc_atomic_no_mask.
     iSplit.
-    { iCrashIntro.
-      iDestruct "xPer" as "[#xPer (% & % & #xRec)]".
-      iDestruct (crashed_in_if_rec with "xRec xPts") as (???) "[cras xPts]".
-      iDestruct (crashed_in_agree with "xRec cras") as %->.
-      iDestruct (crashed_in_persist_lb with "xRec") as "#per2".
+    { iApply (crash_condition_impl with "xPer zPer xPts zPts"). }
 
-      iDestruct "zPer" as "[#zPer (% & % & #zRec)]".
-      iDestruct (crashed_in_if_rec with "zRec zPts") as (???) "[cras1 zPts]".
-      iDestruct (crashed_in_agree with "zRec cras1") as %->.
-      iDestruct (crashed_in_persist_lb with "zRec") as "#per3".
+    iApply (wp_load_na with "[$zPts]").
+    { apply last_snoc. }
+    { iModIntro.
+      iIntros (?). iIntros "#H". iFrame "H". rewrite right_id. iApply "H". }
+    iNext. iIntros (?) "[zPts pred]".
+    iSplit.
+    { iModIntro. iApply (crash_condition_impl with "xPer zPer xPts zPts"). }
+    iModIntro.
+    destruct bz.
+    - iDestruct "pred" as "[-> lb]".
+      rewrite /assert.
+      wpc_pures.
+      { iApply (crash_condition_impl with "xPer zPer xPts zPts"). }
+      wpc_bind (!_NA _)%E.
+      iApply wpc_atomic_no_mask.
+      iSplit.
+      { iApply (crash_condition_impl with "xPer zPer xPts zPts"). }
+      iDestruct (mapsto_na_flush_lb_incl with "lb xPts") as %[= ->].
 
-      rewrite /crash_condition.
-      iExists _, _, _, _.
-      iFrameF "xPer".
-      iFrameF "zPer".
-
-      rewrite !list_fmap_id.
-      (* iFrame "xPts". *)
-      admit. }
-
-  Admitted.
-  (*   iApply (wp_load_at_simple _ _ *)
-  (*             (λ s v, (⌜v = #true⌝ ∗ flush_lb x inv_x true) ∨ ⌜v = #false⌝)%I *)
-  (*             inv_y with "[$yPts]"). *)
-  (* Qed. *)
+      iApply (wp_load_na with "[$xPts]").
+      { apply last_snoc. }
+      { iModIntro. simpl.
+        iIntros (?). iIntros "#H". iFrame "H". rewrite right_id. iApply "H". }
+      iNext. iIntros (?) "[xPts ->]".
+      iSplit.
+      { iModIntro. iApply (crash_condition_impl with "xPer zPer xPts zPts"). }
+      iModIntro.
+      wpc_pures.
+      { iApply (crash_condition_impl with "xPer zPer xPts zPts"). }
+      by iModIntro.
+    - iDestruct "pred" as %->.
+      wpc_pures.
+      { iApply (crash_condition_impl with "xPer zPer xPts zPts"). }
+      by iModIntro.
+  Qed.
 
 End proof.
