@@ -14,14 +14,14 @@ Lemma mk_Qp_Qp_to_Qc qp prf : (* Upstreamed *)
 Proof. by apply Qp.to_Qc_inj_iff. Qed.
 
 Section if_non_zero.
-  Context `{BiAffine PROP}.
+  Context `{!BiAffine PROP}.
 
   Implicit Types (P : Qp → PROP).
 
   Definition if_non_zero (q : Qc) P : PROP :=
     match (decide (0 < q)%Qc) with
       left prf => P (mk_Qp q prf)
-    | right prf => ⌜q = 0%Qc⌝
+    | right prf => ⌜ q = 0%Qc ⌝
     end.
 
   Lemma if_non_zero_cases q P :
@@ -118,9 +118,6 @@ Section if_non_zero.
   Lemma mk_Qp_1 prf : mk_Qp 1 prf = 1%Qp.
   Proof. apply Qp.to_Qc_inj_iff. simpl. by rewrite Z2Qc_inj_1. Qed.
 
-  (* Lemma mk_Qp_0 prf : mk_Qp 0 prf = 0%Qp. *)
-  (* Proof. apply Qp.to_Qc_inj_iff. simpl. by rewrite Z2Qc_inj_1. Qed. *)
-
   Lemma if_non_zero_0 (P : Qp → PROP) :
     if_non_zero 0%Qc P = (⌜0 = 0⌝)%Qc%I.
   Proof. done. Qed.
@@ -140,9 +137,14 @@ Section if_non_zero.
     rewrite if_non_zero_1 if_non_zero_0. naive_solver.
   Qed.
 
+  Lemma soft_disj_intro_l Q P : Q 1%Qp -∗ soft_disj Q P.
+  Proof.
+    iIntros "P". iExists 1%Qc, 0%Qc.
+    rewrite if_non_zero_1 if_non_zero_0. naive_solver.
+  Qed.
+
   Lemma soft_disj_exchange_l Q P `{!Fractional P, !Fractional Q} q :
-    (□ ∀ q, Q q -∗ ⌜q ≤ 1⌝)%Qp -∗
-    (* (□ ∀ q, P q -∗ ⌜q ≤ 1⌝)%Qp -∗ *)
+    (□ ∀ q, Q q -∗ ⌜ q ≤ 1 ⌝)%Qp -∗
     soft_disj Q P -∗ Q q -∗ soft_disj Q P ∗ P q.
   Proof.
     iIntros "#Qval".
