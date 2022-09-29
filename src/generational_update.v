@@ -1,5 +1,5 @@
-From iris.algebra Require Import agree excl.
-From iris.proofmode Require Import classes.
+From iris.algebra Require Import functions gmap agree excl.
+From iris.proofmode Require Import classes tactics.
 From iris.base_logic.lib Require Export iprop own.
 From iris.prelude Require Import options.
 Import uPred.
@@ -159,27 +159,113 @@ Definition generational_cmraR (A : cmra) :=
 
 (* Ownership over generational ghost state. *)
 
-Local Definition own_gen_def `{!inG Σ (generational_cmraR A)}
+Definition own_gen `{!inG Σ (generational_cmraR A)}
     (γ : gname) (a : A) : iProp Σ :=
   own γ (None, (None, None), Some a).
-Local Definition own_gen_aux : seal (@own_gen_def). Proof. by eexists. Qed.
-Definition own_gen := own_gen_aux.(unseal).
-Global Arguments own_gen {Σ A _} γ a.
-Local Definition own_gen_eq : @own_gen = @own_gen_def := own_gen_aux.(seal_eq).
-Local Instance: Params (@own_gen) 4 := {}.
+
+(* Local Definition own_gen_def `{!inG Σ (generational_cmraR A)} *)
+(*     (γ : gname) (a : A) : iProp Σ := *)
+(*   own γ (None, (None, None), Some a). *)
+(* Local Definition own_gen_aux : seal (@own_gen_def). Proof. by eexists. Qed. *)
+(* Definition own_gen := own_gen_aux.(unseal). *)
+(* Global Arguments own_gen {Σ A _} γ a. *)
+(* Local Definition own_gen_eq : @own_gen = @own_gen_def := own_gen_aux.(seal_eq). *)
+(* Local Instance: Params (@own_gen) 4 := {}. *)
 
 Definition own_tok `{!inG Σ (generational_cmraR A)} γ : iProp Σ :=
   own γ ((None, GTS_tok_both, None) : generational_cmraR A).
 
+Lemma own_tok_split `{!inG Σ (generational_cmraR A)} γ :
+  own_tok γ ⊣⊢
+  own γ (None, GTS_tok_perm, None) ∗
+  own γ (None, GTS_tok_gen, None).
+Proof. rewrite -own_op. done. Qed.
+
 Definition own_pick `{!inG Σ (generational_cmraR A)} γ (f : A → A) : iProp Σ :=
   own γ ((Some (to_agree f), (None, None), None) : generational_cmraR A).
 
-Definition gupd {Σ : gFunctors} P : iProp Σ :=
-  (∃ (m : iResUR),
-    ∀ fG (_ : Generation fG), ⚡={fG}=> P).
+(* The generation function for the encoding of each ownership over generational
+camera. *)
+Definition gen_generation {A : cmra} (f : A → A)
+    (e : generational_cmra A) : generational_cmra A :=
+  match e with
+  | (_, tok, ma) => (Some (to_agree f), GTS_floor tok, f <$> ma)
+  end.
 
-Lemma own_generational_update_tok `{!inG Σ (generational_cmraR A)} γ a f :
-  .
+Definition resp {Σ} (fG : iResUR Σ → _) `{!Generation fG}
+    (fs : ∀ i, gmap gname
+                ((rFunctor_apply (gFunctors_lookup Σ i) (iPrePropO Σ)) →
+                 (rFunctor_apply (gFunctors_lookup Σ i) (iPrePropO Σ)))) :=
+  ∀ (m : iResUR Σ) i γ a f,
+    fs i !! γ = Some f →
+    m i !! γ = Some a →
+    (fG m) i !! γ = Some (f a).
 
-Lemma own_generational_update_tok `{!inG Σ (generational_cmraR A)} γ a f :
-  own_tok γ ∗ own_gen γ a ⊢ own_tok γ ∗ own_gen γ (f a) ∗ own_pick γ f.
+Definition R Σ i := (rFunctor_apply (gFunctors_lookup Σ i) (iPrePropO Σ)).
+
+Record foo Σ i := {
+  foo_cmra : cmra;
+  foo_eq : R Σ i = generational_cmraR foo_cmra;
+  (* foo_map : gmap gname (foo_cmra → foo_cmra); *)
+}.
+
+Definition gupd {Σ} P : iProp Σ :=
+  ∃ (f : ∀ i, gmap gname (R Σ i → R Σ i))
+    (m : iResUR Σ),
+    (* ⌜ ∀ i γ A a, R Σ i = generational_cmraR A ∧ f i !! γ = Some a ⌝ ∗ *)
+    uPred_ownM m ∗
+    (∀ i γ a,
+      ⌜ (m i) !! γ = Some a  →
+      ∃ (A : _)
+        (eq : rFunctor_apply (gFunctors_lookup Σ i) (iPrePropO Σ) = generational_cmraR A),
+        (cmra_transport eq a) = (None, GTS_tok_gen, None) ⌝) ∗
+    ∀ (fG : iResUR Σ → _) (_ : Generation fG), (* ⌜ resp fG f ⌝ → *) ⚡={fG}=> P.
+
+Notation "⚡==> P" := (gupd P)
+  (at level 99, P at level 200, format "⚡==>  P") : bi_scope.
+
+(** * Properties about generational ghost ownership. *)
+Section own_properties.
+
+  Context `{i : !inG Σ (generational_cmraR A)}.
+
+  Implicit Types a : A.
+
+  Lemma own_gen_alloc a : ✓ a → ⊢ |==> ∃ γ, own_gen γ a ∗ own_tok γ.
+  Proof.
+    intros Hv.
+    iApply bupd_mono; last first.
+    { iApply (own_alloc (None, GTS_tok_both, Some a)). done. }
+    iIntros "[%γ H]".
+    iExists (γ).
+    rewrite -own_op.
+    iApply "H".
+  Qed.
+
+  Lemma own_generational_update_tok γ a f :
+    own_tok γ ∗ own_gen γ a ⊢ ⚡==> own_tok γ ∗ own_gen γ (f a) ∗ own_pick γ f.
+  Proof.
+    iIntros "[tok gen]".
+    iDestruct (own_tok_split with "tok") as "[tok1 tok2]".
+    rewrite /gupd.
+    pose proof (@inG_prf _ _ i) as eq.
+    simpl in eq.
+    rewrite /inG_apply in eq.
+
+    iExists (
+      λ j, if decide (j = inG_id i) then {[ γ := gen_generation f ]} else ∅
+    ).
+
+    iExists (own.iRes_singleton γ (None, GTS_tok_gen, None)).
+    (* iExists ( *)
+    (*   discrete_fun_singleton (inG_id i : fin (gFunctors_len Σ)) *)
+    (*     {[ γ := (None, GTS_tok_gen, None) ]} *)
+    (* ). *)
+    iEval (rewrite own.own_eq) in "tok2".
+    iFrame "tok2".
+
+
+    (* TODO *)
+  Admitted.
+
+End own_properties.
