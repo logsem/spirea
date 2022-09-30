@@ -214,15 +214,112 @@ Definition gupd {Σ} P : iProp Σ :=
     (m : iResUR Σ),
     (* ⌜ ∀ i γ A a, R Σ i = generational_cmraR A ∧ f i !! γ = Some a ⌝ ∗ *)
     uPred_ownM m ∗
-    (∀ i γ a,
-      ⌜ (m i) !! γ = Some a  →
-      ∃ (A : _)
-        (eq : rFunctor_apply (gFunctors_lookup Σ i) (iPrePropO Σ) = generational_cmraR A),
-        (cmra_transport eq a) = (None, GTS_tok_gen, None) ⌝) ∗
-    ∀ (fG : iResUR Σ → _) (_ : Generation fG), (* ⌜ resp fG f ⌝ → *) ⚡={fG}=> P.
+    ⌜ (∀ i (γ : gname) (a : rFunctor_apply (gFunctors_lookup Σ i) (iPrePropO Σ)),
+        (m i) !! γ = Some a  →
+        ∃ (A : _)
+          (eq : rFunctor_apply (gFunctors_lookup Σ i) (iPropO Σ) = generational_cmraR A),
+            cmra_transport eq ((rFunctor_map _ (iProp_unfold, iProp_fold)) a) = (None, GTS_tok_gen, None)) ⌝ ∗
+    ∀ (fG : iResUR Σ → _) (_ : Generation fG), ⌜ resp fG f ⌝ → ⚡={fG}=> P.
 
 Notation "⚡==> P" := (gupd P)
   (at level 99, P at level 200, format "⚡==>  P") : bi_scope.
+
+  (* look : discrete_fun_singleton (inG_id i) *)
+  (*          {[γ := own.inG_unfold (cmra_transport inG_prf a)]} i' !! γ' =  *)
+  (*        Some b *)
+
+Lemma iRes_singlon_lookup_inG_id `{i : !inG Σ A} (a : A) (γ γ' : gname)
+    (b : rFunctor_apply (gFunctors_lookup Σ (inG_id i)) (iPrePropO Σ)) :
+  (own.iRes_singleton γ a) (inG_id i) !! γ' = Some b →
+  γ = γ' ∧ b = own.inG_unfold (cmra_transport inG_prf a).
+Proof.
+  rewrite /own.iRes_singleton.
+  rewrite discrete_fun_lookup_singleton.
+  rewrite lookup_singleton_Some.
+  intros [??]. split; congruence.
+Qed.
+
+(* Lemma iRes_singleton_id_eq `{i : !inG Σ A} (a : A) i' (γ γ' : gname) *)
+(*     (b : rFunctor_apply (gFunctors_lookup Σ i') (iPrePropO Σ)) *)
+(*     (* (eq : inG_id i = i') : *) *)
+(*     (* (eq : inG_id i = i') : *) *)
+(*   (own.iRes_singleton γ a) i' !! γ' = Some b → *)
+(*   (own.iRes_singleton γ a) (inG_id i) !! γ' = Some (cmra_transport eq b). *)
+(*   (* (match eq in (_ = rr) return Prop  with *) *)
+(*   (* | eq_refl => (own.iRes_singleton γ a) (inG_id i) !! γ' = Some b *) *)
+(*   (* end) *) *)
+(*   . *)
+
+Lemma iRes_singleton_id_eq `{i : !inG Σ A} (a : A) i' (γ γ' : gname)
+    (b : rFunctor_apply (gFunctors_lookup Σ i') (iPrePropO Σ)) :
+  inG_id i = i' →
+  (own.iRes_singleton γ a) i' !! γ' = Some b →
+  ∃ (eq : rFunctor_apply (gFunctors_lookup Σ i') (iPrePropO Σ) =
+          rFunctor_apply (gFunctors_lookup Σ (inG_id i)) (iPrePropO Σ)),
+    (* (own.iRes_singleton γ a) (inG_id i) !! γ' = Some (cmra_transport eq b). *)
+    (own.iRes_singleton γ a) (inG_id i) !! γ' = Some (cmra_transport eq b).
+Proof.
+  intros eq look.
+  assert (
+    rFunctor_apply (gFunctors_lookup Σ i') (iPrePropO Σ) (* type of [B] *)
+    =
+    rFunctor_apply (gFunctors_lookup Σ (inG_id i)) (iPrePropO Σ)
+  ) as eq2 by congruence.
+  exists eq2.
+  destruct eq.
+  rewrite look.
+  f_equiv.
+  (* eq_dep *)
+  (* eq_dep1 *)
+  (* rewrite eq eq2 in look. *)
+
+  (*
+  rewrite /discrete_fun_singleton in look.
+  rewrite /discrete_fun_insert in look.
+  pose proof (cmra_transport eq2 b).
+  rewrite eq2 in look.
+
+  Set Printing Implicit.
+  pose proof
+    (eq_rect i'
+       (λ id,
+         discrete_fun_singleton (inG_id i)
+           {[γ := own.inG_unfold (cmra_transport inG_prf a)]} id !! γ' =
+           Some (b))
+           (* Some (b : rFunctor_apply (gFunctors_lookup Σ id) (iPrePropO Σ))) *)
+           (* Some (cmra_transport eq2 b)) *)
+       look
+       _
+       eq).
+  simpl in H.
+
+  rewrite e in look.
+  rewrite discrete_fun_lookup_singleton.
+  discrete_fun_lookup_singleton_ne.
+*)
+Admitted.
+
+Lemma iRes_singleton_lookup `{i : !inG Σ A} γ γ' (a : A) i'
+    (b : rFunctor_apply (gFunctors_lookup Σ i') (iPrePropO Σ)) :
+  (own.iRes_singleton γ a) i' !! γ' = Some b →
+  ∃ (eq : rFunctor_apply (gFunctors_lookup Σ i') (iPrePropO Σ) =
+          rFunctor_apply (gFunctors_lookup Σ (inG_id i)) (iPrePropO Σ)),
+    inG_id i = i' ∧
+    γ = γ' ∧
+    cmra_transport eq b = own.inG_unfold (cmra_transport inG_prf a)
+  .
+Proof.
+  rewrite /own.iRes_singleton.
+  destruct (decide (inG_id i = i')) as [eq|]; last first.
+  { rewrite discrete_fun_lookup_singleton_ne //. }
+  intros look.
+  apply iRes_singleton_id_eq in look; try done.
+  destruct look as [eq2 look].
+  exists eq2.
+  split; first done.
+  apply iRes_singlon_lookup_inG_id in look as [-> ?].
+  done.
+Qed.
 
 (** * Properties about generational ghost ownership. *)
 Section own_properties.
@@ -264,8 +361,29 @@ Section own_properties.
     iEval (rewrite own.own_eq) in "tok2".
     iFrame "tok2".
 
+    iSplit.
+    - iPureIntro. intros i' γ' b.
+      intros look.
+      apply iRes_singleton_lookup in look as (eq' & iEq & gEq & ho).
 
-    (* TODO *)
+      exists A.
+      symmetry in eq.
+      rewrite iEq in eq.
+      eexists eq.
   Admitted.
+  (*     rewrite -iEq. *)
+
+  (*     rewrite ho. *)
+  (*     Unshelve. *)
+  (*     3: { *)
+  (*       app *)
+  (*       simpl. *)
+  (*       rewrite (inG_prf (A := generational_cmraR A)). *)
+  (*       rewrite /inG_apply. *)
+  (*       done. *)
+
+
+  (*   (* TODO *) *)
+  (* Admitted. *)
 
 End own_properties.
