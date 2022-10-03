@@ -4,10 +4,18 @@ From iris.base_logic.lib Require Export iprop own.
 From iris.prelude Require Import options.
 Import uPred.
 
+(* The properties that the "generation", i.e., the function that transforms the
+ghost state, needs to satisfy. Note that this is the "global" generation that
+applies to the single unital camera. *)
 Class Generation {M : ucmra} (f : M → M) := {
     generation_ne :> NonExpansive f;
+    (* The function should be monotone with respect to the inclusion order of
+    the monoid. *)
     generation_mono : ∀ x y, x ≼ y → f x ≼ f y;
+    (* Validity is preserved. *)
     generation_valid : ∀ n (a : M), ✓{n} a → ✓{n} (f a);
+    (* The generation comutes with the core. *)
+    generation_core : ∀ (a : M), f (core a) = core (f a);
     generation_op : ∀ n (a b : M), ✓{n} (a ⋅ b) → f (a ⋅ b) = f a ⋅ f b
 }.
 
@@ -39,11 +47,17 @@ Local Definition uPred_bgupd_unseal :
 Notation "⚡={ f }=> P" := (uPred_bgupd f P)
   (at level 99, f at level 50, P at level 200, format "⚡={ f }=>  P") : bi_scope.
 
-Section rules.
+Class IntoBgupd `{M : ucmra} f `{!Generation f} (P : uPred M) (Q : uPred M) :=
+  into_bgupd : P ⊢ ⚡={ f }=> Q.
+Global Arguments IntoBgupd  {_} _%I _ _%I.
+Global Arguments into_bgupd {_} _%I _%I {_}.
+Global Hint Mode IntoBgupd + + + ! - : typeclass_instances.
+
+Section bgupd_rules.
 
   Context {M : ucmra}.
 
-  Implicit Types (f : M → M).
+  Context (f : M → M) `{!Generation f}.
 
   Notation "P ⊢ Q" := (@uPred_entails M P%I Q%I) : stdpp_scope.
   (* Notation "(⊢)" := (@uPred_entails M) (only parsing) : stdpp_scope. *)
@@ -53,7 +67,15 @@ Section rules.
 
   Ltac unseal := try uPred.unseal; rewrite !uPred_bgupd_unseal !/uPred_holds /=.
 
-  Lemma bgupd_ownM f `{!Generation f} (a : M) :
+  Global Instance bgupd_ne : NonExpansive (uPred_bgupd f).
+  Proof.
+    unseal. intros ? P Q Heq.
+    split.
+    intros ????. simpl.
+    split; intros ?; apply Heq; eauto using Heq, generation_valid.
+  Qed.
+
+  Lemma bgupd_ownM (a : M) :
     uPred_ownM a ⊢ ⚡={f}=> uPred_ownM (f a).
   Proof.
     unseal. split. simpl.
@@ -61,7 +83,11 @@ Section rules.
     apply generation_monoN; done.
   Qed.
 
-  Lemma bgupd_sep f `{!Generation f} P Q :
+  Lemma bgupd_and P Q :
+    (⚡={f}=> P) ∧ (⚡={f}=> Q) ⊣⊢ ⚡={f}=> (P ∧ Q).
+  Proof. unseal. split. simpl. done. Qed.
+
+  Lemma bgupd_sep_2 P Q :
     (⚡={f}=> P) ∗ (⚡={f}=> Q) ⊢ ⚡={f}=> (P ∗ Q) .
   Proof.
     unseal. split. simpl.
@@ -73,18 +99,18 @@ Section rules.
     - rewrite -eq. done.
   Qed.
 
-  Lemma bgupd_intro_plain f `{!Generation f} P :
+  Lemma bgupd_intro_plain P :
     ■ P ⊢ ⚡={f}=> ■ P.
   Proof. unseal. split. done. Qed.
 
-  Lemma bgupd_plainly f `{!Generation f} P :
+  Lemma bgupd_plainly P :
     (⚡={f}=> ■ P) ⊢ P.
   Proof.
     unseal. split. simpl. intros ????. simpl.
     eauto using uPred_mono, ucmra_unit_leastN.
   Qed.
 
-  Lemma bgupd_mono f `{!Generation f} P Q :
+  Lemma bgupd_mono P Q :
     (P ⊢ Q) → (⚡={f}=> P) ⊢ ⚡={f}=> Q.
   Proof.
     intros [Hi].
@@ -95,7 +121,46 @@ Section rules.
     done.
   Qed.
 
-End rules.
+  Lemma bgupd_emp_2 : emp ⊢ ⚡={f}=> emp.
+  Proof. unseal. done. Qed.
+
+  Lemma bgupd_intuitinistically_2 P :
+    <pers> (⚡={f}=> P) ⊢ ⚡={f}=> (<pers> P).
+  Proof.
+    unseal. split. simpl. intros ???.
+    rewrite generation_core. done.
+  Qed.
+
+  Global Instance bgupd_mono' :
+    Proper ((⊢) ==> (⊢)) (uPred_bgupd f).
+  Proof. intros P Q. apply bgupd_mono. Qed.
+
+  Global Instance bgupd_proper :
+    Proper ((≡) ==> (≡)) (uPred_bgupd f) := ne_proper _.
+
+  Lemma modality_bgupd_mixin :
+    modality_mixin (@uPred_bgupd M f _)
+      (MIEnvTransform (IntoBgupd f _)) (MIEnvTransform (IntoBgupd f _)).
+  Proof.
+    split; simpl; split_and?.
+    - intros ?? Hi.
+      rewrite Hi.
+      rewrite 2!intuitionistically_into_persistently.
+      apply bgupd_intuitinistically_2.
+    - intros. rewrite bgupd_and. done.
+    - done.
+    - apply bgupd_emp_2.
+    - apply bgupd_mono.
+    - apply bgupd_sep_2.
+  Qed.
+  Definition modality_bgupd :=
+    Modality _ modality_bgupd_mixin.
+
+  Global Instance from_modal_objectively P :
+    FromModal True modality_bgupd (⚡={f}=> P) (⚡={f}=> P) P | 1.
+  Proof. by rewrite /FromModal. Qed.
+
+End bgupd_rules.
 
 (******************************)
 (* Generational token stream. *)
@@ -143,6 +208,7 @@ Proof.
       inversion H0.
       inversion H3.
   - intros ? [[[[]|]|] [[[]|]|]]; cbv; try naive_solver.
+  - intros [[[[]|]|] [[[]|]|]]; simpl; cbv; try done; try naive_solver.
   - intros ?.
     do 2 intros [[[[]|]|] [[[]|]|]]; simpl; cbv; try done; try naive_solver.
 Qed.
