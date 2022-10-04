@@ -264,6 +264,14 @@ Definition gen_generation {A : cmra} (f : A → A)
   | (_, tok, ma) => (Some (to_agree f), GTS_floor tok, f <$> ma)
   end.
 
+Global Instance gen_generation_proper {A : cmra} (f : A → A) :
+  Proper ((≡) ==> (≡)) f →
+  Proper ((≡) ==> (≡)) (gen_generation f).
+Proof.
+Admitted.
+(*   solve_proper. *)
+(* Qed. *)
+
 Notation R Σ i := (rFunctor_apply (gFunctors_lookup Σ i) (iPropO Σ)).
 
 Definition resp {Σ} (fG : iResUR Σ → _) `{!Generation fG}
@@ -288,14 +296,69 @@ Proof.
   f_equiv. simpl.
   apply discrete_fun_included_spec.
   intros idx'.
-  (* rewrite lookup_fun_singleton. *)
   destruct (decide (idx = idx')) as [<-|neq].
   - rewrite discrete_fun_lookup_singleton.
     apply singleton_included_l.
     exists (rFunctor_map _ (iProp_fold, iProp_unfold) (f (rFunctor_map _ (iProp_unfold, iProp_fold) a))).
-    (* exists (f a). *)
     split; last done.
     rewrite look.
+    done.
+  - rewrite discrete_fun_lookup_singleton_ne; try done.
+    apply ucmra_unit_least.
+Qed.
+
+Definition cmra_map_transport {A B : cmra} (Heq : A = B) (f : A → A) : (B → B) :=
+  eq_rect A (λ T, T → T) f _ Heq.
+
+Lemma cmra_map_transport_cmra_transport {A B : cmra} (f : A → A) a (Heq : A = B) :
+  (cmra_map_transport Heq f) (cmra_transport Heq a) =
+  (cmra_transport Heq (f a)).
+Proof. destruct Heq. simpl. reflexivity. Qed.
+
+Global Instance cmra_map_transport_proper {A B : cmra} (f : A → A) (Heq : A = B) :
+  (Proper ((≡) ==> (≡)) f) →
+  (Proper ((≡) ==> (≡)) (cmra_map_transport Heq f)).
+Proof. naive_solver. Qed.
+
+Lemma uPred_own_resp `{i : !inG Σ A} fG `{!Generation fG} fs (f : A → A) γ a
+                     `{!Proper ((≡) ==> (≡)) f}
+  :
+  resp (Σ := Σ) fG fs →
+  fs (inG_id i) !! γ = Some (cmra_map_transport inG_prf f) →
+  uPred_ownM (fG (own.iRes_singleton γ a))
+  ⊢ uPred_ownM ((own.iRes_singleton γ (f a))).
+Proof.
+  iIntros (Hres Hlook).
+  rewrite /own.iRes_singleton.
+  eapply (Hres
+            (* (own.iRes_singleton γ a) *)
+            (* (discrete_fun_singleton (inG_id i) {[γ := a]}) *)
+            (discrete_fun_singleton (inG_id i)
+                  {[γ := own.inG_unfold (cmra_transport inG_prf a)]})
+            (* _ *)
+            _ _
+            (own.inG_unfold (cmra_transport inG_prf a))
+            _
+         ) in Hlook; last first.
+  { simpl.
+    rewrite discrete_fun_lookup_singleton.
+    rewrite lookup_singleton.
+    done. }
+  f_equiv. simpl.
+  apply discrete_fun_included_spec.
+  intros idx'.
+  destruct (decide ((inG_id i) = idx')) as [<-|neq].
+  - rewrite discrete_fun_lookup_singleton.
+    apply singleton_included_l.
+    exists (own.inG_unfold (cmra_transport inG_prf (f a))).
+    split; last done.
+    rewrite Hlook.
+    rewrite -/own.inG_unfold.
+    rewrite -/own.inG_fold.
+    f_equiv.
+    f_equiv.
+    rewrite own.inG_fold_unfold.
+    rewrite cmra_map_transport_cmra_transport.
     done.
   - rewrite discrete_fun_lookup_singleton_ne; try done.
     apply ucmra_unit_least.
@@ -386,23 +449,25 @@ Proof.
   done.
 Qed.
 
-Definition gen_f_singleton_alt {Σ} {A : cmra} idx (γ : gname)
+Definition gen_f_singleton_alt {Σ} idx (γ : gname)
     (f : R Σ idx → R Σ idx) :
     (* (eq : A = rFunctor_apply (gFunctors_lookup Σ idx) (iPropO Σ)) : *)
     ∀ i, gmap gname (R Σ i → R Σ i) :=
   λ j, match decide (idx = j) with
           left eq2 =>
             match eq2 in (_ = ii) return (gmap gname (R Σ ii → R Σ ii)) with
-            eq_refl =>
-              {[ γ := f
-                (* (match eq in (_ = r) return (r → r) with | eq_refl => f *)
-                (*   end : R Σ idx → R Σ idx) *)
-                  (* (gen_generation f : R Σ (inG_id i) → R Σ (inG_id i)) *)
-            ]} : gmap gname (R Σ idx → R Σ idx)
+              eq_refl => {[ γ := f]} : gmap gname (R Σ idx → R Σ idx)
             end
         | right _ => ∅
         end.
 
+Definition gen_f_singleton_lookup {Σ} γ idx (f : R Σ idx → R Σ idx) :
+  gen_f_singleton_alt idx γ f idx !! γ = Some f.
+Proof.
+  rewrite /gen_f_singleton_alt.
+  case (decide (idx = idx)); last by congruence.
+  intros eq'.
+Admitted.
 
 Definition gen_f_singleton {Σ} {A : cmra} idx (γ : gname) (f : A → A)
     (eq : A = rFunctor_apply (gFunctors_lookup Σ idx) (iPropO Σ)) :
@@ -439,65 +504,13 @@ Section own_properties.
     iApply "H".
   Qed.
 
-(* ∀ i0 : fin (gFunctors_len Σ), *)
-(*             gmap gname *)
-(*               (rFunctor_apply (gFunctors_lookup Σ i0) (iPropO Σ) *)
-(*                → rFunctor_apply (gFunctors_lookup Σ i0) (iPropO Σ))) *)
-  (* discrete_fun_singleton idx ( *)
-  (*     {[ γ := *)
-  (*          (match eq in (_ = r) return (r → r) with *)
-  (*           | eq_refl => f end : R Σ idx → R Σ idx) *)
-  (*            (* (gen_generation f : R Σ (inG_id i) → R Σ (inG_id i)) *) *)
-  (*     ]} : gmap gname (R Σ idx → R Σ idx) *)
-  (*   ) *)
-  (* . *)
-
-  Lemma own_generational_update_tok γ a f :
+  Lemma own_generational_update_tok γ a f `{!Proper ((≡) ==> (≡)) f} :
     own_tok γ ∗ own_gen γ a ⊢ ⚡==> own_tok γ ∗ own_gen γ (f a) ∗ own_pick γ f.
   Proof.
     iIntros "[tok gen]".
     iDestruct (own_tok_split with "tok") as "[tok1 tok2]".
     rewrite /gupd.
-
-    (* set (h := *)
-    (*   λ j, if decide (j = inG_id i) then ({[ γ := gen_generation f ]} else ∅ *)
-    (* ). *)
-    (* i-Exists ( *)
-    (*   λ j, if decide (j = inG_id i) *)
-    (*        then _ *)
-    (*        else ∅ *)
-    (* ). *)
-    (* pose proof (gen_generation f) as gen_f. *)
-    pose proof (@inG_prf _ _ i) as Heq.
-    rewrite /inG_apply in Heq.
-    (* apply eq_sym in Heq. *)
-    set (gen_f := gen_generation f).
-    pose proof (gen_generation f).
-    (* destruct Heq. *)
-    setoid_rewrite -> Heq in gen_f.
-
-    (* pose proof ( *)
-    (*   eq_rect A id x _ H. *)
-
-    (* destruct eq. *)
-    (* apply eq_sym in eq. *)
-    set (gg := match Heq in (_ = r) return (r → r) with
-                | eq_refl => gen_generation f
-               end : R Σ (inG_id i) → R Σ (inG_id i)).
-    (* (* Set Printing All. *) *)
-    (* destruct eq. *)
-    iExists (gen_f_singleton_alt (inG_id i) γ gg).
-
-    (* iExists ( *)
-    (*   λ j, if decide (j = inG_id i) *)
-    (*        then {[ γ := *)
-    (*                  (match eq in (_ = r) return (r → r) with *)
-    (*                    | eq_refl => gen_generation f end : R Σ (inG_id i) → R Σ (inG_id i)) *)
-    (*                  (* (gen_generation f : R Σ (inG_id i) → R Σ (inG_id i)) *) *)
-    (*          ]} *)
-    (*        else ∅ *)
-    (* ). *)
-
+    iExists (gen_f_singleton_alt (inG_id i) γ (cmra_map_transport inG_prf (gen_generation f))).
     iExists (own.iRes_singleton γ (None, GTS_tok_gen, None)).
     iEval (rewrite own.own_eq) in "tok2".
     iFrame "tok2".
@@ -522,37 +535,38 @@ Section own_properties.
       apply own.inG_fold_unfold.
     - iIntros (?? resp).
       rewrite /own_gen.
-      rewrite own.own_eq.
+      iEval (rewrite own.own_eq) in "gen".
+      iEval (rewrite own.own_eq) in "tok1".
       rewrite /own.own_def.
       iModIntro.
-      rewrite /own.iRes_singleton.
       iDestruct
-        (uPred_ownM_resp
-           _ _ _
-           gg
-           (* (match eq in (_ = r) return (r → r) with *)
-           (*  | eq_refl => gen_generation f *)
-           (*  end : R Σ (inG_id i) → R Σ (inG_id i)) *)
+        (uPred_own_resp (A := generational_cmraR A)
+           fG _
+           (gen_generation f) γ
+           _
           with "gen") as "gen"; first done.
-      {
-        (* Set Printing All. *)
-        (* apply decide_True. *)
-        rewrite /gen_f_singleton_alt.
-        (* simpl. *)
-        case (decide (inG_id i = inG_id i)); last by congruence.
-        intros eq'.
-        (* destruct eq'. *)
-        admit.
-      }
-      rewrite -!/own.inG_fold.
-      rewrite -!/own.inG_unfold.
+      { rewrite gen_f_singleton_lookup. done. }
+      iDestruct
+        (uPred_own_resp (A := generational_cmraR A)
+           fG _
+           (gen_generation f) γ
+           _
+          with "tok1") as "tok1"; first done.
+      { rewrite gen_f_singleton_lookup. done. }
       iEval (rewrite comm).
       iEval (rewrite -assoc).
+      simpl.
       iSplitL "gen".
-      { rewrite /gg.
-        (* destruct Heq. *)
-        (* setoid_rewrite own.inG_fold_unfold. *)
-        admit. }
-  Admitted.
+      { iApply own_mono; last first.
+        { rewrite own.own_eq. rewrite /own.own_def. iApply "gen". }
+        exists (Some (to_agree f), (None, None), None).
+        done. }
+      rewrite /own_pick.
+      rewrite /own_tok.
+      rewrite -own_op.
+      iApply own_mono; last first.
+      { rewrite own.own_eq. rewrite /own.own_def. iApply "tok1". }
+      reflexivity.
+  Qed.
 
 End own_properties.
