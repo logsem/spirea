@@ -449,42 +449,26 @@ Proof.
   done.
 Qed.
 
-Definition gen_f_singleton_alt {Σ} idx (γ : gname)
+Definition gen_f_singleton {Σ} idx (γ : gname)
     (f : R Σ idx → R Σ idx) :
-    (* (eq : A = rFunctor_apply (gFunctors_lookup Σ idx) (iPropO Σ)) : *)
     ∀ i, gmap gname (R Σ i → R Σ i) :=
   λ j, match decide (idx = j) with
-          left eq2 =>
-            match eq2 in (_ = ii) return (gmap gname (R Σ ii → R Σ ii)) with
-              eq_refl => {[ γ := f]} : gmap gname (R Σ idx → R Σ idx)
-            end
-        | right _ => ∅
-        end.
+         left Heq =>
+           (eq_rect _ (λ i, gmap gname (R Σ i → _)) {[ γ := f ]} _ Heq)
+       | right _ => ∅
+       end.
 
 Definition gen_f_singleton_lookup {Σ} γ idx (f : R Σ idx → R Σ idx) :
-  gen_f_singleton_alt idx γ f idx !! γ = Some f.
+  gen_f_singleton idx γ f idx !! γ = Some f.
 Proof.
-  rewrite /gen_f_singleton_alt.
+  rewrite /gen_f_singleton.
   case (decide (idx = idx)); last by congruence.
   intros eq'.
-Admitted.
-
-Definition gen_f_singleton {Σ} {A : cmra} idx (γ : gname) (f : A → A)
-    (eq : A = rFunctor_apply (gFunctors_lookup Σ idx) (iPropO Σ)) :
-    ∀ i, gmap gname (R Σ i → R Σ i) :=
-  λ j, match decide (idx = j) with
-          left eq2 =>
-            match eq2 in (_ = ii) return (gmap gname (R Σ ii → R Σ ii)) with
-            eq_refl =>
-              {[ γ :=
-                (match eq in (_ = r) return (r → r) with
-                  | eq_refl => f
-                  end : R Σ idx → R Σ idx)
-                  (* (gen_generation f : R Σ (inG_id i) → R Σ (inG_id i)) *)
-            ]} : gmap gname (R Σ idx → R Σ idx)
-            end
-        | right _ => ∅
-        end.
+  assert (eq' = eq_refl) as ->.
+  { rewrite (proof_irrel eq' eq_refl). done. }
+  simpl.
+  apply lookup_singleton.
+Qed.
 
 (** * Properties about generational ghost ownership. *)
 Section own_properties.
@@ -510,7 +494,7 @@ Section own_properties.
     iIntros "[tok gen]".
     iDestruct (own_tok_split with "tok") as "[tok1 tok2]".
     rewrite /gupd.
-    iExists (gen_f_singleton_alt (inG_id i) γ (cmra_map_transport inG_prf (gen_generation f))).
+    iExists (gen_f_singleton (inG_id i) γ (cmra_map_transport inG_prf (gen_generation f))).
     iExists (own.iRes_singleton γ (None, GTS_tok_gen, None)).
     iEval (rewrite own.own_eq) in "tok2".
     iFrame "tok2".
