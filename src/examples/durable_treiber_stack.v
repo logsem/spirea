@@ -1,6 +1,8 @@
-(* This in an implementation of a concurrent non-blocking stack.
+(* This in an implementation of a durable variant of the fine-grained concurrent
+Treiber stack.
 
-The stack is implemented as a linked list. *)
+The stack is implemented as a linked list and the pointer to the head the list
+is updated with a CAS. *)
 
 From iris.bi Require Import lib.fractional.
 From iris.proofmode Require Import tactics.
