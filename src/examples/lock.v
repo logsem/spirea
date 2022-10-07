@@ -48,16 +48,21 @@ Section spec.
 
   Definition internal_token γ : iProp Σ := own γ (Excl ()).
 
+  Lemma locked_exclusive (γ : gname) : internal_token γ -∗ internal_token γ -∗ False.
+  Proof.
+    iIntros "A B". iDestruct (own_valid_2 with "A B") as %?. done.
+  Qed.
+
   (* The token that is exposed to client of type [dProp]. *)
-  Definition token γ : dProp Σ := ⎡ internal_token γ ⎤%I.
+  Definition locked γ : dProp Σ := ⎡ internal_token γ ⎤%I.
 
   Definition lock_inv ℓ γ (R : dProp Σ) nD : iProp Σ :=
     (∃ hist vl SV FV,
       ⌜ history_sequence hist (Msg vl SV FV FV) ⌝ ∗
       ℓ ↦h hist ∗
-        (⌜ vl = #1 ⌝ ∗ internal_token γ (* unlocked state *)
-          ∨
-          ⌜ vl = #0 ⌝ ∗ R ((SV, FV, ∅), nD) (* locked state *))
+        (⌜ vl = #1 ⌝ (* unlocked state *)
+         ∨
+         ⌜ vl = #0 ⌝ ∗ internal_token γ ∗ R ((SV, FV, ∅), nD) (* locked state *))
     )%I.
 
   Program Definition is_lock (γ : gname) (R : dProp Σ) (v : val) : dProp Σ :=
@@ -90,6 +95,7 @@ Section spec.
       { simpl. exists 0. simpl. split; first naive_solver. intros ??. lia. }
       iRight. iSplitPure; first done.
       simpl.
+      iFrame "Htok".
       (* Follows from monotinicity and buffer freeness of [R]. *)
       iApply (into_no_buffer_at R).
       iApply monPred_mono; last iFrame "HR".
@@ -110,13 +116,66 @@ Section spec.
   Lemma acquire_spec γ (R : dProp Σ) lv s E :
     {{{ is_lock γ R lv }}}
       acquire lv @ s; E
-    {{{ v, RET v; R ∗ token γ }}}.
-  Proof. Admitted.
+    {{{ v, RET v; R ∗ locked γ }}}.
+  Proof.
+    intros ?.
+    iModel.
+    simpl.
+    iIntros "HR".
+    simpl.
+    introsIndex ??. iIntros "HΦ".
+    iApply wp_unfold_at.
+    iIntros ([[??]?] ?) "#Hval".
+    rewrite /acquire.
+  Admitted.
 
-  Lemma release_spec γ (R : dProp Σ) lv s E :
-    {{{ is_lock γ R lv ∗ R ∗ token γ }}}
-      release lv @ s; E
+  Lemma release_spec γ (R : dProp Σ) lv `{BufferFree R} :
+    {{{ is_lock γ R lv ∗ R ∗ locked γ }}}
+      release lv
     {{{ v, RET v; True }}}.
-  Proof. Admitted.
+  Proof.
+    intros ?.
+    iModel.
+    iIntros "((%ℓ & -> & Hinv) & HR & Htok)".
+    introsIndex ??. iIntros "HΦ".
+    iApply wp_unfold_at.
+    iIntros ([[??]?] ?) "#Hval".
+    rewrite /release.
+    wp_pures.
+    simpl.
+    (* Why can we not open the invariant here? *)
+    (* Some instance is probably missing. *)
+    (* iInv N as "Hl". *)
+    iApply wp_atomic.
+    iInv N as "Hl" "Hcl".
+    iModIntro.
+    assert (Inhabited val); first admit.
+    iDestruct "Hl" as (????) "(>%Heq & >Hpts & HIHI)".
+    wp_apply (wp_store_release with "[$Hval $Hpts]").
+    iIntros (tNew) "(% & % & #Hval' & Hpts)".
+    iMod ("Hcl" with "[Hpts Htok HR]").
+    { iNext. iExists _, #0, _, _.
+      iFrame "Hpts".
+      iSplitPure.
+      { exists tNew. split.
+        - rewrite lookup_insert. done.
+        - admit. }
+      iRight.
+      iSplitPure; first done.
+      iFrame "Htok".
+      iApply (into_no_buffer_at R).
+      iApply monPred_mono; last iFrame "HR".
+      split; last done.
+      repeat destruct_thread_view.
+      repeat split; try solve_view_le. }
+    iModIntro.
+    iFrame "Hval'".
+    iSplitPure; first solve_view_le.
+    iSpecialize ("HΦ" $! #()).
+    monPred_simpl.
+    iApply "HΦ".
+    { iPureIntro. split; last done. solve_view_le. }
+    done.
+  Admitted.
 
 End spec.
