@@ -168,7 +168,6 @@ Next Obligation.
 Qed.
 Next Obligation. intros => //=. lia. Qed.
 
-(* NOTE: Uncomment as needed. *)
 Notation "l ↦h{ dq } v" := (mapsto (L:=loc) (V:=history) l dq (v%V))
   (at level 20, format "l  ↦h{ dq }  v") : bi_scope.
 Notation "l ↦h□ v" := (mapsto (L:=loc) (V:=history) l DfracDiscarded (v%V))

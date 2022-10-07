@@ -113,7 +113,7 @@ Section simple_increment.
   Proof.
     iIntros (Φ) "#val Post".
     rewrite /alloc_load.
-    wp_apply (wp_alloc with "[$]"). iIntros (ℓ ?) "(_ & _ & _ & pts)".
+    wp_apply (wp_alloc with "val"). iIntros (ℓ ?) "(_ & _ & _ & pts)".
     wp_pures.
     wp_pures.
     iApply (wp_load with "[$pts $val]").

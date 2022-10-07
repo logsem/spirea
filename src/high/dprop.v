@@ -53,8 +53,22 @@ Bind Scope bi_scope with dProp.
 Section definitions.
   Context {Σ : gFunctors}.
 
+  (* An easier way to define a monotone predicate where the names and the thread
+  view are given as two different argument and where monotonicity only needs to
+  be shown for the the thread view. *)
+  Program Definition MonPredCurry
+    (P : nvmDeltaG → thread_view → iProp Σ)
+    (mono : ∀ names, Proper ((⊑) ==> (⊢)) (P names))
+      : dProp Σ :=
+    MonPred (λ i, P i.2 i.1) _.
+  Next Obligation.
+    intros ? ?.
+    intros [??] [??] [? [= ->]].
+    solve_proper.
+  Qed.
+
   Program Definition have_thread_view (TV : thread_view) : dProp Σ:=
-    MonPred (λ i, ⌜ TV ⊑ i.1 ⌝%I) _.
+    MonPredCurry (λ _ i, ⌜ TV ⊑ i ⌝%I) _.
   Next Obligation. solve_proper. Qed.
 
   Global Instance have_thread_view_persistent TV1 :
@@ -62,7 +76,7 @@ Section definitions.
   Proof. rewrite /Persistent. iModel. auto. Qed.
 
   Program Definition have_SV ℓ t : dProp Σ :=
-    MonPred (λ i, ⌜ t ≤ (store_view i.1) !!0 ℓ ⌝)%I _.
+    MonPredCurry (λ _ i, ⌜ t ≤ (store_view i) !!0 ℓ ⌝)%I _.
   Next Obligation. solve_proper. Qed.
 
   Global Instance have_SV_persistent ℓ t : Persistent (have_SV ℓ t).
