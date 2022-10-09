@@ -2,6 +2,7 @@ From iris.algebra Require Import excl.
 From iris.proofmode Require Import tactics.
 From iris.bi Require Import lib.fractional.
 
+From self Require Import map_extra.
 From self.base Require Import primitive_laws.
 From self.lang Require Import lang.
 From self.high Require Import dprop.
@@ -10,7 +11,7 @@ From self.lang Require Import notation lang.
 From self.algebra Require Import view.
 From self.base Require Import primitive_laws class_instances.
 From self.base Require Import proofmode wpc_proofmode wpr_lifting.
-From self.high Require Import dprop weakestpre monpred_simpl.
+From self.high Require Import dprop state_interpretation weakestpre monpred_simpl.
 From self.high.modalities Require Import no_buffer.
 From self.lang Require Import lang.
 
@@ -22,16 +23,10 @@ Definition mk_lock : expr :=
 Definition acquire : expr :=
   rec: "f" "lock" :=
     if: CAS "lock" #0 #1
-    then #()
+    then Fence;; #()
     else "f" "lock".
 
 Definition release : expr := λ: "lock", "lock" <-_AT #0.
-
-(* Expresses that [hist] has no "gaps" and that the last message in the history
-is [msg]. The location of a history that is only updated with RMW will have this
-form. *)
-Definition history_sequence (hist : history) msg :=
-  ∃ t, hist !! t = Some msg ∧ ∀ t', t' < t → ∃ msg', hist !! t' = Some msg'.
 
 (* Specification. *)
 
@@ -56,14 +51,49 @@ Section spec.
   (* The token that is exposed to client of type [dProp]. *)
   Definition locked γ : dProp Σ := ⎡ internal_token γ ⎤%I.
 
+  Definition history_res γ (hist : history) (R : dProp Σ) nD : iProp Σ :=
+    [∗ map] t ↦ msg ∈ hist,
+      ⌜ msg.(msg_val) = #0 ⌝ ∗ ⌜ hist !! (t + 1)%nat = None ⌝ -∗
+        internal_token γ ∗ R (msg_to_tv msg, nD).
+
   Definition lock_inv ℓ γ (R : dProp Σ) nD : iProp Σ :=
-    (∃ hist vl SV FV,
-      ⌜ history_sequence hist (Msg vl SV FV FV) ⌝ ∗
+    ∃ hist,
       ℓ ↦h hist ∗
-        (⌜ vl = #1 ⌝ (* unlocked state *)
-         ∨
-         ⌜ vl = #0 ⌝ ∗ internal_token γ ∗ R ((SV, FV, ∅), nD) (* locked state *))
-    )%I.
+        ⌜ map_Forall (λ t msg,
+            (msg.(msg_val) = #0 ∨ msg.(msg_val) = #1) ∧
+            msg.(msg_persist_view) = msg.(msg_persisted_after_view) ∧
+              msg.(msg_store_view) !!0 ℓ = t
+          ) hist ⌝ ∗
+      history_res γ hist R nD.
+
+  Lemma history_inv_extract γ hist R nD t msg msg' :
+    hist !! t = Some msg →
+    msg.(msg_val) = #0 →
+    msg'.(msg_val) = #1 →
+    hist !! (t + 1) = None →
+    history_res γ hist R nD -∗
+    history_res γ (<[ t + 1 := msg' ]> hist) R nD ∗
+      R (msg_to_tv msg, nD) ∗
+      internal_token γ.
+  Proof.
+    intros ?? msg0 ?.
+    rewrite /history_res.
+    rewrite big_sepM_insert //.
+    do 2 rewrite (big_sepM_delete _ hist) //.
+    rewrite -assoc.
+    iIntros "(Hi & Hmap)".
+    iSplitL "". { rewrite msg0. iIntros "[%eq H]". inversion eq. }
+    rewrite -assoc.
+    iSplitL "". { rewrite lookup_insert. iIntros "[_ %eq]". inversion eq. }
+    iDestruct ("Hi" with "[//]") as "[$ $]".
+    iApply (big_sepM_impl with "Hmap").
+    iIntros "!>" (???).
+    destruct (decide (k = t)) as [->|]; last first.
+    { rewrite lookup_insert_ne; last lia. iIntros "$". }
+    rewrite lookup_insert.
+    iIntros "H [HA %eq]".
+    inversion eq.
+  Qed.
 
   Program Definition is_lock (γ : gname) (R : dProp Σ) (v : val) : dProp Σ :=
     MonPredCurry (λ nD TV,
@@ -75,26 +105,22 @@ Section spec.
       mk_lock @ s; E
     {{{ γ lv, RET lv; is_lock γ R lv }}}.
   Proof.
-    intros ?.
-    iModel.
-    simpl.
-    iIntros "HR".
-    simpl.
+    intros ?. iModel. iIntros "HR".
     introsIndex ??. iIntros "HΦ".
     iApply wp_unfold_at.
     iIntros ([[??]?] ?) "#Hval".
     rewrite /mk_lock.
     iApply wp_fupd.
     wp_apply (wp_alloc with "Hval").
-    iIntros (ℓ ?) "(_ & _ & _ & pts)".
+    iIntros (ℓ ?) "(_ & _ & %vLook & pts)".
     iMod (own_alloc (Excl ())) as (γ) "Htok"; first done.
     iMod (inv_alloc N _ (lock_inv ℓ γ R gnames) with "[-HΦ]") as "#HI".
     { iIntros "!>". repeat iExists _.
       iFrame "pts".
-      iSplitPure.
-      { simpl. exists 0. simpl. split; first naive_solver. intros ??. lia. }
-      iRight. iSplitPure; first done.
-      simpl.
+      rewrite map_Forall_singleton.
+      rewrite /history_res big_sepM_singleton /=.
+      iSplitPure. { rewrite vLook. naive_solver. }
+      iIntros "H".
       iFrame "Htok".
       (* Follows from monotinicity and buffer freeness of [R]. *)
       iApply (into_no_buffer_at R).
@@ -113,21 +139,98 @@ Section spec.
     iFrame "HI".
   Qed.
 
-  Lemma acquire_spec γ (R : dProp Σ) lv s E :
+  Lemma acquire_spec γ (R : dProp Σ) lv `{BufferFree R} :
     {{{ is_lock γ R lv }}}
-      acquire lv @ s; E
+      acquire lv
     {{{ v, RET v; R ∗ locked γ }}}.
   Proof.
     intros ?.
     iModel.
     simpl.
-    iIntros "HR".
+    iIntros "(%ℓ & -> & #Hinv)".
     simpl.
     introsIndex ??. iIntros "HΦ".
     iApply wp_unfold_at.
-    iIntros ([[??]?] ?) "#Hval".
+    iIntros ([[??]?]) "%incl #Hval".
     rewrite /acquire.
-  Admitted.
+    wp_pure _.
+    iLöb as "IH" forall (g g0 g1 incl) "Hval".
+    wp_pures.
+    simpl.
+    (* Why can we not open the invariant here? *)
+    (* Some instance is probably missing. *)
+    (* iInv N as "Hl". *)
+    wp_bind (CmpXchg #ℓ #0 #1).
+    wp_apply wp_atomic.
+    iInv N as "Hl" "Hcl".
+    iModIntro.
+    iDestruct "Hl" as (?) "(>Hpts & >%histinv & Hmap)".
+    (* iDestruct "Hl" as (????) "(>%histInv & >Hpts & HIHI)". *)
+    (* destruct histInv as (t & hi). *)
+    wp_apply (wp_cmpxchg with "[%] [$Hval $Hpts]").
+    { intros ????.
+      eapply map_Forall_lookup_1 in histinv as ([-> | ->] & _ & _);
+        naive_solver. }
+    iIntros (tNew ??????) "(% & #Hval' & %Hlook & %Hlooknew & disj)".
+    iDestruct "disj" as "[left | right]".
+    - iDestruct "left" as (-> -> ->) "Hpts".
+      iDestruct (history_inv_extract _ _ _ _ _ _
+                           {|
+                             msg_val := #1;
+                             msg_store_view :=
+                               <[ℓ:=MaxNat (tNew + 1)]> (g ⊔ SVm);
+                             msg_persist_view := g0 ⊔ FVm;
+                             msg_persisted_after_view := g0 ⊔ FVm
+                           |}
+                  with "Hmap") as "(Hmap & HR & tok)"; try done.
+      iMod ("Hcl" with "[Hpts Hmap]").
+      { iNext. iExists _. iFrame "Hpts".
+        iFrame "Hmap". iPureIntro.
+        rewrite map_Forall_insert /= //.
+        split; last apply histinv.
+        rewrite lookup_zero_insert.
+        naive_solver. }
+      iModIntro. rewrite /thread_fill_item. simpl.
+      wp_pures.
+      wp_apply primitive_laws.wp_fence; first done.
+      iIntros "_".
+      rewrite /thread_fill_item. simpl.
+      wp_pures.
+      iModIntro.
+      iSplitPure. { solve_view_le. }
+      iFrame "Hval'".
+      iSpecialize ("HΦ" $! #()).
+      monPred_simpl.
+      iApply "HΦ".
+      { iPureIntro. split; last done.
+        etrans; first apply incl.
+        solve_view_le. }
+      iFrame "tok".
+      rewrite /msg_to_tv /=.
+      iApply monPred_mono; last iApply "HR".
+      solve_view_le.
+      split; last done.
+      eapply map_Forall_lookup_1 in histinv as (hehw & eq & look); last done.
+      simpl in eq, look.
+      repeat split.
+      * solve_view_le.
+      * rewrite eq. solve_view_le.
+      * solve_view_le.
+    - iDestruct "right" as (-> ->) "Hpts".
+      iMod ("Hcl" with "[Hpts Hmap]").
+      { iNext. iExists _. iFrame (histinv) "Hpts Hmap". }
+      iModIntro. rewrite /thread_fill_item. simpl.
+      wp_pure _.
+      simpl.
+      wp_pure _.
+      iApply wp_mono; last first.
+      { iApply ("IH" with "[%] HΦ Hval'").
+        solve_view_le. }
+      iIntros ([??]).
+      simpl.
+      iIntros "(% & $ & $)".
+      iPureIntro. solve_view_le.
+  Qed.
 
   Lemma release_spec γ (R : dProp Σ) lv `{BufferFree R} :
     {{{ is_lock γ R lv ∗ R ∗ locked γ }}}
@@ -149,25 +252,35 @@ Section spec.
     iApply wp_atomic.
     iInv N as "Hl" "Hcl".
     iModIntro.
-    assert (Inhabited val); first admit.
-    iDestruct "Hl" as (????) "(>%Heq & >Hpts & HIHI)".
+    iDestruct "Hl" as (?) "(>Hpts & >%histInv & Hmap)".
     wp_apply (wp_store_release with "[$Hval $Hpts]").
     iIntros (tNew) "(% & % & #Hval' & Hpts)".
-    iMod ("Hcl" with "[Hpts Htok HR]").
-    { iNext. iExists _, #0, _, _.
-      iFrame "Hpts".
+    iMod ("Hcl" with "[Hpts Htok HR Hmap]").
+    { iNext.
+      iExists _.
+      iFrameF "Hpts".
+      rewrite /history_res big_sepM_insert // /=.
       iSplitPure.
-      { exists tNew. split.
-        - rewrite lookup_insert. done.
-        - admit. }
-      iRight.
-      iSplitPure; first done.
-      iFrame "Htok".
-      iApply (into_no_buffer_at R).
-      iApply monPred_mono; last iFrame "HR".
-      split; last done.
-      repeat destruct_thread_view.
-      repeat split; try solve_view_le. }
+      { rewrite map_Forall_insert // /=.
+        split; last done.
+        rewrite lookup_zero_insert.
+        naive_solver. }
+      iSplitL "HR Htok".
+      { iIntros "H".
+        iFrame "Htok".
+        rewrite /msg_to_tv /=.
+        iApply (into_no_buffer_at R _ _ _ g1).
+        iApply monPred_mono; last iFrame "HR".
+        split; last done.
+        repeat destruct_thread_view.
+        repeat split; simpl; solve_view_le. }
+      iApply (big_sepM_impl with "Hmap").
+      iIntros "!>" (???).
+      setoid_rewrite lookup_insert_None.
+      iIntros "H" ((I & HIHI & HIHIHIH)).
+      iApply "H".
+      iPureIntro.
+      naive_solver. }
     iModIntro.
     iFrame "Hval'".
     iSplitPure; first solve_view_le.
@@ -176,6 +289,6 @@ Section spec.
     iApply "HΦ".
     { iPureIntro. split; last done. solve_view_le. }
     done.
-  Admitted.
+  Qed.
 
 End spec.

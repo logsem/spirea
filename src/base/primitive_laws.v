@@ -890,6 +890,7 @@ Section lifting.
       ⌜ hist !! (t + 1)%nat = None ⌝ ∗
       ( (* Success *)
         ⌜ b = true ⌝ ∗
+        ⌜ v = v_i ⌝ ∗
         ⌜ SV3 = <[ ℓ := MaxNat (t + 1) ]>(SV ⊔ SVm) ⌝ ∗
         ℓ ↦h <[ (t + 1) := Msg v_t SV3 (FV ⊔ FVm) (FV ⊔ FVm) ]>hist
         ∨
