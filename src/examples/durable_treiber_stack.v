@@ -17,7 +17,8 @@ From self.base Require Import primitive_laws class_instances.
 From self.high Require Import proofmode wpc_proofmode if_rec.
 From self.high Require Import dprop abstract_state_instances modalities
      resources crash_weakestpre weakestpre weakestpre_na weakestpre_at
-     recovery_weakestpre lifted_modalities protocol no_buffer mapsto_na_flushed.
+     recovery_weakestpre lifted_modalities protocol protocols no_buffer
+     mapsto_na_flushed.
 From self.high.modalities Require Import fence.
 
 (* A node is a pointer to a value and a pointer to the next node. *)
@@ -75,23 +76,13 @@ Definition sync : expr :=
     Flush "toHead" ;;
     FenceSync.
 
-Section constant_prot.
-  Context `{Σ : gFunctors}.
-  Context `{nvmG Σ}.
-
-  Program Definition constant_prot v1 : LocationProtocol unit :=
-    {| pred := λ _ v2, ⌜ v1 = v2 ⌝%I;
-       bumper v := v |}.
-  Next Obligation. iIntros. by iApply post_crash_flush_pure. Qed.
-
-End constant_prot.
-
 Section definitions.
   Implicit Types (ℓ : loc).
   Context `{nvmG Σ}.
 
   (* We assume a per-element predicate. *)
   Context (ϕ : val → dProp Σ).
+
   (* The per-element predicate must be stable under the <PCF> modality and not
   use anything from the buffer. *)
   Context `{∀ a, IntoCrashFlush (ϕ a) (ϕ a),

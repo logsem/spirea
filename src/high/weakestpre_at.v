@@ -1519,8 +1519,9 @@ Section wp_at_rules.
     iEval (simpl).
     iIntros "!>" (t_l v_l ???? succ) "(%le & #val2 & % & % & disj)".
     iFrame "val2".
-    iDestruct "disj" as "[H|H]"; iDestruct "H" as "(-> & -> & pts)".
+    iDestruct "disj" as "[H|H]".
     - (* success *)
+      iDestruct "H" as "(-> & -> & -> & pts)".
       iDestruct "reins" as "[reins _]".
 
       (* The loaded timestamp is greater or equal to the one we know of. *)
@@ -1615,6 +1616,7 @@ Section wp_at_rules.
         iDestruct (into_no_buffer_at with "HI") as "HI".
 
         iApply monPred_mono; last iFrame.
+        split; last done.
         destruct TV' as [[??]?].
         repeat split; last done.
         - eapply view_lub_le; solve_view_le.
@@ -1693,6 +1695,7 @@ Section wp_at_rules.
       repeat split; solve_view_le.
 
     - (* failure *)
+      iDestruct "H" as "(-> & -> & pts)".
       iDestruct "reins" as "[_ reins]".
       iModIntro.
 

@@ -55,7 +55,7 @@ Section proof.
   Context (x y z : loc) (γ__ex : gname).
 
   Program Definition inv_x : LocationProtocol bool :=
-    {| pred (b : bool) v :=  ⌜v = #b⌝%I;
+    {| pred (b : bool) v := ⌜ v = #b ⌝%I;
        bumper b := b; |}.
   Next Obligation. iIntros. by iApply post_crash_flush_pure. Qed.
 
