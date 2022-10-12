@@ -21,9 +21,8 @@ Record LocationProtocol ST `{AbstractState ST, nvmG Σ} := {
   bumper : ST → ST;
   bumper_mono : Proper ((⊑@{ST}) ==> (⊑))%signature bumper;
   pred_condition :
-    (⊢ ∀ s v,
-      pred s v -∗ <PCF> pred (bumper s) v : dProp Σ)%I;
-  pred_nobuf :> (∀ s v, IntoNoBuffer (pred s v) (pred s v));
+    (⊢ ∀ s v, pred s v -∗ <PCF> pred (bumper s) v : dProp Σ)%I;
+  pred_nobuf :> ∀ s v, BufferFree (pred s v);
 }.
 
 Global Arguments pred {ST} {_} {_} {_} {_} {_} _.
@@ -31,6 +30,17 @@ Global Arguments bumper {ST} {_} {_} {_} {_} {_} _.
 
 Existing Instance bumper_mono.
 Existing Instance pred_nobuf.
+
+(* Creates a protocol with the [bumper] begin the identity function. *)
+Definition protocolIdBumper `{AbstractState ST, nvmG Σ}
+    (pred : loc_pred ST) pred_condition pred_nobuf :=
+  {|
+    pred := pred;
+    bumper := id;
+    bumper_mono := _;
+    pred_condition := pred_condition;
+    pred_nobuf := pred_nobuf;
+  |}.
 
 (** [know_protocol] represents the knowledge that a location is associated with a
 specific protocol. It's defined simply using more "primitive" assertions. *)
