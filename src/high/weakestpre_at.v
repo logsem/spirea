@@ -57,10 +57,10 @@ Section wp_at_rules.
       done.
   Qed.
 
-  Lemma interp_insert_loc_at ℓ prot s SV PV BV nG v :
+  Lemma interp_insert_loc_at ℓ prot `{!ProtocolConditions prot} s SV PV BV nG v :
     SV !!0 ℓ = 0 →
     interp -∗
-    pred prot s v (SV, PV, BV, nG) -∗
+    p_inv prot s v (SV, PV, BV, nG) -∗
     ℓ ↦h initial_history AT SV PV v ==∗
     (ℓ ↦_AT^{prot} [s]) (SV, PV, BV, nG) ∗ interp.
   Proof.
@@ -113,7 +113,7 @@ Section wp_at_rules.
     iEval (rewrite big_sepM_singleton) in "fragHist".
 
     (* Add the bumper to the ghost state of bumper. *)
-    iMod (own_all_bumpers_insert _ _ _ (prot.(bumper)) with "allBumpers")
+    iMod (own_all_bumpers_insert _ _ _ (prot.(p_bumper)) with "allBumpers")
       as "[allBumpers knowBumper]".
     { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
 
@@ -265,8 +265,8 @@ Section wp_at_rules.
     done.
   Qed.
 
-  Lemma wp_alloc_at v s prot st E :
-    {{{ prot.(pred) s v }}}
+  Lemma wp_alloc_at v s prot `{!ProtocolConditions prot} st E :
+    {{{ prot.(p_inv) s v }}}
       ref_AT v @ st; E
     {{{ ℓ, RET #ℓ; ℓ ↦_AT^{prot} [s] }}}.
   Proof.
@@ -287,7 +287,7 @@ Section wp_at_rules.
     simpl.
     iFrame "val".
     destruct TV as [[??]?].
-    iMod (interp_insert_loc_at with "interp [phi] pts")
+    iMod (interp_insert_loc_at ℓ prot with "interp [phi] pts")
       as "(pts & interp)"; first done.
     { iApply monPred_mono; last iApply "phi". split; last done. etrans; done. }
     iModIntro.
@@ -313,7 +313,7 @@ Section wp_at_rules.
     "%increasing" ∷ ⌜ increasing_map (encode_relation (⊑@{ST})) absHist ⌝ ∗
     "%atInvs" ∷
       ⌜ map_Forall (λ t msg, atomic_loc_inv ℓ t msg) (drop_prefix physHist offset) ⌝ ∗
-    "#predEquiv" ∷ ▷ (pred ≡ encode_predicate (protocol.pred prot)) ∗
+    "#predEquiv" ∷ ▷ (pred ≡ encode_predicate (p_inv prot)) ∗
     "#frags" ∷ ([∗ map] k2 ↦ v ∈ absHist, frag_entry abs_history_name ℓ k2 v) ∗
     "predHolds" ∷ encoded_predicate_hold nG physHist absHist pred ∗
     "fullHist" ∷ know_full_encoded_history_loc ℓ 1 absHist ∗
@@ -712,9 +712,9 @@ Section wp_at_rules.
       msg_store_view msg ⊑ store_view TV ∧
         msg_persisted_after_view msg ⊑ flush_view TV) phys_hist →
     dom abs_hist = dom phys_hist →
-    (pred ≡ encode_predicate (protocol.pred prot)) -∗
+    (pred ≡ encode_predicate (p_inv prot)) -∗
     encoded_predicate_hold hG phys_hist encAbsHist pred -∗
-    ([∗ list] s;v ∈ ss;(msg_val <$> ms), protocol.pred prot s v) (TV, hG).
+    ([∗ list] s;v ∈ ss;(msg_val <$> ms), p_inv prot s v) (TV, hG).
   Proof.
     iIntros (-> seqAbs seqPhys msgIncl domEq) "#equiv P".
     rewrite /encoded_predicate_hold.
@@ -749,15 +749,15 @@ Section wp_at_rules.
         ⌜ last vs = Some vL ⌝ -∗
         (* Extract knowledge from all the predicates. *)
         (* NOTE: Maybe demand that [P] is persistent instead of pers. mod. *)
-        (([∗ list] s; v ∈ ss ++ [s];vs, prot.(pred) s v) -∗ □ P) ∗
+        (([∗ list] s; v ∈ ss ++ [s];vs, prot.(p_inv) s v) -∗ □ P) ∗
         (* Using the [P] and the predicate for the loaded location show [Q1]. *)
-        (P -∗ <obj> (prot.(pred) s vL -∗ Q1 vL ∗ prot.(pred) s vL))) ∧
+        (P -∗ <obj> (prot.(p_inv) s vL -∗ Q1 vL ∗ prot.(p_inv) s vL))) ∧
       (* The case where we read a new write. *)
       (∀ vs vL sL, ∃ P,
         ⌜ s ⊑ sL ⌝ -∗
         (* Extract knowledge from all the predicates. *)
-        (([∗ list] s; v ∈ (ss ++ [s]) ++ [sL];vs ++ [vL], prot.(pred) s v) -∗ □ P) ∗
-        (P -∗ <obj> (prot.(pred) sL vL -∗ Q2 sL vL ∗ prot.(pred) sL vL))))
+        (([∗ list] s; v ∈ (ss ++ [s]) ++ [sL];vs ++ [vL], prot.(p_inv) s v) -∗ □ P) ∗
+        (P -∗ <obj> (prot.(p_inv) sL vL -∗ Q2 sL vL ∗ prot.(p_inv) sL vL))))
     }}}
       !_AT #ℓ @ st; E
     {{{ vL, RET vL;
@@ -1112,7 +1112,7 @@ Section wp_at_rules.
   Lemma wp_load_at_simple ℓ sI Q prot st E :
       {{{
         ℓ ↦_AT^{prot} [sI] ∗
-        <obj> (∀ sL vL, ⌜ sI ⊑ sL ⌝ -∗ prot.(pred) sL vL -∗ Q sL vL ∗ prot.(pred) sL vL)
+        <obj> (∀ sL vL, ⌜ sI ⊑ sL ⌝ -∗ prot.(p_inv) sL vL -∗ Q sL vL ∗ prot.(p_inv) sL vL)
       }}}
         !_AT #ℓ @ st; E
       {{{ sL vL, RET vL;
@@ -1155,7 +1155,8 @@ Section wp_at_rules.
   (* This is a load lemma that allows for a sort of "threading" of resources
    * though all the invariants. The idea has some flaws (the order is arbitrary
    * for instance) but maybe it can be used to come up witha stronger load lemma. *)
-  Lemma wp_load_at_strong ℓ ss s (QS : list (val → dProp Σ)) Q1 Q2 prot st E :
+  Lemma wp_load_at_strong ℓ ss s (QS : list (val → dProp Σ)) Q1 Q2
+    prot `{!ProtocolConditions prot} st E :
     length QS = length ss →
     {{{
       ℓ ↦_AT^{prot} (ss ++ [s]) ∗
@@ -1164,13 +1165,13 @@ Section wp_at_rules.
         ([∗ list] i ↦ s; v ∈ ss ++ [s];vs, ∃ Q Q',
           ⌜ QS !! i = Some Q ⌝ -∗
           ⌜ (QS ++ [Q1]) !! (S i) = Some Q' ⌝ -∗
-          <obj> prot.(pred) s v -∗ Q v -∗  prot.(pred) s v ∗ Q' v)) ∧
+          <obj> prot.(p_inv) s v -∗ Q v -∗  prot.(p_inv) s v ∗ Q' v)) ∧
       (* In case of a new write we can show [Q2] *)
       <obj> (∀ v v' s',
         ⌜ s ⊑ s' ⌝ -∗
-        prot.(pred) s' v -∗
+        prot.(p_inv) s' v -∗
         Q1 v -∗
-        prot.(pred) s' v' ∗ Q2 s' v'))
+        prot.(p_inv) s' v' ∗ Q2 s' v'))
     }}}
       !_AT #ℓ @ st; E
     {{{ v, RET v;
@@ -1179,10 +1180,10 @@ Section wp_at_rules.
     }}}.
   Proof. Abort.
 
-  Lemma wp_store_at ℓ ss s_i s_t v_t (prot : LocationProtocol ST) st E :
+  Lemma wp_store_at ℓ prot ss s_i s_t v_t st E `{!ProtocolConditions prot} :
     {{{
       ℓ ↦_AT^{prot} (ss ++ [s_i]) ∗
-      prot.(pred) s_t v_t ∗
+      prot.(p_inv) s_t v_t ∗
       (* NOTE: This does _not_ work. *)
       (* "phi" ∷ (∀ v_i, ϕ s_i v_i _ -∗ ϕ s_t v_t _ ∗ ϕ s_i v_i _) ∗ *)
       (* NOTE: This should work and be more general. *)
@@ -1191,7 +1192,7 @@ Section wp_at_rules.
       (* The new state must be concurrent with possible other states. *)
       (∀ v_i s_c v_c, ⌜ s_i ⊑ s_c ⌝ -∗
         (* NOTE: We could give predicates for all states in ss here. *)
-        prot.(pred) s_i v_i ∗ prot.(pred) s_t v_t ∗ prot.(pred) s_c v_c -∗
+        prot.(p_inv) s_i v_i ∗ prot.(p_inv) s_t v_t ∗ prot.(p_inv) s_c v_c -∗
           ⌜ s_t ⊑ s_c ∧ s_c ⊑ s_t ⌝)
     }}}
       #ℓ <-_AT v_t @ st; E
@@ -1339,7 +1340,7 @@ Section wp_at_rules.
     { iApply (big_sepM2_insert_2 with "[phi] predHolds").
       simpl.
       rewrite /encoded_predicate_holds.
-      iExists (prot.(protocol.pred) s_t v_t).
+      iExists (prot.(p_inv) s_t v_t).
       iSplit.
       { iApply pred_encode_Some. done. }
       destruct TV as [[??]?].
@@ -1417,14 +1418,14 @@ Section wp_at_rules.
       (∀ s_l v_l, ⌜ s_i ⊑ s_l ⌝ -∗ ∃ s_t,
         (* The state we picked fits in the history. *)
         (∀ v_i s_n v_n, ⌜ s_l ⊑ s_n ⌝ -∗
-          prot.(pred) s_i v_i -∗
-          prot.(pred) s_l v_l -∗
-          prot.(pred) s_n v_n -∗
+          prot.(p_inv) s_i v_i -∗
+          prot.(p_inv) s_l v_l -∗
+          prot.(p_inv) s_n v_n -∗
           ⌜ s_l ⊑ s_t ⌝ ∗ ⌜ s_t ⊑ s_n ⌝) ∧
         (* Extract from the location we load. *)
-        (<obj> (prot.(pred) s_l v_l -∗ prot.(pred) s_l v_l ∗ R s_l)) ∗
+        (<obj> (prot.(p_inv) s_l v_l -∗ prot.(p_inv) s_l v_l ∗ R s_l)) ∗
         (* Establish the invariant for the value we store. *)
-        (R s_l -∗ prot.(pred) s_t v_t ∗ Q s_t))
+        (R s_l -∗ prot.(p_inv) s_t v_t ∗ Q s_t))
     }}}
       #ℓ <-_AT v_t @ st; E
     {{{ RET #(); store_lb ℓ prot s_t ∗ Q s_t }}}.
@@ -1433,22 +1434,22 @@ Section wp_at_rules.
 
   (** [Q1] is the resource we want to extract in case of success and and [Q2] is
   the resource we want to extract in case of failure. *)
-  Lemma wp_cmpxchg_at Q1 Q2 Q3 ℓ prot ss s_i (v_i : val) v_t R s_t st E :
+  Lemma wp_cmpxchg_at Q1 Q2 Q3 ℓ prot `{!ProtocolConditions prot} ss s_i (v_i : val) v_t R s_t st E :
     {{{
       ℓ ↦_AT^{prot} (ss ++ [s_i]) ∗
       (∀ s_l v_l, ⌜ s_i ⊑ s_l ⌝ -∗
-        ((▷ prot.(pred) s_l v_l) -∗ ⌜ vals_compare_safe v_i v_l ⌝) ∗
+        ((▷ prot.(p_inv) s_l v_l) -∗ ⌜ vals_compare_safe v_i v_l ⌝) ∗
         (((* in case of success *)
           (* The state we write fits in the history. *)
           ⌜ s_l ⊑ s_t ⌝ ∗
-          (∀ s_n v_n, ⌜ s_l ⊑ s_n ⌝ -∗ prot.(pred) s_l v_l -∗
-            prot.(pred) s_n v_n -∗ ⌜ s_t ⊑ s_n ⌝) ∗
+          (∀ s_n v_n, ⌜ s_l ⊑ s_n ⌝ -∗ prot.(p_inv) s_l v_l -∗
+            prot.(p_inv) s_n v_n -∗ ⌜ s_t ⊑ s_n ⌝) ∗
           (* Extract from the location we load. *)
-          (<obj> (prot.(pred) s_l v_l -∗ prot.(pred) s_l v_l ∗ R s_l)) ∗
+          (<obj> (prot.(p_inv) s_l v_l -∗ prot.(p_inv) s_l v_l ∗ R s_l)) ∗
           (* Establish the invariant for the value we store. *)
-          (R s_l -∗ prot.(pred) s_t v_t ∗ Q1 s_l))
+          (R s_l -∗ prot.(p_inv) s_t v_t ∗ Q1 s_l))
         ∧ (* in case of failure *)
-          ((<obj> (prot.(pred) s_l v_l -∗ prot.(pred) s_l v_l ∗ Q2 s_l)) ∗ Q3)
+          ((<obj> (prot.(p_inv) s_l v_l -∗ prot.(p_inv) s_l v_l ∗ Q2 s_l)) ∗ Q3)
         ))
     }}}
       CmpXchg #ℓ v_i v_t @ st; E
@@ -1609,7 +1610,7 @@ Section wp_at_rules.
         iApply (big_sepM2_insert_2 with "[HI] predMap").
         simpl.
         rewrite /encoded_predicate_holds.
-        iExists (prot.(protocol.pred) s_t v_t).
+        iExists (prot.(p_inv) s_t v_t).
         iSplit.
         { iApply pred_encode_Some. done. }
         destruct TV as [[??]?].
@@ -1781,22 +1782,23 @@ Section wp_at_rules.
 
   (** [Q1] is the resource we want to extract in case of success and and [Q2] is
   the resource we want to extract in case of failure. *)
-  Lemma wp_cas_at Q1 Q2 Q3 ℓ prot ss s_i (v_i v_t : val) R s_t st E :
+  Lemma wp_cas_at Q1 Q2 Q3 ℓ prot `{!ProtocolConditions prot} ss s_i
+      (v_i v_t : val) R s_t st E :
     {{{
       ℓ ↦_AT^{prot} (ss ++ [s_i]) ∗
       (∀ s_l v_l, ⌜ s_i ⊑ s_l ⌝ -∗
-        ((▷ prot.(pred) s_l v_l) -∗ ⌜ vals_compare_safe v_i v_l ⌝) ∗
+        ((▷ prot.(p_inv) s_l v_l) -∗ ⌜ vals_compare_safe v_i v_l ⌝) ∗
         (((* in case of success *)
           (* The state we write fits in the history. *)
           ⌜ s_l ⊑ s_t ⌝ ∗
-          (∀ s_n v_n, ⌜ s_l ⊑ s_n ⌝ -∗ prot.(pred) s_l v_l -∗
-            prot.(pred) s_n v_n -∗ ⌜ s_t ⊑ s_n ⌝) ∗
+          (∀ s_n v_n, ⌜ s_l ⊑ s_n ⌝ -∗ prot.(p_inv) s_l v_l -∗
+            prot.(p_inv) s_n v_n -∗ ⌜ s_t ⊑ s_n ⌝) ∗
           (* Extract from the location we load. *)
-          (<obj> (prot.(pred) s_l v_l -∗ prot.(pred) s_l v_l ∗ R s_l)) ∗
+          (<obj> (prot.(p_inv) s_l v_l -∗ prot.(p_inv) s_l v_l ∗ R s_l)) ∗
           (* Establish the invariant for the value we store. *)
-          (R s_l -∗ prot.(pred) s_t v_t ∗ Q1 s_l))
+          (R s_l -∗ prot.(p_inv) s_t v_t ∗ Q1 s_l))
         ∧ (* in case of failure *)
-          ((<obj> (prot.(pred) s_l v_l -∗ prot.(pred) s_l v_l ∗ Q2 s_l)) ∗ Q3)
+          ((<obj> (prot.(p_inv) s_l v_l -∗ prot.(p_inv) s_l v_l ∗ Q2 s_l)) ∗ Q3)
         ))
     }}}
       CAS #ℓ v_i v_t @ st; E

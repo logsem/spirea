@@ -73,10 +73,10 @@ Section mapsto_na_flushed.
   Qed.
 
   Global Instance mapsto_na_flushed_post_crash_flushed `{!AntiSymm (=) (⊑@{ST})}
-        ℓ prot q (s : ST) :
+        ℓ prot `{!ProtocolConditions prot} q (s : ST) :
     IntoCrashFlush
       (mapsto_na_flushed ℓ prot q s)
-      (mapsto_na_flushed ℓ prot q (bumper prot s) ∗ crashed_in prot ℓ s)%I.
+      (mapsto_na_flushed ℓ prot q (prot.(p_bumper) s) ∗ crashed_in prot ℓ s)%I.
   Proof.
     rewrite /IntoCrashFlush.
     iNamed 1.

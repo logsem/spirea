@@ -929,6 +929,7 @@ Record loc_info `{nvmG Σ} := {
     loc_state_countable : Countable loc_state;
     loc_state_abstractstate : AbstractState loc_state;
     loc_prot : LocationProtocol loc_state;
+    loc_prot_conditions : ProtocolConditions loc_prot;
     (* Initial state. *)
     loc_init : loc_state;
   }.
@@ -936,6 +937,7 @@ Record loc_info `{nvmG Σ} := {
 Existing Instance loc_state_eqdecision.
 Existing Instance loc_state_countable.
 Existing Instance loc_state_abstractstate.
+Existing Instance loc_prot_conditions.
 
 Section loc_info.
   Context `{nvmG Σ}.
@@ -947,10 +949,10 @@ Section loc_info.
     (λ li, {[ 0 := encode li.(loc_init) ]}) <$> lif.
 
   Definition mk_preds lif : gmap loc (enc_predicate) :=
-    (λ li, encode_predicate (li.(loc_prot).(pred))) <$> lif.
+    (λ li, encode_predicate (li.(loc_prot).(p_inv))) <$> lif.
 
   Definition mk_bumpers lif : gmap loc _ :=
-    (λ li, encode_bumper (li.(loc_prot).(bumper))) <$> lif.
+    (λ li, encode_bumper (li.(loc_prot).(p_bumper))) <$> lif.
 
   Definition mk_offsets lif : gmap loc nat :=
     (const 0) <$> lif.
@@ -1038,7 +1040,7 @@ Lemma high_recv_adequacy_2 Σ `{hPre : !nvmGpreS Σ} st e r (φ φr : val → Pr
         persist_lb ℓ (loc_prot li) (loc_init li)) -∗
       pre_borrowN_d n -∗
       ([∗ map] ℓ ↦ v; li ∈ init_heap; lif,
-        (pred (loc_prot li)) (loc_init li) v) ∗
+        (p_inv (loc_prot li)) (loc_init li) v) ∗
       (wpr st ⊤ e r (λ v, ⌜ φ v ⌝) (λ v, ⌜ φr v ⌝))) →
   recv_adequate st
                 (e `at` ⊥) (r `at` ⊥)
@@ -1187,7 +1189,7 @@ Proof.
         iDestruct (big_sepM_lookup with "offsetsPts") as "$".
         { rewrite /mk_offsets. rewrite lookup_fmap lifLook. done. }
         rewrite -!assoc.
-        iSplitPure. { apply bumper_mono. }
+        iSplitPure. { eapply bumper_mono. }
         iSplit.
         { iExists (encode _).
           iSplitPure. { setoid_rewrite decode_encode. done. }

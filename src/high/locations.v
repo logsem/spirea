@@ -209,7 +209,7 @@ Section points_to_at.
 
   Definition crashed_in prot ℓ s : dProp Σ :=
     ∃ CV,
-      "#persistLb" ∷ persist_lb ℓ prot (prot.(bumper) s) ∗
+      "#persistLb" ∷ persist_lb ℓ prot (prot.(p_bumper) s) ∗
       "#crashed" ∷ crashed_at_d CV ∗
       "#crashedIn" ∷ crashed_in_mapsto_d ℓ s ∗
       "%inCV" ∷ ⌜ ℓ ∈ dom CV ⌝.
@@ -318,7 +318,7 @@ Section points_to_at.
   Qed.
 
   Lemma crashed_in_persist_lb `{AbstractState ST} prot ℓ (s : ST) :
-    crashed_in prot ℓ s -∗ persist_lb ℓ prot (prot.(bumper) s).
+    crashed_in prot ℓ s -∗ persist_lb ℓ prot (prot.(p_bumper) s).
   Proof. iNamed 1. iFrame "persistLb". Qed.
 
   (* Lemmas for [mapsto_na] *)
@@ -517,7 +517,7 @@ Section points_to_at_more.
   Lemma post_crash_persist_lb (ℓ : loc) prot (s : ST) :
     persist_lb ℓ prot s -∗
     <PC>
-      persist_lb ℓ prot (prot.(bumper) s) ∗
+      persist_lb ℓ prot (prot.(p_bumper) s) ∗
       ∃ s', ⌜ s ⊑ s' ⌝ ∗ crashed_in prot ℓ s'.
   Proof.
     iNamed 1. iNamed "lbBase".
@@ -612,13 +612,13 @@ Section points_to_at_more.
   (*   map_sequence abs_hist tLo t ss. *)
   (* Proof. *)
 
-  Lemma post_crash_mapsto_na ℓ prot q (ss : list ST) :
+  Lemma post_crash_mapsto_na ℓ prot `{!ProtocolConditions prot} q (ss : list ST) :
     ℓ ↦_{prot}^{q} ss -∗
     <PC>
       if_rec ℓ (∃ ss' s,
         ⌜ (ss' ++ [s]) `prefix_of` ss ⌝ ∗
         crashed_in prot ℓ s ∗
-        ℓ ↦_{prot}^{q} ((bumper prot <$> ss') ++ [prot.(bumper) s])).
+        ℓ ↦_{prot}^{q} ((p_bumper prot <$> ss') ++ [prot.(p_bumper) s])).
   Proof.
     rewrite /mapsto_na.
     iNamed 1.
@@ -682,17 +682,17 @@ Section points_to_at_more.
     iRight. iPureIntro. lia.
   Qed.
 
-  Global Instance mapsto_na_into_crash ℓ prot q (ss : list ST) :
+  Global Instance mapsto_na_into_crash ℓ `{!ProtocolConditions prot} q (ss : list ST) :
     IntoCrash (ℓ ↦_{prot}^{q} ss)%I _ := post_crash_mapsto_na ℓ prot q ss.
 
   (* This lemma is strictly weaker than the above but could be useful if we do
   not want to preserve the prefix after a crash. *)
-  Lemma post_crash_mapsto_na_singleton ℓ prot q (ss : list ST) :
+  Lemma post_crash_mapsto_na_singleton ℓ `{!ProtocolConditions prot} q (ss : list ST) :
     ℓ ↦_{prot}^{q} ss -∗
     <PC> if_rec ℓ (∃ s,
         ⌜ s ∈ ss ⌝ ∗
         crashed_in prot ℓ s ∗
-        ℓ ↦_{prot}^{q} [prot.(bumper) s]).
+        ℓ ↦_{prot}^{q} [prot.(p_bumper) s]).
   Proof.
     iIntros "pts".
     iModIntro. iModIntro.
@@ -706,13 +706,14 @@ Section points_to_at_more.
     iDestruct (crashed_in_persist_lb with "[$]") as "#per".
   Abort. (* This should be true but is a bit annoying to show. *)
 
-  Global Instance mapsto_na_into_crash_flush ℓ prot q (ss : list ST) :
+  Global Instance mapsto_na_into_crash_flush ℓ `{!ProtocolConditions prot} q
+      (ss : list ST) :
     IntoCrashFlush _ _ :=
     (into_crash_into_crash_flushed _ _ (post_crash_mapsto_na ℓ prot q ss)).
 
   Lemma post_crash_flush_flush_lb (ℓ : loc) prot (s : ST) :
     flush_lb ℓ prot s -∗
-    <PCF> persist_lb ℓ prot (bumper prot s) ∗
+    <PCF> persist_lb ℓ prot (p_bumper prot s) ∗
               ∃ s__pc, ⌜ s ⊑ s__pc ⌝ ∗ crashed_in prot ℓ s__pc.
   Proof.
     iNamed 1. iNamed "lbBase".
@@ -790,7 +791,7 @@ Section points_to_at_more.
     <PC>
       if_rec ℓ (∃ sC,
         crashed_in prot ℓ sC ∗
-        ℓ ↦_AT^{prot} [prot.(bumper) sC]).
+        ℓ ↦_AT^{prot} [prot.(p_bumper) sC]).
   Proof.
     rewrite /mapsto_at.
     iNamed 1.
@@ -867,11 +868,11 @@ Section points_to_at_more.
           ⌜ ss1 ++ [s] ++ ss2 = ss ⌝ ∗
           ⌜ ∀ s2, head ss2 = Some s2 → sC ⊑ s2 ⌝ ∗
           ⌜ s ⊑ sC ⌝ ∗
-          ℓ ↦_AT^{prot} ((prot.(bumper) <$> ss1) ++ [prot.(bumper) s])) ∨
+          ℓ ↦_AT^{prot} ((prot.(p_bumper) <$> ss1) ++ [prot.(p_bumper) s])) ∨
         (* None of our states where recovered. *)
         ∃ sF,
           ⌜ head ss = Some sF ∧ sC ⊑ sF ∧ sC ≠ sF ⌝ ∗
-          ℓ ↦_AT^{prot} [prot.(bumper) sC])
+          ℓ ↦_AT^{prot} [prot.(p_bumper) sC])
       ).
   Proof.
     rewrite /mapsto_at.
@@ -934,8 +935,8 @@ Section points_to_at_more.
     flush_lb ℓ prot s -∗
     ℓ ↦_AT^{prot} (ss ++ [s]) -∗
     <PCF>
-      persist_lb ℓ prot (prot.(bumper) s) ∗
-      ℓ ↦_AT^{prot} ((prot.(bumper) <$> ss) ++ [prot.(bumper) s]).
+      persist_lb ℓ prot (prot.(p_bumper) s) ∗
+      ℓ ↦_AT^{prot} ((prot.(p_bumper) <$> ss) ++ [prot.(p_bumper) s]).
   Proof.
     (* iIntros "fLb pts". *)
     (* iDestruct (mapsto_at_increasing with "pts") as %incr. *)

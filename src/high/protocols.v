@@ -9,8 +9,14 @@ Section constant_prot.
   Context `{nvmG Σ}.
 
   Program Definition constant_prot (v1 : val) : LocationProtocol unit :=
-    {| pred := λ _ v2, ⌜ v1 = v2 ⌝%I;
-       bumper := id |}.
-  Next Obligation. iIntros. by iApply post_crash_flush_pure. Qed.
+    {| p_inv := λ _ v2, ⌜ v1 = v2 ⌝%I;
+       p_bumper := id |}.
+
+  Global Instance constant_prot_cond (v1 : val) :
+    ProtocolConditions (constant_prot v1).
+  Proof.
+    split; [apply _ | apply _| ].
+    iIntros. by iApply post_crash_flush_pure.
+  Qed.
 
 End constant_prot.

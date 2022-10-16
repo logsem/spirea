@@ -1,4 +1,4 @@
-(* This is the classic message passing example except with some differences.
+(* This is then classic message passing example except with some differences.
    The sending thread ([leftProg] below) ensures that it only sends [x] after
    having flushed and fenced it. The receieving thread ([rightProg] below) saves
    and acknowledgement to [z] and with a fence ensures that it is only persisted
@@ -54,18 +54,23 @@ Section proof.
 
   Context (x y z : loc) (γ__ex : gname).
 
-  Program Definition inv_x : LocationProtocol bool :=
-    {| pred (b : bool) v := ⌜ v = #b ⌝%I;
-       bumper b := b; |}.
-  Next Obligation. iIntros. by iApply post_crash_flush_pure. Qed.
+  Definition inv_x : LocationProtocol bool :=
+    {| p_inv (b : bool) v := ⌜ v = #b ⌝%I;
+       p_bumper b := b; |}.
 
-  Program Definition inv_y :=
-    {| pred (b : bool) (v : val) :=
+  Global Instance inv_x_cond : ProtocolConditions inv_x.
+  Proof. split; try apply _. iIntros. by iApply post_crash_flush_pure. Qed.
+
+  Definition inv_y :=
+    {| p_inv (b : bool) (v : val) :=
         if b
         then ⌜ v = #true ⌝ ∗ flush_lb x inv_x true
         else ⌜ v = #false ⌝ ∗ ⎡ own γ__ex (Excl ()) ⎤;
-      bumper := id; |}%I.
-  Next Obligation.
+      p_bumper := id; |}%I.
+
+  Global Instance inv_y_cond : ProtocolConditions inv_y.
+  Proof.
+    split; try apply _.
     iIntros ([|] ?); simpl.
     - iIntros "[% lb]". iModIntro.
       iFrame "%".
@@ -75,13 +80,15 @@ Section proof.
   Qed.
 
   (* Definition inv_z := inv_y. *)
-  Program Definition inv_z : LocationProtocol bool :=
-    {| pred b v :=
+  Definition inv_z : LocationProtocol bool :=
+    {| p_inv (b : bool) v :=
         if b
         then ⌜ v = #true ⌝ ∗ flush_lb x inv_x true
         else ⌜ v = #false ⌝;
-       bumper := id |}%I.
-  Next Obligation.
+       p_bumper := id |}%I.
+
+  Global Instance inv_z_cond : ProtocolConditions inv_z.
+    split; try apply _.
     iIntros ([|] ?); simpl.
     - iIntros "[% lb]". iModIntro.
       iFrame "%".
@@ -329,16 +336,15 @@ Section proof.
 
       wpc_bind (_ <-_AT _)%E.
       iApply wpc_atomic_no_mask. solve_left_cc.
-      iApply (wp_store_at _ [] false true).
-      { iFrame.
-        iPureGoal. { done. }
+      iApply (wp_store_at _ inv_y [] false true with "[$yPts]").
+      {
         iFrame "#".
-        iSplitL.
-        - simpl. naive_solver.
-        - iIntros (? s_c v_c). simpl.
-          destruct s_c; first naive_solver.
-          iIntros "? ([? O1] & [??] & [? O2])".
-          by iDestruct (own_valid_2 with "O1 O2") as %HI%exclusive_l. }
+        iSplitPure; first done.
+        iSplitPure; first done.
+        iIntros (? s_c v_c). simpl.
+        destruct s_c; first naive_solver.
+        iIntros "? ([? O1] & [??] & [? O2])".
+        by iDestruct (own_valid_2 with "O1 O2") as %HI%exclusive_l. }
       iIntros "!> yLb2".
       solve_left_cc.
       done.

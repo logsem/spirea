@@ -95,10 +95,12 @@ Section fence_sync.
   Context `{!nvmG Σ}.
 
   (* Predicate used for the location [a]. *)
-  Program Definition prot : LocationProtocol nat :=
-    {| pred := λ n v, ⌜v = #n⌝%I;
-       bumper n := n |}.
-  Next Obligation. iIntros. by iApply post_crash_flush_pure. Qed.
+  Definition prot : LocationProtocol nat :=
+    {| p_inv := λ (n : nat) v, ⌜ v = #n ⌝%I;
+       p_bumper n := n |}.
+
+  Global Instance prot_cond : ProtocolConditions prot.
+  Proof. split; try apply _. iIntros. by iApply post_crash_flush_pure. Qed.
 
   Lemma spec ℓ st E :
     {{{ ℓ ↦_{prot} [0] }}}

@@ -49,10 +49,15 @@ Section proof.
 
   Context (x y z : loc) (γ__ex : gname).
 
-  Program Definition inv_x : LocationProtocol bool :=
-    {| pred (b : bool) v := ⌜ v = #b ⌝%I;
-       bumper b := b; |}.
-  Next Obligation. iIntros. by iApply post_crash_flush_pure. Qed.
+  Definition prot_x : LocationProtocol bool :=
+    {| p_inv (b : bool) v := ⌜ v = #b ⌝%I;
+       p_bumper b := b; |}.
+
+  Global Instance prot_x_cond : ProtocolConditions prot_x.
+  Proof.
+    split; [apply _|apply _| ].
+    iIntros. by iApply post_crash_flush_pure.
+  Qed.
 
   Definition pred_y (s : option bool) (v : val) :=
     match s with
@@ -60,33 +65,38 @@ Section proof.
     | Some b =>
         match b with
           false => ⌜ v = #false ⌝ ∗ ⎡ own γ__ex (Excl ()) ⎤
-        | true => ⌜ v = #true ⌝ ∗ store_lb x inv_x true
+        | true => ⌜ v = #true ⌝ ∗ store_lb x prot_x true
         end
     end%I.
 
-  Program Definition prot_y := {| pred := pred_y; bumper _ := None; |}.
-  Next Obligation.
-    iIntros (??) "H /=". iApply post_crash_flush_nodep. done.
-  Qed.
-  Next Obligation. intros [|]; apply _. Qed.
+  Definition prot_y := {| p_inv := pred_y; p_bumper _ := None; |}.
 
-  Program Definition inv_z :=
-    {| pred (b : bool) (v : val) :=
+  Global Instance prot_y_cond : ProtocolConditions prot_y.
+  Proof.
+    split; first apply _.
+    - intros [|]; apply _.
+    - iIntros (??) "H /=". iApply post_crash_flush_nodep. done.
+  Qed.
+
+  Definition prot_z :=
+    {| p_inv (b : bool) (v : val) :=
         match b with
           false => ⌜ v = #false ⌝ ∗ ⎡ own γ__ex (Excl ()) ⎤
-        | true => ⌜ v = #true ⌝ ∗ flush_lb x inv_x true
+        | true => ⌜ v = #true ⌝ ∗ flush_lb x prot_x true
         end%I;
-      bumper := id; |}.
-  Next Obligation.
-    iIntros ([|] ?); simpl.
-    - iIntros "[% lb]". iModIntro.
-      iDestruct "lb" as "(le & ?)".
-      iFrame "%".
-      iApply persist_lb_to_flush_lb. iFrame.
-    - iIntros "[% H]". iModIntro. iFrame. done.
-  Qed.
-  Next Obligation. intros [|]; apply _. Qed.
+      p_bumper := id; |}.
 
+  Global Instance prot_z_cond : ProtocolConditions prot_z.
+  Proof.
+    split; first apply _.
+    - intros [|]; apply _.
+    - iIntros ([|] ?); simpl.
+      * iIntros "[% lb]". iModIntro.
+        iDestruct "lb" as "(le & ?)".
+        iFrame "%".
+        iApply persist_lb_to_flush_lb. iFrame.
+      * iIntros "[% H]". iModIntro. iFrame. done.
+  Qed.
 
   (* Note: The recovery code does not use the [y] location, hence the crash
   condition does not mention [y] as we don't need it to be available after a
@@ -95,26 +105,26 @@ Section proof.
     ∃ (xss zss : list bool) (bx bz : bool),
       "%xLast" ∷ ⌜ last xss = Some bx ⌝ ∗
       "%zLast" ∷ ⌜ last zss = Some bz ⌝ ∗
-      "#xPer" ∷ persist_lb x inv_x bx ∗
-      "#zPer" ∷ persist_lb z inv_z bz ∗
-      x ↦_{inv_x} xss ∗
-      z ↦_{inv_z} zss.
+      "#xPer" ∷ persist_lb x prot_x bx ∗
+      "#zPer" ∷ persist_lb z prot_z bz ∗
+      x ↦_{prot_x} xss ∗
+      z ↦_{prot_z} zss.
 
   Definition left_crash_condition : dProp Σ :=
     ∃ xss (bx : bool),
       "%xLast" ∷ ⌜ last xss = Some bx ⌝ ∗
-      "#xPer" ∷ persist_lb x inv_x bx ∗
-      "xPts" ∷ x ↦_{inv_x} xss.
+      "#xPer" ∷ persist_lb x prot_x bx ∗
+      "xPts" ∷ x ↦_{prot_x} xss.
 
   Definition right_crash_condition : dProp Σ :=
     ∃ zss (bz : bool),
       "%zLast" ∷ ⌜ last zss = Some bz ⌝ ∗
-      "#zPer" ∷ persist_lb z inv_z bz ∗
-      "zPts" ∷ z ↦_{inv_z} zss.
+      "#zPer" ∷ persist_lb z prot_z bz ∗
+      "zPts" ∷ z ↦_{prot_z} zss.
 
   Lemma left_crash_condition_impl (sx : list bool) :
-    persist_lb x inv_x false -∗
-    x ↦_{inv_x} sx -∗
+    persist_lb x prot_x false -∗
+    x ↦_{prot_x} sx -∗
     <PC> left_crash_condition.
   Proof.
     iIntros "xPer xPts".
@@ -131,8 +141,8 @@ Section proof.
   Qed.
 
   Lemma right_crash_condition_impl (sz : list bool) :
-    persist_lb z inv_z false -∗
-    z ↦_{inv_z} sz -∗
+    persist_lb z prot_z false -∗
+    z ↦_{prot_z} sz -∗
     <PC> right_crash_condition.
   Proof.
     iIntros "zPer zPts".
@@ -165,10 +175,10 @@ Section proof.
 
   Lemma right_prog_spec s E1 :
     y ↦_AT^{prot_y} [Some false] -∗
-    persist_lb z inv_z false -∗
-    z ↦_{inv_z} [false] -∗
+    persist_lb z prot_z false -∗
+    z ↦_{prot_z} [false] -∗
     WPC rightProg x y z @ s; E1
-    {{ v, z ↦_{inv_z} [false; true] ∨ z ↦_{inv_z} [false] }}
+    {{ v, z ↦_{prot_z} [false; true] ∨ z ↦_{prot_z} [false] }}
     {{ <PC> right_crash_condition }}.
   Proof.
     iIntros "#yPts #zPer zPts".
@@ -176,7 +186,7 @@ Section proof.
     rewrite /rightProg.
     wpc_bind (!_AT _)%E.
     iApply wpc_atomic_no_mask. whack_right_cc.
-    iApply (wp_load_at_simple _ _ (λ s v, (⌜v = #true⌝ ∗ store_lb x inv_x true) ∨ ⌜v = #false⌝)%I prot_y
+    iApply (wp_load_at_simple _ _ (λ s v, (⌜v = #true⌝ ∗ store_lb x prot_x true) ∨ ⌜v = #false⌝)%I prot_y
       with "[$yPts]").
     { iModIntro. iIntros (s' ? incl) "a". simpl.
       destruct s' as [[|]|]; last done.
@@ -226,7 +236,7 @@ Section proof.
     { iApply (right_crash_condition_impl with "zPer zPts"). }
 
     iApply wpc_atomic_no_mask. whack_right_cc.
-    iApply (wp_store_na _ inv_z _ _ _ true with "[$zPts]"); eauto.
+    iApply (wp_store_na _ _ _ _ _ true with "[$zPts]"); eauto.
     { simpl. iFrame "xLb". done. }
 
     iIntros "!> zPts /=".
@@ -237,12 +247,12 @@ Section proof.
 
   Lemma prog_spec :
     pre_borrow_d ∗
-    (* know_protocol x inv_x ∗ know_protocol y prot_y ∗ know_protocol z inv_z ∗ *)
-    persist_lb x inv_x false ∗
-    x ↦_{inv_x} [false] ∗
+    (* know_protocol x prot_x ∗ know_protocol y prot_y ∗ know_protocol z prot_z ∗ *)
+    persist_lb x prot_x false ∗
+    x ↦_{prot_x} [false] ∗
     y ↦_AT^{prot_y} [Some false] ∗
-    persist_lb z inv_z false ∗
-    z ↦_{inv_z} [false] -∗
+    persist_lb z prot_z false ∗
+    z ↦_{prot_z} [false] -∗
     WPC prog x y z @ ⊤
     {{ v, True }}
     {{ <PC> crash_condition }}.
@@ -297,7 +307,7 @@ Section proof.
       iApply wpc_atomic_no_mask. whack_left_cc.
       iApply (wp_store_na x _ _ _ _ true with "[$xPts]").
       { reflexivity. } { done. }
-      { rewrite /inv_x. done. }
+      { rewrite /prot_x. done. }
       iNext. iIntros "xPts".
       whack_left_cc.
       iModIntro.
@@ -307,17 +317,17 @@ Section proof.
       iDestruct (mapsto_na_store_lb with "xPts") as "#xStoreLb".
       wpc_bind (_ <-_AT _)%E.
       iApply wpc_atomic_no_mask. whack_left_cc.
-      iApply (wp_store_at _ [] (Some false) (Some true)).
-      { iFrame.
-        iPureGoal. { done. }
+      iApply (wp_store_at _ prot_y [] (Some false) (Some true)).
+      { simpl.
         iFrameF "yPts".
+        iFrame "xStoreLb".
+        iSplitPure. { done. }
+        iSplitPure. { done. }
         iFrame "#".
-        iSplitL.
-        - naive_solver.
-        - iIntros (? s_c v_c). simpl.
-          destruct s_c as [[|]|]; [naive_solver| |naive_solver].
-          iIntros "? ([? O1] & [??] & [? O2])".
-          by iDestruct (own_valid_2 with "O1 O2") as %HI%exclusive_l. }
+        iIntros (? s_c v_c). simpl.
+        destruct s_c as [[|]|]; [naive_solver| |naive_solver].
+        iIntros "? ([? O1] & [??] & [? O2])".
+        by iDestruct (own_valid_2 with "O1 O2") as %HI%exclusive_l. }
       iIntros "!> yLb2".
       whack_left_cc.
       done.

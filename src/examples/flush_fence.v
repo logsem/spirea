@@ -39,17 +39,21 @@ Section specification.
   and [a = 1, b = 1]. The case that is _not_ possible is: [a = 0, b = 1]. *)
 
   (* Predicate used for the location [a]. *)
-  Program Definition ϕa : LocationProtocol nat :=
-    {| pred := λ n v, ⌜v = #n⌝%I;
-       bumper n := n |}.
-  Next Obligation. iIntros. by iApply post_crash_flush_pure. Qed.
+  Definition ϕa : LocationProtocol nat :=
+    {| p_inv := λ (n : nat) v, ⌜v = #n⌝%I;
+       p_bumper n := n |}.
+
+  Global Instance ϕa_conditions : ProtocolConditions ϕa.
+  Proof. split; try apply _. iIntros. by iApply post_crash_flush_pure. Qed.
 
   (* Predicate used for the location [b]. *)
-  Program Definition ϕb ℓa : LocationProtocol nat :=
-    {| pred := λ n v, (⌜v = #n⌝ ∗ ∃ m, ⌜ n ≤ m ⌝ ∗ flush_lb ℓa ϕa m)%I;
-       bumper n := n |}.
-  Next Obligation.
-    iIntros (???) "[% lb]".
+  Definition ϕb ℓa : LocationProtocol nat :=
+    {| p_inv := λ (n : nat) v, (⌜v = #n⌝ ∗ ∃ m, ⌜ n ≤ m ⌝ ∗ flush_lb ℓa ϕa m)%I;
+       p_bumper n := n |}.
+
+  Global Instance ϕb_conditions ℓa : ProtocolConditions (ϕb ℓa).
+    split; try apply _.
+    iIntros (??) "[% lb]".
     iDestruct "lb" as (m ?) "lb".
     iModIntro.
     iDestruct "lb" as "[H ?]".

@@ -97,10 +97,15 @@ Section definitions.
    *)
 
   Program Definition toNext_prot : LocationProtocol (numbered val) :=
-    {| pred := λ '(mk_numbered t v) v', ⌜ v = v' ⌝%I;
-       bumper v := v |}.
-  Next Obligation. iIntros ([?] ? ?). iModIntro. done. Qed.
-  Next Obligation. destruct s. simpl. apply _. Qed.
+    {| p_inv := λ '(mk_numbered t v) v', ⌜ v = v' ⌝%I;
+       p_bumper v := v |}.
+
+  Global Instance toNext_prot_conditions : ProtocolConditions toNext_prot.
+  Proof.
+    split; try apply _.
+    - destruct s. simpl. apply _.
+    - iIntros ([?] ?) "? /=". iModIntro. done.
+  Qed.
 
   (* Definition toNext_prot : loc_pred (singl val) := *)
   (*   λ '(mk_singl v) v' _, ⌜ v = v' ⌝%I. *)
@@ -115,12 +120,12 @@ Section definitions.
     (* ∗ ϕ x hG)%I. *)
 
   (* Program Instance toNext_prot_prot : *)
-  (*   LocationProtocol toNext_prot := { bumper n := n }. *)
+  (*   LocationProtocol toNext_prot := { p_bumper n := n }. *)
   (* Next Obligation. iIntros (?[?]?) "H". iModIntro. done. Qed. *)
   (* Next Obligation. destruct s. apply _. Qed. *)
 
   (* Program Instance cons_node_prot_prot x ℓ : *)
-  (*   LocationProtocol (cons_node_prot x ℓ) := { bumper n := n }. *)
+  (*   LocationProtocol (cons_node_prot x ℓ) := { p_bumper n := n }. *)
   (* Next Obligation. *)
   (*   iIntros (?????). *)
   (*   rewrite /cons_node_prot. *)
@@ -199,15 +204,18 @@ Section definitions.
 
   (* The invariant for the location that points to the first node in the
   stack. *)
-  Program Definition toHead_prot :=
-    {| pred (_ : unit) (v : val) :=
+  Definition toHead_prot :=
+    {| p_inv (_ : unit) (v : val) :=
         (∃ (ℓnode : loc) xs,
           "%vEqNode" ∷ ⌜ v = #ℓnode ⌝ ∗
           "isNode" ∷ is_node ℓnode xs ∗
           "#phis" ∷ ([∗ list] x ∈ xs, ϕ x))%I;
-      bumper s := s;
+      p_bumper s := s;
     |}.
-  Next Obligation.
+
+  Global Instance toHead_prot_conditions : ProtocolConditions toHead_prot.
+  Proof.
+    split; try apply _.
     iIntros (??).
     iNamed 1.
     iModIntro.
@@ -338,7 +346,8 @@ Section proof.
     iDestruct "fence" as (ℓhead xs ->) "[isNode #phis]".
     wp_pures.
 
-    wp_apply (wp_cas_at (λ _, True)%I (λ _, True)%I _ _ _ [] with "[nodePts toNextPts isNode]").
+    wp_apply (wp_cas_at (λ _, True)%I (λ _, True)%I _ _ (toHead_prot ϕ) []
+               with "[nodePts toNextPts isNode]").
     {
       iFrame "stackPts".
       iIntros (???).
@@ -355,10 +364,11 @@ Section proof.
         iExists _, (x :: xs). (* FIXME! *)
         iSplitPure; first done.
         iFrame "phi phis".
-        (* iFrame "nodeFlushLb". *)
         iExists _, _ , _, _, _.
         iFrame "isNode".
-        iFrame "nodePts nodeFlushLb".
+        iFrame "nodePts".
+        iFrame "nodeFlushLb".
+
         iExists _. iFrame "toNextPts toNextPtsFl".
         iPureIntro. rewrite last_app. done. }
       iSplitL ""; first iIntros "!> $ //". iAccu. }
@@ -432,7 +442,7 @@ Section proof.
       iIntros (?) "(toNextPts & <-)".
       wp_pures.
 
-      wp_apply (wp_cas_at _ _ _ _ _ [] with "[node]").
+      wp_apply (wp_cas_at _ _ _ _ (toHead_prot ϕ) [] with "[node]").
       { iFrame "stackPts".
         iIntros (???).
         iSplitL "". { iIntros "_". iPureIntro. left. done. }

@@ -25,8 +25,8 @@ Section wp_na_rules.
 
   Implicit Types (ℓ : loc) (s : ST) (prot : LocationProtocol ST).
 
-  Lemma wp_alloc_na v s prot st E :
-    {{{ prot.(pred) s v }}}
+  Lemma wp_alloc_na v s prot `{!ProtocolConditions prot} st E :
+    {{{ prot.(p_inv) s v }}}
       ref_NA v @ st; E
     {{{ ℓ, RET #ℓ; ℓ ↦_{prot} ([] ++ [s]) }}}.
   Proof.
@@ -88,7 +88,7 @@ Section wp_na_rules.
     { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
 
     (* Add the bumper to the ghost state of bumper. *)
-    iMod (own_all_bumpers_insert _ _ _ (prot.(bumper)) with "allBumpers") as "[allBumper knowBumper]".
+    iMod (own_all_bumpers_insert _ _ _ (prot.(p_bumper)) with "allBumpers") as "[allBumper knowBumper]".
     { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
 
     (* Add the preorder to the ghost state of bumper. *)
@@ -253,7 +253,7 @@ Section wp_na_rules.
   Lemma wp_load_na ℓ q ss s Q prot positive E :
     last ss = Some s →
     {{{ mapsto_na ℓ prot q ss ∗
-        (<obj> (∀ v, prot.(pred) s v -∗ Q v ∗ prot.(pred) s v)) }}}
+        (<obj> (∀ v, prot.(p_inv) s v -∗ Q v ∗ prot.(p_inv) s v)) }}}
       !_NA (Val $ LitV $ LitLoc ℓ) @ positive; E
     {{{ v, RET v; mapsto_na ℓ prot q ss ∗ Q v }}}.
   Proof.
@@ -381,10 +381,10 @@ Section wp_na_rules.
     split; done.
   Qed.
 
-  Lemma wp_store_na ℓ prot ss v s__last s st E :
+  Lemma wp_store_na ℓ prot ss v s__last s st E `{!ProtocolConditions prot} :
     last ss = Some s__last →
     s__last ⊑ s →
-    {{{ mapsto_na ℓ prot 1 ss ∗ prot.(pred) s v }}}
+    {{{ mapsto_na ℓ prot 1 ss ∗ prot.(p_inv) s v }}}
       #ℓ <-_NA v @ st; E
     {{{ RET #(); mapsto_na ℓ prot 1 (ss ++ [s]) }}}.
   Proof.
