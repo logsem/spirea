@@ -1,6 +1,7 @@
 (* In this file we define [dProp], the type of propositions in the high-level
 logic. *)
 
+From iris.bi Require Import lib.fractional.
 From iris.bi Require Export monpred.
 From iris.proofmode Require Import monpred tactics.
 From iris.base_logic.lib Require Import iprop.
@@ -178,6 +179,28 @@ Section definitions.
     simpl.
     iIntros "#P !>".
     done.
+  Qed.
+
+  Global Instance with_gnames_fractional (P : _ → _ → dProp Σ) :
+    (∀ nD, Fractional (P nD)) →
+    Fractional (λ q, with_gnames (λ nD, P nD q)).
+  Proof.
+    intros f p q.
+    iModel. simpl.
+    rewrite f.
+    rewrite monPred_at_sep.
+    auto.
+  Qed.
+
+  Global Instance with_gnames_as_fractional (P : _ → dProp Σ) Q q :
+    (∀ nD, AsFractional (P nD) (Q nD) q) →
+    AsFractional (with_gnames P) (λ q, with_gnames (λ nD, Q nD q)) q.
+  Proof.
+    intros f.
+    split; last apply _.
+    iModel. simpl.
+    rewrite 1!(@as_fractional _ (P gnames) (Q gnames)).
+    auto.
   Qed.
 
 End definitions.

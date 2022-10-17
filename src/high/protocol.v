@@ -25,6 +25,8 @@ Record LocationProtocol ST `{AbstractState ST, nvmG Σ} := MkProt {
   (* pred_nobuf :> ∀ s v, BufferFree (p_inv s v); *)
 }.
 
+Global Arguments MkProt {_} {_} {_} {_} {_} {_} _%I _%I.
+
 Global Arguments p_inv {ST} {_} {_} {_} {_} {_} _.
 Global Arguments p_bumper {ST} {_} {_} {_} {_} {_} _.
 

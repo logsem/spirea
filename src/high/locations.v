@@ -63,27 +63,6 @@ Section points_to_at.
       "#pers" ∷ (persisted_loc_d ℓ (tLo - offset) ∨ ⌜ tLo - offset = 0 ⌝)
     )%I.
 
-  Global Instance with_gnames_fractional (P : _ → _ → dProp Σ) :
-    (∀ nD, Fractional (P nD)) →
-    Fractional (λ q, with_gnames (λ nD, P nD q)).
-  Proof.
-    intros f p q.
-    iModel. simpl.
-    rewrite f.
-    rewrite monPred_at_sep.
-    auto.
-  Qed.
-  Global Instance with_gnames_as_fractional (P : _ → dProp Σ) Q q :
-    (∀ nD, AsFractional (P nD) (Q nD) q) →
-    AsFractional (with_gnames P) (λ q, with_gnames (λ nD, Q nD q)) q.
-  Proof.
-    intros f.
-    split; last apply _.
-    iModel. simpl.
-    rewrite 1!(@as_fractional _ (P gnames) (Q gnames)).
-    auto.
-  Qed.
-
   (* Could maybe be upstreamed. *)
   Global Instance monPred_embed_fractional (P : _ → iProp Σ) :
     Fractional P → Fractional (λ q, ⎡ P q ⎤ : dProp Σ)%I.
@@ -138,14 +117,16 @@ Section points_to_at.
       iCombine "hist histQ" as "$".
       iCombine "knowSV SV" as "$".
   Qed.
+
   Global Instance mapsto_na_as_fractional ℓ prot q v :
     AsFractional (mapsto_na ℓ prot q v) (λ q, mapsto_na ℓ prot q v)%I q.
   Proof. split; [done | apply _]. Qed.
 
   Program Definition have_msg_after_fence msg : dProp Σ :=
     MonPred (λ i,
-      ⌜ msg.(msg_store_view) ⊑ (store_view i.1) ⌝ ∗
-      ⌜ msg.(msg_persisted_after_view) ⊑ (flush_view i.1 ⊔ buffer_view i.1) ⌝
+      ⌜ msg.(msg_store_view) ⊑ (store_view i.1) ⌝
+      (* ∗ *)
+      (* ⌜ msg.(msg_persisted_after_view) ⊑ (flush_view i.1 ⊔ buffer_view i.1) ⌝ *)
     )%I _.
   Next Obligation. solve_proper. Qed.
 
@@ -153,9 +134,14 @@ Section points_to_at.
     Persistent (have_msg_after_fence msg).
   Proof. apply monPred_persistent=> j. apply _. Qed.
 
+  Global Instance have_msg_after_fence_buffer_free msg :
+    BufferFree (have_msg_after_fence msg).
+  Proof. rewrite /IntoNoBuffer. iModel. done. Qed.
+
   Lemma have_msg_after_fence_empty v PV : ⊢ have_msg_after_fence (Msg v ∅ PV ∅).
   Proof.
-    iModel. simpl. iPureIntro. split; apply view_empty_least.
+    iModel. simpl. iPureIntro. apply view_empty_least.
+    (* iModel. simpl. iPureIntro. split; apply view_empty_least. *)
   Qed.
 
   Definition mapsto_at ℓ prot ss : dProp Σ :=
@@ -172,14 +158,30 @@ Section points_to_at.
         ([∗ map] t ↦ s ∈ abs_hist, know_frag_history_loc_d ℓ t s) ∗
       "#physHist" ∷
         ([∗ map] t ↦ msg ∈ phys_hist,
+          (* When we load a message for this location only the views in that
+          message are physically added to our thread. If we want to access the
+          invariants for all the prior messages then we need to remember that
+          that these views have been added. We may however be able to lift this
+          requirement to make [mapsto_at] flush free due to how predicates are
+          used in [wp_load_at] (only objective things can be extracted). *)
           have_msg_after_fence msg ∗
           lift_d (λ nD, auth_map_map_frag_singleton phys_history_name ℓ t msg)) ∗
       "#offset" ∷ offset_loc ℓ offset ∗
       "#tSLe" ∷ have_SV ℓ (tS - offset)).
 
-  Global Instance mapsto_na_persistent ℓ prot ss :
+  Global Instance mapsto_at_persistent ℓ prot ss :
     Persistent (mapsto_at ℓ prot ss).
   Proof. apply _. Qed.
+
+  Global Instance mapsto_at_buffer_free ℓ prot (ss : list ST) :
+    BufferFree (mapsto_at ℓ prot ss).
+  Proof.
+    rewrite /IntoNoBuffer.
+    iNamed 1.
+    rewrite /offset_loc.
+    (* We need some more instances. *)
+  Admitted.
+  (* Qed. *)
 
   Definition lb_base ℓ prot offset tS (s : ST) : dProp Σ :=
     "#locationProtocol" ∷ know_protocol ℓ prot ∗
