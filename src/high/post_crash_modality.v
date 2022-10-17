@@ -257,6 +257,15 @@ Section post_crash_prop.
     done.
   Qed.
 
+  Global Instance post_crash_proper :
+    Proper ((⊣⊢) ==> (⊣⊢)) post_crash.
+  Proof.
+    intros ?? eq.
+    apply (anti_symm _).
+    - apply post_crash_mono. rewrite eq. done.
+    - apply post_crash_mono. rewrite eq. done.
+  Qed.
+
   Lemma post_crash_emp : emp ⊢ post_crash emp.
   Proof.
     iModel. iIntros "HP".

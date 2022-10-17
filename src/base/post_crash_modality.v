@@ -192,6 +192,15 @@ Section post_crash_prop.
     iIntrosPostCrash. iFrame. iApply "HP".
   Qed.
 
+  Lemma post_crash_proper :
+    Proper (pointwise_relation _ (⊣⊢) ==> (⊣⊢)) post_crash.
+  Proof.
+    intros ?? eq.
+    apply (anti_symm _).
+    - apply post_crash_mono. intros. rewrite -eq. done.
+    - apply post_crash_mono. intros. rewrite -eq. done.
+  Qed.
+
   (* Lemma post_crash_exists {A} P Q : *)
   (*   (∀ (x: A), P hG x -∗ post_crash (λ hG, Q hG x)) -∗ *)
   (*   (∃ x, P hG x) -∗ post_crash (λ hG, ∃ x, Q hG x). *)
