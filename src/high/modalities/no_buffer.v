@@ -54,6 +54,16 @@ Section no_buffer.
     ((<nobuf> P) (TV, gnames) = P ((store_view TV, flush_view TV, ∅), gnames))%I.
   Proof. destruct TV as [[??]?]. apply no_buffer_at_alt. Qed.
 
+  Global Instance no_buffer_proper :
+    Proper ((⊣⊢) ==> (⊣⊢)) (@no_buffer Σ).
+  Proof.
+    intros ?? eq.
+    iModel.
+    rewrite 2!no_buffer_at.
+    rewrite eq.
+    naive_solver.
+  Qed.
+
   Lemma no_buffer_pure φ : ⌜φ⌝ -∗ <nobuf> (⌜φ⌝ : dProp Σ).
   Proof. iModel. by rewrite no_buffer_at monPred_at_pure. Qed.
 
@@ -170,6 +180,9 @@ Section no_buffer.
     repeat split; try apply le; done.
   Qed.
 
+  Lemma later_no_buffer (P : dProp Σ) : ▷ (<nobuf> P) ⊢ <nobuf> (▷ P).
+  Proof. iModel. rewrite 2!no_buffer_at monPred_at_later. naive_solver. Qed.
+
   Global Instance into_no_buffer_monPred_in SV FV PV gn :
     IntoNoBuffer (monPred_in (SV, FV, PV, gn) : dProp Σ) (monPred_in (SV, FV, ∅, gn)).
   Proof. apply no_buffer_monPred_in. Qed.
@@ -202,6 +215,24 @@ Section no_buffer.
   Global Instance buffer_free_have_FV_strong ℓ t :
     BufferFree (have_FV_strong ℓ t : dProp Σ).
   Proof. apply _. Qed.
+
+  Global Instance into_no_buffer_proper :
+    Proper ((⊣⊢) ==> (⊣⊢) ==> (impl)) (@IntoNoBuffer Σ).
+  Proof.
+    rewrite /IntoNoBuffer.
+    intros P P' pEq Q Q' qEq ?.
+    rewrite -pEq -qEq.
+    assumption.
+  Qed.
+
+  Global Instance into_no_buffer_later (P P' : dProp Σ) :
+    IntoNoBuffer P P' → IntoNoBuffer (▷ P)%I (▷ P')%I.
+  Proof.
+    rewrite /IntoNoBuffer.
+    intros impl.
+    rewrite impl.
+    apply later_no_buffer.
+  Qed.
 
 End no_buffer.
 
