@@ -27,6 +27,16 @@ Section post_fence.
     ((<fence> P) (SV, PV, BV, gnames) = P (SV, PV ⊔ BV, BV, gnames))%I.
   Proof. done. Qed.
 
+  Global Instance post_fence_proper :
+    Proper ((⊣⊢) ==> (⊣⊢)) (@post_fence Σ).
+  Proof.
+    intros ?? eq.
+    iModel.
+    rewrite 2!post_fence_at.
+    rewrite eq.
+    naive_solver.
+  Qed.
+
   Lemma post_fence_mono P Q : (P ⊢ Q) → <fence> P ⊢ <fence> Q.
   Proof. intros H. iModel. rewrite 2!post_fence_at. iApply H. Qed.
 
@@ -156,6 +166,19 @@ Section post_fence.
     iIntros "P W".
     iDestruct (post_fence_wand with "W P") as "Q".
     iDestruct (post_fence_flush_free with "Q") as "$".
+  Qed.
+
+  Lemma post_fence_exist {A} (Ψ : A → dProp Σ) :
+    <fence> (∃ a, Ψ a) ⊣⊢ ∃ a, <fence> (Ψ a).
+  Proof.
+    iModel. simpl. rewrite monPred_at_exist. naive_solver.
+  Qed.
+
+  Global Instance into_exist_post_fence {A} P (Φ : A → dProp Σ) name :
+    IntoExist P Φ name → IntoExist (<fence> P) (λ a, <fence> (Φ a))%I name.
+  Proof.
+    rewrite /IntoExist=> HP.
+    by rewrite HP post_fence_exist.
   Qed.
 
 End post_fence.
