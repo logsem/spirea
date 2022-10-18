@@ -138,6 +138,10 @@ Section points_to_at.
     BufferFree (have_msg_after_fence msg).
   Proof. rewrite /IntoNoBuffer. iModel. done. Qed.
 
+  Global Instance have_msg_after_fence_flush_free msg :
+    FlushFree (have_msg_after_fence msg).
+  Proof. rewrite /IntoNoFlush. iModel. done. Qed.
+
   Lemma have_msg_after_fence_empty v PV : ⊢ have_msg_after_fence (Msg v ∅ PV ∅).
   Proof.
     iModel. simpl. iPureIntro. apply view_empty_least.
@@ -182,6 +186,18 @@ Section points_to_at.
     (* We need some more instances. *)
   Admitted.
   (* Qed. *)
+
+  Global Instance mapsto_at_flush_free ℓ prot (ss : list ST) :
+    FlushFree (mapsto_at ℓ prot ss).
+  Proof.
+    rewrite /IntoNoFlush.
+    iNamed 1.
+    rewrite /offset_loc.
+    iModIntro.
+    repeat iExists _.
+    iFrame "%#".
+    (* We need some more instances. *)
+  Admitted.
 
   Definition lb_base ℓ prot offset tS (s : ST) : dProp Σ :=
     "#locationProtocol" ∷ know_protocol ℓ prot ∗
