@@ -181,6 +181,15 @@ Section post_fence.
     by rewrite HP post_fence_exist.
   Qed.
 
+  Global Instance elim_modal_fence p (P Q : dProp Σ) :
+    FlushFree P →
+    ElimModal True p p (<fence> P) P Q Q.
+  Proof.
+    intros ? _.
+    rewrite post_fence_flush_free.
+    apply bi.wand_elim_r.
+  Qed.
+
 End post_fence.
 
 Class IntoFenceSync `{nvmG Σ}
