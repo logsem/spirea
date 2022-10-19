@@ -13,20 +13,23 @@ Section predicates.
   (* Note, there are three types for predicates.
      1/ The real/initial type which depends on some [ST]: *)
   Definition predicate ST := ST → val → dProp Σ.
+  Canonical Structure predicateO ST := ST -d> val -d> dPropO Σ.
+
   (* 2/ The encoded type that doesnt depend on [ST]: *)
   Definition enc_predicate := positive → val → option (dProp Σ).
+  Definition enc_predicateO := positive -d> val -d> optionO (dPropO Σ).
+
   (* 3/ The unwrapped type where we project out of [dProp], forgets that it is
         monotone, and end up with [thread_view → iProp Σ]: *)
   Definition unwrapped_predicate :=
     positive → val → option (thread_view * nvmDeltaG → iProp Σ).
-
-  Definition enc_predicateO :=
-    positive -d> val -d> optionO (dPropO Σ).
+  Canonical Structure unwrapped_predicateO :=
+    positive -d> val -d> optionO (thread_view * nvmDeltaG -d> iPropO Σ).
 
   Definition predO :=
     positive -d> val -d> optionO (thread_view * nvmDeltaG -d> iPropO Σ).
 
-  (* Unfold the [dProp] and forget about monotinicity. *)
+  (* Unfold the [dProp] and forget about monotonicity. *)
   Definition encoded_pred_unwrap
     (pred : enc_predicate) : unwrapped_predicate :=
       λ s v, (λ p i, monPred_at p i) <$> (pred s v).
@@ -35,14 +38,14 @@ Section predicates.
     (pred : enc_predicateO) : predO :=
       λ s v, (λ p i, monPred_at p i) <$> (pred s v).
 
-  Definition unwrapped_pred_to_ra (pred : unwrapped_predicate) :
+  Definition unwrapped_pred_to_ra (pred : unwrapped_predicateO) :
     (@predicateR Σ) :=
     to_agree ((λ a b, Next (pred a b))).
 
-  Definition pred_to_ra (pred : enc_predicate) : (@predicateR Σ) :=
+  Definition pred_to_ra (pred : enc_predicateO) : (@predicateR Σ) :=
     unwrapped_pred_to_ra (encoded_pred_unwrap pred).
 
-  Global Instance enoded_predc_unwrap :
+  Global Instance enoded_pred_unwrap_proper :
     ∀ n, Proper (@dist enc_predicateO _ n ==> @dist predO _ n) encoded_pred_unwrap.
   Proof.
     intros ? p1 p2 eq.
@@ -68,7 +71,7 @@ Section predicates.
     apply (@to_agree_ne (positive -d> val -d> laterO (optionO (index -d> (iPropO Σ))))).
     intros ??.
     eassert (NonExpansive Next) as ne; last apply ne; first by apply _.
-    apply enoded_predc_unwrap in eq.
+    apply enoded_pred_unwrap_proper in eq.
     specialize (eq x0).
     apply eq.
   Qed.
@@ -79,17 +82,52 @@ Section predicates.
   Definition own_all_preds dq preds :=
     own predicates_name (●{dq} (preds_to_ra preds) : predicatesR).
 
-  Definition encode_predicate `{Countable ST} (ϕ : predicate ST)
-    : enc_predicate :=
+  Definition encode_predicate `{Countable ST} (ϕ : predicateO ST)
+    : enc_predicateO :=
     λ encS v, (λ s, ϕ s v) <$> decode encS.
 
   Definition predicate_to_unwrapped_predicate `{Countable ST} (ϕ : predicate ST)
     : unwrapped_predicate :=
     encoded_pred_unwrap (encode_predicate ϕ).
 
-  Definition know_pred `{Countable ST} ℓ (ϕ : predicate ST) : iProp Σ :=
+  Definition know_pred `{Countable ST} ℓ (ϕ : predicateO ST) : iProp Σ :=
     own predicates_name
         (◯ {[ ℓ := unwrapped_pred_to_ra (predicate_to_unwrapped_predicate ϕ) ]}).
+
+  Local Instance unwrapped_pred_to_ra_contractive :
+    Contractive unwrapped_pred_to_ra.
+  Proof.
+    rewrite /pred_to_ra.
+    rewrite /unwrapped_pred_to_ra.
+    intros ????.
+    apply (@to_agree_ne (positive -d> val -d> laterO (optionO (index -d> (iPropO Σ))))).
+    intros ??.
+    destruct n; first done.
+    apply (contractive_S Next).
+    apply (H x0 x1).
+  Qed.
+
+  Local Instance pred_to_ra_contractive :
+    Contractive (pred_to_ra).
+  Proof. solve_contractive. Qed.
+
+  Global Instance encode_predicate_ne `{Countable ST} :
+    NonExpansive (encode_predicate (ST := ST)).
+  Proof.
+  Admitted.
+
+  Global Instance know_pred_contractive `{Countable ST} ℓ :
+    Contractive (know_pred (ST := ST) ℓ).
+  Proof.
+    intros ????.
+    rewrite /know_pred.
+    do 3 f_equiv.
+    f_contractive.
+    apply enoded_pred_unwrap_proper.
+    simpl in H0.
+    rewrite H0.
+    f_equiv.
+  Qed.
 
   Lemma encode_predicate_extract `{Countable ST}
       (ϕ : predicate ST) e s v
@@ -161,8 +199,9 @@ Section predicates.
     rewrite lookup_fmap.
     rewrite lookup_op.
     rewrite lookup_singleton.
-    destruct (preds !! ℓ) as [o|] eqn:eq; simpl.
-    2: { simpl. case (c !! ℓ); intros; iDestruct "eq" as %eq'; inversion eq'. }
+    destruct (preds !! ℓ) as [o|] eqn:eq; rewrite eq; simpl.
+    2: {
+      case (c !! ℓ); intros; iDestruct "eq" as %eq'; inversion eq'. }
     iExists o.
     iSplit; first done.
     case (c !! ℓ).
@@ -236,7 +275,7 @@ Section predicates.
     iMod (own_update with "A") as "[H $]".
     { apply auth_update_alloc.
       apply alloc_local_update; last done.
-      rewrite /preds_to_ra. rewrite lookup_fmap. erewrite look. done. }
+      rewrite /preds_to_ra. rewrite lookup_fmap. rewrite look. done. }
     iModIntro.
     rewrite /preds_to_ra.
     rewrite fmap_insert.
