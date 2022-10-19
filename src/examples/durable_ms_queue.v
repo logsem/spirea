@@ -163,90 +163,7 @@ Section definitions.
   Definition toNext_prot (next_inv : loc_pred bool) :=
     MkProt (toNext_prot_inv next_inv) id.
 
-  (*
-  Definition TT := (bool * val) -d> dPropO Σ.
-
-  (* bi fixpoint *)
-  (* The invariant for the location into a node. Without later. *)
-  Definition pre_node_prot_inv (ℓtoNext : loc) :
-     (TT) -d> TT :=
-    λ self '(b, v),
-      (∃ mx state,
-        ⌜ v = (InjRV (mx, #ℓtoNext)) ⌝ ∗
-        match b with
-          (* Is initial sentinel. *)
-          false => True
-          (* Is not a sentinel node. *)
-        | true => ∃ x, ⌜ mx = SOMEV x ⌝ ∗ R x
-        end ∗
-        ℓtoNext ↦_AT^{toNext_prot (λ s v, self (s, v))} [state] ∗
-        flush_lb ℓtoNext (toNext_prot (λ s v, self (s, v))) state)%I.
-
-  (* Global Instance flush_lb_ne : *)
-
-  Instance pre_node_prot_inv_ne ℓ : NonExpansive2 (pre_node_prot_inv ℓ).
-  Proof.
-    intros.
-    intros ??? (?, ?) [??] [<-%leibniz_equiv <-%leibniz_equiv]%pair_equiv_inj.
-    rewrite /pre_node_prot_inv.
-    f_equiv.
-    f_equiv.
-    f_equiv.
-    f_equiv.
-    f_equiv.
-    f_equiv.
-    f_equiv.
-    - admit.
-    - rewrite /flush_lb.
-      f_equiv.
-      f_equiv.
-      f_equiv.
-      f_equiv.
-      f_equiv.
-      f_equiv.
-      rewrite /lb_base.
-      f_equiv.
-      f_equiv.
-      rewrite /know_protocol /know_pred_d /know_bumper.
-      f_equiv.
-      { admit. }
-      f_equiv.
-      f_equiv.
-      f_equiv.
-      admit.
-  Admitted.
-
-  Definition uncurried_node_prot_inv ℓ : TT :=
-    bi_least_fixpoint (pre_node_prot_inv ℓ).
-
-  (* Global Instance name ℓ : BiMonoPred (pre_node_prot_inv ℓ). *)
-  (* Proof. *)
-  (*   split. *)
-  (*   - iIntros (Φ Ψ ??) "#HI". iIntros ([s b]). *)
-  (*     simpl. *)
-  (*     iDestruct 1 as (mx state) "(A & B & C & D)". *)
-  (*     iExists mx, state. *)
-  (*     iFrameF "A". *)
-  (*     iFrameF "B". *)
-  (*     iSplitL "C". *)
-  (*     * rewrite /mapsto_at. *)
-  (*     (* iFrame "%#∗". *) *)
-  (*     admit. *)
-  (*   - *)
-  (* Admitted. *)
-
-  Lemma node_prot_inv_unfold ℓtoNext :
-    uncurried_node_prot_inv ℓtoNext ≡
-      pre_node_prot_inv ℓtoNext (uncurried_node_prot_inv ℓtoNext).
-  Proof.
-    rewrite /uncurried_node_prot_inv.
-    intros ?.
-    apply least_fixpoint_unfold.
-    apply _.
-  Qed.
-*)
-
-  (* WITH LATER The invariant for the location into a node. *)
+  (* The invariant for the location into a node. *)
   Definition pre_node_prot_inv (ℓtoNext : loc) :
      (loc_predO bool) -d> loc_predO bool :=
     λ self b v,
@@ -266,7 +183,6 @@ Section definitions.
   Proof.
     intros ??????.
     rewrite /pre_node_prot_inv.
-    (* intros ?. *)
     simpl.
     f_equiv.
     f_equiv.
@@ -365,106 +281,6 @@ Section definitions.
       iApply persist_lb_to_flush_lb.
       iApply (crashed_in_persist_lb with "crashedIn").
   Qed.
-
-  (*
-  Definition cons_node_prot (ℓtoNext : loc) : LocationProtocol bool :=
-    {| p_inv b v := (∃ mx,
-        ⌜ v = (InjRV (mx, #ℓtoNext)) ⌝ ∗
-        (* no info about [ℓtoNext] *)
-        (* ℓtoNext ↦_AT^{toNext_prot} [false] ∗ *)
-        match b with
-          (* Might be a sentinel node. *)
-          false => True
-          (* Is not a sentinel node. *)
-        | true => ∃ x, ⌜ mx = SOMEV x ⌝ ∗ R x
-       end)%I;
-       p_bumper := id
-    |}.
-
-  Global Instance cons_node_prot_conditions ℓtoNext :
-    ProtocolConditions (cons_node_prot ℓtoNext).
-  Proof.
-    split; try apply _.
-  Admitted.
-  *)
-
-    (* constant_prot (InjRV (x, #ℓtoNext)). *)
-
-  (* Definition toNext_prot : *)
-  (*   LocationProtocol ((discreteState loc) + (discreteState loc)) := *)
-  (*   {| p_inv ml v := *)
-  (*       ⌜ match ml with *)
-  (*         inl (mk_discrete ℓ) => v = #(ℓ : loc) *)
-  (*       | inr (mk_discrete ℓ) => v = #(ℓ : loc) *)
-  (*       end ⌝%I; *)
-  (*     p_bumper := id |}. *)
-  (* Next Obligation. Admitted. *)
-
-  (* (* The protocol for the location going _out_ from a node. The protocol can *)
-  (* move from [none] (no successor) to [some ℓnext] (a successor) when a new node *)
-  (* is enqueued. *) *)
-  (* Program Definition toNext_prot : LocationProtocol (option (discreteState loc)) := *)
-  (*   {| p_inv ml v := (∃ (ℓnext : loc), *)
-  (*       (* The value pointed to is always a location. *) *)
-  (*       ⌜ v = #ℓnext ⌝ ∗ *)
-  (*       match ml with *)
-  (*         (* False means no successor. *) *)
-  (*         None => ℓnext ↦_AT^{nil_node_prot} [()] *)
-  (*         (* False means that a successor is present. *) *)
-  (*       | Some (mk_discrete ℓnext') => *)
-  (*         ⌜ ℓnext = ℓnext' ⌝ ∗ *)
-  (*         ∃ ℓtoNext, ℓnext ↦_AT^{cons_node_prot ℓtoNext} [true] *)
-  (*       end)%I; *)
-  (*      p_bumper := id |}. *)
-  (* Next Obligation. Admitted. *)
-  (* Next Obligation. Admitted. *)
-
-  (*
-  (* [n] is the length of the list. *)
-  Fixpoint is_node ℓnode (n : nat) : dProp Σ :=
-    match n with
-    | 0 => (* ∃ q, *)
-      ℓnode ↦_AT^{nil_node_prot} [()] ∗
-      flush_lb ℓnode nil_node_prot ()
-    | S m => ∃ (ℓtoNext ℓnext : loc),
-      (* ℓnode *)
-      ℓnode ↦_AT^{cons_node_prot ℓtoNext} [true] ∗
-      flush_lb ℓnode (cons_node_prot ℓtoNext) true ∗
-      (* ℓtoNext *)
-      ℓtoNext ↦_AT^{toNext_prot} [inr (mk_discrete ℓnext)] ∗
-      flush_lb ℓtoNext toNext_prot (inr (mk_discrete ℓnext)) ∗
-      is_node ℓnext m
-  end.
-*)
-
-  (*
-  (* [n] is a lower bound on how many successor nodes [ℓtoNext] points to. *)
-  Fixpoint successors ℓtoNext (n : nat) : dProp Σ :=
-    ∃ ℓnext,
-      match n with
-      | 0 => (* ∃ q, *)
-        ℓtoNext ↦_AT^{toNext_prot} [inl (mk_discrete ℓnext)] ∗
-        flush_lb ℓtoNext toNext_prot (inl (mk_discrete ℓnext)) ∗
-        ℓnext ↦_AT^{nil_node_prot} [()] ∗
-        flush_lb ℓnext nil_node_prot ()
-      | S m => ∃ (ℓnextOut ℓsucc : loc),
-        (* ℓnode *)
-        (* ℓnode ↦_AT^{cons_node_prot ℓtoNext} [true] ∗ *)
-        (* flush_lb ℓnode (cons_node_prot ℓtoNext) true ∗ *)
-        (* ℓtoNext *)
-        ℓtoNext ↦_AT^{toNext_prot} [inr (mk_discrete ℓnext)] ∗
-        flush_lb ℓtoNext toNext_prot (inr (mk_discrete ℓnext)) ∗
-        ℓnext ↦_AT^{cons_node_prot ℓnextOut} [true] ∗
-        flush_lb ℓnext (cons_node_prot ℓnextOut) true ∗
-        successors ℓnextOut m
-  end.
-
-  Global Instance successors_persistent ℓtoNext n : Persistent (successors ℓtoNext n).
-  Proof.
-    generalize dependent ℓtoNext.
-    induction n; simpl; try apply _.
-  Qed.
-*)
 
   Definition toSent_prot :=
     {| p_inv := λ (_ : unit) v, (∃ (ℓsent ℓtoNext : loc) sb,
