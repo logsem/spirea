@@ -25,6 +25,12 @@ Section no_flush.
     ((<noflush> P) (TV, gnames) = P (store_view TV, ∅, ∅, gnames))%I.
   Proof. destruct TV as [[??]?]. apply no_flush_at_alt. Qed.
 
+  Global Instance no_flush_proper :
+    Proper ((⊣⊢) ==> (⊣⊢)) (@no_flush Σ).
+  Proof.
+    intros ?? eq. iModel. rewrite 2!no_flush_at. rewrite eq. naive_solver.
+  Qed.
+
   Lemma no_flush_pure φ : ⌜φ⌝ -∗ <noflush> (⌜φ⌝ : dProp Σ).
   Proof. iModel. by rewrite no_flush_at monPred_at_pure. Qed.
 
@@ -114,6 +120,22 @@ Section no_flush.
     rewrite /IntoNoFlush. iIntros (H).
     iDestruct 1 as (?) "P". iDestruct (H with "P") as "P".
     iModIntro. naive_solver.
+  Qed.
+
+  Global Instance big_sepM_into_no_flush `{Countable K} {A} (Φ Ψ : K → A → dProp Σ) m :
+    (∀ k x, IntoNoFlush (Φ k x) (Ψ k x)) →
+    IntoNoFlush ([∗ map] k↦x ∈ m, Φ k x) ([∗ map] k↦x ∈ m, Ψ k x).
+  Proof.
+    intros into.
+    rewrite /IntoNoFlush.
+    induction m as [|???? IH] using map_ind.
+    - rewrite !big_opM_empty.
+      iIntros "_ !>". done.
+    - rewrite !big_opM_insert //.
+      iIntros "[A B]".
+      iDestruct (IH with "B") as "B".
+      iModIntro.
+      iFrame "A B".
   Qed.
 
   Lemma into_no_flush_at P Q SV FV BV gnames `{!IntoNoFlush P Q} :

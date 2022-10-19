@@ -91,6 +91,9 @@ Arguments get_discrete {_} _.
 Section discrete_abstract_state.
   Context {A : Type}.
 
+  Global Instance discreteState_inhabited `{Inhabited A} :
+    Inhabited (discreteState A) := populate (mk_discrete inhabitant).
+
   Global Program Instance discrete_eq_dec `{EqDecision A} : EqDecision (discreteState A).
   Next Obligation.
     intros dec ??. unfold Decision.

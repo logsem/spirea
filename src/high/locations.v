@@ -145,7 +145,6 @@ Section points_to_at.
   Lemma have_msg_after_fence_empty v PV : ⊢ have_msg_after_fence (Msg v ∅ PV ∅).
   Proof.
     iModel. simpl. iPureIntro. apply view_empty_least.
-    (* iModel. simpl. iPureIntro. split; apply view_empty_least. *)
   Qed.
 
   Definition mapsto_at ℓ prot ss : dProp Σ :=
@@ -179,25 +178,11 @@ Section points_to_at.
 
   Global Instance mapsto_at_buffer_free ℓ prot (ss : list ST) :
     BufferFree (mapsto_at ℓ prot ss).
-  Proof.
-    rewrite /IntoNoBuffer.
-    iNamed 1.
-    rewrite /offset_loc.
-    (* We need some more instances. *)
-  Admitted.
-  (* Qed. *)
+  Proof. apply _. Qed.
 
   Global Instance mapsto_at_flush_free ℓ prot (ss : list ST) :
     FlushFree (mapsto_at ℓ prot ss).
-  Proof.
-    rewrite /IntoNoFlush.
-    iNamed 1.
-    rewrite /offset_loc.
-    iModIntro.
-    repeat iExists _.
-    iFrame "%#".
-    (* We need some more instances. *)
-  Admitted.
+  Proof. apply _. Qed.
 
   Definition lb_base ℓ prot offset tS (s : ST) : dProp Σ :=
     "#locationProtocol" ∷ know_protocol ℓ prot ∗

@@ -204,6 +204,22 @@ Section no_buffer.
     (∀ k x, BufferFree (Φ k x)) → BufferFree ([∗ list] k↦x ∈ l, Φ k x).
   Proof. revert Φ. induction l as [|x l IH]=> Φ ? /=; try apply _. Qed.
 
+  Global Instance big_sepM_into_no_buffer `{Countable K} {A} (Φ Ψ : K → A → dProp Σ) m :
+    (∀ k x, IntoNoBuffer (Φ k x) (Ψ k x)) →
+    IntoNoBuffer ([∗ map] k↦x ∈ m, Φ k x) ([∗ map] k↦x ∈ m, Ψ k x).
+  Proof.
+    intros into.
+    rewrite /IntoNoBuffer.
+    induction m as [|???? IH] using map_ind.
+    - rewrite !big_opM_empty.
+      iIntros "_ !>". done.
+    - rewrite !big_opM_insert //.
+      iIntros "[A B]".
+      iDestruct (IH with "B") as "B".
+      iModIntro.
+      iFrame "A B".
+  Qed.
+
   Global Instance buffer_free_have_SV ℓ t :
     BufferFree (have_SV ℓ t : dProp Σ).
   Proof. rewrite /IntoNoBuffer. iModel. destruct TV as [[??]?]. done. Qed.

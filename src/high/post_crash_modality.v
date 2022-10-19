@@ -750,6 +750,16 @@ Section IntoCrash.
       iFrame.
   Qed.
 
+  (* Global Instance later_into_crash_flush P P' : *)
+  (*   IntoCrash P P' → *)
+  (*   IntoCrash (▷ P) (▷ P'). *)
+  (* Proof. *)
+  (*   intros (?). *)
+  (*   rewrite /IntoCrash. *)
+  (*   iModel. *)
+  (*   iIntros "H". *)
+  (* Qed. *)
+
   Global Instance exist_into_crash {A} Φ Ψ:
     (∀ x : A, IntoCrash (Φ x) (Ψ x)) →
     IntoCrash (∃ x, Φ x)%I ((∃ x, Ψ x)%I).
@@ -1049,6 +1059,15 @@ Section post_crash_persisted.
     done.
   Qed.
 
+  Global Instance post_crash_flush_proper :
+    Proper ((⊣⊢) ==> (⊣⊢)) (post_crash_flush).
+  Proof.
+    intros ?? eq.
+    apply (anti_symm _).
+    - apply post_crash_flush_mono. rewrite eq. done.
+    - apply post_crash_flush_mono. rewrite eq. done.
+  Qed.
+
   Lemma post_crash_flush_emp : emp ⊢ post_crash_flush emp.
   Proof.
     rewrite -post_crash_flush_post_crash. apply post_crash_emp.
@@ -1166,6 +1185,18 @@ Section IntoCrashFlush.
       iRight.
       iFrame.
   Qed.
+
+  Global Instance if_else_into_crash_flush (b : bool) P P' Q Q' :
+    IntoCrashFlush P P' →
+    IntoCrashFlush Q Q' →
+    IntoCrashFlush (if b then P else Q) (if b then P' else Q').
+  Proof. intros ??. destruct b; apply _. Qed.
+
+  (* Global Instance later_into_crash_flush P P' : *)
+  (*   IntoCrashFlush P P' → *)
+  (*   IntoCrashFlush (▷ P) (▷ P'). *)
+  (* Proof. *)
+  (* Qed. *)
 
   Global Instance have_FV_strong_into_crash_flush ℓ t :
     IntoCrashFlush _ _ := post_crash_have_FV_strong ℓ t.
