@@ -19,7 +19,7 @@ From self Require Import solve_view_le.
 From self.high Require Export dprop resources crash_weakestpre weakestpre
      lifted_modalities monpred_simpl modalities protocol locations.
 From self.high Require Import locations protocol.
-From self.high.modalities Require Import no_buffer.
+From self.high.modalities Require Import fence no_buffer.
 
 Section wp_at_rules.
   Context `{AbstractState ST}.
@@ -1180,6 +1180,24 @@ Section wp_at_rules.
       - iApply "post".
         iApply "R".
     Qed.
+
+  (* Load a location where the protocol invariant is persistent. *)
+  Lemma wp_load_at_simple_pers ℓ (sI : ST) prot st E
+    `{∀ s v, Persistent (prot.(p_inv) s v)} :
+      {{{ ℓ ↦_AT^{prot} [sI] }}}
+        !_AT #ℓ @ st; E
+      {{{ sL vL, RET vL;
+        ⌜ sI ⊑ sL ⌝ ∗ ℓ ↦_AT^{prot} [sL] ∗ <fence> (prot.(p_inv) sL vL) }}}.
+  Proof.
+    iIntros (Φ) "pts Φpost".
+    iApply (wp_load_at_simple _ _
+      (λ s v, ⌜ sI ⊑ s ⌝ ∗ prot.(p_inv) s v)%I with "[$pts]").
+    { iModIntro. iIntros (??) "$ #$". }
+    iNext.
+    iIntros (sL vL) "(pts & (>eq & hi))".
+    iApply "Φpost".
+    iFrame.
+  Qed.
 
   (* Definition open_subjective (I P : dProp Σ) := <obj> I -∗ P ∗ I. *)
 
