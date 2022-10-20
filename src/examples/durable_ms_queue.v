@@ -53,16 +53,14 @@ Section implementation.
     rec: "try" "queue" :=
       let: "toSent" := Fst "queue" in
       let: "sent" := !_AT "toSent" in
-      Fence ;; (* NOTE: Investigate whether this fence is strictly neccessary. *)
-      let: "c" := getValue (!_AT "sent") in
-      Fence ;; (* NOTE: Investigate whether this fence is strictly neccessary. *)
-      match: !_AT (!_AT (Snd "c")) with
+      let: "cont" := getValue (!_AT "sent") in
+      match: !_AT (!_AT (Snd "cont")) with
         NONE => NONE
       | SOME "n'" =>
           Fence ;;
-          if: (CAS "toSent" "sent" (!_AT (Snd "c")))
+          if: (CAS "toSent" "sent" (!_AT (Snd "cont")))
           then SOME (getValue (Fst ("n'")))
-          else "try" #()
+          else "try" "queue"
       end.
 
   Definition MS_enqueue : val :=
@@ -108,6 +106,11 @@ Section definitions.
   cons node. Due to the use of [discreteState] the location can only be updated
   a single time. *)
   Definition toNext_state : Type := discreteState loc + discreteState loc.
+
+  Lemma toNext_state_inr ℓnext (s : toNext_state) :
+    inr {| get_discrete := ℓnext |} ⊑ s →
+    s = inr {| get_discrete := ℓnext |}.
+  Proof. destruct s; inversion 1. done. Qed.
 
   (* The invariant for the location out of a node. *)
   Definition toNext_prot_inv (next_inv : loc_predO bool) :
@@ -164,10 +167,10 @@ Section definitions.
     MkProt (toNext_prot_inv next_inv) id.
 
   (* The invariant for the location into a node. *)
-  Definition pre_node_prot_inv (ℓtoNext : loc) :
+  Definition pre_node_prot_inv :
      (loc_predO bool) -d> loc_predO bool :=
     λ self b v,
-      (∃ mx state,
+      (∃ (ℓtoNext : loc) mx state,
         ⌜ v = (InjRV (mx, #ℓtoNext)) ⌝ ∗
         match b with
           (* Is initial sentinel. *)
@@ -178,12 +181,14 @@ Section definitions.
         ℓtoNext ↦_AT^{toNext_prot self} [state] ∗
         flush_lb ℓtoNext (toNext_prot self) state)%I.
 
-  Global Instance pre_node_prot_inv_contractive ℓtoNext :
-    Contractive (pre_node_prot_inv ℓtoNext).
+  Global Instance pre_node_prot_inv_contractive :
+    Contractive pre_node_prot_inv.
   Proof.
     intros ??????.
     rewrite /pre_node_prot_inv.
     simpl.
+    f_equiv.
+    f_equiv.
     f_equiv.
     f_equiv.
     f_equiv.
@@ -222,10 +227,10 @@ Section definitions.
       assumption.
   Qed.
 
-  Definition node_prot_inv ℓtoNext := fixpoint (pre_node_prot_inv ℓtoNext).
+  Definition node_prot_inv := fixpoint pre_node_prot_inv.
 
-  Lemma node_prot_inv_unfold ℓtoNext :
-    node_prot_inv ℓtoNext ≡ pre_node_prot_inv ℓtoNext (node_prot_inv ℓtoNext).
+  Lemma node_prot_inv_unfold :
+    node_prot_inv ≡ pre_node_prot_inv (node_prot_inv).
   Proof. rewrite /node_prot_inv. apply fixpoint_unfold. Qed.
 
   Instance if_else_persistent {PROP : bi} (b : bool) (P Q : PROP) :
@@ -234,44 +239,45 @@ Section definitions.
     Persistent (if b then P else Q).
   Proof. intros ??. destruct b; done. Qed.
 
-  Lemma node_prot_inv_persistent `{∀ v, Persistent (R v)} ℓtoNext s v : Persistent (node_prot_inv ℓtoNext s v).
+  Global Instance node_prot_inv_persistent `{∀ v, Persistent (R v)} s v :
+    Persistent (node_prot_inv s v).
   Proof.
     rewrite /Persistent.
     (* iLöb as "IH" forall (ℓtoNext s v). *)
     rewrite /node_prot_inv.
-    rewrite (fixpoint_unfold (pre_node_prot_inv ℓtoNext) s v).
-    iDestruct 1 as (??) "(-> & #HR & #prot & #lb)".
+    rewrite (fixpoint_unfold (pre_node_prot_inv) s v).
+    iDestruct 1 as (???) "(-> & #HR & #prot & #lb)".
     iModIntro.
-    iExists _, _.
+    repeat iExists _.
     iSplitPure; first done.
     iFrame "#".
   Qed.
 
-  Global Instance toNext_prot_inv_persistent ℓtoNext s v :
-    Persistent (toNext_prot_inv (node_prot_inv ℓtoNext) s v).
+  Global Instance toNext_prot_inv_persistent s v :
+    Persistent (toNext_prot_inv (node_prot_inv) s v).
   Proof. destruct s as [[?]|[?]]; apply _. Qed.
 
-  Definition cons_node_prot (ℓtoNext : loc) : LocationProtocol bool :=
-    {| p_inv := (node_prot_inv ℓtoNext);
+  Definition cons_node_prot : LocationProtocol bool :=
+    {| p_inv := node_prot_inv;
        p_bumper := id |}.
 
-  Global Instance cons_node_prot_conditions (ℓtoNext : loc) :
-    ProtocolConditions (cons_node_prot ℓtoNext).
+  Global Instance cons_node_prot_conditions :
+    ProtocolConditions cons_node_prot.
   Proof.
     split; try apply _.
     - intros ??. simpl.
-      rewrite /node_prot_inv (fixpoint_unfold (pre_node_prot_inv _) s v).
+      rewrite /node_prot_inv (fixpoint_unfold (pre_node_prot_inv) s v).
       apply _.
     - iLöb as "IH".
       iIntros (??) "nodeProt".
       simpl.
       rewrite /node_prot_inv.
-      rewrite (fixpoint_unfold (pre_node_prot_inv ℓtoNext) s v).
-      iDestruct "nodeProt" as (??) "(-> & HR & prot & lb)".
+      rewrite (fixpoint_unfold (pre_node_prot_inv) s v).
+      iDestruct "nodeProt" as (???) "(-> & HR & prot & lb)".
       iModIntro.
       simpl.
       iDestruct "lb" as "(persLb & (%state' & #incl & #crashedIn))".
-      iExists mx, state'.
+      iExists _, mx, state'.
       iSplitPure; first done.
       iFrameF "HR".
       iDestruct (crashed_in_if_rec with "crashedIn prot")
@@ -283,10 +289,10 @@ Section definitions.
   Qed.
 
   Definition toSent_prot :=
-    {| p_inv := λ (_ : unit) v, (∃ (ℓsent ℓtoNext : loc) sb,
+    {| p_inv := λ (_ : unit) v, (∃ (ℓsent : loc) sb,
         ⌜ v = #ℓsent ⌝ ∗
-        ℓsent ↦_AT^{cons_node_prot ℓtoNext} [sb] ∗
-        flush_lb ℓsent (cons_node_prot ℓtoNext) sb)%I;
+        ℓsent ↦_AT^{cons_node_prot} [sb] ∗
+        flush_lb ℓsent (cons_node_prot) sb)%I;
        p_bumper v := v |}.
 
   Global Instance toSent_prot_conditions :
@@ -294,12 +300,12 @@ Section definitions.
   Proof.
     split; try apply _.
     iIntros (??).
-    iDestruct 1 as (???) "(A & B & C)".
+    iDestruct 1 as (??) "(A & B & C)".
     iModIntro.
     iDestruct "C" as "(HI & (% & % & #crashedIn1))".
     iDestruct (crashed_in_if_rec with "crashedIn1 B") as (?) "(crashedIn2 & sentPts)".
     iDestruct (crashed_in_agree with "crashedIn1 crashedIn2") as %<-.
-    iExists _, _, s__pc.
+    iExists _, s__pc.
     iFrameF "A".
     simpl.
     iFrameF "sentPts".
@@ -331,7 +337,7 @@ Section specification.
   Context (R : val → dProp Σ).
 
   (* The per-element predicate must be stable under the <PCF> modality and not
-  use anything from the buffer. *)
+{ use anything from the buffer. *)
   Context `{∀ a, IntoCrashFlush (R a) (R a),
            ∀ a, BufferFree (R a),
            ∀ a, Persistent (R a)}.
@@ -342,129 +348,92 @@ Section specification.
     {{{ v, RET v;
       (⌜ v = NONEV ⌝) ∨ (∃ x, ⌜ v = InjRV x ⌝ ∗ R x) }}}.
   Proof.
-    iIntros (Φ) "(%ℓtoS & %_ & -> & #sentProt & _) Φpost".
+    iIntros (Φ) "(%ℓtoS & %_ & -> & toSPts & _) Φpost".
     rewrite /MS_dequeue.
     wp_pure1.
     iLöb as "IH".
-    iClear "IH". (* For now to reduce clutter. *)
+    (* iClear "IH". (* For now to reduce clutter. *) *)
     wp_pures.
 
     (* Load of sentinel pointer. *)
-    wp_apply (wp_load_at_simple _ _
-      (λ s v, ((toSent_prot R).(p_inv)) s v) with "[$sentProt]").
-    {
-      iModIntro. iIntros ([] ? _) "#inv".
-      iFrame "inv". }
-    iIntros ([] v) "(toSentPts & inv)".
-    (* iDestruct (post_fence_extract _ (_) (∃ ℓsent, _) with "inv []") as "[hi ho]". *)
-    (* { iDestruct 1 as (??) "(? & ? & lb)". *)
-    (*   iSplitL "lb". *)
-    (*   { admit. } *)
+    wp_apply (wp_load_at_simple_pers with "toSPts").
+    iIntros ([] v) "(_ & #toSPts & inv)".
+    iDestruct "inv" as (ℓsent sb) "(>-> & >sentPts & sentFlushLb)".
     wp_pures.
-    wp_apply wp_fence.
-    do 2 iModIntro.
-    wp_pures.
-    iDestruct "inv" as (???) "(-> & #sentPts & sentPtsLb)".
 
     (* Load of the pointer into the sentinel's content. *)
-    wp_apply (wp_load_at_simple _ _
-      (λ s v, node_prot_inv R ℓtoNext s v) with "[$sentPts]").
-      (* (λ _ v, (∃ (ℓsent : loc), ⌜ v = #ℓsent⌝)%I) with "[]"). *)
-    { iModIntro.
-      simpl.
-      iIntros (??) "?".
-      epose proof (node_prot_inv_persistent _ _ _ _).
-      iIntros "#I".
-      iFrame "I". }
-    iIntros (?sb ?v) "(? & nodeInv)".
+    wp_apply (wp_load_at_simple_pers with "sentPts").
+    iIntros (?sb ?v) "(_ & sentPts & nodeInv)".
+    simpl. rewrite (node_prot_inv_unfold _ _ _).
+    iDestruct "nodeInv" as (??? ->) "(_ & >toNextPts & nodeInv)".
 
-    iDestruct (
-        post_fence_extract _ (_) (∃ mx, ⌜v = InjRV (mx, #ℓtoNext)⌝) with "nodeInv []") as "[hi ho]".
-    { epose proof (node_prot_inv_persistent _ _ _ _).
-      iIntros "#H".
-      iSplitL ""; first iApply "H".
-
-      rewrite /node_prot_inv (fixpoint_unfold (pre_node_prot_inv R _) _ _).
-      rewrite /pre_node_prot_inv.
-      iDestruct "H" as (??) "(eq & _)".
-      iClear "sentProt sentPts". (* To speed up the next iModIntro. *)
-      iModIntro.
-      iExists mx. iFrame "eq". }
-    iDestruct "ho" as (mx) "->".
-
-    rewrite /getValue.
-    wp_pures.
-    wp_apply wp_fence.
-    iModIntro.
-    rewrite (node_prot_inv_unfold R ℓtoNext _ _).
-    iDestruct "hi" as (?? [= <-]) "(? & toNextPts & ?)".
-    iModIntro.
+    rewrite {6}/getValue.
     wp_pures.
 
-    wp_apply (wp_load_at_simple _ _
-      (λ s v, toNext_prot_inv _ s v) with "[$toNextPts]").
-    { iModIntro. iIntros (??) "? #$ /=". }
-    iIntros (??) "[toNextPts inv]".
-    rewrite /toNext_prot_inv /=.
-    simpl.
-
-
-
+    (* Load the pointer out of the sentinel. *)
+    wp_apply (wp_load_at_simple_pers with "toNextPts").
+    iIntros (??) "(_ & toNextPts & toNextInv)".
+    rewrite /= /toNext_prot_inv.
 
     destruct sL as [[ℓnext] | [ℓnext]].
     - (* nil node *)
-      iDestruct "inv" as "(eq & nextPts & flushLb)".
-      iDestruct (post_fence_flush_free with "eq") as %->.
-      iClear "eq".
-      iDestruct (post_fence_flush_free with "nextPts") as "nextPts".
-
-      wp_apply (wp_load_at_simple _ _
-        (λ s v, nil_node_prot.(p_inv) s v) with "[$nextPts]").
-      { iModIntro. iIntros (??) "? #$ /=". }
-      iIntros ([] ?) "[nextPts eq] /=".
-      iDestruct (post_fence_flush_free with "eq") as %<-.
-      iClear "eq".
-
+      iDestruct "toNextInv" as "(>-> & >nextPts & flushLb)".
+      wp_apply (wp_load_at_simple_pers with "nextPts").
+      iIntros ([] ?) "(? & nextPts & ><-) /=".
       wp_pures.
       iModIntro.
       iApply "Φpost".
       iLeft. done.
     - (* cons node *)
-      iDestruct "inv" as "(eq & nextPts & flushLb)".
-      iDestruct (post_fence_flush_free with "eq") as %->.
-      iClear "eq".
-      iDestruct (post_fence_flush_free with "nextPts") as "nextPts".
+      iDestruct "toNextInv" as "(>-> & >nextPts & flushLb)".
 
-      wp_apply (wp_load_at_simple ℓnext true
-        (λ s v, ⌜ s = true ⌝ ∗ node_prot_inv R _ s v)%I with "[$nextPts]").
-      { iModIntro. iIntros (?? [= ->]). simpl.
-        epose proof (node_prot_inv_persistent _ _ _ _).
-        iIntros "#$". done. }
-      iIntros (??) "(nextPts & eq & nodeInv)".
-      iDestruct (post_fence_flush_free with "eq") as %->. iClear "eq".
-      rewrite (node_prot_inv_unfold R ℓtoNext _ _).
+      wp_apply (wp_load_at_simple_pers with "nextPts").
+      iIntros (??) "(%le & nextPts & nextInv) /=".
+      inversion le.
+      rewrite (node_prot_inv_unfold R _ _).
       rewrite /pre_node_prot_inv.
-      iDestruct "nodeInv" as (mx' ?) "(eq & ? & toNextPts' & ?)".
-      iDestruct (post_fence_flush_free with "eq") as %->. iClear "eq".
+      iDestruct "nextInv" as (? mx' ?) "(>-> & HR & >toNextPts' & ?)".
 
       wp_pures.
       wp_apply wp_fence.
       do 2 iModIntro.
       wp_pures.
 
-      (* Q: How come we have to points-to assertions for ℓtoNext? *)
-      wp_apply (wp_load_at_simple ℓtoNext (inr {| get_discrete := ℓnext |})
-        (λ s v, toNext_prot_inv (node_prot_inv R ℓtoNext) s v)%I with "[toNextPts]").
-      { iFrame "toNextPts".
+      wp_apply (wp_load_at_simple_pers with "toNextPts").
+      iIntros (sL2 ?) "(%le2 & toNextPts & toNextInv)".
+      apply toNext_state_inr in le2 as ->.
+      iDestruct "toNextInv" as "(>-> & notneeded)".
+
+      wp_apply
+        (wp_cas_at (λ _, True)%I (λ _, True)%I True _ (toSent_prot R) []
+                          _ _ _ (λ _, True)%I with "[-HR Φpost]").
+      { iFrameF "toSPts".
+        iIntros ([] ? ?).
+        rewrite 3!right_id.
+        iSplitL "".
+        { iIntros "_". iLeft. done. }
+        iSplit; last first.
+        { iModIntro. iIntros "$". }
+        iSplitPure; first done.
+        iSplitL ""; first naive_solver.
+        iSplitL "". { iModIntro. iIntros "$". }
+        iIntros "_".
+        repeat iExists _.
+        iSplitPure; first done.
+        iFrameF "nextPts".
+        iFrame "flushLb". }
+      iIntros (? []) "[(-> & H)|(-> & H)]".
+      * wp_pures.
+        iDestruct "HR" as (? ->) "R".
+        rewrite /getValue.
+        wp_pures.
         iModIntro.
-        iIntros (??).
-
-      }
-
-
-      wp_apply (wp_cas_at (λ _, True)%I (λ _, True)%I _ _ (toSent_prot R) []
-                with "[]").
-
+        iApply "Φpost".
+        iRight.
+        iExists _. iFrame "R". done.
+      * wp_pure1.
+        iApply ("IH" with "toSPts").
+        iApply "Φpost".
   Qed.
 
   Lemma wpc_enqueue queue x s E :
