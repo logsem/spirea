@@ -11,6 +11,9 @@ From self.high.modalities Require Import no_buffer.
 (* A handy alias for the type of location predicates. *)
 Definition loc_pred `{nvmG Σ} ST `{AbstractState ST} := ST → val → dProp Σ.
 
+Definition loc_predO `{nvmG Σ} ST := ST -d> val -d> dPropO Σ.
+
+
 (* A protocol consists of
   - A predicate [p_inv] that holds for each write and corresponding state of the
     location.
@@ -118,6 +121,20 @@ Section protocol.
     rewrite /know_protocol. rewrite !monPred_at_sep.
     simpl. rewrite !monPred_at_embed.
     done.
+  Qed.
+
+  Global Instance know_protocol_contractive ℓ bumper :
+    Contractive (λ (inv : loc_predO ST), (know_protocol ℓ (MkProt inv bumper))).
+  Proof.
+    rewrite /know_protocol.
+    rewrite /know_pred_d.
+    intros ????.
+    f_equiv; last done.
+    f_equiv.
+    f_equiv.
+    intros ?? ->.
+    f_contractive.
+    assumption.
   Qed.
 
 End protocol.

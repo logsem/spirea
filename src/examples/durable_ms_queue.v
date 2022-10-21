@@ -115,8 +115,6 @@ Section definitions.
   it. *)
   Definition nil_node_prot := constant_prot (InjLV #()).
 
-  Definition loc_predO `{nvmG Σ} ST := ST -d> val -d> dPropO Σ.
-
   (* The invariant for the location out of a node. *)
   Definition toNext_prot_inv (next_inv : loc_predO bool) :
       loc_predO unit :=
@@ -132,39 +130,41 @@ Section definitions.
   Global Instance toNext_prot_inv_ne :
     NonExpansive toNext_prot_inv.
   Proof.
-  Admitted.
-  (*   rewrite /toNext_prot_inv. *)
-  (*   intros ???? [|[ℓ]] ?; first solve_proper. *)
-  (*   f_equiv. *)
-  (*   f_equiv. *)
-  (*   - rewrite /mapsto_at. *)
-  (*     f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. *)
-  (*     f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. *)
-  (*     f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. *)
-  (*     rewrite /know_protocol. *)
-  (*     f_equiv; last done. *)
-  (*     simpl. *)
-  (*     f_equiv. *)
-  (*     rewrite /know_pred_d. *)
-  (*     f_equiv. *)
-  (*     intros ?? ->. *)
-  (*     f_equiv. *)
-  (*     assumption. *)
-  (*   - rewrite /flush_lb. *)
-  (*     f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. *)
-  (*     rewrite /lb_base. *)
-  (*     f_equiv. *)
-  (*     rewrite /know_protocol. *)
-  (*     f_equiv. *)
-  (*     f_equiv; last done. *)
-  (*     f_equiv. *)
-  (*     rewrite /know_pred_d. *)
-  (*     f_equiv. *)
-  (*     intros ?? ->. *)
-  (*     f_equiv. *)
-  (*     simpl. *)
-  (*     assumption. *)
-  (* Qed. *)
+    rewrite /toNext_prot_inv.
+    intros ??????.
+    f_equiv.
+    f_equiv.
+    f_equiv.
+    f_equiv.
+    f_equiv.
+    - rewrite /mapsto_at.
+      f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv.
+      f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv.
+      f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv.
+      rewrite /know_protocol.
+      f_equiv; last done.
+      simpl.
+      f_equiv.
+      rewrite /know_pred_d.
+      f_equiv.
+      intros ?? ->.
+      f_equiv.
+      assumption.
+    - rewrite /flush_lb.
+      f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv.
+      rewrite /lb_base.
+      f_equiv.
+      rewrite /know_protocol.
+      f_equiv.
+      f_equiv; last done.
+      f_equiv.
+      rewrite /know_pred_d.
+      f_equiv.
+      intros ?? ->.
+      f_equiv.
+      simpl.
+      assumption.
+  Qed.
 
   Definition toNext_prot (next_inv : loc_pred bool) :=
     MkProt (toNext_prot_inv next_inv) id.
@@ -199,20 +199,11 @@ Section definitions.
     f_equiv.
     f_equiv.
     f_equiv.
-    - rewrite /mapsto_at.
-      f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv.
-      f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv.
-      f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv.
-      rewrite /know_protocol.
-      f_equiv; last done.
-      simpl.
-      f_equiv.
-      rewrite /know_pred_d.
-      f_equiv.
-      intros ?? ->.
-      f_contractive.
-      f_equiv.
-      assumption.
+    - rewrite /toNext_prot.
+      apply mapsto_at_contractive.
+      destruct n; first done.
+      rewrite H2.
+      done.
     - rewrite /flush_lb.
       f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv.
       rewrite /lb_base.
@@ -294,26 +285,28 @@ Section definitions.
   Global Instance toNext_prot_conditions :
     ProtocolConditions (toNext_prot node_prot_inv).
   Proof.
-  Admitted.
-  (*   split; try apply _. *)
-  (*   - intros [[?]|[?]] ?; apply _. *)
-  (*   - iIntros ([[?]|[?]] ?) "(-> & B & C) /="; *)
-  (*         iCrashIntro. *)
-  (*     * iSplitPure; first done. *)
-  (*       iDestruct "C" as "[? (% & le & #crashedIn)]". *)
-  (*       iDestruct (crashed_in_if_rec with "crashedIn B") as ([]) "[crashedIn2 pts]". *)
-  (*       iFrame "pts". *)
-  (*       iApply persist_lb_to_flush_lb. *)
-  (*       iFrame. *)
-  (*     * iSplitPure; first done. *)
-  (*       iDestruct "C" as "[? (% & %le & #crashedIn)]". *)
-  (*       inversion le. *)
-  (*       iDestruct (crashed_in_if_rec with "crashedIn B") as (b) "[crashedIn2 pts]". *)
-  (*       iDestruct (crashed_in_agree with "crashedIn crashedIn2") as %<-. *)
-  (*       iFrame "pts". *)
-  (*       iApply persist_lb_to_flush_lb. *)
-  (*       iFrame. *)
-  (* Qed. *)
+    split; try apply _.
+    iIntros ([] ?) "(% & -> & [(B & C) | (B & C)]) /=";
+        iCrashIntro.
+    * iExists _.
+      iSplitPure; first done.
+      iDestruct "C" as "[? (% & le & #crashedIn)]".
+      iDestruct (crashed_in_if_rec with "crashedIn B") as ([]) "[crashedIn2 pts]".
+      iLeft.
+      iFrame "pts".
+      iApply persist_lb_to_flush_lb.
+      iFrame.
+    * iExists _.
+      iSplitPure; first done.
+      iDestruct "C" as "[? (% & %le & #crashedIn)]".
+      inversion le.
+      iDestruct (crashed_in_if_rec with "crashedIn B") as (b) "[crashedIn2 pts]".
+      iDestruct (crashed_in_agree with "crashedIn crashedIn2") as %<-.
+      iRight.
+      iFrame "pts".
+      iApply persist_lb_to_flush_lb.
+      iFrame.
+  Qed.
 
   Definition toSent_prot :=
     {| p_inv := λ (_ : unit) v, (∃ (ℓsent : loc) sb,

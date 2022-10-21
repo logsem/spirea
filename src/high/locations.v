@@ -172,6 +172,28 @@ Section points_to_at.
       "#offset" ∷ offset_loc ℓ offset ∗
       "#tSLe" ∷ have_SV ℓ (tS - offset)).
 
+End points_to_at.
+
+(** Notation for the exclusive points-to predicate. *)
+Notation "l ↦_{ prot } ss" := (mapsto_na l prot 1 ss) (at level 20).
+Notation "l ↦_{ prot }^{ q } ss" := (mapsto_na l prot q ss) (at level 20).
+(* Notation "l ↦^{ p } ss" := (mapsto_na p l 1 ss) (at level 20). *)
+(* Notation "l ↦ ss" := (mapsto_na false l 1 ss) (at level 20). *)
+(* Notation "l ↦{ q } ss" := (mapsto_na false l q ss) (at level 20). *)
+(* Notation "l ↦ₚ ss" := (mapsto_na true l 1 ss) (at level 20). *)
+(* Notation "l ↦ₚ{ q } ss" := (mapsto_na true l q ss) (at level 20). *)
+(* Notation "l ↦ xs ; ys | P" := (mapsto_na l xs ys P) (at level 20). *)
+
+(** Notation for the shared points-to predicate. *)
+(* Notation "l ↦ ( s1 , s2 , s3 )  | P" := (mapsto_shared l s1 s2 s3 P) (at level 20). *)
+
+Notation "l ↦_AT^{ prot } ss" := (mapsto_at l prot ss) (at level 20).
+
+Section mapsto_at_lemmas.
+  Context `{nvmG Σ, AbstractState ST}.
+
+  Implicit Types (ℓ : loc) (s : ST) (ss : list ST) (prot : LocationProtocol ST).
+
   Global Instance mapsto_at_persistent ℓ prot ss :
     Persistent (mapsto_at ℓ prot ss).
   Proof. apply _. Qed.
@@ -183,6 +205,18 @@ Section points_to_at.
   Global Instance mapsto_at_flush_free ℓ prot (ss : list ST) :
     FlushFree (mapsto_at ℓ prot ss).
   Proof. apply _. Qed.
+
+  Global Instance mapsto_at_contractive ℓ ss bumper :
+    Contractive (λ (inv : loc_predO ST), (ℓ ↦_AT^{MkProt inv bumper} ss)).
+  Proof.
+    rewrite /mapsto_at.
+    intros ????.
+    f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv.
+    f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv.
+    f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv.
+    apply know_protocol_contractive.
+    assumption.
+  Qed.
 
   Definition lb_base ℓ prot offset tS (s : ST) : dProp Σ :=
     "#locationProtocol" ∷ know_protocol ℓ prot ∗
@@ -494,28 +528,13 @@ Section points_to_at.
     BufferFree (mapsto_na ℓ prot q ss).
   Proof. apply _. Qed.
 
-End points_to_at.
+(* End points_to_at. *)
 
-(** Notation for the exclusive points-to predicate. *)
-Notation "l ↦_{ prot } ss" := (mapsto_na l prot 1 ss) (at level 20).
-Notation "l ↦_{ prot }^{ q } ss" := (mapsto_na l prot q ss) (at level 20).
-(* Notation "l ↦^{ p } ss" := (mapsto_na p l 1 ss) (at level 20). *)
-(* Notation "l ↦ ss" := (mapsto_na false l 1 ss) (at level 20). *)
-(* Notation "l ↦{ q } ss" := (mapsto_na false l q ss) (at level 20). *)
-(* Notation "l ↦ₚ ss" := (mapsto_na true l 1 ss) (at level 20). *)
-(* Notation "l ↦ₚ{ q } ss" := (mapsto_na true l q ss) (at level 20). *)
-(* Notation "l ↦ xs ; ys | P" := (mapsto_na l xs ys P) (at level 20). *)
+(* Section points_to_at_more. *)
+(*   Context `{nvmG Σ, hGD : nvmDeltaG, AbstractState ST}. *)
 
-(** Notation for the shared points-to predicate. *)
-(* Notation "l ↦ ( s1 , s2 , s3 )  | P" := (mapsto_shared l s1 s2 s3 P) (at level 20). *)
-
-Notation "l ↦_AT^{ prot } ss" := (mapsto_at l prot ss) (at level 20).
-
-Section points_to_at_more.
-  Context `{nvmG Σ, hGD : nvmDeltaG, AbstractState ST}.
-
-  Implicit Types (e : expr) (ℓ : loc) (s : ST)
-           (ss : list ST) (prot : LocationProtocol ST).
+(*   Implicit Types (e : expr) (ℓ : loc) (s : ST) *)
+(*            (ss : list ST) (prot : LocationProtocol ST). *)
 
   Lemma post_crash_persist_lb (ℓ : loc) prot (s : ST) :
     persist_lb ℓ prot s -∗
@@ -957,7 +976,7 @@ Section points_to_at_more.
     (*   (1* destruct sC; try done. *1) *)
   Abort.
 
-End points_to_at_more.
+End mapsto_at_lemmas.
 
 Opaque mapsto_na.
 Opaque mapsto_at.
