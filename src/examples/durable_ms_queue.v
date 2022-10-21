@@ -39,14 +39,19 @@ Section implementation.
   Definition mk_MS_queue : expr :=
     λ: <>,
       let: "nilNode" := ref_AT NONE in
-      let: "toNil" := ref_AT "nilNode" in
-      let: "node" := ref_AT (SOME (NONE, "toNil")) in
       Flush "nilNode" ;;
+      Fence ;;
+      let: "toNil" := ref_AT "nilNode" in
       Flush "toNil" ;;
+      Fence ;;
+      let: "node" := ref_AT (SOME (NONE, "toNil")) in
       Flush "node" ;;
       Fence ;;
-      let: "toTail" := ref_AT "node" in
       let: "toSent" := ref_AT "node" in
+      let: "toTail" := ref_AT "node" in
+      Flush "toSent" ;;
+      Flush "toTail" ;;
+      Fence ;;
       ("toSent", "toTail").
 
   Definition MS_dequeue : expr :=
@@ -66,16 +71,22 @@ Section implementation.
   Definition MS_enqueue : val :=
     λ: "queue" "x",
       let: "toTail" := Snd "queue" in
-      let: "n" := ref_AT (MS_cons "x" (ref_AT (ref_AT MS_nil))) in
+      let: "nilNode" := ref_AT MS_nil in
+      Flush "nilNode" ;;
+      Fence ;;
+      let: "toNil" := ref_AT "nilNode" in
+      Flush "toNil" ;;
+      Fence ;;
+      let: "node" := ref_AT (MS_cons "x" "toNil") in
       let: "tail" := !_AT "toTail" in
       (rec: "try" "c" :=
         let: "t" := !_AT  "c" in
         match: !_AT  "t" with
           NONE =>
             (* The tail is nil, we can try to insert *)
-            if: (CAS "c" "t" "n")
-            then (* Insertion succeeded, update tail *)
-              CAS "toTail" "tail" "n" ;; #()
+            if: (CAS "c" "t" "node")
+            then (* Insertion succeeded, update to tail pointer *)
+              CAS "toTail" "tail" "node" ;; #()
             else (* Insertion failed, we try again*)
               "try" "c"
         | SOME "c'" => "try" (Snd "c'")
@@ -288,6 +299,29 @@ Section definitions.
       iApply (crashed_in_persist_lb with "crashedIn").
   Qed.
 
+  Global Instance toNext_prot_conditions :
+    ProtocolConditions (toNext_prot node_prot_inv).
+  Proof.
+    split; try apply _.
+    - intros [[?]|[?]] ?; apply _.
+    - iIntros ([[?]|[?]] ?) "(-> & B & C) /=";
+          iCrashIntro.
+      * iSplitPure; first done.
+        iDestruct "C" as "[? (% & le & #crashedIn)]".
+        iDestruct (crashed_in_if_rec with "crashedIn B") as ([]) "[crashedIn2 pts]".
+        iFrame "pts".
+        iApply persist_lb_to_flush_lb.
+        iFrame.
+      * iSplitPure; first done.
+        iDestruct "C" as "[? (% & %le & #crashedIn)]".
+        inversion le.
+        iDestruct (crashed_in_if_rec with "crashedIn B") as (b) "[crashedIn2 pts]".
+        iDestruct (crashed_in_agree with "crashedIn crashedIn2") as %<-.
+        iFrame "pts".
+        iApply persist_lb_to_flush_lb.
+        iFrame.
+  Qed.
+
   Definition toSent_prot :=
     {| p_inv := λ (_ : unit) v, (∃ (ℓsent : loc) sb,
         ⌜ v = #ℓsent ⌝ ∗
@@ -342,7 +376,82 @@ Section specification.
            ∀ a, BufferFree (R a),
            ∀ a, Persistent (R a)}.
 
-  Lemma wpc_dequeue queue s E :
+  Lemma wp_mk_queue s E :
+    {{{ True }}}
+      mk_MS_queue #() @ s ; E
+    {{{ qv, RET qv; is_queue R qv }}}.
+  Proof.
+    iIntros (Φ) "_ Φpost".
+    rewrite /mk_MS_queue.
+    wp_pures.
+
+    (* Allocate nil node. *)
+    wp_apply (wp_alloc_at _ () nil_node_prot); first done.
+    iIntros (ℓnil) "#nilPts".
+    wp_pures.
+    wp_apply (wp_flush_at _ _ [] with "nilPts"). simpl.
+    iIntros "(_ & #nilFlushLb & _)".
+    wp_pures.
+    wp_apply wp_fence.
+    do 2 iModIntro.
+    wp_pures.
+
+    (* Allocate next pointer to nil node. *)
+    wp_apply (wp_alloc_at _ (inl (mk_discrete ℓnil))
+                (toNext_prot (node_prot_inv R))).
+    { iSplitPure; first done.
+      iFrame "nilPts nilFlushLb". }
+    iIntros (ℓtoNext) "#toNextPts".
+    wp_pures.
+    wp_apply (wp_flush_at _ _ [] with "toNextPts"). simpl.
+    iIntros "(_ & #toNextFlushLb & _)".
+    wp_pures.
+    wp_apply wp_fence.
+    do 2 iModIntro.
+    wp_pures.
+
+    wp_apply (wp_alloc_at _ false (cons_node_prot R)).
+    { rewrite /= (node_prot_inv_unfold _ _ _).
+      repeat iExists _.
+      iSplitPure; first done.
+      rewrite left_id.
+      iFrame "toNextPts".
+      iFrame "toNextFlushLb". }
+    iIntros (ℓsent) "#sentPts".
+    wp_pures.
+    wp_apply (wp_flush_at _ _ [] with "sentPts"). simpl.
+    iIntros "(_ & #sentFlushLb & _)".
+    wp_pures.
+    wp_apply wp_fence.
+    do 2 iModIntro.
+    wp_pures.
+
+    wp_apply (wp_alloc_at _ () (toSent_prot R)).
+    { repeat iExists _. iFrame "#". done. }
+    iIntros (ℓtoS) "#toSPts".
+    wp_pures.
+    wp_apply (wp_alloc_at _ () (toTail_prot R)).
+    { repeat iExists _. iFrame "#". done. }
+    iIntros (ℓtoT) "#toTPts".
+    wp_pures.
+
+    wp_apply (wp_flush_at _ _ [] with "toSPts").
+    iIntros "(_ & #toSFlushLb & _)".
+    wp_pures.
+    wp_apply (wp_flush_at _ _ [] with "toTPts").
+    iIntros "(_ & #toTFlushLb & _)".
+    wp_pures.
+    wp_apply wp_fence.
+    do 2 iModIntro.
+    wp_pures.
+    iModIntro.
+    iApply "Φpost".
+    repeat iExists _.
+    iSplitPure; first done.
+    iFrame "toSPts toTPts #".
+  Qed.
+
+  Lemma wp_dequeue queue s E :
     {{{ is_queue R queue }}}
       MS_dequeue queue @ s ; E
     {{{ v, RET v;
@@ -441,6 +550,90 @@ Section specification.
       MS_enqueue queue x @ s ; E
     {{{ RET #(); True }}}.
   Proof.
-  Admitted.
+    iIntros (Φ) "[(%_ & %ℓtoT & -> & _ & _ & toTPts & lb) HR] Φpost".
+    rewrite /MS_enqueue.
+    wp_pures.
+
+    (* Allocate nil node. *)
+    wp_apply (wp_alloc_at _ () nil_node_prot); first done.
+    iIntros (ℓnil) "#nilPts".
+    wp_pures.
+    wp_apply (wp_flush_at _ _ [] with "nilPts"). simpl.
+    iIntros "(_ & #nilFlushLb & _)".
+    wp_pures.
+    wp_apply wp_fence.
+    do 2 iModIntro.
+    wp_pures.
+
+    (* Allocate next pointer to nil node. *)
+    wp_apply (wp_alloc_at _ (inl (mk_discrete ℓnil))
+                (toNext_prot (node_prot_inv R))).
+    { iSplitPure; first done.
+      iFrame "nilPts nilFlushLb". }
+    iIntros (ℓtoNext) "#toNextPts".
+    wp_pures.
+    wp_apply (wp_flush_at _ _ [] with "toNextPts"). simpl.
+    iIntros "(_ & #toNextFlushLb & _)".
+    wp_pures.
+    wp_apply wp_fence.
+    do 2 iModIntro.
+    wp_pures.
+
+    wp_apply (wp_alloc_at _ true (cons_node_prot R) with "[HR]").
+    { rewrite /= (node_prot_inv_unfold _ _ _).
+      repeat iExists _.
+      iSplitPure; first done.
+      iSplitL "HR". { iExists x. iFrame "HR". done. }
+      iFrame "toNextPts".
+      iFrame "toNextFlushLb". }
+    iIntros (ℓnode) "#nodePts".
+    wp_pures.
+
+    wp_apply (wp_load_at_simple_pers with "toTPts").
+    iIntros ([] v) "(_ & #toTPts & inv)".
+    iDestruct "inv" as (ℓtail sb) "(>-> & >tailPts & tailFlushLb)".
+    wp_pures.
+
+    wp_apply (wp_load_at_simple_pers with "tailPts").
+    iIntros (? ?) "(le & tailPts & inv)".
+    rewrite /= (node_prot_inv_unfold R _ _).
+    iDestruct "inv" as (ℓnext ??) "(>-> & _ & >nextPts & nextFlushLb)".
+    rewrite /getValue.
+    do 6 wp_pure1.
+
+    iLöb as "IH".
+    iClear "IH".
+
+    wp_pures.
+
+    wp_apply (wp_load_at_simple_pers with "nextPts").
+    iIntros (nextS ?) "(%le & nextPts & nextInv) /=".
+    wp_pures.
+
+    destruct nextS as [[ℓnil2] | [ℓnext2]].
+    - (* nil node *)
+      simpl.
+      iDestruct "nextInv" as "(>-> & >nil2pts & HR)".
+
+      wp_apply (wp_load_at_simple_pers with "nil2pts").
+      iIntros ([] ?) "(? & ? & ><-) /=".
+      wp_pures.
+
+      wp_apply
+        (wp_cas_at (λ _, True)%I (λ _, True)%I True _ _ []
+                          _ _ _ (λ _, True)%I with "[-HR Φpost]").
+      { iFrameF "nextPts".
+        iIntros (?? incl).
+        iSplitL "".
+        { iIntros "_". iLeft. done. }
+        rewrite !right_id.
+        iSplit; last first.
+        { iModIntro. iIntros "$". }
+        iSplitPure; first done.
+        iSplitL ""; last naive_solver.
+        {
+      }
+
+  Qed.
 
 End specification.
