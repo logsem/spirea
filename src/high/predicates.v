@@ -114,7 +114,13 @@ Section predicates.
   Global Instance encode_predicate_ne `{Countable ST} :
     NonExpansive (encode_predicate (ST := ST)).
   Proof.
-  Admitted.
+    rewrite /encode_predicate.
+    intros ??????.
+    simpl.
+    destruct (decode x0); simpl; last done.
+    f_equiv.
+    apply (H0 _ _).
+  Qed.
 
   Global Instance know_pred_contractive `{Countable ST} ℓ :
     Contractive (know_pred (ST := ST) ℓ).

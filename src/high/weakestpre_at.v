@@ -708,22 +708,28 @@ Section wp_at_rules.
       (λ _ msg (TV : thread_view),
         (msg_store_view msg, msg_persisted_after_view msg, ∅) ⊔ TV) (∅, ∅, ∅) m.
 
-  Lemma fold_views_in_phys_hist phys_hist :
-    map_Forall (λ t msg,
-      msg_store_view msg ⊑ store_view (fold_views phys_hist) ∧
-        msg_persisted_after_view msg ⊑ flush_view (fold_views phys_hist)) phys_hist.
+  Lemma fold_views_in_phys_hist phys_hist t msg :
+    phys_hist !! t = Some msg →
+    (msg_store_view msg, msg_persisted_after_view msg, ∅) ⊑ fold_views phys_hist.
   Proof.
-    (* TODO: Clearly true, should be easy with induction. *)
-  Admitted.
+    rewrite /fold_views. simpl.
+    apply (map_fold_ind (λ res phys_hist, phys_hist !! t = Some msg → _ ⊑ res)).
+    - inversion 1.
+    - intros t2 ???? IH.
+      destruct (decide (t = t2)) as [->|ne].
+      * rewrite lookup_insert.
+        inversion 1.
+        apply thread_view_le_l.
+      * rewrite lookup_insert_ne; last done.
+        rewrite -thread_view_le_r.
+        apply IH.
+  Qed.
 
   Lemma extract_list_of_preds hG abs_hist (phys_hist : history) tLo tS ss ms prot
-    ℓ encAbsHist (pred : enc_predicateO) (* TV *):
+    ℓ encAbsHist (pred : enc_predicateO) :
     abs_hist = omap decode encAbsHist →
     map_sequence abs_hist tLo tS ss →
     map_sequence phys_hist tLo tS ms →
-    (* map_Forall (λ t msg, *)
-    (*   msg_store_view msg ⊑ store_view TV ∧ *)
-    (*     msg_persisted_after_view msg ⊑ flush_view TV) phys_hist → *)
     dom abs_hist = dom phys_hist →
     (pred ≡ encode_predicate (p_inv prot)) -∗
     encoded_predicate_hold hG phys_hist encAbsHist pred -∗
@@ -749,18 +755,10 @@ Section wp_at_rules.
     iIntros "!>" (idx s msg ? msLook) "pred".
     iApply monPred_mono; last iApply "pred".
     split; last done.
-    (* apply fold_views_in_phys_hist. *)
-    (* destruct TV as [[??]?]. *)
     eapply map_sequence_list_lookup in msLook as (? & ? & look); last apply seqPhys.
-    (* apply fold_views_in_phys_hist in look as ?. *)
-    apply fold_views_in_phys_hist in look as [??].
-    (* done. *)
-
-    (* apply msgIncl in look as [??]. *)
-    (* repeat split; try done. apply view_empty_least. *)
-  (* Qed. *)
-    (* FIXME: Easy. *)
-  Admitted.
+    eapply fold_views_in_phys_hist.
+    done.
+  Qed.
 
   Lemma wp_load_at ℓ ss s Q1 Q2 prot st E :
     {{{
