@@ -32,9 +32,12 @@ From self.high.modalities Require Import fence.
 (* Definition mk_nil : expr := *)
 (*   λ: <>, ref_NA (InjL #()). *)
 
+Definition nil : expr := InjL #().
+Definition cons v toNext : expr := InjR (v, toNext).
+
 Definition mk_stack : expr :=
   λ: <>,
-    let: "node" := ref_NA (InjL #()) in
+    let: "node" := ref_NA nil in
     Flush "node" ;;
     Fence ;;
     ref_AT "node".
@@ -44,7 +47,7 @@ returns unit once the element has been pushed.*)
 Definition push : expr :=
   λ: "toHead" "val",
     let: "toNext" := ref_NA #() in
-    let: "newNode" := ref_NA (InjR ("val", "toNext")) in
+    let: "newNode" := ref_NA (cons "val" "toNext") in
     Flush "newNode" ;;
     (rec: "loop" <> :=
       let: "head" := !_AT "toHead" in
