@@ -22,10 +22,6 @@ Definition loc_predO `{nvmG Σ} ST := ST -d> val -d> dPropO Σ.
 Record LocationProtocol ST `{AbstractState ST, nvmG Σ} := MkProt {
   p_inv : loc_pred ST;
   p_bumper : ST → ST;
-  (* bumper_mono : Proper ((⊑@{ST}) ==> (⊑))%signature bumper; *)
-  (* pred_condition : *)
-  (*   (⊢ ∀ s v, p_inv s v -∗ <PCF> p_inv (bumper s) v : dProp Σ)%I; *)
-  (* pred_nobuf :> ∀ s v, BufferFree (p_inv s v); *)
 }.
 
 Global Arguments MkProt {_} {_} {_} {_} {_} {_} _%I _%I.

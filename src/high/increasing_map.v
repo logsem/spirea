@@ -239,6 +239,22 @@ Section increasing_list.
     * lia.
   Qed.
 
+  Lemma prefix_increasing_list_snoc R `{!PreOrder R} (ss1 : list A) s1 ss2 s2 :
+    increasing_list R (ss2 ++ [s2]) →
+    ss1 ++ [s1] `prefix_of` ss2 ++ [s2] →
+    R s1 s2.
+  Proof.
+    intros incr pref.
+    apply: increasing_list_last_greatest; first done.
+    { apply last_snoc. }
+    eapply prefix_lookup; last done.
+    apply lookup_app_Some.
+    right.
+    split; first done.
+    replace (length _ - length _) with 0 by lia.
+    done.
+  Qed.
+
   (** A lemma that ties [increasing_map] and [increasing_list] together. *)
   Lemma increasing_map_to_increasing_list R m lo hi l :
     increasing_map R m → map_sequence m lo hi l → increasing_list R l.
