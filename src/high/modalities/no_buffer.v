@@ -171,6 +171,15 @@ Section no_buffer.
     done.
   Qed.
 
+  Lemma buffer_free_at P SV FV BV gnames `{!BufferFree P} :
+    P (SV, FV, BV, gnames) ⊣⊢ P (SV, FV, ∅, gnames).
+  Proof.
+    iSplit; first iApply into_no_buffer_at.
+    iApply monPred_mono.
+    split; last done.
+    solve_view_le.
+  Qed.
+
   Lemma no_buffer_monPred_in SV FV PV gn :
     monPred_in (SV, FV, PV, gn) ⊢@{dPropI Σ} <nobuf> monPred_in (SV, FV, ∅, gn).
   Proof.

@@ -120,16 +120,8 @@ Section wpc.
   Qed.
 
   Lemma wp_wpc s E1 e Φ:
-    WP e @ s ; E1 {{ Φ }} ⊢ WPC e @ s ; E1 {{ Φ }} {{ True }}.
-  Proof.
-    iStartProof (iProp _).
-    rewrite wp_eq /wp_def wpc_eq /wpc_def.
-    iIntros (?) "H /=". iIntros (TV ?) "?".
-    setoid_rewrite (monPred_at_pure ⊥).
-    rewrite /crash_weakestpre.wpc_def crash_weakestpre.wpc_eq.
-    iIntros (n).
-    iApply ("H" $! TV with "[% //] [$]").
-  Qed.
+    WP e @ s ; E1 {{ Φ }} ⊣⊢ WPC e @ s ; E1 {{ Φ }} {{ True }}.
+  Proof. rewrite wp_eq /wp_def. done. Qed.
 
   (*
   Lemma wpc_wp s E1 e Φ Φc:

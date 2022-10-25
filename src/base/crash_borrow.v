@@ -218,6 +218,10 @@ Section crash_borrow_def.
               ▷ □ (Pc -∗ Pc') ∗
               staged_value_idle ⊤ Ps' True%I Pc' ∗ later_tok ∗ later_tok).
 
+  Global Instance crash_borrow_proper Rc :
+    Proper ((⊣⊢) ==> (⊣⊢)) (λ R, crash_borrow R Rc).
+  Proof. intros ?? eq. rewrite /crash_borrow. setoid_rewrite eq. done. Qed.
+
   Lemma crash_borrow_init_cancel P Pc :
     pre_borrow -∗ P -∗ □ (P -∗ Pc) -∗ init_cancel (crash_borrow P Pc) Pc.
   Proof.
@@ -364,16 +368,17 @@ Section crash_borrow_def.
     iApply wpc_crash_borrow_generate_pre; auto.
     iApply (wp_wpc). iApply "H".
   Qed.
+*)
 
-  Lemma wpc_crash_borrow_init_ctx'' s k e Φ Φc P Pc K `{!LanguageCtx K} :
-    language.to_val e = None →
+  Lemma wpc_crash_borrow_init_ctx'' s e Φ Φc P Pc K `{!LanguageCtx K} :
+    to_val e = None →
     P -∗
     □ (P -∗ Pc) -∗
     (∀ mj, wpc_crash_modality ⊤ mj Φc) ∧ (crash_borrow P Pc -∗
-          WPC e @ s; k; (⊤ ∖ (↑borrowN : coPset))
-                  {{ λ v, WPC K (of_val v) @ s; k ; ⊤ {{ Φ }} {{ Φc }} }}
+          WPC e @ s; (⊤ ∖ (↑borrowN : coPset))
+                  {{ λ v, WPC K (of_val v) @ s; ⊤ {{ Φ }} {{ Φc }} }}
                   {{ Φc }}) -∗
-    WPC K e @ s; k; ⊤ {{ Φ }} {{ Φc ∗ Pc }}.
+    WPC K e @ s; ⊤ {{ Φ }} {{ Φc ∗ Pc }}.
   Proof.
     iIntros (Hnv) "HP #Hwand Hwpc".
     iApply wpc_borrow_inv.
@@ -390,7 +395,7 @@ Section crash_borrow_def.
       iIntros "($&$)". iApply "Hwand". iFrame.
     }
     rewrite Hnv.
-    iIntros (q σ g1 ns D κ κs nt) "Hσ Hg HNC".
+    iIntros (q σ g1 ns D κ κs nt) "Hσ Hg HNC Hlc".
     iInv "Hinv" as ">H" "Hclo".
     rewrite /crash_borrow_ginv_number.
     iDestruct (cred_frag_split 1 _ with "H") as "(Hlt1&H)".
@@ -406,7 +411,9 @@ Section crash_borrow_def.
     (* Create the invariant *)
 
     iMod (saved_prop_alloc P) as (γprop) "#Hsaved".
+    { apply dfrac_valid_discarded. }
     iMod (saved_prop_alloc True%I) as (γprop') "#Hsaved'".
+    { apply dfrac_valid_discarded. }
     iMod (own_alloc (● (Excl' (γprop, γprop')) ⋅ ◯ (Excl' (γprop, γprop')))) as (γ) "[H1 H2]".
     { apply auth_both_valid_2; [econstructor | reflexivity]. }
     iMod (pending_alloc) as (γ') "Hpending".
@@ -414,7 +421,7 @@ Section crash_borrow_def.
     { apply auth_both_valid_2; [econstructor | reflexivity]. }
 
     iDestruct (pri_inv_tok_infinite with "Hitok") as %Hinf.
-    destruct (Qp.plus_inv_2_gt_1_split mj) as (mj_ikeep&mj_ishare&Heq_mj&Hinvalid); first auto.
+    destruct (Qp_plus_inv_2_gt_1_split mj) as (mj_ikeep&mj_ishare&Heq_mj&Hinvalid); first auto.
     iEval (rewrite -Qp.inv_half_half) in "Hitok".
     iDestruct (pri_inv_tok_split with "Hitok") as "(Hitok_u&Hitok_i)".
     iEval (rewrite -Heq_mj) in "Hitok_i".
@@ -444,7 +451,9 @@ Section crash_borrow_def.
     iDestruct ("Hwpc") as "(Hwpc&_)".
     rewrite Hnv.
     iMod (later_tok_decr with "[$]") as (ns' Heq) "Hg".
-    iMod ("Hwpc" with "[$] [$] [$]") as "Hwpc".
+    iMod ("Hwpc" with "[$] [$] [$] [Hlc]") as "Hwpc".
+    { iApply (lc_weaken with "Hlc").
+      apply num_laters_per_step_lt in Heq. lia. }
     iModIntro.
     iApply (step_fupd_extra.step_fupd2N_le (S (num_laters_per_step ns')) (num_laters_per_step ns) with "[-]").
     { assert (Hlt: ns' < ns) by lia.
@@ -480,23 +489,25 @@ Section crash_borrow_def.
     { destruct (to_val (K _)); auto. }
   Qed.
 
-  Lemma wpc_crash_borrow_init_ctx' s k e Φ Φc P Pc K `{!LanguageCtx K} :
-    language.to_val e = None →
+  Lemma wpc_crash_borrow_init_ctx' s e Φ Φc P Pc K `{!LanguageCtx K} :
+    to_val e = None →
     P -∗
     □ (P -∗ Pc) -∗
     Φc ∧ (crash_borrow P Pc -∗
-          WPC e @ s; k; (⊤ ∖ (↑borrowN : coPset))
-                  {{ λ v, WPC K (of_val v) @ s; k ; ⊤ {{ Φ }} {{ Φc }} }}
+          WPC e @ s; (⊤ ∖ (↑borrowN : coPset))
+                  {{ λ v, WPC K (of_val v) @ s; ⊤ {{ Φ }} {{ Φc }} }}
                   {{ Φc }}) -∗
-    WPC K e @ s; k; ⊤ {{ Φ }} {{ Φc ∗ Pc }}.
+    WPC K e @ s; ⊤ {{ Φ }} {{ Φc ∗ Pc }}.
   Proof.
     iIntros (Hnv) "HP HPC Hwpc".
     iApply (wpc_crash_borrow_init_ctx'' with "HP HPC"); auto.
     iSplit.
-    - iIntros. iApply wpc_crash_modality_intro. iLeft in "Hwpc". eauto.
-    - iRight in "Hwpc". eauto.
+    - iIntros. iApply wpc_crash_modality_intro.
+      iDestruct "Hwpc" as "[Hwpc _]". eauto.
+    - iDestruct "Hwpc" as "[_ Hwpc]". eauto.
   Qed.
 
+(*
   Lemma wpc_crash_borrow_init_ctx s k e Φ Φc P Pc K `{!LanguageCtx K} :
     language.to_val e = None →
     P -∗
