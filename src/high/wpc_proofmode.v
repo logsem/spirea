@@ -257,16 +257,15 @@ Lemma tac_wpc_bind
   envs_entails Δ (WPC fill K e @ s; E1 {{ Φ }} {{ Φc }}).
 Proof. rewrite envs_entails_unseal=> -> ->. by apply: wpc_bind. Qed.
 
-(*
 Lemma tac_wpc_wp_frame
-      `{!nvmG Σ} Δ d js s k E1 e (Φ: _ -> dProp Σ) (Φc: dProp Σ) :
+      `{!nvmG Σ} Δ d js s E1 e (Φ : _ -> dProp Σ) (Φc : dProp Σ) `{!ViewObjective Φc} :
   match envs_split d js Δ with
   | Some (Δ1, Δ2) => envs_entails Δ1 Φc ∧
                      envs_entails Δ2 (WP e @ s; E1
                              {{ v, (env_to_named_prop Δ1.(env_spatial) -∗ Φ v)%I }})
   | None => False
   end ->
-  envs_entails Δ (WPC e @ s; k; E1 {{ Φ }} {{ Φc }}).
+  envs_entails Δ (WPC e @ s; E1 {{ Φ }} {{ Φc }}).
 Proof.
   destruct (envs_split d js Δ) as [[Δ1 Δ2]|] eqn:Hsplit; [ | contradiction ].
   rewrite envs_entails_unseal=> Hentails.
@@ -274,7 +273,7 @@ Proof.
   rewrite (envs_split_sound _ _ _ _ _ Hsplit).
   rewrite {}Hwp.
   iIntros "[HΦc' Hwp]".
-  iApply (wp_wpc_frame' _ _ _ _ _ (Φc) (of_envs Δ1)).
+  iApply (wp_wpc_frame' _ _ _ _ Φc (of_envs Δ1)).
   iSplitR "Hwp".
   { iSplit; iFrame. by iApply HΦc. }
   iApply (wp_mono with "Hwp"); cbv beta.
@@ -289,7 +288,7 @@ Qed.
    proving the crash condition using a cache *)
 Lemma tac_wpc_wp_frame_cache
       `{!nvmG Σ} (Φc: dProp Σ) i (* name of cache *) (c: cache Φc%I)
-      Δ stk k E1 e (Φ: _ → dProp Σ)  :
+      Δ stk E1 e (Φ: _ → dProp Σ) `{!ViewObjective Φc} :
   envs_lookup i Δ = Some (true, cached c) →
   match envs_split Left c.(cache_names) Δ with
   | Some (Δ1, Δ2) =>
@@ -299,7 +298,7 @@ Lemma tac_wpc_wp_frame_cache
       (WP e @ stk; E1 {{ v, (env_to_named_prop Δ1.(env_spatial) -∗ Φ v)%I }})
   | None => False
   end →
-  envs_entails Δ (WPC e @ stk; k; E1 {{ Φ }} {{ Φc }}).
+  envs_entails Δ (WPC e @ stk; E1 {{ Φ }} {{ Φc }}).
 Proof.
   rewrite envs_entails_unseal=> Hcache H.
   destruct (envs_split Left (cache_names c) Δ) as [[Δ1 Δ2]|] eqn:Hsplit;
@@ -325,7 +324,7 @@ Qed.
 
 Tactic Notation "wpc_frame" :=
   lazymatch goal with
-  | [ |- envs_entails (Envs ?Γp _ _) (wpc _ _ _ _ _ ?Φc) ] =>
+  | [ |- envs_entails (Envs ?Γp _ _) (wpc _ _ _ _ ?Φc) ] =>
     first [ match Γp with
             | context[Esnoc _ ?i (@cached _ Φc ?c)] =>
               apply (tac_wpc_wp_frame_cache Φc i c);
@@ -345,7 +344,7 @@ Tactic Notation "wpc_frame" :=
 
 (** [pat] is the original pattern, for error messages *)
 Ltac wpc_frame_go pat d js :=
-  apply (tac_wpc_wp_frame _ d js);
+  apply (tac_wpc_wp_frame _ d js); first apply _;
   [ reduction.pm_reduce;
     lazymatch goal with
     | |- False => fail "wpc_frame:" pat "not found"
@@ -362,6 +361,7 @@ Ltac wpc_frame_pat d pat :=
 Tactic Notation "wpc_frame" constr(pat) := wpc_frame_pat base.Left pat.
 Tactic Notation "wpc_frame_compl" constr(pat) := wpc_frame_pat base.Right pat.
 
+(*
 Tactic Notation "wpc_rec" simple_intropattern(H) :=
   let HAsRecV := fresh in
   pose proof AsRecV_recv as HAsRecV;

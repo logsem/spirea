@@ -1,7 +1,7 @@
 From Perennial.program_logic Require Import staged_invariant.
 (* From Perennial.goose_lang Require Import crash_borrow. *)
 
-From self.base Require Import crash_borrow.
+From self.base Require Import primitive_laws crash_borrow.
 From self.high Require Import proofmode wpc_proofmode.
 From self.lang Require Import lang.
 From self.high Require Import dprop_liftings crash_weakestpre.
@@ -104,6 +104,18 @@ Section crash_borrow_high.
     { iIntros "!> P". iApply view_objective_at. iApply ("wand" with "[] P"). done. }
     { iApply (monPred_mono with "P"). split; last done. etrans; done. }
   Qed.
+
+  Lemma wpc_crash_borrow_init_ctx' s e Φ Φc P Pc `{!ViewObjective Pc} K `{!LanguageCtx K} :
+    to_val e = None →
+    P -∗
+    □ (P -∗ Pc) -∗
+    Φc ∧ (crash_borrow P Pc -∗
+          WPC e @ s; (⊤ ∖ (↑borrowN : coPset))
+                  {{ λ v, WPC K (of_val v) @ s; ⊤ {{ Φ }} {{ Φc }} }}
+                  {{ Φc }}) -∗
+    WPC K e @ s; ⊤ {{ Φ }} {{ Φc ∗ Pc }}.
+  Proof.
+  Admitted.
 
   Lemma wpc_crash_borrow_open_modify E1 e Φ Φc P Pc `{!ViewObjective Φc, !ViewObjective Pc} :
     to_val e = None →

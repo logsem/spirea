@@ -223,6 +223,32 @@ Section wpc.
       iApply ("H" with "[//] val").
   Qed.
 
+  Lemma wpc_frame_l' s E1 e Φ Φc R R' `{!ViewObjective Φc, !ViewObjective R'} :
+    (R ∧ R') ∗ WPC e @ s; E1 {{ Φ }} {{ Φc }}
+    ⊢ WPC e @ s; E1 {{ v, R ∗ Φ v }} {{ R' ∗ Φc }}.
+  Proof.
+    iIntros "[HR H]". iApply (wpc_strong_mono' with "H"); auto.
+    iSplit; iIntros; iFrame.
+    - by iDestruct "HR" as "($&_)".
+    - iDestruct "HR" as "(_&H)". iModIntro. eauto.
+  Qed.
+
+  Lemma wp_wpc_frame' s E1 e Φ Φc `{!ViewObjective Φc} R :
+    (Φc ∧ R) ∗
+    WP e @ s; E1 {{ λ v, R -∗ Φ v }} ⊢
+    WPC e @ s; E1 {{ Φ }} {{ Φc }}.
+  Proof.
+    iIntros "(HΦc & Hwp)".
+    iApply (wpc_strong_mono' s s E1 E1 _ (λ v, R ∗ (R -∗ Φ v))%I _ (Φc ∗ True)%I
+          with "[-]"); auto.
+    { iApply wpc_frame_l'.
+      rewrite comm; iFrame.
+      iApply wp_wpc; eauto. }
+    iSplit.
+    - iIntros (?). rewrite bi.wand_elim_r. iIntros; eauto.
+    - iIntros "(H&?)". iApply (fupd_mask_intro_discard); eauto.
+  Qed.
+
   Lemma wpc_atomic_crash_modality s E1 e Φ Φc
         `{!AtomicBase StronglyAtomic e, !ViewObjective Φc} :
     (cfupd E1 (Φc)) ∧

@@ -911,8 +911,7 @@ End post_crash_derived.
 (*         P nD')%I. *)
 (* Next Obligation. intros ??????. apply post_crash_mono. solve_proper. Qed. *)
 
-Program Definition post_crash_flush {Σ} `{nvmG Σ}
-        (P : dProp Σ) : dProp Σ :=
+Program Definition post_crash_flush {Σ} `{nvmG Σ} (P : dProp Σ) : dProp Σ :=
   MonPred (λ i,
     (<PC>
       ∀ (CV : view),
@@ -1035,6 +1034,10 @@ Section post_crash_persisted.
         iFrame "#". done. }
       iRight. iFrame "HP".
   Qed.
+
+  (* This lemma is not true for the <PCF> modality. *)
+  Global Instance post_crash_flush_objective P : ViewObjective (<PCF> P).
+  Proof. Admitted.
 
   Lemma post_crash_flush_mono P Q :
     (P -∗ Q) → post_crash_flush P -∗ post_crash_flush Q.
