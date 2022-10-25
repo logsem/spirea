@@ -11,14 +11,15 @@ From self.lang Require Import notation lang.
 From self.algebra Require Import view.
 From self.base Require Import primitive_laws class_instances.
 From self.base Require Import proofmode wpc_proofmode wpr_lifting.
-From self.high Require Import dprop state_interpretation weakestpre monpred_simpl.
+From self.high Require Import dprop crash_weakestpre viewobjective state_interpretation weakestpre crash_borrow
+  monpred_simpl.
 From self.high.modalities Require Import no_buffer.
 From self.lang Require Import lang.
 
 (* Implementation. *)
 
 Definition mk_lock : expr :=
-  ref_AT #0.
+  λ: <>, ref_AT #0.
 
 Definition acquire : expr :=
   rec: "f" "lock" :=
@@ -95,21 +96,26 @@ Section spec.
     inversion eq.
   Qed.
 
-  Program Definition is_lock (γ : gname) (R : dProp Σ) (v : val) : dProp Σ :=
+  Program Definition is_lock (γ : gname) (v : val) (R : dProp Σ) : dProp Σ :=
     MonPredCurry (λ nD TV,
       ∃ (ℓ : loc), ⌜ v = #ℓ ⌝ ∗ inv N (lock_inv ℓ γ R nD)
     )%I _.
 
+  Global Instance is_lock_persistent γ v R :
+    Persistent (is_lock γ v R).
+  Proof. apply monPred_persistent => i. apply _. Qed.
+
   Lemma mk_lock_spec (R : dProp Σ) s E `{BufferFree R} :
     {{{ R }}}
-      mk_lock @ s; E
-    {{{ γ lv, RET lv; is_lock γ R lv }}}.
+      mk_lock #() @ s; E
+    {{{ γ lv, RET lv; is_lock γ lv R }}}.
   Proof.
     intros ?. iModel. iIntros "HR".
     introsIndex ??. iIntros "HΦ".
     iApply wp_unfold_at.
     iIntros ([[??]?] ?) "#Hval".
     rewrite /mk_lock.
+    wp_pures.
     iApply wp_fupd.
     wp_apply (wp_alloc with "Hval").
     iIntros (ℓ ?) "(_ & _ & %vLook & pts)".
@@ -139,12 +145,13 @@ Section spec.
     iFrame "HI".
   Qed.
 
-  Lemma acquire_spec γ (R : dProp Σ) lv `{BufferFree R} :
-    {{{ is_lock γ R lv }}}
-      acquire lv
-    {{{ v, RET v; R ∗ locked γ }}}.
+  Lemma acquire_spec γ (R : dProp Σ) lv `{BufferFree R} st E :
+    ↑N ⊆ E →
+    {{{ is_lock γ lv R }}}
+      acquire lv @ st; E
+    {{{ RET #(); R ∗ locked γ }}}.
   Proof.
-    intros ?.
+    intros ??.
     iModel.
     simpl.
     iIntros "(%ℓ & -> & #Hinv)".
@@ -199,7 +206,6 @@ Section spec.
       iModIntro.
       iSplitPure. { solve_view_le. }
       iFrame "Hval'".
-      iSpecialize ("HΦ" $! #()).
       monPred_simpl.
       iApply "HΦ".
       { iPureIntro. split; last done.
@@ -223,7 +229,7 @@ Section spec.
       wp_pure _.
       simpl.
       wp_pure _.
-      iApply wp_mono; last first.
+      iApply program_logic.crash_weakestpre.wp_mono; last first.
       { iApply ("IH" with "[%] HΦ Hval'").
         solve_view_le. }
       iIntros ([??]).
@@ -232,12 +238,13 @@ Section spec.
       iPureIntro. solve_view_le.
   Qed.
 
-  Lemma release_spec γ (R : dProp Σ) lv `{BufferFree R} :
-    {{{ is_lock γ R lv ∗ R ∗ locked γ }}}
-      release lv
-    {{{ v, RET v; True }}}.
+  Lemma release_spec γ (R : dProp Σ) lv `{BufferFree R} st E :
+    ↑N ⊆ E →
+    {{{ is_lock γ lv R ∗ R ∗ locked γ }}}
+      release lv @ st; E
+    {{{ RET #(); True }}}.
   Proof.
-    intros ?.
+    intros ??.
     iModel.
     iIntros "((%ℓ & -> & Hinv) & HR & Htok)".
     introsIndex ??. iIntros "HΦ".
@@ -284,7 +291,6 @@ Section spec.
     iModIntro.
     iFrame "Hval'".
     iSplitPure; first solve_view_le.
-    iSpecialize ("HΦ" $! #()).
     monPred_simpl.
     iApply "HΦ".
     { iPureIntro. split; last done. solve_view_le. }
