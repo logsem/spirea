@@ -22,16 +22,6 @@ From self.high Require Import dprop abstract_state_instances modalities
 From self.high.modalities Require Import fence.
 
 (* A node is a pointer to a value and a pointer to the next node. *)
-(* NOTE: The [mk_node] function is currently unused. *)
-(* Definition mk_node : expr := *)
-(*   λ: "v" "next", *)
-(*     let: "val" := ref_NA "v" in *)
-(*     let: "toNext" := ref_NA "next" in *)
-(*     ref_NA (InjR ("val", "toNext")). *)
-
-(* Definition mk_nil : expr := *)
-(*   λ: <>, ref_NA (InjL #()). *)
-
 Definition nil : expr := InjL #().
 Definition cons v toNext : expr := InjR (v, toNext).
 

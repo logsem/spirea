@@ -53,35 +53,6 @@ Section crash_lock.
   (*   iIntros. iApply "HΦ". iFrame. *)
   (* Qed. *)
 
-  Lemma wpc_crash_borrow_init_ctx' s e Φ Φc P Pc `{!ViewObjective Pc} K `{!LanguageCtx K} :
-    to_val e = None →
-    P -∗
-    □ (P -∗ Pc) -∗
-    Φc ∧ (crash_borrow P Pc -∗
-          WPC e @ s; (⊤ ∖ (↑borrowN : coPset))
-                  {{ λ v, WPC K (of_val v) @ s; ⊤ {{ Φ }} {{ Φc }} }}
-                  {{ Φc }}) -∗
-    WPC K e @ s; ⊤ {{ Φ }} {{ Φc ∗ Pc }}.
-  Proof.
-  Admitted.
-
-  Lemma wp_wpc_frame' s E1 e Φ Φc `{!ViewObjective Φc} R :
-    (Φc ∧ R) ∗
-    WP e @ s; E1 {{ λ v, R -∗ Φ v }} ⊢
-    WPC e @ s; E1 {{ Φ }} {{ Φc }}.
-  Proof.
-    iIntros "(HΦc&Hwp)".
-    iApply (wpc_strong_mono' s s E1 E1 _ (λ v, R ∗ (R -∗ Φ v))%I _ (Φc ∗ True)%I
-          with "[-]"); auto.
-  Admitted.
-  (*   { iApply wpc_frame_l'. *)
-  (*     rewrite comm; iFrame. *)
-  (*     iApply wp_wpc; eauto. } *)
-  (*   iSplit. *)
-  (*   - iIntros (?). rewrite wand_elim_r. iIntros; eauto. *)
-  (*   - iIntros "(H&?)". iApply (fupd_mask_intro_discard); eauto. *)
-  (* Qed. *)
-
   Global Instance crash_borrow_buffer_free R Rc `{BufferFree R, BufferFree Rc}
       `{!ViewObjective Rc} :
     BufferFree (crash_borrow R Rc).
@@ -243,8 +214,8 @@ Section crash_lock.
       * iIntros.  iIntros "!>". eauto.
   Qed.
 
-  Lemma release_spec γ E (R Rcrash : dProp Σ)
-    `{BufferFree R} `{!ViewObjective Rcrash} lk :
+  Lemma release_crash_spec γ E (R Rcrash : dProp Σ)
+    `{BufferFree R, BufferFree Rcrash} `{!ViewObjective Rcrash} lk :
     ↑Nlock ⊆ E →
     {{{ crash_locked γ lk R Rcrash }}}
     release lk @ E
@@ -252,12 +223,12 @@ Section crash_lock.
   Proof.
     iIntros (? Φ) "Hcrash_locked HΦ".
     iDestruct "Hcrash_locked" as "(Hfull&#His_lock&Hlocked)".
-  Admitted.
-  (*   wp_apply (release_spec' with "[His_lock Hlocked Hfull]"); swap 1 2. *)
-  (*   { iFrame "His_lock". iFrame. } *)
-  (*   { auto. } *)
-  (*   by iApply "HΦ". *)
-  (* Qed. *)
+    wp_apply (release_spec Nlock with "[His_lock Hlocked Hfull]"); last first.
+    { auto. }
+    { iFrame "His_lock". iFrame. }
+    { auto. }
+    { apply _. }
+  Qed.
 
   (*
   Lemma partial_release_spec E (R Rcrash : dProp Σ) lk:
@@ -299,29 +270,8 @@ Section crash_lock.
      let: "v" := e in
      release lk)%E.
 
-  Lemma wpc_frame (s : stuckness) (E1 : coPset)
-          (e: expr) (Φ Φ': val -> dProp Σ) (Φc Φc': dProp Σ) (R : dPropI Σ) :
-      R -∗
-      WPC e @ s; E1 {{ v, Φ v }} {{Φc}} -∗
-      (R ∗ Φc -∗ Φc') -∗
-      (∀ v, R ∗ Φ v -∗ Φ' v) -∗
-      WPC e @ s; E1 {{ v, Φ' v }} {{Φc'}}.
-  Proof.
-    iIntros "F Hwpc HΦc' HΦ'".
-  Admitted.
-  (*   iDestruct (wpc_frame_l with "[F $Hwpc]") as "Hwpc". *)
-  (*   { iExact "F". } *)
-  (*   iApply (wpc_strong_mono' with "Hwpc"); eauto. *)
-  (*   iSplit. *)
-  (*   - iIntros (v) "HΦ". *)
-  (*     iApply ("HΦ'" with "HΦ"). *)
-  (*   - iIntros "HΦc". *)
-  (*     iApply fupd_mask_intro_discard; [ set_solver+ | ]. *)
-  (*     iApply ("HΦc'" with "HΦc"). *)
-  (* Qed. *)
-
   Lemma with_lock_spec γ Φ Φc (R Rcrash : dProp Σ) lk e
-                         `{!ViewObjective Rcrash, !ViewObjective Φc} :
+      `{BufferFree R, BufferFree Rcrash, !ViewObjective Rcrash, !ViewObjective Φc} :
     to_val e = None →
     is_crash_lock γ lk R Rcrash ∗
     (Φc ∧ (R -∗ WPC e @ ⊤ {{ λ v, (Φc ∧ Φ #()) ∗ R }} {{ Φc ∗ Rcrash }})) -∗
@@ -330,11 +280,10 @@ Section crash_lock.
     iIntros (Hnv) "(#Hcrash&Hwp)".
     rewrite /with_lock.
     wpc_bind (acquire lk).
-  Admitted.
-  (*
+    (* Set Ltac Debug. *)
     wpc_frame "Hwp".
     { iDestruct "Hwp" as "($&_)".  }
-    iApply (acquire_spec with "Hcrash").
+    iApply (acquire_crash_spec with "Hcrash").
     { set_solver. }
     iNext. iIntros "H Hwp".
     wpc_pures.
@@ -354,16 +303,16 @@ Section crash_lock.
     iSplit.
     { iDestruct "H" as "(H&_)". eauto. }
 
-    wpc_pures.
-    { iDestruct "H" as "(H&_)". eauto. }
+    wpc_pure1 _; first iDestruct "H" as "($ & _)".
+    wpc_pure1 _; first iDestruct "H" as "($ & _)".
+    fold release.
 
     wpc_frame "H".
-    { iDestruct "H" as "($&_)". }
-    iApply (release_spec with "Hlocked").
+    { iDestruct "H" as "($ & _)". }
+    iApply (release_crash_spec with "Hlocked").
     { auto. }
     iNext. iIntros "_ H".
-    { iDestruct "H" as "(_&$)". }
+    { iDestruct "H" as "(_ & $)". }
   Qed.
-*)
 
 End crash_lock.
