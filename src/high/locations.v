@@ -464,7 +464,7 @@ Section mapsto_at_lemmas.
     iLeft. iApply persisted_loc_d_weak; last done. lia.
   Qed.
 
-  Lemma mapsto_na_persist_lb_last ℓ prot q ss s :
+  Lemma mapsto_na_persist_lb_last ℓ prot q ss s `{!AntiSymm (=) (⊑@{ST})} :
     last ss = Some s →
     persist_lb ℓ prot s -∗
     mapsto_na ℓ prot q ss -∗
