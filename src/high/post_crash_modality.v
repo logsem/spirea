@@ -1037,7 +1037,7 @@ Section post_crash_persisted.
 
   (* This lemma is not true for the <PCF> modality. *)
   Global Instance post_crash_flush_objective P : ViewObjective (<PCF> P).
-  Proof. Admitted.
+  Proof. Abort.
 
   Lemma post_crash_flush_mono P Q :
     (P -∗ Q) → post_crash_flush P -∗ post_crash_flush Q.

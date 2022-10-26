@@ -143,10 +143,21 @@ Section spec.
     iIntros "pb #xPerLb #yPerLb #zPerLb xPts yPts zPts".
     rewrite /prog.
 
+    eassert (
+      (let: "lock" := mk_lock #() in
+      Fork (leftProg x y "lock");; rightProg y x z "lock")%E
+        =
+          fill _ (mk_lock #())
+          ) as ->.
+    {
+      reshape_expr (
+        (let: "lock" := mk_lock #() in
+        Fork (leftProg x y "lock");; rightProg y x z "lock")%E)
+          ltac:(fun K e' => apply (@eq_refl _ (fill K e'))).
+    }
     iApply (
-      newlock_crash_spec (nroot .@ "lock") _ lock_res (<PC> lock_condition)%I (
-        (λ lk, let: "lock" := lk in
-          Fork _;; _)%E)
+      newlock_crash_spec (nroot .@ "lock") _ lock_res (<PC> lock_condition)%I
+        _
                         (λ _, True)%I
                         (<PC> crash_condition)
       with "[xPts yPts] [] [-]").

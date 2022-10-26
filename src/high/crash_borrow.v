@@ -33,7 +33,6 @@ Section crash_borrow_high.
     MonPred (λ i,
         let gnames := i.2
         in (□ (Ps -∗ Pc)) i ∗
-           (* □ (∀ TV', TV ⊑ TV') ∗ *)
            crash_borrow (Ps i) (Pc (⊥, i.2))
     )%I _.
   Next Obligation.
@@ -105,17 +104,66 @@ Section crash_borrow_high.
     { iApply (monPred_mono with "P"). split; last done. etrans; done. }
   Qed.
 
-  Lemma wpc_crash_borrow_init_ctx' s e Φ Φc P Pc `{!ViewObjective Pc} K `{!LanguageCtx K} :
+  Lemma wpc_crash_borrow_init_ctx' s e Φ Φc P Pc
+    `{!ViewObjective Pc, !ViewObjective Φc} K :
     to_val e = None →
     P -∗
     □ (P -∗ Pc) -∗
     Φc ∧ (crash_borrow P Pc -∗
           WPC e @ s; (⊤ ∖ (↑borrowN : coPset))
-                  {{ λ v, WPC K (of_val v) @ s; ⊤ {{ Φ }} {{ Φc }} }}
+                  {{ λ v, WPC fill K (of_val v) @ s; ⊤ {{ Φ }} {{ Φc }} }}
                   {{ Φc }}) -∗
-    WPC K e @ s; ⊤ {{ Φ }} {{ Φc ∗ Pc }}.
+    WPC fill K e @ s; ⊤ {{ Φ }} {{ Φc ∗ Pc }}.
   Proof.
-  Admitted.
+    intros toVal.
+    iModel.
+    monPred_simpl. iIntros "P". introsIndex ??. iIntros "#wand".
+
+    rewrite wpc_eq /wpc_def. simpl.
+    monPred_simpl. simpl. introsIndex ??.
+    monPred_simpl. simpl.
+    iIntros "wpc".
+    iIntros (??) "#val".
+    monPred_simpl.
+
+    rewrite nvm_fill_fill.
+    iDestruct (wpc_crash_borrow_init_ctx' _ _ _ _ _ _ (@fill nvm_ectxi_lang K) with "[P] [] [wpc]") as "H"; last first.
+    { iApply "H". }
+    { iSplit.
+      - iDestruct "wpc" as "[wpc _]".
+        iApply view_objective_at. iApply "wpc".
+      - iDestruct "wpc" as "[_ wpc]".
+        iIntros "borrow".
+        iSpecialize ("wpc" $! (p0, gnames) with "[] [borrow]").
+        2: {
+          iSplitR "borrow".
+          { iModIntro. monPred_simpl. introsIndex ??. iIntros "P".
+            iSpecialize ("wand" with "[%] P").
+            { split; last done. etrans; done. }
+            iApply "wand". }
+          iApply "borrow". }
+        { done. }
+        simpl.
+        iSpecialize ("wpc" $! _ with "[] val"); first done.
+        iApply program_logic.crash_weakestpre.wpc_mono;
+          last iApply "wpc";
+          last done.
+        iIntros ([? TV2]) "(% & ? & H)".
+        simpl.
+        iSpecialize ("H" $! TV2 with "[//] [$]").
+        iApply program_logic.crash_weakestpre.wpc_mono; last first.
+        { rewrite -nvm_fill_fill. iApply "H". }
+        { done. }
+        iIntros ([??]) "(% & $ & $)".
+        iPureIntro. etrans; done. }
+    { iIntros "!> P".
+      iSpecialize ("wand" $! (p0, gnames) with "[//] P").
+      iApply view_objective_at. iApply "wand". }
+    { iApply monPred_mono; last iApply "P". split; last done. etrans; done. }
+    { simpl. rewrite /thread_to_val toVal. done. }
+    Unshelve.
+    apply: ectx_lang_ctx.
+  Qed.
 
   Lemma wpc_crash_borrow_open_modify E1 e Φ Φc P Pc `{!ViewObjective Φc, !ViewObjective Pc} :
     to_val e = None →

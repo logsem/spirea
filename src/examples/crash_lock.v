@@ -74,14 +74,14 @@ Section crash_lock.
   Qed.
 
   Lemma newlock_crash_spec k (R Rcrash : dProp Σ)
-      K `{!LanguageCtx K} Φ (Φc : dProp Σ)
+      K Φ (Φc : dProp Σ)
       `{!ViewObjective Rcrash, !ViewObjective Φc}
       `{!BufferFree R, !BufferFree Rcrash} :
     R -∗
     □ (R -∗ Rcrash) -∗
     Φc ∧ (∀ lk γ, is_crash_lock γ lk R Rcrash -∗
-    WPC (K (of_val lk)) @ k; ⊤ {{ Φ }} {{ Φc }}) -∗
-    WPC K (mk_lock #()) @ k; ⊤ {{ Φ }} {{ Φc ∗ Rcrash }}.
+    WPC (fill K (of_val lk)) @ k; ⊤ {{ Φ }} {{ Φc }}) -∗
+    WPC fill K (mk_lock #()) @ k; ⊤ {{ Φ }} {{ Φc ∗ Rcrash }}.
   Proof.
     iIntros "HR #Hwand1 Hwpc".
     iApply (wpc_crash_borrow_init_ctx' _ _ _ _ R Rcrash with "[$] [$] [-]").
@@ -96,6 +96,7 @@ Section crash_lock.
     iNext.
     iIntros (? lk) "His_lock HP".
     iApply "HP". eauto.
+    Unshelve. apply _.
   Qed.
 
   (*
