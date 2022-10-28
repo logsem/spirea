@@ -35,3 +35,5 @@ Makefile.coq
 Makefile.coq.conf
 .vscode
 *~
+.DS_store
+\#*#
