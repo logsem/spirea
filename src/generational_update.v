@@ -168,12 +168,24 @@ Section into_bgupd.
 
 End into_bgupd.
 
-(******************************)
-(* Generational token stream. *)
+(******************************************************************************)
+(* Generational token stream.
+
+   The generational token stream makes it possible to own a "permanent"
+   exclusive token that is preserved across generations. For each generation the
+   "permanent" token also "produces" a per-generation token that is only valid
+   for the current generation.  *)
 
 Definition GTS : Type := excl' () * excl' ().
 Definition GTSR : cmra :=
   prodR (optionR (exclR unitO)) (optionR (exclR unitO)).
+
+(** The per-generation token. *)
+Definition GTS_tok_gen : GTS := (None, Excl' ()).
+(** The permanent cross-generation token. *)
+Definition GTS_tok_perm : GTS := (Excl' (), None).
+(** Both tokens. *)
+Definition GTS_tok_both : GTS := (Excl' (), Excl' ()).
 
 Definition GTS_floor (a : GTS) : GTS :=
   match a with
@@ -186,10 +198,6 @@ Definition GTS_floor (a : GTS) : GTS :=
   per-generation token. *)
   | (Excl' (), _) => (Excl' (), Excl' ())
   end.
-
-Definition GTS_tok_gen : GTS := (None, Excl' ()).
-Definition GTS_tok_perm : GTS := (Excl' (), None).
-Definition GTS_tok_both : GTS := (Excl' (), Excl' ()).
 
 Lemma excl_bot_top {A : ofe} (a : excl A) : a ≼ ExclBot.
 Proof. eexists ExclBot. done. Qed.
@@ -220,8 +228,8 @@ Proof.
 Qed.
 
 Record GenerationalCmra := {
-    gencmra_cmra :> cmra;
-    gencmra_gen :> cmra → Prop;
+  gencmra_cmra :> cmra;
+  (* gencmra_gen :> cmra → Prop; *)
 }.
 
 Definition generational_cmra A : Type := option (agree (A → A)) * GTS * option A.
@@ -231,7 +239,7 @@ Definition generational_cmraR (A : cmra) :=
 
 (* Ownership over generational ghost state. *)
 
-Definition own_gen `{!inG Σ (generational_cmraR A)}
+Definition gen_own `{!inG Σ (generational_cmraR A)}
     (γ : gname) (a : A) : iProp Σ :=
   own γ (None, (None, None), Some a).
 
@@ -239,25 +247,25 @@ Definition own_gen `{!inG Σ (generational_cmraR A)}
 (*     (γ : gname) (a : A) : iProp Σ := *)
 (*   own γ (None, (None, None), Some a). *)
 (* Local Definition own_gen_aux : seal (@own_gen_def). Proof. by eexists. Qed. *)
-(* Definition own_gen := own_gen_aux.(unseal). *)
-(* Global Arguments own_gen {Σ A _} γ a. *)
-(* Local Definition own_gen_eq : @own_gen = @own_gen_def := own_gen_aux.(seal_eq). *)
-(* Local Instance: Params (@own_gen) 4 := {}. *)
+(* Definition gen_own := own_gen_aux.(unseal). *)
+(* Global Arguments gen_own {Σ A _} γ a. *)
+(* Local Definition own_gen_eq : @gen_own = @own_gen_def := own_gen_aux.(seal_eq). *)
+(* Local Instance: Params (@gen_own 4 := {}. *)
 
-Definition own_tok `{!inG Σ (generational_cmraR A)} γ : iProp Σ :=
+Definition gen_token `{!inG Σ (generational_cmraR A)} γ : iProp Σ :=
   own γ ((None, GTS_tok_both, None) : generational_cmraR A).
 
-Lemma own_tok_split `{!inG Σ (generational_cmraR A)} γ :
-  own_tok γ ⊣⊢
+Lemma gen_token_split `{!inG Σ (generational_cmraR A)} γ :
+  gen_token γ ⊣⊢
   own γ (None, GTS_tok_perm, None) ∗
   own γ (None, GTS_tok_gen, None).
 Proof. rewrite -own_op. done. Qed.
 
-Definition own_pick `{!inG Σ (generational_cmraR A)} γ (f : A → A) : iProp Σ :=
+Definition gen_pick `{!inG Σ (generational_cmraR A)} γ (f : A → A) : iProp Σ :=
   own γ ((Some (to_agree f), (None, None), None) : generational_cmraR A).
 
-(* The generation function for the encoding of each ownership over generational
-camera. *)
+(* The generational transformation function for the encoding of each ownership
+over a generational camera. *)
 Definition gen_generation {A : cmra} (f : A → A)
     (e : generational_cmraR A) : generational_cmraR A :=
   match e with
@@ -267,13 +275,12 @@ Definition gen_generation {A : cmra} (f : A → A)
 Global Instance gen_generation_proper {A : cmra} (f : A → A) :
   Proper ((≡) ==> (≡)) f →
   Proper ((≡) ==> (≡)) (gen_generation f).
-Proof.
-Admitted.
-(*   solve_proper. *)
-(* Qed. *)
+Proof. intros ? [[??]?] [[??]?] [[??]?]. simpl in *. solve_proper. Qed.
 
+(* The camera in [Σ] at index [i]. *)
 Notation R Σ i := (rFunctor_apply (gFunctors_lookup Σ i) (iPropO Σ)).
 
+(* The functor [fG] respects the entries in [fs]. *)
 Definition resp {Σ} (fG : iResUR Σ → _) `{!Generation fG}
     (fs : ∀ i, gmap gname (R Σ i → R Σ i)) :=
   ∀ (m : iResUR Σ) i γ a f,
@@ -477,7 +484,7 @@ Section own_properties.
 
   Implicit Types a : A.
 
-  Lemma own_gen_alloc a : ✓ a → ⊢ |==> ∃ γ, own_gen γ a ∗ own_tok γ.
+  Lemma own_gen_alloc a : ✓ a → ⊢ |==> ∃ γ, gen_own γ a ∗ gen_token γ.
   Proof.
     intros Hv.
     iApply bupd_mono; last first.
@@ -489,10 +496,10 @@ Section own_properties.
   Qed.
 
   Lemma own_generational_update_tok γ a f `{!Proper ((≡) ==> (≡)) f} :
-    own_tok γ ∗ own_gen γ a ⊢ ⚡==> own_tok γ ∗ own_gen γ (f a) ∗ own_pick γ f.
+    gen_token γ ∗ gen_own γ a ⊢ ⚡==> gen_token γ ∗ gen_own γ (f a) ∗ gen_pick γ f.
   Proof.
     iIntros "[tok gen]".
-    iDestruct (own_tok_split with "tok") as "[tok1 tok2]".
+    iDestruct (gen_token_split with "tok") as "[tok1 tok2]".
     rewrite /gupd.
     iExists (gen_f_singleton (inG_id i) γ (cmra_map_transport inG_prf (gen_generation f))).
     iExists (own.iRes_singleton γ (None, GTS_tok_gen, None)).
@@ -508,7 +515,6 @@ Section own_properties.
       assert (rFunctor_apply (gFunctors_lookup Σ i') (iPrePropO Σ) =
                 rFunctor_apply (gFunctors_lookup Σ (inG_id i)) (iPrePropO Σ)).
       { rewrite iEq. done. }
-
       destruct iEq.
       pose proof (@inG_prf _ _ i) as eq'.
       rewrite /inG_apply in eq'.
@@ -518,7 +524,7 @@ Section own_properties.
       simpl.
       apply own.inG_fold_unfold.
     - iIntros (?? resp).
-      rewrite /own_gen.
+      rewrite /gen_own.
       iEval (rewrite own.own_eq) in "gen".
       iEval (rewrite own.own_eq) in "tok1".
       rewrite /own.own_def.
@@ -545,8 +551,8 @@ Section own_properties.
         { rewrite own.own_eq. rewrite /own.own_def. iApply "gen". }
         exists (Some (to_agree f), (None, None), None).
         done. }
-      rewrite /own_pick.
-      rewrite /own_tok.
+      rewrite /gen_pick.
+      rewrite /gen_token.
       rewrite -own_op.
       iApply own_mono; last first.
       { rewrite own.own_eq. rewrite /own.own_def. iApply "tok1". }
