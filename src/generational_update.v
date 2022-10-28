@@ -49,7 +49,7 @@ Notation "⚡={ f }=> P" := (uPred_bgupd f P)
 
 Class IntoBgupd `{M : ucmra} f `{!Generation f} (P : uPred M) (Q : uPred M) :=
   into_bgupd : P ⊢ ⚡={ f }=> Q.
-Global Arguments IntoBgupd  {_} _%I {_} _ _%I.
+Global Arguments IntoBgupd  {_} _%I {_} _%I _%I.
 Global Arguments into_bgupd {_} _%I _%I {_}.
 Global Hint Mode IntoBgupd + + + ! - : typeclass_instances.
 
@@ -158,6 +158,10 @@ Section bgupd_rules.
     FromModal True modality_bgupd (⚡={f}=> P) (⚡={f}=> P) P | 1.
   Proof. by rewrite /FromModal. Qed.
 
+  Lemma bgupd_later P :
+    ▷ (⚡={f}=> P) ⊣⊢ ⚡={f}=> (▷ P).
+  Proof. unseal. done. Qed.
+
 End bgupd_rules.
 
 Section into_bgupd.
@@ -165,6 +169,10 @@ Section into_bgupd.
 
   Global Instance into_bgupd_ownM a :
     IntoBgupd f (uPred_ownM a) (uPred_ownM (f a)) := bgupd_ownM f a.
+
+  Global Instance into_bgupd_later P P' :
+    IntoBgupd f P P' → IntoBgupd f (▷ P) (▷ P').
+  Proof. rewrite /IntoBgupd. rewrite -bgupd_later. intros ->. done. Qed.
 
 End into_bgupd.
 
