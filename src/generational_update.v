@@ -287,21 +287,29 @@ Proof. intros ? [[??]?] [[??]?] [[??]?]. simpl in *. solve_proper. Qed.
 
 (* The camera in [Σ] at index [i]. *)
 Notation R Σ i := (rFunctor_apply (gFunctors_lookup Σ i) (iPropO Σ)).
+Notation Rpre Σ i := (rFunctor_apply (gFunctors_lookup Σ i) (iPrePropO Σ)).
+
+Local Definition map_unfold {Σ} {i : gid Σ} : R Σ i -n> Rpre Σ i :=
+  rFunctor_map _ (iProp_fold, iProp_unfold).
+Local Definition map_fold {Σ} {i : gid Σ} : Rpre Σ i -n> R Σ i :=
+  rFunctor_map _ (iProp_unfold, iProp_fold).
+
+Definition fG_valid {Σ} (fG : iResUR Σ → iResUR Σ) :=
+  ∀ m i, dom (m i) =@{gset _} dom ((fG m) i).
 
 (* The functor [fG] respects the entries in [fs]. *)
-Definition resp {Σ} (fG : iResUR Σ → _) `{!Generation fG}
+Definition fG_resp {Σ} (fG : iResUR Σ → _) `{!Generation fG}
     (fs : ∀ i, gmap gname (R Σ i → R Σ i)) :=
   ∀ (m : iResUR Σ) i γ a f,
     fs i !! γ = Some f →
     m i !! γ = Some a →
-    (fG m) i !! γ =
-      Some (rFunctor_map _ (iProp_fold, iProp_unfold) (f (rFunctor_map _ (iProp_unfold, iProp_fold) a))).
+    (fG m) i !! γ = Some (map_unfold (f (map_fold a))).
 
 Lemma uPred_ownM_resp {Σ : gFunctors} fG `{!Generation fG} idx fs f γ a :
-  resp (Σ := Σ) fG fs →
+  fG_resp (Σ := Σ) fG fs →
   fs idx !! γ = Some f →
   uPred_ownM (fG (discrete_fun_singleton idx {[γ := a]})) -∗
-  uPred_ownM (discrete_fun_singleton idx {[γ := (rFunctor_map _ (iProp_fold, iProp_unfold) (f (rFunctor_map _ (iProp_unfold, iProp_fold) a)))]}).
+  uPred_ownM (discrete_fun_singleton idx {[γ := (map_unfold (f (map_fold a)))]}).
 Proof.
   intros rs look.
   eapply (rs (discrete_fun_singleton idx {[γ := a]})) in look; last first.
@@ -338,7 +346,7 @@ Proof. naive_solver. Qed.
 Lemma uPred_own_resp `{i : !inG Σ A} fG `{!Generation fG} fs (f : A → A) γ a
                      `{!Proper ((≡) ==> (≡)) f}
   :
-  resp (Σ := Σ) fG fs →
+  fG_resp (Σ := Σ) fG fs →
   fs (inG_id i) !! γ = Some (cmra_map_transport inG_prf f) →
   uPred_ownM (fG (own.iRes_singleton γ a))
   ⊢ uPred_ownM ((own.iRes_singleton γ (f a))).
@@ -386,16 +394,16 @@ Record foo Σ i := {
 }.
 
 Definition gupd {Σ} P : iProp Σ :=
-  ∃ (f : ∀ i, gmap gname (R Σ i → R Σ i))
+  ∃ (f : ∀ i, gmap gname (R Σ i → R Σ i)) (* [f] is the entries that we have picked generational transformation for. *)
     (m : iResUR Σ),
     (* ⌜ ∀ i γ A a, R Σ i = generational_cmraR A ∧ f i !! γ = Some a ⌝ ∗ *)
     (* TOOD: relate [f] to [m]. *)
     uPred_ownM m ∗
-    ⌜ (∀ i (γ : gname) (a : rFunctor_apply (gFunctors_lookup Σ i) (iPrePropO Σ)),
-        (m i) !! γ = Some a  →
+    ⌜ (∀ i (γ : gname) (a : Rpre Σ i),
+        m i !! γ = Some a  →
         ∃ (A : _)
-          (eq : generational_cmraR A = rFunctor_apply (gFunctors_lookup Σ i) (iPropO Σ)),
-             ((rFunctor_map _ (iProp_unfold, iProp_fold)) a) ≡
+          (eq : generational_cmraR A = R Σ i),
+             (map_fold a) ≡
              (cmra_transport eq (None, GTS_tok_gen, None))) ⌝ ∗
             (* match eq in (_ = r) return r with *)
             (*    eq_refl => ((rFunctor_map _ (iProp_unfold, iProp_fold)) a) *)
@@ -403,7 +411,8 @@ Definition gupd {Σ} P : iProp Σ :=
             (* Alternative using [cmra_transport] instead of a [match]. *)
             (* cmra_transport eq ((rFunctor_map _ (iProp_unfold, iProp_fold)) a) = (None, GTS_tok_gen, None)) ⌝ ∗ *)
     ∀ (fG : iResUR Σ → _) (_ : Generation fG),
-      ⌜ resp fG f ⌝ →
+      ⌜ fG_valid fG ⌝ →
+      ⌜ fG_resp fG f ⌝ →
       (* TODO: Extra constraint on [fG]. *)
       ⚡={fG}=> P.
 
@@ -415,7 +424,7 @@ Notation "⚡==> P" := (gupd P)
   (*        Some b *)
 
 Lemma iRes_singlon_lookup_inG_id `{i : !inG Σ A} (a : A) (γ γ' : gname)
-    (b : rFunctor_apply (gFunctors_lookup Σ (inG_id i)) (iPrePropO Σ)) :
+    (b : Rpre Σ (inG_id i)) :
   (own.iRes_singleton γ a) (inG_id i) !! γ' = Some b →
   γ = γ' ∧ b = own.inG_unfold (cmra_transport inG_prf a).
 Proof.
@@ -426,7 +435,7 @@ Proof.
 Qed.
 
 Lemma iRes_singleton_lookup `{i : !inG Σ A} γ γ' (a : A) i'
-    (b : rFunctor_apply (gFunctors_lookup Σ i') (iPrePropO Σ)) :
+    (b : Rpre Σ i') :
   (own.iRes_singleton γ a) i' !! γ' = Some b →
   ∃ (eq : i' = inG_id i),
     γ = γ' ∧
@@ -445,12 +454,11 @@ Proof.
   done.
 Qed.
 
-Lemma iRes_singleton_lookup_alt `{i : !inG Σ A} γ γ' (a : A) i'
-    (b : rFunctor_apply (gFunctors_lookup Σ i') (iPrePropO Σ)) :
+Lemma iRes_singleton_lookup_alt `{i : !inG Σ A} γ γ' (a : A) i' (b : Rpre Σ i') :
   (own.iRes_singleton γ a) i' !! γ' = Some b →
   ∃ (eq : inG_id i = i'),
     γ = γ' ∧
-      match eq in (_ = r) return rFunctor_apply (gFunctors_lookup Σ r) (iPrePropO Σ) with
+      match eq in (_ = r) return Rpre Σ r with
       | eq_refl => own.inG_unfold (cmra_transport inG_prf a)
       end = b.
 Proof.
@@ -504,7 +512,8 @@ Section own_properties.
   Qed.
 
   Lemma own_generational_update_tok γ a f `{!Proper ((≡) ==> (≡)) f} :
-    gen_token γ ∗ gen_own γ a ⊢ ⚡==> gen_token γ ∗ gen_own γ (f a) ∗ gen_pick γ f.
+    gen_token γ ∗ gen_own γ a ⊢ ⚡==>
+      gen_token γ ∗ gen_own γ (f a) ∗ gen_pick γ f.
   Proof.
     iIntros "[tok gen]".
     iDestruct (gen_token_split with "tok") as "[tok1 tok2]".
@@ -531,7 +540,7 @@ Section own_properties.
       rewrite -/(@own.inG_fold _ _ i).
       simpl.
       apply own.inG_fold_unfold.
-    - iIntros (?? resp).
+    - iIntros (?? val fG_resp).
       rewrite /gen_own.
       iEval (rewrite own.own_eq) in "gen".
       iEval (rewrite own.own_eq) in "tok1".
