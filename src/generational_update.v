@@ -162,6 +162,14 @@ Section bgupd_rules.
     ▷ (⚡={f}=> P) ⊣⊢ ⚡={f}=> (▷ P).
   Proof. unseal. done. Qed.
 
+  Lemma bgupd_exist {A} Ψ :
+    (⚡={f}=> (∃ a : A, Ψ a)) ⊣⊢ (∃ a : A, ⚡={f}=> Ψ a).
+  Proof. unseal. done. Qed.
+
+  Lemma bgupd_forall {A} Ψ :
+    (⚡={f}=> (∀ a : A, Ψ a)) ⊣⊢ (∀ a : A, ⚡={f}=> Ψ a).
+  Proof. unseal. done. Qed.
+
 End bgupd_rules.
 
 Section into_bgupd.
@@ -173,6 +181,24 @@ Section into_bgupd.
   Global Instance into_bgupd_later P P' :
     IntoBgupd f P P' → IntoBgupd f (▷ P) (▷ P').
   Proof. rewrite /IntoBgupd. rewrite -bgupd_later. intros ->. done. Qed.
+
+  Global Instance into_bgupd_forall {A} (Ψ Ψ' : A → _) :
+    (∀ x, IntoBgupd f (Ψ x) (Ψ' x)) → IntoBgupd f (∀ x, Ψ x) (∀ x, Ψ' x).
+  Proof.
+    rewrite /IntoBgupd bgupd_forall.
+    iIntros (H) "Hi". iIntros (?).
+    iApply H.
+    iApply "Hi".
+  Qed.
+
+  Global Instance into_bgupd_exist {A} (Ψ Ψ' : A → _) :
+    (∀ x : A, IntoBgupd f (Ψ x) (Ψ' x)) → IntoBgupd f (∃ x : A, Ψ x) (∃ x : A, Ψ' x).
+  Proof.
+    rewrite /IntoBgupd bgupd_exist.
+    iIntros (H). iIntros "(%x & Hi)". iExists x.
+    iApply H.
+    iApply "Hi".
+  Qed.
 
 End into_bgupd.
 
@@ -285,8 +311,9 @@ Global Instance gen_generation_proper {A : cmra} (f : A → A) :
   Proper ((≡) ==> (≡)) (gen_generation f).
 Proof. intros ? [[??]?] [[??]?] [[??]?]. simpl in *. solve_proper. Qed.
 
-(* The camera in [Σ] at index [i]. *)
+(* The functor in [Σ] at index [i] applied to [iProp]. *)
 Notation R Σ i := (rFunctor_apply (gFunctors_lookup Σ i) (iPropO Σ)).
+(* The functor in [Σ] at index [i] applied to [iPreProp]. *)
 Notation Rpre Σ i := (rFunctor_apply (gFunctors_lookup Σ i) (iPrePropO Σ)).
 
 Local Definition map_unfold {Σ} {i : gid Σ} : R Σ i -n> Rpre Σ i :=
@@ -344,8 +371,7 @@ Global Instance cmra_map_transport_proper {A B : cmra} (f : A → A) (Heq : A = 
 Proof. naive_solver. Qed.
 
 Lemma uPred_own_resp `{i : !inG Σ A} fG `{!Generation fG} fs (f : A → A) γ a
-                     `{!Proper ((≡) ==> (≡)) f}
-  :
+                     `{!Proper ((≡) ==> (≡)) f} :
   fG_resp (Σ := Σ) fG fs →
   fs (inG_id i) !! γ = Some (cmra_map_transport inG_prf f) →
   uPred_ownM (fG (own.iRes_singleton γ a))
