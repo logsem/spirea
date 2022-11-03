@@ -408,9 +408,9 @@ Definition picks_valid {Σ} (picks : Picks Σ) (Ω : gTransforms) :=
   ∀ i γ t, picks i !! γ = Some t →
     ∃ gt, Ω.(g_trans) i = Some gt ∧ gt.(gt_condition) t.
 
-(* Definition resp_global fG Ω : *)
-(*   ∀ i γ A g, *)
-(*     Ω i = Some2 (existT A g) → True. *)
+Lemma picks_valid_empty {Σ} Ω :
+  picks_valid (λ i : fin (gFunctors_len Σ), ∅) Ω.
+Proof. intros ???. rewrite lookup_empty. inversion 1. Qed.
 
 (* Build a global generational transformation based on the picks in [f] and the
 constraints made by [Ω]. *)
@@ -443,6 +443,7 @@ Definition fG_resp {Σ} (fG : iResUR Σ → _) Ω `{!Generation fG}
     m i !! γ = Some a → (* For every element in the old element. *)
     Ω i = Some gt → (* Where we have transformation conditions. *)
     ∃ t, (* There exists a transformation. *)
+      Proper ((≡) ==> (≡)) t ∧
       (fG m) i !! γ = Some (map_unfold (t (map_fold a))) ∧
       gt.(gt_condition) t ∧
       (∀ t', picks i !! γ = Some t' → t = t').
@@ -498,12 +499,12 @@ Lemma uPred_own_resp `{i : !genInG Σ Ω A tr} fG `{!Generation fG} picks
   uPred_ownM (fG (own.iRes_singleton γ a))
   ⊢ uPred_ownM ((own.iRes_singleton γ (f a))).
 Proof.
-  iIntros (Hres Hlook).
+  iIntros (Hresp Hlook).
   rewrite /own.iRes_singleton.
-  rewrite /fG_resp in Hres.
+  rewrite /fG_resp in Hresp.
   eassert (_) as HI.
   { eapply (
-      Hres (discrete_fun_singleton (inG_id _)
+      Hresp (discrete_fun_singleton (inG_id _)
               {[γ := own.inG_unfold (cmra_transport inG_prf a)]})
           (inG_id genInG_inG)
           γ
@@ -514,7 +515,7 @@ Proof.
       rewrite lookup_singleton.
       done.
     - apply genInG_gen_trans. }
-  destruct HI as (t & fGLook & ? & lookEq).
+  destruct HI as (t & proper & fGLook & ? & lookEq).
   apply lookEq in Hlook as ->.
   f_equiv. simpl.
   apply discrete_fun_included_spec.
@@ -531,6 +532,74 @@ Proof.
   f_equiv.
   rewrite own.inG_fold_unfold.
   rewrite cmra_map_transport_cmra_transport.
+  done.
+Qed.
+
+Lemma foobzie {A B} (eq : A = B) t a :
+  cmra_transport eq (cmra_map_transport (eq_sym eq) t a) =
+  t (cmra_transport eq a).
+Proof.
+  destruct eq.
+  simpl.
+  done.
+Qed.
+
+Lemma gt_conditions_transport {A B} (eq : generational_cmraR A = B) tr t :
+  gt_condition (gen_transport eq (lift tr)) t =
+  gt_condition (lift tr) (cmra_map_transport (eq_sym eq) t).
+Proof. destruct eq. done. Qed.
+
+Lemma uPred_own_resp_omega `{i : !genInG Σ Ω A tr} fG `{!Generation fG} picks γ
+    (a : generational_cmraR A) :
+  fG_resp (Σ := Σ) fG Ω.(g_trans) picks →
+  uPred_ownM (fG (own.iRes_singleton γ a))
+  ⊢ ∃ (t : generational_cmraR A → generational_cmraR A),
+      ⌜ gt_condition (lift tr) t ⌝ ∗
+      uPred_ownM ((own.iRes_singleton γ (t a))).
+Proof.
+  iIntros (Hresp).
+  rewrite /own.iRes_singleton.
+  rewrite /fG_resp in Hresp.
+  eassert (_) as HI.
+  { eapply (
+      Hresp (discrete_fun_singleton (inG_id _)
+              {[γ := own.inG_unfold (cmra_transport inG_prf a)]})
+          (inG_id genInG_inG)
+          γ
+          (own.inG_unfold (cmra_transport inG_prf a))
+          (gen_transport inG_prf (lift tr))
+      ).
+    - rewrite discrete_fun_lookup_singleton.
+      rewrite lookup_singleton.
+      done.
+    - apply genInG_gen_trans. }
+  destruct HI as (t & proper & fGLook & ? & lookEq).
+  set (eq_sym (@inG_prf _ _ (genInG_inG))) as eq.
+  iIntros "HR".
+  iExists (cmra_map_transport eq t).
+  iSplit.
+  { iPureIntro.
+    rewrite -gt_conditions_transport.
+    assumption. }
+  iStopProof.
+  f_equiv.
+  simpl.
+  apply discrete_fun_included_spec.
+  intros idx'.
+
+  destruct (decide ((inG_id genInG_inG) = idx')) as [<-|neq]; last first.
+  { rewrite discrete_fun_lookup_singleton_ne; try done.
+    apply ucmra_unit_least. }
+  rewrite discrete_fun_lookup_singleton.
+  apply singleton_included_l.
+  eexists _.
+  split; last done.
+  rewrite fGLook.
+  f_equiv.
+  f_equiv.
+  rewrite foobzie.
+  rewrite /map_fold -/own.inG_fold.
+  rewrite own.inG_fold_unfold.
   done.
 Qed.
 
@@ -767,29 +836,44 @@ Section own_properties.
     reflexivity.
   Qed.
 
-  Lemma own_generational_update γ a (f : A → A) `{!Proper ((≡) ==> (≡)) f} :
-    gen_own γ a ⊢ ⚡==> ∃ f, gen_own γ (f a) ∗ gen_pick γ f.
+  Lemma own_generational_update γ a :
+    gen_own γ a ⊢
+      ⚡==> ∃ t, ⌜ transA.(gt_condition) t ⌝ ∗ gen_own γ (t a) ∗ gen_pick γ t.
   Proof.
     iIntros "own".
     rewrite /gupd.
-    iExists (λ i, ∅).
-    iExists ε.
+    (* We don't (and can't) pick anything so we give the empty map of picks. *)
+    iExists (λ i, ∅), ε.
     rewrite ownM_unit'.
     rewrite left_id.
+    iSplit.
+    { iPureIntro. apply picks_valid_empty. }
+    iSplit.
+    { iPureIntro. intros ?.
+      rewrite discrete_fun_lookup_empty. rewrite 2!dom_empty.
+      done. }
     iSplit.
     { iPureIntro.
       intros ???.
       rewrite discrete_fun_lookup_empty.
-      rewrite lookup_empty.
-      intros [=]. }
-    iIntros (fG ? val resp).
+      inversion 1. }
+    iIntros (fG ? resp).
 
     rewrite /gen_own.
     iEval (rewrite own.own_eq) in "own".
     rewrite /own.own_def.
     iModIntro.
-
+    iDestruct (uPred_own_resp_omega _ _ with "own") as (to) "(%cond & own)".
+    { done. }
+    simpl in cond.
+    destruct cond as (t & -> & cond).
+    iExists t.
+    iSplit; first done.
+    simpl.
+    rewrite /gen_pick.
+    rewrite -own_op.
+    rewrite own.own_eq.
+    iFrame "own".
   Qed.
-
 
 End own_properties.
