@@ -6,10 +6,11 @@ From iris.prelude Require Import options.
 From self Require Import extra.
 Import uPred.
 
-(* The properties that the "generation", i.e., the function that transforms the
-ghost state, needs to satisfy. Note that this is the "global" generation that
-applies to the single unital camera. *)
-Class Generation {M : ucmra} (f : M → M) := {
+(* The properties that a generational transformation (GT), i.e., the function
+that transforms the ghost state into a new generation, needs to satisfy. Note
+that this class is used both for the "global" GT that applies to the single
+unital camera and to individual GTs for a specific camera. *)
+Class GenTrans {M : cmra} (f : M → M) := {
     generation_ne :> NonExpansive f;
     (* The function should be monotone with respect to the inclusion order of
     the monoid. *)
@@ -17,11 +18,12 @@ Class Generation {M : ucmra} (f : M → M) := {
     (* Validity is preserved. *)
     generation_valid : ∀ n (a : M), ✓{n} a → ✓{n} (f a);
     (* The generation comutes with the core. *)
-    generation_core : ∀ (a : M), f (core a) = core (f a);
-    generation_op : ∀ n (a b : M), ✓{n} (a ⋅ b) → f (a ⋅ b) = f a ⋅ f b
+    generation_core : ∀ (a : M) pa,
+      pcore a = Some pa → Some (f pa) ≡ pcore (f a);
+    generation_op : ∀ n (a b : M), ✓{n} (a ⋅ b) → f (a ⋅ b) ≡ f a ⋅ f b
 }.
 
-Lemma generation_monoN {M : ucmra} (f : M → M) `{!Generation f} n x y :
+Lemma generation_monoN {M : ucmra} (f : M → M) `{!GenTrans f} n x y :
   x ≼{n} y → f x ≼{n} f y.
 Proof.
   intros [z ->].
@@ -34,14 +36,14 @@ this way. *)
 Local Coercion uPred_holds : uPred >-> Funclass.
 
 Local Program Definition uPred_bgupd_def {M : ucmra}
-  (f : M → M) `{!Generation f} (P : uPred M) : uPred M :=
+  (f : M → M) `{!GenTrans f} (P : uPred M) : uPred M :=
   {| uPred_holds n x := P n (f x) |}.
 Next Obligation. naive_solver eauto using uPred_mono, generation_monoN. Qed.
 
 Local Definition uPred_bgupd_aux : seal (@uPred_bgupd_def).
 Proof. by eexists. Qed.
 
-Definition uPred_bgupd {M : ucmra} f `{g : !Generation f} := uPred_bgupd_aux.(unseal) M f g.
+Definition uPred_bgupd {M : ucmra} f `{g : !GenTrans f} := uPred_bgupd_aux.(unseal) M f g.
 
 Local Definition uPred_bgupd_unseal :
   @uPred_bgupd = @uPred_bgupd_def := uPred_bgupd_aux.(seal_eq).
@@ -49,18 +51,18 @@ Local Definition uPred_bgupd_unseal :
 Notation "⚡={ f }=> P" := (uPred_bgupd f P)
   (at level 99, f at level 50, P at level 200, format "⚡={ f }=>  P") : bi_scope.
 
-Class IntoBgupd `{M : ucmra} f `{!Generation f} (P : uPred M) (Q : uPred M) :=
+Class IntoBgupd `{M : ucmra} f `{!GenTrans f} (P : uPred M) (Q : uPred M) :=
   into_bgupd : P ⊢ ⚡={ f }=> Q.
 Global Arguments IntoBgupd  {_} _%I {_} _%I _%I.
 Global Arguments into_bgupd {_} _%I _%I {_}.
 Global Hint Mode IntoBgupd + + + ! - : typeclass_instances.
 
 Section bgupd_rules.
-
-  Context {M : ucmra} (f : M → M) `{!Generation f}.
+  Context {M : ucmra} (f : M → M) `{!GenTrans f}.
 
   Notation "P ⊢ Q" := (@uPred_entails M P%I Q%I) : stdpp_scope.
-  (* Notation "(⊢)" := (@uPred_entails M) (only parsing) : stdpp_scope. *)
+  Notation "⊢ Q" := (bi_entails (PROP:=uPredI M) True Q).
+  Notation "(⊢)" := (@uPred_entails M) (only parsing) : stdpp_scope.
 
   Local Arguments uPred_holds {_} !_ _ _ /.
   (* Local Hint Immediate uPred_in_entails : core. *)
@@ -128,7 +130,12 @@ Section bgupd_rules.
     <pers> (⚡={f}=> P) ⊢ ⚡={f}=> (<pers> P).
   Proof.
     unseal. split. simpl. intros ???.
-    rewrite generation_core. done.
+    pose proof (generation_core x (core x)) as eq.
+    rewrite 2!cmra_pcore_core in eq.
+    specialize (eq eq_refl).
+    apply Some_equiv_inj in eq.
+    rewrite eq.
+    done.
   Qed.
 
   Global Instance bgupd_mono' :
@@ -172,10 +179,21 @@ Section bgupd_rules.
     (⚡={f}=> (∀ a : A, Ψ a)) ⊣⊢ (∀ a : A, ⚡={f}=> Ψ a).
   Proof. unseal. done. Qed.
 
+  Lemma bgupd_plain P `{!Plain P} :
+    (⚡={f}=> P) ⊢ P.
+  Proof. rewrite {1}(plain P). apply bgupd_plainly. Qed.
+
 End bgupd_rules.
 
+Lemma bgupd_plain_soundness {M : ucmra} f `{!GenTrans f} (P : uPred M) `{!Plain P} :
+  (⊢ ⚡={f}=> P) → ⊢ P.
+Proof.
+  eapply bi_emp_valid_mono. etrans; last exact: bgupd_plainly.
+  apply bgupd_mono'. apply: plain.
+Qed.
+
 Section into_bgupd.
-  Context {M : ucmra} (f : M → M) `{!Generation f}.
+  Context {M : ucmra} (f : M → M) `{!GenTrans f}.
 
   Global Instance into_bgupd_ownM a :
     IntoBgupd f (uPred_ownM a) (uPred_ownM (f a)) := bgupd_ownM f a.
@@ -244,7 +262,7 @@ Proof. eexists ExclBot'. destruct a; done. Qed.
 Lemma excl'_bot_top_top {A : ofe} (a : excl' A) : ExclBot' ≼ a → a ≡ ExclBot'.
 Proof. intros [[|] E]; apply E. Qed.
 
-Instance GTS_floor_generation : Generation GTS_floor.
+Global Instance GTS_floor_generation : GenTrans GTS_floor.
 Proof.
   split.
   - intros ???.
@@ -258,9 +276,9 @@ Proof.
       inversion H0.
       inversion H3.
   - intros ? [[[[]|]|] [[[]|]|]]; cbv; try naive_solver.
-  - intros [[[[]|]|] [[[]|]|]]; simpl; cbv; try done; try naive_solver.
+  - intros [[[[]|]|] [[[]|]|]]; intros [[[[]|]|] [[[]|]|]]; done.
   - intros ?.
-    do 2 intros [[[[]|]|] [[[]|]|]]; simpl; cbv; try done; try naive_solver.
+    do 2 intros [[[[]|]|] [[[]|]|]]; simpl; intros [??]; done.
 Qed.
 
 Record GenerationalCmra := {
@@ -300,18 +318,90 @@ Proof. rewrite -own_op. done. Qed.
 Definition gen_pick `{!inG Σ (generational_cmraR A)} γ (f : A → A) : iProp Σ :=
   own γ ((Some (to_agree f), (None, None), None) : generational_cmraR A).
 
+Global Instance gen_trans_prod_map {A B : cmra} (f : A → A) (g : B → B) :
+  GenTrans f → GenTrans g → GenTrans (prod_map f g).
+Proof.
+  split; first apply _.
+  - intros [??] [??] [??]%prod_included. rewrite /prod_map.
+    apply prod_included; simpl; split;
+      apply generation_mono; done.
+  - intros ? [??] [??]. split; simpl; apply generation_valid; done.
+  - intros [??] [??]. simpl.
+    rewrite 2!pair_pcore.
+    destruct (pcore c) eqn:cEq; destruct (pcore c0) eqn:eq2; try done.
+    simpl. intros [= -> ->].
+    pose proof (generation_core c c1 cEq) as hh1.
+    pose proof (generation_core c0 c2 eq2) as hh2.
+    admit.
+    (* rewrite -hh. *)
+    (* setoid_rewrite <- (generation_core c c1). //. *)
+    (* rewrite -(generation_core c0 c2) //. *)
+  - intros ? [??] [??] [??]. simpl in *.
+    do 2 rewrite (generation_op n) //.
+Admitted.
+
+Definition gen_generation_first {A : cmra} (f : A → A) :
+  prodR (optionR (agreeR (leibnizO (A → A)))) GTSR →
+  prodR (optionR (agreeR (leibnizO (A → A)))) GTSR
+  := prod_map
+       (const (Some (to_agree f)) : optionR (agreeR (leibnizO (A → A))) → optionR (agreeR (leibnizO (A → A))))
+       (GTS_floor : GTSR → GTSR).
+
 (* The generational transformation function for the encoding of each ownership
 over a generational camera. *)
-Definition gen_generation {A : cmra} (f : A → A)
-    (e : generational_cmraR A) : generational_cmraR A :=
-  match e with
-  | (_, tok, ma) => (Some (to_agree f), GTS_floor tok, f <$> ma)
-  end.
+Definition gen_generation {A : cmra}
+    (f : A → A) : generational_cmraR A → generational_cmraR A :=
+  prod_map (gen_generation_first f) (fmap f : optionR A → optionR A).
+  (* match e with *)
+  (* | (_, tok, ma) => (Some (to_agree f), GTS_floor tok, f <$> ma) *)
+  (* end. *)
+
+Global Instance gen_trans_fmap {A : cmra} (f : A → A)
+  `{!Proper (equiv ==> equiv) f} :
+  GenTrans f → GenTrans (fmap f : optionR A → optionR A).
+Proof.
+  split; first apply _.
+  - intros. apply option_fmap_mono; try done. apply generation_mono.
+  - intros ? [?|]; last done. simpl.
+    rewrite 2!Some_validN.
+    apply generation_valid.
+  - intros [?|] [?|] ?; simpl; try done.
+    * rewrite (generation_core _ c0) //.
+      2: { inversion H0. done. }
+      done.
+    *
+      inversion H0.
+      rewrite (generation_core _ c) //.
+  -
+Admitted.
+
+Global Instance gen_trans_const {A : ofe} (a : A) :
+  GenTrans (const (Some (to_agree a))).
+Proof.
+  split; first apply _.
+  - done.
+  - intros ???. simpl. apply Some_validN.
+    apply cmra_valid_validN.
+    done.
+  - intros. simpl. rewrite (core_id). done.
+  - intros ????. simpl.
+    rewrite -Some_op.
+    rewrite agree_idemp.
+    done.
+Qed.
+
+Global Instance gen_generation_gen_trans {A : cmra} (f : A → A) :
+  GenTrans f → GenTrans (gen_generation f).
+Proof. apply _. Qed.
 
 Global Instance gen_generation_proper {A : cmra} (f : A → A) :
   Proper ((≡) ==> (≡)) f →
   Proper ((≡) ==> (≡)) (gen_generation f).
-Proof. intros ? [[??]?] [[??]?] [[??]?]. simpl in *. solve_proper. Qed.
+Proof.
+  intros ? [[??]?] [[??]?] [[??]?]. simpl in *.
+  rewrite /gen_generation /gen_generation_first /bongo.
+  solve_proper.
+Qed.
 
 (* The functor in [Σ] at index [i] applied to [iProp]. *)
 Notation R Σ i := (rFunctor_apply (gFunctors_lookup Σ i) (iPropO Σ)).
@@ -354,11 +444,14 @@ Record gen_trans (A : cmra) := {
   gt_inhabited : A → A;
   (* The witness satisfied the conditions. *)
   gt_inhabited_condition : gt_condition (gt_inhabited);
+  gt_inhabited_gen_trans : GenTrans (gt_inhabited);
 }.
 
 Arguments gt_condition {_} _.
 Arguments gt_inhabited {_}.
 Arguments gt_inhabited_condition {_}.
+
+Existing Instance gt_inhabited_gen_trans.
 
 Program Definition lift {A} (g : gen_trans A) :
   gen_trans (generational_cmraR A) := {|
@@ -371,12 +464,6 @@ Next Obligation.
   eexists _. split; first done.
   apply g.(gt_inhabited_condition).
 Qed.
-
-(* Define our own option to avoid universe issues. *)
-Inductive option2 (A : Type) := None2 | Some2 : A → option2 A.
-
-Arguments None2 {_}.
-Arguments Some2 {_} _.
 
 Class gTransforms {Σ : gFunctors} := {
   g_trans : ∀ (i : gid Σ), option (gen_trans (R Σ i))
@@ -403,41 +490,22 @@ Existing Instance genInG_inG.
 the entries that we have picked generational transformation for. *)
 Definition Picks Σ : Type := ∀ i, gmap gname (R Σ i → R Σ i).
 
+(** Every pick in [picks] is a valid generational transformation. *)
+Definition picks_gen_trans {Σ} (picks : Picks Σ) :=
+  ∀ i γ t, picks i !! γ = Some t → GenTrans t.
+
 (* Every pick in [picks] satisfies the conditions for that cmra in [Ω]. *)
-Definition picks_valid {Σ} (picks : Picks Σ) (Ω : gTransforms) :=
+Definition picks_satisfy_cond {Σ} (Ω : gTransforms) (picks : Picks Σ) :=
   ∀ i γ t, picks i !! γ = Some t →
     ∃ gt, Ω.(g_trans) i = Some gt ∧ gt.(gt_condition) t.
 
 Lemma picks_valid_empty {Σ} Ω :
-  picks_valid (λ i : fin (gFunctors_len Σ), ∅) Ω.
+  picks_satisfy_cond Ω (λ i : fin (gFunctors_len Σ), ∅).
 Proof. intros ???. rewrite lookup_empty. inversion 1. Qed.
-
-(* Build a global generational transformation based on the picks in [f] and the
-constraints made by [Ω]. *)
-Definition build_trans {Σ} (Ω : @gTransforms Σ) (picks : Picks Σ) :
-    (iResUR Σ → iResUR Σ) :=
-  λ (m : iResUR Σ) (i : gid Σ),
-    map_imap (λ γ a,
-      (* 1/ Lookup in the partial map of picks. *)
-      (* 2/ Lookup in omega and pick the inhabited witness. *)
-      (* 3/ Else, return none. *)
-      match picks i !! γ with
-      | Some fl => Some $ map_unfold $ fl $ map_fold a
-      | None =>
-          match Ω.(g_trans) i with
-          | None => None
-          | Some gt =>
-              Some $ map_unfold $ gt.(gt_inhabited) $ map_fold a
-          end
-      end
-    ) (m i).
-
-Definition fG_valid {Σ} (fG : iResUR Σ → iResUR Σ) :=
-  ∀ m i, dom (m i) =@{gset _} dom ((fG m) i).
 
 (* The functor [fG] respects the conditions in [Ω] and the entries in
 [picks]. *)
-Definition fG_resp {Σ} (fG : iResUR Σ → _) Ω `{!Generation fG}
+Definition fG_resp {Σ} (fG : iResUR Σ → _) Ω `{!GenTrans fG}
     (picks : Picks Σ) :=
   ∀ (m : iResUR Σ) i γ a gt,
     m i !! γ = Some a → (* For every element in the old element. *)
@@ -450,7 +518,7 @@ Definition fG_resp {Σ} (fG : iResUR Σ → _) Ω `{!Generation fG}
 
 Definition gupd {Σ : gFunctors} {Ω : gTransforms} P : iProp Σ :=
   ∃ (picks : Picks Σ) (m : iResUR Σ),
-    ⌜ picks_valid picks Ω ⌝ ∗
+    ⌜ picks_satisfy_cond Ω picks ⌝ ∗ ⌜ picks_gen_trans picks ⌝ ∗
     uPred_ownM m ∗
     ⌜ ∀ i, dom (picks i) ≡ dom (m i) ⌝ ∗
     ⌜ (∀ i (γ : gname) (a : Rpre Σ i),
@@ -458,7 +526,7 @@ Definition gupd {Σ : gFunctors} {Ω : gTransforms} P : iProp Σ :=
         ∃ (A : _) (eq : generational_cmraR A = R Σ i),
           (map_fold a) ≡
           (cmra_transport eq (None, GTS_tok_gen, None))) ⌝ ∗
-    ∀ (fG : iResUR Σ → _) (_ : Generation fG),
+    ∀ (fG : iResUR Σ → _) (_ : GenTrans fG),
       ⌜ fG_resp fG Ω.(g_trans) picks ⌝ →
       ⚡={fG}=> P.
 
@@ -466,7 +534,7 @@ Notation "⚡==> P" := (gupd P)
   (at level 99, P at level 200, format "⚡==>  P") : bi_scope.
 
 (*
-Lemma uPred_ownM_resp {Σ : gFunctors} fG `{!Generation fG} idx Ω picks t γ a :
+Lemma uPred_ownM_resp {Σ : gFunctors} fG `{!GenTrans fG} idx Ω picks t γ a :
   fG_resp (Σ := Σ) fG Ω picks →
   picks idx !! γ = Some t →
   uPred_ownM (fG (discrete_fun_singleton idx {[γ := a]})) -∗
@@ -492,7 +560,7 @@ Proof.
 Qed.
 *)
 
-Lemma uPred_own_resp `{i : !genInG Σ Ω A tr} fG `{!Generation fG} picks
+Lemma uPred_own_resp `{i : !genInG Σ Ω A tr} fG `{!GenTrans fG} picks
   (f : generational_cmraR A → _) γ a `{!Proper ((≡) ==> (≡)) f} :
   fG_resp (Σ := Σ) fG Ω.(g_trans) picks →
   picks (inG_id _) !! γ = Some (cmra_map_transport inG_prf f) →
@@ -535,21 +603,17 @@ Proof.
   done.
 Qed.
 
-Lemma foobzie {A B} (eq : A = B) t a :
+Lemma cmra_transport_map_transport {A B} (eq : A = B) t a :
   cmra_transport eq (cmra_map_transport (eq_sym eq) t a) =
   t (cmra_transport eq a).
-Proof.
-  destruct eq.
-  simpl.
-  done.
-Qed.
+Proof. destruct eq. simpl. done. Qed.
 
 Lemma gt_conditions_transport {A B} (eq : generational_cmraR A = B) tr t :
   gt_condition (gen_transport eq (lift tr)) t =
   gt_condition (lift tr) (cmra_map_transport (eq_sym eq) t).
 Proof. destruct eq. done. Qed.
 
-Lemma uPred_own_resp_omega `{i : !genInG Σ Ω A tr} fG `{!Generation fG} picks γ
+Lemma uPred_own_resp_omega `{i : !genInG Σ Ω A tr} fG `{!GenTrans fG} picks γ
     (a : generational_cmraR A) :
   fG_resp (Σ := Σ) fG Ω.(g_trans) picks →
   uPred_ownM (fG (own.iRes_singleton γ a))
@@ -597,7 +661,7 @@ Proof.
   rewrite fGLook.
   f_equiv.
   f_equiv.
-  rewrite foobzie.
+  rewrite cmra_transport_map_transport.
   rewrite /map_fold -/own.inG_fold.
   rewrite own.inG_fold_unfold.
   done.
@@ -731,6 +795,52 @@ Proof.
   - rewrite pick_singleton_dom_index_neq //.
     rewrite discrete_fun_lookup_singleton_ne //.
 Qed.
+
+(* Build a global generational transformation based on the picks in [f] and the
+constraints made by [Ω]. *)
+Definition build_trans {Σ} (Ω : @gTransforms Σ) (picks : Picks Σ) :
+    (iResUR Σ → iResUR Σ) :=
+  λ (m : iResUR Σ) (i : gid Σ),
+    map_imap (λ γ a,
+      (* 1/ Lookup in the partial map of picks. *)
+      (* 2/ Lookup in omega and pick the inhabited witness. *)
+      (* 3/ Else, return none. *)
+      match picks i !! γ with
+      | Some fl => Some $ map_unfold $ fl $ map_fold a
+      | None =>
+          match Ω.(g_trans) i with
+          | None => None
+          | Some gt =>
+              Some $ map_unfold $ gt.(gt_inhabited) $ map_fold a
+          end
+      end
+    ) (m i).
+
+Section build_trans.
+  Context {Σ : gFunctors}.
+  Implicit Types (picks : Picks Σ).
+
+  Global Instance build_trans_generation Ω picks :
+    picks_gen_trans picks →
+    GenTrans (build_trans Ω picks).
+  Proof.
+    split.
+    - rewrite /Proper.
+      intros ??? eq i γ.
+      rewrite /build_trans.
+      rewrite 2!map_lookup_imap.
+      specialize (eq i γ).
+      destruct eq as [?? eq|]; simpl; last done.
+    -
+
+  Admitted.
+
+  Lemma build_trans_resp Ω picks :
+    fG_resp (build_trans Ω picks) Ω.(g_trans) picks.
+  Proof.
+  Admitted.
+
+End build_trans.
 
 (* (** * Properties about generational ghost ownership. *) *)
 Section own_properties.
@@ -874,6 +984,19 @@ Section own_properties.
     rewrite -own_op.
     rewrite own.own_eq.
     iFrame "own".
+  Qed.
+
+  Lemma gupd_plain_soundness P `{!Plain P} :
+    (⊢ ⚡==> P) → ⊢ P.
+  Proof.
+    rewrite /gupd.
+    intros HP.
+    iDestruct HP as (picks m val) "(m & %domEq & ? & HP)".
+    clear HP.
+    set (fG := (build_trans Ω picks)).
+    rewrite <- (bgupd_plain fG P).
+    iApply ("HP" $!  _ with "[%]").
+    apply build_trans_resp.
   Qed.
 
 End own_properties.
