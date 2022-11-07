@@ -120,9 +120,8 @@ Section bgupd_rules.
     intros ? ? ?.
     intros (a & b & eq & Hp & Hq).
     exists (f a), (f b).
-    rewrite -(generation_op _ n a b).
-    - rewrite eq. done.
-    - rewrite -eq. done.
+    rewrite -(generation_op _ a b).
+    rewrite eq. done.
   Qed.
 
   Lemma bgupd_intro_plain P :
@@ -266,14 +265,11 @@ Definition GTS_tok_both : GTS := (Excl' (), Excl' ()).
 
 Definition GTS_floor (a : GTS) : GTS :=
   match a with
-  | (_, ExclBot') => (ExclBot', ExclBot')
-  | (ExclBot', _) => (ExclBot', ExclBot')
-  | (None, None) => (None, None)
-  (* The per-generation token is lost. *)
-  | (None, Excl' ()) => (None, None)
   (* The cross-generation permanent token is preserved and also produces the
   per-generation token. *)
   | (Excl' (), _) => (Excl' (), Excl' ())
+  | (None, _) => (None, None)
+  | (ExclBot', _) => (ExclBot', ExclBot')
   end.
 
 Lemma excl_bot_top {A : ofe} (a : excl A) : a ≼ ExclBot.
@@ -291,17 +287,9 @@ Proof.
   - intros ???.
     rewrite -discrete_iff.
     naive_solver.
-  - do 2 intros [[[[]|]|] [[[]|]|]]; simpl; try done;
-      rewrite 2!prod_included; simpl; try naive_solver;
-      try (rewrite !option_included; naive_solver).
-    * intros. split; apply excl'_bot_top.
-    * intros [? ?%excl'_bot_top_top].
-      inversion H0.
-      inversion H3.
   - intros ? [[[[]|]|] [[[]|]|]]; cbv; try naive_solver.
   - intros [[[[]|]|] [[[]|]|]]; done.
-  - intros ?.
-    do 2 intros [[[[]|]|] [[[]|]|]]; simpl; intros [??]; done.
+  - do 2 intros [[[[]|]|] [[[]|]|]]; try done.
 Qed.
 
 Record GenerationalCmra := {
