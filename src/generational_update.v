@@ -18,10 +18,26 @@ Class GenTrans {M : cmra} (f : M → M) := {
     (* Validity is preserved. *)
     generation_valid : ∀ n (a : M), ✓{n} a → ✓{n} (f a);
     (* The generation comutes with the core. *)
-    generation_core : ∀ (a : M) pa,
-      pcore a = Some pa → Some (f pa) ≡ pcore (f a);
+    (* generation_core_some : ∀ (a : M) pa, *)
+    (*   pcore a = Some pa → Some (f pa) ≡ pcore (f a); *)
+    generation_pcore x : f <$> pcore x ≡ pcore (f x);
     generation_op : ∀ n (a b : M), ✓{n} (a ⋅ b) → f (a ⋅ b) ≡ f a ⋅ f b
 }.
+
+Global Instance gen_trans_proper {A : cmra} (f : A → A) :
+  GenTrans f → Proper ((≡) ==> (≡)) f.
+Proof. intros ?. apply: ne_proper. Qed.
+
+Global Arguments generation_op {_} _ {_} _ _.
+
+Global Instance gen_trans_cmra_morphism {A : cmra} (f : A → A) :
+  GenTrans f → CmraMorphism f.
+Proof.
+  split.
+  - apply generation_ne.
+  - apply generation_valid.
+  - apply generation_pcore.
+  - Abort.
 
 Lemma generation_monoN {M : ucmra} (f : M → M) `{!GenTrans f} n x y :
   x ≼{n} y → f x ≼{n} f y.
@@ -96,7 +112,7 @@ Section bgupd_rules.
     intros ? ? ?.
     intros (a & b & eq & Hp & Hq).
     exists (f a), (f b).
-    rewrite -(generation_op n a b).
+    rewrite -(generation_op _ n a b).
     - rewrite eq. done.
     - rewrite -eq. done.
   Qed.
@@ -130,9 +146,8 @@ Section bgupd_rules.
     <pers> (⚡={f}=> P) ⊢ ⚡={f}=> (<pers> P).
   Proof.
     unseal. split. simpl. intros ???.
-    pose proof (generation_core x (core x)) as eq.
+    pose proof (generation_pcore x) as eq.
     rewrite 2!cmra_pcore_core in eq.
-    specialize (eq eq_refl).
     apply Some_equiv_inj in eq.
     rewrite eq.
     done.
@@ -276,7 +291,7 @@ Proof.
       inversion H0.
       inversion H3.
   - intros ? [[[[]|]|] [[[]|]|]]; cbv; try naive_solver.
-  - intros [[[[]|]|] [[[]|]|]]; intros [[[[]|]|] [[[]|]|]]; done.
+  - intros [[[[]|]|] [[[]|]|]]; done.
   - intros ?.
     do 2 intros [[[[]|]|] [[[]|]|]]; simpl; intros [??]; done.
 Qed.
@@ -326,19 +341,16 @@ Proof.
     apply prod_included; simpl; split;
       apply generation_mono; done.
   - intros ? [??] [??]. split; simpl; apply generation_valid; done.
-  - intros [??] [??]. simpl.
-    rewrite 2!pair_pcore.
-    destruct (pcore c) eqn:cEq; destruct (pcore c0) eqn:eq2; try done.
-    simpl. intros [= -> ->].
-    pose proof (generation_core c c1 cEq) as hh1.
-    pose proof (generation_core c0 c2 eq2) as hh2.
-    admit.
-    (* rewrite -hh. *)
-    (* setoid_rewrite <- (generation_core c c1). //. *)
-    (* rewrite -(generation_core c0 c2) //. *)
+  - intros x. etrans; last apply (reflexivity (mbind _ _)).
+    etrans; first apply (reflexivity (_ <$> mbind _ _)). simpl.
+    assert (Hf := generation_pcore (x.1)).
+    destruct (pcore (f (x.1))), (pcore (x.1)); inversion_clear Hf=>//=.
+    assert (Hg := generation_pcore (x.2)).
+    destruct (pcore (g (x.2))), (pcore (x.2)); inversion_clear Hg=>//=.
+    by setoid_subst.
   - intros ? [??] [??] [??]. simpl in *.
-    do 2 rewrite (generation_op n) //.
-Admitted.
+    do 2 rewrite (generation_op _ n) //.
+Qed.
 
 Definition gen_generation_first {A : cmra} (f : A → A) :
   prodR (optionR (agreeR (leibnizO (A → A)))) GTSR →
@@ -356,24 +368,19 @@ Definition gen_generation {A : cmra}
   (* | (_, tok, ma) => (Some (to_agree f), GTS_floor tok, f <$> ma) *)
   (* end. *)
 
-Global Instance gen_trans_fmap {A : cmra} (f : A → A)
-  `{!Proper (equiv ==> equiv) f} :
+Global Instance gen_trans_fmap {A : cmra} (f : A → A) :
   GenTrans f → GenTrans (fmap f : optionR A → optionR A).
 Proof.
   split; first apply _.
-  - intros. apply option_fmap_mono; try done. apply generation_mono.
+  - intros. apply: option_fmap_mono; try done. apply generation_mono.
   - intros ? [?|]; last done. simpl.
     rewrite 2!Some_validN.
     apply generation_valid.
-  - intros [?|] [?|] ?; simpl; try done.
-    * rewrite (generation_core _ c0) //.
-      2: { inversion H0. done. }
-      done.
-    *
-      inversion H0.
-      rewrite (generation_core _ c) //.
-  -
-Admitted.
+  - move=> [a|] //. apply Some_proper, generation_pcore.
+  - move=> ? [a|] [b|] val //=.
+    rewrite (generation_op f) //.
+    apply val.
+Qed.
 
 Global Instance gen_trans_const {A : ofe} (a : A) :
   GenTrans (const (Some (to_agree a))).
@@ -390,16 +397,24 @@ Proof.
     done.
 Qed.
 
-Global Instance gen_generation_gen_trans {A : cmra} (f : A → A) :
+Global Instance gen_generation_gen_trans {A : cmra} (f : A → A)
+  `{!Proper (equiv ==> equiv) f} :
   GenTrans f → GenTrans (gen_generation f).
-Proof. apply _. Qed.
+Proof.
+  apply _.
+  (* rewrite /gen_generation. *)
+  (* intros ?. *)
+  (* apply gen_trans_prod_map; try apply _. *)
+  (* apply gen_trans_fmap; try apply _. *)
+  (* apply _. *)
+Qed.
 
 Global Instance gen_generation_proper {A : cmra} (f : A → A) :
   Proper ((≡) ==> (≡)) f →
   Proper ((≡) ==> (≡)) (gen_generation f).
 Proof.
   intros ? [[??]?] [[??]?] [[??]?]. simpl in *.
-  rewrite /gen_generation /gen_generation_first /bongo.
+  rewrite /gen_generation /gen_generation_first.
   solve_proper.
 Qed.
 
