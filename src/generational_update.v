@@ -513,8 +513,7 @@ Proof. intros ???. rewrite lookup_empty. inversion 1. Qed.
 
 (* The functor [fG] respects the conditions in [Ω] and the entries in
 [picks]. *)
-Definition fG_resp {Σ} (fG : iResUR Σ → _) Ω `{!GenTrans fG}
-    (picks : Picks Σ) :=
+Definition fG_resp {Σ} (fG : iResUR Σ → iResUR Σ) Ω(picks : Picks Σ) :=
   ∀ (m : iResUR Σ) i γ a gt,
     m i !! γ = Some a → (* For every element in the old element. *)
     Ω i = Some gt → (* Where we have transformation conditions. *)
@@ -828,25 +827,121 @@ Section build_trans.
   Context {Σ : gFunctors}.
   Implicit Types (picks : Picks Σ).
 
-  Global Instance build_trans_generation Ω picks :
-    picks_gen_trans picks →
-    GenTrans (build_trans Ω picks).
+  Lemma core_Some_pcore {A : cmra} (a : A) : core (Some a) = pcore a.
+  Proof. done. Qed.
+
+  Lemma build_trans_generation Ω picks :
+    picks_gen_trans picks → GenTrans (build_trans Ω picks).
   Proof.
+    (* NOTE: this proof is _very_ brute-forcey. One could try and shorten it. *)
+    intros picksGT.
+    rewrite /build_trans.
     split.
     - rewrite /Proper.
       intros ??? eq i γ.
-      rewrite /build_trans.
       rewrite 2!map_lookup_imap.
       specialize (eq i γ).
-      destruct eq as [?? eq|]; simpl; last done.
-    -
-
-  Admitted.
+      destruct eq as [a b eq|]; simpl; last done.
+      destruct (picks i !! γ) eqn:look.
+      * apply picksGT in look. solve_proper.
+      * solve_proper.
+    - intros ?? Hval.
+      intros i γ.
+      rewrite !map_lookup_imap. simpl.
+      specialize (Hval i γ).
+      destruct (a i !! γ) eqn:eq; rewrite eq /=; last done.
+      rewrite eq in Hval.
+      destruct (picks i !! γ) as [pick|] eqn:eq2.
+      * apply Some_validN.
+        apply: cmra_morphism_validN.
+        apply Some_validN.
+        specialize (picksGT i γ pick eq2) as ?.
+        apply generation_valid.
+        apply: cmra_morphism_validN.
+        apply Hval.
+      * destruct (g_trans i); last done.
+        apply Some_validN.
+        apply: cmra_morphism_validN.
+        apply generation_valid.
+        apply: cmra_morphism_validN.
+        apply Hval.
+    - move=> m /=.
+      rewrite cmra_pcore_core.
+      simpl.
+      f_equiv.
+      intros i γ.
+      rewrite lookup_core.
+      rewrite 2!map_lookup_imap.
+      rewrite lookup_core.
+      destruct (m i !! γ) as [a|] eqn:look; rewrite look; simpl; last done.
+      simpl.
+      rewrite core_Some_pcore.
+      destruct (picks i !! γ) as [pick|] eqn:pickLook; simpl.
+      * rewrite core_Some_pcore.
+        rewrite -cmra_morphism_pcore.
+        specialize (picksGT i γ pick pickLook) as ?.
+        rewrite -generation_pcore.
+        rewrite -cmra_morphism_pcore.
+        destruct (pcore a); done.
+      * destruct (g_trans i).
+        + rewrite core_Some_pcore.
+          rewrite -cmra_morphism_pcore.
+          rewrite -generation_pcore.
+          rewrite -cmra_morphism_pcore.
+          destruct (pcore a); done.
+        + destruct (pcore a); done.
+    - intros m1 m2.
+      intros i γ.
+      rewrite 2!discrete_fun_lookup_op.
+      rewrite !map_lookup_imap.
+      rewrite 2!lookup_op.
+      rewrite !map_lookup_imap.
+      destruct (picks i !! γ) as [pick|] eqn:pickLook.
+      * specialize (picksGT i γ pick pickLook) as ?.
+        destruct (m1 i !! γ) eqn:eq1; destruct (m2 i !! γ) eqn:eq2;
+          rewrite eq1 eq2; simpl; try done.
+        rewrite -Some_op.
+        rewrite -cmra_morphism_op.
+        rewrite -generation_op.
+        rewrite -cmra_morphism_op.
+        done.
+      * destruct (g_trans i);
+          destruct (m1 i !! γ) eqn:eq1;
+          destruct (m2 i !! γ) eqn:eq2;
+            rewrite eq1 eq2; simpl; try done.
+        rewrite -Some_op.
+        rewrite -cmra_morphism_op.
+        rewrite -generation_op.
+        rewrite -cmra_morphism_op.
+        done.
+  Qed.
 
   Lemma build_trans_resp Ω picks :
+    picks_gen_trans picks →
+    picks_satisfy_cond Ω picks →
     fG_resp (build_trans Ω picks) Ω.(g_trans) picks.
   Proof.
-  Admitted.
+    rewrite /fG_resp /build_trans.
+    intros picksGT sat ???????.
+    destruct (picks i !! γ) as [pick|] eqn:eq.
+    - exists pick.
+      specialize (sat i γ pick eq) as (gt' & ? & ?).
+      specialize (picksGT i γ pick eq) as ?.
+      assert (gt = gt') as <- by congruence.
+      rewrite map_lookup_imap. rewrite H. simpl.
+      split; first apply _.
+      rewrite eq.
+      split; first done.
+      split; first done.
+      move=> ? [= ->] //.
+    - exists (gt_inhabited gt).
+      split; first apply _.
+      rewrite map_lookup_imap. rewrite H. simpl.
+      rewrite eq H0.
+      split; first done.
+      split; first apply gt_inhabited_condition.
+      intros ? [=].
+  Qed.
 
 End build_trans.
 
@@ -903,6 +998,7 @@ Section own_properties.
     iEval (rewrite own.own_eq) in "tok2".
     iFrame "tok2".
 
+    iSplit. { admit. }
     (* We must now show that the domain of the picks and the resource that we
     own are equal. *)
     iSplit.
@@ -952,7 +1048,7 @@ Section own_properties.
     iApply own_mono; last first.
     { rewrite own.own_eq. rewrite /own.own_def. iApply "tok1". }
     reflexivity.
-  Qed.
+  Admitted.
 
   Lemma own_generational_update γ a :
     gen_own γ a ⊢
@@ -966,6 +1062,7 @@ Section own_properties.
     rewrite left_id.
     iSplit.
     { iPureIntro. apply picks_valid_empty. }
+    iSplit. { admit. }
     iSplit.
     { iPureIntro. intros ?.
       rewrite discrete_fun_lookup_empty. rewrite 2!dom_empty.
@@ -992,19 +1089,20 @@ Section own_properties.
     rewrite -own_op.
     rewrite own.own_eq.
     iFrame "own".
-  Qed.
+  Admitted.
 
   Lemma gupd_plain_soundness P `{!Plain P} :
     (⊢ ⚡==> P) → ⊢ P.
   Proof.
     rewrite /gupd.
     intros HP.
-    iDestruct HP as (picks m val) "(m & %domEq & ? & HP)".
+    iDestruct HP as (picks m val picksGT) "(m & %domEq & ? & HP)".
     clear HP.
     set (fG := (build_trans Ω picks)).
+    pose proof (build_trans_generation Ω _ picksGT).
     rewrite <- (bgupd_plain fG P).
     iApply ("HP" $!  _ with "[%]").
-    apply build_trans_resp.
+    apply build_trans_resp; done.
   Qed.
 
 End own_properties.
