@@ -14,19 +14,26 @@ Class GenTrans {M : cmra} (f : M → M) := {
     generation_ne :> NonExpansive f;
     (* The function should be monotone with respect to the inclusion order of
     the monoid. *)
-    generation_mono : ∀ x y, x ≼ y → f x ≼ f y;
+    (* generation_mono : ∀ x y, x ≼ y → f x ≼ f y; *)
     (* Validity is preserved. *)
     generation_valid : ∀ n (a : M), ✓{n} a → ✓{n} (f a);
     (* The generation comutes with the core. *)
     (* generation_core_some : ∀ (a : M) pa, *)
     (*   pcore a = Some pa → Some (f pa) ≡ pcore (f a); *)
     generation_pcore x : f <$> pcore x ≡ pcore (f x);
-    generation_op : ∀ n (a b : M), ✓{n} (a ⋅ b) → f (a ⋅ b) ≡ f a ⋅ f b
+    generation_op : ∀ (a b : M),
+      (* ✓{n} (a ⋅ b) → *)
+                                   f (a ⋅ b) ≡ f a ⋅ f b
 }.
 
 Global Instance gen_trans_proper {A : cmra} (f : A → A) :
   GenTrans f → Proper ((≡) ==> (≡)) f.
 Proof. intros ?. apply: ne_proper. Qed.
+
+Lemma gen_trans_monotone {A : cmra} (f : A → A) `{!GenTrans f} x y :
+  x ≼ y → f x ≼ f y.
+Proof. intros [z ->]. exists (f z). rewrite generation_op. done. Qed.
+(* Lemma gen_trans_monotoneN *)
 
 Global Arguments generation_op {_} _ {_} _ _.
 
@@ -43,7 +50,8 @@ Lemma generation_monoN {M : ucmra} (f : M → M) `{!GenTrans f} n x y :
   x ≼{n} y → f x ≼{n} f y.
 Proof.
   intros [z ->].
-  apply cmra_included_includedN, generation_mono, cmra_included_l.
+  apply cmra_included_includedN, gen_trans_monotone, cmra_included_l.
+  apply _.
 Qed.
 
 (** When working in the model, it is convenient to be able to treat [uPred] as
@@ -337,9 +345,6 @@ Global Instance gen_trans_prod_map {A B : cmra} (f : A → A) (g : B → B) :
   GenTrans f → GenTrans g → GenTrans (prod_map f g).
 Proof.
   split; first apply _.
-  - intros [??] [??] [??]%prod_included. rewrite /prod_map.
-    apply prod_included; simpl; split;
-      apply generation_mono; done.
   - intros ? [??] [??]. split; simpl; apply generation_valid; done.
   - intros x. etrans; last apply (reflexivity (mbind _ _)).
     etrans; first apply (reflexivity (_ <$> mbind _ _)). simpl.
@@ -348,8 +353,8 @@ Proof.
     assert (Hg := generation_pcore (x.2)).
     destruct (pcore (g (x.2))), (pcore (x.2)); inversion_clear Hg=>//=.
     by setoid_subst.
-  - intros ? [??] [??] [??]. simpl in *.
-    do 2 rewrite (generation_op _ n) //.
+  - intros [??] [??]. simpl in *.
+    do 2 rewrite (generation_op _) //.
 Qed.
 
 Definition gen_generation_first {A : cmra} (f : A → A) :
@@ -372,14 +377,14 @@ Global Instance gen_trans_fmap {A : cmra} (f : A → A) :
   GenTrans f → GenTrans (fmap f : optionR A → optionR A).
 Proof.
   split; first apply _.
-  - intros. apply: option_fmap_mono; try done. apply generation_mono.
+  (* - intros. apply: option_fmap_mono; try done. apply generation_mono. *)
   - intros ? [?|]; last done. simpl.
     rewrite 2!Some_validN.
     apply generation_valid.
   - move=> [a|] //. apply Some_proper, generation_pcore.
-  - move=> ? [a|] [b|] val //=.
+  - move=> [a|] [b|] //=.
     rewrite (generation_op f) //.
-    apply val.
+    (* apply val. *)
 Qed.
 
 Global Instance gen_trans_const {A : ofe} (a : A) :
@@ -387,11 +392,11 @@ Global Instance gen_trans_const {A : ofe} (a : A) :
 Proof.
   split; first apply _.
   - done.
-  - intros ???. simpl. apply Some_validN.
-    apply cmra_valid_validN.
-    done.
+  (* - intros ???. simpl. apply Some_validN. *)
+  (*   apply cmra_valid_validN. *)
+  (*   done. *)
   - intros. simpl. rewrite (core_id). done.
-  - intros ????. simpl.
+  - intros ??. simpl.
     rewrite -Some_op.
     rewrite agree_idemp.
     done.
