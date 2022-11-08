@@ -264,22 +264,9 @@ Definition GTS_tok_perm : GTS := (Excl' (), None).
 Definition GTS_tok_both : GTS := (Excl' (), Excl' ()).
 
 Definition GTS_floor (a : GTS) : GTS :=
-  match a with
   (* The cross-generation permanent token is preserved and also produces the
   per-generation token. *)
-  | (Excl' (), _) => (Excl' (), Excl' ())
-  | (None, _) => (None, None)
-  | (ExclBot', _) => (ExclBot', ExclBot')
-  end.
-
-Lemma excl_bot_top {A : ofe} (a : excl A) : a ≼ ExclBot.
-Proof. eexists ExclBot. done. Qed.
-
-Lemma excl'_bot_top {A : ofe} (a : excl' A) : a ≼ ExclBot'.
-Proof. eexists ExclBot'. destruct a; done. Qed.
-
-Lemma excl'_bot_top_top {A : ofe} (a : excl' A) : ExclBot' ≼ a → a ≡ ExclBot'.
-Proof. intros [[|] E]; apply E. Qed.
+  match a with (a, _) => (a, a) end.
 
 Global Instance GTS_floor_generation : GenTrans GTS_floor.
 Proof.
@@ -292,12 +279,18 @@ Proof.
   - do 2 intros [[[[]|]|] [[[]|]|]]; try done.
 Qed.
 
-Record GenerationalCmra := {
-  gencmra_cmra :> cmra;
-  (* gencmra_gen :> cmra → Prop; *)
-}.
+Section gts.
 
-Definition generational_cmra A : Type := option (agree (A → A)) * GTS * option A.
+  Lemma GTS_floor_perm : GTS_floor (GTS_tok_perm) = GTS_tok_perm ⋅ GTS_tok_gen.
+  Proof. reflexivity. Qed.
+
+  Lemma GTS_floor_gen : GTS_floor (GTS_tok_gen) = (None, None).
+  Proof. reflexivity. Qed.
+
+End gts.
+
+Definition generational_cmra A : Type :=
+  option (agree (A → A)) * GTS * option A.
 
 Definition generational_cmraR (A : cmra) :=
   prodR (prodR (optionR (agreeR (leibnizO (A → A)))) GTSR) (optionR A).
