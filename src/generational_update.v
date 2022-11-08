@@ -470,18 +470,12 @@ Existing Instance genInG_inG.
 the entries that we have picked generational transformation for. *)
 Definition Picks Σ : Type := ∀ i, gmap gname (R Σ i → R Σ i).
 
-(** Every pick in [picks] is a valid generational transformation. *)
-Definition picks_gen_trans {Σ} (picks : Picks Σ) :=
-  ∀ i γ t, picks i !! γ = Some t → GenTrans t.
-
-(* Every pick in [picks] satisfies the conditions for that cmra in [Ω]. *)
-Definition picks_satisfy_cond {Σ} (Ω : gTransforms) (picks : Picks Σ) :=
+(** Every pick in [picks] is a valid generational transformation and satisfies
+the conditions for that cmra in [Ω]. *)
+Definition picks_valid {Σ} (Ω : gTransforms) (picks : Picks Σ) :=
   ∀ i γ t, picks i !! γ = Some t →
+    GenTrans t ∧
     ∃ gt, Ω.(g_trans) i = Some gt ∧ gt.(gt_condition) t.
-
-Lemma picks_valid_empty {Σ} Ω :
-  picks_satisfy_cond Ω (λ i : fin (gFunctors_len Σ), ∅).
-Proof. intros ???. rewrite lookup_empty. inversion 1. Qed.
 
 (* The functor [fG] respects the conditions in [Ω] and the entries in
 [picks]. *)
@@ -506,8 +500,7 @@ Definition m_contains_tokens_for_picks {Σ} (picks : Picks Σ) (m : iResUR Σ) :
 
 Definition gupd {Σ : gFunctors} {Ω : gTransforms} P : iProp Σ :=
   ∃ (picks : Picks Σ) (m : iResUR Σ),
-    ⌜ picks_satisfy_cond Ω picks ⌝ ∗
-    ⌜ picks_gen_trans picks ⌝ ∗
+    ⌜ picks_valid Ω picks ⌝ ∗
     uPred_ownM m ∗ ⌜ m_contains_tokens_for_picks picks m ⌝ ∗
     ∀ (fG : iResUR Σ → _) (_ : GenTrans fG),
       ⌜ fG_resp fG Ω.(g_trans) picks ⌝ →
@@ -736,17 +729,39 @@ Section pick_singleton_lemmas.
     done.
   Qed.
 
-  Lemma picks_singleton_gen_trans γ f :
-    GenTrans f → picks_gen_trans (pick_singleton idx γ f).
-  Proof.
-    intros fGT idx' γ' f' (-> & -> & ->)%gen_f_singleton_lookup_Some. done.
-  Qed.
-
-  Lemma picks_gen_trans_empty :
-    picks_gen_trans ((λ i : fin (gFunctors_len Σ), ∅)).
-  Proof. intros ??? [=]. Qed.
+  Lemma picks_valid_empty Ω :
+    picks_valid Ω (λ i : fin (gFunctors_len Σ), ∅).
+  Proof. intros ???. rewrite lookup_empty. inversion 1. Qed.
 
 End pick_singleton_lemmas.
+
+Global Instance gen_trans_cmra_map_transport {A B : cmra} (eq : A = B)
+    (f : A → A) :
+  GenTrans f → GenTrans (cmra_map_transport eq f).
+Proof. destruct eq. done. Qed.
+
+Lemma gt_condition_transport `{i : !genInG Σ Ω A transA} f :
+  gt_condition (lift transA) (gen_generation f) →
+  gt_condition (gen_transport inG_prf (lift transA))
+    (cmra_map_transport inG_prf (gen_generation f)).
+Proof. destruct inG_prf. simpl. done. Qed.
+
+Lemma picks_valid_singleton `{i : !genInG Σ Ω A gens} f γ :
+  GenTrans f →
+  gt_condition gens f →
+  picks_valid Ω
+    (pick_singleton (inG_id genInG_inG) γ
+       (cmra_map_transport inG_prf (gen_generation f))).
+Proof.
+  intros ?? idx' γ' f'.
+  intros (-> & -> & <-)%gen_f_singleton_lookup_Some.
+  split; first apply _.
+  eexists _.
+  rewrite genInG_gen_trans.
+  split; first done.
+  apply gt_condition_transport. simpl.
+  eexists f. split; first done. assumption.
+Qed.
 
 Lemma pick_singleton_iRes_singleton_dom `{i : !inG Σ A}
     γ (a : A) i' (t : R Σ (inG_id i) → R Σ _) :
@@ -782,7 +797,7 @@ Definition build_trans {Σ} (Ω : @gTransforms Σ) (picks : Picks Σ) :
       end
     ) (m i).
 
-Section build_trans.
+Section picks_lemmas.
   Context {Σ : gFunctors}.
   Implicit Types (picks : Picks Σ).
 
@@ -790,7 +805,7 @@ Section build_trans.
   Proof. done. Qed.
 
   Lemma build_trans_generation Ω picks :
-    picks_gen_trans picks → GenTrans (build_trans Ω picks).
+    picks_valid Ω picks → GenTrans (build_trans Ω picks).
   Proof.
     (* NOTE: this proof is _very_ brute-forcey. One could try and shorten it. *)
     intros picksGT.
@@ -802,7 +817,7 @@ Section build_trans.
       specialize (eq i γ).
       destruct eq as [a b eq|]; simpl; last done.
       destruct (picks i !! γ) eqn:look.
-      * apply picksGT in look. solve_proper.
+      * apply picksGT in look as [gt ?]. solve_proper.
       * solve_proper.
     - intros ?? Hval.
       intros i γ.
@@ -814,7 +829,7 @@ Section build_trans.
       * apply Some_validN.
         apply: cmra_morphism_validN.
         apply Some_validN.
-        specialize (picksGT i γ pick eq2) as ?.
+        specialize (picksGT i γ pick eq2) as [??].
         apply generation_valid.
         apply: cmra_morphism_validN.
         apply Hval.
@@ -838,7 +853,7 @@ Section build_trans.
       destruct (picks i !! γ) as [pick|] eqn:pickLook; simpl.
       * rewrite core_Some_pcore.
         rewrite -cmra_morphism_pcore.
-        specialize (picksGT i γ pick pickLook) as ?.
+        specialize (picksGT i γ pick pickLook) as [??].
         rewrite -generation_pcore.
         rewrite -cmra_morphism_pcore.
         destruct (pcore a); done.
@@ -856,7 +871,7 @@ Section build_trans.
       rewrite 2!lookup_op.
       rewrite !map_lookup_imap.
       destruct (picks i !! γ) as [pick|] eqn:pickLook.
-      * specialize (picksGT i γ pick pickLook) as ?.
+      * specialize (picksGT i γ pick pickLook) as [??].
         destruct (m1 i !! γ) eqn:eq1; destruct (m2 i !! γ) eqn:eq2;
           rewrite eq1 eq2; simpl; try done.
         rewrite -Some_op.
@@ -876,16 +891,15 @@ Section build_trans.
   Qed.
 
   Lemma build_trans_resp Ω picks :
-    picks_gen_trans picks →
-    picks_satisfy_cond Ω picks →
+    picks_valid Ω picks →
     fG_resp (build_trans Ω picks) Ω.(g_trans) picks.
   Proof.
     rewrite /fG_resp /build_trans.
-    intros picksGT sat ???????.
+    intros picksGT ??????.
     destruct (picks i !! γ) as [pick|] eqn:eq.
     - exists pick.
-      specialize (sat i γ pick eq) as (gt' & ? & ?).
-      specialize (picksGT i γ pick eq) as ?.
+      (* specialize (sat i γ pick eq) as (gt' & ? & ?). *)
+      specialize (picksGT i γ pick eq) as [l (gt' & ? & ?)].
       assert (gt = gt') as <- by congruence.
       rewrite map_lookup_imap. rewrite H. simpl.
       split; first apply _.
@@ -955,12 +969,6 @@ Section own_properties.
     iApply "H".
   Qed.
 
-  Lemma gt_condition_transport f :
-    gt_condition (lift transA) (gen_generation f) →
-    gt_condition (gen_transport inG_prf (lift transA))
-      (cmra_map_transport inG_prf (gen_generation f)).
-  Proof. destruct inG_prf. simpl. done. Qed.
-
   Lemma own_generational_update_tok γ a t `{!GenTrans t} :
     transA.(gt_condition) t →
     gen_token γ ∗ gen_own γ a ⊢ ⚡==>
@@ -976,20 +984,10 @@ Section own_properties.
 
     (* We first have to show that the picks are valid in relation to [Ω]. *)
     iSplit.
-    { iPureIntro. intros i' γ' b.
-      intros (-> & -> & <-)%gen_f_singleton_lookup_Some.
-      eexists _.
-      rewrite genInG_gen_trans.
-      split; first done.
-      apply gt_condition_transport. simpl.
-      eexists t. split; first done. apply cond. }
-
+    { iPureIntro. apply: picks_valid_singleton. done. }
     (* We use the per-generation token. *)
     iEval (rewrite own.own_eq) in "tok2".
     iFrame "tok2".
-
-    iSplit.
-    { iPureIntro. apply: picks_singleton_gen_trans. }
     (* We must now show that the domain of the picks and the resource that we
     own are equal. *)
     iSplit.
@@ -1034,7 +1032,6 @@ Section own_properties.
     rewrite left_id.
     iSplit.
     { iPureIntro. apply picks_valid_empty. }
-    iSplit. { iPureIntro. apply picks_gen_trans_empty. }
     iSplit.
     { iPureIntro. intros ?.
       rewrite discrete_fun_lookup_empty. rewrite 2!dom_empty.
