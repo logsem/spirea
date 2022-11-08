@@ -23,7 +23,7 @@ Class GenTrans {M : cmra} (f : M → M) := {
     generation_pcore x : f <$> pcore x ≡ pcore (f x);
     generation_op : ∀ (a b : M),
       (* ✓{n} (a ⋅ b) → *)
-                                   f (a ⋅ b) ≡ f a ⋅ f b
+      f (a ⋅ b) ≡ f a ⋅ f b
 }.
 
 Global Instance gen_trans_proper {A : cmra} (f : A → A) :
@@ -358,14 +358,12 @@ Global Instance gen_trans_fmap {A : cmra} (f : A → A) :
   GenTrans f → GenTrans (fmap f : optionR A → optionR A).
 Proof.
   split; first apply _.
-  (* - intros. apply: option_fmap_mono; try done. apply generation_mono. *)
   - intros ? [?|]; last done. simpl.
     rewrite 2!Some_validN.
     apply generation_valid.
   - move=> [a|] //. apply Some_proper, generation_pcore.
   - move=> [a|] [b|] //=.
     rewrite (generation_op f) //.
-    (* apply val. *)
 Qed.
 
 Global Instance gen_trans_const {A : ofe} (a : A) :
@@ -373,9 +371,6 @@ Global Instance gen_trans_const {A : ofe} (a : A) :
 Proof.
   split; first apply _.
   - done.
-  (* - intros ???. simpl. apply Some_validN. *)
-  (*   apply cmra_valid_validN. *)
-  (*   done. *)
   - intros. simpl. rewrite (core_id). done.
   - intros ??. simpl.
     rewrite -Some_op.
@@ -386,14 +381,7 @@ Qed.
 Global Instance gen_generation_gen_trans {A : cmra} (f : A → A)
   `{!Proper (equiv ==> equiv) f} :
   GenTrans f → GenTrans (gen_generation f).
-Proof.
-  apply _.
-  (* rewrite /gen_generation. *)
-  (* intros ?. *)
-  (* apply gen_trans_prod_map; try apply _. *)
-  (* apply gen_trans_fmap; try apply _. *)
-  (* apply _. *)
-Qed.
+Proof. apply _. Qed.
 
 Global Instance gen_generation_proper {A : cmra} (f : A → A) :
   Proper ((≡) ==> (≡)) f →
@@ -426,15 +414,6 @@ Global Instance cmra_map_transport_proper {A B : cmra} (f : A → A) (Heq : A = 
   (Proper ((≡) ==> (≡)) f) →
   (Proper ((≡) ==> (≡)) (cmra_map_transport Heq f)).
 Proof. naive_solver. Qed.
-
-(* (* Data for generational transformation for a camera. *) *)
-(* (* A predicate over functions. *) *)
-(* Record gen_trans := { *)
-(*   gen_trans_car : cmra; *)
-(*   conditions : (gen_trans_car → gen_trans_car) → Prop; *)
-(*   inhabited : gen_trans_car → gen_trans_car; *)
-(*   inhabited_conditions : conditions (inhabited); *)
-(* }. *)
 
 (* Data for generational transformation for a camera. *)
 (* A predicate over functions. *)
@@ -516,49 +495,26 @@ Definition fG_resp {Σ} (fG : iResUR Σ → iResUR Σ) Ω(picks : Picks Σ) :=
       gt.(gt_condition) t ∧
       (∀ t', picks i !! γ = Some t' → t = t').
 
+Definition m_contains_tokens_for_picks {Σ} (picks : Picks Σ) (m : iResUR Σ) :=
+  ∀ i,
+    dom (picks i) ≡ dom (m i) ∧
+    (∀ (γ : gname) (a : Rpre Σ i),
+      m i !! γ = Some a  →
+      ∃ (A : _) (eq : generational_cmraR A = R Σ i),
+        (map_fold a) ≡
+        (cmra_transport eq (None, GTS_tok_gen, None))).
+
 Definition gupd {Σ : gFunctors} {Ω : gTransforms} P : iProp Σ :=
   ∃ (picks : Picks Σ) (m : iResUR Σ),
-    ⌜ picks_satisfy_cond Ω picks ⌝ ∗ ⌜ picks_gen_trans picks ⌝ ∗
-    uPred_ownM m ∗
-    ⌜ ∀ i, dom (picks i) ≡ dom (m i) ⌝ ∗
-    ⌜ (∀ i (γ : gname) (a : Rpre Σ i),
-        m i !! γ = Some a  →
-        ∃ (A : _) (eq : generational_cmraR A = R Σ i),
-          (map_fold a) ≡
-          (cmra_transport eq (None, GTS_tok_gen, None))) ⌝ ∗
+    ⌜ picks_satisfy_cond Ω picks ⌝ ∗
+    ⌜ picks_gen_trans picks ⌝ ∗
+    uPred_ownM m ∗ ⌜ m_contains_tokens_for_picks picks m ⌝ ∗
     ∀ (fG : iResUR Σ → _) (_ : GenTrans fG),
       ⌜ fG_resp fG Ω.(g_trans) picks ⌝ →
       ⚡={fG}=> P.
 
 Notation "⚡==> P" := (gupd P)
   (at level 99, P at level 200, format "⚡==>  P") : bi_scope.
-
-(*
-Lemma uPred_ownM_resp {Σ : gFunctors} fG `{!GenTrans fG} idx Ω picks t γ a :
-  fG_resp (Σ := Σ) fG Ω picks →
-  picks idx !! γ = Some t →
-  uPred_ownM (fG (discrete_fun_singleton idx {[γ := a]})) -∗
-  uPred_ownM (discrete_fun_singleton idx {[γ := (map_unfold (t (map_fold a)))]}).
-Proof.
-  intros rs look.
-  eapply (rs (discrete_fun_singleton idx {[γ := a]})) in look; last first.
-  { rewrite discrete_fun_lookup_singleton.
-    rewrite lookup_singleton.
-    done. }
-  f_equiv. simpl.
-  apply discrete_fun_included_spec.
-  intros idx'.
-  destruct (decide (idx = idx')) as [<-|neq].
-  - rewrite discrete_fun_lookup_singleton.
-    apply singleton_included_l.
-    exists (rFunctor_map _ (iProp_fold, iProp_unfold) (t (rFunctor_map _ (iProp_unfold, iProp_fold) a))).
-    split; last done.
-    rewrite look.
-    done.
-  - rewrite discrete_fun_lookup_singleton_ne; try done.
-    apply ucmra_unit_least.
-Qed.
-*)
 
 Lemma uPred_own_resp `{i : !genInG Σ Ω A tr} fG `{!GenTrans fG} picks
   (f : generational_cmraR A → _) γ a `{!Proper ((≡) ==> (≡)) f} :
@@ -953,6 +909,32 @@ Global Instance gen_trans_cmra_map_transport {A B : cmra} (eq : A = B)
   GenTrans f → GenTrans (cmra_map_transport eq f).
 Proof. destruct eq. done. Qed.
 
+Lemma m_contains_tokens_for_picks_singleton `{i : inG Σ (generational_cmraR A)}
+    γ t :
+  m_contains_tokens_for_picks
+    (pick_singleton (inG_id _) γ (cmra_map_transport inG_prf (gen_generation t)))
+    (own.iRes_singleton γ (None, GTS_tok_gen, None)).
+Proof.
+  intros i'.
+  split.
+  { apply pick_singleton_iRes_singleton_dom. }
+  (* We how show that the resource contains the tokens as it should. *)
+  intros γ' b.
+  intros look.
+  apply iRes_singleton_lookup_alt in look as (iEq & -> & bEq).
+  exists A.
+  assert (rFunctor_apply (gFunctors_lookup Σ i') (iPrePropO Σ) =
+            rFunctor_apply (gFunctors_lookup Σ (inG_id i)) (iPrePropO Σ)).
+  { rewrite iEq. done. }
+  destruct iEq.
+  pose proof (@inG_prf _ _ i) as eq'.
+  rewrite /inG_apply in eq'.
+  eexists (@inG_prf _ _ i).
+  rewrite <- bEq.
+  rewrite -/(@own.inG_fold _ _ i).
+  apply own.inG_fold_unfold.
+Qed.
+
 (* (** * Properties about generational ghost ownership. *) *)
 Section own_properties.
 
@@ -1011,26 +993,7 @@ Section own_properties.
     (* We must now show that the domain of the picks and the resource that we
     own are equal. *)
     iSplit.
-    { iPureIntro. intros ?. apply pick_singleton_iRes_singleton_dom. }
-    (* We how show that the resource contains the tokens as it should. *)
-    iSplit.
-    { iPureIntro. intros i' γ' b.
-      intros look.
-      apply iRes_singleton_lookup_alt in look as (iEq & -> & hipo).
-
-      exists A.
-      set (bi := genInG_inG).
-      assert (rFunctor_apply (gFunctors_lookup Σ i') (iPrePropO Σ) =
-                rFunctor_apply (gFunctors_lookup Σ (inG_id bi)) (iPrePropO Σ)).
-      { rewrite iEq. done. }
-      destruct iEq.
-      pose proof (@inG_prf _ _ bi) as eq'.
-      rewrite /inG_apply in eq'.
-      eexists (@inG_prf _ _ bi).
-      rewrite <- hipo.
-      rewrite -/(@own.inG_fold _ _ bi).
-      simpl.
-      apply own.inG_fold_unfold. }
+    { iPureIntro. apply m_contains_tokens_for_picks_singleton. }
     iIntros (?? fG_resp).
     rewrite /gen_own.
     iEval (rewrite own.own_eq) in "gen".
@@ -1076,11 +1039,6 @@ Section own_properties.
     { iPureIntro. intros ?.
       rewrite discrete_fun_lookup_empty. rewrite 2!dom_empty.
       done. }
-    iSplit.
-    { iPureIntro.
-      intros ???.
-      rewrite discrete_fun_lookup_empty.
-      inversion 1. }
     iIntros (fG ? resp).
 
     rewrite /gen_own.
@@ -1105,7 +1063,7 @@ Section own_properties.
   Proof.
     rewrite /gupd.
     intros HP.
-    iDestruct HP as (picks m val picksGT) "(m & %domEq & ? & HP)".
+    iDestruct HP as (picks m val picksGT) "(m & % & HP)".
     clear HP.
     set (fG := (build_trans Ω picks)).
     pose proof (build_trans_generation Ω _ picksGT).
