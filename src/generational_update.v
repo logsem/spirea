@@ -124,6 +124,26 @@ Section bgupd_rules.
     rewrite eq. done.
   Qed.
 
+  Lemma bgupd_sep P Q :
+    (∀ n a b1 b2,
+       f a ≡{n}≡ b1 ⋅ b2 →
+       ∃ a1 a2, a ≡{n}≡ a1 ⋅ a2 ∧ f a1 ≡{n}≡ b1 ∧ f a2 ≡{n}≡ b2) →
+    (⚡={f}=> P) ∗ (⚡={f}=> Q) ⊣⊢ ⚡={f}=> (P ∗ Q) .
+  Proof.
+    intros cond.
+    apply (anti_symm _); first apply bgupd_sep_2.
+    unseal. split. simpl.
+    intros ? a ?.
+    intros (b1 & b2 & eq & Hp & Hq).
+    destruct (cond n a b1 b2) as (a1 & a2 & ? & ? & ?); first done.
+    exists a1, a2.
+    subst.
+    split; first done.
+    rewrite H1.
+    rewrite H2.
+    split; done.
+  Qed.
+
   Lemma bgupd_intro_plain P :
     ■ P ⊢ ⚡={f}=> ■ P.
   Proof. unseal. split. done. Qed.
@@ -206,6 +226,8 @@ Section bgupd_rules.
   Proof. rewrite {1}(plain P). apply bgupd_plainly. Qed.
 
 End bgupd_rules.
+
+  (* (⊢ ⚡={f}=> ⚡={f}=> P) → ⊢ ⚡={f}=> P. *)
 
 Lemma bgupd_plain_soundness {M : ucmra} f `{!GenTrans f} (P : uPred M) `{!Plain P} :
   (⊢ ⚡={f}=> P) → ⊢ P.
@@ -916,12 +938,49 @@ Section picks_lemmas.
       intros ? [=].
   Qed.
 
-End build_trans.
+  Definition merge_picks (picks1 picks2 : Picks Σ) :=
+    λ i, (picks1 i) ∪ (picks2 i).
 
-Global Instance gen_trans_cmra_map_transport {A B : cmra} (eq : A = B)
-    (f : A → A) :
-  GenTrans f → GenTrans (cmra_map_transport eq f).
-Proof. destruct eq. done. Qed.
+  Lemma tokens_for_picks_disjoint picks1 picks2 m1 m2 :
+    m_contains_tokens_for_picks picks1 m1 →
+    m_contains_tokens_for_picks picks2 m2 →
+    uPred_ownM m1 -∗
+    uPred_ownM m2 -∗
+    ⌜ ∀ i,
+      (m1 i) ##ₘ (m2 i) ⌝.
+      (* (picks1 i) ##ₘ (picks2 i) ⌝. *)
+  Proof.
+    iIntros (t1 t2) "m1 m2". iIntros (i).
+    rewrite map_disjoint_spec.
+    iIntros (γ a1 a2 look1 look2).
+    specialize (t1 i) as (domEq1 & ? & ? & ?); first done.
+    specialize (t2 i) as (domEq2 & ? & ? & ?); first done.
+    iCombine "m1 m2" as "m".
+    iDestruct (ownM_valid with "m") as "#Hv".
+    rewrite discrete_fun_validI.
+    setoid_rewrite gmap_validI.
+    iSpecialize ("Hv" $! i γ).
+    rewrite lookup_op.
+    rewrite look1.
+    rewrite look2.
+    rewrite option_validI /=.
+  Admitted.
+
+  Lemma picks_valid_merge {Ω} (picks1 picks2 : Picks Σ) :
+    (∀ i, (picks1 i) ##ₘ (picks2 i)) →
+    picks_valid Ω picks1 →
+    picks_valid Ω picks2 →
+    picks_valid Ω (merge_picks picks1 picks2).
+  Proof.
+    intros disj p1 p2.
+    intros i' γ t.
+    rewrite /merge_picks.
+    intros [look|look]%lookup_union_Some; last apply disj.
+    - apply p1 in look as (? & gt & ? & ?). naive_solver.
+    - apply p2 in look as (? & gt & ? & ?). naive_solver.
+  Qed.
+
+End picks_lemmas.
 
 Lemma m_contains_tokens_for_picks_singleton `{i : inG Σ (generational_cmraR A)}
     γ t :
@@ -1055,12 +1114,27 @@ Section own_properties.
     iFrame "own".
   Qed.
 
+  Lemma gupd_sep_2 P Q : (⚡==> P) ∗ (⚡==> Q) ⊢ ⚡==> (P ∗ Q) .
+  Proof.
+    rewrite /gupd.
+    iIntros "[P1 P2]".
+    iDestruct "P1" as (picks1 m1 ?) "(m1 & %toks1 & M1)".
+    iDestruct "P2" as (picks2 m2 ?) "(m2 & %toks2 & M2)".
+    iDestruct (tokens_for_picks_disjoint with "m1 m2") as %disj;
+      [done|done|].
+    iExists (merge_picks picks1 picks2), (m1 ⋅ m2).
+    iSplit.
+    { iPureIntro. apply picks_valid_merge; try done.
+      admit. }
+    iCombine "m1 m2" as "$".
+  Admitted.
+
   Lemma gupd_plain_soundness P `{!Plain P} :
     (⊢ ⚡==> P) → ⊢ P.
   Proof.
     rewrite /gupd.
     intros HP.
-    iDestruct HP as (picks m val picksGT) "(m & % & HP)".
+    iDestruct HP as (picks m picksGT) "(m & % & HP)".
     clear HP.
     set (fG := (build_trans Ω picks)).
     pose proof (build_trans_generation Ω _ picksGT).
