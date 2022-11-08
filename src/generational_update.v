@@ -787,6 +787,16 @@ Section pick_singleton_lemmas.
     done.
   Qed.
 
+  Lemma picks_singleton_gen_trans γ f :
+    GenTrans f → picks_gen_trans (pick_singleton idx γ f).
+  Proof.
+    intros fGT idx' γ' f' (-> & -> & ->)%gen_f_singleton_lookup_Some. done.
+  Qed.
+
+  Lemma picks_gen_trans_empty :
+    picks_gen_trans ((λ i : fin (gFunctors_len Σ), ∅)).
+  Proof. intros ??? [=]. Qed.
+
 End pick_singleton_lemmas.
 
 Lemma pick_singleton_iRes_singleton_dom `{i : !inG Σ A}
@@ -945,6 +955,11 @@ Section build_trans.
 
 End build_trans.
 
+Global Instance gen_trans_cmra_map_transport {A B : cmra} (eq : A = B)
+    (f : A → A) :
+  GenTrans f → GenTrans (cmra_map_transport eq f).
+Proof. destruct eq. done. Qed.
+
 (* (** * Properties about generational ghost ownership. *) *)
 Section own_properties.
 
@@ -971,7 +986,7 @@ Section own_properties.
       (cmra_map_transport inG_prf (gen_generation f)).
   Proof. destruct inG_prf. simpl. done. Qed.
 
-  Lemma own_generational_update_tok γ a t `{!Proper ((≡) ==> (≡)) t} :
+  Lemma own_generational_update_tok γ a t `{!GenTrans t} :
     transA.(gt_condition) t →
     gen_token γ ∗ gen_own γ a ⊢ ⚡==>
       gen_token γ ∗ gen_own γ (t a) ∗ gen_pick γ t.
@@ -998,7 +1013,8 @@ Section own_properties.
     iEval (rewrite own.own_eq) in "tok2".
     iFrame "tok2".
 
-    iSplit. { admit. }
+    iSplit.
+    { iPureIntro. apply: picks_singleton_gen_trans. }
     (* We must now show that the domain of the picks and the resource that we
     own are equal. *)
     iSplit.
@@ -1048,7 +1064,7 @@ Section own_properties.
     iApply own_mono; last first.
     { rewrite own.own_eq. rewrite /own.own_def. iApply "tok1". }
     reflexivity.
-  Admitted.
+  Qed.
 
   Lemma own_generational_update γ a :
     gen_own γ a ⊢
@@ -1062,7 +1078,7 @@ Section own_properties.
     rewrite left_id.
     iSplit.
     { iPureIntro. apply picks_valid_empty. }
-    iSplit. { admit. }
+    iSplit. { iPureIntro. apply picks_gen_trans_empty. }
     iSplit.
     { iPureIntro. intros ?.
       rewrite discrete_fun_lookup_empty. rewrite 2!dom_empty.
@@ -1089,7 +1105,7 @@ Section own_properties.
     rewrite -own_op.
     rewrite own.own_eq.
     iFrame "own".
-  Admitted.
+  Qed.
 
   Lemma gupd_plain_soundness P `{!Plain P} :
     (⊢ ⚡==> P) → ⊢ P.
