@@ -1,4 +1,4 @@
-From iris.algebra Require Import functions gmap agree excl.
+From iris.algebra Require Import functions gmap agree excl csum.
 From iris.proofmode Require Import classes tactics.
 From iris.base_logic.lib Require Export iprop own.
 From iris.prelude Require Import options.
@@ -278,48 +278,61 @@ End into_bgupd.
    "permanent" token also "produces" a per-generation token that is only valid
    for the current generation.  *)
 
-Definition GTS : Type := excl' () * excl' ().
-Definition GTSR : cmra :=
-  prodR (optionR (exclR unitO)) (optionR (exclR unitO)).
+Definition one_shot A := csum (excl unit) (agree A).
+Definition one_shotR (A : Type) := csumR (exclR unitO) (agreeR (leibnizO A)).
+
+Definition GTS A : Type := excl' () * option (one_shot A).
+Definition GTSR A : cmra :=
+  prodR (optionR (exclR unitO)) (optionR (one_shotR A)).
 
 (** The per-generation token. *)
-Definition GTS_tok_gen : GTS := (None, Excl' ()).
+Definition GTS_tok_gen {A} : GTS A := (None, Some $ Cinl $ Excl ()).
+(** The per-generation token has been used to make decision. *)
+Definition GTS_tok_gen_shot {A} f : GTS A := (None, Some $ Cinr $ to_agree f).
 (** The permanent cross-generation token. *)
-Definition GTS_tok_perm : GTS := (Excl' (), None).
+Definition GTS_tok_perm {A} : GTS A := (Excl' (), None).
 (** Both tokens. *)
-Definition GTS_tok_both : GTS := (Excl' (), Excl' ()).
+Definition GTS_tok_both {A} : GTS A := (Excl' (), Some $ Cinl $ Excl ()).
 
-Definition GTS_floor (a : GTS) : GTS :=
+Definition GTS_floor {A} (a : GTS A) : GTS A :=
   (* The cross-generation permanent token is preserved and also produces the
   per-generation token. *)
-  match a with (a, _) => (a, a) end.
+  match a with
+    (Excl' (), _) => (Excl' (), Some $ Cinl $ Excl ())
+  | (None, _) => (None, None)
+  | (ExclBot', _) => (ExclBot', Some $ Cinl $ ExclBot)
+  end.
 
-Global Instance GTS_floor_generation : GenTrans GTS_floor.
+Global Instance GTS_floor_generation A : GenTrans (GTS_floor (A := A) : GTSR A → GTSR A).
 Proof.
   split.
-  - intros ???.
+  - intros n [??] [??]. simpl.
     rewrite -discrete_iff.
-    naive_solver.
-  - intros ? [[[[]|]|] [[[]|]|]]; cbv; try naive_solver.
-  - intros [[[[]|]|] [[[]|]|]]; done.
-  - do 2 intros [[[[]|]|] [[[]|]|]]; try done.
+    intros [eq%leibniz_equiv ?].
+    simpl in eq.
+    rewrite eq.
+    solve_proper.
+  - intros ? [[[[]|]|] [[[[]|]|?|]|]]; cbv; naive_solver.
+  - intros [[[[]|]|] [[[[]|]|?|]|]]; done.
+  - do 2 intros [[[[]|]|] [[[[]|]|?|]|]]; try done.
 Qed.
 
 Section gts.
 
-  Lemma GTS_floor_perm : GTS_floor (GTS_tok_perm) = GTS_tok_perm ⋅ GTS_tok_gen.
+  Lemma GTS_floor_perm {A : Type} :
+    GTS_floor (GTS_tok_perm) =@{GTSR A} GTS_tok_perm ⋅ GTS_tok_gen.
   Proof. reflexivity. Qed.
 
-  Lemma GTS_floor_gen : GTS_floor (GTS_tok_gen) = (None, None).
+  Lemma GTS_floor_gen {A} : GTS_floor (GTS_tok_gen) =@{GTSR A} (None, None).
   Proof. reflexivity. Qed.
 
 End gts.
 
 Definition generational_cmra A : Type :=
-  option (agree (A → A)) * GTS * option A.
+  option (agree (A → A)) * GTS (A → A) * option A.
 
 Definition generational_cmraR (A : cmra) :=
-  prodR (prodR (optionR (agreeR (leibnizO (A → A)))) GTSR) (optionR A).
+  prodR (prodR (optionR (agreeR (leibnizO (A → A)))) (GTSR (A → A))) (optionR A).
 
 (* Ownership over generational ghost state. *)
 
@@ -338,6 +351,12 @@ Definition gen_own `{!inG Σ (generational_cmraR A)}
 
 Definition gen_token `{!inG Σ (generational_cmraR A)} γ : iProp Σ :=
   own γ ((None, GTS_tok_both, None) : generational_cmraR A).
+
+Definition gen_picked_next `{!inG Σ (generational_cmraR A)} γ t : iProp Σ :=
+  own γ ((None, GTS_tok_gen_shot t, None) : generational_cmraR A).
+
+Definition gen_token_next `{!inG Σ (generational_cmraR A)} γ : iProp Σ :=
+  own γ ((None, GTS_tok_perm, None) : generational_cmraR A).
 
 Lemma gen_token_split `{!inG Σ (generational_cmraR A)} γ :
   gen_token γ ⊣⊢
@@ -365,11 +384,11 @@ Proof.
 Qed.
 
 Definition gen_generation_first {A : cmra} (f : A → A) :
-  prodR (optionR (agreeR (leibnizO (A → A)))) GTSR →
-  prodR (optionR (agreeR (leibnizO (A → A)))) GTSR
+  prodR (optionR (agreeR (leibnizO (A → A)))) (GTSR (A → A)) →
+  prodR (optionR (agreeR (leibnizO (A → A)))) (GTSR (A → A))
   := prod_map
        (const (Some (to_agree f)) : optionR (agreeR (leibnizO (A → A))) → optionR (agreeR (leibnizO (A → A))))
-       (GTS_floor : GTSR → GTSR).
+       (GTS_floor : (GTSR (A → A)) → (GTSR (A → A))).
 
 (* The generational transformation function for the encoding of each ownership
 over a generational camera. *)
@@ -510,7 +529,7 @@ Definition picks_valid {Σ} (Ω : gTransforms) (picks : Picks Σ) :=
 
 (* The functor [fG] respects the conditions in [Ω] and the entries in
 [picks]. *)
-Definition fG_resp {Σ} (fG : iResUR Σ → iResUR Σ) Ω(picks : Picks Σ) :=
+Definition fG_resp {Σ} (fG : iResUR Σ → iResUR Σ) Ω (picks : Picks Σ) :=
   ∀ (m : iResUR Σ) i γ a gt,
     m i !! γ = Some a → (* For every element in the old element. *)
     Ω i = Some gt → (* Where we have transformation conditions. *)
@@ -525,9 +544,9 @@ Definition m_contains_tokens_for_picks {Σ} (picks : Picks Σ) (m : iResUR Σ) :
     dom (picks i) ≡ dom (m i) ∧
     (∀ (γ : gname) (a : Rpre Σ i),
       m i !! γ = Some a  →
-      ∃ (A : _) (eq : generational_cmraR A = R Σ i),
-        (map_fold a) ≡
-        (cmra_transport eq (None, GTS_tok_gen, None))).
+      ∃ (A : _) (eq : generational_cmraR A = R Σ i) (t : A → A),
+        picks i !! γ = Some (cmra_map_transport eq (gen_generation t)) ∧
+        map_fold a ≡ (cmra_transport eq (None, GTS_tok_gen_shot t, None))).
 
 Definition gupd {Σ : gFunctors} {Ω : gTransforms} P : iProp Σ :=
   ∃ (picks : Picks Σ) (m : iResUR Σ),
@@ -744,7 +763,7 @@ Section pick_singleton_lemmas.
     apply dom_empty_L.
   Qed.
 
-  Definition gen_f_singleton_lookup_Some idx' γ γ' f (f' : R Σ idx' → R Σ idx'):
+  Definition gen_f_singleton_lookup_Some idx' γ γ' f (f' : R Σ idx' → _) :
     (pick_singleton idx γ f) idx' !! γ' = Some f' →
     ∃ (eq : idx' = idx),
       γ = γ' ∧
@@ -1011,10 +1030,10 @@ Section picks_lemmas.
 End picks_lemmas.
 
 Lemma m_contains_tokens_for_picks_singleton `{i : inG Σ (generational_cmraR A)}
-    γ t :
+    γ (t : A → A) :
   m_contains_tokens_for_picks
     (pick_singleton (inG_id _) γ (cmra_map_transport inG_prf (gen_generation t)))
-    (own.iRes_singleton γ (None, GTS_tok_gen, None)).
+    (own.iRes_singleton γ ((None, GTS_tok_gen_shot t, None) : generational_cmraR A)).
 Proof.
   intros i'.
   split.
@@ -1030,8 +1049,10 @@ Proof.
   destruct iEq.
   pose proof (@inG_prf _ _ i) as eq'.
   rewrite /inG_apply in eq'.
-  eexists (@inG_prf _ _ i).
+  eexists (@inG_prf _ _ i), t.
+  split. { rewrite pick_singleton_lookup. done. }
   rewrite <- bEq.
+  rewrite /map_fold.
   rewrite -/(@own.inG_fold _ _ i).
   apply own.inG_fold_unfold.
 Qed.
@@ -1058,21 +1079,27 @@ Section own_properties.
 
   Lemma own_generational_update_tok γ a t `{!GenTrans t} :
     transA.(gt_condition) t →
-    gen_token γ ∗ gen_own γ a ⊢ ⚡==>
+    (* gen_token γ ∗ *)
+    gen_token_next γ ∗
+    gen_picked_next γ t ∗
+    gen_own γ a
+    ⊢ ⚡==>
       gen_token γ ∗ gen_own γ (t a) ∗ gen_pick γ t.
   Proof.
-    iIntros (cond) "[tok gen]".
-    iDestruct (gen_token_split with "tok") as "[tok1 tok2]".
+    iIntros (cond) "(tok1 & tok2 & gen)".
+    (* iDestruct (gen_token_split with "tok") as "[tok1 tok2]". *)
     rewrite /gupd.
     (* For both the picks and the resource we pick singleton maps corresponding
     to the one ghost name we care about. *)
     iExists (pick_singleton (inG_id _) γ (cmra_map_transport inG_prf (gen_generation t))).
-    iExists (own.iRes_singleton γ (None, GTS_tok_gen, None)).
+    iExists (own.iRes_singleton γ
+               ((None, GTS_tok_gen_shot t, None) : generational_cmraR A)).
 
     (* We first have to show that the picks are valid in relation to [Ω]. *)
     iSplit.
     { iPureIntro. apply: picks_valid_singleton. done. }
     (* We use the per-generation token. *)
+    rewrite /gen_picked_next.
     iEval (rewrite own.own_eq) in "tok2".
     iFrame "tok2".
     (* We must now show that the domain of the picks and the resource that we
@@ -1082,6 +1109,7 @@ Section own_properties.
     iIntros (?? fG_resp).
     rewrite /gen_own.
     iEval (rewrite own.own_eq) in "gen".
+    rewrite /gen_token_next.
     iEval (rewrite own.own_eq) in "tok1".
     rewrite /own.own_def.
     iModIntro.
@@ -1162,12 +1190,14 @@ Section own_properties.
     iSpecialize ("HQ" $! fG with "[]"). { admit. }
     iModIntro.
     iFrame "HP HQ".
- Admitted.
+  Admitted.
 
   Lemma fG_resp_merge_l fG picks1 picks2 :
     fG_resp fG (g_valid_gt Ω) (merge_picks picks1 picks2) →
     fG_resp fG (g_valid_gt Ω) picks1.
   Proof.
+    intros resp.
+    intros m i' γ ? ? look look2.
   Admitted.
 
   Lemma fG_resp_merge_r fG picks1 picks2 :
