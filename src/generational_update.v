@@ -242,6 +242,10 @@ Section into_bgupd.
   Global Instance into_bgupd_ownM a :
     IntoBgupd f (uPred_ownM a) (uPred_ownM (f a)) := bgupd_ownM f a.
 
+  Global Instance into_bgupd_bgupd P :
+    IntoBgupd f (⚡={f}=> P) P.
+  Proof. done. Qed.
+
   Global Instance into_bgupd_later P P' :
     IntoBgupd f P P' → IntoBgupd f (▷ P) (▷ P').
   Proof. rewrite /IntoBgupd. rewrite -bgupd_later. intros ->. done. Qed.
@@ -437,9 +441,10 @@ Global Instance cmra_map_transport_proper {A B : cmra} (f : A → A) (Heq : A = 
   (Proper ((≡) ==> (≡)) (cmra_map_transport Heq f)).
 Proof. naive_solver. Qed.
 
-(* Data for generational transformation for a camera. *)
-(* A predicate over functions. *)
-Record gen_trans (A : cmra) := {
+(** Essentially an inhabited set of valid generational transitions for the
+camera [A]. We represent the set as a predicate over GTs and inhabitness as a
+witness that satisfies the predicate. *)
+Record valid_gen_trans (A : cmra) := {
   (* The condition that defines the set set op allowed transformations. *)
   gt_condition : (A → A) → Prop;
   (* A witness that at least one function satisfies the conditions. *)
@@ -455,8 +460,8 @@ Arguments gt_inhabited_condition {_}.
 
 Existing Instance gt_inhabited_gen_trans.
 
-Program Definition lift {A} (g : gen_trans A) :
-  gen_trans (generational_cmraR A) := {|
+Program Definition lift {A} (g : valid_gen_trans A) :
+  valid_gen_trans (generational_cmraR A) := {|
     gt_condition t := ∃ t_i,
       t = gen_generation t_i ∧ g.(gt_condition) t_i;
     gt_inhabited := gen_generation g.(gt_inhabited)
@@ -467,22 +472,26 @@ Next Obligation.
   apply g.(gt_inhabited_condition).
 Qed.
 
+(** [gTransforms] contains a partial map from the type of cameras into a "set"
+of valid transformation function for that camera. *)
 Class gTransforms {Σ : gFunctors} := {
-  g_trans : ∀ (i : gid Σ), option (gen_trans (R Σ i))
+  g_valid_gt :> ∀ (i : gid Σ), option (valid_gen_trans (R Σ i))
 }.
+
+Global Arguments g_valid_gt {_} _.
 
 #[export] Hint Mode gTransforms +.
 
-Definition gen_transport {A B : cmra} (eq : A = B) (g : gen_trans A) : gen_trans B :=
-  eq_rect A gen_trans g B eq.
+Definition gen_transport {A B : cmra} (eq : A = B) (g : valid_gen_trans A) : valid_gen_trans B :=
+  eq_rect A valid_gen_trans g B eq.
 
 (* The global functor [Σ] contains the camera [A] and the global generational
 transformation [Ω] respects [g]. *)
-Class genInG (Σ : gFunctors) (Ω : gTransforms) (A : cmra) (g : gen_trans A)
+Class genInG (Σ : gFunctors) (Ω : gTransforms) (A : cmra) (g : valid_gen_trans A)
     := GenInG {
   genInG_inG : inG Σ (generational_cmraR A);
   genInG_gen_trans :
-    Ω.(g_trans) (inG_id genInG_inG) =
+    Ω.(g_valid_gt) (inG_id genInG_inG) =
       Some (gen_transport (@inG_prf _ _ genInG_inG) (lift g))
 }.
 
@@ -497,7 +506,7 @@ the conditions for that cmra in [Ω]. *)
 Definition picks_valid {Σ} (Ω : gTransforms) (picks : Picks Σ) :=
   ∀ i γ t, picks i !! γ = Some t →
     GenTrans t ∧
-    ∃ gt, Ω.(g_trans) i = Some gt ∧ gt.(gt_condition) t.
+    ∃ gt, Ω.(g_valid_gt) i = Some gt ∧ gt.(gt_condition) t.
 
 (* The functor [fG] respects the conditions in [Ω] and the entries in
 [picks]. *)
@@ -525,7 +534,7 @@ Definition gupd {Σ : gFunctors} {Ω : gTransforms} P : iProp Σ :=
     ⌜ picks_valid Ω picks ⌝ ∗
     uPred_ownM m ∗ ⌜ m_contains_tokens_for_picks picks m ⌝ ∗
     ∀ (fG : iResUR Σ → _) (_ : GenTrans fG),
-      ⌜ fG_resp fG Ω.(g_trans) picks ⌝ →
+      ⌜ fG_resp fG Ω.(g_valid_gt) picks ⌝ →
       ⚡={fG}=> P.
 
 Notation "⚡==> P" := (gupd P)
@@ -533,7 +542,7 @@ Notation "⚡==> P" := (gupd P)
 
 Lemma uPred_own_resp `{i : !genInG Σ Ω A tr} fG `{!GenTrans fG} picks
   (f : generational_cmraR A → _) γ a `{!Proper ((≡) ==> (≡)) f} :
-  fG_resp (Σ := Σ) fG Ω.(g_trans) picks →
+  fG_resp (Σ := Σ) fG Ω.(g_valid_gt) picks →
   picks (inG_id _) !! γ = Some (cmra_map_transport inG_prf f) →
   uPred_ownM (fG (own.iRes_singleton γ a))
   ⊢ uPred_ownM ((own.iRes_singleton γ (f a))).
@@ -586,7 +595,7 @@ Proof. destruct eq. done. Qed.
 
 Lemma uPred_own_resp_omega `{i : !genInG Σ Ω A tr} fG `{!GenTrans fG} picks γ
     (a : generational_cmraR A) :
-  fG_resp (Σ := Σ) fG Ω.(g_trans) picks →
+  fG_resp (Σ := Σ) fG Ω.(g_valid_gt) picks →
   uPred_ownM (fG (own.iRes_singleton γ a))
   ⊢ ∃ (t : generational_cmraR A → generational_cmraR A),
       ⌜ gt_condition (lift tr) t ⌝ ∗
@@ -811,7 +820,7 @@ Definition build_trans {Σ} (Ω : @gTransforms Σ) (picks : Picks Σ) :
       match picks i !! γ with
       | Some fl => Some $ map_unfold $ fl $ map_fold a
       | None =>
-          match Ω.(g_trans) i with
+          match Ω.(g_valid_gt) i with
           | None => None
           | Some gt =>
               Some $ map_unfold $ gt.(gt_inhabited) $ map_fold a
@@ -855,7 +864,7 @@ Section picks_lemmas.
         apply generation_valid.
         apply: cmra_morphism_validN.
         apply Hval.
-      * destruct (g_trans i); last done.
+      * destruct (g_valid_gt Ω i); last done.
         apply Some_validN.
         apply: cmra_morphism_validN.
         apply generation_valid.
@@ -879,7 +888,7 @@ Section picks_lemmas.
         rewrite -generation_pcore.
         rewrite -cmra_morphism_pcore.
         destruct (pcore a); done.
-      * destruct (g_trans i).
+      * destruct (g_valid_gt Ω i).
         + rewrite core_Some_pcore.
           rewrite -cmra_morphism_pcore.
           rewrite -generation_pcore.
@@ -901,7 +910,7 @@ Section picks_lemmas.
         rewrite -generation_op.
         rewrite -cmra_morphism_op.
         done.
-      * destruct (g_trans i);
+      * destruct (g_valid_gt Ω i);
           destruct (m1 i !! γ) eqn:eq1;
           destruct (m2 i !! γ) eqn:eq2;
             rewrite eq1 eq2; simpl; try done.
@@ -914,7 +923,7 @@ Section picks_lemmas.
 
   Lemma build_trans_resp Ω picks :
     picks_valid Ω picks →
-    fG_resp (build_trans Ω picks) Ω.(g_trans) picks.
+    fG_resp (build_trans Ω picks) Ω.(g_valid_gt) picks.
   Proof.
     rewrite /fG_resp /build_trans.
     intros picksGT ??????.
@@ -966,16 +975,35 @@ Section picks_lemmas.
     rewrite option_validI /=.
   Admitted.
 
+  Lemma m_contains_tokens_for_picks_merge picks1 picks2 m1 m2 :
+    m_contains_tokens_for_picks picks1 m1 →
+    m_contains_tokens_for_picks picks2 m2 →
+    m_contains_tokens_for_picks (merge_picks picks1 picks2) (m1 ⋅ m2).
+  Proof.
+    intros tok1 tok2.
+    intros i.
+    rewrite /merge_picks.
+    rewrite dom_op.
+    destruct (tok1 i) as (domEq1 & ?).
+    destruct (tok2 i) as (domEq2 & ?).
+    rewrite -domEq1 -domEq2.
+    rewrite dom_union.
+    split; first done.
+    intros γ a look.
+  Admitted.
+  (* Qed. *)
+
   Lemma picks_valid_merge {Ω} (picks1 picks2 : Picks Σ) :
-    (∀ i, (picks1 i) ##ₘ (picks2 i)) →
+    (* (∀ i, (picks1 i) ##ₘ (picks2 i)) → *)
     picks_valid Ω picks1 →
     picks_valid Ω picks2 →
     picks_valid Ω (merge_picks picks1 picks2).
   Proof.
-    intros disj p1 p2.
+    (* intros disj. *)
+    intros p1 p2.
     intros i' γ t.
     rewrite /merge_picks.
-    intros [look|look]%lookup_union_Some; last apply disj.
+    intros [look | [? look]]%lookup_union_Some_raw.
     - apply p1 in look as (? & gt & ? & ?). naive_solver.
     - apply p2 in look as (? & gt & ? & ?). naive_solver.
   Qed.
@@ -1118,15 +1146,34 @@ Section own_properties.
   Proof.
     rewrite /gupd.
     iIntros "[P1 P2]".
-    iDestruct "P1" as (picks1 m1 ?) "(m1 & %toks1 & M1)".
-    iDestruct "P2" as (picks2 m2 ?) "(m2 & %toks2 & M2)".
+    iDestruct "P1" as (picks1 m1 ?) "(m1 & %toks1 & HP)".
+    iDestruct "P2" as (picks2 m2 ?) "(m2 & %toks2 & HQ)".
     iDestruct (tokens_for_picks_disjoint with "m1 m2") as %disj;
       [done|done|].
     iExists (merge_picks picks1 picks2), (m1 ⋅ m2).
     iSplit.
-    { iPureIntro. apply picks_valid_merge; try done.
-      admit. }
+    { iPureIntro. apply picks_valid_merge; try done. }
+      (* admit. } *)
     iCombine "m1 m2" as "$".
+    iSplit.
+    { iPureIntro. apply m_contains_tokens_for_picks_merge; done. }
+    iIntros (fG fGgt resp).
+    iSpecialize ("HP" $! fG with "[]"). { admit. }
+    iSpecialize ("HQ" $! fG with "[]"). { admit. }
+    iModIntro.
+    iFrame "HP HQ".
+ Admitted.
+
+  Lemma fG_resp_merge_l fG picks1 picks2 :
+    fG_resp fG (g_valid_gt Ω) (merge_picks picks1 picks2) →
+    fG_resp fG (g_valid_gt Ω) picks1.
+  Proof.
+  Admitted.
+
+  Lemma fG_resp_merge_r fG picks1 picks2 :
+    fG_resp fG (g_valid_gt Ω) (merge_picks picks1 picks2) →
+    fG_resp fG (g_valid_gt Ω) picks1.
+  Proof.
   Admitted.
 
   Lemma gupd_plain_soundness P `{!Plain P} :
