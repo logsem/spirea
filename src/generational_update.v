@@ -447,6 +447,28 @@ Local Definition map_unfold {Σ} {i : gid Σ} : R Σ i -n> Rpre Σ i :=
 Local Definition map_fold {Σ} {i : gid Σ} : Rpre Σ i -n> R Σ i :=
   rFunctor_map _ (iProp_unfold, iProp_fold).
 
+Lemma map_fold_unfold {Σ} {i : gid Σ} (a : R Σ i) :
+  map_fold (map_unfold a) ≡ a.
+Proof.
+  rewrite /map_fold /map_unfold -rFunctor_map_compose -{2}[a]rFunctor_map_id.
+  apply (ne_proper (rFunctor_map _)); split=> ?; apply iProp_fold_unfold.
+Qed.
+
+Lemma map_unfold_op {Σ} {i : gid Σ} (a b : R Σ i)  :
+  map_unfold a ⋅ map_unfold b ≡ map_unfold (a ⋅ b).
+Proof. rewrite cmra_morphism_op. done. Qed.
+
+Lemma map_unfold_validN {Σ} {i : gid Σ} n (x : R Σ i) :
+  ✓{n} (map_unfold x) ↔ ✓{n} x.
+Proof.
+  split; [|apply (cmra_morphism_validN _)].
+  move=> /(cmra_morphism_validN map_fold). by rewrite map_fold_unfold.
+Qed.
+
+Lemma map_unfold_validI {Σ} {i : gid Σ} (a : R Σ i) :
+  ✓ map_unfold a ⊢@{iPropI Σ} ✓ a.
+Proof. apply valid_entails=> n. apply map_unfold_validN. Qed.
+
 Definition cmra_map_transport {A B : cmra} (Heq : A = B) (f : A → A) : (B → B) :=
   eq_rect A (λ T, T → T) f _ Heq.
 
@@ -546,7 +568,7 @@ Definition m_contains_tokens_for_picks {Σ} (picks : Picks Σ) (m : iResUR Σ) :
       m i !! γ = Some a  →
       ∃ (A : _) (eq : generational_cmraR A = R Σ i) (t : A → A),
         picks i !! γ = Some (cmra_map_transport eq (gen_generation t)) ∧
-        map_fold a ≡ (cmra_transport eq (None, GTS_tok_gen_shot t, None))).
+        a ≡ map_unfold (cmra_transport eq (None, GTS_tok_gen_shot t, None))).
 
 Definition gupd {Σ : gFunctors} {Ω : gTransforms} P : iProp Σ :=
   ∃ (picks : Picks Σ) (m : iResUR Σ),
@@ -969,29 +991,65 @@ Section picks_lemmas.
   Definition merge_picks (picks1 picks2 : Picks Σ) :=
     λ i, (picks1 i) ∪ (picks2 i).
 
+  Definition map_agree_overlap `{FinMap K M} {A} (m1 m2 : M A) :=
+    ∀ (k : K) (i j : A), m1 !! k = Some i → m2 !! k = Some j → i = j.
+
+  (* Lemma foo {A1 A2 C : cmra} (t1 : A1) (t2 : A2) *)
+  (*   (eq1 : A1 = C) (eq2 : A2 = C) : *)
+  (*   ✓ (cmra_transport eq1 t1 ⋅ cmra_transport eq2 t2) → *)
+  (*   True. *)
+  (* Proof. *)
+  (*   destruct eq1. *)
+  (*   destruct eq2. *)
+  (*   simpl. *)
+  (*   (* destruct eq. *) *)
+  (*   intros hv. *)
+  (* Admitted. *)
+
   Lemma tokens_for_picks_disjoint picks1 picks2 m1 m2 :
     m_contains_tokens_for_picks picks1 m1 →
     m_contains_tokens_for_picks picks2 m2 →
     uPred_ownM m1 -∗
     uPred_ownM m2 -∗
-    ⌜ ∀ i,
-      (m1 i) ##ₘ (m2 i) ⌝.
-      (* (picks1 i) ##ₘ (picks2 i) ⌝. *)
+    ⌜ ∀ i, map_agree_overlap (picks1 i) (picks2 i) ⌝.
   Proof.
     iIntros (t1 t2) "m1 m2". iIntros (i).
-    rewrite map_disjoint_spec.
+    (* rewrite map_disjoint_spec. *)
     iIntros (γ a1 a2 look1 look2).
-    specialize (t1 i) as (domEq1 & ? & ? & ?); first done.
-    specialize (t2 i) as (domEq2 & ? & ? & ?); first done.
+
+    specialize (t1 i) as (domEq1 & m1look).
+    assert (is_Some (m1 i !! γ)) as [? m1Look].
+    { rewrite -elem_of_dom -domEq1 elem_of_dom. done. }
+    edestruct m1look as (A1 & cmraEq1 & t1 & picks1Look & ?); first done.
+
+    specialize (t2 i) as (domEq2 & m2look).
+    assert (is_Some (m2 i !! γ)) as [? m2Look].
+    { rewrite -elem_of_dom -domEq2 elem_of_dom. done. }
+    edestruct m2look as (A2 & cmraEq2 & t2 & picks2Look & ?); first done.
+    clear m1look m2look.
+
     iCombine "m1 m2" as "m".
     iDestruct (ownM_valid with "m") as "#Hv".
     rewrite discrete_fun_validI.
     setoid_rewrite gmap_validI.
     iSpecialize ("Hv" $! i γ).
     rewrite lookup_op.
-    rewrite look1.
-    rewrite look2.
+    rewrite m1Look m2Look.
     rewrite option_validI /=.
+    rewrite H H0.
+    simplify_eq.
+    rewrite map_unfold_op.
+    clear.
+    iClear "m".
+    rewrite map_unfold_validI.
+    (* assert (generational_cmraR A1 = generational_cmraR A2) as eqq. *)
+    (* { congruence. } *)
+
+    destruct cmraEq2. simpl. clear.
+    (* assert (A1 = A2) as eq. { admit. } *)
+    (* destruct eq. *)
+    (* destruct cmraEq1. *)
+    (* destruct cmraEq1. simpl. *)
   Admitted.
 
   Lemma m_contains_tokens_for_picks_merge picks1 picks2 m1 m2 :
@@ -1013,12 +1071,10 @@ Section picks_lemmas.
   (* Qed. *)
 
   Lemma picks_valid_merge {Ω} (picks1 picks2 : Picks Σ) :
-    (* (∀ i, (picks1 i) ##ₘ (picks2 i)) → *)
     picks_valid Ω picks1 →
     picks_valid Ω picks2 →
     picks_valid Ω (merge_picks picks1 picks2).
   Proof.
-    (* intros disj. *)
     intros p1 p2.
     intros i' γ t.
     rewrite /merge_picks.
@@ -1053,8 +1109,7 @@ Proof.
   split. { rewrite pick_singleton_lookup. done. }
   rewrite <- bEq.
   rewrite /map_fold.
-  rewrite -/(@own.inG_fold _ _ i).
-  apply own.inG_fold_unfold.
+  f_equiv. done.
 Qed.
 
 (* (** * Properties about generational ghost ownership. *) *)
@@ -1170,6 +1225,20 @@ Section own_properties.
     iFrame "own".
   Qed.
 
+  Lemma fG_resp_merge_l fG picks1 picks2 :
+    fG_resp fG (g_valid_gt Ω) (merge_picks picks1 picks2) →
+    fG_resp fG (g_valid_gt Ω) picks1.
+  Proof.
+    intros resp.
+    intros m i' γ ? ? look look2.
+  Admitted.
+
+  Lemma fG_resp_merge_r fG picks1 picks2 :
+    fG_resp fG (g_valid_gt Ω) (merge_picks picks1 picks2) →
+    fG_resp fG (g_valid_gt Ω) picks2.
+  Proof.
+  Admitted.
+
   Lemma gupd_sep_2 P Q : (⚡==> P) ∗ (⚡==> Q) ⊢ ⚡==> (P ∗ Q) .
   Proof.
     rewrite /gupd.
@@ -1186,25 +1255,13 @@ Section own_properties.
     iSplit.
     { iPureIntro. apply m_contains_tokens_for_picks_merge; done. }
     iIntros (fG fGgt resp).
-    iSpecialize ("HP" $! fG with "[]"). { admit. }
-    iSpecialize ("HQ" $! fG with "[]"). { admit. }
+    iSpecialize ("HP" $! fG with "[]").
+    { iPureIntro. eapply fG_resp_merge_l. done. }
+    iSpecialize ("HQ" $! fG with "[]").
+    { iPureIntro. eapply fG_resp_merge_r. done. }
     iModIntro.
     iFrame "HP HQ".
-  Admitted.
-
-  Lemma fG_resp_merge_l fG picks1 picks2 :
-    fG_resp fG (g_valid_gt Ω) (merge_picks picks1 picks2) →
-    fG_resp fG (g_valid_gt Ω) picks1.
-  Proof.
-    intros resp.
-    intros m i' γ ? ? look look2.
-  Admitted.
-
-  Lemma fG_resp_merge_r fG picks1 picks2 :
-    fG_resp fG (g_valid_gt Ω) (merge_picks picks1 picks2) →
-    fG_resp fG (g_valid_gt Ω) picks1.
-  Proof.
-  Admitted.
+  Qed.
 
   Lemma gupd_plain_soundness P `{!Plain P} :
     (⊢ ⚡==> P) → ⊢ P.
