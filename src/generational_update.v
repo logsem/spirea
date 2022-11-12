@@ -447,6 +447,10 @@ Local Definition map_unfold {Σ} {i : gid Σ} : R Σ i -n> Rpre Σ i :=
 Local Definition map_fold {Σ} {i : gid Σ} : Rpre Σ i -n> R Σ i :=
   rFunctor_map _ (iProp_unfold, iProp_fold).
 
+Lemma map_unfold_inG_unfold {Σ A} {i : inG Σ A} :
+  map_unfold ≡ own.inG_unfold (i := i).
+Proof. done. Qed.
+
 Lemma map_fold_unfold {Σ} {i : gid Σ} (a : R Σ i) :
   map_fold (map_unfold a) ≡ a.
 Proof.
@@ -469,6 +473,7 @@ Lemma map_unfold_validI {Σ} {i : gid Σ} (a : R Σ i) :
   ✓ map_unfold a ⊢@{iPropI Σ} ✓ a.
 Proof. apply valid_entails=> n. apply map_unfold_validN. Qed.
 
+(** Transport an endo map on a camera along an equality in the camera. *)
 Definition cmra_map_transport {A B : cmra} (Heq : A = B) (f : A → A) : (B → B) :=
   eq_rect A (λ T, T → T) f _ Heq.
 
@@ -513,69 +518,136 @@ Next Obligation.
   apply g.(gt_inhabited_condition).
 Qed.
 
+(** For every entry in [Ω] we store this record of information. The key data is
+[gti_valid] which is the set of valid transformation for the camera at index
+[i]. The equality [gti_look] is the "canonical" equality we will use to show
+that the resource [R Σ i] has the proper form. Using this equality is necesarry
+as we otherwise end with different equalities of this form that we then do not
+know to be equal. *)
+Record gen_trans_info (Σ : gFunctors) (i : gid Σ) := {
+  gti_car : cmra;
+  gti_look : generational_cmraR gti_car = R Σ i ;
+  gti_valid : valid_gen_trans (R Σ i);
+}.
+
+Arguments gti_car {_} {_}.
+Arguments gti_look {_} {_}.
+Arguments gti_valid {_} {_}.
+
+(** A copy of [option] to work arround universe inconsistencies that arrise if
+we use [option]. *)
+Inductive option2 (A : Type) : Type :=
+  | Some2 : A -> option2 A
+  | None2 : option2 A.
+
+Arguments Some2 {A} a.
+Arguments None2 {A}.
+
 (** [gTransforms] contains a partial map from the type of cameras into a "set"
 of valid transformation function for that camera. *)
 Class gTransforms {Σ : gFunctors} := {
-  g_valid_gt :> ∀ (i : gid Σ), option (valid_gen_trans (R Σ i))
+  g_valid_gt :> ∀ (i : gid Σ), option2 (gen_trans_info Σ i)
 }.
 
 Global Arguments g_valid_gt {_} _.
 
 #[export] Hint Mode gTransforms +.
 
-Definition gen_transport {A B : cmra} (eq : A = B) (g : valid_gen_trans A) : valid_gen_trans B :=
+Definition gen_transport {A B : cmra}
+    (eq : A = B) (g : valid_gen_trans A) : valid_gen_trans B :=
   eq_rect A valid_gen_trans g B eq.
+
+Program Definition gen_cmra_eq {A B C : cmra}
+  (eq : A = B)
+  (eq2 : generational_cmraR B = C) : generational_cmraR A = C.
+Proof.
+  rewrite -eq2.
+  rewrite eq.
+  reflexivity.
+Defined.
 
 (* The global functor [Σ] contains the camera [A] and the global generational
 transformation [Ω] respects [g]. *)
-Class genInG (Σ : gFunctors) (Ω : gTransforms) (A : cmra) (g : valid_gen_trans A)
+Class genInG (Σ : gFunctors) (Ω : @gTransforms Σ) (A : cmra) (g : valid_gen_trans A)
     := GenInG {
-  genInG_inG : inG Σ (generational_cmraR A);
-  genInG_gen_trans :
-    Ω.(g_valid_gt) (inG_id genInG_inG) =
-      Some (gen_transport (@inG_prf _ _ genInG_inG) (lift g))
+  genInG_id : gid Σ;
+  genInG_apply := rFunctor_apply (gFunctors_lookup Σ genInG_id);
+  (* genInG_inG : inG Σ (generational_cmraR A); *)
+  genInG_gti : gen_trans_info Σ (genInG_id);
+  genInG_gen_trans : Ω.(g_valid_gt) (genInG_id) = Some2 genInG_gti;
+  genInG_gti_typ : A = genInG_gti.(gti_car);
+      (* Some (gen_transport (@inG_prf _ _ genInG_inG) (lift g)) *)
+  (* genInG_gen_trans : *)
+  (*   Ω.(g_valid_gt) (inG_id genInG_inG) = *)
+  (*     Some (gen_transport (@inG_prf _ _ genInG_inG) (lift g)) *)
+  genInG_gen_trans2 :
+    genInG_gti.(gti_valid) =
+      (gen_transport (gen_cmra_eq genInG_gti_typ genInG_gti.(gti_look)) (lift g));
+  (* genInG_proofs_eq : (@inG_prf _ _ genInG_inG) = genInG_gti.(gti_look); *)
 }.
 
-Existing Instance genInG_inG.
+Global Arguments genInG_id {_} {_} {_} {_} _.
+
+(* Definition equdeku `(i : !genInG Σ Ω A g) := *)
+(*   gen_cmra_eq genInG_gti_typ genInG_gti.(gti_look). *)
+
+Global Program Instance genInG_inG `{i : !genInG Σ Ω A g} :
+    inG Σ (generational_cmraR A) :=
+  {|
+    inG_id := genInG_id i;
+    inG_prf := gen_cmra_eq genInG_gti_typ genInG_gti.(gti_look);
+  |}.
 
 (** [Picks] contains transformation functions for a subset of ghost names. It is
 the entries that we have picked generational transformation for. *)
 Definition Picks Σ : Type := ∀ i, gmap gname (R Σ i → R Σ i).
+(* Definition Picks Σ {Ω : @gTransforms Σ} : Type := *)
+(*   ∀ i gti, Ω.(g_valid_gt) i = Some2 gti → *)
+(*             gmap gname (gti.(gti_car) → gti.(gti_car)). *)
 
 (** Every pick in [picks] is a valid generational transformation and satisfies
 the conditions for that cmra in [Ω]. *)
 Definition picks_valid {Σ} (Ω : gTransforms) (picks : Picks Σ) :=
   ∀ i γ t, picks i !! γ = Some t →
     GenTrans t ∧
-    ∃ gt, Ω.(g_valid_gt) i = Some gt ∧ gt.(gt_condition) t.
+    ∃ gti, Ω.(g_valid_gt) i = Some2 gti ∧ gti.(gti_valid).(gt_condition) t.
+  (*   ∃ gti, *)
+  (*     t = gen_generation (gti.(gti_car)) ∧ *)
+  (*     Ω.(g_valid_gt) i = Some2 gti ∧ *)
+  (*       gti.(gti_valid).(gt_condition) (gti.(gti_car)). *)
+  (* ∀ i γ gti (look : Ω.(g_valid_gt) i = Some2 gti) t, *)
+  (*   (picks i gti look) !! γ = Some t → *)
+  (*   (gti.(gti_valid).(gt_condition) t). *)
 
 (* The functor [fG] respects the conditions in [Ω] and the entries in
 [picks]. *)
-Definition fG_resp {Σ} (fG : iResUR Σ → iResUR Σ) Ω (picks : Picks Σ) :=
-  ∀ (m : iResUR Σ) i γ a gt,
+Definition fG_resp {Σ} (fG : iResUR Σ → iResUR Σ) (Ω : gTransforms) (picks : Picks Σ) :=
+  ∀ (m : iResUR Σ) i γ a gti,
     m i !! γ = Some a → (* For every element in the old element. *)
-    Ω i = Some gt → (* Where we have transformation conditions. *)
+    Ω.(g_valid_gt) i = Some2 gti → (* Where we have transformation conditions. *)
     ∃ t, (* There exists a transformation. *)
       Proper ((≡) ==> (≡)) t ∧
       (fG m) i !! γ = Some (map_unfold (t (map_fold a))) ∧
-      gt.(gt_condition) t ∧
+      gti.(gti_valid).(gt_condition) t ∧
       (∀ t', picks i !! γ = Some t' → t = t').
 
-Definition m_contains_tokens_for_picks {Σ} (picks : Picks Σ) (m : iResUR Σ) :=
+Definition m_contains_tokens_for_picks {Σ} Ω (picks : Picks Σ) (m : iResUR Σ) :=
   ∀ i,
     dom (picks i) ≡ dom (m i) ∧
     (∀ (γ : gname) (a : Rpre Σ i),
       m i !! γ = Some a  →
-      ∃ (A : _) (eq : generational_cmraR A = R Σ i) (t : A → A),
-        picks i !! γ = Some (cmra_map_transport eq (gen_generation t)) ∧
-        a ≡ map_unfold (cmra_transport eq (None, GTS_tok_gen_shot t, None))).
+      ∃ gti (t : gti.(gti_car) → gti.(gti_car)),
+        Ω.(g_valid_gt) i = Some2 gti ∧
+      (* ∃ (A : _) (eq : generational_cmraR A = R Σ i) (t : A → A), *)
+        picks i !! γ = Some (cmra_map_transport gti.(gti_look) (gen_generation t)) ∧
+        a ≡ map_unfold (cmra_transport (gti.(gti_look)) (None, GTS_tok_gen_shot t, None))).
 
 Definition gupd {Σ : gFunctors} {Ω : gTransforms} P : iProp Σ :=
   ∃ (picks : Picks Σ) (m : iResUR Σ),
     ⌜ picks_valid Ω picks ⌝ ∗
-    uPred_ownM m ∗ ⌜ m_contains_tokens_for_picks picks m ⌝ ∗
+    uPred_ownM m ∗ ⌜ m_contains_tokens_for_picks Ω picks m ⌝ ∗
     ∀ (fG : iResUR Σ → _) (_ : GenTrans fG),
-      ⌜ fG_resp fG Ω.(g_valid_gt) picks ⌝ →
+      ⌜ fG_resp fG Ω picks ⌝ →
       ⚡={fG}=> P.
 
 Notation "⚡==> P" := (gupd P)
@@ -583,7 +655,7 @@ Notation "⚡==> P" := (gupd P)
 
 Lemma uPred_own_resp `{i : !genInG Σ Ω A tr} fG `{!GenTrans fG} picks
   (f : generational_cmraR A → _) γ a `{!Proper ((≡) ==> (≡)) f} :
-  fG_resp (Σ := Σ) fG Ω.(g_valid_gt) picks →
+  fG_resp (Σ := Σ) fG Ω picks →
   picks (inG_id _) !! γ = Some (cmra_map_transport inG_prf f) →
   uPred_ownM (fG (own.iRes_singleton γ a))
   ⊢ uPred_ownM ((own.iRes_singleton γ (f a))).
@@ -595,16 +667,16 @@ Proof.
   { eapply (
       Hresp (discrete_fun_singleton (inG_id _)
               {[γ := own.inG_unfold (cmra_transport inG_prf a)]})
-          (inG_id genInG_inG)
+          (genInG_id i)
           γ
-          (own.inG_unfold (cmra_transport inG_prf a))
-          (gen_transport inG_prf (lift tr))
+          (own.inG_unfold (i := genInG_inG) (cmra_transport inG_prf a))
+          _
       ).
     - rewrite discrete_fun_lookup_singleton.
       rewrite lookup_singleton.
       done.
     - apply genInG_gen_trans. }
-  destruct HI as (t & proper & fGLook & ? & lookEq).
+  destruct HI as (t & proper & fGLook & valid & lookEq).
   apply lookEq in Hlook as ->.
   f_equiv. simpl.
   apply discrete_fun_included_spec.
@@ -619,7 +691,7 @@ Proof.
   rewrite fGLook.
   f_equiv.
   f_equiv.
-  rewrite own.inG_fold_unfold.
+  rewrite (own.inG_fold_unfold (i := (@genInG_inG Σ Ω A tr i))).
   rewrite cmra_map_transport_cmra_transport.
   done.
 Qed.
@@ -636,7 +708,7 @@ Proof. destruct eq. done. Qed.
 
 Lemma uPred_own_resp_omega `{i : !genInG Σ Ω A tr} fG `{!GenTrans fG} picks γ
     (a : generational_cmraR A) :
-  fG_resp (Σ := Σ) fG Ω.(g_valid_gt) picks →
+  fG_resp (Σ := Σ) fG Ω picks →
   uPred_ownM (fG (own.iRes_singleton γ a))
   ⊢ ∃ (t : generational_cmraR A → generational_cmraR A),
       ⌜ gt_condition (lift tr) t ⌝ ∗
@@ -647,24 +719,28 @@ Proof.
   rewrite /fG_resp in Hresp.
   eassert (_) as HI.
   { eapply (
-      Hresp (discrete_fun_singleton (inG_id _)
+      Hresp (discrete_fun_singleton (genInG_id i)
               {[γ := own.inG_unfold (cmra_transport inG_prf a)]})
           (inG_id genInG_inG)
           γ
           (own.inG_unfold (cmra_transport inG_prf a))
-          (gen_transport inG_prf (lift tr))
+          _
+          (* (gen_transport inG_prf (lift tr)) *)
       ).
     - rewrite discrete_fun_lookup_singleton.
       rewrite lookup_singleton.
       done.
-    - apply genInG_gen_trans. }
-  destruct HI as (t & proper & fGLook & ? & lookEq).
+    - simpl.
+      apply genInG_gen_trans. }
+  destruct HI as (t & proper & fGLook & valid & lookEq).
   set (eq_sym (@inG_prf _ _ (genInG_inG))) as eq.
   iIntros "HR".
+  (* iExists (cmra_map_transport _ t). *)
   iExists (cmra_map_transport eq t).
   iSplit.
   { iPureIntro.
     rewrite -gt_conditions_transport.
+    rewrite -genInG_gen_trans2.
     assumption. }
   iStopProof.
   f_equiv.
@@ -812,17 +888,19 @@ Global Instance gen_trans_cmra_map_transport {A B : cmra} (eq : A = B)
   GenTrans f → GenTrans (cmra_map_transport eq f).
 Proof. destruct eq. done. Qed.
 
-Lemma gt_condition_transport `{i : !genInG Σ Ω A transA} f :
+Lemma gt_condition_transport {A B} (transA : valid_gen_trans A)
+    (f : A → A)
+    (eq : generational_cmraR A = B) :
   gt_condition (lift transA) (gen_generation f) →
-  gt_condition (gen_transport inG_prf (lift transA))
-    (cmra_map_transport inG_prf (gen_generation f)).
-Proof. destruct inG_prf. simpl. done. Qed.
+  gt_condition (gen_transport eq (lift transA))
+    (cmra_map_transport eq (gen_generation f)).
+Proof. destruct eq. simpl. done. Qed.
 
 Lemma picks_valid_singleton `{i : !genInG Σ Ω A gens} f γ :
   GenTrans f →
   gt_condition gens f →
   picks_valid Ω
-    (pick_singleton (inG_id genInG_inG) γ
+    (pick_singleton (genInG_id i) γ
        (cmra_map_transport inG_prf (gen_generation f))).
 Proof.
   intros ?? idx' γ' f'.
@@ -831,6 +909,7 @@ Proof.
   eexists _.
   rewrite genInG_gen_trans.
   split; first done.
+  rewrite genInG_gen_trans2.
   apply gt_condition_transport. simpl.
   eexists f. split; first done. assumption.
 Qed.
@@ -862,9 +941,9 @@ Definition build_trans {Σ} (Ω : @gTransforms Σ) (picks : Picks Σ) :
       | Some fl => Some $ map_unfold $ fl $ map_fold a
       | None =>
           match Ω.(g_valid_gt) i with
-          | None => None
-          | Some gt =>
-              Some $ map_unfold $ gt.(gt_inhabited) $ map_fold a
+          | None2 => None
+          | Some2 gt =>
+              Some $ map_unfold $ gt.(gti_valid).(gt_inhabited) $ map_fold a
           end
       end
     ) (m i).
@@ -964,7 +1043,7 @@ Section picks_lemmas.
 
   Lemma build_trans_resp Ω picks :
     picks_valid Ω picks →
-    fG_resp (build_trans Ω picks) Ω.(g_valid_gt) picks.
+    fG_resp (build_trans Ω picks) Ω picks.
   Proof.
     rewrite /fG_resp /build_trans.
     intros picksGT ??????.
@@ -972,14 +1051,15 @@ Section picks_lemmas.
     - exists pick.
       (* specialize (sat i γ pick eq) as (gt' & ? & ?). *)
       specialize (picksGT i γ pick eq) as [l (gt' & ? & ?)].
-      assert (gt = gt') as <- by congruence.
+      assert (gti = gt') as <- by congruence.
       rewrite map_lookup_imap. rewrite H. simpl.
       split; first apply _.
       rewrite eq.
       split; first done.
       split; first done.
       move=> ? [= ->] //.
-    - exists (gt_inhabited gt).
+    - intros ?.
+      exists (gt_inhabited gti.(gti_valid)).
       split; first apply _.
       rewrite map_lookup_imap. rewrite H. simpl.
       rewrite eq H0.
@@ -994,21 +1074,9 @@ Section picks_lemmas.
   Definition map_agree_overlap `{FinMap K M} {A} (m1 m2 : M A) :=
     ∀ (k : K) (i j : A), m1 !! k = Some i → m2 !! k = Some j → i = j.
 
-  (* Lemma foo {A1 A2 C : cmra} (t1 : A1) (t2 : A2) *)
-  (*   (eq1 : A1 = C) (eq2 : A2 = C) : *)
-  (*   ✓ (cmra_transport eq1 t1 ⋅ cmra_transport eq2 t2) → *)
-  (*   True. *)
-  (* Proof. *)
-  (*   destruct eq1. *)
-  (*   destruct eq2. *)
-  (*   simpl. *)
-  (*   (* destruct eq. *) *)
-  (*   intros hv. *)
-  (* Admitted. *)
-
-  Lemma tokens_for_picks_disjoint picks1 picks2 m1 m2 :
-    m_contains_tokens_for_picks picks1 m1 →
-    m_contains_tokens_for_picks picks2 m2 →
+  Lemma tokens_for_picks_agree_overlap Ω picks1 picks2 m1 m2 :
+    m_contains_tokens_for_picks Ω picks1 m1 →
+    m_contains_tokens_for_picks Ω picks2 m2 →
     uPred_ownM m1 -∗
     uPred_ownM m2 -∗
     ⌜ ∀ i, map_agree_overlap (picks1 i) (picks2 i) ⌝.
@@ -1020,13 +1088,15 @@ Section picks_lemmas.
     specialize (t1 i) as (domEq1 & m1look).
     assert (is_Some (m1 i !! γ)) as [? m1Look].
     { rewrite -elem_of_dom -domEq1 elem_of_dom. done. }
-    edestruct m1look as (A1 & cmraEq1 & t1 & picks1Look & ?); first done.
+    edestruct m1look as (gti1 & t1 & ? & picks1Look & ?); first done.
 
     specialize (t2 i) as (domEq2 & m2look).
     assert (is_Some (m2 i !! γ)) as [? m2Look].
     { rewrite -elem_of_dom -domEq2 elem_of_dom. done. }
-    edestruct m2look as (A2 & cmraEq2 & t2 & picks2Look & ?); first done.
+    edestruct m2look as (gti2 & t2 & ? & picks2Look & ?); first done.
     clear m1look m2look.
+
+    assert (gti1 = gti2) as -> by congruence.
 
     iCombine "m1 m2" as "m".
     iDestruct (ownM_valid with "m") as "#Hv".
@@ -1036,26 +1106,29 @@ Section picks_lemmas.
     rewrite lookup_op.
     rewrite m1Look m2Look.
     rewrite option_validI /=.
-    rewrite H H0.
+    rewrite H0 H2.
     simplify_eq.
     rewrite map_unfold_op.
     clear.
     iClear "m".
     rewrite map_unfold_validI.
-    (* assert (generational_cmraR A1 = generational_cmraR A2) as eqq. *)
-    (* { congruence. } *)
+    destruct (gti_look gti2); simpl.
+    rewrite 2!prod_validI.
+    iDestruct "Hv" as "((_ & %Hv) & _)".
+    simpl in Hv.
+    destruct Hv as [? Hv].
+    simpl in *.
+    rewrite Some_valid in Hv.
+    rewrite Cinr_valid in Hv.
+    rewrite to_agree_op_valid in Hv.
+    rewrite Hv.
+    done.
+  Qed.
 
-    destruct cmraEq2. simpl. clear.
-    (* assert (A1 = A2) as eq. { admit. } *)
-    (* destruct eq. *)
-    (* destruct cmraEq1. *)
-    (* destruct cmraEq1. simpl. *)
-  Admitted.
-
-  Lemma m_contains_tokens_for_picks_merge picks1 picks2 m1 m2 :
-    m_contains_tokens_for_picks picks1 m1 →
-    m_contains_tokens_for_picks picks2 m2 →
-    m_contains_tokens_for_picks (merge_picks picks1 picks2) (m1 ⋅ m2).
+  Lemma m_contains_tokens_for_picks_merge Ω picks1 picks2 m1 m2 :
+    m_contains_tokens_for_picks Ω picks1 m1 →
+    m_contains_tokens_for_picks Ω picks2 m2 →
+    m_contains_tokens_for_picks Ω (merge_picks picks1 picks2) (m1 ⋅ m2).
   Proof.
     intros tok1 tok2.
     intros i.
@@ -1085,10 +1158,31 @@ Section picks_lemmas.
 
 End picks_lemmas.
 
-Lemma m_contains_tokens_for_picks_singleton `{i : inG Σ (generational_cmraR A)}
+Lemma transportation_equality_1 {A B C : cmra} (t : A → A)
+    (eq2 : generational_cmraR C = B) (eq3 : A = C) :
+  cmra_map_transport (gen_cmra_eq eq3 eq2) (gen_generation t) =
+  cmra_map_transport eq2 (gen_generation (cmra_map_transport eq3 t)).
+Proof. destruct eq2. simpl. destruct eq3. simpl. done. Qed.
+
+Lemma transportation_equality_2 Σ Ω `{i : !genInG Σ Ω A aa} t :
+  cmra_transport (gen_cmra_eq genInG_gti_typ (gti_look genInG_gti))
+    (None, GTS_tok_gen_shot t, None)
+  ≡ cmra_transport (gti_look genInG_gti)
+      (None, GTS_tok_gen_shot (cmra_map_transport genInG_gti_typ t), None).
+Proof.
+  destruct (gti_look genInG_gti).
+  simpl.
+  destruct genInG_gti_typ.
+  done.
+Qed.
+
+Lemma m_contains_tokens_for_picks_singleton {Σ} Ω `{i : !genInG Σ Ω A aa}
     γ (t : A → A) :
-  m_contains_tokens_for_picks
-    (pick_singleton (inG_id _) γ (cmra_map_transport inG_prf (gen_generation t)))
+  m_contains_tokens_for_picks Ω
+    (pick_singleton (inG_id _) γ (
+      (* cmra_map_transport (gti_look genInG_gti) (gen_generation (cmra_map_transport genInG_gti_typ t)) *)
+      cmra_map_transport inG_prf (gen_generation t)
+    ))
     (own.iRes_singleton γ ((None, GTS_tok_gen_shot t, None) : generational_cmraR A)).
 Proof.
   intros i'.
@@ -1098,18 +1192,22 @@ Proof.
   intros γ' b.
   intros look.
   apply iRes_singleton_lookup_alt in look as (iEq & -> & bEq).
-  exists A.
-  assert (rFunctor_apply (gFunctors_lookup Σ i') (iPrePropO Σ) =
-            rFunctor_apply (gFunctors_lookup Σ (inG_id i)) (iPrePropO Σ)).
-  { rewrite iEq. done. }
   destruct iEq.
-  pose proof (@inG_prf _ _ i) as eq'.
-  rewrite /inG_apply in eq'.
-  eexists (@inG_prf _ _ i), t.
-  split. { rewrite pick_singleton_lookup. done. }
+  exists genInG_gti.
+  exists (cmra_map_transport (genInG_gti_typ) t).
+  split. { simpl. apply genInG_gen_trans. }
+  split.
+  { rewrite pick_singleton_lookup.
+    f_equiv.
+    rewrite /inG_prf /=.
+    apply transportation_equality_1. }
   rewrite <- bEq.
   rewrite /map_fold.
-  f_equiv. done.
+  f_equiv.
+  rewrite /inG_prf /=.
+  simpl.
+  specialize (transportation_equality_2 Σ _ t).
+  done.
 Qed.
 
 (* (** * Properties about generational ghost ownership. *) *)
@@ -1226,16 +1324,16 @@ Section own_properties.
   Qed.
 
   Lemma fG_resp_merge_l fG picks1 picks2 :
-    fG_resp fG (g_valid_gt Ω) (merge_picks picks1 picks2) →
-    fG_resp fG (g_valid_gt Ω) picks1.
+    fG_resp fG Ω (merge_picks picks1 picks2) →
+    fG_resp fG Ω picks1.
   Proof.
     intros resp.
     intros m i' γ ? ? look look2.
   Admitted.
 
   Lemma fG_resp_merge_r fG picks1 picks2 :
-    fG_resp fG (g_valid_gt Ω) (merge_picks picks1 picks2) →
-    fG_resp fG (g_valid_gt Ω) picks2.
+    fG_resp fG Ω (merge_picks picks1 picks2) →
+    fG_resp fG Ω picks2.
   Proof.
   Admitted.
 
@@ -1245,7 +1343,7 @@ Section own_properties.
     iIntros "[P1 P2]".
     iDestruct "P1" as (picks1 m1 ?) "(m1 & %toks1 & HP)".
     iDestruct "P2" as (picks2 m2 ?) "(m2 & %toks2 & HQ)".
-    iDestruct (tokens_for_picks_disjoint with "m1 m2") as %disj;
+    iDestruct (tokens_for_picks_agree_overlap with "m1 m2") as %disj;
       [done|done|].
     iExists (merge_picks picks1 picks2), (m1 ⋅ m2).
     iSplit.
