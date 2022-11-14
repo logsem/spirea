@@ -33,7 +33,6 @@ Proof. intros ?. apply: ne_proper. Qed.
 Lemma gen_trans_monotone {A : cmra} (f : A → A) `{!GenTrans f} x y :
   x ≼ y → f x ≼ f y.
 Proof. intros [z ->]. exists (f z). rewrite generation_op. done. Qed.
-(* Lemma gen_trans_monotoneN *)
 
 Global Arguments generation_op {_} _ {_} _ _.
 
@@ -302,6 +301,23 @@ Definition GTS_floor {A} (a : GTS A) : GTS A :=
   | (None, _) => (None, None)
   | (ExclBot', _) => (ExclBot', Some $ Cinl $ ExclBot)
   end.
+
+Lemma GTS_tok_gen_shot_foo {M} {A} (t1 t2 : A) :
+  ✓ ((GTS_tok_gen_shot t1 : GTSR A) ⋅ (GTS_tok_gen_shot t2 : GTSR A))
+    ⊣⊢@{uPredI M} ⌜ t1 = t2 ⌝.
+Proof.
+  rewrite /GTS_tok_gen_shot.
+  rewrite !prod_validI. simpl.
+  rewrite -Some_op.
+  rewrite -Cinr_op.
+  rewrite option_validI. simpl.
+  rewrite option_validI. simpl.
+  rewrite csum_validI.
+  rewrite left_id.
+  rewrite to_agree_op_validI.
+  rewrite -leibniz_equiv_iff.
+  apply (anti_symm _); naive_solver.
+Qed.
 
 Global Instance GTS_floor_generation A : GenTrans (GTS_floor (A := A) : GTSR A → GTSR A).
 Proof.
@@ -1082,22 +1098,17 @@ Section picks_lemmas.
     ⌜ ∀ i, map_agree_overlap (picks1 i) (picks2 i) ⌝.
   Proof.
     iIntros (t1 t2) "m1 m2". iIntros (i).
-    (* rewrite map_disjoint_spec. *)
     iIntros (γ a1 a2 look1 look2).
-
     specialize (t1 i) as (domEq1 & m1look).
     assert (is_Some (m1 i !! γ)) as [? m1Look].
     { rewrite -elem_of_dom -domEq1 elem_of_dom. done. }
     edestruct m1look as (gti1 & t1 & ? & picks1Look & ?); first done.
-
     specialize (t2 i) as (domEq2 & m2look).
     assert (is_Some (m2 i !! γ)) as [? m2Look].
     { rewrite -elem_of_dom -domEq2 elem_of_dom. done. }
     edestruct m2look as (gti2 & t2 & ? & picks2Look & ?); first done.
     clear m1look m2look.
-
     assert (gti1 = gti2) as -> by congruence.
-
     iCombine "m1 m2" as "m".
     iDestruct (ownM_valid with "m") as "#Hv".
     rewrite discrete_fun_validI.
@@ -1125,23 +1136,126 @@ Section picks_lemmas.
     done.
   Qed.
 
-  Lemma m_contains_tokens_for_picks_merge Ω picks1 picks2 m1 m2 :
+  Lemma cmra_transport_validI {A B : cmra} (eq : A =@{cmra} B) (a : A) :
+    ✓ cmra_transport eq a ⊢@{iPropI Σ} ✓ a.
+  Proof. destruct eq. done. Qed.
+
+  Lemma tokens_for_picks_agree_overlap' Ω picks1 picks2 m1 m2 :
+    m_contains_tokens_for_picks Ω picks1 m1 →
+    m_contains_tokens_for_picks Ω picks2 m2 →
+    uPred_ownM m1 -∗
+    uPred_ownM m2 -∗
+    ⌜ ∀ i γ a b, (m1 i) !! γ = Some a → (m2 i) !! γ = Some b → a ≡ b ⌝.
+  Proof.
+    iIntros (t1 t2) "m1 m2". iIntros (i).
+    iIntros (γ a1 a2 m1Look m2Look).
+    specialize (t1 i) as (domEq1 & m1look).
+    (* assert (is_Some (m1 i !! γ)) as [? m1Look]. *)
+    (* { rewrite -elem_of_dom -domEq1 elem_of_dom. done. } *)
+    edestruct m1look as (gti1 & t1 & ? & picks1Look & ?); first done.
+    specialize (t2 i) as (domEq2 & m2look).
+    (* assert (is_Some (m2 i !! γ)) as [? m2Look]. *)
+    (* { rewrite -elem_of_dom -domEq2 elem_of_dom. done. } *)
+    edestruct m2look as (gti2 & t2 & ? & picks2Look & ?); first done.
+    clear m1look m2look.
+    assert (gti1 = gti2) as -> by congruence.
+    iCombine "m1 m2" as "m".
+    iDestruct (ownM_valid with "m") as "#Hv".
+    rewrite discrete_fun_validI.
+    setoid_rewrite gmap_validI.
+    iSpecialize ("Hv" $! i γ).
+    rewrite lookup_op.
+    rewrite m1Look m2Look.
+    rewrite option_validI /=.
+    rewrite H0 H2.
+    simplify_eq.
+    rewrite map_unfold_op.
+    (* clear. *)
+    (* iClear "m". *)
+    rewrite map_unfold_validI.
+    rewrite -cmra_transport_op.
+    rewrite cmra_transport_validI.
+    rewrite -pair_op.
+    rewrite -pair_op.
+    rewrite prod_validI.
+    rewrite prod_validI.
+    iDestruct "Hv" as "((_ & Hv) & _)". simpl.
+    rewrite GTS_tok_gen_shot_foo.
+    iDestruct "Hv" as %->.
+    done.
+  Qed.
+
+  Lemma cmra_map_transport_inj {A B : cmra} (eq : A = B) a b :
+    cmra_map_transport eq a = cmra_map_transport eq b → a = b.
+  Proof. destruct eq. done. Qed.
+
+  Lemma m_contains_tokens_for_picks_merge Ω picks1 picks2 (m1 m2 : iResUR Σ) :
+    (∀ i, map_agree_overlap (picks1 i) (picks2 i)) →
+    (∀ i γ a b, (m1 i) !! γ = Some a → (m2 i) !! γ = Some b → a ≡ b) →
     m_contains_tokens_for_picks Ω picks1 m1 →
     m_contains_tokens_for_picks Ω picks2 m2 →
     m_contains_tokens_for_picks Ω (merge_picks picks1 picks2) (m1 ⋅ m2).
   Proof.
-    intros tok1 tok2.
+    intros overlap1 overlap2 tok1 tok2.
     intros i.
     rewrite /merge_picks.
     rewrite dom_op.
-    destruct (tok1 i) as (domEq1 & ?).
-    destruct (tok2 i) as (domEq2 & ?).
-    rewrite -domEq1 -domEq2.
-    rewrite dom_union.
-    split; first done.
-    intros γ a look.
-  Admitted.
-  (* Qed. *)
+    specialize (tok1 i) as (domEq1 & tok1).
+    specialize (tok2 i) as (domEq2 & tok2).
+    split.
+    { rewrite -domEq1 -domEq2. rewrite dom_union. done. }
+    intros γ a.
+
+    rewrite discrete_fun_lookup_op.
+    rewrite lookup_op.
+    case (m1 i !! γ) eqn:look1; rewrite look1;
+      case (m2 i !! γ) eqn:look2; rewrite look2.
+    - specialize (overlap2 i _ _ _ look1 look2) as elemEq.
+      apply tok1 in look1 as (gti1 & t1 & val1 & picksLook1 & a1).
+      apply tok2 in look2 as (gti2 & t2 & val2 & picksLook2 & a2).
+      intros [= opEq].
+      exists gti1, t1.
+      split; first done.
+      split. { erewrite lookup_union_Some_l; done. }
+      rewrite -opEq.
+      rewrite -elemEq.
+      rewrite a1.
+      assert (gti1 = gti2) as -> by congruence.
+      rewrite map_unfold_op.
+      f_equiv.
+      rewrite -cmra_transport_op.
+      f_equiv.
+      rewrite -pair_op.
+      split; first split; [done| |done].
+      simpl.
+      specialize (overlap1 i _ _ _ picksLook1 picksLook2) as hi.
+      apply cmra_map_transport_inj in hi.
+      rewrite /GTS_tok_gen_shot.
+      rewrite -!pair_op.
+      split; first done. simpl.
+      rewrite -Some_op.
+      f_equiv.
+      rewrite -Cinr_op.
+      f_equiv.
+      apply agree_idemp.
+    - intros [= ->].
+      apply tok1 in look1 as (gti1 & t1 & val1 & picksLook1 & a1).
+      exists gti1, t1.
+      split; first done.
+      split. { erewrite lookup_union_Some_l; done. }
+      apply a1.
+    - intros [= ->].
+      apply tok2 in look2 as (gti2 & t2 & val2 & picksLook2 & a2).
+      exists gti2, t2.
+      split; first done.
+      split; last done.
+      erewrite lookup_union_r; try done.
+      apply not_elem_of_dom.
+      rewrite domEq1.
+      rewrite not_elem_of_dom.
+      done.
+    - intros [=].
+  Qed.
 
   Lemma picks_valid_merge {Ω} (picks1 picks2 : Picks Σ) :
     picks_valid Ω picks1 →
@@ -1328,14 +1442,51 @@ Section own_properties.
     fG_resp fG Ω picks1.
   Proof.
     intros resp.
-    intros m i' γ ? ? look look2.
-  Admitted.
+    intros m i' γ ? ? look1 val.
+    edestruct resp as (t & ? & ? & ? & TT); [done|done| ].
+    exists t.
+    split; first done.
+    split; first done.
+    split; first done.
+    intros t' look.
+    apply TT.
+    rewrite /merge_picks.
+    apply lookup_union_Some_l.
+    done.
+  Qed.
+
+  Lemma lookup_union_r_overlap `{FinMap K M} {B} (picks1 picks2 : M B) γ t :
+    map_agree_overlap (picks1) (picks2) →
+    picks2 !! γ = Some t →
+    (picks1 ∪ picks2) !! γ = Some t.
+  Proof.
+    intros lap look.
+    destruct (picks1 !! γ) eqn:eq.
+    - apply lookup_union_Some_l.
+      rewrite eq.
+      f_equiv.
+      eapply lap; done.
+    - rewrite -look. apply lookup_union_r. done.
+  Qed.
 
   Lemma fG_resp_merge_r fG picks1 picks2 :
+    (∀ i, map_agree_overlap (picks1 i) (picks2 i)) →
     fG_resp fG Ω (merge_picks picks1 picks2) →
     fG_resp fG Ω picks2.
   Proof.
-  Admitted.
+    intros overlap resp.
+    intros m i' γ ? ? look1 val.
+    edestruct resp as (t & ? & ? & ? & TT); [done|done| ].
+    exists t.
+    split; first done.
+    split; first done.
+    split; first done.
+    intros t' look.
+    apply TT.
+    rewrite /merge_picks.
+    apply lookup_union_r_overlap; last done.
+    apply overlap.
+  Qed.
 
   Lemma gupd_sep_2 P Q : (⚡==> P) ∗ (⚡==> Q) ⊢ ⚡==> (P ∗ Q) .
   Proof.
@@ -1345,10 +1496,11 @@ Section own_properties.
     iDestruct "P2" as (picks2 m2 ?) "(m2 & %toks2 & HQ)".
     iDestruct (tokens_for_picks_agree_overlap with "m1 m2") as %disj;
       [done|done|].
+    iDestruct (tokens_for_picks_agree_overlap' with "m1 m2") as %disj2;
+      [done|done|].
     iExists (merge_picks picks1 picks2), (m1 ⋅ m2).
     iSplit.
     { iPureIntro. apply picks_valid_merge; try done. }
-      (* admit. } *)
     iCombine "m1 m2" as "$".
     iSplit.
     { iPureIntro. apply m_contains_tokens_for_picks_merge; done. }
@@ -1356,7 +1508,7 @@ Section own_properties.
     iSpecialize ("HP" $! fG with "[]").
     { iPureIntro. eapply fG_resp_merge_l. done. }
     iSpecialize ("HQ" $! fG with "[]").
-    { iPureIntro. eapply fG_resp_merge_r. done. }
+    { iPureIntro. eapply fG_resp_merge_r; done. }
     iModIntro.
     iFrame "HP HQ".
   Qed.
