@@ -1513,6 +1513,26 @@ Section own_properties.
     iFrame "HP HQ".
   Qed.
 
+  Lemma gupd_mono P Q :
+    (P ⊢ Q) → (⚡==> P) ⊢ ⚡==> Q.
+  Proof.
+    intros Hi.
+    rewrite /gupd.
+    iDestruct 1 as (? m ?) "(? & ? & HP)".
+    iExists picks, m.
+    iFrame.
+    iSplit; first done.
+    iIntros (fG ? resp).
+    iApply bgupd_mono.
+    { apply Hi. }
+    iApply "HP".
+    done.
+  Qed.
+
+  Global Instance gupd_mono' :
+    Proper ((⊢) ==> (⊢)) gupd.
+  Proof. intros P Q. apply gupd_mono. Qed.
+
   Lemma gupd_plain_soundness P `{!Plain P} :
     (⊢ ⚡==> P) → ⊢ P.
   Proof.
