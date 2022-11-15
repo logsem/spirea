@@ -204,7 +204,7 @@ Section bgupd_rules.
   Definition modality_bgupd :=
     Modality _ modality_bgupd_mixin.
 
-  Global Instance from_modal_objectively P :
+  Global Instance from_modal_bgupd P :
     FromModal True modality_bgupd (⚡={f}=> P) (⚡={f}=> P) P | 1.
   Proof. by rewrite /FromModal. Qed.
 
@@ -391,6 +391,20 @@ Proof. rewrite -own_op. done. Qed.
 
 Definition gen_picked_in `{!inG Σ (generational_cmraR A)} γ (f : A → A) : iProp Σ :=
   own γ ((Some (to_agree f), (None, None), None) : generational_cmraR A).
+
+Lemma gen_picked_in_agree `{!inG Σ (generational_cmraR A)} γ (f f' : A → A) :
+  gen_picked_in γ f -∗ gen_picked_in γ f' -∗ ⌜ f = f' ⌝.
+Proof.
+  iIntros "A B".
+  iDestruct (own_valid_2 with "A B") as "val".
+  rewrite -3!pair_op.
+  rewrite 2!prod_validI.
+  iDestruct "val" as ([val _]) "_".
+  iPureIntro.
+  rewrite Some_valid in val.
+  apply (to_agree_op_inv_L (A := leibnizO (A → A))) in val.
+  done.
+Qed.
 
 Global Instance gen_trans_prod_map {A B : cmra} (f : A → A) (g : B → B) :
   GenTrans f → GenTrans g → GenTrans (prod_map f g).
@@ -1444,64 +1458,6 @@ Section own_properties.
     reflexivity.
   Qed.
 
-  Lemma own_generational_update_tok γ a t :
-    gen_token_used γ ∗
-    gen_picked_out γ t ∗
-    gen_own γ a
-    ⊢ ⚡==>
-      gen_token γ ∗
-      gen_own γ (t a) ∗
-      gen_picked_in γ t.
-  Proof.
-    iIntros "(tok1 & tok2 & gen)".
-    iDestruct "tok2" as "((% & %cond) & tok2)".
-    rewrite /gupd.
-    (* For both the picks and the resource we pick singleton maps corresponding
-    to the one ghost name we care about. *)
-    iExists (pick_singleton (inG_id _) γ (cmra_map_transport inG_prf (gen_generation t))).
-    iExists (own.iRes_singleton γ
-               ((None, GTS_tok_gen_shot t, None) : generational_cmraR A)).
-
-    (* We first have to show that the picks are valid in relation to [Ω]. *)
-    iSplit.
-    { iPureIntro. apply: picks_valid_singleton. done. }
-    (* We use the per-generation token. *)
-    rewrite /own_shot.
-    iEval (rewrite own.own_eq) in "tok2".
-    iFrame "tok2".
-    (* We must now show that the domain of the picks and the resource that we
-    own are equal. *)
-    iSplit.
-    { iPureIntro. apply m_contains_tokens_for_picks_singleton. }
-    iIntros (?? fG_resp).
-    rewrite /gen_own.
-    iEval (rewrite own.own_eq) in "gen".
-    rewrite /gen_token_used.
-    iEval (rewrite own.own_eq) in "tok1".
-    rewrite /own.own_def.
-    iModIntro.
-    iDestruct (uPred_own_resp _ _ (gen_generation t) with "gen") as "gen".
-    { done. }
-    { apply pick_singleton_lookup. }
-    iDestruct (uPred_own_resp _ _ (gen_generation t) with "tok1") as "tok1".
-    { done. }
-    { apply pick_singleton_lookup. }
-    iEval (rewrite comm).
-    iEval (rewrite -assoc).
-    simpl.
-    iSplitL "gen".
-    { iApply own_mono; last first.
-      { rewrite own.own_eq. rewrite /own.own_def. iApply "gen". }
-      exists (Some (to_agree t), (None, None), None).
-      done. }
-    rewrite /gen_picked_in.
-    rewrite /gen_token.
-    rewrite -own_op.
-    iApply own_mono; last first.
-    { rewrite own.own_eq. rewrite /own.own_def. iApply "tok1". }
-    reflexivity.
-  Qed.
-
   Lemma own_generational_update γ a :
     gen_own γ a ⊢
       ⚡==> ∃ t, ⌜ transA.(gt_condition) t ⌝ ∗ gen_own γ (t a) ∗ gen_picked_in γ t.
@@ -1755,6 +1711,10 @@ Section own_properties.
   Definition modality_gupd :=
     Modality _ modality_gupd_mixin.
 
+  Global Instance from_modal_gupd P :
+    FromModal True modality_gupd (⚡==> P) (⚡==> P) P | 1.
+  Proof. by rewrite /FromModal. Qed.
+
   Lemma gupd_plain_soundness P `{!Plain P} :
     (⊢ ⚡==> P) → ⊢ P.
   Proof.
@@ -1769,8 +1729,26 @@ Section own_properties.
     apply build_trans_resp; done.
   Qed.
 
-  Global Instance into_gupd_gen_token_out γ t :
+  Global Instance into_gupd_gen_picked_out γ t :
     IntoGupd (gen_picked_out γ t) (gen_picked_in γ t).
   Proof. apply gen_picked_next_gupd. Qed.
+
+  Global Instance into_gupd_gen_token_used γ :
+    IntoGupd (gen_token_used γ) (gen_token γ).
+  Proof. apply gen_token_used_gupd. Qed.
+
+  Global Instance into_gupd_gen_own γ m : IntoGupd (gen_own γ m) _ :=
+    own_generational_update γ m.
+
+  Lemma own_generational_update_tok γ a t `{!GenTrans t} :
+    gen_token_used γ -∗ gen_picked_out γ t -∗ gen_own γ a -∗
+    ⚡==> gen_token γ ∗ gen_own γ (t a) ∗ gen_picked_in γ t.
+  Proof.
+    iIntros "tok pick own".
+    iModIntro.
+    iDestruct "own" as (t' cond) "(own & pick')".
+    iDestruct (gen_picked_in_agree with "pick pick'") as %->.
+    iFrame.
+  Qed.
 
 End own_properties.
