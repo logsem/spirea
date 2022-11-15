@@ -380,7 +380,7 @@ Definition gen_token `{!inG Σ (generational_cmraR A)} γ : iProp Σ :=
 Definition gen_picked_next `{!inG Σ (generational_cmraR A)} γ t : iProp Σ :=
   own γ ((None, GTS_tok_gen_shot t, None) : generational_cmraR A).
 
-Definition gen_token_next `{!inG Σ (generational_cmraR A)} γ : iProp Σ :=
+Definition gen_token_used `{!inG Σ (generational_cmraR A)} γ : iProp Σ :=
   own γ ((None, GTS_tok_perm, None) : generational_cmraR A).
 
 Lemma gen_token_split `{!inG Σ (generational_cmraR A)} γ :
@@ -1365,10 +1365,47 @@ Section own_properties.
     iApply "H".
   Qed.
 
+  Lemma pick_next γ t :
+    gen_token γ ⊢ |==> gen_token_used γ ∗ gen_picked_next γ t.
+  Proof.
+    rewrite gen_token_split.
+    iIntros "[$ B]".
+    iApply (own_update with "B").
+    apply prod_update; last done.
+    apply prod_update; first done.
+    apply prod_update; first done.
+    apply option_update.
+    apply cmra_update_exclusive. done.
+  Qed.
+
+  Lemma gen_token_next_gupd γ :
+    gen_token_used γ ⊢ ⚡==> gen_token γ.
+  Proof.
+    iIntros "tok".
+    rewrite /gen_token_used.
+    iEval (rewrite own.own_eq) in "tok".
+    iExists (λ i, ∅), ε.
+    rewrite ownM_unit'.
+    rewrite left_id.
+    iSplit. { iPureIntro. apply picks_valid_empty. }
+    iSplit. { iPureIntro. apply m_contains_tokens_for_picks_empty. }
+    iIntros (fG ? resp).
+    iModIntro.
+    iDestruct (uPred_own_resp_omega _ _ with "tok") as (to) "(%cond & tok)";
+      first done.
+    destruct cond as (t & -> & cond).
+    rewrite /gen_token.
+    rewrite /gen_generation /gen_generation_first.
+    iApply own_mono; last first.
+    { rewrite own.own_eq. iApply "tok". }
+    eexists (Some (to_agree t), (None, None), None).
+    (* We split and simpl as it speeds up the reflexivity. *)
+    split; simpl; reflexivity.
+  Qed.
+
   Lemma own_generational_update_tok γ a t `{!GenTrans t} :
     transA.(gt_condition) t →
-    (* gen_token γ ∗ *)
-    gen_token_next γ ∗
+    gen_token_used γ ∗
     gen_picked_next γ t ∗
     gen_own γ a
     ⊢ ⚡==>
@@ -1397,7 +1434,7 @@ Section own_properties.
     iIntros (?? fG_resp).
     rewrite /gen_own.
     iEval (rewrite own.own_eq) in "gen".
-    rewrite /gen_token_next.
+    rewrite /gen_token_used.
     iEval (rewrite own.own_eq) in "tok1".
     rewrite /own.own_def.
     iModIntro.
@@ -1433,8 +1470,7 @@ Section own_properties.
     iExists (λ i, ∅), ε.
     rewrite ownM_unit'.
     rewrite left_id.
-    iSplit.
-    { iPureIntro. apply picks_valid_empty. }
+    iSplit. { iPureIntro. apply picks_valid_empty. }
     iSplit.
     { iPureIntro. apply m_contains_tokens_for_picks_empty. }
     iIntros (fG ? resp).
