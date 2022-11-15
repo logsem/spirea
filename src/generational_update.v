@@ -143,7 +143,7 @@ Section bgupd_rules.
     split; done.
   Qed.
 
-  Lemma bgupd_intro_plain P :
+  Lemma bgupd_intro_plainly P :
     ■ P ⊢ ⚡={f}=> ■ P.
   Proof. unseal. split. done. Qed.
 
@@ -220,13 +220,18 @@ Section bgupd_rules.
     (⚡={f}=> (∀ a : A, Ψ a)) ⊣⊢ (∀ a : A, ⚡={f}=> Ψ a).
   Proof. unseal. done. Qed.
 
+  Lemma bgupd_intro_plain P `{!Plain P, !Absorbing P} :
+    P ⊢ ⚡={f}=> P.
+  Proof.
+    rewrite -(plain_plainly P).
+    apply bgupd_intro_plainly.
+  Qed.
+
   Lemma bgupd_plain P `{!Plain P} :
     (⚡={f}=> P) ⊢ P.
   Proof. rewrite {1}(plain P). apply bgupd_plainly. Qed.
 
 End bgupd_rules.
-
-  (* (⊢ ⚡={f}=> ⚡={f}=> P) → ⊢ ⚡={f}=> P. *)
 
 Lemma bgupd_plain_soundness {M : ucmra} f `{!GenTrans f} (P : uPred M) `{!Plain P} :
   (⊢ ⚡={f}=> P) → ⊢ P.
@@ -244,6 +249,10 @@ Section into_bgupd.
   Global Instance into_bgupd_bgupd P :
     IntoBgupd f (⚡={f}=> P) P.
   Proof. done. Qed.
+
+  Global Instance into_bgupd_plain P `{!Plain P, !Absorbing P} :
+    IntoBgupd f P P.
+  Proof. apply: bgupd_intro_plain. Qed.
 
   Global Instance into_bgupd_later P P' :
     IntoBgupd f P P' → IntoBgupd f (▷ P) (▷ P').
@@ -669,6 +678,12 @@ Definition gupd {Σ : gFunctors} {Ω : gTransforms} P : iProp Σ :=
 Notation "⚡==> P" := (gupd P)
   (at level 99, P at level 200, format "⚡==>  P") : bi_scope.
 
+Class IntoGupd {Σ} {Ω : gTransforms} (P : iProp Σ) (Q : iProp Σ) :=
+  into_gupd : P ⊢ ⚡==> Q.
+Global Arguments IntoGupd  {_} {_} _%I _%I.
+Global Arguments into_gupd {_} {_} _%I _%I.
+Global Hint Mode IntoGupd + + ! - : typeclass_instances.
+
 Lemma uPred_own_resp `{i : !genInG Σ Ω A tr} fG `{!GenTrans fG} picks
   (f : generational_cmraR A → _) γ a `{!Proper ((≡) ==> (≡)) f} :
   fG_resp (Σ := Σ) fG Ω picks →
@@ -1090,6 +1105,10 @@ Section picks_lemmas.
   Definition map_agree_overlap `{FinMap K M} {A} (m1 m2 : M A) :=
     ∀ (k : K) (i j : A), m1 !! k = Some i → m2 !! k = Some j → i = j.
 
+  Lemma m_contains_tokens_for_picks_empty Ω :
+    m_contains_tokens_for_picks Ω (λ i : fin (gFunctors_len Σ), ∅) ε.
+  Proof. done. Qed.
+
   Lemma tokens_for_picks_agree_overlap Ω picks1 picks2 m1 m2 :
     m_contains_tokens_for_picks Ω picks1 m1 →
     m_contains_tokens_for_picks Ω picks2 m2 →
@@ -1415,9 +1434,7 @@ Section own_properties.
     iSplit.
     { iPureIntro. apply picks_valid_empty. }
     iSplit.
-    { iPureIntro. intros ?.
-      rewrite discrete_fun_lookup_empty. rewrite 2!dom_empty.
-      done. }
+    { iPureIntro. apply m_contains_tokens_for_picks_empty. }
     iIntros (fG ? resp).
 
     rewrite /gen_own.
@@ -1529,9 +1546,47 @@ Section own_properties.
     done.
   Qed.
 
+  Lemma gupd_intro_plain P `{!Plain P} : P ⊢ ⚡==> P.
+  Proof.
+    rewrite /gupd.
+    iIntros "P".
+    iExists (λ i, ∅), ε.
+    rewrite ownM_unit'.
+    rewrite left_id.
+    iSplit. { iPureIntro. apply picks_valid_empty. }
+    iSplit.
+    { iPureIntro. apply m_contains_tokens_for_picks_empty. }
+    iIntros (fG ? resp).
+    iModIntro.
+    done.
+  Qed.
+
+  Lemma gupd_emp_2 : emp ⊢ ⚡==> emp.
+  Proof. apply: gupd_intro_plain. Qed.
+
+  (** This lemma holds since it holds for the basic generational update modality
+  and since [<pers>] commutes with all the connectives used in the non-basic
+  gupd modality (exists, separation, etc.). *)
+  Lemma gupd_intuitinistically_2 P : <pers> (⚡==> P) ⊢ ⚡==> (<pers> P).
+  Proof.
+    rewrite /gupd.
+    iDestruct 1 as (picks m) "(#? & #? & #? & HP)".
+    iExists picks, m.
+    iFrame "#".
+    iIntros (fG ? resp).
+    iDestruct ("HP" $! fG _ resp) as "#HP".
+    iModIntro. iModIntro.
+    iApply "HP".
+  Qed.
+
   Global Instance gupd_mono' :
     Proper ((⊢) ==> (⊢)) gupd.
   Proof. intros P Q. apply gupd_mono. Qed.
+
+  Global Instance gupd_ne : NonExpansive gupd.
+  Proof. solve_proper. Qed.
+
+  Global Instance gupd_proper : Proper ((≡) ==> (≡)) gupd := ne_proper _.
 
   Lemma gupd_plain_soundness P `{!Plain P} :
     (⊢ ⚡==> P) → ⊢ P.
