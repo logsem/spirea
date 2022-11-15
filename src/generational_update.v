@@ -732,6 +732,10 @@ Lemma cmra_transport_map_transport {A B} (eq : A = B) t a :
   t (cmra_transport eq a).
 Proof. destruct eq. simpl. done. Qed.
 
+Lemma cmra_transport_pcore {A B : cmra} (eq : A = B) (a : A) :
+  (cmra_transport eq) <$> (pcore a) = pcore (cmra_transport eq a).
+Proof. destruct eq. simpl. destruct (pcore a); done. Qed.
+
 Lemma gt_conditions_transport {A B} (eq : generational_cmraR A = B) tr t :
   gt_condition (gen_transport eq (lift tr)) t =
   gt_condition (lift tr) (cmra_map_transport (eq_sym eq) t).
@@ -756,7 +760,6 @@ Proof.
           γ
           (own.inG_unfold (cmra_transport inG_prf a))
           _
-          (* (gen_transport inG_prf (lift tr)) *)
       ).
     - rewrite discrete_fun_lookup_singleton.
       rewrite lookup_singleton.
@@ -766,7 +769,6 @@ Proof.
   destruct HI as (t & proper & fGLook & valid & lookEq).
   set (eq_sym (@inG_prf _ _ (genInG_inG))) as eq.
   iIntros "HR".
-  (* iExists (cmra_map_transport _ t). *)
   iExists (cmra_map_transport eq t).
   iSplit.
   { iPureIntro.
@@ -1505,6 +1507,74 @@ Section own_properties.
     apply overlap.
   Qed.
 
+  Lemma tokens_persistent picks m :
+    m_contains_tokens_for_picks Ω picks m →
+    Persistent (uPred_ownM m).
+  Proof.
+    intros tok.
+    apply ownM_persistent.
+    rewrite core_id_total.
+    intros i' γ.
+    destruct (tok i') as (domEq & mLook).
+    rewrite discrete_fun_lookup_core.
+    rewrite lookup_core.
+    destruct (m i' !! γ) eqn:look; rewrite look; last done.
+    rewrite core_Some_pcore.
+    simpl.
+    apply mLook in look as (? & ? & ? & ? & ->).
+    rewrite -cmra_morphism_pcore.
+    rewrite -cmra_transport_pcore.
+    done.
+  Qed.
+
+  Lemma gupd_and_2 P Q :
+    (⚡==> P) ∧ (⚡==> Q) ⊢ ⚡==> (P ∧ Q).
+  Proof.
+    rewrite /gupd.
+    iIntros "H".
+    rewrite and_exist_r.
+    setoid_rewrite and_exist_r.
+    iDestruct "H" as (picks1 m1) "H".
+    rewrite and_exist_l.
+    setoid_rewrite and_exist_l.
+    iDestruct "H" as (picks2 m2) "H".
+    iExists (merge_picks picks1 picks2), (m1 ⋅ m2).
+    setoid_rewrite <- bgupd_and.
+    iAssert (⌜ picks_valid Ω picks1 ⌝)%I as %val1.
+    { iDestruct "H" as "[($ & ?) _]". }
+    iAssert (⌜ picks_valid Ω picks2 ⌝)%I as %val2.
+    { iDestruct "H" as "[_ ($ & ?)]". }
+    iSplit.
+    { iPureIntro. apply picks_valid_merge; done. }
+    iAssert (⌜m_contains_tokens_for_picks Ω picks1 m1⌝)%I as %tok1.
+    { iDestruct "H" as "[(? & ? & $ & ?) _]". }
+    iAssert (⌜m_contains_tokens_for_picks Ω picks2 m2⌝)%I as %tok2.
+    { iDestruct "H" as "[_ (? & ? & $ & ?)]". }
+    pose proof (tokens_persistent _ _ tok1).
+    pose proof (tokens_persistent _ _ tok2).
+    iAssert (uPred_ownM (m1)) as "#M1".
+    { iDestruct "H" as "[(? & $ & ? & ?) _]". }
+    iAssert (uPred_ownM (m2)) as "#M2".
+    { iDestruct "H" as "[_ (? & $ & ? & ?)]". }
+    iSplitL "".
+    { iSplitL ""; iFrame "#". }
+    iDestruct (tokens_for_picks_agree_overlap with "M1 M2") as %disj;
+      [done|done|].
+    iDestruct (tokens_for_picks_agree_overlap' with "M1 M2") as %disj2;
+      [done|done|].
+    iSplit. { iPureIntro. apply m_contains_tokens_for_picks_merge; try done. }
+    iIntros (fG ? resp).
+    iSplit.
+    - iDestruct "H" as "[(? & ? & ? & HP) _]".
+      iApply "HP".
+      iPureIntro.
+      eapply fG_resp_merge_l. done.
+    - iDestruct "H" as "[_ (? & ? & ? & HQ)]".
+      iApply "HQ".
+      iPureIntro.
+      eapply fG_resp_merge_r; done.
+  Qed.
+
   Lemma gupd_sep_2 P Q : (⚡==> P) ∗ (⚡==> Q) ⊢ ⚡==> (P ∗ Q) .
   Proof.
     rewrite /gupd.
@@ -1587,6 +1657,25 @@ Section own_properties.
   Proof. solve_proper. Qed.
 
   Global Instance gupd_proper : Proper ((≡) ==> (≡)) gupd := ne_proper _.
+
+  Lemma modality_gupd_mixin :
+    modality_mixin (@gupd _ _)
+      (MIEnvTransform (IntoGupd))
+      (MIEnvTransform (IntoGupd)).
+  Proof.
+    split; simpl; split_and?.
+    - intros ?? Hi.
+      rewrite Hi.
+      rewrite 2!intuitionistically_into_persistently.
+      apply gupd_intuitinistically_2.
+    - intros. rewrite gupd_and_2. done.
+    - done.
+    - apply gupd_emp_2.
+    - apply gupd_mono.
+    - apply gupd_sep_2.
+  Qed.
+  Definition modality_gupd :=
+    Modality _ modality_gupd_mixin.
 
   Lemma gupd_plain_soundness P `{!Plain P} :
     (⊢ ⚡==> P) → ⊢ P.
