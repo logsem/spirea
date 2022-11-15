@@ -377,7 +377,7 @@ Definition gen_own `{!inG Σ (generational_cmraR A)}
 Definition gen_token `{!inG Σ (generational_cmraR A)} γ : iProp Σ :=
   own γ ((None, GTS_tok_both, None) : generational_cmraR A).
 
-Definition gen_picked_next `{!inG Σ (generational_cmraR A)} γ t : iProp Σ :=
+Definition own_shot `{!inG Σ (generational_cmraR A)} γ t : iProp Σ :=
   own γ ((None, GTS_tok_gen_shot t, None) : generational_cmraR A).
 
 Definition gen_token_used `{!inG Σ (generational_cmraR A)} γ : iProp Σ :=
@@ -389,7 +389,7 @@ Lemma gen_token_split `{!inG Σ (generational_cmraR A)} γ :
   own γ (None, GTS_tok_gen, None).
 Proof. rewrite -own_op. done. Qed.
 
-Definition gen_pick `{!inG Σ (generational_cmraR A)} γ (f : A → A) : iProp Σ :=
+Definition gen_picked_in `{!inG Σ (generational_cmraR A)} γ (f : A → A) : iProp Σ :=
   own γ ((Some (to_agree f), (None, None), None) : generational_cmraR A).
 
 Global Instance gen_trans_prod_map {A B : cmra} (f : A → A) (g : B → B) :
@@ -1352,6 +1352,9 @@ Section own_properties.
 
   Implicit Types a : A.
 
+  Definition gen_picked_out γ t : iProp Σ :=
+    ⌜ GenTrans t ∧ transA.(gt_condition) t ⌝ ∧ own_shot γ t.
+
   (* Allocating new ghost state results in both generational ownership over the
   allocated element and owneship ovevr the token. *)
   Lemma own_gen_alloc a : ✓ a → ⊢ |==> ∃ γ, gen_own γ a ∗ gen_token γ.
@@ -1365,11 +1368,16 @@ Section own_properties.
     iApply "H".
   Qed.
 
-  Lemma pick_next γ t :
-    gen_token γ ⊢ |==> gen_token_used γ ∗ gen_picked_next γ t.
+  Lemma gen_token_pick_next γ t `{!GenTrans t} :
+    transA.(gt_condition) t →
+    gen_token γ ⊢ |==> gen_token_used γ ∗ gen_picked_out γ t.
   Proof.
+    intros cond.
     rewrite gen_token_split.
     iIntros "[$ B]".
+    rewrite /gen_picked_out.
+    rewrite bi.pure_True; last done.
+    rewrite left_id.
     iApply (own_update with "B").
     apply prod_update; last done.
     apply prod_update; first done.
@@ -1378,7 +1386,7 @@ Section own_properties.
     apply cmra_update_exclusive. done.
   Qed.
 
-  Lemma gen_token_next_gupd γ :
+  Lemma gen_token_used_gupd γ :
     gen_token_used γ ⊢ ⚡==> gen_token γ.
   Proof.
     iIntros "tok".
@@ -1403,16 +1411,50 @@ Section own_properties.
     split; simpl; reflexivity.
   Qed.
 
-  Lemma own_generational_update_tok γ a t `{!GenTrans t} :
-    transA.(gt_condition) t →
+  Lemma gen_picked_next_gupd γ t :
+    gen_picked_out γ t ⊢ ⚡==> gen_picked_in γ t.
+  Proof.
+    iIntros "((% & %cond) & #tok)".
+    iExists (pick_singleton (inG_id _) γ (cmra_map_transport inG_prf (gen_generation t))).
+    iExists (own.iRes_singleton γ
+               ((None, GTS_tok_gen_shot t, None) : generational_cmraR A)).
+    (* We first have to show that the picks are valid in relation to [Ω]. *)
+    iSplit.
+    { iPureIntro. apply: picks_valid_singleton. done. }
+    (* We use the per-generation token. *)
+    rewrite /own_shot.
+    iEval (rewrite own.own_eq) in "tok".
+    iFrame "tok".
+    iSplit.
+    { iPureIntro. apply m_contains_tokens_for_picks_singleton. }
+    iIntros (fG ? resp).
+    rewrite /gen_own.
+    rewrite /own.own_def.
+    iModIntro.
+    iDestruct (uPred_own_resp _ _ (gen_generation t) with "tok") as "tok'".
+    { done. }
+    { apply pick_singleton_lookup. }
+    iClear "tok".
+    simpl.
+    rewrite /gen_picked_in.
+    rewrite /gen_token.
+    simpl.
+    iApply (own_mono (i := (@genInG_inG Σ Ω A transA i)) γ _ (Some (to_agree t), (None, None), None)); last first.
+    { rewrite own.own_eq. rewrite /own.own_def. iApply "tok'". }
+    reflexivity.
+  Qed.
+
+  Lemma own_generational_update_tok γ a t :
     gen_token_used γ ∗
-    gen_picked_next γ t ∗
+    gen_picked_out γ t ∗
     gen_own γ a
     ⊢ ⚡==>
-      gen_token γ ∗ gen_own γ (t a) ∗ gen_pick γ t.
+      gen_token γ ∗
+      gen_own γ (t a) ∗
+      gen_picked_in γ t.
   Proof.
-    iIntros (cond) "(tok1 & tok2 & gen)".
-    (* iDestruct (gen_token_split with "tok") as "[tok1 tok2]". *)
+    iIntros "(tok1 & tok2 & gen)".
+    iDestruct "tok2" as "((% & %cond) & tok2)".
     rewrite /gupd.
     (* For both the picks and the resource we pick singleton maps corresponding
     to the one ghost name we care about. *)
@@ -1424,7 +1466,7 @@ Section own_properties.
     iSplit.
     { iPureIntro. apply: picks_valid_singleton. done. }
     (* We use the per-generation token. *)
-    rewrite /gen_picked_next.
+    rewrite /own_shot.
     iEval (rewrite own.own_eq) in "tok2".
     iFrame "tok2".
     (* We must now show that the domain of the picks and the resource that we
@@ -1452,7 +1494,7 @@ Section own_properties.
       { rewrite own.own_eq. rewrite /own.own_def. iApply "gen". }
       exists (Some (to_agree t), (None, None), None).
       done. }
-    rewrite /gen_pick.
+    rewrite /gen_picked_in.
     rewrite /gen_token.
     rewrite -own_op.
     iApply own_mono; last first.
@@ -1462,7 +1504,7 @@ Section own_properties.
 
   Lemma own_generational_update γ a :
     gen_own γ a ⊢
-      ⚡==> ∃ t, ⌜ transA.(gt_condition) t ⌝ ∗ gen_own γ (t a) ∗ gen_pick γ t.
+      ⚡==> ∃ t, ⌜ transA.(gt_condition) t ⌝ ∗ gen_own γ (t a) ∗ gen_picked_in γ t.
   Proof.
     iIntros "own".
     rewrite /gupd.
@@ -1486,7 +1528,7 @@ Section own_properties.
     iExists t.
     iSplit; first done.
     simpl.
-    rewrite /gen_pick.
+    rewrite /gen_picked_in.
     rewrite -own_op.
     rewrite own.own_eq.
     iFrame "own".
@@ -1726,5 +1768,9 @@ Section own_properties.
     iApply ("HP" $!  _ with "[%]").
     apply build_trans_resp; done.
   Qed.
+
+  Global Instance into_gupd_gen_token_out γ t :
+    IntoGupd (gen_picked_out γ t) (gen_picked_in γ t).
+  Proof. apply gen_picked_next_gupd. Qed.
 
 End own_properties.
