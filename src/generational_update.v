@@ -212,6 +212,11 @@ Section bgupd_rules.
     ▷ (⚡={f}=> P) ⊣⊢ ⚡={f}=> (▷ P).
   Proof. unseal. done. Qed.
 
+  Lemma bgupd_laterN n P : (▷^n ⚡={f}=> P) ⊣⊢ ⚡={f}=> ▷^n P.
+  Proof.
+    induction n as [|n IH]; simpl; auto. rewrite IH bgupd_later. done.
+  Qed.
+
   Lemma bgupd_exist {A} Ψ :
     (⚡={f}=> (∃ a : A, Ψ a)) ⊣⊢ (∃ a : A, ⚡={f}=> Ψ a).
   Proof. unseal. done. Qed.
@@ -230,6 +235,14 @@ Section bgupd_rules.
   Lemma bgupd_plain P `{!Plain P} :
     (⚡={f}=> P) ⊢ P.
   Proof. rewrite {1}(plain P). apply bgupd_plainly. Qed.
+
+  Global Instance into_later_bgupd n P Q :
+    IntoLaterN false n P Q →
+    IntoLaterN false n (⚡={f}=> P) (⚡={f}=> Q).
+  Proof.
+    rewrite /IntoLaterN /MaybeIntoLaterN=> ->.
+    rewrite bgupd_laterN. done.
+  Qed.
 
 End bgupd_rules.
 
@@ -677,7 +690,6 @@ Definition m_contains_tokens_for_picks {Σ} Ω (picks : Picks Σ) (m : iResUR Σ
       m i !! γ = Some a  →
       ∃ gti (t : gti.(gti_car) → gti.(gti_car)),
         Ω.(g_valid_gt) i = Some2 gti ∧
-      (* ∃ (A : _) (eq : generational_cmraR A = R Σ i) (t : A → A), *)
         picks i !! γ = Some (cmra_map_transport gti.(gti_look) (gen_generation t)) ∧
         a ≡ map_unfold (cmra_transport (gti.(gti_look)) (None, GTS_tok_gen_shot t, None))).
 
@@ -685,8 +697,7 @@ Definition gupd {Σ : gFunctors} {Ω : gTransforms} P : iProp Σ :=
   ∃ (picks : Picks Σ) (m : iResUR Σ),
     ⌜ picks_valid Ω picks ⌝ ∗
     uPred_ownM m ∗ ⌜ m_contains_tokens_for_picks Ω picks m ⌝ ∗
-    ∀ (fG : iResUR Σ → _) (_ : GenTrans fG),
-      ⌜ fG_resp fG Ω picks ⌝ →
+    ∀ (fG : iResUR Σ → _) (_ : GenTrans fG) (_ : fG_resp fG Ω picks ),
       ⚡={fG}=> P.
 
 Notation "⚡==> P" := (gupd P)
@@ -1728,6 +1739,10 @@ Section own_properties.
     iApply ("HP" $!  _ with "[%]").
     apply build_trans_resp; done.
   Qed.
+
+  Lemma gupd_later_2 P :
+    (⚡==> ▷ P) ⊢ ▷ (⚡==> P).
+  Proof. rewrite /gupd. iIntros "?". iNext. done. Qed.
 
   Global Instance into_gupd_gen_picked_out γ t :
     IntoGupd (gen_picked_out γ t) (gen_picked_in γ t).
