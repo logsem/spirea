@@ -168,7 +168,7 @@ Section bgupd_rules.
   Lemma bgupd_emp_2 : emp ⊢ ⚡={f}=> emp.
   Proof. unseal. done. Qed.
 
-  Lemma bgupd_intuitinistically_2 P :
+  Lemma bgupd_intuitionistically_2 P :
     <pers> (⚡={f}=> P) ⊢ ⚡={f}=> (<pers> P).
   Proof.
     unseal. split. simpl. intros ???.
@@ -194,7 +194,7 @@ Section bgupd_rules.
     - intros ?? Hi.
       rewrite Hi.
       rewrite 2!intuitionistically_into_persistently.
-      apply bgupd_intuitinistically_2.
+      apply bgupd_intuitionistically_2.
     - intros. rewrite bgupd_and. done.
     - done.
     - apply bgupd_emp_2.
@@ -267,6 +267,29 @@ Section into_bgupd.
     IntoBgupd f P P.
   Proof. apply: bgupd_intro_plain. Qed.
 
+  Global Instance into_bgupd_and P P' Q Q' :
+    IntoBgupd f P P' →
+    IntoBgupd f Q Q' →
+    IntoBgupd f (P ∧ Q) (P' ∧ Q').
+  Proof.
+    rewrite /IntoBgupd.
+    intros -> ->.
+    rewrite -bgupd_and.
+    done.
+  Qed.
+
+  Global Instance into_bgupd_sep P P' Q Q' :
+    IntoBgupd f P P' →
+    IntoBgupd f Q Q' →
+    IntoBgupd f (P ∗ Q) (P' ∗ Q').
+  Proof.
+    rewrite /IntoBgupd.
+    iIntros (Hi1 Hi2) "[P Q]".
+    rewrite Hi1 Hi2.
+    iModIntro.
+    iFrame.
+  Qed.
+
   Global Instance into_bgupd_later P P' :
     IntoBgupd f P P' → IntoBgupd f (▷ P) (▷ P').
   Proof. rewrite /IntoBgupd. rewrite -bgupd_later. intros ->. done. Qed.
@@ -289,6 +312,26 @@ Section into_bgupd.
     iApply "Hi".
   Qed.
 
+  Lemma bgupd_wand_plain P `{!Plain P, !Absorbing P} Q :
+    (⚡={f}=> (P -∗ Q)) ⊢ P -∗ ⚡={f}=> Q.
+  Proof.
+    iIntros "H P".
+    iDestruct (bgupd_intro_plain f P with "P") as "P".
+    iModIntro.
+    iApply "H". iApply "P".
+  Qed.
+
+
+  Lemma bgupd_persistently_2 P :
+    □ (⚡={f}=> P) ⊢ ⚡={f}=> (□ P).
+  Proof.
+    rewrite /bi_intuitionistically /bi_affinely.
+    iIntros "H".
+    rewrite bgupd_intuitionistically_2.
+    rewrite {1}bgupd_emp_2.
+    iModIntro.
+    done.
+  Qed.
 End into_bgupd.
 
 (******************************************************************************)
