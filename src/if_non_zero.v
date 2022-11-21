@@ -9,7 +9,7 @@ From self.base Require Import primitive_laws.
 
 Set Default Proof Using "Type*".
 
-Lemma mk_Qp_Qp_to_Qc qp prf : (* Upstreamed *)
+Lemma mk_Qp_Qp_to_Qc qp prf :
   mk_Qp (Qp_to_Qc qp) prf = qp.
 Proof. by apply Qp.to_Qc_inj_iff. Qed.
 

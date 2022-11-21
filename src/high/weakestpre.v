@@ -89,9 +89,6 @@ Section wp.
   Abort.
   (* rewrite h. <-. Qed. *)
 
-  (* Note: This proof broke when [interp] was added to the recovery condition in
-  the definition of our WPR. It should still be probable though. Maybe by doing
-  induction in [n] and using [wpc_pure_step_fupd] from Perennial. *)
   Lemma wp_pure_step_fupd `{!Inhabited (state nvm_lang)} s E E' e1 e2 φ n Φ :
     PureExecBase φ n e1 e2 →
     φ →
@@ -174,14 +171,6 @@ Section wp_rules.
     intros Hl. induction l1; [done|].
     by erewrite <- app_comm_cons, last_cons.
   Qed.
-
-  (* FIXME: This has been committed upstream, delete later when dependencies are updated. *)
-  Lemma make_monPred_at_embed2 {I : biIndex} {PROP : bi} name (i : I) P (𝓟 : PROP) :
-    MakeMonPredAt i P 𝓟 →
-    MakeMonPredAt i (named name P) (named name 𝓟).
-  Proof. done. Qed.
-
-  Hint Extern 0 (MakeMonPredAt _ (named _ _) _) => apply make_monPred_at_embed2 : typeclass_instances.
 
   (* A read-only points-to predicate. *)
   (* Definition mapsto_ro ℓ (s : ST) ϕ : dProp Σ := *)
