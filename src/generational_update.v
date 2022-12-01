@@ -168,8 +168,8 @@ Section bgupd_rules.
   Lemma bgupd_emp_2 : emp ⊢ ⚡={f}=> emp.
   Proof. unseal. done. Qed.
 
-  Lemma bgupd_intuitionistically_2 P :
-    <pers> (⚡={f}=> P) ⊢ ⚡={f}=> (<pers> P).
+  Lemma bgupd_intuitionistically P :
+    (⚡={f}=> (<pers> P)) ⊣⊢ <pers> (⚡={f}=> P).
   Proof.
     unseal. split. simpl. intros ???.
     pose proof (generation_pcore x) as eq.
@@ -178,6 +178,14 @@ Section bgupd_rules.
     rewrite eq.
     done.
   Qed.
+
+  Lemma bgupd_intuitionistically_1 P :
+    (⚡={f}=> (<pers> P)) ⊢ <pers> (⚡={f}=> P).
+  Proof. rewrite bgupd_intuitionistically. done. Qed.
+
+  Lemma bgupd_intuitionistically_2 P :
+    <pers> (⚡={f}=> P) ⊢ ⚡={f}=> (<pers> P).
+  Proof. rewrite bgupd_intuitionistically. done. Qed.
 
   Global Instance bgupd_mono' :
     Proper ((⊢) ==> (⊢)) (uPred_bgupd f).
@@ -327,7 +335,7 @@ Section into_bgupd.
   Proof.
     rewrite /bi_intuitionistically /bi_affinely.
     iIntros "H".
-    rewrite bgupd_intuitionistically_2.
+    rewrite -bgupd_intuitionistically.
     rewrite {1}bgupd_emp_2.
     iModIntro.
     done.
@@ -1722,9 +1730,23 @@ Section own_properties.
   Lemma gupd_emp_2 : emp ⊢ ⚡==> emp.
   Proof. apply: gupd_intro_plain. Qed.
 
-  (** This lemma holds since it holds for the basic generational update modality
-  and since [<pers>] commutes with all the connectives used in the non-basic
-  gupd modality (exists, separation, etc.). *)
+  (** This and the next lemma holds since it holds for the basic generational
+  update modality and since [<pers>] commutes with all the connectives used in
+  the non-basic gupd modality (exists, separation, etc.). *)
+  Lemma gupd_intuitinistically_1 P : (⚡==> (<pers> P)) ⊢ <pers> (⚡==> P).
+  Proof.
+    rewrite /gupd.
+    iDestruct 1 as (picks m) "(#? & m & %tok & #HP)".
+    pose proof (tokens_persistent _ _ tok).
+    iDestruct "m" as "#m".
+    iExists picks, m.
+    iFrame "#". iFrame (tok).
+    iIntros (fG ? resp).
+    iDestruct ("HP" $! fG _ resp) as "#HP'".
+    iModIntro. iModIntro.
+    iApply "HP'".
+  Qed.
+
   Lemma gupd_intuitinistically_2 P : <pers> (⚡==> P) ⊢ ⚡==> (<pers> P).
   Proof.
     rewrite /gupd.
@@ -1807,6 +1829,16 @@ Section own_properties.
     iDestruct "own" as (t' cond) "(own & pick')".
     iDestruct (gen_picked_in_agree with "pick pick'") as %->.
     iFrame.
+  Qed.
+
+  Lemma gupd_persistent P : Persistent P → Persistent (⚡==> P).
+  Proof.
+    rewrite /Persistent.
+    intros ?.
+    rewrite -gupd_intuitinistically_1.
+    iIntros "H".
+    iDestruct (gupd_mono with "H") as "HH"; first apply H.
+    done.
   Qed.
 
 End own_properties.
