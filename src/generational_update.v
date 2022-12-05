@@ -88,7 +88,6 @@ Section bgupd_rules.
   Notation "(⊢)" := (@uPred_entails M) (only parsing) : stdpp_scope.
 
   Local Arguments uPred_holds {_} !_ _ _ /.
-  (* Local Hint Immediate uPred_in_entails : core. *)
 
   Ltac unseal := try uPred.unseal; rewrite !uPred_bgupd_unseal !/uPred_holds /=.
 
@@ -501,15 +500,6 @@ Definition gen_own `{!inG Σ (generational_cmraR A)}
     (γ : gname) (a : A) : iProp Σ :=
   own γ (None, (None, None), Some a).
 
-(* Local Definition own_gen_def `{!inG Σ (generational_cmraR A)} *)
-(*     (γ : gname) (a : A) : iProp Σ := *)
-(*   own γ (None, (None, None), Some a). *)
-(* Local Definition own_gen_aux : seal (@own_gen_def). Proof. by eexists. Qed. *)
-(* Definition gen_own := own_gen_aux.(unseal). *)
-(* Global Arguments gen_own {Σ A _} γ a. *)
-(* Local Definition own_gen_eq : @gen_own = @own_gen_def := own_gen_aux.(seal_eq). *)
-(* Local Instance: Params (@gen_own 4 := {}. *)
-
 Definition gen_token `{!inG Σ (generational_cmraR A)} γ : iProp Σ :=
   own γ ((None, GTS_tok_both, None) : generational_cmraR A).
 
@@ -570,9 +560,6 @@ over a generational camera. *)
 Definition gen_generation {A : cmra}
     (f : A → A) : generational_cmraR A → generational_cmraR A :=
   prod_map (gen_generation_first f) (fmap f : optionR A → optionR A).
-  (* match e with *)
-  (* | (_, tok, ma) => (Some (to_agree f), GTS_floor tok, f <$> ma) *)
-  (* end. *)
 
 Global Instance gen_trans_fmap {A : cmra} (f : A → A) :
   GenTrans f → GenTrans (fmap f : optionR A → optionR A).
@@ -747,24 +734,15 @@ Class genInG (Σ : gFunctors) (Ω : @gTransforms Σ) (A : cmra) (g : valid_gen_t
     := GenInG {
   genInG_id : gid Σ;
   genInG_apply := rFunctor_apply (gFunctors_lookup Σ genInG_id);
-  (* genInG_inG : inG Σ (generational_cmraR A); *)
   genInG_gti : gen_trans_info Σ (genInG_id);
   genInG_gen_trans : Ω.(g_valid_gt) (genInG_id) = Some2 genInG_gti;
   genInG_gti_typ : A = genInG_gti.(gti_car);
-      (* Some (gen_transport (@inG_prf _ _ genInG_inG) (lift g)) *)
-  (* genInG_gen_trans : *)
-  (*   Ω.(g_valid_gt) (inG_id genInG_inG) = *)
-  (*     Some (gen_transport (@inG_prf _ _ genInG_inG) (lift g)) *)
   genInG_gen_trans2 :
     genInG_gti.(gti_valid) =
       (gen_transport (gen_cmra_eq genInG_gti_typ genInG_gti.(gti_look)) (lift g));
-  (* genInG_proofs_eq : (@inG_prf _ _ genInG_inG) = genInG_gti.(gti_look); *)
 }.
 
 Global Arguments genInG_id {_} {_} {_} {_} _.
-
-(* Definition equdeku `(i : !genInG Σ Ω A g) := *)
-(*   gen_cmra_eq genInG_gti_typ genInG_gti.(gti_look). *)
 
 Global Program Instance genInG_inG `{i : !genInG Σ Ω A g} :
     inG Σ (generational_cmraR A) :=
@@ -776,9 +754,6 @@ Global Program Instance genInG_inG `{i : !genInG Σ Ω A g} :
 (** [Picks] contains transformation functions for a subset of ghost names. It is
 the entries that we have picked generational transformation for. *)
 Definition Picks Σ : Type := ∀ i, gmap gname (R Σ i → R Σ i).
-(* Definition Picks Σ {Ω : @gTransforms Σ} : Type := *)
-(*   ∀ i gti, Ω.(g_valid_gt) i = Some2 gti → *)
-(*             gmap gname (gti.(gti_car) → gti.(gti_car)). *)
 
 (** Every pick in [picks] is a valid generational transformation and satisfies
 the conditions for that cmra in [Ω]. *)
@@ -786,13 +761,6 @@ Definition picks_valid {Σ} (Ω : gTransforms) (picks : Picks Σ) :=
   ∀ i γ t, picks i !! γ = Some t →
     GenTrans t ∧
     ∃ gti, Ω.(g_valid_gt) i = Some2 gti ∧ gti.(gti_valid).(gt_condition) t.
-  (*   ∃ gti, *)
-  (*     t = gen_generation (gti.(gti_car)) ∧ *)
-  (*     Ω.(g_valid_gt) i = Some2 gti ∧ *)
-  (*       gti.(gti_valid).(gt_condition) (gti.(gti_car)). *)
-  (* ∀ i γ gti (look : Ω.(g_valid_gt) i = Some2 gti) t, *)
-  (*   (picks i gti look) !! γ = Some t → *)
-  (*   (gti.(gti_valid).(gt_condition) t). *)
 
 (* The functor [fG] respects the conditions in [Ω] and the entries in
 [picks]. *)
@@ -1325,12 +1293,8 @@ Section picks_lemmas.
     iIntros (t1 t2) "m1 m2". iIntros (i).
     iIntros (γ a1 a2 m1Look m2Look).
     specialize (t1 i) as (domEq1 & m1look).
-    (* assert (is_Some (m1 i !! γ)) as [? m1Look]. *)
-    (* { rewrite -elem_of_dom -domEq1 elem_of_dom. done. } *)
     edestruct m1look as (gti1 & t1 & ? & picks1Look & ?); first done.
     specialize (t2 i) as (domEq2 & m2look).
-    (* assert (is_Some (m2 i !! γ)) as [? m2Look]. *)
-    (* { rewrite -elem_of_dom -domEq2 elem_of_dom. done. } *)
     edestruct m2look as (gti2 & t2 & ? & picks2Look & ?); first done.
     clear m1look m2look.
     assert (gti1 = gti2) as -> by congruence.
@@ -1345,8 +1309,6 @@ Section picks_lemmas.
     rewrite H0 H2.
     simplify_eq.
     rewrite map_unfold_op.
-    (* clear. *)
-    (* iClear "m". *)
     rewrite map_unfold_validI.
     rewrite -cmra_transport_op.
     rewrite cmra_transport_validI.
@@ -1469,7 +1431,6 @@ Lemma m_contains_tokens_for_picks_singleton {Σ} Ω `{i : !genInG Σ Ω A aa}
     γ (t : A → A) :
   m_contains_tokens_for_picks Ω
     (pick_singleton (inG_id _) γ (
-      (* cmra_map_transport (gti_look genInG_gti) (gen_generation (cmra_map_transport genInG_gti_typ t)) *)
       cmra_map_transport inG_prf (gen_generation t)
     ))
     (own.iRes_singleton γ ((None, GTS_tok_gen_shot t, None) : generational_cmraR A)).
