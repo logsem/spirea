@@ -112,6 +112,10 @@ Section bgupd_rules.
     (⚡={f}=> P) ∧ (⚡={f}=> Q) ⊣⊢ ⚡={f}=> (P ∧ Q).
   Proof. unseal. split. simpl. done. Qed.
 
+  Lemma bgupd_or P Q :
+    (⚡={f}=> P) ∨ (⚡={f}=> Q) ⊣⊢ ⚡={f}=> (P ∨ Q).
+  Proof. unseal. split. simpl. done. Qed.
+
   Lemma bgupd_sep_2 P Q :
     (⚡={f}=> P) ∗ (⚡={f}=> Q) ⊢ ⚡={f}=> (P ∗ Q) .
   Proof.
@@ -338,6 +342,18 @@ Section into_bgupd.
     rewrite -bgupd_intuitionistically.
     rewrite {1}bgupd_emp_2.
     iModIntro.
+    done.
+  Qed.
+
+  Global Instance bgupd_persistent P :
+    Persistent P → (Persistent (⚡={f}=> P)).
+  Proof.
+    rewrite /Persistent.
+    intros ?.
+    rewrite -bgupd_intuitionistically.
+    iIntros "H".
+    iModIntro.
+    iApply H.
     done.
   Qed.
 End into_bgupd.
