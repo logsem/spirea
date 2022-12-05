@@ -1,6 +1,6 @@
 From iris.algebra Require Import functions gmap agree excl csum.
 From iris.proofmode Require Import classes tactics.
-From iris.base_logic.lib Require Export iprop own.
+From iris.base_logic.lib Require Export iprop own invariants.
 From iris.prelude Require Import options.
 
 From self Require Import extra.
@@ -158,6 +158,14 @@ Section bgupd_rules.
     eauto using uPred_mono, ucmra_unit_leastN.
   Qed.
 
+  Lemma bgupd_wand_plain_2 P Q :
+    (■ P -∗ ⚡={f}=> Q) ⊢
+    ⚡={f}=> (■ P -∗ Q).
+  Proof.
+    unseal. split. simpl. intros ????.
+    intros n' x' le val HP.
+  Abort.
+
   Lemma bgupd_mono P Q :
     (P ⊢ Q) → (⚡={f}=> P) ⊢ ⚡={f}=> Q.
   Proof.
@@ -256,6 +264,15 @@ Section bgupd_rules.
     rewrite bgupd_laterN. done.
   Qed.
 
+  (* Lemma bgupd_wand_r P Q : *)
+  (*   (⚡={f}=> P) ∗ (P -∗ Q) ⊢ ⚡={f}=> Q. *)
+  (* Proof. *)
+  (*   iIntros "[HP HI]". *)
+  (*   (* iApply bgupd_mono. *) *)
+  (*   iApply (bgupd_mono with "HP"). *)
+  (*   unseal. split. simpl. *)
+  (* Qed. *)
+
 End bgupd_rules.
 
 Lemma bgupd_plain_soundness {M : ucmra} f `{!GenTrans f} (P : uPred M) `{!Plain P} :
@@ -333,6 +350,15 @@ Section into_bgupd.
     iApply "H". iApply "P".
   Qed.
 
+  (* Lemma bgupd_wand_plain_2 P `{!Plain P, !Absorbing P} Q : *)
+  (*   (P -∗ ⚡={f}=> Q) ⊢ *)
+  (*   ⚡={f}=> (P -∗ Q). *)
+  (* Proof. *)
+  (*   iIntros "H P". *)
+  (*   iDestruct (bgupd_intro_plain f P with "P") as "P". *)
+  (*   iModIntro. *)
+  (*   iApply "H". iApply "P". *)
+  (* Qed. *)
 
   Lemma bgupd_persistently_2 P :
     □ (⚡={f}=> P) ⊢ ⚡={f}=> (□ P).
@@ -356,8 +382,38 @@ Section into_bgupd.
     iApply H.
     done.
   Qed.
+
+  (* Lemma bgupd_wand_plain' P `{!Plain P, !Absorbing P} Q : *)
+  (*   (P -∗ Q) ⊢ ⚡={f}=> (P -∗ Q). *)
+  (* Proof. *)
+  (*   iIntros "H P". *)
+  (*   iDestruct (bgupd_intro_plain f P with "P") as "P". *)
+  (*   iModIntro. *)
+  (*   iApply "H". iApply "P". *)
+  (* Qed. *)
+
 End into_bgupd.
 
+
+Section bgupd_inv.
+  Context `{!invGS Σ}.
+  (* Context (f : M → M) `{!GenTrans f}. *)
+
+  Lemma bgupd_inv N P f `{!GenTrans f} :
+    inv N P -∗ ⚡={f}=> (inv N (⚡={f}=> P)).
+  Proof.
+    rewrite invariants.inv_unseal.
+    rewrite /invariants.inv_def.
+    simpl.
+    iIntros "#I".
+    rewrite -bgupd_persistently_2.
+    iModIntro.
+    rewrite bgupd_forall.
+    iIntros (E).
+    iSpecialize ("I" $! E).
+  Abort.
+
+End bgupd_inv.
 (******************************************************************************)
 (* Generational token stream.
 
@@ -766,6 +822,12 @@ Definition gupd {Σ : gFunctors} {Ω : gTransforms} P : iProp Σ :=
     uPred_ownM m ∗ ⌜ m_contains_tokens_for_picks Ω picks m ⌝ ∗
     ∀ (fG : iResUR Σ → _) (_ : GenTrans fG) (_ : fG_resp fG Ω picks ),
       ⚡={fG}=> P.
+
+(* Definition gupd_alt {Σ : gFunctors} {Ω : gTransforms} P : iProp Σ := *)
+(*   ∀ (fG : iResUR Σ → _) (_ : GenTrans fG), *)
+(*     ⌜ fG_resp fG Ω picks ⌝ -∗ *)
+(*     uPred_ownM m -∗ *)
+(*     ⚡={fG}=> P. *)
 
 Notation "⚡==> P" := (gupd P)
   (at level 99, P at level 200, format "⚡==>  P") : bi_scope.
@@ -1824,6 +1886,40 @@ Section own_properties.
   Lemma gupd_later_2 P :
     (⚡==> ▷ P) ⊢ ▷ (⚡==> P).
   Proof. rewrite /gupd. iIntros "?". iNext. done. Qed.
+
+  Lemma gupd_later P :
+    ▷ (⚡==> P) ⊣⊢ ◇ ⚡==> (▷ P).
+  Proof.
+    iSplit.
+    - rewrite /gupd.
+      iIntros "H".
+      assert (Inhabited (Picks Σ)). { admit. }
+      iDestruct "H" as (??) "(>? & O & >? & P)".
+      rewrite later_ownM.
+      iDestruct "O" as (m') "(M & eq)".
+      iModIntro.
+      iExists picks, m'.
+      iFrame.
+      iSplit. { admit. }
+      iIntros (fG ? resp).
+      setoid_rewrite <- bgupd_later.
+      iNext.
+      iApply "P".
+      done.
+    - rewrite gupd_later_2.
+      iApply except_0_later.
+  Admitted.
+
+  (* Global Instance into_gupd_gen_picked_out P Q : *)
+  (*   IntoGupd P Q → IntoGupd (▷ P) (▷ Q). *)
+  (* Proof. *)
+  (*   rewrite /IntoGupd. *)
+  (*   (* rewrite /gupd. *) *)
+  (*   intros Hw. *)
+  (*   iIntros "P". *)
+  (*   rewrite Hw. *)
+  (*   apply gen_picked_next_gupd. *)
+  (* Qed. *)
 
   Global Instance into_gupd_gen_picked_out γ t :
     IntoGupd (gen_picked_out γ t) (gen_picked_in γ t).
