@@ -58,29 +58,30 @@ Qed.
 this way. *)
 Local Coercion uPred_holds : uPred >-> Funclass.
 
-Local Program Definition uPred_bgupd_def {M : ucmra}
+(* The _basic_ next-gen modality. *)
+Local Program Definition uPred_bnextgen_def {M : ucmra}
   (f : M → M) `{!GenTrans f} (P : uPred M) : uPred M :=
   {| uPred_holds n x := P n (f x) |}.
 Next Obligation. naive_solver eauto using uPred_mono, generation_monoN. Qed.
 
-Local Definition uPred_bgupd_aux : seal (@uPred_bgupd_def).
+Local Definition uPred_bnextgen_aux : seal (@uPred_bnextgen_def).
 Proof. by eexists. Qed.
 
-Definition uPred_bgupd {M : ucmra} f `{g : !GenTrans f} := uPred_bgupd_aux.(unseal) M f g.
+Definition uPred_bnextgen {M : ucmra} f `{g : !GenTrans f} := uPred_bnextgen_aux.(unseal) M f g.
 
-Local Definition uPred_bgupd_unseal :
-  @uPred_bgupd = @uPred_bgupd_def := uPred_bgupd_aux.(seal_eq).
+Local Definition uPred_bnextgen_unseal :
+  @uPred_bnextgen = @uPred_bnextgen_def := uPred_bnextgen_aux.(seal_eq).
 
-Notation "⚡={ f }=> P" := (uPred_bgupd f P)
+Notation "⚡={ f }=> P" := (uPred_bnextgen f P)
   (at level 99, f at level 50, P at level 200, format "⚡={ f }=>  P") : bi_scope.
 
-Class IntoBgupd `{M : ucmra} f `{!GenTrans f} (P : uPred M) (Q : uPred M) :=
-  into_bgupd : P ⊢ ⚡={ f }=> Q.
-Global Arguments IntoBgupd  {_} _%I {_} _%I _%I.
-Global Arguments into_bgupd {_} _%I _%I {_}.
-Global Hint Mode IntoBgupd + + + ! - : typeclass_instances.
+Class IntoBnextgen `{M : ucmra} f `{!GenTrans f} (P : uPred M) (Q : uPred M) :=
+  into_bnextgen : P ⊢ ⚡={ f }=> Q.
+Global Arguments IntoBnextgen  {_} _%I {_} _%I _%I.
+Global Arguments into_bnextgen {_} _%I _%I {_}.
+Global Hint Mode IntoBnextgen + + + ! - : typeclass_instances.
 
-Section bgupd_rules.
+Section bnextgen_rules.
   Context {M : ucmra} (f : M → M) `{!GenTrans f}.
 
   Notation "P ⊢ Q" := (@uPred_entails M P%I Q%I) : stdpp_scope.
@@ -89,9 +90,9 @@ Section bgupd_rules.
 
   Local Arguments uPred_holds {_} !_ _ _ /.
 
-  Ltac unseal := try uPred.unseal; rewrite !uPred_bgupd_unseal !/uPred_holds /=.
+  Ltac unseal := try uPred.unseal; rewrite !uPred_bnextgen_unseal !/uPred_holds /=.
 
-  Global Instance bgupd_ne : NonExpansive (uPred_bgupd f).
+  Global Instance bnextgen_ne : NonExpansive (uPred_bnextgen f).
   Proof.
     unseal. intros ? P Q Heq.
     split.
@@ -99,7 +100,7 @@ Section bgupd_rules.
     split; intros ?; apply Heq; eauto using Heq, generation_valid.
   Qed.
 
-  Lemma bgupd_ownM (a : M) :
+  Lemma bnextgen_ownM (a : M) :
     uPred_ownM a ⊢ ⚡={f}=> uPred_ownM (f a).
   Proof.
     unseal. split. simpl.
@@ -107,15 +108,15 @@ Section bgupd_rules.
     apply generation_monoN; done.
   Qed.
 
-  Lemma bgupd_and P Q :
+  Lemma bnextgen_and P Q :
     (⚡={f}=> P) ∧ (⚡={f}=> Q) ⊣⊢ ⚡={f}=> (P ∧ Q).
   Proof. unseal. split. simpl. done. Qed.
 
-  Lemma bgupd_or P Q :
+  Lemma bnextgen_or P Q :
     (⚡={f}=> P) ∨ (⚡={f}=> Q) ⊣⊢ ⚡={f}=> (P ∨ Q).
   Proof. unseal. split. simpl. done. Qed.
 
-  Lemma bgupd_sep_2 P Q :
+  Lemma bnextgen_sep_2 P Q :
     (⚡={f}=> P) ∗ (⚡={f}=> Q) ⊢ ⚡={f}=> (P ∗ Q) .
   Proof.
     unseal. split. simpl.
@@ -126,14 +127,14 @@ Section bgupd_rules.
     rewrite eq. done.
   Qed.
 
-  Lemma bgupd_sep P Q :
+  Lemma bnextgen_sep P Q :
     (∀ n a b1 b2,
        f a ≡{n}≡ b1 ⋅ b2 →
        ∃ a1 a2, a ≡{n}≡ a1 ⋅ a2 ∧ f a1 ≡{n}≡ b1 ∧ f a2 ≡{n}≡ b2) →
     (⚡={f}=> P) ∗ (⚡={f}=> Q) ⊣⊢ ⚡={f}=> (P ∗ Q) .
   Proof.
     intros cond.
-    apply (anti_symm _); first apply bgupd_sep_2.
+    apply (anti_symm _); first apply bnextgen_sep_2.
     unseal. split. simpl.
     intros ? a ?.
     intros (b1 & b2 & eq & Hp & Hq).
@@ -146,18 +147,18 @@ Section bgupd_rules.
     split; done.
   Qed.
 
-  Lemma bgupd_intro_plainly P :
+  Lemma bnextgen_intro_plainly P :
     ■ P ⊢ ⚡={f}=> ■ P.
   Proof. unseal. split. done. Qed.
 
-  Lemma bgupd_plainly P :
+  Lemma bnextgen_plainly P :
     (⚡={f}=> ■ P) ⊢ P.
   Proof.
     unseal. split. simpl. intros ????. simpl.
     eauto using uPred_mono, ucmra_unit_leastN.
   Qed.
 
-  Lemma bgupd_wand_plain_2 P Q :
+  Lemma bnextgen_wand_plain_2 P Q :
     (■ P -∗ ⚡={f}=> Q) ⊢
     ⚡={f}=> (■ P -∗ Q).
   Proof.
@@ -165,7 +166,7 @@ Section bgupd_rules.
     intros n' x' le val HP.
   Abort.
 
-  Lemma bgupd_mono P Q :
+  Lemma bnextgen_mono P Q :
     (P ⊢ Q) → (⚡={f}=> P) ⊢ ⚡={f}=> Q.
   Proof.
     intros [Hi].
@@ -176,10 +177,10 @@ Section bgupd_rules.
     done.
   Qed.
 
-  Lemma bgupd_emp_2 : emp ⊢ ⚡={f}=> emp.
+  Lemma bnextgen_emp_2 : emp ⊢ ⚡={f}=> emp.
   Proof. unseal. done. Qed.
 
-  Lemma bgupd_intuitionistically P :
+  Lemma bnextgen_intuitionistically P :
     (⚡={f}=> (<pers> P)) ⊣⊢ <pers> (⚡={f}=> P).
   Proof.
     unseal. split. simpl. intros ???.
@@ -190,229 +191,229 @@ Section bgupd_rules.
     done.
   Qed.
 
-  Lemma bgupd_intuitionistically_1 P :
+  Lemma bnextgen_intuitionistically_1 P :
     (⚡={f}=> (<pers> P)) ⊢ <pers> (⚡={f}=> P).
-  Proof. rewrite bgupd_intuitionistically. done. Qed.
+  Proof. rewrite bnextgen_intuitionistically. done. Qed.
 
-  Lemma bgupd_intuitionistically_2 P :
+  Lemma bnextgen_intuitionistically_2 P :
     <pers> (⚡={f}=> P) ⊢ ⚡={f}=> (<pers> P).
-  Proof. rewrite bgupd_intuitionistically. done. Qed.
+  Proof. rewrite bnextgen_intuitionistically. done. Qed.
 
-  Global Instance bgupd_mono' :
-    Proper ((⊢) ==> (⊢)) (uPred_bgupd f).
-  Proof. intros P Q. apply bgupd_mono. Qed.
+  Global Instance bnextgen_mono' :
+    Proper ((⊢) ==> (⊢)) (uPred_bnextgen f).
+  Proof. intros P Q. apply bnextgen_mono. Qed.
 
-  Global Instance bgupd_proper :
-    Proper ((≡) ==> (≡)) (uPred_bgupd f) := ne_proper _.
+  Global Instance bnextgen_proper :
+    Proper ((≡) ==> (≡)) (uPred_bnextgen f) := ne_proper _.
 
-  Lemma modality_bgupd_mixin :
-    modality_mixin (@uPred_bgupd M f _)
-      (MIEnvTransform (IntoBgupd f)) (MIEnvTransform (IntoBgupd f)).
+  Lemma modality_bnextgen_mixin :
+    modality_mixin (@uPred_bnextgen M f _)
+      (MIEnvTransform (IntoBnextgen f)) (MIEnvTransform (IntoBnextgen f)).
   Proof.
     split; simpl; split_and?.
     - intros ?? Hi.
       rewrite Hi.
       rewrite 2!intuitionistically_into_persistently.
-      apply bgupd_intuitionistically_2.
-    - intros. rewrite bgupd_and. done.
+      apply bnextgen_intuitionistically_2.
+    - intros. rewrite bnextgen_and. done.
     - done.
-    - apply bgupd_emp_2.
-    - apply bgupd_mono.
-    - apply bgupd_sep_2.
+    - apply bnextgen_emp_2.
+    - apply bnextgen_mono.
+    - apply bnextgen_sep_2.
   Qed.
-  Definition modality_bgupd :=
-    Modality _ modality_bgupd_mixin.
+  Definition modality_bnextgen :=
+    Modality _ modality_bnextgen_mixin.
 
-  Global Instance from_modal_bgupd P :
-    FromModal True modality_bgupd (⚡={f}=> P) (⚡={f}=> P) P | 1.
+  Global Instance from_modal_bnextgen P :
+    FromModal True modality_bnextgen (⚡={f}=> P) (⚡={f}=> P) P | 1.
   Proof. by rewrite /FromModal. Qed.
 
-  Lemma bgupd_later P :
+  Lemma bnextgen_later P :
     ▷ (⚡={f}=> P) ⊣⊢ ⚡={f}=> (▷ P).
   Proof. unseal. done. Qed.
 
-  Lemma bgupd_laterN n P : (▷^n ⚡={f}=> P) ⊣⊢ ⚡={f}=> ▷^n P.
+  Lemma bnextgen_laterN n P : (▷^n ⚡={f}=> P) ⊣⊢ ⚡={f}=> ▷^n P.
   Proof.
-    induction n as [|n IH]; simpl; auto. rewrite IH bgupd_later. done.
+    induction n as [|n IH]; simpl; auto. rewrite IH bnextgen_later. done.
   Qed.
 
-  Lemma bgupd_exist {A} Ψ :
+  Lemma bnextgen_exist {A} Ψ :
     (⚡={f}=> (∃ a : A, Ψ a)) ⊣⊢ (∃ a : A, ⚡={f}=> Ψ a).
   Proof. unseal. done. Qed.
 
-  Lemma bgupd_forall {A} Ψ :
+  Lemma bnextgen_forall {A} Ψ :
     (⚡={f}=> (∀ a : A, Ψ a)) ⊣⊢ (∀ a : A, ⚡={f}=> Ψ a).
   Proof. unseal. done. Qed.
 
-  Lemma bgupd_intro_plain P `{!Plain P, !Absorbing P} :
+  Lemma bnextgen_intro_plain P `{!Plain P, !Absorbing P} :
     P ⊢ ⚡={f}=> P.
   Proof.
     rewrite -(plain_plainly P).
-    apply bgupd_intro_plainly.
+    apply bnextgen_intro_plainly.
   Qed.
 
-  Lemma bgupd_plain P `{!Plain P} :
+  Lemma bnextgen_plain P `{!Plain P} :
     (⚡={f}=> P) ⊢ P.
-  Proof. rewrite {1}(plain P). apply bgupd_plainly. Qed.
+  Proof. rewrite {1}(plain P). apply bnextgen_plainly. Qed.
 
-  Global Instance into_later_bgupd n P Q :
+  Global Instance into_later_bnextgen n P Q :
     IntoLaterN false n P Q →
     IntoLaterN false n (⚡={f}=> P) (⚡={f}=> Q).
   Proof.
     rewrite /IntoLaterN /MaybeIntoLaterN=> ->.
-    rewrite bgupd_laterN. done.
+    rewrite bnextgen_laterN. done.
   Qed.
 
-  (* Lemma bgupd_wand_r P Q : *)
+  (* Lemma bnextgen_wand_r P Q : *)
   (*   (⚡={f}=> P) ∗ (P -∗ Q) ⊢ ⚡={f}=> Q. *)
   (* Proof. *)
   (*   iIntros "[HP HI]". *)
-  (*   (* iApply bgupd_mono. *) *)
-  (*   iApply (bgupd_mono with "HP"). *)
+  (*   (* iApply bnextgen_mono. *) *)
+  (*   iApply (bnextgen_mono with "HP"). *)
   (*   unseal. split. simpl. *)
   (* Qed. *)
 
-End bgupd_rules.
+End bnextgen_rules.
 
-Lemma bgupd_plain_soundness {M : ucmra} f `{!GenTrans f} (P : uPred M) `{!Plain P} :
+Lemma bnextgen_plain_soundness {M : ucmra} f `{!GenTrans f} (P : uPred M) `{!Plain P} :
   (⊢ ⚡={f}=> P) → ⊢ P.
 Proof.
-  eapply bi_emp_valid_mono. etrans; last exact: bgupd_plainly.
-  apply bgupd_mono'. apply: plain.
+  eapply bi_emp_valid_mono. etrans; last exact: bnextgen_plainly.
+  apply bnextgen_mono'. apply: plain.
 Qed.
 
-Section into_bgupd.
+Section into_bnextgen.
   Context {M : ucmra} (f : M → M) `{!GenTrans f}.
 
-  Global Instance into_bgupd_ownM a :
-    IntoBgupd f (uPred_ownM a) (uPred_ownM (f a)) := bgupd_ownM f a.
+  Global Instance into_bnextgen_ownM a :
+    IntoBnextgen f (uPred_ownM a) (uPred_ownM (f a)) := bnextgen_ownM f a.
 
-  Global Instance into_bgupd_bgupd P :
-    IntoBgupd f (⚡={f}=> P) P.
+  Global Instance into_bnextgen_bnextgen P :
+    IntoBnextgen f (⚡={f}=> P) P.
   Proof. done. Qed.
 
-  Global Instance into_bgupd_plain P `{!Plain P, !Absorbing P} :
-    IntoBgupd f P P.
-  Proof. apply: bgupd_intro_plain. Qed.
+  Global Instance into_bnextgen_plain P `{!Plain P, !Absorbing P} :
+    IntoBnextgen f P P.
+  Proof. apply: bnextgen_intro_plain. Qed.
 
-  Global Instance into_bgupd_and P P' Q Q' :
-    IntoBgupd f P P' →
-    IntoBgupd f Q Q' →
-    IntoBgupd f (P ∧ Q) (P' ∧ Q').
+  Global Instance into_bnextgen_and P P' Q Q' :
+    IntoBnextgen f P P' →
+    IntoBnextgen f Q Q' →
+    IntoBnextgen f (P ∧ Q) (P' ∧ Q').
   Proof.
-    rewrite /IntoBgupd.
+    rewrite /IntoBnextgen.
     intros -> ->.
-    rewrite -bgupd_and.
+    rewrite -bnextgen_and.
     done.
   Qed.
 
-  Global Instance into_bgupd_sep P P' Q Q' :
-    IntoBgupd f P P' →
-    IntoBgupd f Q Q' →
-    IntoBgupd f (P ∗ Q) (P' ∗ Q').
+  Global Instance into_bnextgen_sep P P' Q Q' :
+    IntoBnextgen f P P' →
+    IntoBnextgen f Q Q' →
+    IntoBnextgen f (P ∗ Q) (P' ∗ Q').
   Proof.
-    rewrite /IntoBgupd.
+    rewrite /IntoBnextgen.
     iIntros (Hi1 Hi2) "[P Q]".
     rewrite Hi1 Hi2.
     iModIntro.
     iFrame.
   Qed.
 
-  Global Instance into_bgupd_later P P' :
-    IntoBgupd f P P' → IntoBgupd f (▷ P) (▷ P').
-  Proof. rewrite /IntoBgupd. rewrite -bgupd_later. intros ->. done. Qed.
+  Global Instance into_bnextgen_later P P' :
+    IntoBnextgen f P P' → IntoBnextgen f (▷ P) (▷ P').
+  Proof. rewrite /IntoBnextgen. rewrite -bnextgen_later. intros ->. done. Qed.
 
-  Global Instance into_bgupd_forall {A} (Ψ Ψ' : A → _) :
-    (∀ x, IntoBgupd f (Ψ x) (Ψ' x)) → IntoBgupd f (∀ x, Ψ x) (∀ x, Ψ' x).
+  Global Instance into_bnextgen_forall {A} (Ψ Ψ' : A → _) :
+    (∀ x, IntoBnextgen f (Ψ x) (Ψ' x)) → IntoBnextgen f (∀ x, Ψ x) (∀ x, Ψ' x).
   Proof.
-    rewrite /IntoBgupd bgupd_forall.
+    rewrite /IntoBnextgen bnextgen_forall.
     iIntros (H) "Hi". iIntros (?).
     iApply H.
     iApply "Hi".
   Qed.
 
-  Global Instance into_bgupd_exist {A} (Ψ Ψ' : A → _) :
-    (∀ x : A, IntoBgupd f (Ψ x) (Ψ' x)) → IntoBgupd f (∃ x : A, Ψ x) (∃ x : A, Ψ' x).
+  Global Instance into_bnextgen_exist {A} (Ψ Ψ' : A → _) :
+    (∀ x : A, IntoBnextgen f (Ψ x) (Ψ' x)) → IntoBnextgen f (∃ x : A, Ψ x) (∃ x : A, Ψ' x).
   Proof.
-    rewrite /IntoBgupd bgupd_exist.
+    rewrite /IntoBnextgen bnextgen_exist.
     iIntros (H). iIntros "(%x & Hi)". iExists x.
     iApply H.
     iApply "Hi".
   Qed.
 
-  Lemma bgupd_wand_plain P `{!Plain P, !Absorbing P} Q :
+  Lemma bnextgen_wand_plain P `{!Plain P, !Absorbing P} Q :
     (⚡={f}=> (P -∗ Q)) ⊢ P -∗ ⚡={f}=> Q.
   Proof.
     iIntros "H P".
-    iDestruct (bgupd_intro_plain f P with "P") as "P".
+    iDestruct (bnextgen_intro_plain f P with "P") as "P".
     iModIntro.
     iApply "H". iApply "P".
   Qed.
 
-  (* Lemma bgupd_wand_plain_2 P `{!Plain P, !Absorbing P} Q : *)
+  (* Lemma bnextgen_wand_plain_2 P `{!Plain P, !Absorbing P} Q : *)
   (*   (P -∗ ⚡={f}=> Q) ⊢ *)
   (*   ⚡={f}=> (P -∗ Q). *)
   (* Proof. *)
   (*   iIntros "H P". *)
-  (*   iDestruct (bgupd_intro_plain f P with "P") as "P". *)
+  (*   iDestruct (bnextgen_intro_plain f P with "P") as "P". *)
   (*   iModIntro. *)
   (*   iApply "H". iApply "P". *)
   (* Qed. *)
 
-  Lemma bgupd_persistently_2 P :
+  Lemma bnextgen_persistently_2 P :
     □ (⚡={f}=> P) ⊢ ⚡={f}=> (□ P).
   Proof.
     rewrite /bi_intuitionistically /bi_affinely.
     iIntros "H".
-    rewrite -bgupd_intuitionistically.
-    rewrite {1}bgupd_emp_2.
+    rewrite -bnextgen_intuitionistically.
+    rewrite {1}bnextgen_emp_2.
     iModIntro.
     done.
   Qed.
 
-  Global Instance bgupd_persistent P :
+  Global Instance bnextgen_persistent P :
     Persistent P → (Persistent (⚡={f}=> P)).
   Proof.
     rewrite /Persistent.
     intros ?.
-    rewrite -bgupd_intuitionistically.
+    rewrite -bnextgen_intuitionistically.
     iIntros "H".
     iModIntro.
     iApply H.
     done.
   Qed.
 
-  (* Lemma bgupd_wand_plain' P `{!Plain P, !Absorbing P} Q : *)
+  (* Lemma bnextgen_wand_plain' P `{!Plain P, !Absorbing P} Q : *)
   (*   (P -∗ Q) ⊢ ⚡={f}=> (P -∗ Q). *)
   (* Proof. *)
   (*   iIntros "H P". *)
-  (*   iDestruct (bgupd_intro_plain f P with "P") as "P". *)
+  (*   iDestruct (bnextgen_intro_plain f P with "P") as "P". *)
   (*   iModIntro. *)
   (*   iApply "H". iApply "P". *)
   (* Qed. *)
 
-End into_bgupd.
+End into_bnextgen.
 
 
-Section bgupd_inv.
+Section bnextgen_inv.
   Context `{!invGS Σ}.
   (* Context (f : M → M) `{!GenTrans f}. *)
 
-  Lemma bgupd_inv N P f `{!GenTrans f} :
+  Lemma bnextgen_inv N P f `{!GenTrans f} :
     inv N P -∗ ⚡={f}=> (inv N (⚡={f}=> P)).
   Proof.
     rewrite invariants.inv_unseal.
     rewrite /invariants.inv_def.
     simpl.
     iIntros "#I".
-    rewrite -bgupd_persistently_2.
+    rewrite -bnextgen_persistently_2.
     iModIntro.
-    rewrite bgupd_forall.
+    rewrite bnextgen_forall.
     iIntros (E).
     iSpecialize ("I" $! E).
   Abort.
 
-End bgupd_inv.
+End bnextgen_inv.
 (******************************************************************************)
 (* Generational token stream.
 
@@ -784,27 +785,27 @@ Definition m_contains_tokens_for_picks {Σ} Ω (picks : Picks Σ) (m : iResUR Σ
         picks i !! γ = Some (cmra_map_transport gti.(gti_look) (gen_generation t)) ∧
         a ≡ map_unfold (cmra_transport (gti.(gti_look)) (None, GTS_tok_gen_shot t, None))).
 
-Definition gupd {Σ : gFunctors} {Ω : gTransforms} P : iProp Σ :=
+Definition nextgen {Σ : gFunctors} {Ω : gTransforms} P : iProp Σ :=
   ∃ (picks : Picks Σ) (m : iResUR Σ),
     ⌜ picks_valid Ω picks ⌝ ∗
     uPred_ownM m ∗ ⌜ m_contains_tokens_for_picks Ω picks m ⌝ ∗
     ∀ (fG : iResUR Σ → _) (_ : GenTrans fG) (_ : fG_resp fG Ω picks ),
       ⚡={fG}=> P.
 
-(* Definition gupd_alt {Σ : gFunctors} {Ω : gTransforms} P : iProp Σ := *)
+(* Definition nextgen_alt {Σ : gFunctors} {Ω : gTransforms} P : iProp Σ := *)
 (*   ∀ (fG : iResUR Σ → _) (_ : GenTrans fG), *)
 (*     ⌜ fG_resp fG Ω picks ⌝ -∗ *)
 (*     uPred_ownM m -∗ *)
 (*     ⚡={fG}=> P. *)
 
-Notation "⚡==> P" := (gupd P)
+Notation "⚡==> P" := (nextgen P)
   (at level 99, P at level 200, format "⚡==>  P") : bi_scope.
 
-Class IntoGupd {Σ} {Ω : gTransforms} (P : iProp Σ) (Q : iProp Σ) :=
-  into_gupd : P ⊢ ⚡==> Q.
-Global Arguments IntoGupd  {_} {_} _%I _%I.
-Global Arguments into_gupd {_} {_} _%I _%I.
-Global Hint Mode IntoGupd + + ! - : typeclass_instances.
+Class IntoNextgen {Σ} {Ω : gTransforms} (P : iProp Σ) (Q : iProp Σ) :=
+  into_nextgen : P ⊢ ⚡==> Q.
+Global Arguments IntoNextgen  {_} {_} _%I _%I.
+Global Arguments into_nextgen {_} {_} _%I _%I.
+Global Hint Mode IntoNextgen + + ! - : typeclass_instances.
 
 Lemma uPred_own_resp `{i : !genInG Σ Ω A tr} fG `{!GenTrans fG} picks
   (f : generational_cmraR A → _) γ a `{!Proper ((≡) ==> (≡)) f} :
@@ -1501,7 +1502,7 @@ Section own_properties.
     apply cmra_update_exclusive. done.
   Qed.
 
-  Lemma gen_token_used_gupd γ :
+  Lemma gen_token_used_nextgen γ :
     gen_token_used γ ⊢ ⚡==> gen_token γ.
   Proof.
     iIntros "tok".
@@ -1526,7 +1527,7 @@ Section own_properties.
     split; simpl; reflexivity.
   Qed.
 
-  Lemma gen_picked_next_gupd γ t :
+  Lemma gen_picked_next_nextgen γ t :
     gen_picked_out γ t ⊢ ⚡==> gen_picked_in γ t.
   Proof.
     iIntros "((% & %cond) & #tok)".
@@ -1564,7 +1565,7 @@ Section own_properties.
       ⚡==> ∃ t, ⌜ transA.(gt_condition) t ⌝ ∗ gen_own γ (t a) ∗ gen_picked_in γ t.
   Proof.
     iIntros "own".
-    rewrite /gupd.
+    rewrite /nextgen.
     (* We don't (and can't) pick anything so we give the empty map of picks. *)
     iExists (λ i, ∅), ε.
     rewrite ownM_unit'.
@@ -1662,10 +1663,10 @@ Section own_properties.
     done.
   Qed.
 
-  Lemma gupd_and_2 P Q :
+  Lemma nextgen_and_2 P Q :
     (⚡==> P) ∧ (⚡==> Q) ⊢ ⚡==> (P ∧ Q).
   Proof.
-    rewrite /gupd.
+    rewrite /nextgen.
     iIntros "H".
     rewrite and_exist_r.
     setoid_rewrite and_exist_r.
@@ -1674,7 +1675,7 @@ Section own_properties.
     setoid_rewrite and_exist_l.
     iDestruct "H" as (picks2 m2) "H".
     iExists (merge_picks picks1 picks2), (m1 ⋅ m2).
-    setoid_rewrite <- bgupd_and.
+    setoid_rewrite <- bnextgen_and.
     iAssert (⌜ picks_valid Ω picks1 ⌝)%I as %val1.
     { iDestruct "H" as "[($ & ?) _]". }
     iAssert (⌜ picks_valid Ω picks2 ⌝)%I as %val2.
@@ -1710,9 +1711,9 @@ Section own_properties.
       eapply fG_resp_merge_r; done.
   Qed.
 
-  Lemma gupd_sep_2 P Q : (⚡==> P) ∗ (⚡==> Q) ⊢ ⚡==> (P ∗ Q) .
+  Lemma nextgen_sep_2 P Q : (⚡==> P) ∗ (⚡==> Q) ⊢ ⚡==> (P ∗ Q) .
   Proof.
-    rewrite /gupd.
+    rewrite /nextgen.
     iIntros "[P1 P2]".
     iDestruct "P1" as (picks1 m1 ?) "(m1 & %toks1 & HP)".
     iDestruct "P2" as (picks2 m2 ?) "(m2 & %toks2 & HQ)".
@@ -1735,25 +1736,25 @@ Section own_properties.
     iFrame "HP HQ".
   Qed.
 
-  Lemma gupd_mono P Q :
+  Lemma nextgen_mono P Q :
     (P ⊢ Q) → (⚡==> P) ⊢ ⚡==> Q.
   Proof.
     intros Hi.
-    rewrite /gupd.
+    rewrite /nextgen.
     iDestruct 1 as (? m ?) "(? & ? & HP)".
     iExists picks, m.
     iFrame.
     iSplit; first done.
     iIntros (fG ? resp).
-    iApply bgupd_mono.
+    iApply bnextgen_mono.
     { apply Hi. }
     iApply "HP".
     done.
   Qed.
 
-  Lemma gupd_intro_plain P `{!Plain P} : P ⊢ ⚡==> P.
+  Lemma nextgen_intro_plain P `{!Plain P} : P ⊢ ⚡==> P.
   Proof.
-    rewrite /gupd.
+    rewrite /nextgen.
     iIntros "P".
     iExists (λ i, ∅), ε.
     rewrite ownM_unit'.
@@ -1766,15 +1767,15 @@ Section own_properties.
     done.
   Qed.
 
-  Lemma gupd_emp_2 : emp ⊢ ⚡==> emp.
-  Proof. apply: gupd_intro_plain. Qed.
+  Lemma nextgen_emp_2 : emp ⊢ ⚡==> emp.
+  Proof. apply: nextgen_intro_plain. Qed.
 
   (** This and the next lemma holds since it holds for the basic generational
   update modality and since [<pers>] commutes with all the connectives used in
-  the non-basic gupd modality (exists, separation, etc.). *)
-  Lemma gupd_intuitinistically_1 P : (⚡==> (<pers> P)) ⊢ <pers> (⚡==> P).
+  the non-basic nextgen modality (exists, separation, etc.). *)
+  Lemma nextgen_intuitinistically_1 P : (⚡==> (<pers> P)) ⊢ <pers> (⚡==> P).
   Proof.
-    rewrite /gupd.
+    rewrite /nextgen.
     iDestruct 1 as (picks m) "(#? & m & %tok & #HP)".
     pose proof (tokens_persistent _ _ tok).
     iDestruct "m" as "#m".
@@ -1786,9 +1787,9 @@ Section own_properties.
     iApply "HP'".
   Qed.
 
-  Lemma gupd_intuitinistically_2 P : <pers> (⚡==> P) ⊢ ⚡==> (<pers> P).
+  Lemma nextgen_intuitinistically_2 P : <pers> (⚡==> P) ⊢ ⚡==> (<pers> P).
   Proof.
-    rewrite /gupd.
+    rewrite /nextgen.
     iDestruct 1 as (picks m) "(#? & #? & #? & HP)".
     iExists picks, m.
     iFrame "#".
@@ -1798,61 +1799,61 @@ Section own_properties.
     iApply "HP".
   Qed.
 
-  Global Instance gupd_mono' :
-    Proper ((⊢) ==> (⊢)) gupd.
-  Proof. intros P Q. apply gupd_mono. Qed.
+  Global Instance nextgen_mono' :
+    Proper ((⊢) ==> (⊢)) nextgen.
+  Proof. intros P Q. apply nextgen_mono. Qed.
 
-  Global Instance gupd_ne : NonExpansive gupd.
+  Global Instance nextgen_ne : NonExpansive nextgen.
   Proof. solve_proper. Qed.
 
-  Global Instance gupd_proper : Proper ((≡) ==> (≡)) gupd := ne_proper _.
+  Global Instance nextgen_proper : Proper ((≡) ==> (≡)) nextgen := ne_proper _.
 
-  Lemma modality_gupd_mixin :
-    modality_mixin (@gupd _ _)
-      (MIEnvTransform (IntoGupd))
-      (MIEnvTransform (IntoGupd)).
+  Lemma modality_nextgen_mixin :
+    modality_mixin (@nextgen _ _)
+      (MIEnvTransform (IntoNextgen))
+      (MIEnvTransform (IntoNextgen)).
   Proof.
     split; simpl; split_and?.
     - intros ?? Hi.
       rewrite Hi.
       rewrite 2!intuitionistically_into_persistently.
-      apply gupd_intuitinistically_2.
-    - intros. rewrite gupd_and_2. done.
+      apply nextgen_intuitinistically_2.
+    - intros. rewrite nextgen_and_2. done.
     - done.
-    - apply gupd_emp_2.
-    - apply gupd_mono.
-    - apply gupd_sep_2.
+    - apply nextgen_emp_2.
+    - apply nextgen_mono.
+    - apply nextgen_sep_2.
   Qed.
-  Definition modality_gupd :=
-    Modality _ modality_gupd_mixin.
+  Definition modality_nextgen :=
+    Modality _ modality_nextgen_mixin.
 
-  Global Instance from_modal_gupd P :
-    FromModal True modality_gupd (⚡==> P) (⚡==> P) P | 1.
+  Global Instance from_modal_nextgen P :
+    FromModal True modality_nextgen (⚡==> P) (⚡==> P) P | 1.
   Proof. by rewrite /FromModal. Qed.
 
-  Lemma gupd_plain_soundness P `{!Plain P} :
+  Lemma nextgen_plain_soundness P `{!Plain P} :
     (⊢ ⚡==> P) → ⊢ P.
   Proof.
-    rewrite /gupd.
+    rewrite /nextgen.
     intros HP.
     iDestruct HP as (picks m picksGT) "(m & % & HP)".
     clear HP.
     set (fG := (build_trans Ω picks)).
     pose proof (build_trans_generation Ω _ picksGT).
-    rewrite <- (bgupd_plain fG P).
+    rewrite <- (bnextgen_plain fG P).
     iApply ("HP" $!  _ with "[%]").
     apply build_trans_resp; done.
   Qed.
 
-  Lemma gupd_later_2 P :
+  Lemma nextgen_later_2 P :
     (⚡==> ▷ P) ⊢ ▷ (⚡==> P).
-  Proof. rewrite /gupd. iIntros "?". iNext. done. Qed.
+  Proof. rewrite /nextgen. iIntros "?". iNext. done. Qed.
 
-  Lemma gupd_later P :
+  Lemma nextgen_later P :
     ▷ (⚡==> P) ⊣⊢ ◇ ⚡==> (▷ P).
   Proof.
     iSplit.
-    - rewrite /gupd.
+    - rewrite /nextgen.
       iIntros "H".
       assert (Inhabited (Picks Σ)). { admit. }
       iDestruct "H" as (??) "(>? & O & >? & P)".
@@ -1863,34 +1864,34 @@ Section own_properties.
       iFrame.
       iSplit. { admit. }
       iIntros (fG ? resp).
-      setoid_rewrite <- bgupd_later.
+      setoid_rewrite <- bnextgen_later.
       iNext.
       iApply "P".
       done.
-    - rewrite gupd_later_2.
+    - rewrite nextgen_later_2.
       iApply except_0_later.
   Admitted.
 
-  (* Global Instance into_gupd_gen_picked_out P Q : *)
-  (*   IntoGupd P Q → IntoGupd (▷ P) (▷ Q). *)
+  (* Global Instance into_nextgen_gen_picked_out P Q : *)
+  (*   IntoNextgen P Q → IntoNextgen (▷ P) (▷ Q). *)
   (* Proof. *)
-  (*   rewrite /IntoGupd. *)
-  (*   (* rewrite /gupd. *) *)
+  (*   rewrite /IntoNextgen. *)
+  (*   (* rewrite /nextgen. *) *)
   (*   intros Hw. *)
   (*   iIntros "P". *)
   (*   rewrite Hw. *)
-  (*   apply gen_picked_next_gupd. *)
+  (*   apply gen_picked_next_nextgen. *)
   (* Qed. *)
 
-  Global Instance into_gupd_gen_picked_out γ t :
-    IntoGupd (gen_picked_out γ t) (gen_picked_in γ t).
-  Proof. apply gen_picked_next_gupd. Qed.
+  Global Instance into_nextgen_gen_picked_out γ t :
+    IntoNextgen (gen_picked_out γ t) (gen_picked_in γ t).
+  Proof. apply gen_picked_next_nextgen. Qed.
 
-  Global Instance into_gupd_gen_token_used γ :
-    IntoGupd (gen_token_used γ) (gen_token γ).
-  Proof. apply gen_token_used_gupd. Qed.
+  Global Instance into_nextgen_gen_token_used γ :
+    IntoNextgen (gen_token_used γ) (gen_token γ).
+  Proof. apply gen_token_used_nextgen. Qed.
 
-  Global Instance into_gupd_gen_own γ m : IntoGupd (gen_own γ m) _ :=
+  Global Instance into_nextgen_gen_own γ m : IntoNextgen (gen_own γ m) _ :=
     own_generational_update γ m.
 
   Lemma own_generational_update_tok γ a t `{!GenTrans t} :
@@ -1904,13 +1905,13 @@ Section own_properties.
     iFrame.
   Qed.
 
-  Lemma gupd_persistent P : Persistent P → Persistent (⚡==> P).
+  Lemma nextgen_persistent P : Persistent P → Persistent (⚡==> P).
   Proof.
     rewrite /Persistent.
     intros ?.
-    rewrite -gupd_intuitinistically_1.
+    rewrite -nextgen_intuitinistically_1.
     iIntros "H".
-    iDestruct (gupd_mono with "H") as "HH"; first apply H.
+    iDestruct (nextgen_mono with "H") as "HH"; first apply H.
     done.
   Qed.
 
