@@ -1034,7 +1034,7 @@ Section pick_singleton_lemmas.
   Qed.
 
   Lemma picks_valid_empty Ω :
-    picks_valid Ω (λ i : fin (gFunctors_len Σ), ∅).
+    picks_valid Ω (λ i : gid Σ, ∅).
   Proof. intros ???. rewrite lookup_empty. inversion 1. Qed.
 
 End pick_singleton_lemmas.
@@ -1231,7 +1231,7 @@ Section picks_lemmas.
     ∀ (k : K) (i j : A), m1 !! k = Some i → m2 !! k = Some j → i = j.
 
   Lemma m_contains_tokens_for_picks_empty Ω :
-    m_contains_tokens_for_picks Ω (λ i : fin (gFunctors_len Σ), ∅) ε.
+    m_contains_tokens_for_picks Ω (λ i : gid Σ, ∅) ε.
   Proof. done. Qed.
 
   Lemma tokens_for_picks_agree_overlap Ω picks1 picks2 m1 m2 :
