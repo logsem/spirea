@@ -1,3 +1,4 @@
+From stdpp Require Import hlist.
 From iris.algebra Require Import functions gmap agree excl csum.
 From iris.proofmode Require Import classes tactics.
 From iris.base_logic.lib Require Export iprop own invariants.
@@ -1916,3 +1917,216 @@ Section own_properties.
   Qed.
 
 End own_properties.
+
+(* Putting a [cmra] inside a [list] gives a universe error so we define our own
+list to workaround this. *)
+Inductive list2 (A : Type) : Type :=
+ | nil2 : list2 A
+ | cons2 : A -> list2 A -> list2 A.
+
+Arguments nil2 {A}.
+Arguments cons2 {A} a l.
+
+Fixpoint list_to_tele (l : list Type) : tele :=
+  match l with
+    [] => TeleO
+  | t :: ts => TeleS (X := t) (λ _, list_to_tele ts)
+end.
+
+Fixpoint list2_to_tele (l : list2 Type) : tele :=
+  match l with
+    nil2 => TeleO
+  | cons2 t ts => TeleS (X := t) (λ _, list2_to_tele ts)
+end.
+
+Fixpoint list2_fmap {A B} (f : A → B) (l : list2 A) :=
+  match l with nil2 => nil2 | cons2 x l => cons2 (f x) (list2_fmap f l) end.
+
+Notation T Σ i := (R Σ i → R Σ i).
+
+Record promise {Σ} := MkPromise {
+    promise_g : gname; (* Ghost name for the promise. *)
+    promise_i : gid Σ; (* The index of the RA in the global RA. *)
+    promise_deps : list nat; (* Indices in the list of promises of the dependencies. *)
+    promise_RAs : list (gid Σ);
+    (* The predicate that relates our transformation to those of the dependencies. *)
+    promise_rel :
+      list_to_tele ((λ (i : gid Σ), T Σ i : Type) <$> promise_RAs) → T Σ promise_i → Prop;
+    promise_pred : T Σ promise_i → Prop;
+    (* rel_impl_pred : ; *)
+    (* deps_preds : foo; *)
+    (* witness : foo; *)
+}.
+
+Definition promise_consistent {Σ} (promises : list (@promise Σ)) p i :=
+  ∀ x j,
+    p.(promise_deps) !! x = Some j →
+    j < i ∧ (* The dependency is prior in the list. *)
+    ∃ p_d M,
+      promises !! j = Some p_d ∧
+      p.(promise_RAs) !! x = Some M ∧
+      p_d.(promise_i) = M.
+
+Definition promises_consistent {Σ} (promises : list (@promise Σ)) :=
+  ∀ i p, promises !! i = Some p → promise_consistent promises p i.
+
+Definition test_A_R := agreeR natO.
+Definition test_B_R := exclR unitO.
+
+Class genInG2 (Σ : gFunctors) (A : cmra) (D : list2 cmra)
+    := GenInG2 {
+  genInG2_id : gid Σ;
+  genInG2_apply := rFunctor_apply (gFunctors_lookup Σ genInG2_id);
+  genInG2_gti : gen_trans_info Σ (genInG2_id);
+  (* genInG_gen_trans : Ω.(g_valid_gt) (genInG_id) = Some2 genInG_gti; *)
+  genInG2_gti_typ : A = genInG2_gti.(gti_car);
+  (* genInG_gen_trans2 : *)
+  (*   genInG_gti.(gti_valid) = *)
+  (*     (gen_transport (gen_cmra_eq genInG_gti_typ genInG_gti.(gti_look)) (lift g)); *)
+}.
+
+Global Arguments genInG2_id {_} {_} {_} _.
+
+Fixpoint tlen (l : tlist) :=
+  match l with
+    | tnil => 0
+    | tcons _ t => S (tlen t)
+  end.
+
+(* Global Program Instance hlist_lookup_total A : *)
+(*     ∀ (As : tlist), LookupTotal (fin (tlen As)) A (hlist As) := *)
+(*   fix go m i {struct i} := let _ : ∀ m, LookupTotal _ _ _ := @go in *)
+(*   match i in fin m return vec A m → A with *)
+(*   | 0%fin => vec_S_inv (λ _, A) (λ x _, x) *)
+(*   | FS j => vec_S_inv (λ _, A) (λ _ v, v !!! j) *)
+(*   end. *)
+
+(* Definition txt {n} (l : vec cmra n) := [# max_natR]. *)
+
+Global Program Instance genInG2_inG `{i : !genInG2 Σ A D} :
+      inG Σ (generational_cmraR A) :=
+  {|
+    inG_id := genInG2_id i;
+    inG_prf := gen_cmra_eq genInG2_gti_typ genInG2_gti.(gti_look);
+  |}.
+
+(** * Big ops over hlists *)
+Fixpoint big_opL `{Monoid M o} {A} (f : nat → A → M) (xs : list A) : M :=
+  match xs with
+  | [] => monoid_unit
+  | x :: xs => o (f 0 x) (big_opL (λ n, f (S n)) xs)
+  end.
+
+(*
+How to represent the dependencies?
+
+We need
+- To be able to store both a collection of ..
+  - .. the types of the dependencies [A : Type, ..]
+  - .. transformation functions matching the types of the dependencis [f : A → A, ..]
+- We need to be able to map over the types.
+- To be able to do an ∧ or a ∗ over the transformation functions.
+
+*)
+
+(* (P : (i : fin n) → T i → Prop) *)
+
+(* Definition hlist_to_prod {l : tlist} (v : hlist l) : *)
+(*     ∀ (i : fin (tlen l)), (hlist_to_vec v !!! i). *) (* hlist_to_vec makes no sense *)
+
+Section test.
+  (* Context `{!inG Σ test_A_R}. *)
+  (* Context `{!inG Σ test_B_R}. *)
+  Context `{max_i : !inG Σ max_natR}.
+  Context `{i : !genInG2 Σ max_natR (cons2 max_natR (cons2 max_natR nil2))}.
+
+  Definition cmras_to_preds (DS : list2 cmra) : list2 Type :=
+    list2_fmap (λ A, cmra_car A → cmra_car A) DS.
+
+  (** Converts a list of cameras into a telescope of their carries. *)
+  Definition deps_to_tele (DS : list2 cmra) :=
+    list2_to_tele (cmras_to_preds DS).
+
+  Definition token `{i : !genInG2 Σ A DS} (γ : gname) (γs : list gname)
+    (R : (deps_to_tele DS) -t> (A → A) → Prop) (P : (A → A) → Prop) : iProp Σ :=
+    ⌜ True ⌝.
+
+  Global Arguments token {_ _ _} _ _ _%type _%type.
+
+  Definition rely `{i : !genInG2 Σ A DS} (γ : gname) (γs : list gname)
+    (R : deps_to_tele DS -t> (A → A) → Prop) (P : (A → A) → Prop) : iProp Σ :=
+    ⌜ True ⌝.
+
+  Definition rely_self `{i : !genInG2 Σ A DS} (γ : gname) (P : (A → A) → Prop) : iProp Σ :=
+    ⌜ True ⌝.
+
+  Definition trans (A : Type) := A → A.
+
+  Definition a_rel (Ta : max_natR → max_natR) Tb Ts :=
+    Ta = Ts ∧ Tb = Ts.
+
+  Definition a_rely :=
+    rely (1%positive) [] (λ Ta Tb Ts, Ta = Ts ∧ Tb = Ts) (λ _, True).
+
+  Definition True_pred {TT : tele} {A : Type} :=
+    tele_bind (TT := TT) (λ _ (_ : A), True).
+
+  Lemma own_gen_alloc2 `{!genInG2 Σ A DS} (a : A) γs :
+    ✓ a → ⊢ |==> ∃ γ, gen_own γ a ∗ token γ γs True_pred (λ _, True%type).
+  Proof. Admitted.
+
+  (* For a list of types [list Type] we need a list of an element of every type. *)
+
+  Definition trans_for (DS : list Type) :=
+    ∀ (i : fin (length DS)), trans (list_to_vec DS !!! i).
+
+  (** Strengthen a promise. *)
+  Lemma token_strengthen_promise `{!genInG2 Σ A DS} γ γs
+                                 (deps_preds : deps_to_tele DS)
+      (R_1 R_2 : deps_to_tele DS -t> (A → A) → Prop) (P_1 P_2 : (A → A) → Prop) :
+    (* The new relation is stronger. *)
+    (∀ (ts : deps_to_tele DS) (t : A → A), tele_app R_1 ts t → tele_app R_2 ts t ∧ P_2 t) →
+    (* The new predicate is stronger. *)
+    (∀ t, P_1 t → P_2 t) →
+    (* Evidence that the promise is realizeable. *)
+    (∀ (i : fin (length DS)), rely_self (trans (list_to_vec DS !!! i))) →
+    (* For every dependency we own a [rely_self]. *)
+    (* ... rely_self γ_d P_d .. *)
+    token γ γs R_1 P_1 -∗
+    token γ γs R_2 P_2.
+  Proof.
+
+  Admitted.
+
+  (* Program Definition transport_rel_3 {M1 M2 : cmra} (eq : M1 = M2) *)
+  (*   (rel : (M1 → M1) → (M1 → M1) → (M1 → M1) → Prop) : *)
+  (*   (M2 → M2) → (M2 → M2) → (M2 → M2) → Prop. *)
+  (* Proof. rewrite eq in rel. done. Qed. *)
+
+  Definition a_promise :=
+    {|
+      promise_g := 1%positive;
+      promise_i := inG_id max_i;
+      promise_deps := [0; 1];
+      promise_RAs := [inG_id max_i; inG_id max_i];
+      promise_rel := tele_app (transport_rel_3 inG_prf a_rel);
+      promise_pred := λ _, True;
+    |}.
+
+  Definition my_tele := [tele (x : nat) (y : nat) (z : nat)].
+  Definition ff : my_tele -t> nat := (λ x y z, (x + y + z)%nat).
+  Definition ff_alt : nat → nat → nat → nat := (λ x y z, (x + y + z)%nat).
+  Definition test := tele_app (TT := my_tele) ff.
+
+  Definition my_tele_2 := list_to_tele [(nat : Type); (nat : Type); (nat : Type)].
+
+  Compute tele_fun [tele (a : nat) (b : Z)] bool.
+  Lemma tt_ff : my_tele -t> nat = nat → nat → nat → nat.
+  Proof. simpl. done. Qed.
+
+  (* Definition test := λ.. (x : nat) (y : nat) (z : nat), (x + y + z)%nat. *)
+
+  (* Definition test := [tele x y z] -t> x + y + z. *)
+
+End test.
+
