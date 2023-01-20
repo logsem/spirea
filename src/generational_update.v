@@ -1927,20 +1927,27 @@ Inductive list2 (A : Type) : Type :=
 Arguments nil2 {A}.
 Arguments cons2 {A} a l.
 
-Fixpoint list_to_tele (l : list Type) : tele :=
-  match l with
-    [] => TeleO
-  | t :: ts => TeleS (X := t) (λ _, list_to_tele ts)
-end.
+Fixpoint list2_length {A} (l : list2 A) : nat :=
+  match l with nil2 => 0 | cons2 _ l2 => S (list2_length l2) end.
 
-Fixpoint list2_to_tele (l : list2 Type) : tele :=
-  match l with
-    nil2 => TeleO
-  | cons2 t ts => TeleS (X := t) (λ _, list2_to_tele ts)
-end.
+Fixpoint list2_to_list {A} (l : list2 A) : list A :=
+  match l with nil2 => nil | cons2 t ts => cons t (list2_to_list ts) end.
+
+Fixpoint list2_to_tlist (l : list2 Type) : tlist :=
+  match l with nil2 => tnil | cons2 t ts => tcons t (list2_to_tlist ts) end.
 
 Fixpoint list2_fmap {A B} (f : A → B) (l : list2 A) :=
   match l with nil2 => nil2 | cons2 x l => cons2 (f x) (list2_fmap f l) end.
+
+Fixpoint list2_to_vec {A} (l : list2 A) : vec A (list2_length l) :=
+  match l as l' return vec A (list2_length l') with
+    | nil2 => [#]
+    | cons2 t tail => t ::: list2_to_vec tail
+  end.
+
+(** A telescope inspired notation for [himpl]. *)
+Notation "As -h> B" :=
+  (himpl As B) (at level 99, B at level 200, right associativity).
 
 Notation T Σ i := (R Σ i → R Σ i).
 
@@ -1950,8 +1957,8 @@ Record promise {Σ} := MkPromise {
     promise_deps : list nat; (* Indices in the list of promises of the dependencies. *)
     promise_RAs : list (gid Σ);
     (* The predicate that relates our transformation to those of the dependencies. *)
-    promise_rel :
-      list_to_tele ((λ (i : gid Σ), T Σ i : Type) <$> promise_RAs) → T Σ promise_i → Prop;
+    (* promise_rel : *)
+    (*   list_to_tele ((λ (i : gid Σ), T Σ i : Type) <$> promise_RAs) → T Σ promise_i → Prop; *)
     promise_pred : T Σ promise_i → Prop;
     (* rel_impl_pred : ; *)
     (* deps_preds : foo; *)
@@ -1993,15 +2000,15 @@ Fixpoint tlen (l : tlist) :=
     | tcons _ t => S (tlen t)
   end.
 
-(* Global Program Instance hlist_lookup_total A : *)
-(*     ∀ (As : tlist), LookupTotal (fin (tlen As)) A (hlist As) := *)
-(*   fix go m i {struct i} := let _ : ∀ m, LookupTotal _ _ _ := @go in *)
-(*   match i in fin m return vec A m → A with *)
-(*   | 0%fin => vec_S_inv (λ _, A) (λ x _, x) *)
-(*   | FS j => vec_S_inv (λ _, A) (λ _ v, v !!! j) *)
-(*   end. *)
+Fixpoint tlist_to_vec (l : tlist) : vec Type (tlen l) :=
+  match l as l' return vec Type (tlen l') with
+    | tnil => [#]
+    | tcons t tail => t ::: tlist_to_vec tail
+  end.
 
-(* Definition txt {n} (l : vec cmra n) := [# max_natR]. *)
+Program Definition hlist_lookup {As : tlist} (l : hlist As) (i : fin (tlen As)) :
+  tlist_to_vec As !!! i.
+Proof. Admitted.
 
 Global Program Instance genInG2_inG `{i : !genInG2 Σ A D} :
       inG Σ (generational_cmraR A) :=
@@ -2009,13 +2016,6 @@ Global Program Instance genInG2_inG `{i : !genInG2 Σ A D} :
     inG_id := genInG2_id i;
     inG_prf := gen_cmra_eq genInG2_gti_typ genInG2_gti.(gti_look);
   |}.
-
-(** * Big ops over hlists *)
-Fixpoint big_opL `{Monoid M o} {A} (f : nat → A → M) (xs : list A) : M :=
-  match xs with
-  | [] => monoid_unit
-  | x :: xs => o (f 0 x) (big_opL (λ n, f (S n)) xs)
-  end.
 
 (*
 How to represent the dependencies?
@@ -2026,7 +2026,6 @@ We need
   - .. transformation functions matching the types of the dependencis [f : A → A, ..]
 - We need to be able to map over the types.
 - To be able to do an ∧ or a ∗ over the transformation functions.
-
 *)
 
 (* (P : (i : fin n) → T i → Prop) *)
@@ -2043,21 +2042,24 @@ Section test.
   Definition cmras_to_preds (DS : list2 cmra) : list2 Type :=
     list2_fmap (λ A, cmra_car A → cmra_car A) DS.
 
-  (** Converts a list of cameras into a telescope of their carries. *)
-  Definition deps_to_tele (DS : list2 cmra) :=
-    list2_to_tele (cmras_to_preds DS).
+  (** Converts a list of cameras into a tlist of predicates over their carries. *)
+  Definition deps_to_tlist (DS : list2 cmra) :=
+    list2_to_tlist (cmras_to_preds DS).
 
   Definition token `{i : !genInG2 Σ A DS} (γ : gname) (γs : list gname)
-    (R : (deps_to_tele DS) -t> (A → A) → Prop) (P : (A → A) → Prop) : iProp Σ :=
+    (R : (deps_to_tlist DS) -h> (A → A) → Prop) (P : (A → A) → Prop) : iProp Σ :=
     ⌜ True ⌝.
 
   Global Arguments token {_ _ _} _ _ _%type _%type.
 
   Definition rely `{i : !genInG2 Σ A DS} (γ : gname) (γs : list gname)
-    (R : deps_to_tele DS -t> (A → A) → Prop) (P : (A → A) → Prop) : iProp Σ :=
+    (R : deps_to_tlist DS -h> (A → A) → Prop) (P : (A → A) → Prop) : iProp Σ :=
     ⌜ True ⌝.
 
-  Definition rely_self `{i : !genInG2 Σ A DS} (γ : gname) (P : (A → A) → Prop) : iProp Σ :=
+
+  (* FIXME: Since the definition will use [own] we need some instance involving
+  Σ. But, we would like for it to not mention [DS]. Figure this out later. *)
+  Definition rely_self {A} (* `{i : !genInG2 Σ A DS} *) (γ : gname) (P : (A → A) → Prop) : iProp Σ :=
     ⌜ True ⌝.
 
   Definition trans (A : Type) := A → A.
@@ -2068,8 +2070,8 @@ Section test.
   Definition a_rely :=
     rely (1%positive) [] (λ Ta Tb Ts, Ta = Ts ∧ Tb = Ts) (λ _, True).
 
-  Definition True_pred {TT : tele} {A : Type} :=
-    tele_bind (TT := TT) (λ _ (_ : A), True).
+  Definition True_pred {TT : tlist} {A : Type} :=
+    hcurry (As := TT) (λ _ (_ : A), True).
 
   Lemma own_gen_alloc2 `{!genInG2 Σ A DS} (a : A) γs :
     ✓ a → ⊢ |==> ∃ γ, gen_own γ a ∗ token γ γs True_pred (λ _, True%type).
@@ -2077,25 +2079,35 @@ Section test.
 
   (* For a list of types [list Type] we need a list of an element of every type. *)
 
-  Definition trans_for (DS : list Type) :=
-    ∀ (i : fin (length DS)), trans (list_to_vec DS !!! i).
+  Definition trans_for (DS : list2 cmra) : Type :=
+    ∀ (i : fin (list2_length DS)), trans (cmra_car $ list2_to_vec DS !!! i).
+
+  (* Given a list of cameras return a type whose elements contain a predicate
+  over transformation functions for each camera in the list. We represent all of
+  these predicates as a dependent function as this encoding makes it possible to
+  lookup specific predicates which is used in [own_rely_self_for_deps]. *)
+  Definition preds_for (DS : list2 cmra) : Type :=
+    ∀ (i : fin (list2_length DS)), (trans (cmra_car $ list2_to_vec DS !!! i)) → Prop.
+
+  Definition own_rely_self_for_deps (DS : list2 cmra) (ts : preds_for DS) : iProp Σ :=
+    ∀ (i : fin (list2_length DS)), ∃ γ, rely_self γ (ts i).
 
   (** Strengthen a promise. *)
   Lemma token_strengthen_promise `{!genInG2 Σ A DS} γ γs
-                                 (deps_preds : deps_to_tele DS)
-      (R_1 R_2 : deps_to_tele DS -t> (A → A) → Prop) (P_1 P_2 : (A → A) → Prop) :
+                                 (deps_preds : preds_for DS)
+      (R_1 R_2 : deps_to_tlist DS -h> (A → A) → Prop) (P_1 P_2 : (A → A) → Prop) :
     (* The new relation is stronger. *)
-    (∀ (ts : deps_to_tele DS) (t : A → A), tele_app R_1 ts t → tele_app R_2 ts t ∧ P_2 t) →
+    (∀ (ts : hlist (deps_to_tlist DS)) (t : A → A), huncurry R_1 ts t → huncurry R_2 ts t ∧ P_2 t) →
     (* The new predicate is stronger. *)
     (∀ t, P_1 t → P_2 t) →
     (* Evidence that the promise is realizeable. *)
-    (∀ (i : fin (length DS)), rely_self (trans (list_to_vec DS !!! i))) →
+    (* ... *)
     (* For every dependency we own a [rely_self]. *)
+    own_rely_self_for_deps DS deps_preds -∗
     (* ... rely_self γ_d P_d .. *)
     token γ γs R_1 P_1 -∗
     token γ γs R_2 P_2.
   Proof.
-
   Admitted.
 
   (* Program Definition transport_rel_3 {M1 M2 : cmra} (eq : M1 = M2) *)
@@ -2103,30 +2115,25 @@ Section test.
   (*   (M2 → M2) → (M2 → M2) → (M2 → M2) → Prop. *)
   (* Proof. rewrite eq in rel. done. Qed. *)
 
-  Definition a_promise :=
-    {|
-      promise_g := 1%positive;
-      promise_i := inG_id max_i;
-      promise_deps := [0; 1];
-      promise_RAs := [inG_id max_i; inG_id max_i];
-      promise_rel := tele_app (transport_rel_3 inG_prf a_rel);
-      promise_pred := λ _, True;
-    |}.
+  (* Definition a_promise := *)
+  (*   {| *)
+  (*     promise_g := 1%positive; *)
+  (*     promise_i := inG_id max_i; *)
+  (*     promise_deps := [0; 1]; *)
+  (*     promise_RAs := [inG_id max_i; inG_id max_i]; *)
+  (*     promise_rel := tele_app (transport_rel_3 inG_prf a_rel); *)
+  (*     promise_pred := λ _, True; *)
+  (*   |}. *)
 
-  Definition my_tele := [tele (x : nat) (y : nat) (z : nat)].
-  Definition ff : my_tele -t> nat := (λ x y z, (x + y + z)%nat).
-  Definition ff_alt : nat → nat → nat → nat := (λ x y z, (x + y + z)%nat).
-  Definition test := tele_app (TT := my_tele) ff.
+  (* Definition my_tele := [tele (x : nat) (y : nat) (z : nat)]. *)
+  (* Definition ff : my_tele -t> nat := (λ x y z, (x + y + z)%nat). *)
+  (* Definition ff_alt : nat → nat → nat → nat := (λ x y z, (x + y + z)%nat). *)
+  (* Definition test := tele_app (TT := my_tele) ff. *)
 
-  Definition my_tele_2 := list_to_tele [(nat : Type); (nat : Type); (nat : Type)].
+  (* Definition my_tele_2 := list_to_tele [(nat : Type); (nat : Type); (nat : Type)]. *)
 
-  Compute tele_fun [tele (a : nat) (b : Z)] bool.
-  Lemma tt_ff : my_tele -t> nat = nat → nat → nat → nat.
-  Proof. simpl. done. Qed.
-
-  (* Definition test := λ.. (x : nat) (y : nat) (z : nat), (x + y + z)%nat. *)
-
-  (* Definition test := [tele x y z] -t> x + y + z. *)
+  (* Compute tele_fun [tele (a : nat) (b : Z)] bool. *)
+  (* Lemma tt_ff : my_tele -t> nat = nat → nat → nat → nat. *)
+  (* Proof. simpl. done. Qed. *)
 
 End test.
-
