@@ -1927,6 +1927,14 @@ Inductive list2 (A : Type) : Type :=
 Arguments nil2 {A}.
 Arguments cons2 {A} a l.
 
+Declare Scope list2_scope.
+Bind Scope list2_scope with list2.
+Delimit Scope list2_scope with L2.
+
+Global Notation "[ ] " := nil2 : list2_scope.
+Global Notation "[ x ] " := (cons2 x nil2) : list2_scope.
+Global Notation "[ x ; .. ; y ] " := (cons2 x .. (cons2 y nil2) ..) : list2_scope.
+
 Fixpoint list2_length {A} (l : list2 A) : nat :=
   match l with nil2 => 0 | cons2 _ l2 => S (list2_length l2) end.
 
@@ -1945,9 +1953,30 @@ Fixpoint list2_to_vec {A} (l : list2 A) : vec A (list2_length l) :=
     | cons2 t tail => t ::: list2_to_vec tail
   end.
 
+Fixpoint tlen (l : tlist) :=
+  match l with
+    | tnil => 0
+    | tcons _ t => S (tlen t)
+  end.
+
+Fixpoint tlist_to_vec (l : tlist) : vec Type (tlen l) :=
+  match l as l' return vec Type (tlen l') with
+    | tnil => [#]
+    | tcons t tail => t ::: tlist_to_vec tail
+  end.
+
+Program Definition hlist_lookup {As : tlist} (l : hlist As) (i : fin (tlen As)) :
+  tlist_to_vec As !!! i.
+Proof. Admitted.
+
+
 (** A telescope inspired notation for [himpl]. *)
 Notation "As -h> B" :=
   (himpl As B) (at level 99, B at level 200, right associativity).
+
+(** Data describing the cameras that a given camera depends on. *)
+Definition deps := list2 cmra.
+Bind Scope list2_scope with deps.
 
 Notation T Σ i := (R Σ i → R Σ i).
 
@@ -1977,10 +2006,10 @@ Definition promise_consistent {Σ} (promises : list (@promise Σ)) p i :=
 Definition promises_consistent {Σ} (promises : list (@promise Σ)) :=
   ∀ i p, promises !! i = Some p → promise_consistent promises p i.
 
-Definition test_A_R := agreeR natO.
-Definition test_B_R := exclR unitO.
+(* Definition test_A_R := agreeR natO. *)
+(* Definition test_B_R := exclR unitO. *)
 
-Class genInG2 (Σ : gFunctors) (A : cmra) (D : list2 cmra)
+Class genInG2 (Σ : gFunctors) (A : cmra) (DS : deps)
     := GenInG2 {
   genInG2_id : gid Σ;
   genInG2_apply := rFunctor_apply (gFunctors_lookup Σ genInG2_id);
@@ -1993,22 +2022,6 @@ Class genInG2 (Σ : gFunctors) (A : cmra) (D : list2 cmra)
 }.
 
 Global Arguments genInG2_id {_} {_} {_} _.
-
-Fixpoint tlen (l : tlist) :=
-  match l with
-    | tnil => 0
-    | tcons _ t => S (tlen t)
-  end.
-
-Fixpoint tlist_to_vec (l : tlist) : vec Type (tlen l) :=
-  match l as l' return vec Type (tlen l') with
-    | tnil => [#]
-    | tcons t tail => t ::: tlist_to_vec tail
-  end.
-
-Program Definition hlist_lookup {As : tlist} (l : hlist As) (i : fin (tlen As)) :
-  tlist_to_vec As !!! i.
-Proof. Admitted.
 
 Global Program Instance genInG2_inG `{i : !genInG2 Σ A D} :
       inG Σ (generational_cmraR A) :=
@@ -2039,23 +2052,24 @@ Section test.
   Context `{max_i : !inG Σ max_natR}.
   Context `{i : !genInG2 Σ max_natR (cons2 max_natR (cons2 max_natR nil2))}.
 
-  Definition cmras_to_preds (DS : list2 cmra) : list2 Type :=
+  Definition deps_to_trans (DS : list2 cmra) : list2 Type :=
     list2_fmap (λ A, cmra_car A → cmra_car A) DS.
 
   (** Converts a list of cameras into a tlist of predicates over their carries. *)
-  Definition deps_to_tlist (DS : list2 cmra) :=
-    list2_to_tlist (cmras_to_preds DS).
+  Definition deps_to_trans_tlist (DS : list2 cmra) :=
+    list2_to_tlist (deps_to_trans DS).
 
+  (** Ownership over the token for [γ]. *)
   Definition token `{i : !genInG2 Σ A DS} (γ : gname) (γs : list gname)
-    (R : (deps_to_tlist DS) -h> (A → A) → Prop) (P : (A → A) → Prop) : iProp Σ :=
+    (R : (deps_to_trans_tlist DS) -h> (A → A) → Prop) (P : (A → A) → Prop) : iProp Σ :=
     ⌜ True ⌝.
 
   Global Arguments token {_ _ _} _ _ _%type _%type.
 
+  (** Knowledge that γ is accociated with the predicates R and P. *)
   Definition rely `{i : !genInG2 Σ A DS} (γ : gname) (γs : list gname)
-    (R : deps_to_tlist DS -h> (A → A) → Prop) (P : (A → A) → Prop) : iProp Σ :=
+    (R : deps_to_trans_tlist DS -h> (A → A) → Prop) (P : (A → A) → Prop) : iProp Σ :=
     ⌜ True ⌝.
-
 
   (* FIXME: Since the definition will use [own] we need some instance involving
   Σ. But, we would like for it to not mention [DS]. Figure this out later. *)
@@ -2078,37 +2092,81 @@ Section test.
   Proof. Admitted.
 
   (* For a list of types [list Type] we need a list of an element of every type. *)
-
-  Definition trans_for (DS : list2 cmra) : Type :=
+  Definition trans_for_map (DS : list2 cmra) : Type :=
     ∀ (i : fin (list2_length DS)), trans (cmra_car $ list2_to_vec DS !!! i).
+
+  (* Definition map_to_list {DS} (preds : trans_for_map DS) := *)
+  (*   (λ i, preds i) <$> finite.fin_enum (list2_length DS). *)
+
+  (* Fixpoint own_rely_self_for_deps_2 (DS : list2 cmra) (ts : preds_for_hlist DS) : iProp Σ := *)
+  (*   match ts with *)
+  (*   | hnil => True%I *)
+  (*   | hcons a xs => (∃ γ, rely_self γ a) ∗ own_rely_self_for_deps_2 xs *)
+  (*   end. *)
+  (*   (* ∀ (i : fin (list2_length DS)), ∃ γ, rely_self γ (ts i). *) *)
+
+  (* For a list of types [list Type] we need a list of an element of every type. *)
+  Definition trans_for (DS : list2 cmra) : Type :=
+    hlist (deps_to_trans_tlist DS).
+
+  Definition pred_over (DS : deps) (A : cmra) :=
+    deps_to_trans_tlist DS -h> (A → A) → Prop.
+
+  (* This results in the type:
+     [(max_nat → max_nat) → (excl () → excl ()) → (nat → nat) → Prop] *)
+  Compute (pred_over [max_natR; exclR unitO] natR).
+
+  Definition preds_for_hlist (DS : list2 cmra) : Type :=
+    hlist $ list2_to_tlist (list2_fmap (λ A, (trans (cmra_car A) → Prop)) DS).
 
   (* Given a list of cameras return a type whose elements contain a predicate
   over transformation functions for each camera in the list. We represent all of
   these predicates as a dependent function as this encoding makes it possible to
   lookup specific predicates which is used in [own_rely_self_for_deps]. *)
-  Definition preds_for (DS : list2 cmra) : Type :=
+  Definition preds_for (DS : deps) : Type :=
     ∀ (i : fin (list2_length DS)), (trans (cmra_car $ list2_to_vec DS !!! i)) → Prop.
 
   Definition own_rely_self_for_deps (DS : list2 cmra) (ts : preds_for DS) : iProp Σ :=
     ∀ (i : fin (list2_length DS)), ∃ γ, rely_self γ (ts i).
 
+  (* Fixpoint foo {n F} (j : fin n) (m : ∀ (i : fin n), F i) : tlist := *)
+  (*   match j with *)
+  (*   | Fin.F1 => tnil *)
+  (*   | Fin.FS a => tcons bool (foo (n := n) a m) *)
+  (*   end. *)
+
+  (* Compute (preds_for [max_natR; exclR unitO]). *)
+  (* Compute (foo (_ : preds_for [max_natR; exclR unitO])). *)
+
+  (* Fixpoint hall (As : tlist) (B : Prop) : Prop := *)
+  (*   match As with tnil => B | tcons A As => ∀ A → himpl As B end. *)
+
+  (** The transformations [trans] satisfies the predicates [preds]. *)
+  Definition preds_hold {DS} (trans : hlist (deps_to_trans_tlist DS)) (preds : preds_for DS) :=
+    (* (∀ (i : fin (list2_length DS)), (hlist_lookup trans i)). *)
+    True. (* FIXME! *)
+  (*   ∀ (i : fin (list2_length DS)), (preds i) (list2_to_vec trans !! i). *)
+
   (** Strengthen a promise. *)
-  Lemma token_strengthen_promise `{!genInG2 Σ A DS} γ γs
-                                 (deps_preds : preds_for DS)
-      (R_1 R_2 : deps_to_tlist DS -h> (A → A) → Prop) (P_1 P_2 : (A → A) → Prop) :
+  Lemma token_strengthen_promise `{!genInG2 Σ A DS} γ γs (deps_preds : preds_for DS)
+      (R_1 R_2 : pred_over DS A) (P_1 P_2 : (A → A) → Prop) :
     (* The new relation is stronger. *)
-    (∀ (ts : hlist (deps_to_tlist DS)) (t : A → A), huncurry R_1 ts t → huncurry R_2 ts t ∧ P_2 t) →
+    (∀ (ts : hlist (deps_to_trans_tlist DS)) (t : A → A), huncurry R_1 ts t → huncurry R_2 ts t ∧ P_2 t) →
     (* The new predicate is stronger. *)
     (∀ t, P_1 t → P_2 t) →
+    (* The new relation implies the predicate. *)
+    (∀ ts t, huncurry R_2 ts t → P_2 t) →
     (* Evidence that the promise is realizeable. *)
-    (* ... *)
+    (∀ (ts : hlist (deps_to_trans_tlist DS)),
+       preds_hold ts deps_preds → ∃ (e : A → A), (huncurry R_2) ts e) →
     (* For every dependency we own a [rely_self]. *)
     own_rely_self_for_deps DS deps_preds -∗
-    (* ... rely_self γ_d P_d .. *)
     token γ γs R_1 P_1 -∗
     token γ γs R_2 P_2.
   Proof.
   Admitted.
+
+  (* Compute (token_strengthen_promise (DS := [max_natR; exclR unitO]) (1%positive) []). *)
 
   (* Program Definition transport_rel_3 {M1 M2 : cmra} (eq : M1 = M2) *)
   (*   (rel : (M1 → M1) → (M1 → M1) → (M1 → M1) → Prop) : *)
