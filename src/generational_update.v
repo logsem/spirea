@@ -1960,15 +1960,92 @@ Fixpoint tlen (l : tlist) :=
   end.
 
 Fixpoint tlist_to_vec (l : tlist) : vec Type (tlen l) :=
-  match l as l' return vec Type (tlen l') with
+  match l return vec Type (tlen l) with
     | tnil => [#]
     | tcons t tail => t ::: tlist_to_vec tail
   end.
 
-Program Definition hlist_lookup {As : tlist} (l : hlist As) (i : fin (tlen As)) :
-  tlist_to_vec As !!! i.
-Proof. Admitted.
+Definition fin_zero {A} (a : fin 0) : A :=
+  match a in fin n return (match n with O => A | S _ => unit end) with
+  | 0%fin => tt
+  | FS _ => tt
+  end.
 
+Definition thead (As : tlist) :=
+  match As with tnil => unit | tcons x _ => x end.
+
+Definition ttail (As : tlist) :=
+  match As with tnil => tnil | tcons _ xs => xs end.
+
+(* Lookup in a [tlist] with [unit] as a fallback. *)
+Fixpoint tlist_lookup (As : tlist) (i : nat) : Type :=
+  match As with
+  | tnil => unit
+  | tcons t ts =>
+      match i with
+      | 0 => t
+      | S i' => tlist_lookup ts i'
+      end
+  end.
+
+Infix "👀" := tlist_lookup (at level 20).
+
+Fixpoint hlist_lookup (As : tlist) (l : hlist As) :
+    ∀ (i : nat), As 👀 i :=
+  match l in hlist As return ∀ i : nat, As 👀 i with
+  | hnil => λ i, tt
+  | @hcons A As' x xs => λ i : nat,
+      match i return ((tcons A As') 👀 i) with
+      | 0 => x
+      | S i' => hlist_lookup As' xs i'
+      end
+  end.
+
+Fixpoint tlist_lookup_fin (As : tlist) : fin (tlen As) → Type :=
+  match As return fin (tlen As) → Type with
+  | tnil => λ i, fin_zero i
+  | tcons t ts => λ i,
+      match i with
+      | 0%fin => λ _, t
+      | FS i' =>  λ f, f i'
+      end (tlist_lookup_fin ts)
+  end.
+
+(* Definition tlist_lookup_vec {As : tlist} (l : hlist As) : *)
+(*     ∀ (i : fin (tlen As)), tlist_to_vec As !!! i. *)
+
+(*
+SFV: Could not get this variant using [fin] and [tlist_lookup_fin] to work.
+Infix "👀" := tlist_lookup_fin (at level 20).
+
+Fixpoint hlist_lookup_fin (As : tlist) (l : hlist As) :
+    ∀ (i : fin (tlen As)), As 👀 i :=
+  match l in hlist As return (∀ (i : fin (tlen As)), As 👀 i) with
+  | hnil => λ i, fin_zero i
+  | @hcons A As' x xs => λ i : fin (tlen (tcons A As')),
+      (* match i in fin (S l) return ∀ v : vec Type l, vector_lookup_total _ _ i v with *)
+      (* match i return tlist_to_vec (tcons (thead As) (ttail As)) !!! i with *)
+      (* match i in fin l return (match l with 0 => (unit : Type) | S t => (tlist_to_vec (tcons A As')) !!! i end) with *)
+      (* | 0%fin => λ _, x *)
+      (* | FS _ => λ _, _ *)
+      (* end (tlist_to_vec (tcons A As')) *)
+      (* match i in fin l return ∀ vec : vec Type l, (match l with 0 => (unit : Type) | S t => vec !!! i end) with *)
+      (* match *)
+      (*   i as i0 in (fin n) *)
+      (*   return *)
+      (*     (match n as x0 return Type with *)
+      (*     | 0 => IDProp *)
+      (*     | S t => tlist_to_vec (tcons A As') !!! i *)
+      (*     end) with *)
+        let f := hlist_lookup_fin As' xs
+        in _
+      (* match i as i0 in (fin n) return ∀ (As' : tlist), (∀ (i : fin (pred n)), As' 👀 i) → ((tcons A As') 👀 i0) with *)
+      (* (* match i with *) *)
+      (* | 0%fin => λ _, x *)
+      (* | FS i' => λ f, f i' *)
+      (* end As' (hlist_lookup As' xs) *)
+  end.
+*)
 
 (** A telescope inspired notation for [himpl]. *)
 Notation "As -h> B" :=
@@ -2006,9 +2083,6 @@ Definition promise_consistent {Σ} (promises : list (@promise Σ)) p i :=
 Definition promises_consistent {Σ} (promises : list (@promise Σ)) :=
   ∀ i p, promises !! i = Some p → promise_consistent promises p i.
 
-(* Definition test_A_R := agreeR natO. *)
-(* Definition test_B_R := exclR unitO. *)
-
 Class genInG2 (Σ : gFunctors) (A : cmra) (DS : deps)
     := GenInG2 {
   genInG2_id : gid Σ;
@@ -2036,7 +2110,8 @@ How to represent the dependencies?
 We need
 - To be able to store both a collection of ..
   - .. the types of the dependencies [A : Type, ..]
-  - .. transformation functions matching the types of the dependencis [f : A → A, ..]
+  - .. transformation functions matching the types of the dependencis [t : A → A, ..]
+  - .. predicates over the transformation functions.
 - We need to be able to map over the types.
 - To be able to do an ∧ or a ∗ over the transformation functions.
 *)
