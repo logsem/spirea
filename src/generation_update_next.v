@@ -81,8 +81,7 @@ Definition promise_consistent {Σ} (promises : list (@promise Σ)) p i :=
 Definition promises_consistent {Σ} (promises : list (@promise Σ)) :=
   ∀ i p, promises !! i = Some p → promise_consistent promises p i.
 
-Class genInG {n} (Σ : gFunctors) (A : cmra) (DS : deps n)
-    := GenInG2 {
+Class genInG {n} (Σ : gFunctors) (A : cmra) (DS : deps n) := GenInG {
   genInG_id : gid Σ;
   genInG_apply := rFunctor_apply (gFunctors_lookup Σ genInG_id);
   (* genInG_gti : gen_trans_info Σ (genInG_id); *)
@@ -92,6 +91,14 @@ Class genInG {n} (Σ : gFunctors) (A : cmra) (DS : deps n)
   (* genInG_gen_trans2 : *)
   (*   genInG_gti.(gti_valid) = *)
   (*     (gen_transport (gen_cmra_eq genInG_gti_typ genInG_gti.(gti_look)) (lift g)); *)
+}.
+
+(* Knowledge that [A] is a resource, with the information about its dependencies
+hidden in the dependent pair. *)
+Class genInSelfG (Σ : gFunctors) (A : cmra) := GenInG2 {
+  genInSelfG_n : nat;
+  genInSelfG_DS : deps genInSelfG_n;
+  genInSelfG_gen : genInG Σ A (genInSelfG_DS);
 }.
 
 Global Arguments genInG_id {_ _ _ _} _.
@@ -135,30 +142,25 @@ Section rules.
 
   (* FIXME: Since the definition will use [own] we need some instance involving
   Σ. But, we would like for it to not mention [DS]. Figure this out later. *)
-  Definition rely_self {n} {DS : deps n} `{i : !genInG Σ A DS} (γ : gname) (P : (A → A) → Prop) : iProp Σ :=
+  Definition rely_self `{i : !genInSelfG Σ A } (γ : gname) (P : (A → A) → Prop) : iProp Σ :=
     ⌜ True ⌝.
 
   Global Arguments token {_ _ _ _} _ _ _%type _%type.
 
   Lemma own_gen_alloc {n} {DS : deps n} `{!genInG Σ A DS} (a : A) γs :
-    ✓ a → ⊢ |==> ∃ γ, gen_own γ a ∗ token γ γs True_pred (λ _, True%type).
-  Proof. Admitted.
+      ✓ a → ⊢ |==> ∃ γ, gen_own γ a ∗ token γ γs True_pred (λ _, True%type).
+    Proof. Admitted.
 
-  (** The transformations [ts] satisfies the predicates [ps]. *)
-  Equations preds_hold {n} {DS : deps n} (ts : trans_for n DS) (ps : preds_for n DS) : Prop :=
-    | hcons t ts', hcons p ps' := p t ∧ preds_hold ts' ps' ;
-    | hnil, hnil := True.
-  Global Transparent preds_hold.
+    (** The transformations [ts] satisfies the predicates [ps]. *)
+    Equations preds_hold {n} {DS : deps n} (ts : trans_for n DS) (ps : preds_for n DS) : Prop :=
+      | hcons t ts', hcons p ps' := p t ∧ preds_hold ts' ps' ;
+      | hnil, hnil := True.
+    Global Transparent preds_hold.
 
-  (* genInG Σ (ivec_lookup_total DS i) DS2 *)
-
-  (* Lemma fooo {Σ} {n} DS DS2 i : *)
-  (*   (∀ (i2 : fin n), *)
-  (*     genInG Σ (ivec_lookup_total DS i2) (ivec_lookup_total DS2 i2)) → *)
-  (*   genInG Σ (ivec_lookup_total DS i) DS2. *)
-
-  (** Strengthen a promise. *)
-  Lemma token_strengthen_promise {n} {DS : deps n} `{!genInG Σ A DS} γ γs (deps_preds : preds_for n DS)
+    (** Strengthen a promise. *)
+    Lemma token_strengthen_promise {n} {DS : deps n} `{!genInG Σ A DS}
+        `{∀ (i : fin n), genInSelfG Σ (ivec_lookup_total DS i)}
+      γ γs (deps_preds : preds_for n DS)
       (R_1 R_2 : pred_over DS A) (P_1 P_2 : (A → A) → Prop) :
     (* The new relation is stronger. *)
     (∀ (ts : trans_for n DS) (t : A → A), huncurry R_1 ts t → huncurry R_2 ts t ∧ P_2 t) →
@@ -170,7 +172,8 @@ Section rules.
     (∀ (ts : trans_for n DS),
        preds_hold ts deps_preds → ∃ (e : A → A), (huncurry R_2) ts e) →
     (* For every dependency we own a [rely_self]. *)
-    (∀ (i : fin (ilen DS)), ∃ γ, rely_self γ (deps_preds 👀 i)) -∗
+    (∀ (i : fin n),
+       ∃ γ, rely_self γ (deps_preds 👀 i)) -∗
     token γ γs R_1 P_1 -∗
     token γ γs R_2 P_2.
   Proof.
@@ -178,6 +181,24 @@ Section rules.
 
 
 End rules.
+
+Equations forall_fin_2 (P : fin 2 → Type) : P 0%fin * P 1%fin → ∀ (i : fin 2), P i :=
+| P, p, 0%fin => fst p
+| P, p, 1%fin => snd p.
+
+(* This is a hacky way to find all the [genInSelfG] instances when there are
+exactly two dependencies. It would be nicer with a solution that could iterate
+over all the dependencies during type class resolution (maybe inspired by
+[TCForall] for lists). *)
+Global Instance genInG_forall_2 {Σ n m} {DS1 : deps n} {DS2 : deps m}
+  `{!genInG Σ A DS1} `{!genInG Σ B DS2} :
+  ∀ (i : fin 2), genInSelfG Σ (ivec_lookup_total [A; B] i).
+Proof.
+  apply forall_fin_2.
+  split.
+  - apply (GenInG2 _ _ n DS1 _).
+  - apply (GenInG2 _ _ m DS2 _).
+Qed.
 
 Section test.
   Context `{max_i : !inG Σ max_natR}.
@@ -190,13 +211,14 @@ Section test.
     Variables (A : cmra) (B : cmra) (T1 : A → A) (T2 : B → B)
       (P1 : (A → A) → Prop) (P2 : (B → B) → Prop).
 
-    Definition TS : trans_for _ := hcons T1 (hcons T2 hnil).
-    Definition PS : preds_for _ := hcons P1 (hcons P2 hnil).
+    Definition TS : trans_for _ _ := hcons T1 (hcons T2 hnil).
+    Definition PS : preds_for _ _ := hcons P1 (hcons P2 hnil).
     Compute (preds_hold (DS := [A; B]) TS PS).
 
+    Context `{!genInG Σ B []%IL}.
     Context `{!genInG Σ A [A; B]%IL}.
 
-    Lemma foo (γ : gname) (γs : list gname) : True.
+    Lemma foo2 (γ : gname) (γs : list gname) : True.
     Proof.
       pose proof (token_strengthen_promise γ γs PS) as st.
       rewrite /pred_over in st.

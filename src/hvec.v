@@ -54,7 +54,7 @@ Section ivec.
 
   #[global] Existing Instance ivec_lookup.
 
-  Equations ivec_lookup_total {A n} (As : ivec A n) (i : fin (ilen As)) : A :=
+  Equations ivec_lookup_total {A n} (As : ivec A n) (i : fin n) : A :=
   | icons x _, 0%fin => x
   | icons _ xs, FS i => ivec_lookup_total xs i.
   Global Transparent ivec_lookup_total.
@@ -191,7 +191,7 @@ Section hvec.
   (*       end *)
   (*   end. *)
 
-  Equations hvec_lookup {n As} (l : hvec F n As) (i : fin (ilen As)) : F (As 👀 i) :=
+  Equations hvec_lookup {n As} (l : hvec F n As) (i : fin n) : F (As 👀 i) :=
     hvec_lookup (hcons xx _) 0%fin := xx ;
     hvec_lookup (hcons _ xs) (FS i') := hvec_lookup xs i'.
 
