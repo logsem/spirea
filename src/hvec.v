@@ -54,10 +54,12 @@ Section ivec.
 
   #[global] Existing Instance ivec_lookup.
 
-  Equations ivec_lookup_total {A n} (As : ivec A n) (i : fin n) : A :=
-  | icons x _, 0%fin => x
-  | icons _ xs, FS i => ivec_lookup_total xs i.
+  Equations ivec_lookup_total {A n} : LookupTotal (fin n) A (ivec A n) :=
+  | 0%fin, icons x _ => x
+  | FS i, icons _ xs => ivec_lookup_total i xs.
   Global Transparent ivec_lookup_total.
+
+  #[global] Existing Instance ivec_lookup_total.
 
   (* Lookup in a [ivec Type] with [unit] as a fallback. *)
   Fixpoint ivec_type_lookup {n} (As : ivec Type n) (i : nat) : Type :=
@@ -89,8 +91,6 @@ End ivec.
 (** A telescope inspired notation for [iimpl]. *)
 Notation "As -h> B" :=
   (iimpl (λ A, A) As B) (at level 99, B at level 200, right associativity).
-
-#[global] Infix "👀" := ivec_lookup_total (at level 20).
 
 (* We call it [hvec] just to distinguish is from the stdpp's [hlist]. We
 parameterize [hvec] by a type [A] and a family [F] over the type. The key
@@ -143,21 +143,11 @@ Section hvec.
     (f : F x → iimpl F As B) : iimpl F (icons x As) B := f.
   Global Arguments hlam _ _ _ _ _ _ / : assert.
 
-  (* Equations huncurry {As B} (f : iimpl F As B) (xs : hvec F As) : B := *)
-  (* | f, hnil => f *)
-  (* | f, hcons x xs => huncurry (f x) xs. *)
-
   Equations huncurry {n} {As B} (f : iimpl F As B) (xs : hvec F n As) : B :=
   | f, hnil => f
   | f, hcons xx xs => huncurry (f xx) xs.
   Global Transparent huncurry.
 
-  (* Definition huncurry {n} {As B} (f : iimpl F As B) (xs : hvec F n As) : B := *)
-  (*   (fix go {As} xs := *)
-  (*     match xs in hvec _ _ As return iimpl F As B → B with *)
-  (*     | hnil => λ f, f *)
-  (*     | hcons x xs => λ f, go xs (f x) *)
-  (*     end) _ xs f. *)
   Coercion huncurry : iimpl >-> Funclass.
 
   Fixpoint hcurry {n} {As B} : (hvec F n As → B) → iimpl F As B :=
@@ -177,21 +167,9 @@ Section hvec.
     | icons A As => λ g, hlam (λ x, hcompose f (g x))
     end.
 
-  Compute (icons nat (icons bool (icons Z inil))) 👀 1%fin.
+  Compute (icons nat (icons bool (icons Z inil))) !!! 1%fin.
 
-  (* Infix "👀" := ivec_type_lookup (at level 20). *)
-  (* Fixpoint hvec_lookup (As : ivec Type) (l : hvec F As) : *)
-  (*     ∀ (i : nat), ivec_type_lookup As i := *)
-  (*   match l in hvec F As return ∀ i : nat, As 👀 i with *)
-  (*   | hnil => λ i, tt *)
-  (*   | @hcons A As' x xs => λ i : nat, *)
-  (*       match i return ((icons A As') 👀 i) with *)
-  (*       | 0 => x *)
-  (*       | S i' => hvec_lookup As' xs i' *)
-  (*       end *)
-  (*   end. *)
-
-  Equations hvec_lookup {n As} (l : hvec F n As) (i : fin n) : F (As 👀 i) :=
+  Equations hvec_lookup {n As} (l : hvec F n As) (i : fin n) : F (As !!! i) :=
     hvec_lookup (hcons xx _) 0%fin := xx ;
     hvec_lookup (hcons _ xs) (FS i') := hvec_lookup xs i'.
 

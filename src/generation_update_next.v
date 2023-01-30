@@ -159,7 +159,7 @@ Section rules.
 
     (** Strengthen a promise. *)
     Lemma token_strengthen_promise {n} {DS : deps n} `{!genInG Σ A DS}
-        `{∀ (i : fin n), genInSelfG Σ (ivec_lookup_total DS i)}
+        `{∀ (i : fin n), genInSelfG Σ (DS !!! i)}
       γ γs (deps_preds : preds_for n DS)
       (R_1 R_2 : pred_over DS A) (P_1 P_2 : (A → A) → Prop) :
     (* The new relation is stronger. *)
@@ -192,7 +192,7 @@ over all the dependencies during type class resolution (maybe inspired by
 [TCForall] for lists). *)
 Global Instance genInG_forall_2 {Σ n m} {DS1 : deps n} {DS2 : deps m}
   `{!genInG Σ A DS1} `{!genInG Σ B DS2} :
-  ∀ (i : fin 2), genInSelfG Σ (ivec_lookup_total [A; B] i).
+  ∀ (i : fin 2), genInSelfG Σ ([A; B]%IL !!! i).
 Proof.
   apply forall_fin_2.
   split.
