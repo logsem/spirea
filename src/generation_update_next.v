@@ -41,7 +41,17 @@ Section types.
 End types.
 
 Notation trans_for := (hvec cmra_to_trans).
+Definition trans_for_alt n (DS : deps n) := hvec id n (ivec_fmap cmra_to_trans DS).
+
 Notation preds_for := (hvec cmra_to_pred).
+
+(* trans_for_alt does not give universe issue. *)
+Definition test_exist {Σ} {n : nat} {DS : ivec cmra n} : iProp Σ :=
+  ∃ (ts : trans_for_alt n DS), ⌜ True ⌝.
+
+(* trans_for _does_ give universe issue. The root cause is the way the [cmra] appears in the type. In [trans_for_alt] the occurence of [cmra_car] prevents the universe issue somehow. *)
+(* Definition test_exist {Σ} {n : nat} {DS : ivec cmra n} : iProp Σ := *)
+(*   ∃ (ts : trans_for n DS), ⌜ True ⌝. *)
 
 (* The functor in [Σ] at index [i] applied to [iProp]. *)
 Notation R Σ i := (rFunctor_apply (gFunctors_lookup Σ i) (iPropO Σ)).
@@ -122,44 +132,50 @@ We need
 - To be able to do an ∧ or a ∗ over the transformation functions.
 *)
 
-Section rules.
-  Context `{Σ : gFunctors}.
+(** The transformations [ts] satisfies the predicates [ps]. *)
+Equations preds_hold_alt {n} {DS : deps n}
+    (ts : trans_for_alt n DS) (ps : preds_for n DS) : Prop :=
+  | hcons t ts', hcons p ps' := p t ∧ preds_hold_alt ts' ps' ;
+  | hnil, hnil := True.
+Global Transparent preds_hold_alt.
 
-  Definition gen_own `{!inG Σ (generational_cmraR A)}
-      (γ : gname) (a : A) : iProp Σ :=
-    own γ a.
+(** The transformations [ts] satisfies the predicates [ps]. *)
+Equations preds_hold {n} {DS : deps n}
+    (ts : trans_for n DS) (ps : preds_for n DS) : Prop :=
+  | hcons t ts', hcons p ps' := p t ∧ preds_hold ts' ps' ;
+  | hnil, hnil := True.
+Global Transparent preds_hold.
+
+Definition dummy_use_ing {n : nat} {DS : deps n} `{!genInG Σ A DS} := True.
+
+Section rules.
+  Context {n : nat} {DS : deps n} `{!genInG Σ A DS}.
+
+  Definition gen_own (γ : gname) (a : A) : iProp Σ := own γ a.
     (* own γ (None, (None, None), Some a). *)
 
   (** Ownership over the token for [γ]. *)
-  Definition token {n} {DS : deps n} `{i : !genInG Σ A DS} (γ : gname) (γs : list gname)
+  Definition token  (γ : gname) (γs : ivec gname n)
     (R : pred_over DS A) (P : (A → A) → Prop) : iProp Σ :=
-    ⌜ True ⌝.
+    ⌜ dummy_use_ing ⌝.
 
   (** Knowledge that γ is accociated with the predicates R and P. *)
-  Definition rely {n} {DS : deps n} `{i : !genInG Σ A DS} (γ : gname) (γs : list gname)
+  Definition rely (γ : gname) (γs : ivec gname n)
     (R : pred_over DS A) (P : (A → A) → Prop) : iProp Σ :=
+    ⌜ dummy_use_ing ⌝.
+
+  Definition rely_self {B} `{i : !genInSelfG Σ B} (γ : gname) (P : (B → B) → Prop) : iProp Σ :=
     ⌜ True ⌝.
 
-  (* FIXME: Since the definition will use [own] we need some instance involving
-  Σ. But, we would like for it to not mention [DS]. Figure this out later. *)
-  Definition rely_self `{i : !genInSelfG Σ A } (γ : gname) (P : (A → A) → Prop) : iProp Σ :=
-    ⌜ True ⌝.
+  Lemma own_gen_alloc (a : A) γs :
+    ✓ a → ⊢ |==> ∃ γ, gen_own γ a ∗ token γ γs True_pred (λ _, True%type).
+  Proof. Admitted.
 
-  Global Arguments token {_ _ _ _} _ _ _%type _%type.
+  Definition trans_in {B} (γ : gname) (t : B → B) : iProp Σ :=
+    ⌜ dummy_use_ing ⌝%I.
 
-  Lemma own_gen_alloc {n} {DS : deps n} `{!genInG Σ A DS} (a : A) γs :
-      ✓ a → ⊢ |==> ∃ γ, gen_own γ a ∗ token γ γs True_pred (λ _, True%type).
-    Proof. Admitted.
-
-    (** The transformations [ts] satisfies the predicates [ps]. *)
-    Equations preds_hold {n} {DS : deps n} (ts : trans_for n DS) (ps : preds_for n DS) : Prop :=
-      | hcons t ts', hcons p ps' := p t ∧ preds_hold ts' ps' ;
-      | hnil, hnil := True.
-    Global Transparent preds_hold.
-
-    (** Strengthen a promise. *)
-    Lemma token_strengthen_promise {n} {DS : deps n} `{!genInG Σ A DS}
-        `{∀ (i : fin n), genInSelfG Σ (DS !!! i)}
+  (** Strengthen a promise. *)
+  Lemma token_strengthen_promise `{∀ (i : fin n), genInSelfG Σ (DS !!! i)}
       γ γs (deps_preds : preds_for n DS)
       (R_1 R_2 : pred_over DS A) (P_1 P_2 : (A → A) → Prop) :
     (* The new relation is stronger. *)
@@ -170,15 +186,33 @@ Section rules.
     (∀ ts t, huncurry R_2 ts t → P_2 t) →
     (* Evidence that the promise is realizeable. *)
     (∀ (ts : trans_for n DS),
-       preds_hold ts deps_preds → ∃ (e : A → A), (huncurry R_2) ts e) →
+      preds_hold ts deps_preds → ∃ (e : A → A), (huncurry R_2) ts e) →
     (* For every dependency we own a [rely_self]. *)
-    (∀ (i : fin n),
-       ∃ γ, rely_self γ (deps_preds 👀 i)) -∗
+    (∀ (i : fin n), rely_self (γs !!! i) (deps_preds 👀 i)) -∗
     token γ γs R_1 P_1 -∗
     token γ γs R_2 P_2.
   Proof.
   Admitted.
 
+  Lemma token_nextgen γ γs (R : pred_over DS A) P :
+    token γ γs R P ⊢ token γ γs R P.
+  Proof. Admitted.
+
+  Lemma rely_nextgen γ γs (R : pred_over DS A) P :
+    rely γ γs R P
+    ⊢ rely γ γs R P ∗
+      ∃ (t : A → A),
+      ⌜ ∃ (ts : trans_for n DS),
+        huncurry R ts t ∧ (* The transformations satisfy the promise. *)
+        P t ⌝ ∗ (* For convenience we also get this directly. *)
+      trans_in γ t ∗
+      (∃  (ts' : trans_for_alt n DS), (* Temp universe workaround. *)
+        (∀ (i : fin n), trans_in (γs !!! i) (hvec_lookup_fmap ts' i))).
+  Proof. Admitted.
+
+  Lemma token_to_rely γ γs (R : pred_over DS A) P :
+    token γ γs R P ⊢ rely γ γs R P.
+  Proof. Admitted.
 
 End rules.
 
@@ -205,7 +239,7 @@ Section test.
   Context `{i : !genInG Σ max_natR (icons max_natR (icons max_natR inil))}.
 
   Definition a_rely :=
-    rely (1%positive) [] (λ Ta Tb Ts, Ta = Ts ∧ Tb = Ts) (λ _, True).
+    rely (1%positive) [2%positive; 3%positive] (λ Ta Tb Ts, Ta = Ts ∧ Tb = Ts) (λ _, True).
 
   Section test.
     Variables (A : cmra) (B : cmra) (T1 : A → A) (T2 : B → B)
@@ -218,7 +252,7 @@ Section test.
     Context `{!genInG Σ B []%IL}.
     Context `{!genInG Σ A [A; B]%IL}.
 
-    Lemma foo2 (γ : gname) (γs : list gname) : True.
+    Lemma foo2 (γ : gname) (γs : ivec gname 2) : True.
     Proof.
       pose proof (token_strengthen_promise γ γs PS) as st.
       rewrite /pred_over in st.

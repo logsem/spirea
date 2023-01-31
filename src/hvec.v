@@ -1,8 +1,7 @@
 From Equations Require Import Equations.
 
-From stdpp Require Import tactics.
-From stdpp Require Import options.
-From stdpp Require Import vector.
+From stdpp Require Import tactics fin.
+
 Local Set Universe Polymorphism.
 
 (* To prevent problems with Equations. *)
@@ -39,9 +38,9 @@ Section ivec.
   | icons _ t => S (ilen t).
   Global Transparent ilen.
 
-  Equations ivec_to_vec {A n} (l : ivec A n) : vec A (ilen l) :=
-  | inil => [#]
-  | icons t ts => t ::: ivec_to_vec ts.
+  (* Equations ivec_to_vec {A n} (l : ivec A n) : vec A (ilen l) := *)
+  (* | inil => [#] *)
+  (* | icons t ts => t ::: ivec_to_vec ts. *)
 
   Fixpoint ivec_fmap {A B n} (f : A → B) (l : ivec A n) :=
     match l with inil => inil | icons x l => icons (f x) (ivec_fmap f l) end.
@@ -167,11 +166,16 @@ Section hvec.
     | icons A As => λ g, hlam (λ x, hcompose f (g x))
     end.
 
-  Compute (icons nat (icons bool (icons Z inil))) !!! 1%fin.
+  (* Compute (icons nat (icons bool (icons (fin 0) inil))) !!! 1%fin. *)
 
-  Equations hvec_lookup {n As} (l : hvec F n As) (i : fin n) : F (As !!! i) :=
+  Equations hvec_lookup {n As} (l : hvec F n As) (i : fin n) : F (ivec_lookup_total i As) :=
     hvec_lookup (hcons xx _) 0%fin := xx ;
     hvec_lookup (hcons _ xs) (FS i') := hvec_lookup xs i'.
+
+  Equations hvec_lookup_fmap {n As}
+    (l : hvec id n (ivec_fmap F As)) (i : fin n) : F (ivec_lookup_total i As) :=
+    @hvec_lookup_fmap _ (icons _ _) (hcons xx _) 0%fin := xx ;
+    @hvec_lookup_fmap _ (icons _ _) (hcons _ xs) (FS i') := hvec_lookup_fmap xs i'.
 
 End hvec.
 
