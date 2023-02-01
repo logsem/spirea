@@ -124,6 +124,15 @@ Definition hvec_ty := @hvec Type (λ T, T).
 Derive Signature NoConfusion NoConfusionHom for hvec.
 Derive Subterm for hvec.
 
+Declare Scope hvec_scope.
+Bind Scope hvec_scope with hvec.
+Delimit Scope hvec_scope with HV.
+
+Global Infix "::" := hcons (at level 60, right associativity) : hvec_scope.
+Global Notation "[ ] " := hnil : hvec_scope.
+Global Notation "[ x ] " := (hcons x hnil) : hvec_scope.
+Global Notation "[ x ; .. ; y ] " := (hcons x .. (hcons y hnil) ..) : hvec_scope.
+
 Section hvec.
   Context {A : Type} {F : A → Type}.
 
@@ -162,7 +171,7 @@ Section hvec.
 
   Fixpoint hcurry {n} {As B} : (hvec F n As → B) → iimpl F As B :=
     match As with
-    | inil => λ f, f hnil
+    | inil => λ f, f []%HV
     | icons x xs => λ f, hlam (λ x, hcurry (f ∘ hcons x))
     end.
 
@@ -180,13 +189,13 @@ Section hvec.
   (* Compute (icons nat (icons bool (icons (fin 0) inil))) !!! 1%fin. *)
 
   Equations hvec_lookup {n As} (l : hvec F n As) (i : fin n) : F (ivec_lookup_total i As) :=
-    hvec_lookup (hcons xx _) 0%fin := xx ;
-    hvec_lookup (hcons _ xs) (FS i') := hvec_lookup xs i'.
+    hvec_lookup (xx :: _) 0%fin := xx ;
+    hvec_lookup (_ :: xs) (FS i') := hvec_lookup xs i'.
 
   Equations hvec_lookup_fmap {n} {As : ivec n A}
     (l : hvec id n (F <$> As)) (i : fin n) : F (ivec_lookup_total i As) :=
-    @hvec_lookup_fmap _ (icons _ _) (hcons xx _) 0%fin := xx ;
-    @hvec_lookup_fmap _ (icons _ _) (hcons _ xs) (FS i') := hvec_lookup_fmap xs i'.
+    @hvec_lookup_fmap _ (_ :: _) (xx :: _) 0%fin := xx ;
+    @hvec_lookup_fmap _ (_ :: _) (_ :: xs) (FS i') := hvec_lookup_fmap xs i'.
 
 End hvec.
 

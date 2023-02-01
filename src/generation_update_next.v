@@ -238,7 +238,7 @@ Qed.
 
 Section test.
   Context `{max_i : !inG Σ max_natR}.
-  Context `{i : !genInG Σ max_natR (icons max_natR (icons max_natR inil))}.
+  Context `{i : !genInG Σ max_natR [max_natR; max_natR] }.
 
   Definition a_rely :=
     rely (1%positive) [2%positive; 3%positive] (λ Ta Tb Ts, Ta = Ts ∧ Tb = Ts) (λ _, True).
@@ -247,12 +247,12 @@ Section test.
     Variables (A : cmra) (B : cmra) (T1 : A → A) (T2 : B → B)
       (P1 : (A → A) → Prop) (P2 : (B → B) → Prop).
 
-    Definition TS : trans_for _ _ := hcons T1 (hcons T2 hnil).
-    Definition PS : preds_for _ _ := hcons P1 (hcons P2 hnil).
+    Definition TS : trans_for _ _ := [T1; T2].
+    Definition PS : preds_for _ _ := [P1; P2].
     Compute (preds_hold (DS := [A; B]) TS PS).
 
-    Context `{!genInG Σ B []%IL}.
-    Context `{!genInG Σ A [A; B]%IL}.
+    Context `{!genInG Σ B [] }.
+    Context `{!genInG Σ A [A; B] }.
 
     Lemma foo2 (γ : gname) (γs : ivec 2 gname) : True.
     Proof.
