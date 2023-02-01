@@ -11,18 +11,21 @@ Local Unset Mangle Names. (* work around https://github.com/mattam82/Coq-Equatio
 (* Not using [list] in order to avoid universe inconsistencies. [ivec] stands
 for indenpendet list in the sense that it is independent from anything in stdpp
 that might cause universe problems. *)
-Inductive ivec (A : Type) : nat → Type :=
-| inil : ivec A 0
-| icons {n : nat} : A → ivec A n → ivec A (S n).
+Inductive ivec' (A : Type) : nat → Type :=
+| inil : ivec' A 0
+| icons {n : nat} : A → ivec' A n → ivec' A (S n).
+
+Definition ivec n A := ivec' A n.
 
 (* Derive NoConfusion for ivec. *)
-Derive Signature NoConfusion NoConfusionHom for ivec.
-Derive Subterm for ivec.
+Derive Signature NoConfusion NoConfusionHom for ivec'.
+Derive Subterm for ivec'.
 
 Arguments inil {A}.
 Arguments icons {A} {n} a l.
 
 Declare Scope ivec_scope.
+Bind Scope ivec_scope with ivec'.
 Bind Scope ivec_scope with ivec.
 Delimit Scope ivec_scope with IL.
 
@@ -33,19 +36,26 @@ Global Notation "[ x ; .. ; y ] " := (icons x .. (icons y inil) ..) : ivec_scope
 
 Section ivec.
 
-  Equations ilen {A n} (l : ivec A n) : nat :=
+  Equations ilen {A n} (l : ivec n A) : nat :=
   | inil => 0
   | icons _ t => S (ilen t).
   Global Transparent ilen.
 
-  (* Equations ivec_to_vec {A n} (l : ivec A n) : vec A (ilen l) := *)
+  (* Equations ivec_to_vec {A n} (l : ivec n A) : vec A (ilen l) := *)
   (* | inil => [#] *)
   (* | icons t ts => t ::: ivec_to_vec ts. *)
 
-  Fixpoint ivec_fmap {A B n} (f : A → B) (l : ivec A n) :=
-    match l with inil => inil | icons x l => icons (f x) (ivec_fmap f l) end.
+  Fixpoint ivec_map {A B n} (f : A → B) (l : ivec n A) :=
+    match l with
+    | inil => inil
+    | icons x l => icons (f x) (ivec_map f l)
+    end.
 
-  Equations ivec_lookup {A n} : Lookup nat A (ivec A n) :=
+  (* NOTE: We don't add this instance as its use sometimes causes universe
+  issues that plain [ivec_map] does not suffer from. *)
+  (* Global Instance ivec_fmap n : FMap (ivec n) := λ A B f, ivec_map f. *)
+
+  Equations ivec_lookup {A n} : Lookup nat A (ivec n A) :=
   | _, inil => None
   | 0, icons x _ => Some x
   | S i, icons _ xs => ivec_lookup i xs.
@@ -53,7 +63,7 @@ Section ivec.
 
   #[global] Existing Instance ivec_lookup.
 
-  Equations ivec_lookup_total {A n} : LookupTotal (fin n) A (ivec A n) :=
+  Equations ivec_lookup_total {A n} : LookupTotal (fin n) A (ivec n A) :=
   | 0%fin, icons x _ => x
   | FS i, icons _ xs => ivec_lookup_total i xs.
   Global Transparent ivec_lookup_total.
@@ -61,7 +71,7 @@ Section ivec.
   #[global] Existing Instance ivec_lookup_total.
 
   (* Lookup in a [ivec Type] with [unit] as a fallback. *)
-  Fixpoint ivec_type_lookup {n} (As : ivec Type n) (i : nat) : Type :=
+  Fixpoint ivec_type_lookup {n} (As : ivec n Type) (i : nat) : Type :=
     match As with
     | inil => unit
     | icons t ts =>
@@ -71,13 +81,13 @@ Section ivec.
         end
     end.
 
-  Fixpoint iapp {A n m} (As : ivec A n) (Bs : ivec A m) : ivec A (n + m) :=
+  Fixpoint iapp {A n m} (As : ivec n A) (Bs : ivec m A) : ivec (n + m) A :=
     match As with
     | inil => Bs
     | icons A As => icons A (iapp As Bs)
     end.
 
-  Fixpoint iimpl {A n} (F : A → Type) (As : ivec A n) (B : Type) : Type :=
+  Fixpoint iimpl {A n} (F : A → Type) (As : ivec n A) (B : Type) : Type :=
     match As with
     | inil => B
     | icons A As => F A → iimpl F As B
@@ -85,6 +95,7 @@ Section ivec.
 
 End ivec.
 
+#[global] Infix "<$>" := ivec_map (at level 61, left associativity) : ivec_scope.
 #[global] Infix "++" := iapp (at level 60, right associativity) : ivec_scope.
 
 (** A telescope inspired notation for [iimpl]. *)
@@ -101,9 +112,9 @@ that all elements in the list are pair. Furthermore, Coq is able to compute this
 fact in some circumstantes. In particular [hvec_lookup] we can a priori know the
 shape of the returned type without knowing the specific index and Coq can
 compute with this fact.  *)
-Inductive hvec {A : Type} (F : A → Type) : forall (n : nat), ivec A n → Type :=
-  | hnil : hvec F 0 []
-  | hcons {n x} {As : ivec A n} : F x → hvec F n As → hvec F (S n) (x :: As).
+Inductive hvec {A : Type} (F : A → Type) : forall (n : nat), ivec' A n → Type :=
+  | hnil : hvec F 0 []%IL
+  | hcons {n x} {As : ivec' A n} : F x → hvec F n As → hvec F (S n) (x :: As)%IL.
 
 Arguments hnil {A F}.
 Arguments hcons {_ _ _ _ _} a l.
@@ -116,7 +127,7 @@ Derive Subterm for hvec.
 Section hvec.
   Context {A : Type} {F : A → Type}.
 
-  Fixpoint happ {n m} {As : ivec A n} {Bs : ivec A m}
+  Fixpoint happ {n m} {As : ivec n A} {Bs : ivec m A}
       (xs : hvec F n As) (ys : hvec F m Bs) : hvec F (n + m) (iapp As Bs) :=
     match xs with hnil => ys | hcons x xs => hcons x (happ xs ys) end.
 
@@ -125,20 +136,20 @@ Section hvec.
   Definition htail {n a As} (xs : hvec F (S n) (a :: As)) : hvec F n As :=
     match xs with hnil => () | hcons _ xs => xs end.
 
-  Fixpoint hheads {n m As} {Bs : ivec A m} :
+  Fixpoint hheads {n m As} {Bs : ivec m A} :
       hvec F (n + m) (As ++ Bs) → hvec F n As :=
     match As with
     | inil => λ _, hnil
     | icons _ _ => λ xs, hcons (hhead xs) (hheads (htail xs))
     end.
-  Fixpoint htails {n m} {As : ivec A n} {Bs : ivec A m} : hvec F (n + m) (iapp As Bs) → hvec F m Bs :=
+  Fixpoint htails {n m} {As : ivec n A} {Bs : ivec m A} : hvec F (n + m) (iapp As Bs) → hvec F m Bs :=
     match As with
     | inil => id
     | icons _ _ => λ xs, htails (htail xs)
     end.
 
   Definition hinit {B} (y : B) : iimpl F inil B := y.
-  Definition hlam {n x} {As : ivec A n} {B}
+  Definition hlam {n x} {As : ivec n A} {B}
     (f : F x → iimpl F As B) : iimpl F (icons x As) B := f.
   Global Arguments hlam _ _ _ _ _ _ / : assert.
 
@@ -159,7 +170,7 @@ Section hvec.
     huncurry (hcurry f) xs = f xs.
   Proof. by induction xs as [|n ? As x xs IH]; simpl; rewrite ?IH. Qed.
 
-  Fixpoint hcompose {n} {As : ivec A n} {B C} (f : B → C) {struct As} :
+  Fixpoint hcompose {n} {As : ivec n A} {B C} (f : B → C) {struct As} :
       iimpl F As B → iimpl F As C :=
     match As with
     | inil => f
@@ -172,8 +183,8 @@ Section hvec.
     hvec_lookup (hcons xx _) 0%fin := xx ;
     hvec_lookup (hcons _ xs) (FS i') := hvec_lookup xs i'.
 
-  Equations hvec_lookup_fmap {n As}
-    (l : hvec id n (ivec_fmap F As)) (i : fin n) : F (ivec_lookup_total i As) :=
+  Equations hvec_lookup_fmap {n} {As : ivec n A}
+    (l : hvec id n (F <$> As)) (i : fin n) : F (ivec_lookup_total i As) :=
     @hvec_lookup_fmap _ (icons _ _) (hcons xx _) 0%fin := xx ;
     @hvec_lookup_fmap _ (icons _ _) (hcons _ xs) (FS i') := hvec_lookup_fmap xs i'.
 

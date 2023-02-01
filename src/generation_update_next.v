@@ -11,7 +11,7 @@ From self Require Import hvec.
 Import uPred.
 
 (** Data describing the cameras that a given camera depends on. *)
-Definition deps n := ivec cmra n.
+Definition deps n := ivec n cmra.
 Bind Scope ivec_scope with deps.
 
 Section types.
@@ -41,12 +41,12 @@ Section types.
 End types.
 
 Notation trans_for := (hvec cmra_to_trans).
-Definition trans_for_alt n (DS : deps n) := hvec id n (ivec_fmap cmra_to_trans DS).
+Definition trans_for_alt n (DS : deps n) := hvec id n (cmra_to_trans <$> DS).
 
 Notation preds_for := (hvec cmra_to_pred).
 
 (* trans_for_alt does not give universe issue. *)
-Definition test_exist {Σ} {n : nat} {DS : ivec cmra n} : iProp Σ :=
+Definition test_exist {Σ} {n : nat} {DS : deps n} : iProp Σ :=
   ∃ (ts : trans_for_alt n DS), ⌜ True ⌝.
 
 (* trans_for _does_ give universe issue. The root cause is the way the [cmra] appears in the type. In [trans_for_alt] the occurence of [cmra_car] prevents the universe issue somehow. *)
@@ -64,7 +64,7 @@ Record promise {Σ} := MkPromise {
     promise_i : gid Σ; (* The index of the RA in the global RA. *)
     promise_n : nat; (* The number of dependencies. *)
     promise_deps : list nat; (* Indices in the list of promises of the dependencies. *)
-    promise_RAs : ivec (gid Σ) promise_n;
+    promise_RAs : ivec promise_n (gid Σ);
     (* The predicate that relates our transformation to those of the dependencies. *)
     promise_rel : hvec (λ (i : gid Σ), T Σ i : Type) promise_n promise_RAs → T Σ promise_i → Prop;
     promise_pred : T Σ promise_i → Prop;
@@ -155,16 +155,17 @@ Section rules.
     (* own γ (None, (None, None), Some a). *)
 
   (** Ownership over the token for [γ]. *)
-  Definition token  (γ : gname) (γs : ivec gname n)
+  Definition token  (γ : gname) (γs : ivec n gname)
     (R : pred_over DS A) (P : (A → A) → Prop) : iProp Σ :=
     ⌜ dummy_use_ing ⌝.
 
   (** Knowledge that γ is accociated with the predicates R and P. *)
-  Definition rely (γ : gname) (γs : ivec gname n)
+  Definition rely (γ : gname) (γs : ivec n gname)
     (R : pred_over DS A) (P : (A → A) → Prop) : iProp Σ :=
     ⌜ dummy_use_ing ⌝.
 
-  Definition rely_self {B} `{i : !genInSelfG Σ B} (γ : gname) (P : (B → B) → Prop) : iProp Σ :=
+  Definition rely_self {B} `{i : !genInSelfG Σ B}
+      (γ : gname) (P : (B → B) → Prop) : iProp Σ :=
     ⌜ True ⌝.
 
   Lemma own_gen_alloc (a : A) γs :
@@ -179,7 +180,8 @@ Section rules.
       γ γs (deps_preds : preds_for n DS)
       (R_1 R_2 : pred_over DS A) (P_1 P_2 : (A → A) → Prop) :
     (* The new relation is stronger. *)
-    (∀ (ts : trans_for n DS) (t : A → A), huncurry R_1 ts t → huncurry R_2 ts t ∧ P_2 t) →
+    (∀ (ts : trans_for n DS) (t : A → A),
+       huncurry R_1 ts t → huncurry R_2 ts t ∧ P_2 t) →
     (* The new predicate is stronger. *)
     (∀ t, P_1 t → P_2 t) →
     (* The new relation implies the predicate. *)
@@ -189,8 +191,8 @@ Section rules.
       preds_hold ts deps_preds → ∃ (e : A → A), (huncurry R_2) ts e) →
     (* For every dependency we own a [rely_self]. *)
     (∀ (i : fin n), rely_self (γs !!! i) (deps_preds 👀 i)) -∗
-    token γ γs R_1 P_1 -∗
-    token γ γs R_2 P_2.
+    token γ γs R_1 P_1 -∗ (* Old token. *)
+    token γ γs R_2 P_2. (* Updated token. *)
   Proof.
   Admitted.
 
@@ -252,7 +254,7 @@ Section test.
     Context `{!genInG Σ B []%IL}.
     Context `{!genInG Σ A [A; B]%IL}.
 
-    Lemma foo2 (γ : gname) (γs : ivec gname 2) : True.
+    Lemma foo2 (γ : gname) (γs : ivec 2 gname) : True.
     Proof.
       pose proof (token_strengthen_promise γ γs PS) as st.
       rewrite /pred_over in st.
