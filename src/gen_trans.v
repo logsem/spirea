@@ -48,7 +48,18 @@ Proof.
   apply _.
 Qed.
 
-Global Instance gen_trans_prod_map {A B : cmra} (f : A → A) (g : B → B) :
+(** The identity function is a generational transformation. *)
+
+#[global]
+Instance gen_trans_id {A : cmra} : GenTrans (id : A → A).
+Proof.
+  split; first apply _; try done.
+  intros ?. rewrite option_fmap_id. done.
+Qed.
+
+(** Prod map is a generational transformation. *)
+#[global]
+Instance gen_trans_prod_map {A B : cmra} (f : A → A) (g : B → B) :
   GenTrans f → GenTrans g → GenTrans (prod_map f g).
 Proof.
   split; first apply _.

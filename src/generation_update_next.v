@@ -1,6 +1,6 @@
 From Equations Require Import Equations.
 
-From iris.algebra Require Import functions gmap agree excl csum.
+From iris.algebra Require Import functions gmap agree excl csum max_prefix_list.
 From iris.proofmode Require Import classes tactics.
 From iris.base_logic.lib Require Export iprop own invariants.
 From iris.prelude Require Import options.
@@ -11,6 +11,7 @@ From self Require Import hvec.
 Import uPred.
 
 (** Data describing the cameras that a given camera depends on. *)
+Definition deps_ty n := ivec n Type.
 Definition deps n := ivec n cmra.
 Bind Scope ivec_scope with deps.
 
@@ -25,6 +26,9 @@ Section types.
 
   (* Definition deps_to_trans {n} DS : ivec Type n := *)
   (*   ivec_fmap (λ A, cmra_car A → cmra_car A) DS. *)
+
+  Definition pred_over_ty {n} (DS : deps_ty n) (A : Type) :=
+    iimpl id DS ((A → A) → Prop).
 
   Definition pred_over {n} (DS : deps n) A :=
     iimpl cmra_to_trans DS ((A → A) → Prop).
@@ -73,12 +77,6 @@ Record promise {Σ} := MkPromise {
     (* witness : foo; *)
 }.
 
-(* TODO: Adapt this. *)
-Definition generational_cmra A : Type := A.
-  (* option (agree (A → A)) * GTS (A → A) * option A. *)
-Definition generational_cmraR (A : cmra) := A.
-  (* prodR (prodR (optionR (agreeR (leibnizO (A → A)))) (GTSR (A → A))) (optionR A). *)
-
 Definition promise_consistent {Σ} (promises : list (@promise Σ)) p i :=
   ∀ x j,
     p.(promise_deps) !! x = Some j →
@@ -91,13 +89,78 @@ Definition promise_consistent {Σ} (promises : list (@promise Σ)) p i :=
 Definition promises_consistent {Σ} (promises : list (@promise Σ)) :=
   ∀ i p, promises !! i = Some p → promise_consistent promises p i.
 
+(* Resources for generational ghost state. *)
+
+(* Resource algebra for promises. *)
+(* Do we need to store both R and P or only R?? *)
+Section promises_cmra.
+  Context {n : nat}.
+
+  Definition promises (A : Type) (DS : deps_ty n) :=
+    max_prefix_list (pred_over_ty DS A).
+  Definition promisesR (A : cmra) (DS : deps n) :=
+    max_prefix_listR (leibnizO (pred_over DS A)).
+  Definition promisesUR (A : cmra) (DS : deps n) :=
+    max_prefix_listUR (leibnizO (pred_over DS A)).
+End promises_cmra.
+
+Definition generational_cmra {n} A (DS : deps_ty n) : Type :=
+  option (agree (A → A)) * GTS (A → A) * option A * promises A DS.
+
+Definition generational_cmraR {n} (A : cmra) (DS : deps n) :=
+  prodR
+    (prodR (prodR (optionR (agreeR (leibnizO (A → A)))) (GTSR (A → A))) (optionR A))
+    (promisesR A DS).
+
+Definition gen_generation_first {A : cmra} (f : A → A) :
+  prodR (optionR (agreeR (leibnizO (A → A)))) (GTSR (A → A)) →
+  prodR (optionR (agreeR (leibnizO (A → A)))) (GTSR (A → A))
+  := prod_map
+       (const (Some (to_agree f)) : optionR (agreeR (leibnizO (A → A))) → optionR (agreeR (leibnizO (A → A))))
+       (GTS_floor : (GTSR (A → A)) → (GTSR (A → A))).
+
+(* The generational transformation function for the encoding of each ownership
+over a generational camera. *)
+Definition gen_generation {n} {A : cmra} (DS : deps n)
+    (f : A → A) : generational_cmraR A DS → generational_cmraR A DS :=
+  prod_map
+    (prod_map (gen_generation_first f) (fmap f : optionR A → optionR A))
+    id.
+
+Global Instance gen_trans_const {A : ofe} (a : A) :
+  GenTrans (const (Some (to_agree a))).
+Proof.
+  split; first apply _.
+  - done.
+  - intros. simpl. rewrite (core_id). done.
+  - intros ??. simpl.
+    rewrite -Some_op.
+    rewrite agree_idemp.
+    done.
+Qed.
+
+Global Instance gen_generation_gen_trans {n} {A : cmra} {DS : deps n} (f : A → A)
+  `{!Proper (equiv ==> equiv) f} :
+  GenTrans f → GenTrans (gen_generation DS f).
+Proof. apply _. Qed.
+
+Global Instance gen_generation_proper {n} {A : cmra} (DS : deps n) (f : A → A) :
+  Proper ((≡) ==> (≡)) f →
+  Proper ((≡) ==> (≡)) (gen_generation DS f).
+Proof.
+  intros ? [[??]?] [[??]?] [[??]?]. simpl in *.
+  rewrite /gen_generation /gen_generation_first.
+  solve_proper.
+Qed.
+
 Class genInG {n} (Σ : gFunctors) (A : cmra) (DS : deps n) := GenInG {
-  genInG_id : gid Σ;
-  genInG_apply := rFunctor_apply (gFunctors_lookup Σ genInG_id);
+  genInG_inG : inG Σ (generational_cmraR A DS);
+  (* genInG_id : gid Σ; *)
+  (* genInG_apply := rFunctor_apply (gFunctors_lookup Σ genInG_id); *)
   (* genInG_gti : gen_trans_info Σ (genInG_id); *)
   (* genInG_gen_trans : Ω.(g_valid_gt) (genInG_id) = Some2 genInG_gti; *)
   (* genInG_gti_typ : A = genInG_gti.(gti_car); *)
-  genInG_prf : A = genInG_apply (iPropO Σ) _;
+  (* genInG_prf : A = genInG_apply (iPropO Σ) _; *)
   (* genInG_gen_trans2 : *)
   (*   genInG_gti.(gti_valid) = *)
   (*     (gen_transport (gen_cmra_eq genInG_gti_typ genInG_gti.(gti_look)) (lift g)); *)
@@ -111,14 +174,15 @@ Class genInSelfG (Σ : gFunctors) (A : cmra) := GenInG2 {
   genInSelfG_gen : genInG Σ A (genInSelfG_DS);
 }.
 
-Global Arguments genInG_id {_ _ _ _} _.
+(* Global Arguments genInG_id {_ _ _ _} _. *)
 
-Global Program Instance genInG_inG {n} {DS : deps n} `{i : !genInG Σ A DS} :
-      inG Σ (generational_cmraR A) :=
-  {|
-    inG_id := genInG_id i;
-    inG_prf := genInG_prf; (* gen_cmra_eq genInG2_gti_typ genInG2_gti.(gti_look); *)
-  |}.
+Existing Instance genInG_inG.
+(* Global Program Instance genInG_inG {n} {DS : deps n} `{i : !genInG Σ A DS} : *)
+(*       inG Σ (generational_cmraR A) := *)
+(*   {| *)
+(*     inG_id := genInG_id i; *)
+(*     inG_prf := genInG_prf; (* gen_cmra_eq genInG2_gti_typ genInG2_gti.(gti_look); *) *)
+(*   |}. *)
 
 (*
 How to represent the dependencies?
@@ -148,11 +212,25 @@ Global Transparent preds_hold.
 
 Definition dummy_use_ing {n : nat} {DS : deps n} `{!genInG Σ A DS} := True.
 
-Section rules.
-  Context {n : nat} {DS : deps n} `{!genInG Σ A DS}.
+(* Ownership over generational ghost state. *)
 
-  Definition gen_own (γ : gname) (a : A) : iProp Σ := own γ a.
-    (* own γ (None, (None, None), Some a). *)
+Section generational_resources.
+  Context {n} {A} {DS : deps n} `{!genInG Σ A DS}.
+
+  Definition gen_own (γ : gname) (a : A) : iProp Σ :=
+    own γ (None, (None, None), Some a, ε).
+
+  Definition gen_token γ : iProp Σ :=
+    own γ ((None, GTS_tok_both, None, ε)).
+
+  Definition own_shot γ t : iProp Σ :=
+    own γ ((None, GTS_tok_gen_shot t, None, ε)).
+
+  Definition gen_token_used γ : iProp Σ :=
+    own γ ((None, GTS_tok_perm, None, ε)).
+
+  Definition gen_picked_in γ (f : A → A) : iProp Σ :=
+    own γ ((Some (to_agree f), (None, None), None, ∅) : generational_cmraR A DS).
 
   (** Ownership over the token for [γ]. *)
   Definition token  (γ : gname) (γs : ivec n gname)
@@ -168,9 +246,39 @@ Section rules.
       (γ : gname) (P : (B → B) → Prop) : iProp Σ :=
     ⌜ True ⌝.
 
+End generational_resources.
+
+Section rules.
+  Context {n : nat} {DS : deps n} `{!genInG Σ A DS}.
   Lemma own_gen_alloc (a : A) γs :
     ✓ a → ⊢ |==> ∃ γ, gen_own γ a ∗ token γ γs True_pred (λ _, True%type).
   Proof. Admitted.
+
+  Lemma gen_token_split γ :
+    gen_token γ ⊣⊢
+    own γ (None, GTS_tok_perm, None, ε) ∗
+    own γ (None, GTS_tok_gen, None, ε).
+  Proof.
+    rewrite -own_op.
+    rewrite /gen_token.
+    f_equiv. rewrite -pair_op.
+    assert (ε ⋅ ε ≡ ε) as ->. { apply left_id. apply _. }.
+    done.
+  Qed.
+
+  Lemma gen_picked_in_agree γ (f f' : A → A) :
+    gen_picked_in γ f -∗ gen_picked_in γ f' -∗ ⌜ f = f' ⌝.
+  Proof.
+    iIntros "A B".
+    iDestruct (own_valid_2 with "A B") as "val".
+    rewrite -4!pair_op.
+    rewrite 3!prod_validI. simpl.
+    iDestruct "val" as "[[[%val ?]?]?]".
+    iPureIntro.
+    rewrite Some_valid in val.
+    apply (to_agree_op_inv_L (A := leibnizO (A → A))) in val.
+    done.
+  Qed.
 
   Definition trans_in {B} (γ : gname) (t : B → B) : iProp Σ :=
     ⌜ dummy_use_ing ⌝%I.
