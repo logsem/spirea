@@ -5,7 +5,7 @@ From iris.proofmode Require Import classes tactics.
 From iris.base_logic.lib Require Export iprop own invariants.
 From iris.prelude Require Import options.
 
-From self Require Import extra basic_nextgen_modality.
+From self Require Import extra basic_nextgen_modality gen_trans gen_single_shot.
 From self Require Import hvec.
 
 Import uPred.

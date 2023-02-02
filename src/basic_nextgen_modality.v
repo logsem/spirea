@@ -1,58 +1,10 @@
 (* From stdpp Require Import hlist. *)
-(* From iris.algebra Require Import functions . *)
 From iris.proofmode Require Import classes tactics.
 From iris.base_logic.lib Require Export iprop own invariants.
 From iris.prelude Require Import options.
 
-From self Require Import extra.
+From self Require Import extra gen_trans.
 Import uPred.
-
-(* The properties that a generational transformation (GT), i.e., the function
-that transforms the ghost state into a new generation, needs to satisfy. Note
-that this class is used both for the "global" GT that applies to the single
-unital camera and to individual GTs for a specific camera. *)
-Class GenTrans {M : cmra} (f : M → M) := {
-    generation_ne :> NonExpansive f;
-    (* The function should be monotone with respect to the inclusion order of
-    the monoid. *)
-    (* generation_mono : ∀ x y, x ≼ y → f x ≼ f y; *)
-    (* Validity is preserved. *)
-    generation_valid : ∀ n (a : M), ✓{n} a → ✓{n} (f a);
-    (* The generation comutes with the core. *)
-    (* generation_core_some : ∀ (a : M) pa, *)
-    (*   pcore a = Some pa → Some (f pa) ≡ pcore (f a); *)
-    generation_pcore x : f <$> pcore x ≡ pcore (f x);
-    generation_op : ∀ (a b : M),
-      (* ✓{n} (a ⋅ b) → *)
-      f (a ⋅ b) ≡ f a ⋅ f b
-}.
-
-Global Instance gen_trans_proper {A : cmra} (f : A → A) :
-  GenTrans f → Proper ((≡) ==> (≡)) f.
-Proof. intros ?. apply: ne_proper. Qed.
-
-Lemma gen_trans_monotone {A : cmra} (f : A → A) `{!GenTrans f} x y :
-  x ≼ y → f x ≼ f y.
-Proof. intros [z ->]. exists (f z). rewrite generation_op. done. Qed.
-
-Global Arguments generation_op {_} _ {_} _ _.
-
-Global Instance gen_trans_cmra_morphism {A : cmra} (f : A → A) :
-  GenTrans f → CmraMorphism f.
-Proof.
-  split.
-  - apply generation_ne.
-  - apply generation_valid.
-  - apply generation_pcore.
-  - Abort.
-
-Lemma generation_monoN {M : ucmra} (f : M → M) `{!GenTrans f} n x y :
-  x ≼{n} y → f x ≼{n} f y.
-Proof.
-  intros [z ->].
-  apply cmra_included_includedN, gen_trans_monotone, cmra_included_l.
-  apply _.
-Qed.
 
 (** When working in the model, it is convenient to be able to treat [uPred] as
 [nat → M → Prop]. But we only want to locally break the [uPred] abstraction
@@ -295,7 +247,7 @@ Section into_bnextgen.
 
   Global Instance into_bnextgen_plain P `{!Plain P, !Absorbing P} :
     IntoBnextgen f P P.
-  Proof. apply: bnextgen_intro_plain. Qed.
+  Proof. apply bnextgen_intro_plain; apply _. Qed.
 
   Global Instance into_bnextgen_and P P' Q Q' :
     IntoBnextgen f P P' →

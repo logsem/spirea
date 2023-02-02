@@ -3,83 +3,8 @@ From iris.proofmode Require Import classes tactics.
 From iris.base_logic.lib Require Export iprop own invariants.
 From iris.prelude Require Import options.
 
-From self Require Import extra basic_nextgen_modality.
+From self Require Import extra basic_nextgen_modality gen_trans gen_single_shot.
 Import uPred.
-
-(******************************************************************************)
-(* Generational token stream.
-
-   The generational token stream makes it possible to own a "permanent"
-   exclusive token that is preserved across generations. For each generation the
-   "permanent" token also "produces" a per-generation token that is only valid
-   for the current generation.  *)
-
-Definition one_shot A := csum (excl unit) (agree A).
-Definition one_shotR (A : Type) := csumR (exclR unitO) (agreeR (leibnizO A)).
-
-Definition GTS A : Type := excl' () * option (one_shot A).
-Definition GTSR A : cmra :=
-  prodR (optionR (exclR unitO)) (optionR (one_shotR A)).
-
-(** The per-generation token. *)
-Definition GTS_tok_gen {A} : GTS A := (None, Some $ Cinl $ Excl ()).
-(** The per-generation token has been used to make decision. *)
-Definition GTS_tok_gen_shot {A} f : GTS A := (None, Some $ Cinr $ to_agree f).
-(** The permanent cross-generation token. *)
-Definition GTS_tok_perm {A} : GTS A := (Excl' (), None).
-(** Both tokens. *)
-Definition GTS_tok_both {A} : GTS A := (Excl' (), Some $ Cinl $ Excl ()).
-
-Definition GTS_floor {A} (a : GTS A) : GTS A :=
-  (* The cross-generation permanent token is preserved and also produces the
-  per-generation token. *)
-  match a with
-    (Excl' (), _) => (Excl' (), Some $ Cinl $ Excl ())
-  | (None, _) => (None, None)
-  | (ExclBot', _) => (ExclBot', Some $ Cinl $ ExclBot)
-  end.
-
-Lemma GTS_tok_gen_shot_foo {M} {A} (t1 t2 : A) :
-  ✓ ((GTS_tok_gen_shot t1 : GTSR A) ⋅ (GTS_tok_gen_shot t2 : GTSR A))
-    ⊣⊢@{uPredI M} ⌜ t1 = t2 ⌝.
-Proof.
-  rewrite /GTS_tok_gen_shot.
-  rewrite !prod_validI. simpl.
-  rewrite -Some_op.
-  rewrite -Cinr_op.
-  rewrite option_validI. simpl.
-  rewrite option_validI. simpl.
-  rewrite csum_validI.
-  rewrite left_id.
-  rewrite to_agree_op_validI.
-  rewrite -leibniz_equiv_iff.
-  apply (anti_symm _); naive_solver.
-Qed.
-
-Global Instance GTS_floor_generation A : GenTrans (GTS_floor (A := A) : GTSR A → GTSR A).
-Proof.
-  split.
-  - intros n [??] [??]. simpl.
-    rewrite -discrete_iff.
-    intros [eq%leibniz_equiv ?].
-    simpl in eq.
-    rewrite eq.
-    solve_proper.
-  - intros ? [[[[]|]|] [[[[]|]|?|]|]]; cbv; naive_solver.
-  - intros [[[[]|]|] [[[[]|]|?|]|]]; done.
-  - do 2 intros [[[[]|]|] [[[[]|]|?|]|]]; try done.
-Qed.
-
-Section gts.
-
-  Lemma GTS_floor_perm {A : Type} :
-    GTS_floor (GTS_tok_perm) =@{GTSR A} GTS_tok_perm ⋅ GTS_tok_gen.
-  Proof. reflexivity. Qed.
-
-  Lemma GTS_floor_gen {A} : GTS_floor (GTS_tok_gen) =@{GTSR A} (None, None).
-  Proof. reflexivity. Qed.
-
-End gts.
 
 Definition generational_cmra A : Type :=
   option (agree (A → A)) * GTS (A → A) * option A.
@@ -125,22 +50,6 @@ Proof.
   done.
 Qed.
 
-Global Instance gen_trans_prod_map {A B : cmra} (f : A → A) (g : B → B) :
-  GenTrans f → GenTrans g → GenTrans (prod_map f g).
-Proof.
-  split; first apply _.
-  - intros ? [??] [??]. split; simpl; apply generation_valid; done.
-  - intros x. etrans; last apply (reflexivity (mbind _ _)).
-    etrans; first apply (reflexivity (_ <$> mbind _ _)). simpl.
-    assert (Hf := generation_pcore (x.1)).
-    destruct (pcore (f (x.1))), (pcore (x.1)); inversion_clear Hf=>//=.
-    assert (Hg := generation_pcore (x.2)).
-    destruct (pcore (g (x.2))), (pcore (x.2)); inversion_clear Hg=>//=.
-    by setoid_subst.
-  - intros [??] [??]. simpl in *.
-    do 2 rewrite (generation_op _) //.
-Qed.
-
 Definition gen_generation_first {A : cmra} (f : A → A) :
   prodR (optionR (agreeR (leibnizO (A → A)))) (GTSR (A → A)) →
   prodR (optionR (agreeR (leibnizO (A → A)))) (GTSR (A → A))
@@ -153,18 +62,6 @@ over a generational camera. *)
 Definition gen_generation {A : cmra}
     (f : A → A) : generational_cmraR A → generational_cmraR A :=
   prod_map (gen_generation_first f) (fmap f : optionR A → optionR A).
-
-Global Instance gen_trans_fmap {A : cmra} (f : A → A) :
-  GenTrans f → GenTrans (fmap f : optionR A → optionR A).
-Proof.
-  split; first apply _.
-  - intros ? [?|]; last done. simpl.
-    rewrite 2!Some_validN.
-    apply generation_valid.
-  - move=> [a|] //. apply Some_proper, generation_pcore.
-  - move=> [a|] [b|] //=.
-    rewrite (generation_op f) //.
-Qed.
 
 Global Instance gen_trans_const {A : ofe} (a : A) :
   GenTrans (const (Some (to_agree a))).
