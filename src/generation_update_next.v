@@ -63,6 +63,51 @@ Notation R Σ i := (rFunctor_apply (gFunctors_lookup Σ i) (iPropO Σ)).
 Notation Rpre Σ i := (rFunctor_apply (gFunctors_lookup Σ i) (iPrePropO Σ)).
 Notation T Σ i := (R Σ i → R Σ i).
 
+Local Definition map_unfold {Σ} {i : gid Σ} : R Σ i -n> Rpre Σ i :=
+  rFunctor_map _ (iProp_fold, iProp_unfold).
+Local Definition map_fold {Σ} {i : gid Σ} : Rpre Σ i -n> R Σ i :=
+  rFunctor_map _ (iProp_unfold, iProp_fold).
+
+Lemma map_unfold_inG_unfold {Σ A} {i : inG Σ A} :
+  map_unfold ≡ own.inG_unfold (i := i).
+Proof. done. Qed.
+
+Lemma map_fold_unfold {Σ} {i : gid Σ} (a : R Σ i) :
+  map_fold (map_unfold a) ≡ a.
+Proof.
+  rewrite /map_fold /map_unfold -rFunctor_map_compose -{2}[a]rFunctor_map_id.
+  apply (ne_proper (rFunctor_map _)); split=> ?; apply iProp_fold_unfold.
+Qed.
+
+Lemma map_unfold_op {Σ} {i : gid Σ} (a b : R Σ i)  :
+  map_unfold a ⋅ map_unfold b ≡ map_unfold (a ⋅ b).
+Proof. rewrite cmra_morphism_op. done. Qed.
+
+Lemma map_unfold_validN {Σ} {i : gid Σ} n (x : R Σ i) :
+  ✓{n} (map_unfold x) ↔ ✓{n} x.
+Proof.
+  split; [|apply (cmra_morphism_validN _)].
+  move=> /(cmra_morphism_validN map_fold). by rewrite map_fold_unfold.
+Qed.
+
+Lemma map_unfold_validI {Σ} {i : gid Σ} (a : R Σ i) :
+  ✓ map_unfold a ⊢@{iPropI Σ} ✓ a.
+Proof. apply valid_entails=> n. apply map_unfold_validN. Qed.
+
+(** Transport an endo map on a camera along an equality in the camera. *)
+Definition cmra_map_transport {A B : cmra} (Heq : A = B) (f : A → A) : (B → B) :=
+  eq_rect A (λ T, T → T) f _ Heq.
+
+Lemma cmra_map_transport_cmra_transport {A B : cmra} (f : A → A) a (Heq : A = B) :
+  (cmra_map_transport Heq f) (cmra_transport Heq a) =
+  (cmra_transport Heq (f a)).
+Proof. destruct Heq. simpl. reflexivity. Qed.
+
+Global Instance cmra_map_transport_proper {A B : cmra} (f : A → A) (Heq : A = B) :
+  (Proper ((≡) ==> (≡)) f) →
+  (Proper ((≡) ==> (≡)) (cmra_map_transport Heq f)).
+Proof. naive_solver. Qed.
+
 Record promise {Σ} := MkPromise {
     promise_g : gname; (* Ghost name for the promise. *)
     promise_i : gid Σ; (* The index of the RA in the global RA. *)
@@ -77,7 +122,9 @@ Record promise {Σ} := MkPromise {
     (* witness : foo; *)
 }.
 
-Definition promise_consistent {Σ} (promises : list (@promise Σ)) p i :=
+Arguments promise _ : clear implicits.
+
+Definition promise_consistent {Σ} (promises : list (promise Σ)) p i :=
   ∀ x j,
     p.(promise_deps) !! x = Some j →
     j < i ∧ (* The dependency is prior in the list. *)
@@ -86,7 +133,7 @@ Definition promise_consistent {Σ} (promises : list (@promise Σ)) p i :=
       p.(promise_RAs) !! x = Some M ∧
       p_d.(promise_i) = M.
 
-Definition promises_consistent {Σ} (promises : list (@promise Σ)) :=
+Definition promises_consistent {Σ} (promises : list (promise Σ)) :=
   ∀ i p, promises !! i = Some p → promise_consistent promises p i.
 
 (* Resources for generational ghost state. *)
@@ -209,6 +256,54 @@ Equations preds_hold {n} {DS : deps n}
   | hcons t ts', hcons p ps' := p t ∧ preds_hold ts' ps' ;
   | hnil, hnil := True.
 Global Transparent preds_hold.
+
+Print preds_hold.
+
+(* Definition of the next generation modality. *)
+
+(** [Picks] contains transformation functions for a subset of ghost names. It is
+the entries that we have picked generational transformation for. *)
+Definition Picks Σ : Type := ∀ i, gmap gname (R Σ i → R Σ i).
+
+(** Every pick in [picks] is a valid generational transformation and satisfies
+the conditions for that cmra in [Ω]. *)
+(* FIXME: Reintroduce this but remove the omega part. *)
+(* Definition picks_valid {Σ} (Ω : gTransforms) (picks : Picks Σ) := *)
+(*   ∀ i γ t, picks i !! γ = Some t → *)
+(*     GenTrans t ∧ *)
+(*     ∃ gti, Ω.(g_valid_gt) i = Some2 gti ∧ gti.(gti_valid).(gt_condition) t. *)
+
+(* The global transformation [fG] respects the entries in [picks]. *)
+Definition fG_resp {Σ} (fG : iResUR Σ → iResUR Σ) (picks : Picks Σ) :=
+  ∀ (m : iResUR Σ) i γ a t,
+    m i !! γ = Some a → (* For every element in the old element. *)
+    picks i !! γ = Some t →
+    (fG m) i !! γ = Some (map_unfold (t (map_fold a))).
+
+Definition m_contains_tokens_for_picks {Σ} (picks : Picks Σ) (m : iResUR Σ) :=
+  ∀ i,
+    dom (picks i) ≡ dom (m i) ∧
+    (∀ (γ : gname) (a : Rpre Σ i),
+      m i !! γ = Some a  →
+      (* NOTE: Maybe we'll need to pull this equality out of a global map as before. *)
+      ∃ n (A : cmra) (DS : deps n) (eq : generational_cmraR A DS = R Σ i) (t : A → A),
+      (* ∃ gti (t : gti.(gti_car) → gti.(gti_car)), *)
+        (* Ω.(g_valid_gt) i = Some2 gti ∧ *)
+        picks i !! γ = Some (cmra_map_transport eq (gen_generation DS t)) ∧
+        a ≡ map_unfold (cmra_transport eq (None, GTS_tok_gen_shot t, None, ε))).
+
+Definition nextgen {Σ : gFunctors} P : iProp Σ :=
+  ∃ (picks : Picks Σ) (m : iResUR Σ) (ps : list (promise Σ)),
+    (* We own resources for everything in [picks]. *)
+    uPred_ownM m ∗ ⌜ m_contains_tokens_for_picks (* Ω *) picks m ⌝ ∗
+    (* We own resources for promises. *)
+    (* TODO *)
+    ⌜ promises_consistent ps ⌝ ∗
+    ∀ (fG : iResUR Σ → _) (_ : GenTrans fG) (_ : fG_resp fG picks ),
+      ⚡={fG}=> P.
+
+Notation "⚡==> P" := (nextgen P)
+  (at level 99, P at level 200, format "⚡==>  P") : bi_scope.
 
 Definition dummy_use_ing {n : nat} {DS : deps n} `{!genInG Σ A DS} := True.
 
