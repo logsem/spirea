@@ -124,7 +124,7 @@ Record promise {Σ} := MkPromise {
 
 Arguments promise _ : clear implicits.
 
-Definition promise_consistent {Σ} (promises : list (promise Σ)) p i :=
+Definition promise_well_formed {Σ} (promises : list (promise Σ)) p i :=
   ∀ x j,
     p.(promise_deps) !! x = Some j →
     j < i ∧ (* The dependency is prior in the list. *)
@@ -133,8 +133,8 @@ Definition promise_consistent {Σ} (promises : list (promise Σ)) p i :=
       p.(promise_RAs) !! x = Some M ∧
       p_d.(promise_i) = M.
 
-Definition promises_consistent {Σ} (promises : list (promise Σ)) :=
-  ∀ i p, promises !! i = Some p → promise_consistent promises p i.
+Definition promises_well_formed {Σ} (promises : list (promise Σ)) :=
+  ∀ i p, promises !! i = Some p → promise_well_formed promises p i.
 
 (* Resources for generational ghost state. *)
 
@@ -322,7 +322,7 @@ Definition nextgen {Σ : gFunctors} P : iProp Σ :=
     (* We own resources for promises. *)
     own_promises ps ∗
     (* TODO *)
-    ⌜ promises_consistent ps ⌝ ∗
+    ⌜ promises_well_formed ps ⌝ ∗
     ∀ (fG : iResUR Σ → _) (_ : GenTrans fG) (_ : fG_resp fG picks ),
       ⚡={fG}=> P.
 
@@ -368,7 +368,7 @@ Section generational_resources.
     rel_implies_pred R P ∧
     (* The list of promises increases in strength. *)
     ∀ i j (Ri Rj : pred_over DS A),
-        i < j → all !! i = Some Ri →
+        i ≤ j → all !! i = Some Ri →
                 all !! j = Some Rj → pred_weaker Ri Rj.
 
   (** Ownership over the token and the promises for [γ]. *)
@@ -468,6 +468,36 @@ Section rules.
   Lemma token_to_rely γ γs (R : pred_over DS A) P :
     token γ γs R P ⊢ rely γ γs R P.
   Proof. Admitted.
+
+  Lemma rely_combine γ γs R1 P1 R2 P2 :
+    rely γ γs R1 P1 -∗
+    rely γ γs R2 P2 -∗
+    ⌜ pred_stronger R1 R2 ∨ pred_stronger R2 R1 ⌝.
+  Proof.
+    iDestruct 1 as (prs1 prefix1) "own1".
+    iDestruct 1 as (prs2 prefix2) "own2".
+    iDestruct (own_valid_2 with "own1 own2") as "val".
+    rewrite -!pair_op.
+    rewrite !prod_validI. simpl.
+    iDestruct "val" as "(_ & %val)".
+    iPureIntro.
+    move: val.
+    rewrite auth_frag_valid.
+    rewrite to_max_prefix_list_op_valid_L.
+    destruct prefix1 as (isLast1 & ? & look1).
+    destruct prefix2 as (isLast2 & ? & look2).
+    rewrite last_lookup in isLast1.
+    rewrite last_lookup in isLast2.
+    intros [prefix | prefix].
+    - right.
+      eapply look2; last done.
+      { apply le_pred. apply prefix_length. eassumption. }
+      eapply prefix_lookup; done.
+    - left.
+      eapply look1; last done.
+      { apply le_pred. apply prefix_length. eassumption. }
+      eapply prefix_lookup; done.
+  Qed.
 
 End rules.
 
