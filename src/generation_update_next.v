@@ -232,6 +232,8 @@ Class genInG {n} (Σ : gFunctors) (A : cmra) (DS : deps n) := GenInG {
   (*     (gen_transport (gen_cmra_eq genInG_gti_typ genInG_gti.(gti_look)) (lift g)); *)
 }.
 
+Existing Instance genInG_inG.
+
 (* Knowledge that [A] is a resource, with the information about its dependencies
 hidden in the dependent pair. *)
 Class genInSelfG (Σ : gFunctors) (A : cmra) := GenInG2 {
@@ -240,9 +242,8 @@ Class genInSelfG (Σ : gFunctors) (A : cmra) := GenInG2 {
   genInSelfG_gen : genInG Σ A (genInSelfG_DS);
 }.
 
+Existing Instance genInSelfG_gen.
 (* Global Arguments genInG_id {_ _ _ _} _. *)
-
-Existing Instance genInG_inG.
 (* Global Program Instance genInG_inG {n} {DS : deps n} `{i : !genInG Σ A DS} : *)
 (*       inG Σ (generational_cmraR A) := *)
 (*   {| *)
@@ -352,33 +353,45 @@ Section generational_resources.
 
   Definition pred_stronger (R1 R2 : pred_over DS A) :=
     ∀ (ts : trans_for n DS) (t : A → A),
-      (huncurry R1 ts t) → (huncurry R2 ts t).
+      huncurry R1 ts t → huncurry R2 ts t.
 
   Definition pred_weaker (R1 R2 : pred_over DS A) := pred_stronger R2 R1.
+
+  Definition rel_implies_pred (R : pred_over DS A) (P : (A → A) → Prop) : Prop :=
+    ∀ (ts : trans_for n DS) (t : A → A),
+      huncurry R ts t → P t.
+
+  Definition pred_prefix_list_for
+      (all : list (pred_over DS A)) (R : pred_over DS A) (P : (A → A) → Prop) :=
+    (* The given promise [R] is the last promise out of all promises. *)
+    last all = Some R ∧
+    rel_implies_pred R P ∧
+    (* The list of promises increases in strength. *)
+    ∀ i j (Ri Rj : pred_over DS A),
+        i < j → all !! i = Some Ri →
+                all !! j = Some Rj → pred_weaker Ri Rj.
 
   (** Ownership over the token and the promises for [γ]. *)
   Definition token (γ : gname) (γs : ivec n gname)
     (R : pred_over DS A) (P : (A → A) → Prop) : iProp Σ :=
     ∃ (all : list (pred_over DS A)),
-      (* The given promise [R] is the last promise out of all promises. *)
-      ⌜ last all = Some R ⌝ ∗
-      (* The list of promises increaes in strength. *)
-      ⌜ ∀ i j (Ri Rj : pred_over DS A),
-          i < j → all !! i = Some Ri →
-                  all !! j = Some Rj → pred_weaker Ri Rj ⌝ ∗
+      ⌜ pred_prefix_list_for all R P ⌝ ∗
       own γ ((None, GTS_tok_both, None,
                ● (to_max_prefix_list all)) : generational_cmraR A DS).
 
   (** Knowledge that γ is accociated with the predicates R and P. *)
   Definition rely (γ : gname) (γs : ivec n gname)
     (R : pred_over DS A) (P : (A → A) → Prop) : iProp Σ :=
-    ⌜ dummy_use_ing ⌝.
-
-  Definition rely_self {B} `{i : !genInSelfG Σ B}
-      (γ : gname) (P : (B → B) → Prop) : iProp Σ :=
-    ⌜ True ⌝.
+    ∃ (all : list (pred_over DS A)),
+      ⌜ pred_prefix_list_for all R P ⌝ ∗
+      own γ ((None, (None, None), None,
+               ◯ (to_max_prefix_list all)) : generational_cmraR A DS).
 
 End generational_resources.
+
+Definition rely_self {A} `{i : !genInSelfG Σ A}
+    γ (P : (A → A) → Prop) : iProp Σ :=
+  ∃ γs R, rely (DS := genInSelfG_DS) γ γs R P.
 
 Section rules.
   Context {n : nat} {DS : deps n} `{!genInG Σ A DS}.
