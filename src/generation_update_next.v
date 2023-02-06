@@ -143,12 +143,31 @@ Definition promises_consistent {Σ} (promises : list (promise Σ)) :=
 Section promises_cmra.
   Context {n : nat}.
 
+  Canonical Structure pred_over_tyO (A : Type) (DS : deps_ty n) :=
+    leibnizO (pred_over_ty DS A).
+  Canonical Structure pred_overO (A : Type) (DS : deps n) :=
+    leibnizO (pred_over DS A).
+
   Definition promises (A : Type) (DS : deps_ty n) :=
     max_prefix_list (pred_over_ty DS A).
   Definition promisesR (A : cmra) (DS : deps n) :=
-    max_prefix_listR (leibnizO (pred_over DS A)).
+    max_prefix_listR (pred_over DS A).
   Definition promisesUR (A : cmra) (DS : deps n) :=
-    max_prefix_listUR (leibnizO (pred_over DS A)).
+    max_prefix_listUR (pred_over DS A).
+
+  (* Authorative promises. *)
+  Definition auth_promises {A : Type} {DS : deps n}
+    (ps : list (pred_over DS A)) : auth (max_prefix_list (pred_over DS A)) :=
+    ● (to_max_prefix_list ps).
+  Definition auth_promises_ty {A : Type} {DS : deps_ty n}
+    (ps : list (pred_over_ty DS A)) : auth (promises A DS) :=
+    ● (to_max_prefix_list ps).
+
+  (* Fragmental promises. *)
+  Definition frag_promises {A : Type} {DS : deps_ty n}
+    (ps : list (pred_over_ty DS A)) : auth (promises A DS) :=
+    ◯ (to_max_prefix_list ps).
+
 End promises_cmra.
 
 Definition generational_cmra {n} A (DS : deps_ty n) : Type :=
@@ -157,7 +176,7 @@ Definition generational_cmra {n} A (DS : deps_ty n) : Type :=
 Definition generational_cmraR {n} (A : cmra) (DS : deps n) :=
   prodR
     (prodR (prodR (optionR (agreeR (leibnizO (A → A)))) (GTSR (A → A))) (optionR A))
-    (promisesR A DS).
+    (authR (promisesR A DS)).
 
 Definition gen_generation_first {A : cmra} (f : A → A) :
   prodR (optionR (agreeR (leibnizO (A → A)))) (GTSR (A → A)) →
@@ -292,11 +311,15 @@ Definition m_contains_tokens_for_picks {Σ} (picks : Picks Σ) (m : iResUR Σ) :
         picks i !! γ = Some (cmra_map_transport eq (gen_generation DS t)) ∧
         a ≡ map_unfold (cmra_transport eq (None, GTS_tok_gen_shot t, None, ε))).
 
+Definition own_promises {Σ} (ps : list (promise Σ)) : iProp Σ :=
+  ⌜ True ⌝.
+
 Definition nextgen {Σ : gFunctors} P : iProp Σ :=
   ∃ (picks : Picks Σ) (m : iResUR Σ) (ps : list (promise Σ)),
     (* We own resources for everything in [picks]. *)
     uPred_ownM m ∗ ⌜ m_contains_tokens_for_picks (* Ω *) picks m ⌝ ∗
     (* We own resources for promises. *)
+    own_promises ps ∗
     (* TODO *)
     ⌜ promises_consistent ps ⌝ ∗
     ∀ (fG : iResUR Σ → _) (_ : GenTrans fG) (_ : fG_resp fG picks ),
@@ -315,9 +338,6 @@ Section generational_resources.
   Definition gen_own (γ : gname) (a : A) : iProp Σ :=
     own γ (None, (None, None), Some a, ε).
 
-  Definition gen_token γ : iProp Σ :=
-    own γ ((None, GTS_tok_both, None, ε)).
-
   Definition own_shot γ t : iProp Σ :=
     own γ ((None, GTS_tok_gen_shot t, None, ε)).
 
@@ -325,12 +345,29 @@ Section generational_resources.
     own γ ((None, GTS_tok_perm, None, ε)).
 
   Definition gen_picked_in γ (f : A → A) : iProp Σ :=
-    own γ ((Some (to_agree f), (None, None), None, ∅) : generational_cmraR A DS).
+    own γ ((Some (to_agree f), (None, None), None, ε) : generational_cmraR A DS).
 
-  (** Ownership over the token for [γ]. *)
-  Definition token  (γ : gname) (γs : ivec n gname)
+  Definition gen_token γ : iProp Σ :=
+    own γ ((None, GTS_tok_both, None, ε)).
+
+  Definition pred_stronger (R1 R2 : pred_over DS A) :=
+    ∀ (ts : trans_for n DS) (t : A → A),
+      (huncurry R1 ts t) → (huncurry R2 ts t).
+
+  Definition pred_weaker (R1 R2 : pred_over DS A) := pred_stronger R2 R1.
+
+  (** Ownership over the token and the promises for [γ]. *)
+  Definition token (γ : gname) (γs : ivec n gname)
     (R : pred_over DS A) (P : (A → A) → Prop) : iProp Σ :=
-    ⌜ dummy_use_ing ⌝.
+    ∃ (all : list (pred_over DS A)),
+      (* The given promise [R] is the last promise out of all promises. *)
+      ⌜ last all = Some R ⌝ ∗
+      (* The list of promises increaes in strength. *)
+      ⌜ ∀ i j (Ri Rj : pred_over DS A),
+          i < j → all !! i = Some Ri →
+                  all !! j = Some Rj → pred_weaker Ri Rj ⌝ ∗
+      own γ ((None, GTS_tok_both, None,
+               ● (to_max_prefix_list all)) : generational_cmraR A DS).
 
   (** Knowledge that γ is accociated with the predicates R and P. *)
   Definition rely (γ : gname) (γs : ivec n gname)
