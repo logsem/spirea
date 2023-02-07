@@ -285,21 +285,8 @@ Print preds_hold.
 the entries that we have picked generational transformation for. *)
 Definition Picks Σ : Type := ∀ i, gmap gname (R Σ i → R Σ i).
 
-(** Every pick in [picks] is a valid generational transformation and satisfies
-the conditions for that cmra in [Ω]. *)
-(* FIXME: Reintroduce this but remove the omega part. *)
-(* Definition picks_valid {Σ} (Ω : gTransforms) (picks : Picks Σ) := *)
-(*   ∀ i γ t, picks i !! γ = Some t → *)
-(*     GenTrans t ∧ *)
-(*     ∃ gti, Ω.(g_valid_gt) i = Some2 gti ∧ gti.(gti_valid).(gt_condition) t. *)
-
-(* The global transformation [fG] respects the entries in [picks]. *)
-Definition fG_resp {Σ} (fG : iResUR Σ → iResUR Σ) (picks : Picks Σ) :=
-  ∀ (m : iResUR Σ) i γ a t,
-    m i !! γ = Some a → (* For every element in the old element. *)
-    picks i !! γ = Some t →
-    (fG m) i !! γ = Some (map_unfold (t (map_fold a))).
-
+(* The resource [m] contains the agreement resources for all the picks in
+[picks]. *)
 Definition m_contains_tokens_for_picks {Σ} (picks : Picks Σ) (m : iResUR Σ) :=
   ∀ i,
     dom (picks i) ≡ dom (m i) ∧
@@ -312,19 +299,53 @@ Definition m_contains_tokens_for_picks {Σ} (picks : Picks Σ) (m : iResUR Σ) :
         picks i !! γ = Some (cmra_map_transport eq (gen_generation DS t)) ∧
         a ≡ map_unfold (cmra_transport eq (None, GTS_tok_gen_shot t, None, ε))).
 
-Definition own_promises {Σ} (ps : list (promise Σ)) : iProp Σ :=
-  ⌜ True ⌝.
+Section picks_lemmas.
+  Context {Σ : gFunctors}.
+  Implicit Types (picks : Picks Σ).
 
-Definition nextgen {Σ : gFunctors} P : iProp Σ :=
-  ∃ (picks : Picks Σ) (m : iResUR Σ) (ps : list (promise Σ)),
-    (* We own resources for everything in [picks]. *)
-    uPred_ownM m ∗ ⌜ m_contains_tokens_for_picks (* Ω *) picks m ⌝ ∗
-    (* We own resources for promises. *)
-    own_promises ps ∗
-    (* TODO *)
-    ⌜ promises_well_formed ps ⌝ ∗
-    ∀ (fG : iResUR Σ → _) (_ : GenTrans fG) (_ : fG_resp fG picks ),
-      ⚡={fG}=> P.
+  Lemma m_contains_tokens_for_picks_empty :
+    m_contains_tokens_for_picks (λ i : gid Σ, ∅) ε.
+  Proof. done. Qed.
+
+End picks_lemmas.
+
+Section next_gen_definition.
+  Context `{Σ : gFunctors}.
+
+  (** Every pick in [picks] is a valid generational transformation and satisfies
+  the conditions for that cmra in [Ω]. *)
+  (* FIXME: Reintroduce this but remove the omega part. *)
+  (* Definition picks_valid {Σ} (Ω : gTransforms) (picks : Picks Σ) := *)
+  (*   ∀ i γ t, picks i !! γ = Some t → *)
+  (*     GenTrans t ∧ *)
+  (*     ∃ gti, Ω.(g_valid_gt) i = Some2 gti ∧ gti.(gti_valid).(gt_condition) t. *)
+
+  (* The global transformation [fG] respects the entries in [picks]. *)
+  Definition fG_resp (fG : iResUR Σ → iResUR Σ) (picks : Picks Σ) :=
+    ∀ (m : iResUR Σ) i γ a t,
+      m i !! γ = Some a → (* For every element in the old element. *)
+      picks i !! γ = Some t →
+      (fG m) i !! γ = Some (map_unfold (t (map_fold a))).
+
+  Definition own_promises (ps : list (promise Σ)) : iProp Σ :=
+    ⌜ True ⌝.
+
+  Definition trans_resp_promises (ps : list (promise Σ)) :=
+    True.
+
+  (* Idea: Instead of abstracting over [fG] we abstract over a [picks] that
+  covers existing picks and that respect promises. *)
+  Definition nextgen P : iProp Σ :=
+    ∃ (picks : Picks Σ) (m : iResUR Σ) (ps : list (promise Σ)),
+      (* We own resources for everything in [picks]. *)
+      uPred_ownM m ∗ ⌜ m_contains_tokens_for_picks (* Ω *) picks m ⌝ ∗
+      (* We own resources for promises. *)
+      own_promises ps ∗
+      ⌜ promises_well_formed ps ⌝ ∗
+      ∀ (fG : iResUR Σ → _) (_ : GenTrans fG) (_ : fG_resp fG picks),
+        ⚡={fG}=> P.
+
+End next_gen_definition.
 
 Notation "⚡==> P" := (nextgen P)
   (at level 99, P at level 200, format "⚡==>  P") : bi_scope.
@@ -450,8 +471,32 @@ Section rules.
   Admitted.
 
   Lemma token_nextgen γ γs (R : pred_over DS A) P :
-    token γ γs R P ⊢ token γ γs R P.
-  Proof. Admitted.
+    token γ γs R P ⊢ ⚡==> token γ γs R P.
+  Proof.
+    iDestruct 1 as (??) "own".
+    iExists (λ i, ∅), ε, [].
+    iSplit; first by iApply ownM_unit'.
+    iSplit. { iPureIntro. apply m_contains_tokens_for_picks_empty. }
+    iSplit; first done.
+    iSplit; first done.
+    iIntros (fG ? resp).
+
+    iEval (rewrite own.own_eq) in "own".
+    rewrite /own.own_def.
+    iModIntro.
+  Admitted.
+  (*   iDestruct (uPred_own_resp_omega _ _ with "own") as (to) "(%cond & own)". *)
+  (*   { done. } *)
+  (*   simpl in cond. *)
+  (*   destruct cond as (t & -> & cond). *)
+  (*   iExists t. *)
+  (*   iSplit; first done. *)
+  (*   simpl. *)
+  (*   rewrite /gen_picked_in. *)
+  (*   rewrite -own_op. *)
+  (*   rewrite own.own_eq. *)
+  (*   iFrame "own". *)
+  (* Qed. *)
 
   Lemma rely_nextgen γ γs (R : pred_over DS A) P :
     rely γ γs R P

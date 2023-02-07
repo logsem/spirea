@@ -1051,7 +1051,8 @@ Section own_properties.
 
   Lemma own_generational_update γ a :
     gen_own γ a ⊢
-      ⚡==> ∃ t, ⌜ transA.(gt_condition) t ⌝ ∗ gen_own γ (t a) ∗ gen_picked_in γ t.
+      ⚡==> ∃ t, ⌜ transA.(gt_condition) t ⌝ ∗
+                 gen_own γ (t a) ∗ gen_picked_in γ t.
   Proof.
     iIntros "own".
     rewrite /nextgen.
