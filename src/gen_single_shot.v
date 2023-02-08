@@ -35,6 +35,20 @@ Definition GTS_floor {A} (a : GTS A) : GTS A :=
   | (ExclBot', _) => (ExclBot', Some $ Cinl $ ExclBot)
   end.
 
+Global Instance GTS_floor_generation A : GenTrans (GTS_floor (A := A) : GTSR A → GTSR A).
+Proof.
+  split.
+  - intros n [??] [??]. simpl.
+    rewrite -discrete_iff.
+    intros [eq%leibniz_equiv ?].
+    simpl in eq.
+    rewrite eq.
+    solve_proper.
+  - intros ? [[[[]|]|] [[[[]|]|?|]|]]; cbv; naive_solver.
+  - intros [[[[]|]|] [[[[]|]|?|]|]]; done.
+  - do 2 intros [[[[]|]|] [[[[]|]|?|]|]]; try done.
+Qed.
+
 Lemma GTS_tok_gen_shot_foo {M} {A} (t1 t2 : A) :
   ✓ ((GTS_tok_gen_shot t1 : GTSR A) ⋅ (GTS_tok_gen_shot t2 : GTSR A))
     ⊣⊢@{uPredI M} ⌜ t1 = t2 ⌝.
@@ -50,20 +64,6 @@ Proof.
   rewrite to_agree_op_validI.
   rewrite -leibniz_equiv_iff.
   apply (anti_symm _); naive_solver.
-Qed.
-
-Global Instance GTS_floor_generation A : GenTrans (GTS_floor (A := A) : GTSR A → GTSR A).
-Proof.
-  split.
-  - intros n [??] [??]. simpl.
-    rewrite -discrete_iff.
-    intros [eq%leibniz_equiv ?].
-    simpl in eq.
-    rewrite eq.
-    solve_proper.
-  - intros ? [[[[]|]|] [[[[]|]|?|]|]]; cbv; naive_solver.
-  - intros [[[[]|]|] [[[[]|]|?|]|]]; done.
-  - do 2 intros [[[[]|]|] [[[[]|]|?|]|]]; try done.
 Qed.
 
 Section gts.
