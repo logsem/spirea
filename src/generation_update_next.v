@@ -113,28 +113,32 @@ Record promise {Σ} := MkPromise {
     promise_i : gid Σ; (* The index of the RA in the global RA. *)
     promise_n : nat; (* The number of dependencies. *)
     promise_deps : list nat; (* Indices in the list of promises of the dependencies. *)
-    promise_RAs : ivec promise_n (gid Σ);
+    promise_RAs : ivec promise_n (gid Σ); (* Index of deps RA in the global RA. *)
     (* The predicate that relates our transformation to those of the dependencies. *)
     promise_rel : hvec (λ (i : gid Σ), T Σ i : Type) promise_n promise_RAs → T Σ promise_i → Prop;
     promise_pred : T Σ promise_i → Prop;
-    (* rel_impl_pred : ; *)
-    (* deps_preds : foo; *)
-    (* witness : foo; *)
+    (* rel_impl_pred : ; *) (* FIXME: Define this. *)
+    (* deps_preds : foo; *) (* FIXME: Define this. *)
+    (* witness : foo; *) (* FIXME: Define this. *)
 }.
 
 Arguments promise _ : clear implicits.
 
-Definition promise_well_formed {Σ} (promises : list (promise Σ)) p i :=
-  ∀ x j,
-    p.(promise_deps) !! x = Some j →
-    j < i ∧ (* The dependency is prior in the list. *)
-    ∃ p_d M,
-      promises !! j = Some p_d ∧
-      p.(promise_RAs) !! x = Some M ∧
-      p_d.(promise_i) = M.
+Section promise_properties.
 
-Definition promises_well_formed {Σ} (promises : list (promise Σ)) :=
-  ∀ i p, promises !! i = Some p → promise_well_formed promises p i.
+  Definition promise_well_formed {Σ} (promises : list (promise Σ)) p i :=
+    ∀ x j,
+      p.(promise_deps) !! x = Some j →
+      j < i ∧ (* The dependency is prior in the list. *)
+      ∃ p_d M,
+        promises !! j = Some p_d ∧
+        p.(promise_RAs) !! x = Some M ∧
+        p_d.(promise_i) = M.
+
+  Definition promises_well_formed {Σ} (promises : list (promise Σ)) :=
+    ∀ i p, promises !! i = Some p → promise_well_formed promises p i.
+
+End promise_properties.
 
 (* Resources for generational ghost state. *)
 
@@ -366,8 +370,8 @@ Section generational_resources.
   Definition gen_token_used γ : iProp Σ :=
     own γ ((None, GTS_tok_perm, None, ε)).
 
-  Definition gen_picked_in γ (f : A → A) : iProp Σ :=
-    own γ ((Some (to_agree f), (None, None), None, ε) : generational_cmraR A DS).
+  Definition gen_picked_in γ (t : A → A) : iProp Σ :=
+    own γ ((Some (to_agree t), (None, None), None, ε) : generational_cmraR A DS).
 
   Definition gen_token γ : iProp Σ :=
     own γ ((None, GTS_tok_both, None, ε)).
@@ -400,6 +404,10 @@ Section generational_resources.
       own γ ((None, GTS_tok_both, None,
                ● (to_max_prefix_list all)) : generational_cmraR A DS).
 
+  Definition used_token (γ : gname) (γs : ivec n gname)
+    (R : pred_over DS A) (P : (A → A) → Prop) : iProp Σ :=
+    ⌜ True ⌝.
+
   (** Knowledge that γ is accociated with the predicates R and P. *)
   Definition rely (γ : gname) (γs : ivec n gname)
     (R : pred_over DS A) (P : (A → A) → Prop) : iProp Σ :=
@@ -410,12 +418,13 @@ Section generational_resources.
 
 End generational_resources.
 
-Definition rely_self {A} `{i : !genInSelfG Σ A}
+Definition rely_self `{i : !genInSelfG Σ A}
     γ (P : (A → A) → Prop) : iProp Σ :=
   ∃ γs R, rely (DS := genInSelfG_DS) γ γs R P.
 
 Section rules.
   Context {n : nat} {DS : deps n} `{!genInG Σ A DS}.
+
   Lemma own_gen_alloc (a : A) γs :
     ✓ a → ⊢ |==> ∃ γ, gen_own γ a ∗ token γ γs True_pred (λ _, True%type).
   Proof. Admitted.
@@ -445,9 +454,6 @@ Section rules.
     apply (to_agree_op_inv_L (A := leibnizO (A → A))) in val.
     done.
   Qed.
-
-  Definition trans_in {B} (γ : gname) (t : B → B) : iProp Σ :=
-    ⌜ dummy_use_ing ⌝%I.
 
   (** Strengthen a promise. *)
   Lemma token_strengthen_promise `{∀ (i : fin n), genInSelfG Σ (DS !!! i)}
@@ -498,16 +504,16 @@ Section rules.
   (*   iFrame "own". *)
   (* Qed. *)
 
-  Lemma rely_nextgen γ γs (R : pred_over DS A) P :
+  Lemma rely_nextgen γ γs (R : pred_over DS A) P `{∀ (i : fin n), genInSelfG Σ (DS !!! i)} :
     rely γ γs R P
     ⊢ rely γ γs R P ∗
       ∃ (t : A → A),
       ⌜ ∃ (ts : trans_for n DS),
         huncurry R ts t ∧ (* The transformations satisfy the promise. *)
         P t ⌝ ∗ (* For convenience we also get this directly. *)
-      trans_in γ t ∗
-      (∃  (ts' : trans_for_alt n DS), (* Temp universe workaround. *)
-        (∀ (i : fin n), trans_in (γs !!! i) (hvec_lookup_fmap ts' i))).
+      gen_picked_in γ t ∗
+      (∃ (ts' : trans_for_alt n DS), (* FIXME: Temp universe workaround. *)
+        (∀ (i : fin n), gen_picked_in (γs !!! i) (hvec_lookup_fmap ts' i))).
   Proof. Admitted.
 
   Lemma token_to_rely γ γs (R : pred_over DS A) P :
