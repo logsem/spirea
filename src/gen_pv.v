@@ -33,11 +33,38 @@ Section pv.
   Context `{A : cmra}.
   Implicit Type (a : A).
 
+  Inductive pv_stat := sP | sPV | sV.
+
+  Definition mk_gen_pv (p : pv_stat) a :=
+    match p with
+      | sV => (None, Some a)
+      | sP => (Some a, None)
+      | sPV => (Some a, Some a)
+    end.
+
   (* [a] is both persisted and volatile. *)
-  Definition gPV (a : A) : gen_pv A := (Some a, Some a).
+  Definition gPV (a : A) : gen_pv A := mk_gen_pv sPV a.
   (* [a] is volatile. *)
-  Definition gV (a : A) : gen_pv A := (None, Some a).
+  Definition gV (a : A) : gen_pv A := mk_gen_pv sV a.
   (* [a] is persisted. *)
-  Definition gP (a : A) : gen_pv A := (Some a, None).
+  Definition gP (a : A) : gen_pv A := mk_gen_pv sP a.
+
+  Lemma gen_pv_valid p a : ✓ (mk_gen_pv p a) ↔ ✓ a.
+  Proof.
+    destruct p; rewrite pair_valid Some_valid; naive_solver.
+  Qed.
+
+  Lemma gen_pv_op p a1 a2 :
+    (mk_gen_pv p a1) ⋅ (mk_gen_pv p a2) ≡ mk_gen_pv p (a1 ⋅ a2).
+  Proof. destruct p; done. Qed.
+
+  (* As long as one status is [PV] the operation guarantees validity of the composition of two elements. *)
+  Lemma gen_pv_op_valid p a1 a2 :
+    ✓ ((gPV a1) ⋅ (mk_gen_pv p a2)) ↔ ✓ (a1 ⋅ a2).
+  Proof.
+    destruct p; rewrite pair_valid Some_valid; split; try naive_solver; simpl.
+    - intros V. split; first done. apply cmra_valid_op_l in V. done.
+    - intros V. split; last done. eapply cmra_valid_op_l. done.
+  Qed.
 
 End pv.

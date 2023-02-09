@@ -5,8 +5,8 @@ From iris.proofmode Require Import classes tactics.
 From iris.base_logic.lib Require Export iprop own invariants.
 From iris.prelude Require Import options.
 
-From self Require Import extra basic_nextgen_modality gen_trans gen_single_shot.
-From self Require Import hvec.
+ From self Require Import hvec extra basic_nextgen_modality gen_trans
+  gen_single_shot gen_pv.
 
 Import uPred.
 
@@ -175,12 +175,12 @@ Section promises_cmra.
 End promises_cmra.
 
 Definition generational_cmra {n} A (DS : deps_ty n) : Type :=
-  option (agree (A → A)) * GTS (A → A) * option A * promises A DS.
+  option (agree (A → A)) * GTS (A → A) * option A * gen_pv (auth (promises A DS)).
 
 Definition generational_cmraR {n} (A : cmra) (DS : deps n) :=
   prodR
     (prodR (prodR (optionR (agreeR (leibnizO (A → A)))) (GTSR (A → A))) (optionR A))
-    (authR (promisesR A DS)).
+    (gen_pvR (authR (promisesR A DS))).
 
 Definition gen_generation_first {A : cmra} (f : A → A) :
   prodR (optionR (agreeR (leibnizO (A → A)))) (GTSR (A → A)) →
@@ -195,7 +195,7 @@ Definition gen_generation {n} {A : cmra} (DS : deps n)
     (f : A → A) : generational_cmraR A DS → generational_cmraR A DS :=
   prod_map
     (prod_map (gen_generation_first f) (fmap f : optionR A → optionR A))
-    id.
+    gen_pv_trans.
 
 Global Instance gen_trans_const {A : ofe} (a : A) :
   GenTrans (const (Some (to_agree a))).
@@ -222,6 +222,23 @@ Proof.
   rewrite /gen_generation /gen_generation_first.
   solve_proper.
 Qed.
+
+(* Working with the 4-tuple is sometimes annoying. Then these lemmas help. *)
+Lemma prod_valid_1st {Σ} {A B C D : cmra} (a : A) (b : B) (c : C) (d : D) e f g h :
+  ✓ ((a, b, c, d) ⋅ (e, f, g, h)) ⊢@{iProp Σ} ✓ (a ⋅ e).
+Proof. rewrite 3!prod_validI. iIntros "[[[$ _] _] _]". Qed.
+
+Lemma prod_valid_2st {Σ} {A B C D : cmra} (a : A) (b : B) (c : C) (d : D) e f g h :
+  ✓ ((a, b, c, d) ⋅ (e, f, g, h)) ⊢@{iProp Σ} ✓ (b ⋅ f).
+Proof. rewrite 3!prod_validI. iIntros "[[[_ $] _] _]". Qed.
+
+Lemma prod_valid_3th {Σ} {A B C D : cmra} (a : A) (b : B) (c : C) (d : D) e f g h :
+  ✓ ((a, b, c, d) ⋅ (e, f, g, h)) ⊢@{iProp Σ} ✓ (c ⋅ g).
+Proof. rewrite 3!prod_validI. iIntros "[[_ $] _]". Qed.
+
+Lemma prod_valid_4th {Σ} {A B C D : cmra} (a : A) (b : B) (c : C) (d : D) e f g h :
+  ✓ ((a, b, c, d) ⋅ (e, f, g, h)) ⊢@{iProp Σ} ✓ (d ⋅ h).
+Proof. rewrite 3!prod_validI. iIntros "[_ $]". Qed.
 
 Class genInG {n} (Σ : gFunctors) (A : cmra) (DS : deps n) := GenInG {
   genInG_inG : inG Σ (generational_cmraR A DS);
@@ -360,6 +377,7 @@ Definition dummy_use_ing {n : nat} {DS : deps n} `{!genInG Σ A DS} := True.
 
 Section generational_resources.
   Context {n} {A} {DS : deps n} `{!genInG Σ A DS}.
+  Implicit Types (R : pred_over DS A) (P : (A → A) → Prop).
 
   Definition gen_own (γ : gname) (a : A) : iProp Σ :=
     own γ (None, (None, None), Some a, ε).
@@ -382,12 +400,10 @@ Section generational_resources.
 
   Definition pred_weaker (R1 R2 : pred_over DS A) := pred_stronger R2 R1.
 
-  Definition rel_implies_pred (R : pred_over DS A) (P : (A → A) → Prop) : Prop :=
-    ∀ (ts : trans_for n DS) (t : A → A),
-      huncurry R ts t → P t.
+  Definition rel_implies_pred R P : Prop :=
+    ∀ (ts : trans_for n DS) (t : A → A), huncurry R ts t → P t.
 
-  Definition pred_prefix_list_for
-      (all : list (pred_over DS A)) (R : pred_over DS A) (P : (A → A) → Prop) :=
+  Definition pred_prefix_list_for (all : list (pred_over DS A)) R P :=
     (* The given promise [R] is the last promise out of all promises. *)
     last all = Some R ∧
     rel_implies_pred R P ∧
@@ -397,24 +413,28 @@ Section generational_resources.
                 all !! j = Some Rj → pred_weaker Ri Rj.
 
   (** Ownership over the token and the promises for [γ]. *)
-  Definition token (γ : gname) (γs : ivec n gname)
-    (R : pred_over DS A) (P : (A → A) → Prop) : iProp Σ :=
+  Definition token (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
     ∃ (all : list (pred_over DS A)),
       ⌜ pred_prefix_list_for all R P ⌝ ∗
       own γ ((None, GTS_tok_both, None,
-               ● (to_max_prefix_list all)) : generational_cmraR A DS).
+               gPV (● (to_max_prefix_list all))) : generational_cmraR A DS).
 
-  Definition used_token (γ : gname) (γs : ivec n gname)
-    (R : pred_over DS A) (P : (A → A) → Prop) : iProp Σ :=
-    ⌜ True ⌝.
+  Definition used_token (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
+    ∃ (all : list (pred_over DS A)),
+      ⌜ pred_prefix_list_for all R P ⌝ ∗
+      own γ ((
+        None,
+        GTS_tok_both,
+        None,
+        gP (● to_max_prefix_list all) ⋅ gV (●{#1/2} to_max_prefix_list all)
+      ) : generational_cmraR A DS).
 
   (** Knowledge that γ is accociated with the predicates R and P. *)
-  Definition rely (γ : gname) (γs : ivec n gname)
-    (R : pred_over DS A) (P : (A → A) → Prop) : iProp Σ :=
+  Definition rely (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
     ∃ (all : list (pred_over DS A)),
       ⌜ pred_prefix_list_for all R P ⌝ ∗
       own γ ((None, (None, None), None,
-               ◯ (to_max_prefix_list all)) : generational_cmraR A DS).
+              gPV (◯ to_max_prefix_list all)) : generational_cmraR A DS).
 
 End generational_resources.
 
@@ -433,22 +453,14 @@ Section rules.
     gen_token γ ⊣⊢
     own γ (None, GTS_tok_perm, None, ε) ∗
     own γ (None, GTS_tok_gen, None, ε).
-  Proof.
-    rewrite -own_op.
-    rewrite /gen_token.
-    f_equiv. rewrite -pair_op.
-    assert (ε ⋅ ε ≡ ε) as ->. { apply left_id. apply _. }.
-    done.
-  Qed.
+  Proof. rewrite -own_op. done. Qed.
 
   Lemma gen_picked_in_agree γ (f f' : A → A) :
     gen_picked_in γ f -∗ gen_picked_in γ f' -∗ ⌜ f = f' ⌝.
   Proof.
     iIntros "A B".
     iDestruct (own_valid_2 with "A B") as "val".
-    rewrite -4!pair_op.
-    rewrite 3!prod_validI. simpl.
-    iDestruct "val" as "[[[%val ?]?]?]".
+    iDestruct (prod_valid_1st with "val") as %val.
     iPureIntro.
     rewrite Some_valid in val.
     apply (to_agree_op_inv_L (A := leibnizO (A → A))) in val.
@@ -528,11 +540,10 @@ Section rules.
     iDestruct 1 as (prs1 prefix1) "own1".
     iDestruct 1 as (prs2 prefix2) "own2".
     iDestruct (own_valid_2 with "own1 own2") as "val".
-    rewrite -!pair_op.
-    rewrite !prod_validI. simpl.
-    iDestruct "val" as "(_ & %val)".
+    iDestruct (prod_valid_4th with "val") as "%val".
     iPureIntro.
     move: val.
+    rewrite gen_pv_op. rewrite gen_pv_valid.
     rewrite auth_frag_valid.
     rewrite to_max_prefix_list_op_valid_L.
     destruct prefix1 as (isLast1 & ? & look1).
