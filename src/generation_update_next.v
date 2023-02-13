@@ -5,7 +5,7 @@ From iris.proofmode Require Import classes tactics.
 From iris.base_logic.lib Require Export iprop own invariants.
 From iris.prelude Require Import options.
 
- From self Require Import hvec extra basic_nextgen_modality gen_trans
+From self Require Import hvec extra basic_nextgen_modality gen_trans
   gen_single_shot gen_pv.
 
 Import uPred.
@@ -108,42 +108,10 @@ Global Instance cmra_map_transport_proper {A B : cmra} (f : A → A) (Heq : A = 
   (Proper ((≡) ==> (≡)) (cmra_map_transport Heq f)).
 Proof. naive_solver. Qed.
 
-Record promise {Σ} := MkPromise {
-    promise_g : gname; (* Ghost name for the promise. *)
-    promise_i : gid Σ; (* The index of the RA in the global RA. *)
-    promise_n : nat; (* The number of dependencies. *)
-    promise_deps : list nat; (* Indices in the list of promises of the dependencies. *)
-    promise_RAs : ivec promise_n (gid Σ); (* Index of deps RA in the global RA. *)
-    (* The predicate that relates our transformation to those of the dependencies. *)
-    promise_rel : hvec (λ (i : gid Σ), T Σ i : Type) promise_n promise_RAs → T Σ promise_i → Prop;
-    promise_pred : T Σ promise_i → Prop;
-    (* rel_impl_pred : ; *) (* FIXME: Define this. *)
-    (* deps_preds : foo; *) (* FIXME: Define this. *)
-    (* witness : foo; *) (* FIXME: Define this. *)
-}.
-
-Arguments promise _ : clear implicits.
-
-Section promise_properties.
-
-  Definition promise_well_formed {Σ} (promises : list (promise Σ)) p i :=
-    ∀ x j,
-      p.(promise_deps) !! x = Some j →
-      j < i ∧ (* The dependency is prior in the list. *)
-      ∃ p_d M,
-        promises !! j = Some p_d ∧
-        p.(promise_RAs) !! x = Some M ∧
-        p_d.(promise_i) = M.
-
-  Definition promises_well_formed {Σ} (promises : list (promise Σ)) :=
-    ∀ i p, promises !! i = Some p → promise_well_formed promises p i.
-
-End promise_properties.
-
 (* Resources for generational ghost state. *)
 
 (* Resource algebra for promises. *)
-(* Do we need to store both R and P or only R?? *)
+(* Q: Do we need to store both R and P or only R?? *)
 Section promises_cmra.
   Context {n : nat}.
 
@@ -284,54 +252,49 @@ We need
 - To be able to do an ∧ or a ∗ over the transformation functions.
 *)
 
-(** The transformations [ts] satisfies the predicates [ps]. *)
-Equations preds_hold_alt {n} {DS : deps n}
-    (ts : trans_for_alt n DS) (ps : preds_for n DS) : Prop :=
-  | hcons t ts', hcons p ps' := p t ∧ preds_hold_alt ts' ps' ;
-  | hnil, hnil := True.
-Global Transparent preds_hold_alt.
-
-(** The transformations [ts] satisfies the predicates [ps]. *)
-Equations preds_hold {n} {DS : deps n}
-    (ts : trans_for n DS) (ps : preds_for n DS) : Prop :=
-  | hcons t ts', hcons p ps' := p t ∧ preds_hold ts' ps' ;
-  | hnil, hnil := True.
-Global Transparent preds_hold.
-
-Print preds_hold.
-
 (* Definition of the next generation modality. *)
-
-(** [Picks] contains transformation functions for a subset of ghost names. It is
-the entries that we have picked generational transformation for. *)
-Definition Picks Σ : Type := ∀ i, gmap gname (R Σ i → R Σ i).
-
-(* The resource [m] contains the agreement resources for all the picks in
-[picks]. *)
-Definition m_contains_tokens_for_picks {Σ} (picks : Picks Σ) (m : iResUR Σ) :=
-  ∀ i,
-    dom (picks i) ≡ dom (m i) ∧
-    (∀ (γ : gname) (a : Rpre Σ i),
-      m i !! γ = Some a  →
-      (* NOTE: Maybe we'll need to pull this equality out of a global map as before. *)
-      ∃ n (A : cmra) (DS : deps n) (eq : generational_cmraR A DS = R Σ i) (t : A → A),
-      (* ∃ gti (t : gti.(gti_car) → gti.(gti_car)), *)
-        (* Ω.(g_valid_gt) i = Some2 gti ∧ *)
-        picks i !! γ = Some (cmra_map_transport eq (gen_generation DS t)) ∧
-        a ≡ map_unfold (cmra_transport eq (None, GTS_tok_gen_shot t, None, ε))).
-
-Section picks_lemmas.
-  Context {Σ : gFunctors}.
-  Implicit Types (picks : Picks Σ).
-
-  Lemma m_contains_tokens_for_picks_empty :
-    m_contains_tokens_for_picks (λ i : gid Σ, ∅) ε.
-  Proof. done. Qed.
-
-End picks_lemmas.
-
 Section next_gen_definition.
   Context `{Σ : gFunctors}.
+
+  (** [Picks] contains transformation functions for a subset of ghost names. It is
+  the entries that we have picked generational transformation for. *)
+  Definition Picks : Type := ∀ i, gmap gname (R Σ i → R Σ i).
+
+  Record promise_info {Σ} := MkPromise {
+      promise_g : gname; (* Ghost name for the promise. *)
+      promise_i : gid Σ; (* The index of the RA in the global RA. *)
+      promise_n : nat; (* The number of dependencies. *)
+      promise_deps : list nat; (* Indices in the list of promises of the dependencies. *)
+      promise_RAs : ivec promise_n (gid Σ); (* Index of deps RA in the global RA. *)
+      (* The predicate that relates our transformation to those of the dependencies. *)
+      promise_rel : hvec (λ (i : gid Σ), T Σ i : Type) promise_n promise_RAs → T Σ promise_i → Prop;
+      promise_pred : T Σ promise_i → Prop;
+      (* rel_impl_pred : ; *) (* FIXME: Define this. *)
+      (* deps_preds : foo; *) (* FIXME: Define this. *)
+      (* witness : foo; *) (* FIXME: Define this. *)
+  }.
+
+  Arguments promise_info _ : clear implicits.
+
+  (* We need to:
+    - Be able to turn a list of promises and a map of picks into a
+      global transformation.
+    - Merge two lists of promises.
+   *)
+
+  (* The resource [m] contains the agreement resources for all the picks in
+  [picks]. *)
+  Definition m_contains_tokens_for_picks (picks : Picks) (m : iResUR Σ) :=
+    ∀ i,
+      dom (picks i) ≡ dom (m i) ∧
+      (∀ (γ : gname) (a : Rpre Σ i),
+        m i !! γ = Some a  →
+        (* NOTE: Maybe we'll need to pull this equality out of a global map as before. *)
+        ∃ n (A : cmra) (DS : deps n) (eq : generational_cmraR A DS = R Σ i) (t : A → A),
+        (* ∃ gti (t : gti.(gti_car) → gti.(gti_car)), *)
+          (* Ω.(g_valid_gt) i = Some2 gti ∧ *)
+          picks i !! γ = Some (cmra_map_transport eq (gen_generation DS t)) ∧
+          a ≡ map_unfold (cmra_transport eq (None, GTS_tok_gen_shot t, None, ε))).
 
   (** Every pick in [picks] is a valid generational transformation and satisfies
   the conditions for that cmra in [Ω]. *)
@@ -341,23 +304,51 @@ Section next_gen_definition.
   (*     GenTrans t ∧ *)
   (*     ∃ gti, Ω.(g_valid_gt) i = Some2 gti ∧ gti.(gti_valid).(gt_condition) t. *)
 
+  Definition own_promises (ps : list (promise_info Σ)) : iProp Σ :=
+    ⌜ True ⌝.
+
+  (** Build a global generational transformation based on the picks in [picks]. *)
+  Definition build_trans (picks : Picks) : (iResUR Σ → iResUR Σ) :=
+    λ (m : iResUR Σ) (i : gid Σ),
+      map_imap (λ γ a,
+        (* If the map of picks contains a transformation then we apply the
+         * transformation. If no pick exists then we return the elemment
+         * unchanged. Hence, we default to the identity transformation. *)
+        match picks i !! γ with
+        | Some picked_gt => Some $ map_unfold $ picked_gt $ map_fold a
+        | None => Some a
+        end
+      ) (m i).
+
   (* The global transformation [fG] respects the entries in [picks]. *)
-  Definition fG_resp (fG : iResUR Σ → iResUR Σ) (picks : Picks Σ) :=
+  Definition fG_resp (fG : iResUR Σ → iResUR Σ) (picks : Picks) :=
     ∀ (m : iResUR Σ) i γ a t,
       m i !! γ = Some a → (* For every element in the old element. *)
       picks i !! γ = Some t →
       (fG m) i !! γ = Some (map_unfold (t (map_fold a))).
 
-  Definition own_promises (ps : list (promise Σ)) : iProp Σ :=
-    ⌜ True ⌝.
-
-  Definition trans_resp_promises (ps : list (promise Σ)) :=
+  Definition picks_resp_promises (picks : Picks) (ps : list (promise_info Σ)) :=
     True.
+
+  Definition promise_well_formed (promises : list (promise_info Σ)) p i :=
+    ∀ x j,
+      p.(promise_deps) !! x = Some j →
+      j < i ∧ (* The dependency is prior in the list. *)
+      ∃ p_d M,
+        promises !! j = Some p_d ∧
+        p.(promise_RAs) !! x = Some M ∧
+        p_d.(promise_i) = M.
+
+  Definition promises_well_formed (promises : list (promise_info Σ)) :=
+    ∀ i p, promises !! i = Some p → promise_well_formed promises p i.
+
+  (* Turn a list of promises into a map of picks. *)
+  Definition picks_from_promises := True. (* FIXME *)
 
   (* Idea: Instead of abstracting over [fG] we abstract over a [picks] that
   covers existing picks and that respect promises. *)
   Definition nextgen P : iProp Σ :=
-    ∃ (picks : Picks Σ) (m : iResUR Σ) (ps : list (promise Σ)),
+    ∃ (picks : Picks) (m : iResUR Σ) (ps : list (promise_info Σ)),
       (* We own resources for everything in [picks]. *)
       uPred_ownM m ∗ ⌜ m_contains_tokens_for_picks (* Ω *) picks m ⌝ ∗
       (* We own resources for promises. *)
@@ -370,6 +361,20 @@ End next_gen_definition.
 
 Notation "⚡==> P" := (nextgen P)
   (at level 99, P at level 200, format "⚡==>  P") : bi_scope.
+
+Section picks_properties.
+  Context {Σ : gFunctors}.
+  Implicit Types (picks : Picks Σ).
+
+  Lemma m_contains_tokens_for_picks_empty :
+    m_contains_tokens_for_picks (λ i : gid Σ, ∅) ε.
+  Proof. done. Qed.
+
+End picks_properties.
+
+Section promise_properties.
+
+End promise_properties.
 
 Definition dummy_use_ing {n : nat} {DS : deps n} `{!genInG Σ A DS} := True.
 
@@ -441,6 +446,13 @@ End generational_resources.
 Definition rely_self `{i : !genInSelfG Σ A}
     γ (P : (A → A) → Prop) : iProp Σ :=
   ∃ γs R, rely (DS := genInSelfG_DS) γ γs R P.
+
+(** The transformations [ts] satisfies the predicates [ps]. *)
+Equations preds_hold {n} {DS : deps n}
+    (ts : trans_for n DS) (ps : preds_for n DS) : Prop :=
+  | hcons t ts', hcons p ps' := p t ∧ preds_hold ts' ps' ;
+  | hnil, hnil := True.
+Global Transparent preds_hold.
 
 Section rules.
   Context {n : nat} {DS : deps n} `{!genInG Σ A DS}.
@@ -532,7 +544,29 @@ Section rules.
     token γ γs R P ⊢ rely γ γs R P.
   Proof. Admitted.
 
-  Lemma rely_combine γ γs R1 P1 R2 P2 :
+  Lemma token_rely_combine_pred γ γs R1 P1 R2 P2 :
+    token γ γs R1 P1 -∗ rely γ γs R2 P2 -∗ ⌜ pred_stronger R1 R2 ⌝.
+  Proof.
+    iDestruct 1 as (prs1 prefix1) "own1".
+    iDestruct 1 as (prs2 prefix2) "own2".
+    iDestruct (own_valid_2 with "own1 own2") as "val".
+    iDestruct (prod_valid_4th with "val") as "%val".
+    iPureIntro.
+    move: val.
+    rewrite gen_pv_op. rewrite gen_pv_valid.
+    rewrite auth_both_valid_discrete.
+    rewrite to_max_prefix_list_included_L.
+    intros [prefix _].
+    destruct prefix1 as (isLast1 & ? & look1).
+    destruct prefix2 as (isLast2 & ? & look2).
+    rewrite last_lookup in isLast1.
+    rewrite last_lookup in isLast2.
+    eapply look1; last done.
+    { apply le_pred. apply prefix_length. eassumption. }
+    eapply prefix_lookup; done.
+  Qed.
+
+  Lemma rely_combine_pred γ γs R1 P1 R2 P2 :
     rely γ γs R1 P1 -∗
     rely γ γs R2 P2 -∗
     ⌜ pred_stronger R1 R2 ∨ pred_stronger R2 R1 ⌝.
