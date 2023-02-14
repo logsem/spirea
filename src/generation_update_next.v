@@ -260,21 +260,39 @@ Section next_gen_definition.
   the entries that we have picked generational transformation for. *)
   Definition Picks : Type := ∀ i, gmap gname (R Σ i → R Σ i).
 
-  Record promise_info {Σ} := MkPromise {
+  (** Information about a promise _except_ for that concerning its
+    * dependencies. *)
+  Record promise_self_info := MkSelfPromiseInfo {
+    psi_id : gid Σ; (* The index of the RA in the global RA. *)
+    psi_γ : gname; (* Ghost name for the promise. *)
+    psi_pred : T Σ psi_id → Prop;
+  }.
+
+  (** The transformations [ts] satisfies the predicates [ps]. *)
+  Equations deps_preds_hold {n}
+      (deps : ivec n promise_self_info)
+      (ts : hvec (λ dep, T Σ dep.(psi_id)) n deps) : Prop :=
+    | icons dep deps', hcons t ts' :=
+        dep.(psi_pred) t ∧ deps_preds_hold deps' ts' ;
+    | inil, hnil := True.
+  Global Transparent deps_preds_hold.
+
+  (** A record that contains all the information that is a associated with a
+   * promise. *)
+  Record promise_info := MkPromiseInfo {
     pi_id : gid Σ; (* The index of the RA in the global RA. *)
     pi_γ : gname; (* Ghost name for the promise. *)
     pi_n : nat; (* The number of dependencies. *)
-    pi_deps_idx : ivec pi_n nat; (* Indices in the list of promises of the dependencies. *)
-    pi_deps_id : ivec pi_n (gid Σ); (* Index of deps RA in the global RA. *)
+    pi_deps : ivec pi_n promise_self_info;
     (* The predicate that relates our transformation to those of the dependencies. *)
-    pi_rel : hvec (λ id, T Σ id : Type) pi_n pi_deps_id → T Σ pi_id → Prop;
+    pi_rel : hvec (λ dep, T Σ dep.(psi_id)) pi_n pi_deps → T Σ pi_id → Prop;
     pi_pred : T Σ pi_id → Prop;
-    (* rel_impl_pred : ; *) (* TODO: Define this. *)
-    (* deps_preds : foo; *) (* TODO: Define this. *)
-    witness : (* TODO: Add assumption here *) T Σ pi_id;
+    pi_rel_to_pred : ∀ ts t, pi_rel ts t → pi_pred t;
+    pi_witness : ∀ ts, deps_preds_hold pi_deps ts → ∃ t, pi_rel ts t;
   }.
 
-  Arguments promise_info _ : clear implicits.
+  Definition promise_info_to_self (pi : promise_info) :=
+    {| psi_id := pi_id pi; psi_γ := pi_γ pi; psi_pred := pi_pred pi |}.
 
   (* We need to:
     - Be able to turn a list of promises and a map of picks into a
@@ -305,7 +323,7 @@ Section next_gen_definition.
   (*     GenTrans t ∧ *)
   (*     ∃ gti, Ω.(g_valid_gt) i = Some2 gti ∧ gti.(gti_valid).(gt_condition) t. *)
 
-  Definition own_promises (ps : list (promise_info Σ)) : iProp Σ :=
+  Definition own_promises (ps : list promise_info) : iProp Σ :=
     ⌜ True ⌝. (* TODO *)
 
   (** Build a global generational transformation based on the picks in [picks]. *)
@@ -330,26 +348,33 @@ Section next_gen_definition.
 
   (** The [picks] respect the promises in [ps]. This means that all the
   predicates in the promises are satisfied by the transformations in picks. *)
-  Definition picks_resp_promises (picks : Picks) (ps : list (promise_info Σ)) :=
-    ∀ i p,
-      ps !! i = Some p →
-      ∃ trans ts (gnames : ivec p.(pi_n) gname),
-        (∀ (id : fin p.(pi_n)),
-          pi_γ <$> (ps !! (p.(pi_deps_idx) !!! id)) = Some (gnames !!! id) ∧
-          picks (p.(pi_deps_id) !!! id) !! (gnames !!! id) = Some (trans 👀 id)) ∧
+  Definition picks_resp_promises (picks : Picks) (ps : list (promise_info)) :=
+    ∀ i p, ps !! i = Some p →
+      ∃ trans ts,
+        (∀ (idx : fin p.(pi_n)),
+          let dep := p.(pi_deps) !!! idx
+          in picks dep.(psi_id) !! dep.(psi_γ) = Some (trans 👀 idx)) ∧
         picks p.(pi_id) !! p.(pi_γ) = Some ts ∧
         p.(pi_rel) trans ts.
 
-  Definition promise_well_formed (promises : list (promise_info Σ)) p i :=
-    ∀ x j,
-      p.(pi_deps_idx) !! x = Some j →
-      j < i ∧ (* The dependency is prior in the list. *)
-      ∃ p_d M,
+  Definition promise_well_formed (promises : list (promise_info)) p i :=
+    ∀ (x : fin p.(pi_n)),
+      ∃ j p_d,
         promises !! j = Some p_d ∧
-        p.(pi_deps_id) !! x = Some M ∧
-        p_d.(pi_id) = M.
+        j < i ∧ (* The dependency is prior in the list. *)
+        p.(pi_deps) !!! x = promise_info_to_self p_d.
 
-  Definition promises_well_formed (promises : list (promise_info Σ)) :=
+  (* (1* OLD *1) *)
+  (* Definition promise_well_formed (promises : list (promise_info)) p i := *)
+  (*   ∀ x j, *)
+  (*     p.(pi_deps_idx) !! x = Some j → *)
+  (*     j < i ∧ (1* The dependency is prior in the list. *1) *)
+  (*     ∃ p_d M, *)
+  (*       promises !! j = Some p_d ∧ *)
+  (*       p.(pi_deps_id) !! x = Some M ∧ *)
+  (*       p_d.(pi_id) = M. *)
+
+  Definition promises_well_formed (promises : list (promise_info)) :=
     ∀ i p, promises !! i = Some p → promise_well_formed promises p i.
 
   (* Turn a list of promises into a map of picks. *)
@@ -358,7 +383,7 @@ Section next_gen_definition.
   (* Idea: Instead of abstracting over [fG] we abstract over a [picks] that
   covers existing picks and that respect promises. *)
   Definition nextgen P : iProp Σ :=
-    ∃ (picks : Picks) (m : iResUR Σ) (ps : list (promise_info Σ)),
+    ∃ (picks : Picks) (m : iResUR Σ) (ps : list (promise_info)),
       (* We own resources for everything in [picks]. *)
       uPred_ownM m ∗ ⌜ m_contains_tokens_for_picks (* Ω *) picks m ⌝ ∗
       (* We own resources for promises. *)
