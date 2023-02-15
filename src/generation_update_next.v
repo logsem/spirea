@@ -387,9 +387,17 @@ Section next_gen_definition.
         in picks dep.(psi_id) !! dep.(psi_γ) = Some (trans 👀 idx)) ∧
       p.(pi_rel) trans t.
 
-  (** The [picks] respect the promises in [ps]. This means that all the
-  relations in the promises are satisfied by the transformations in picks. *)
-  Definition picks_resp_promises (picks : Picks) (ps : list (promise_info)) :=
+  Lemma picks_extract_trans_vec picks p :
+    picks_satisfy_deps_pred picks p → ∃ ts, deps_preds_hold p.(pi_deps) ts.
+  Proof.
+    intros ?.
+    induction p.(pi_deps).
+  Admitted.
+
+  (** The [picks] respect the promises in [ps]. This means that there is a pick
+   * for every promise and that all the relations in the promises are satisfied
+   * by the transformations in picks. *)
+  Definition picks_resp_promises picks (ps : list (promise_info)) :=
     ∀ i p, ps !! i = Some p → picks_satisfy_rel picks p.
 
   Definition promise_well_formed (promises : list (promise_info)) p i :=
@@ -402,11 +410,27 @@ Section next_gen_definition.
   Definition promises_well_formed (promises : list (promise_info)) :=
     ∀ i p, promises !! i = Some p → promise_well_formed promises p i.
 
-  (* Turn a list of promises into a map of picks. *)
-  Definition picks_from_promises := True. (* FIXME *)
+  (* For soundness we need to be able to build a map of gts that agree with
+   * picks and that satisfy all promises.
 
-  (* Idea: Instead of abstracting over [fG] we abstract over a [picks] that
-  covers existing picks and that respect promises. *)
+     We need to be able to extend picks along a list of promises. *)
+
+  (* Turn a map of picks and a list of promises into a full map of picks. *)
+  Definition build_full_promises picks (ps : list (promise_info)) : Picks Σ :=
+    λ id, ∅.
+    (* λ id, *)
+    (*   foldl (λ p m, *)
+    (*     if (id = p.(pi_id)) *)
+    (*     then <[ p.(pi_γ) := p.(pi_) ] *)
+    (*   ) (ø) ps. *)
+
+  (* TODO: This is the key result that we wand to prove. *)
+  Lemma build_full_properties picks ps :
+    let gt := build_full_promises picks ps
+    in picks ⊆ gt ∧ picks_resp_promises gt ps.
+  Proof.
+  Admitted.
+
   Definition nextgen P : iProp Σ :=
     ∃ picks (m : iResUR Σ) (ps : list (promise_info)),
       (* We own resources for everything in [picks]. *)
