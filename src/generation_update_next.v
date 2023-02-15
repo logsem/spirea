@@ -252,15 +252,49 @@ We need
 - To be able to do an ∧ or a ∗ over the transformation functions.
 *)
 
-(* Definition of the next generation modality. *)
-Section next_gen_definition.
+Section picks.
   Context `{Σ : gFunctors}.
 
   (** [Picks] contains transformation functions for a subset of ghost names. It is
   the entries that we have picked generational transformation for. *)
   Definition Picks : Type := ∀ i, gmap gname (R Σ i → R Σ i).
 
-  Implicit Types (picks : Picks).
+  #[global]
+  Instance picks_subseteq : SubsetEq Picks :=
+    λ p1 p2, ∀ i, p1 i ⊆ p2 i.
+
+  (** Every pick in [picks] is a valid generational transformation and satisfies
+  the conditions for that cmra in [Ω]. *)
+  Definition picks_valid (picks : Picks) :=
+    ∀ i γ t, picks i !! γ = Some t → GenTrans t.
+
+  (** Build a global generational transformation based on the picks in [picks]. *)
+  Definition build_trans (picks : Picks) : (iResUR Σ → iResUR Σ) :=
+    λ (m : iResUR Σ) (i : gid Σ),
+      map_imap (λ γ a,
+        (* If the map of picks contains a transformation then we apply the
+         * transformation. If no pick exists then we return the elemment
+         * unchanged. Hence, we default to the identity transformation. *)
+        match picks i !! γ with
+        | Some picked_gt => Some $ map_unfold $ picked_gt $ map_fold a
+        | None => Some a
+        end
+      ) (m i).
+
+  #[global]
+  Lemma build_trans_generation picks :
+    picks_valid picks → GenTrans (build_trans picks).
+  Proof. Admitted.
+
+End picks.
+
+Arguments Picks Σ : clear implicits.
+
+(* Definition of the next generation modality. *)
+Section next_gen_definition.
+  Context `{Σ : gFunctors}.
+
+  Implicit Types (picks : Picks Σ).
 
   (** Information about a promise _except_ for any information concerning its
    * dependencies. This lets us talk about a promise without having to talk
@@ -322,32 +356,11 @@ Section next_gen_definition.
           picks i !! γ = Some (cmra_map_transport eq (gen_generation DS t)) ∧
           a ≡ map_unfold (cmra_transport eq (None, GTS_tok_gen_shot t, None, ε))).
 
-  (** Every pick in [picks] is a valid generational transformation and satisfies
-  the conditions for that cmra in [Ω]. *)
-  (* FIXME: Reintroduce this but remove the omega part. *)
-  (* Definition picks_valid {Σ} (Ω : gTransforms) (picks : Picks Σ) := *)
-  (*   ∀ i γ t, picks i !! γ = Some t → *)
-  (*     GenTrans t ∧ *)
-  (*     ∃ gti, Ω.(g_valid_gt) i = Some2 gti ∧ gti.(gti_valid).(gt_condition) t. *)
-
   Definition own_promises (ps : list promise_info) : iProp Σ :=
     ⌜ True ⌝. (* TODO *)
 
-  (** Build a global generational transformation based on the picks in [picks]. *)
-  Definition build_trans (picks : Picks) : (iResUR Σ → iResUR Σ) :=
-    λ (m : iResUR Σ) (i : gid Σ),
-      map_imap (λ γ a,
-        (* If the map of picks contains a transformation then we apply the
-         * transformation. If no pick exists then we return the elemment
-         * unchanged. Hence, we default to the identity transformation. *)
-        match picks i !! γ with
-        | Some picked_gt => Some $ map_unfold $ picked_gt $ map_fold a
-        | None => Some a
-        end
-      ) (m i).
-
   (* The global transformation [fG] respects the entries in [picks]. *)
-  Definition gt_resp_picks (fG : iResUR Σ → iResUR Σ) (picks : Picks) :=
+  Definition gt_resp_picks (fG : iResUR Σ → iResUR Σ) picks :=
     ∀ (m : iResUR Σ) i γ a t,
       m i !! γ = Some a → (* For every element in the old element. *)
       picks i !! γ = Some t →
@@ -358,11 +371,11 @@ Section next_gen_definition.
   (*   picks p.(psi_id) !! p.(psi_γ) = Some t ∧ p.(psi_pred) t. *)
 
   (** [picks] satisfied the preds of [p] *)
-  Definition picks_satisfy_pred (picks : Picks) (p : promise_self_info) :=
+  Definition picks_satisfy_pred picks (p : promise_self_info) :=
     ∃ t, picks p.(psi_id) !! p.(psi_γ) = Some t ∧ p.(psi_pred) t.
 
   (** [picks] satisfied the preds of the dependencies of [p] *)
-  Definition picks_satisfy_deps_pred (picks : Picks) (p : promise_info) :=
+  Definition picks_satisfy_deps_pred picks (p : promise_info) :=
     ∀ (idx : fin p.(pi_n)),
       picks_satisfy_pred picks (p.(pi_deps) !!! idx).
 
@@ -395,14 +408,17 @@ Section next_gen_definition.
   (* Idea: Instead of abstracting over [fG] we abstract over a [picks] that
   covers existing picks and that respect promises. *)
   Definition nextgen P : iProp Σ :=
-    ∃ (picks : Picks) (m : iResUR Σ) (ps : list (promise_info)),
+    ∃ picks (m : iResUR Σ) (ps : list (promise_info)),
       (* We own resources for everything in [picks]. *)
       uPred_ownM m ∗ ⌜ m_contains_tokens_for_picks (* Ω *) picks m ⌝ ∗
       (* We own resources for promises. *)
       own_promises ps ∗
       ⌜ promises_well_formed ps ⌝ ∗
-      ∀ (fG : iResUR Σ → _) (_ : GenTrans fG) (_ : gt_resp_picks fG picks),
-        ⚡={fG}=> P.
+      ∀ full_picks (val : picks_valid full_picks),
+        ⌜ picks_resp_promises full_picks ps ⌝ ∗
+        ⌜ picks ⊆ full_picks ⌝ ∗
+        let _ := build_trans_generation full_picks val in (* Why is this instance not found automatically? *)
+        ⚡={build_trans full_picks}=> P.
 
 End next_gen_definition.
 
@@ -555,11 +571,11 @@ Section rules.
     iSplit. { iPureIntro. apply m_contains_tokens_for_picks_empty. }
     iSplit; first done.
     iSplit; first done.
-    iIntros (fG ? resp).
+    iIntros (full_picks).
 
     iEval (rewrite own.own_eq) in "own".
     rewrite /own.own_def.
-    iModIntro.
+    (* iModIntro. *)
   Admitted.
   (*   iDestruct (uPred_own_resp_omega _ _ with "own") as (to) "(%cond & own)". *)
   (*   { done. } *)
