@@ -189,12 +189,12 @@ Section hvec.
   (* Compute (icons nat (icons bool (icons (fin 0) inil))) !!! 1%fin. *)
 
   (** Turns a function over [fin n] into an [hvec] of length [n]. *)
-  Equations lookup_to_hvec {n} (As : ivec n A)
+  Equations fun_to_hvec {n} (As : ivec n A)
     (f : ∀ (i : fin n), F (As !!! i)) : hvec F n As :=
   | inil, _ => []
   | icons A As', f =>
-      hcons (f 0%fin : F A) (lookup_to_hvec As' (λ i, f (FS i))).
-  Global Transparent lookup_to_hvec.
+      hcons (f 0%fin : F A) (fun_to_hvec As' (λ i, f (FS i))).
+  Global Transparent fun_to_hvec.
 
   Equations hvec_lookup {n As} (l : hvec F n As) (i : fin n) : F (As !!! i) :=
     hvec_lookup (xx :: _) 0%fin := xx ;
@@ -207,7 +207,7 @@ Section hvec.
     @hvec_lookup_fmap _ (_ :: _) (_ :: xs) (FS i') := hvec_lookup_fmap xs i'.
 
   Equations hvec_lookup_to_vec_involution n (As : ivec n A) f i :
-    (hvec_lookup (lookup_to_hvec As f)) i = f i :=
+    (hvec_lookup (fun_to_hvec As f)) i = f i :=
   hvec_lookup_to_vec_involution _ (_ :: _) f 0%fin => eq_refl ;
   hvec_lookup_to_vec_involution n1 (_ :: As') f (FS i) =>
     hvec_lookup_to_vec_involution n1 As' (λ i, f (FS i)) i.
@@ -215,12 +215,12 @@ Section hvec.
   (* Alternative proof of the above using tactics and [dependent elimination]
   * instead of dependent pattern matching. *)
   (* Lemma hvec_lookup_to_vec_involution' {n} {As : ivec n A} l i : *)
-  (*   (hvec_lookup (lookup_to_hvec As l)) i = l i. *)
+  (*   (hvec_lookup (fun_to_hvec As l)) i = l i. *)
   (* Proof. *)
   (*   induction As. *)
   (*   { dependent elimination i. } *)
   (*   dependent elimination i. *)
-  (*   - simp lookup_to_hvec hvec_lookup. done. *)
+  (*   - simp fun_to_hvec hvec_lookup. done. *)
   (*   - specialize (IHAs (λ i, l (FS i)) t). *)
   (*     apply IHAs. *)
   (* Qed. *)

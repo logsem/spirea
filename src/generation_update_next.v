@@ -306,13 +306,45 @@ Section next_gen_definition.
     psi_pred : T Σ psi_id → Prop;
   }.
 
+  Definition deps_to_trans n (deps : ivec n promise_self_info) :=
+    hvec (λ dep, T Σ dep.(psi_id)) n deps.
+
   (** The transformations [ts] satisfies the predicates [ps]. *)
   Equations deps_preds_hold {n}
       (deps : ivec n promise_self_info)
-      (ts : hvec (λ dep, T Σ dep.(psi_id)) n deps) : Prop :=
-    | icons d deps', hcons t ts' := d.(psi_pred) t ∧ deps_preds_hold deps' ts';
-    | inil, hnil := True.
-  Global Transparent deps_preds_hold.
+      (ts : deps_to_trans n deps) : Prop :=
+    | inil, hnil := True
+    | icons d deps', hcons t ts' := d.(psi_pred) t ∧ deps_preds_hold deps' ts'.
+  (* Global Transparent deps_preds_hold. *)
+
+  Lemma deps_preds_hold_alt {n}
+      (deps : ivec n promise_self_info)
+      (ts : hvec (λ dep, T Σ dep.(psi_id)) n deps) :
+    deps_preds_hold deps ts ↔ ∀ i, (deps !!! i).(psi_pred) (ts 👀 i).
+  Proof.
+    split.
+    - intros holds.
+      intros i.
+      induction i as [hi|ho] eqn:eq.
+      * dependent elimination ts.
+        destruct holds as [pred ?].
+        apply pred.
+      * dependent elimination deps.
+        dependent elimination ts.
+        rewrite deps_preds_hold_equation_2 in holds.
+        destruct holds as [? holds].
+        apply (IHt _ _ holds t).
+        done.
+    - intros i.
+      induction deps.
+      * dependent elimination ts. done.
+      * dependent elimination ts.
+        rewrite deps_preds_hold_equation_2.
+        split. { apply (i 0%fin). }
+        apply IHdeps.
+        intros i'.
+        apply (i (FS i')).
+  Qed.
 
   (** A record of all the information that is a associated with a promise. Note
    * that we use [promise_self_info] for the dependencies, this cuts off what
@@ -324,7 +356,10 @@ Section next_gen_definition.
     pi_n : nat; (* The number of dependencies. *)
     pi_deps : ivec pi_n promise_self_info;
     (* The predicate that relates our transformation to those of the dependencies. *)
-    pi_rel : hvec (λ dep, T Σ dep.(psi_id)) pi_n pi_deps → T Σ pi_id → Prop;
+    (* pi_rel : hvec (λ dep, T Σ dep.(psi_id)) pi_n pi_deps → T Σ pi_id → Prop; *)
+    pi_rel : deps_to_trans pi_n pi_deps → T Σ pi_id → Prop;
+    (* A predicate that holds for the promise's own transformation whenever
+    * [pi_rel] holds. A "canonical" choice could be: [λ t, ∃ ts, pi_rel ts t]. *)
     pi_pred : T Σ pi_id → Prop;
     pi_rel_to_pred : ∀ ts t, pi_rel ts t → pi_pred t;
     pi_witness : ∀ ts, deps_preds_hold pi_deps ts → ∃ t, pi_rel ts t;
@@ -357,7 +392,7 @@ Section next_gen_definition.
           a ≡ map_unfold (cmra_transport eq (None, GTS_tok_gen_shot t, None, ε))).
 
   Definition own_promises (ps : list promise_info) : iProp Σ :=
-    ⌜ True ⌝. (* TODO *)
+    ⌜ True ⌝. (* TODO: *)
 
   (* The global transformation [fG] respects the entries in [picks]. *)
   Definition gt_resp_picks (fG : iResUR Σ → iResUR Σ) picks :=
@@ -370,15 +405,16 @@ Section next_gen_definition.
   (* Definition picks_lookup_p picks p := *)
   (*   picks p.(psi_id) !! p.(psi_γ) = Some t ∧ p.(psi_pred) t. *)
 
-  (** [picks] satisfied the preds of [p] *)
+  (** [picks] satisfies the preds of [p] *)
   Definition picks_satisfy_pred picks (p : promise_self_info) :=
-    ∃ t, picks p.(psi_id) !! p.(psi_γ) = Some t ∧ p.(psi_pred) t.
+    { t & picks p.(psi_id) !! p.(psi_γ) = Some t ∧ p.(psi_pred) t}.
 
-  (** [picks] satisfied the preds of the dependencies of [p] *)
+  (** [picks] satisfies the preds of the dependencies of [p] *)
   Definition picks_satisfy_deps_pred picks (p : promise_info) :=
     ∀ (idx : fin p.(pi_n)),
       picks_satisfy_pred picks (p.(pi_deps) !!! idx).
 
+  (** The transformations in [picks] satisfy the relation in [p]. *)
   Definition picks_satisfy_rel picks p :=
     ∃ trans t,
       picks p.(pi_id) !! p.(pi_γ) = Some t ∧
@@ -387,12 +423,40 @@ Section next_gen_definition.
         in picks dep.(psi_id) !! dep.(psi_γ) = Some (trans 👀 idx)) ∧
       p.(pi_rel) trans t.
 
-  Lemma picks_extract_trans_vec picks p :
-    picks_satisfy_deps_pred picks p → ∃ ts, deps_preds_hold p.(pi_deps) ts.
+  Lemma picks_satisfy_extract_fun picks p :
+    picks_satisfy_deps_pred picks p →
+    ∀ i, (λ dep, T Σ dep.(psi_id)) (p.(pi_deps) !!! i).
   Proof.
-    intros ?.
-    induction p.(pi_deps).
-  Admitted.
+    intros sat i. simpl.
+    destruct (sat i) as (t & ? & ?).
+    apply t.
+  Defined.
+
+  Definition picks_extract_trans_vec picks p
+      (sat : picks_satisfy_deps_pred picks p) :=
+    fun_to_hvec (pi_deps p) (picks_satisfy_extract_fun picks p sat).
+
+  Lemma picks_extract_trans_vec_holds picks p sat :
+    deps_preds_hold p.(pi_deps) (picks_extract_trans_vec picks p sat).
+  Proof.
+    apply deps_preds_hold_alt.
+    intros i.
+    rewrite hvec_lookup_to_vec_involution.
+    rewrite /picks_satisfy_extract_fun.
+    destruct (sat i) as (t & ? & pred).
+    apply pred.
+  Qed.
+
+  (* If we have a map of picks that satisfy the dependency predicates of a
+  * promise then we can extract the witness, i.e., a transformation that,
+  * together with the transformations from the picks, will satisfy the promises
+  * relation. *)
+  Lemma promise_get_witness picks p (sat : picks_satisfy_deps_pred picks p) :
+    ∃ t, p.(pi_rel) (picks_extract_trans_vec picks p sat) t.
+  Proof.
+    apply p.(pi_witness).
+    apply picks_extract_trans_vec_holds.
+  Qed.
 
   (** The [picks] respect the promises in [ps]. This means that there is a pick
    * for every promise and that all the relations in the promises are satisfied
@@ -413,7 +477,18 @@ Section next_gen_definition.
   (* For soundness we need to be able to build a map of gts that agree with
    * picks and that satisfy all promises.
 
-     We need to be able to extend picks along a list of promises. *)
+     We need to be able to extend picks along a list of promises.
+
+     We must also be able to combine to lists of promises.
+  *)
+
+  (* Equations promises_lookup *)
+  (*   (ps : list (promise_info)) (id : gid Σ) (γ : gname) : option (T Σ id) := *)
+  (* | [], id, γ => None *)
+  (* | p :: ps', id, γ with (decide (p.(pi_id) = id)) => { *)
+  (*   | left eq_refl => Some (p.(pi_)) *)
+  (*   | right neq => _ *)
+  (* }. *)
 
   (* Turn a map of picks and a list of promises into a full map of picks. *)
   Definition build_full_promises picks (ps : list (promise_info)) : Picks Σ :=
@@ -424,7 +499,7 @@ Section next_gen_definition.
     (*     then <[ p.(pi_γ) := p.(pi_) ] *)
     (*   ) (ø) ps. *)
 
-  (* TODO: This is the key result that we wand to prove. *)
+  (* TODO: This is the key result that we want to prove. *)
   Lemma build_full_properties picks ps :
     let gt := build_full_promises picks ps
     in picks ⊆ gt ∧ picks_resp_promises gt ps.
