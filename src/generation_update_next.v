@@ -281,10 +281,79 @@ Section picks.
         end
       ) (m i).
 
+  Lemma core_Some_pcore {A : cmra} (a : A) : core (Some a) = pcore a.
+  Proof. done. Qed.
+
   #[global]
   Lemma build_trans_generation picks :
     picks_valid picks → GenTrans (build_trans picks).
-  Proof. Admitted.
+  Proof.
+    intros picksGT.
+    rewrite /build_trans.
+    split.
+    - rewrite /Proper.
+      intros ??? eq i γ.
+      rewrite 2!map_lookup_imap.
+      specialize (eq i γ).
+      destruct eq as [a b eq|]; simpl; last done.
+      destruct (picks i !! γ) eqn:look.
+      * apply picksGT in look as [gt ?]. solve_proper.
+      * solve_proper.
+    - intros ?? Hval.
+      intros i γ.
+      rewrite !map_lookup_imap. simpl.
+      specialize (Hval i γ).
+      destruct (a i !! γ) eqn:eq; rewrite eq /=; last done.
+      rewrite eq in Hval.
+      destruct (picks i !! γ) as [pick|] eqn:eq2.
+      * apply Some_validN.
+        apply: cmra_morphism_validN.
+        apply Some_validN.
+        specialize (picksGT i γ pick eq2) as [??].
+        apply generation_valid.
+        apply: cmra_morphism_validN.
+        apply Hval.
+      * done.
+    - move=> m /=.
+      rewrite cmra_pcore_core.
+      simpl.
+      f_equiv.
+      intros i γ.
+      rewrite lookup_core.
+      rewrite 2!map_lookup_imap.
+      rewrite lookup_core.
+      destruct (m i !! γ) as [a|] eqn:look; rewrite look; simpl; last done.
+      simpl.
+      rewrite core_Some_pcore.
+      destruct (picks i !! γ) as [pick|] eqn:pickLook; simpl.
+      * rewrite core_Some_pcore.
+        rewrite -cmra_morphism_pcore.
+        specialize (picksGT i γ pick pickLook) as ?.
+        rewrite -generation_pcore.
+        rewrite -(cmra_morphism_pcore map_fold).
+        (* rewrite -cmra_morphism_pcore. *)
+        destruct (pcore a); try done.
+      * rewrite core_Some_pcore.
+        destruct (pcore a); done.
+    - intros m1 m2.
+      intros i γ.
+      rewrite 2!discrete_fun_lookup_op.
+      rewrite !map_lookup_imap.
+      rewrite 2!lookup_op.
+      rewrite !map_lookup_imap.
+      destruct (picks i !! γ) as [pick|] eqn:pickLook.
+      * specialize (picksGT i γ pick pickLook) as ?.
+        destruct (m1 i !! γ) eqn:eq1; destruct (m2 i !! γ) eqn:eq2;
+          rewrite eq1 eq2; simpl; try done.
+        rewrite -Some_op.
+        rewrite -cmra_morphism_op.
+        rewrite -generation_op.
+        rewrite -cmra_morphism_op.
+        done.
+      * destruct (m1 i !! γ) eqn:eq1;
+        destruct (m2 i !! γ) eqn:eq2;
+          rewrite eq1 eq2; simpl; try done.
+  Qed.
 
 End picks.
 
