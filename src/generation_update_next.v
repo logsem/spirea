@@ -323,8 +323,7 @@ Section next_gen_definition.
     deps_preds_hold deps ts ↔ ∀ i, (deps !!! i).(psi_pred) (ts 👀 i).
   Proof.
     split.
-    - intros holds.
-      intros i.
+    - intros holds i.
       induction i as [hi|ho] eqn:eq.
       * dependent elimination ts.
         destruct holds as [pred ?].
@@ -377,30 +376,6 @@ Section next_gen_definition.
     - Merge two lists of promises.
    *)
 
-  (* The resource [m] contains the agreement resources for all the picks in
-  [picks]. *)
-  Definition m_contains_tokens_for_picks picks (m : iResUR Σ) :=
-    ∀ i,
-      dom (picks i) ≡ dom (m i) ∧
-      (∀ (γ : gname) (a : Rpre Σ i),
-        m i !! γ = Some a  →
-        (* NOTE: Maybe we'll need to pull this equality out of a global map as before. *)
-        ∃ n (A : cmra) (DS : deps n) (eq : generational_cmraR A DS = R Σ i) (t : A → A),
-        (* ∃ gti (t : gti.(gti_car) → gti.(gti_car)), *)
-          (* Ω.(g_valid_gt) i = Some2 gti ∧ *)
-          picks i !! γ = Some (cmra_map_transport eq (gen_generation DS t)) ∧
-          a ≡ map_unfold (cmra_transport eq (None, GTS_tok_gen_shot t, None, ε))).
-
-  Definition own_promises (ps : list promise_info) : iProp Σ :=
-    ⌜ True ⌝. (* TODO: *)
-
-  (* The global transformation [fG] respects the entries in [picks]. *)
-  Definition gt_resp_picks (fG : iResUR Σ → iResUR Σ) picks :=
-    ∀ (m : iResUR Σ) i γ a t,
-      m i !! γ = Some a → (* For every element in the old element. *)
-      picks i !! γ = Some t →
-      (fG m) i !! γ = Some (map_unfold (t (map_fold a))).
-
   (** Lookup the transformation in [picks] that correspond to [p]. *)
   (* Definition picks_lookup_p picks p := *)
   (*   picks p.(psi_id) !! p.(psi_γ) = Some t ∧ p.(psi_pred) t. *)
@@ -432,6 +407,8 @@ Section next_gen_definition.
     apply t.
   Defined.
 
+  (* Given a promise [p] and a map of [picks] that satisfy it we define a
+  * vector of all the transformations for the promise's dependencies. *)
   Definition picks_extract_trans_vec picks p
       (sat : picks_satisfy_deps_pred picks p) :=
     fun_to_hvec (pi_deps p) (picks_satisfy_extract_fun picks p sat).
@@ -506,12 +483,41 @@ Section next_gen_definition.
   Proof.
   Admitted.
 
+  (* The resource [m] contains the agreement resources for all the picks in
+  [picks]. *)
+  Definition m_contains_tokens_for_picks picks (m : iResUR Σ) :=
+    ∀ i,
+      dom (picks i) ≡ dom (m i) ∧
+      (∀ γ (a : Rpre Σ i),
+        m i !! γ = Some a  →
+        (* NOTE: Maybe we'll need to pull this equality out of a global map as
+         * before. *)
+        ∃ n (A : cmra) (DS : deps n)
+          (eq : generational_cmraR A DS = R Σ i) (t : A → A),
+        (* ∃ gti (t : gti.(gti_car) → gti.(gti_car)), *)
+          (* Ω.(g_valid_gt) i = Some2 gti ∧ *)
+          picks i !! γ = Some (cmra_map_transport eq (gen_generation DS t)) ∧
+          a ≡ map_unfold (cmra_transport eq (None, GTS_tok_gen_shot t, None, ε))).
+
+  Definition own_picks picks : iProp Σ :=
+    ∃ m, uPred_ownM m ∗ ⌜ m_contains_tokens_for_picks picks m ⌝.
+
+  Definition own_promises (ps : list promise_info) : iProp Σ :=
+    ⌜ True ⌝. (* TODO: *)
+
+  (* The global transformation [fG] respects the entries in [picks].
+   * NOTE: We may not need this given how [⚡==>] now quantifies over picks and
+   * not global transformations. *)
+  Definition gt_resp_picks (fG : iResUR Σ → iResUR Σ) picks :=
+    ∀ (m : iResUR Σ) i γ a t,
+      m i !! γ = Some a → (* For every element in the old element. *)
+      picks i !! γ = Some t →
+      (fG m) i !! γ = Some (map_unfold (t (map_fold a))).
+
   Definition nextgen P : iProp Σ :=
-    ∃ picks (m : iResUR Σ) (ps : list (promise_info)),
-      (* We own resources for everything in [picks]. *)
-      uPred_ownM m ∗ ⌜ m_contains_tokens_for_picks (* Ω *) picks m ⌝ ∗
-      (* We own resources for promises. *)
-      own_promises ps ∗
+    ∃ picks (ps : list (promise_info)),
+      (* We own resources for everything in [picks] and [promises]. *)
+      own_picks picks ∗ own_promises ps ∗
       ⌜ promises_well_formed ps ⌝ ∗
       ∀ full_picks (val : picks_valid full_picks),
         ⌜ picks_resp_promises full_picks ps ⌝ ∗
@@ -665,9 +671,10 @@ Section rules.
     token γ γs R P ⊢ ⚡==> token γ γs R P.
   Proof.
     iDestruct 1 as (??) "own".
-    iExists (λ i, ∅), ε, [].
-    iSplit; first by iApply ownM_unit'.
-    iSplit. { iPureIntro. apply m_contains_tokens_for_picks_empty. }
+    iExists (λ i, ∅), [].
+    iSplitL "".
+    { iExists ε. rewrite ownM_unit' left_id. iPureIntro.
+      apply m_contains_tokens_for_picks_empty. }
     iSplit; first done.
     iSplit; first done.
     iIntros (full_picks).
