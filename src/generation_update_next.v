@@ -110,9 +110,9 @@ Proof. naive_solver. Qed.
 
 (* Resources for generational ghost state. *)
 
-(* Resource algebra for promises. *)
+(* Resource algebra for the dependency relation in promises. *)
 (* Q: Do we need to store both R and P or only R?? *)
-Section promises_cmra.
+Section dependency_relation_cmra.
   Context {n : nat}.
 
   Canonical Structure pred_over_tyO (A : Type) (DS : deps_ty n) :=
@@ -140,7 +140,33 @@ Section promises_cmra.
     (ps : list (pred_over_ty DS A)) : auth (promises A DS) :=
     ◯ (to_max_prefix_list ps).
 
-End promises_cmra.
+End dependency_relation_cmra.
+
+Section dependency_relation_extra.
+  Context {n} {A : cmra} {DS : deps n}.
+  Implicit Types (R : pred_over DS A) (P : (A → A) → Prop).
+
+  Definition pred_stronger (R1 R2 : pred_over DS A) :=
+    ∀ (ts : trans_for n DS) (t : A → A),
+      huncurry R1 ts t → huncurry R2 ts t.
+
+  Definition pred_weaker (R1 R2 : pred_over DS A) := pred_stronger R2 R1.
+
+  Definition rel_implies_pred R P : Prop :=
+    ∀ (ts : trans_for n DS) (t : A → A), huncurry R ts t → P t.
+
+  Definition pred_prefix_list_for (all : list (pred_over DS A)) R :=
+    (* The given promise [R] is the last promise out of all promises. *)
+    last all = Some R ∧
+    (* The list of promises increases in strength. *)
+    ∀ i j (Ri Rj : pred_over DS A),
+      i ≤ j → all !! i = Some Ri → all !! j = Some Rj → pred_weaker Ri Rj.
+
+  (* Includes [P] as well. *)
+  Definition pred_prefix_list_for' (all : list (pred_over DS A)) R P :=
+    pred_prefix_list_for all R ∧ rel_implies_pred R P.
+
+End dependency_relation_extra.
 
 Definition generational_cmra {n} A (DS : deps_ty n) : Type :=
   option (agree (A → A)) * GTS (A → A) * option A * gen_pv (auth (promises A DS)).
@@ -360,7 +386,7 @@ End picks.
 Arguments Picks Σ : clear implicits.
 
 (* Definition of the next generation modality. *)
-Section next_gen_definition.
+Section promises.
   Context `{Σ : gFunctors}.
 
   Implicit Types (picks : Picks Σ).
@@ -494,9 +520,9 @@ Section next_gen_definition.
   Qed.
 
   (* If we have a map of picks that satisfy the dependency predicates of a
-  * promise then we can extract the witness, i.e., a transformation that,
-  * together with the transformations from the picks, will satisfy the promises
-  * relation. *)
+   * promise then we can extract the witness, i.e., a transformation that,
+   * together with the transformations from the picks, will satisfy the
+   * promises relation. *)
   Lemma promise_get_witness picks p (sat : picks_satisfy_deps_pred picks p) :
     ∃ t, p.(pi_rel) (picks_extract_trans_vec picks p sat) t.
   Proof.
@@ -510,15 +536,25 @@ Section next_gen_definition.
   Definition picks_resp_promises picks (ps : list (promise_info)) :=
     ∀ i p, ps !! i = Some p → picks_satisfy_rel picks p.
 
-  Definition promise_well_formed (promises : list (promise_info)) p i :=
+  Definition promises_unique (promises : list promise_info) : Prop :=
+    ∀ i j p1 p2, i ≠ j → promises !! i = Some p1 → promises !! i = Some p2 →
+      p1.(pi_id) ≠ p2.(pi_id) ∨ p1.(pi_γ) ≠ p2.(pi_γ).
+
+  Definition promise_well_formed (promises : list promise_info) p i :=
     ∀ (idx : fin p.(pi_n)),
       ∃ j p_d,
         promises !! j = Some p_d ∧
-        j < i ∧ (* The dependency is prior in the list. *)
+        j > i ∧ (* The dependency is later in the list. *)
         p.(pi_deps) !!! idx = promise_info_to_self p_d.
 
   Definition promises_well_formed (promises : list (promise_info)) :=
+    promises_unique promises ∧
     ∀ i p, promises !! i = Some p → promise_well_formed promises p i.
+
+  Lemma promises_well_formed_cons p promises :
+    promises_well_formed (p :: promises) → promises_well_formed promises.
+  Proof.
+  Admitted.
 
   (* For soundness we need to be able to build a map of gts that agree with
    * picks and that satisfy all promises.
@@ -536,6 +572,32 @@ Section next_gen_definition.
   (*   | right neq => _ *)
   (* }. *)
 
+  (* When we store picks we also need to store the promises that they are
+   * related with. We store these promises in a map. This map should contain
+   * promises at the "right" indices which this definition expresses. *)
+  Definition promise_map_well_formed (pm : ∀ i, gmap gname promise_info) : Prop :=
+    ∀ i γ p, (pm i) !! γ = Some p → p.(pi_id) = i ∧ p.(pi_γ) = γ.
+
+  (* TODO: We need to store evidence that the picks in [picks] satisfies the
+   * relations and predicates in the [promises]. *)
+
+  Lemma promises_to_maps (promises : list promise_info) :
+    promises_well_formed promises →
+    ∃ (picks : Picks Σ), picks_resp_promises picks promises.
+  Proof.
+    induction promises as [|p promises' IH].
+    - intros _. exists (λ i, ∅). simpl.
+      intros ? ?. inversion 1.
+    - intros WF.
+      destruct IH as [picks ?].
+      { eapply promises_well_formed_cons. apply WF. }
+      (* We need to insert into picks. *)
+  (* TODO: *) Admitted.
+
+  Program Definition promises_to_maps (promises : list promise_info)
+    (_ : promises_well_formed promises) : Picks Σ :=
+    _.
+
   (* Turn a map of picks and a list of promises into a full map of picks. *)
   Definition build_full_promises picks (ps : list (promise_info)) : Picks Σ :=
     λ id, ∅.
@@ -552,6 +614,16 @@ Section next_gen_definition.
   Proof.
   Admitted.
 
+End promises.
+
+Arguments promise_info Σ : clear implicits.
+Arguments promise_self_info Σ : clear implicits.
+
+Section next_gen_definition.
+  Context `{Σ : gFunctors}.
+
+  Implicit Types (picks : Picks Σ).
+
   (* The resource [m] contains the agreement resources for all the picks in
   [picks]. *)
   Definition m_contains_tokens_for_picks picks (m : iResUR Σ) :=
@@ -562,16 +634,18 @@ Section next_gen_definition.
         (* NOTE: Maybe we'll need to pull this equality out of a global map as
          * before. *)
         ∃ n (A : cmra) (DS : deps n)
-          (eq : generational_cmraR A DS = R Σ i) (t : A → A),
+          (eq : generational_cmraR A DS = R Σ i) (t : A → A) R Rs,
         (* ∃ gti (t : gti.(gti_car) → gti.(gti_car)), *)
           (* Ω.(g_valid_gt) i = Some2 gti ∧ *)
           picks i !! γ = Some (cmra_map_transport eq (gen_generation DS t)) ∧
-          a ≡ map_unfold (cmra_transport eq (None, GTS_tok_gen_shot t, None, ε))).
+          pred_prefix_list_for Rs R ∧
+          a ≡ map_unfold (cmra_transport eq
+            (None, GTS_tok_gen_shot t, None, gV (●□ (to_max_prefix_list Rs))))).
 
   Definition own_picks picks : iProp Σ :=
     ∃ m, uPred_ownM m ∗ ⌜ m_contains_tokens_for_picks picks m ⌝.
 
-  Definition own_promises (ps : list promise_info) : iProp Σ :=
+  Definition own_promises (ps : list (promise_info Σ)) : iProp Σ :=
     ⌜ True ⌝. (* TODO: *)
 
   (* The global transformation [fG] respects the entries in [picks].
@@ -584,7 +658,7 @@ Section next_gen_definition.
       (fG m) i !! γ = Some (map_unfold (t (map_fold a))).
 
   Definition nextgen P : iProp Σ :=
-    ∃ picks (ps : list (promise_info)),
+    ∃ picks (ps : list (promise_info Σ)),
       (* We own resources for everything in [picks] and [promises]. *)
       own_picks picks ∗ own_promises ps ∗
       ⌜ promises_well_formed ps ⌝ ∗
@@ -608,12 +682,6 @@ Section picks_properties.
 
 End picks_properties.
 
-Section promise_properties.
-
-End promise_properties.
-
-Definition dummy_use_ing {n : nat} {DS : deps n} `{!genInG Σ A DS} := True.
-
 (* Ownership over generational ghost state. *)
 
 Section generational_resources.
@@ -635,45 +703,27 @@ Section generational_resources.
   Definition gen_token γ : iProp Σ :=
     own γ ((None, GTS_tok_both, None, ε)).
 
-  Definition pred_stronger (R1 R2 : pred_over DS A) :=
-    ∀ (ts : trans_for n DS) (t : A → A),
-      huncurry R1 ts t → huncurry R2 ts t.
-
-  Definition pred_weaker (R1 R2 : pred_over DS A) := pred_stronger R2 R1.
-
-  Definition rel_implies_pred R P : Prop :=
-    ∀ (ts : trans_for n DS) (t : A → A), huncurry R ts t → P t.
-
-  Definition pred_prefix_list_for (all : list (pred_over DS A)) R P :=
-    (* The given promise [R] is the last promise out of all promises. *)
-    last all = Some R ∧
-    rel_implies_pred R P ∧
-    (* The list of promises increases in strength. *)
-    ∀ i j (Ri Rj : pred_over DS A),
-        i ≤ j → all !! i = Some Ri →
-                all !! j = Some Rj → pred_weaker Ri Rj.
-
   (** Ownership over the token and the promises for [γ]. *)
   Definition token (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
     ∃ (all : list (pred_over DS A)),
-      ⌜ pred_prefix_list_for all R P ⌝ ∗
+      ⌜ pred_prefix_list_for' all R P ⌝ ∗
       own γ ((None, GTS_tok_both, None,
                gPV (● (to_max_prefix_list all))) : generational_cmraR A DS).
 
   Definition used_token (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
     ∃ (all : list (pred_over DS A)),
-      ⌜ pred_prefix_list_for all R P ⌝ ∗
+      ⌜ pred_prefix_list_for' all R P ⌝ ∗
       own γ ((
         None,
         GTS_tok_both,
         None,
-        gP (● to_max_prefix_list all) ⋅ gV (●{#1/2} to_max_prefix_list all)
+        gP (● to_max_prefix_list all) ⋅ gV (●□ to_max_prefix_list all)
       ) : generational_cmraR A DS).
 
   (** Knowledge that γ is accociated with the predicates R and P. *)
   Definition rely (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
     ∃ (all : list (pred_over DS A)),
-      ⌜ pred_prefix_list_for all R P ⌝ ∗
+      ⌜ pred_prefix_list_for' all R P ⌝ ∗
       own γ ((None, (None, None), None,
               gPV (◯ to_max_prefix_list all)) : generational_cmraR A DS).
 
@@ -747,7 +797,6 @@ Section rules.
     iSplit; first done.
     iSplit; first done.
     iIntros (full_picks).
-
     iEval (rewrite own.own_eq) in "own".
     rewrite /own.own_def.
     (* iModIntro. *)
@@ -794,8 +843,8 @@ Section rules.
     rewrite auth_both_valid_discrete.
     rewrite to_max_prefix_list_included_L.
     intros [prefix _].
-    destruct prefix1 as (isLast1 & ? & look1).
-    destruct prefix2 as (isLast2 & ? & look2).
+    destruct prefix1 as [(isLast1 & look1) ?].
+    destruct prefix2 as [(isLast2 & look2) ?].
     rewrite last_lookup in isLast1.
     rewrite last_lookup in isLast2.
     eapply look1; last done.
@@ -817,8 +866,8 @@ Section rules.
     rewrite gen_pv_op. rewrite gen_pv_valid.
     rewrite auth_frag_valid.
     rewrite to_max_prefix_list_op_valid_L.
-    destruct prefix1 as (isLast1 & ? & look1).
-    destruct prefix2 as (isLast2 & ? & look2).
+    destruct prefix1 as [(isLast1 & look1) ?].
+    destruct prefix2 as [(isLast2 & look2) ?].
     rewrite last_lookup in isLast1.
     rewrite last_lookup in isLast2.
     intros [prefix | prefix].
