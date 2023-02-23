@@ -282,8 +282,8 @@ Section picks.
   Context `{Σ : gFunctors}.
 
   (** [Picks] contains transformation functions for a subset of ghost names. It is
-  the entries that we have picked generational transformation for. *)
-  Definition Picks : Type := ∀ i, gmap gname (R Σ i → R Σ i).
+  the entries that we have picked generational transformations for. *)
+  Definition Picks : Type := ∀ i, gmap gname (T Σ i).
 
   #[global]
   Instance picks_subseteq : SubsetEq Picks :=
@@ -523,9 +523,11 @@ Section promises.
    * promise then we can extract the witness, i.e., a transformation that,
    * together with the transformations from the picks, will satisfy the
    * promises relation. *)
-  Lemma promise_get_witness picks p (sat : picks_satisfy_deps_pred picks p) :
+  Lemma promise_get_witness picks p :
+    ∀ (sat : picks_satisfy_deps_pred picks p),
     ∃ t, p.(pi_rel) (picks_extract_trans_vec picks p sat) t.
   Proof.
+    intros sat.
     apply p.(pi_witness).
     apply picks_extract_trans_vec_holds.
   Qed.
@@ -552,9 +554,17 @@ Section promises.
     ∀ i p, promises !! i = Some p → promise_well_formed promises p i.
 
   Lemma promises_well_formed_cons p promises :
-    promises_well_formed (p :: promises) → promises_well_formed promises.
+    promises_well_formed (p :: promises) →
+    (∀ i p', promises !! i = Some p' → p.(pi_γ) ≠ p'.(pi_γ)) ∧
+    promises_well_formed promises.
   Proof.
   Admitted.
+
+  Lemma picks_satisfy_well_formed_cons p promises picks :
+    promises_well_formed (p :: promises) →
+    picks_resp_promises picks promises →
+    picks_satisfy_deps_pred picks p.
+  Proof. Admitted.
 
   (* For soundness we need to be able to build a map of gts that agree with
    * picks and that satisfy all promises.
@@ -581,6 +591,41 @@ Section promises.
   (* TODO: We need to store evidence that the picks in [picks] satisfies the
    * relations and predicates in the [promises]. *)
 
+  Equations picks_insert_go picks (id : gid Σ) (γ : gname) (pick : T Σ id)
+    (id' : gid Σ) : gmap gname (T Σ id') :=
+  | picks, _, γ, pick, id', with decide (id = id') => {
+    | left eq_refl => <[ γ := pick ]>(picks id')
+    | right _ => picks id'
+  }.
+
+  Definition picks_insert picks id γ pick : Picks Σ :=
+    picks_insert_go picks id γ pick.
+
+  Lemma picks_insert_lookup picks id γ t  :
+    (picks_insert picks id γ t) id !! γ = Some t.
+  Proof.
+    rewrite /picks_insert.
+    rewrite picks_insert_go_equation_1.
+    destruct (decide (id = id)) as [eq | neq]; last congruence.
+    assert (eq = eq_refl) as ->.
+    { rewrite (proof_irrel eq eq_refl). done. }
+    simpl.
+    rewrite lookup_insert. done.
+  Qed.
+
+  Lemma picks_resp_promises_cons picks p promises :
+    picks_resp_promises picks promises ∧ picks_satisfy_rel picks p ↔
+    picks_resp_promises picks (p :: promises).
+  Proof.
+    rewrite /picks_resp_promises. split.
+    - intros [all sat] [|n'] p'; simpl.
+      * intros [= ->]. apply sat.
+      * apply all.
+    - intros all. split.
+      * intros i p' look. apply (all (S i)). apply look.
+      * apply (all 0). done.
+  Qed.
+
   Lemma promises_to_maps (promises : list promise_info) :
     promises_well_formed promises →
     ∃ (picks : Picks Σ), picks_resp_promises picks promises.
@@ -589,14 +634,27 @@ Section promises.
     - intros _. exists (λ i, ∅). simpl.
       intros ? ?. inversion 1.
     - intros WF.
-      destruct IH as [picks ?].
-      { eapply promises_well_formed_cons. apply WF. }
-      (* We need to insert into picks. *)
+      eassert (_ ∧ _) as (allNeq & WF').
+      { eapply promises_well_formed_cons; apply WF. }
+      destruct IH as [picks ?]; first done.
+      eassert _ as sat.
+      { eapply picks_satisfy_well_formed_cons; done. }
+      eassert _ as tex.
+      { apply (promise_get_witness _ _ sat). }
+      destruct tex as (t & rel).
+      exists (picks_insert picks p.(pi_id) p.(pi_γ) t).
+      apply picks_resp_promises_cons.
+      split.
+      * intros i p' look.
+        admit.
+      * eexists (picks_extract_trans_vec picks p sat), t.
+        split. { apply picks_insert_lookup. }
+        split; last done.
   (* TODO: *) Admitted.
 
-  Program Definition promises_to_maps (promises : list promise_info)
-    (_ : promises_well_formed promises) : Picks Σ :=
-    _.
+  (* Program Definition promises_to_maps (promises : list promise_info) *)
+  (*   (_ : promises_well_formed promises) : Picks Σ := *)
+  (*   _. *)
 
   (* Turn a map of picks and a list of promises into a full map of picks. *)
   Definition build_full_promises picks (ps : list (promise_info)) : Picks Σ :=
