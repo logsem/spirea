@@ -539,7 +539,7 @@ Section promises.
     ∀ i p, ps !! i = Some p → picks_satisfy_rel picks p.
 
   Definition promises_unique (promises : list promise_info) : Prop :=
-    ∀ i j p1 p2, i ≠ j → promises !! i = Some p1 → promises !! i = Some p2 →
+    ∀ i j p1 p2, i ≠ j → promises !! i = Some p1 → promises !! j = Some p2 →
       p1.(pi_id) ≠ p2.(pi_id) ∨ p1.(pi_γ) ≠ p2.(pi_γ).
 
   Definition promise_well_formed (promises : list promise_info) p i :=
@@ -555,10 +555,29 @@ Section promises.
 
   Lemma promises_well_formed_cons p promises :
     promises_well_formed (p :: promises) →
-    (∀ i p', promises !! i = Some p' → p.(pi_γ) ≠ p'.(pi_γ)) ∧
+    (∀ i p', promises !! i = Some p' →
+      p.(pi_id) ≠ p'.(pi_id) ∨ p.(pi_γ) ≠ p'.(pi_γ)) ∧
     promises_well_formed promises.
   Proof.
-  Admitted.
+    intros [uniq WF].
+    split.
+    - intros i p' look.
+      specialize (uniq 0 (S i) p p').
+      apply uniq.
+      * lia.
+      * done.
+      * apply look.
+    - split.
+      * intros ???? neq ??.
+        eapply (uniq (S i) (S j)); try done. congruence.
+      * intros i p' look di.
+        specialize (WF (S i) p' look di) as ([|j] & ? & look2 & ? & ?);
+          first lia.
+        eexists j, _.
+        split; first apply look2.
+        split; first lia.
+        done.
+  Qed.
 
   Lemma picks_satisfy_well_formed_cons p promises picks :
     promises_well_formed (p :: promises) →
