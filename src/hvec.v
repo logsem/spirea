@@ -201,6 +201,10 @@ Section hvec.
     hvec_lookup (_ :: xs) (FS i') := hvec_lookup xs i'.
   Global Transparent hvec_lookup.
 
+  Equations hvec_map {G n As} (f : ∀ x, F x → G x) (l : hvec F n As) : hvec G n As :=
+  | f, hnil => hnil
+  | f, hcons xx xs => hcons (f _ xx) (hvec_map f xs).
+
   Equations hvec_lookup_fmap {n} {As : ivec n A}
     (l : hvec id n (F <$> As)) (i : fin n) : F (As !!! i) :=
     @hvec_lookup_fmap _ (_ :: _) (xx :: _) 0%fin := xx ;
