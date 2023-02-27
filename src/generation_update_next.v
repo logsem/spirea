@@ -471,27 +471,28 @@ Section promises.
     - Merge two lists of promises.
    *)
 
-  (* [picks] contain a transformation for [p]. *)
-  Definition trans_for picks (p : promise_self_info) :=
+  (* The transformation in [picks] at/for the promise [p]. *)
+  Definition trans_at picks (p : promise_self_info) :=
     { t | picks p.(psi_id) !! p.(psi_γ) = Some t }.
 
   (** [picks] satisfies the preds of [p] *)
-  Definition trans_for_satisfy_pred {picks : Picks Σ} {p : promise_self_info}
-    (tf : trans_for picks p) := p.(psi_pred) (`tf).
+  Definition trans_at_satisfy_pred {picks : Picks Σ} {p : promise_self_info}
+    (tf : trans_at picks p) := p.(psi_pred) (`tf).
 
   (* (** [picks] satisfies the preds of the dependencies of [p] *) *)
   Definition trans_map_for_deps picks (p : promise_info) :=
-    ∀ (idx : fin p.(pi_n)), trans_for picks (p.(pi_deps) !!! idx).
+    ∀ (idx : fin p.(pi_n)), trans_at picks (p.(pi_deps) !!! idx).
 
-  Definition trans_for_deps picks p :=
-    hvec (trans_for picks) _ p.(pi_deps).
+  (* An hvec of transformations matching the dependencies of [p]. Each transformation is  *)
+  Definition trans_at_deps picks p :=
+    hvec (trans_at picks) _ p.(pi_deps).
 
   Definition trans_for_deps_convert picks p
-    (tfd : trans_map_for_deps picks p) : trans_for_deps picks p :=
+    (tfd : trans_map_for_deps picks p) : trans_at_deps picks p :=
     fun_to_hvec _ tfd.
 
   Definition trans_for_deps_get {picks : Picks Σ} {p : promise_info}
-    (tfd : trans_for_deps picks p) : deps_to_trans p.(pi_n) p.(pi_deps) :=
+    (tfd : trans_at_deps picks p) : deps_to_trans p.(pi_n) p.(pi_deps) :=
     hvec_map (λ _ tf, `tf) tfd.
 
   (** [picks] satisfies the preds of [p] *)
@@ -502,13 +503,13 @@ Section promises.
 
   (** [picks] satisfies the preds of the dependencies of [p] *)
   Definition picks_satisfy_deps_pred picks (p : promise_info) :=
-    { tfd : trans_for_deps picks p |
+    { tfd : trans_at_deps picks p |
         deps_preds_hold p.(pi_deps) (trans_for_deps_get tfd) }.
 
   (** [picks] satisfies the preds of the dependencies of [p] *)
   (* Definition picks_satisfy_deps_pred picks (p : promise_info) := *)
   (*   ∀ (idx : fin p.(pi_n)), *)
-  (*   { tf : trans_for picks (p.(pi_deps) !!! idx) | trans_for_satisfy_pred tf }. *)
+  (*   { tf : trans_at picks (p.(pi_deps) !!! idx) | trans_at_satisfy_pred tf }. *)
 
   (** The transformations in [picks] satisfy the relation in [p]. *)
   (* FIXME: Refactor this to extract [trans] from something an no exists. *)
@@ -521,8 +522,8 @@ Section promises.
   (*     p.(pi_rel) trans t. *)
 
   Definition picks_satisfy_rel picks (p : promise_info) :=
-    ∃ (tf : trans_for picks (promise_info_to_self p))
-      (trans : trans_for_deps picks p),
+    ∃ (tf : trans_at picks (promise_info_to_self p))
+      (trans : trans_at_deps picks p),
       p.(pi_rel) (trans_for_deps_get trans) (`tf).
 
   (* (* FIXME: Hopefully we can get rid of this *) *)
@@ -582,6 +583,8 @@ Section promises.
         j > i ∧ (* The dependency is later in the list. *)
         p.(pi_deps) !!! idx = promise_info_to_self p_d.
 
+  (* NOTE: Maybe things would be simpler if we defined this predicate
+   * recursively over the list (i.e., by pattern matching it). *)
   Definition promises_well_formed (promises : list (promise_info)) :=
     promises_unique promises ∧
     ∀ i p, promises !! i = Some p → promise_well_formed promises p i.
@@ -684,7 +687,7 @@ Section promises.
   Qed.
 
   Lemma grow picks p (sat : picks_satisfy_deps_pred picks p) :
-    ∃ t (tf : trans_for (picks_insert picks p.(pi_id) p.(pi_γ) t)
+    ∃ t (tf : trans_at (picks_insert picks p.(pi_id) p.(pi_γ) t)
                         (promise_info_to_self p)),
       `tf = t ∧ pi_rel p (trans_for_deps_get (`sat)) (`tf).
   Proof.
