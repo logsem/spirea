@@ -671,7 +671,15 @@ Section promises.
   Lemma picks_insert_lookup_ne picks id1 γ1 t id2 γ2 :
     id1 ≠ id2 ∨ γ1 ≠ γ2 →
     (picks_insert picks id1 γ1 t) id2 !! γ2 = picks id2 !! γ2.
-  Proof. Admitted.
+  Proof.
+    intros neq.
+    rewrite /picks_insert.
+    rewrite picks_insert_go_equation_1.
+    destruct (decide (id1 = id2)) as [eq | neq2]; last done.
+    destruct neq as [neq | neq]; first congruence.
+    subst. simpl.
+    rewrite lookup_insert_ne; done.
+  Qed.
 
   Lemma picks_resp_promises_cons picks p promises :
     picks_resp_promises picks promises ∧ picks_satisfy_rel picks p ↔
