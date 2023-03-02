@@ -602,11 +602,14 @@ Section promises.
   Definition promises_different p1 p2 :=
     p1.(pi_id) ≠ p2.(pi_id) ∨ p1.(pi_γ) ≠ p2.(pi_γ).
 
+  Definition promises_has_deps (promises : list (promise_info)) p :=
+    ∀ idx, ∃ p_d j,
+      promises !! j = Some p_d ∧
+      p.(pi_deps) !!! idx = promise_info_to_self p_d.
+
   Definition promise_well_formed p (promises : list (promise_info)) : Prop :=
     (∀ i p2, promises !! i = Some p2 → promises_different p p2) ∧
-    (∀ idx, ∃ p_d j,
-      promises !! j = Some p_d ∧
-      p.(pi_deps) !!! idx = promise_info_to_self p_d).
+    promises_has_deps promises p.
 
   (* This definition has nice computational behavior when applied to a [cons]. *)
   Fixpoint promises_well_formed (promises : list (promise_info)) : Prop :=
@@ -631,8 +634,23 @@ Section promises.
   Lemma promises_well_formed_lookup promises idx p :
     promises_well_formed promises →
     promises !! idx = Some p →
-    promise_well_formed p promises.
-  Proof. Admitted.
+    promises_has_deps promises p. (* We forget the different part for now. *)
+  Proof.
+    intros WF look.
+    revert dependent idx.
+    induction promises as [ |?? IH].
+    - intros ? [=].
+    - destruct WF as [[? hasDeps] WF'].
+      intros [ | idx].
+      * simpl. intros [= ->].
+        intros idx.
+        destruct (hasDeps idx) as (? & i & ? & ?).
+        eexists _, (S i). done.
+      * intros look.
+        intros d.
+        destruct (IH WF' idx look d) as (? & i & ? & ?).
+        eexists _, (S i). done.
+  Qed.
 
   (* Lemma promises_well_formed_cons p promises : *)
   (*   promises_well_formed_old (p :: promises) → *)
@@ -799,8 +817,8 @@ Section promises.
     setoid_rewrite picks_insert_lookup_ne.
     + apply hi.
     + apply (uniq idx p2 look).
-    + destruct (promises_well_formed_lookup promises idx p2) as [? hasDeps2];
-        try done.
+    + specialize (
+        promises_well_formed_lookup promises idx p2 WF look) as hasDeps2.
       specialize (hasDeps2 idx0) as (p3 & ? & look3 & eq).
       rewrite eq.
       specialize (uniq _ p3 look3).
