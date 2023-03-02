@@ -503,8 +503,13 @@ Section promises.
 
   (** [picks] satisfies the preds of the dependencies of [p] *)
   Definition picks_satisfy_deps_pred picks (p : promise_info) :=
-    { tfd : trans_at_deps picks p |
-        deps_preds_hold p.(pi_deps) (trans_for_deps_get tfd) }.
+    ∃ (tfd : trans_at_deps picks p),
+        deps_preds_hold p.(pi_deps) (trans_for_deps_get tfd).
+
+  (** [picks] satisfies the preds of the dependencies of [p] *)
+  (* Definition picks_satisfy_deps_pred picks (p : promise_info) := *)
+  (*   { tfd : trans_at_deps picks p | *)
+  (*       deps_preds_hold p.(pi_deps) (trans_for_deps_get tfd) }. *)
 
   (** [picks] satisfies the preds of the dependencies of [p] *)
   (* Definition picks_satisfy_deps_pred picks (p : promise_info) := *)
@@ -566,9 +571,9 @@ Section promises.
   (*   apply holds. *)
   (* Qed. *)
 
-  (** The [picks] respect the promises in [ps]. This means that there is a pick
-   * for every promise and that all the relations in the promises are satisfied
-   * by the transformations in picks. *)
+  (** The [picks] respect the promises in [ps]: There is a pick for every
+   * promise and all the relations in the promises are satisfied by the
+   * transformations in picks. *)
   Definition picks_resp_promises picks (ps : list (promise_info)) :=
     ∀ i p, ps !! i = Some p → picks_satisfy_rel picks p.
 
@@ -576,7 +581,7 @@ Section promises.
     ∀ i j p1 p2, i ≠ j → promises !! i = Some p1 → promises !! j = Some p2 →
       p1.(pi_id) ≠ p2.(pi_id) ∨ p1.(pi_γ) ≠ p2.(pi_γ).
 
-  Definition promise_well_formed (promises : list promise_info) p i :=
+  Definition promise_well_formed_old (promises : list promise_info) p i :=
     ∀ (idx : fin p.(pi_n)),
       ∃ j p_d,
         promises !! j = Some p_d ∧
@@ -585,41 +590,84 @@ Section promises.
 
   (* NOTE: Maybe things would be simpler if we defined this predicate
    * recursively over the list (i.e., by pattern matching it). *)
-  Definition promises_well_formed (promises : list (promise_info)) :=
+  Definition promises_well_formed_old (promises : list (promise_info)) :=
     promises_unique promises ∧
-    ∀ i p, promises !! i = Some p → promise_well_formed promises p i.
+    ∀ i p, promises !! i = Some p → promise_well_formed_old promises p i.
 
-  Lemma promises_well_formed_cons p promises :
-    promises_well_formed (p :: promises) →
-    (∀ i p', promises !! i = Some p' →
-      p.(pi_id) ≠ p'.(pi_id) ∨ p.(pi_γ) ≠ p'.(pi_γ)) ∧
-    promises_well_formed promises.
-  Proof.
-    intros [uniq WF].
-    split.
-    - intros i p' look.
-      specialize (uniq 0 (S i) p p').
-      apply uniq.
-      * lia.
-      * done.
-      * apply look.
-    - split.
-      * intros ???? neq ??.
-        eapply (uniq (S i) (S j)); try done. congruence.
-      * intros i p' look di.
-        specialize (WF (S i) p' look di) as ([|j] & ? & look2 & ? & ?);
-          first lia.
-        eexists j, _.
-        split; first apply look2.
-        split; first lia.
-        done.
-  Qed.
+  Definition promise_well_formed p (promises : list (promise_info)) : Prop :=
+    (∀ i p2,
+      promises !! i = Some p → p.(pi_id) ≠ p2.(pi_id) ∨ p.(pi_γ) ≠ p2.(pi_γ)) ∧
+    (∀ idx, ∃ p_d j,
+      promises !! j = Some p_d ∧
+      p.(pi_deps) !!! idx = promise_info_to_self p_d).
+
+  (* This definition has nice computational behavior when applied to a [cons]. *)
+  Fixpoint promises_well_formed (promises : list (promise_info)) : Prop :=
+    match promises with
+    | nil => True
+    | cons p promises' =>
+      promise_well_formed p promises' ∧ promises_well_formed promises'
+    end.
+
+  (* Lemma promises_well_formed_cons p promises : *)
+  (*   promises_well_formed_old (p :: promises) → *)
+  (*   (∀ i p', promises !! i = Some p' → *)
+  (*     p.(pi_id) ≠ p'.(pi_id) ∨ p.(pi_γ) ≠ p'.(pi_γ)) ∧ *)
+  (*   promises_well_formed_old promises. *)
+  (* Proof. *)
+  (*   intros [uniq WF]. *)
+  (*   split. *)
+  (*   - intros i p' look. *)
+  (*     specialize (uniq 0 (S i) p p'). *)
+  (*     apply uniq. *)
+  (*     * lia. *)
+  (*     * done. *)
+  (*     * apply look. *)
+  (*   - split. *)
+  (*     * intros ???? neq ??. *)
+  (*       eapply (uniq (S i) (S j)); try done. congruence. *)
+  (*     * intros i p' look di. *)
+  (*       specialize (WF (S i) p' look di) as ([|j] & ? & look2 & ? & ?); *)
+  (*         first lia. *)
+  (*       eexists j, _. *)
+  (*       split; first apply look2. *)
+  (*       split; first lia. *)
+  (*       done. *)
+  (* Qed. *)
+
+  (* Lemma extract_trans_at_deps p promises picks : *)
+  (*   promises_well_formed (p :: promises) → *)
+  (*   picks_resp_promises picks promises → *)
+  (*   ∃ (ts : trans_at_deps picks p), True. *)
+  (* Proof. *)
+  (*   intros WF resp. *)
+  (*   destruct WF as [[uniq has] ?]. *)
+  (*   rewrite /trans_at_deps. *)
+  (*   (* assert (idx : fin p.(pi_n)). *) *)
+  (*   (* { admit. } *) *)
+  (*   (* destruct (has idx) as (p_d & j & look & what). *) *)
+  (*   (* specialize (resp j p_d look) as (? & ? & ?). *) *)
+  (*   (* destruct p *) *)
+  (*   (* fun_to_hvec *) *)
+  (*   destruct p. simpl. *)
+  (*   induction (pi_deps0) as [ |n' dep deps' IH]. *)
+  (*   - exists []%HV. done. *)
+  (*   - simpl in *. *)
+  (*     (* dependent elimination pi_deps0 as [icons dep deps']. *) *)
+  (*     specialize (IH deps' pi_rel0). *)
+  (*     (* apply hcons. *) *)
+  (*     2: { eapply IHi; try done. apply wf. } *)
+  (*     last done. *)
+  (* Admitted. *)
 
   Lemma picks_satisfy_well_formed_cons p promises picks :
     promises_well_formed (p :: promises) →
     picks_resp_promises picks promises →
     picks_satisfy_deps_pred picks p.
-  Proof. Admitted.
+  Proof.
+    intros WF resp.
+    rewrite /picks_satisfy_deps_pred.
+  Admitted.
 
   (* For soundness we need to be able to build a map of gts that agree with
    * picks and that satisfy all promises.
@@ -694,13 +742,15 @@ Section promises.
       * apply (all 0). done.
   Qed.
 
-  Lemma grow picks p (sat : picks_satisfy_deps_pred picks p) :
+  Lemma grow picks p (tfd : trans_at_deps picks p) :
+    deps_preds_hold p.(pi_deps) (trans_for_deps_get tfd) →
     ∃ t (tf : trans_at (picks_insert picks p.(pi_id) p.(pi_γ) t)
                         (promise_info_to_self p)),
-      `tf = t ∧ pi_rel p (trans_for_deps_get (`sat)) (`tf).
+      `tf = t ∧ pi_rel p (trans_for_deps_get (tfd)) (`tf).
   Proof.
+    intros hold.
     eassert (∃ t, _) as [t pRelHolds].
-    { apply p.(pi_witness). apply (proj2_sig sat). }
+    { apply p.(pi_witness). apply hold. }
     exists t.
     epose proof (picks_insert_lookup picks p.(pi_id) _ _) as look.
     exists (t ↾ look). done.
@@ -727,8 +777,14 @@ Section promises.
 
   Lemma trans_for_deps_grow picks p promises t :
     promises_well_formed (p :: promises) →
-    trans_for_deps picks p →
-    trans_for_deps (picks_insert picks (pi_id p) (pi_γ p) t) p.
+    trans_at_deps picks p →
+    trans_at_deps (picks_insert picks (pi_id p) (pi_γ p) t) p.
+  Proof. Admitted.
+
+  Lemma trans_for_deps_grow_get p promises picks (ts : trans_at_deps picks p) WF t :
+    promises_well_formed (p :: promises) →
+    trans_for_deps_get (ts) =
+    trans_for_deps_get (trans_for_deps_grow picks p promises t WF (ts)).
   Proof. Admitted.
 
   Lemma promises_to_maps (promises : list promise_info) :
@@ -738,29 +794,21 @@ Section promises.
     induction promises as [|p promises' IH].
     - intros _. exists (λ i, ∅). simpl.
       intros ? ?. inversion 1.
-    - intros WF.
-      eassert (_ ∧ _) as (allNeq & WF').
-      { eapply promises_well_formed_cons; apply WF. }
+    - intros [[allNeq hip] WF'].
       destruct IH as [picks resp]; first done.
       eassert _ as sat.
       { eapply picks_satisfy_well_formed_cons; done. }
-      destruct (grow picks p sat) as (t & tf & ? & pRelHolds).
-      (* eassert (∃ t, _) as [t pRelHolds]. *)
-      (* { apply p.(pi_witness). apply (proj2_sig sat). } *)
-      (* eassert _ as tex. *)
-      (* { apply (promise_get_witness _ _ sat). } *)
-      (* destruct tex as (t & rel). *)
+      destruct sat as (tfd & hold).
+      destruct (grow picks p tfd hold) as (t & tf & ? & pRelHolds).
       exists (picks_insert picks p.(pi_id) p.(pi_γ) t).
       apply picks_resp_promises_cons.
       split.
       * apply picks_resp_promises_insert; done.
       * rewrite /picks_satisfy_rel.
-        eexists tf, (trans_for_deps_grow _ _ _ _ WF (`sat)).
-  Admitted.
-
-  (* Program Definition promises_to_maps (promises : list promise_info) *)
-  (*   (_ : promises_well_formed promises) : Picks Σ := *)
-  (*   _. *)
+        eexists tf, (trans_for_deps_grow _ _ _ _ _ tfd).
+        Unshelve. 3: { done. }
+        rewrite -trans_for_deps_grow_get; done.
+  Qed.
 
   (* Turn a map of picks and a list of promises into a full map of picks. *)
   Definition build_full_promises picks (ps : list (promise_info)) : Picks Σ :=
