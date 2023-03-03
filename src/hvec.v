@@ -188,6 +188,11 @@ Section hvec.
 
   (* Compute (icons nat (icons bool (icons (fin 0) inil))) !!! 1%fin. *)
 
+  Equations hvec_lookup {n As} (l : hvec F n As) (i : fin n) : F (As !!! i) :=
+    hvec_lookup (xx :: _) 0%fin := xx ;
+    hvec_lookup (_ :: xs) (FS i') := hvec_lookup xs i'.
+  Global Transparent hvec_lookup.
+
   (** Turns a function over [fin n] into an [hvec] of length [n]. *)
   Equations fun_to_hvec {n} (As : ivec n A)
     (f : ∀ (i : fin n), F (As !!! i)) : hvec F n As :=
@@ -196,10 +201,26 @@ Section hvec.
       hcons (f 0%fin : F A) (fun_to_hvec As' (λ i, f (FS i))).
   Global Transparent fun_to_hvec.
 
-  Equations hvec_lookup {n As} (l : hvec F n As) (i : fin n) : F (As !!! i) :=
-    hvec_lookup (xx :: _) 0%fin := xx ;
-    hvec_lookup (_ :: xs) (FS i') := hvec_lookup xs i'.
-  Global Transparent hvec_lookup.
+  Lemma fun_ex_to_ex_hvec {n} (As : ivec n A) (P : ∀ i (x : F (As !!! i)), Prop) :
+    (∀ (i : fin n), ∃ (x : F (As !!! i)), P i x) →
+    (∃ (xs : hvec F n As), (∀ i, P i (hvec_lookup xs i))).
+  Proof.
+    intros ?.
+    induction n.
+    - dependent elimination As.
+      exists []%HV.
+      intros i.
+      dependent elimination i.
+    - dependent elimination As as [icons a As'].
+      edestruct IHn as (xs & allP).
+      { intros i. destruct (H (FS i)). exists x. apply H0. }
+      destruct (H 0%fin) as (x & xP).
+      exists (x :: xs)%HV.
+      intros i.
+      dependent elimination i as [0%fin | FS ii].
+      * apply xP.
+      * apply allP.
+  Qed.
 
   Equations hvec_map {G n As} (f : ∀ x, F x → G x) (l : hvec F n As) : hvec G n As :=
   | f, hnil => hnil

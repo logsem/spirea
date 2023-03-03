@@ -502,9 +502,9 @@ Section promises.
     (* deps_preds_hold p.(pi_deps) ts. *)
 
   (** [picks] satisfies the preds of the dependencies of [p] *)
-  Definition picks_satisfy_deps_pred picks (p : promise_info) :=
-    ∃ (tfd : trans_at_deps picks p),
-        deps_preds_hold p.(pi_deps) (trans_for_deps_get tfd).
+  (* Definition picks_satisfy_deps_pred picks (p : promise_info) := *)
+  (*   ∃ (tfd : trans_at_deps picks p), *)
+  (*       deps_preds_hold p.(pi_deps) (trans_for_deps_get tfd). *)
 
   (** [picks] satisfies the preds of the dependencies of [p] *)
   (* Definition picks_satisfy_deps_pred picks (p : promise_info) := *)
@@ -586,18 +586,18 @@ Section promises.
     ∀ i j p1 p2, i ≠ j → promises !! i = Some p1 → promises !! j = Some p2 →
       p1.(pi_id) ≠ p2.(pi_id) ∨ p1.(pi_γ) ≠ p2.(pi_γ).
 
-  Definition promise_well_formed_old (promises : list promise_info) p i :=
-    ∀ (idx : fin p.(pi_n)),
-      ∃ j p_d,
-        promises !! j = Some p_d ∧
-        j > i ∧ (* The dependency is later in the list. *)
-        p.(pi_deps) !!! idx = promise_info_to_self p_d.
+  (* Definition promise_well_formed_old (promises : list promise_info) p i := *)
+  (*   ∀ (idx : fin p.(pi_n)), *)
+  (*     ∃ j p_d, *)
+  (*       promises !! j = Some p_d ∧ *)
+  (*       j > i ∧ (* The dependency is later in the list. *) *)
+  (*       p.(pi_deps) !!! idx = promise_info_to_self p_d. *)
 
-  (* NOTE: Maybe things would be simpler if we defined this predicate
-   * recursively over the list (i.e., by pattern matching it). *)
-  Definition promises_well_formed_old (promises : list (promise_info)) :=
-    promises_unique promises ∧
-    ∀ i p, promises !! i = Some p → promise_well_formed_old promises p i.
+  (* (* NOTE: Maybe things would be simpler if we defined this predicate *)
+  (*  * recursively over the list (i.e., by pattern matching it). *) *)
+  (* Definition promises_well_formed_old (promises : list (promise_info)) := *)
+  (*   promises_unique promises ∧ *)
+  (*   ∀ i p, promises !! i = Some p → promise_well_formed_old promises p i. *)
 
   Definition promises_different p1 p2 :=
     p1.(pi_id) ≠ p2.(pi_id) ∨ p1.(pi_γ) ≠ p2.(pi_γ).
@@ -706,13 +706,30 @@ Section promises.
   Lemma picks_satisfy_well_formed_cons p promises picks :
     promises_well_formed (p :: promises) →
     picks_resp_promises picks promises →
-    (* picks_satisfy_deps_pred picks p. *)
     ∃ ts,
       trans_in_picks_at_deps picks p ts ∧
       deps_preds_hold p.(pi_deps) ts.
   Proof.
     intros WF resp.
-  Admitted.
+    destruct WF as [[uniq hasDeps] WF'].
+    set (F := (λ dep, T Σ dep.(psi_id))).
+    edestruct (fun_ex_to_ex_hvec (F := F) p.(pi_deps)
+      (λ i x,
+        let pd := p.(pi_deps) !!! i in
+        pd.(psi_pred) x ∧
+        picks (psi_id pd) !! psi_γ pd = Some x))
+      as (ts & ?).
+    { intros di.
+      destruct (hasDeps di) as (p' & j & look & ->).
+      destruct (resp _ _ look) as (ts & (t & ? & ? & ?)).
+      specialize (p'.(pi_rel_to_pred) ts t H1) as hipo.
+      exists t. destruct p'. done. }
+    exists ts.
+    rewrite deps_preds_hold_alt.
+    split.
+    - intros di. apply H.
+    - intros di. apply H.
+  Qed.
 
   (* For soundness we need to be able to build a map of gts that agree with
    * picks and that satisfy all promises.
@@ -826,17 +843,17 @@ Section promises.
       apply uniq.
   Qed.
 
-  Lemma trans_for_deps_grow picks p promises t :
-    promises_well_formed (p :: promises) →
-    trans_at_deps picks p →
-    trans_at_deps (picks_insert picks (pi_id p) (pi_γ p) t) p.
-  Proof. Admitted.
+  (* Lemma trans_for_deps_grow picks p promises t : *)
+  (*   promises_well_formed (p :: promises) → *)
+  (*   trans_at_deps picks p → *)
+  (*   trans_at_deps (picks_insert picks (pi_id p) (pi_γ p) t) p. *)
+  (* Proof. Admitted. *)
 
-  Lemma trans_for_deps_grow_get p promises picks (ts : trans_at_deps picks p) WF t :
-    promises_well_formed (p :: promises) →
-    trans_for_deps_get (ts) =
-    trans_for_deps_get (trans_for_deps_grow picks p promises t WF (ts)).
-  Proof. Admitted.
+  (* Lemma trans_for_deps_grow_get p promises picks (ts : trans_at_deps picks p) WF t : *)
+  (*   promises_well_formed (p :: promises) → *)
+  (*   trans_for_deps_get (ts) = *)
+  (*   trans_for_deps_get (trans_for_deps_grow picks p promises t WF (ts)). *)
+  (* Proof. Admitted. *)
 
   Lemma promises_to_maps (promises : list promise_info) :
     promises_well_formed promises →
