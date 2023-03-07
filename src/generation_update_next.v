@@ -282,9 +282,25 @@ Section picks.
   the entries that we have picked generational transformations for. *)
   Definition Picks : Type := ∀ i, gmap gname (T Σ i).
 
+  Implicit Types (picks : Picks).
+
   #[global]
   Instance picks_subseteq : SubsetEq Picks :=
     λ p1 p2, ∀ i, p1 i ⊆ p2 i.
+
+  #[global]
+  Instance picks_subseteq_partialorder : PartialOrder picks_subseteq.
+  Proof.
+    split.
+  Admitted.
+
+  #[global]
+  Instance picks_union : Union Picks :=
+    λ p1 p2 i, p1 i ∪ p2 i.
+
+  Lemma picks_union_subseteq_l picks1 picks2 :
+    picks1 ⊆ picks1 ∪ picks2.
+  Proof. intros ?. apply map_union_subseteq_l. Qed.
 
   (** Every pick in [picks] is a valid generational transformation and satisfies
   the conditions for that cmra in [Ω]. *)
@@ -629,6 +645,24 @@ Section promises.
     rewrite lookup_insert_ne; done.
   Qed.
 
+  Lemma picks_insert_subseteq_r i γ t picks1 picks2 :
+    picks1 i !! γ = None →
+    picks1 ⊆ picks2 →
+    picks1 ⊆ picks_insert picks2 i γ t.
+  Proof.
+    intros look sub.
+    intros i'.
+    apply map_subseteq_spec => γ' t' look'.
+    destruct (decide (i = i' ∧ γ = γ')) as [[-> ->]|Hneq].
+    - congruence.
+    - rewrite picks_insert_lookup_ne.
+      * specialize (sub i').
+        rewrite map_subseteq_spec in sub.
+        apply sub.
+        done.
+      * apply not_and_r in Hneq; done.
+  Qed.
+
   Lemma picks_resp_promises_cons picks p promises :
     picks_resp_promises picks promises ∧ picks_satisfy_rel picks p ↔
     picks_resp_promises picks (p :: promises).
@@ -665,32 +699,79 @@ Section promises.
       apply uniq.
   Qed.
 
+  Definition picks_overlap_resp_promises picks (ps : list (promise_info)) :=
+    ∀ i p, ps !! i = Some p →
+      picks_satisfy_rel picks p ∨ (picks p.(pi_id) !! p.(pi_γ) = None).
+
+  Lemma trans_at_deps_subseteq picks1 picks2 p ts :
+    picks1 ⊆ picks2 →
+    trans_at_deps picks1 p ts →
+    trans_at_deps picks2 p ts.
+  Proof. Admitted.
+
+  Lemma picks_overlap_resp_promises_cons picks p promises :
+    picks_overlap_resp_promises picks (p :: promises) →
+    picks_overlap_resp_promises picks promises.
+  Proof. intros HL. intros i ? look. apply (HL (S i) _ look). Qed.
+
+ Lemma picks_promises_to_maps picks (promises : list promise_info) :
+    picks_overlap_resp_promises picks promises →
+    promises_well_formed promises →
+    ∃ (map : Picks Σ),
+      picks_resp_promises map promises ∧
+      picks ⊆ map.
+  Proof.
+    induction promises as [|p promises' IH].
+    - intros _. exists picks.
+      split; last done.
+      intros ? ?. inversion 1.
+    - intros HR [WF WF'].
+      specialize (promise_well_formed_neq_deps _ _ WF) as depsDiff.
+      destruct IH as (map & resp & sub).
+      {  eapply picks_overlap_resp_promises_cons. done. } { done. }
+      (* We either need to use the transformation in [picks] or extract one
+       * from [p]. *)
+      destruct (picks p.(pi_id) !! p.(pi_γ)) eqn:look.
+      + destruct (HR 0 p) as [sat | ?]; [done | | congruence].
+        destruct sat as (ts & t & transIn & hold & pRelHolds).
+        exists map. (* We don't insert as map already has transformation. *)
+        split; last done.
+        apply picks_resp_promises_cons. split; try done.
+        eexists _, _. split_and!; last done.
+        -- specialize (sub p.(pi_id)).
+           rewrite map_subseteq_spec in sub.
+           apply sub.
+           done.
+        -- eapply trans_at_deps_subseteq; done.
+      + eassert _ as sat.
+        { eapply picks_satisfy_well_formed_cons; done. }
+        destruct sat as (ts & transIn & hold).
+        eassert (∃ t, _) as [t pRelHolds].
+        { apply p.(pi_witness). apply hold. }
+        exists (picks_insert map p.(pi_id) p.(pi_γ) t).
+        split.
+        * apply picks_resp_promises_cons.
+          split.
+          -- apply picks_resp_promises_insert; done.
+          -- rewrite /picks_satisfy_rel.
+            exists ts, t.
+            split. { by rewrite picks_insert_lookup. }
+            split; last done.
+            intros ??.
+            rewrite picks_insert_lookup_ne; first apply transIn.
+            apply depsDiff.
+        * apply picks_insert_subseteq_r; done.
+  Qed.
+
   Lemma promises_to_maps (promises : list promise_info) :
     promises_well_formed promises →
     ∃ (picks : Picks Σ), picks_resp_promises picks promises.
   Proof.
-    induction promises as [|p promises' IH].
-    - intros _. exists (λ i, ∅). simpl.
-      intros ? ?. inversion 1.
-    - intros [WF WF'].
-      specialize (promise_well_formed_neq_deps _ _ WF) as depsDiff.
-      destruct IH as [picks resp]; first done.
-      eassert _ as sat.
-      { eapply picks_satisfy_well_formed_cons; done. }
-      destruct sat as (ts & transIn & hold).
-      eassert (∃ t, _) as [t pRelHolds].
-      { apply p.(pi_witness). apply hold. }
-      exists (picks_insert picks p.(pi_id) p.(pi_γ) t).
-      apply picks_resp_promises_cons.
-      split.
-      * apply picks_resp_promises_insert; done.
-      * rewrite /picks_satisfy_rel.
-        exists ts, t.
-        split. { by rewrite picks_insert_lookup. }
-        split; last done.
-        intros ??.
-        rewrite picks_insert_lookup_ne; first apply transIn.
-        apply depsDiff.
+    intros WF.
+    edestruct (picks_promises_to_maps (λ i : gid Σ, ∅)) as [m [resp a]].
+    2: { done. }
+    - intros ???. right. done.
+    - exists m. apply resp.
   Qed.
 
   (* Turn a map of picks and a list of promises into a full map of picks. *)
@@ -702,12 +783,38 @@ Section promises.
     (*     then <[ p.(pi_γ) := p.(pi_) ] *)
     (*   ) (ø) ps. *)
 
-  (* TODO: This is the key result that we want to prove. *)
-  Lemma build_full_properties picks ps :
-    let gt := build_full_promises picks ps
-    in picks ⊆ gt ∧ picks_resp_promises gt ps.
+  (* (* TODO: This is the key result that we want to prove. *) *)
+  (* Lemma build_full_properties picks ps : *)
+  (*   let gt := build_full_promises picks ps *)
+  (*   in picks ⊆ gt ∧ picks_resp_promises gt ps. *)
+  (* Proof. *)
+  (* Admitted. *)
+
+  (* NOTE: This is not possible! We need to feed the picks into the promises as
+  * the resulting transformation can depend on the picks. *)
+  (* TODO: This is the key result we want to prove. *)
+  Lemma map_from_picks_promises picks promises :
+    promises_well_formed promises →
+    ∃ (map : Picks Σ),
+      picks_resp_promises map promises ∧
+      picks ⊆ map.
   Proof.
-  Admitted.
+    intros WF.
+    edestruct (promises_to_maps) as (mapP & resp); first done.
+    exists (picks ∪ mapP).
+    split; last apply picks_union_subseteq_l.
+    intros ? p look.
+    destruct (resp i _ look) as (ts & t & ? & ? & ?).
+    destruct (picks p.(pi_id) !! p.(pi_γ)) as [t2|] eqn:look2.
+    - eexists _, t2.
+      admit.
+    - exists ts, t.
+      split_and!; last done.
+      * rewrite lookup_union_r; done.
+      * intros idx.
+        simpl.
+        rewrite lookup_union_r; try done.
+  Abort.
 
 End promises.
 
