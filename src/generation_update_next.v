@@ -707,7 +707,15 @@ Section promises.
     picks1 ⊆ picks2 →
     trans_at_deps picks1 p ts →
     trans_at_deps picks2 p ts.
-  Proof. Admitted.
+  Proof.
+    intros sub ta.
+    intros idx. simpl.
+    specialize (sub (psi_id (pi_deps p !!! idx))).
+    rewrite map_subseteq_spec in sub.
+    specialize (ta idx).
+    apply sub.
+    apply ta.
+  Qed.
 
   Lemma picks_overlap_resp_promises_cons picks p promises :
     picks_overlap_resp_promises picks (p :: promises) →
