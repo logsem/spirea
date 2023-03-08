@@ -166,7 +166,8 @@ Section dependency_relation_extra.
 End dependency_relation_extra.
 
 Definition generational_cmra {n} A (DS : deps_ty n) : Type :=
-  option (agree (A → A)) * GTS (A → A) * option A * gen_pv (auth (promises A DS)).
+  option (agree (A → A)) * GTS (A → A) *
+    option A * gen_pv (auth (promises A DS)).
 
 Definition generational_cmraR {n} (A : cmra) (DS : deps n) :=
   prodR
@@ -390,6 +391,65 @@ Section transmap.
         done.
       * destruct (m1 i !! γ) eqn:eq1; destruct (m2 i !! γ) eqn:eq2;
           rewrite eq1 eq2; simpl; try done.
+  Qed.
+
+  (** A map of picks that for the resource at [idx] and the ghost name [γ] picks
+  the generational transformation [t]. *)
+  Definition transmap_singleton i (γ : gname)
+      (t : R Σ i → R Σ i) : TransMap :=
+    λ j, match decide (i = j) with
+           left Heq =>
+             (eq_rect _ (λ i, gmap gname (R Σ i → _)) {[ γ := t ]} _ Heq)
+         | right _ => ∅
+         end.
+
+  Definition transmap_singleton_lookup idx γ (f : R Σ idx → R Σ idx) :
+    transmap_singleton idx γ f idx !! γ = Some f.
+  Proof.
+    rewrite /transmap_singleton.
+    case (decide (idx = idx)); last by congruence.
+    intros eq'.
+    assert (eq' = eq_refl) as ->.
+    { rewrite (proof_irrel eq' eq_refl). done. }
+    simpl.
+    apply lookup_singleton.
+  Qed.
+
+  Definition transmap_singleton_dom_index_eq idx γ f :
+    dom (transmap_singleton idx γ f idx) = {[ γ ]}.
+  Proof.
+    rewrite /transmap_singleton.
+    case (decide (idx = idx)); last congruence.
+    intros [].
+    simpl.
+    apply dom_singleton_L.
+  Qed.
+
+  Definition transmap_singleton_dom_index_neq idx γ f idx' :
+    idx ≠ idx' →
+    dom (transmap_singleton idx γ f idx') = ∅.
+  Proof.
+    intros neq.
+    rewrite /transmap_singleton.
+    case (decide (idx = idx')); first congruence.
+    intros ?.
+    apply dom_empty_L.
+  Qed.
+
+  Definition gen_f_singleton_lookup_Some idx' idx γ γ' f (f' : R Σ idx' → _) :
+    (transmap_singleton idx γ f) idx' !! γ' = Some f' →
+    ∃ (eq : idx' = idx),
+      γ = γ' ∧
+      f = match eq in (_ = r) return (R Σ r → R Σ r) with eq_refl => f' end.
+  Proof.
+    rewrite /transmap_singleton.
+    case (decide (idx = idx')); last first.
+    { intros ?. rewrite lookup_empty. inversion 1. }
+    intros ->.
+    simpl.
+    intros [-> ->]%lookup_singleton_Some.
+    exists eq_refl.
+    done.
   Qed.
 
 End transmap.
@@ -837,7 +897,7 @@ Section next_gen_definition.
 
   (* The resource [m] contains the agreement resources for all the picks in
   [picks]. *)
-  Definition m_contains_tokens_for_picks picks (m : iResUR Σ) :=
+  Definition res_for_picks picks (m : iResUR Σ) :=
     ∀ i,
       dom (picks i) ≡ dom (m i) ∧
       (∀ γ (a : Rpre Σ i),
@@ -846,18 +906,28 @@ Section next_gen_definition.
          * before. *)
         ∃ n (A : cmra) (DS : deps n)
           (eq : generational_cmraR A DS = R Σ i) (t : A → A) R Rs,
-        (* ∃ gti (t : gti.(gti_car) → gti.(gti_car)), *)
-          (* Ω.(g_valid_gt) i = Some2 gti ∧ *)
+          (* ∃ gti (t : gti.(gti_car) → gti.(gti_car)), *)
+            (* Ω.(g_valid_gt) i = Some2 gti ∧ *)
           picks i !! γ = Some (cmra_map_transport eq (gen_generation DS t)) ∧
           pred_prefix_list_for Rs R ∧
           a ≡ map_unfold (cmra_transport eq
             (None, GTS_tok_gen_shot t, None, gV (●□ (to_max_prefix_list Rs))))).
 
   Definition own_picks picks : iProp Σ :=
-    ∃ m, uPred_ownM m ∗ ⌜ m_contains_tokens_for_picks picks m ⌝.
+    ∃ m, uPred_ownM m ∗ ⌜ res_for_picks picks m ⌝.
+
+  Definition res_for_promises (ps : list (promise_info Σ)) (m : iResUR Σ) :=
+    ∀ p, p ∈ ps →
+      ∃ n (a : Rpre Σ p.(pi_id)) (A : cmra) (DS : deps n)
+      (* NOTE: Is there a better way to get a hold of [A] and [DS]? *)
+      (eq : generational_cmraR A DS = R Σ p.(pi_id)) Rel Rs,
+        m p.(pi_id) !! p.(pi_γ) = Some a ∧
+        pred_prefix_list_for Rs Rel ∧
+        a ≡ map_unfold (cmra_transport eq
+          (None, (None, None), None, gV (◯ (to_max_prefix_list Rs)))).
 
   Definition own_promises (ps : list (promise_info Σ)) : iProp Σ :=
-    ⌜ True ⌝. (* TODO: *)
+    ∃ m, uPred_ownM m ∗ ⌜ res_for_promises ps m ⌝ .
 
   (* The global transformation [fG] respects the entries in [picks].
    * NOTE: We may not need this given how [⚡==>] now quantifies over picks and
@@ -884,14 +954,29 @@ End next_gen_definition.
 Notation "⚡==> P" := (nextgen P)
   (at level 99, P at level 200, format "⚡==>  P") : bi_scope.
 
-Section transmap_properties.
+Section nextgen_properties.
   Context {Σ : gFunctors}.
 
-  Lemma m_contains_tokens_for_transmap_empty :
-    m_contains_tokens_for_picks (λ i : gid Σ, ∅) ε.
+  Lemma res_for_picks_empty :
+    res_for_picks (λ i : gid Σ, ∅) ε.
   Proof. done. Qed.
 
-End transmap_properties.
+  Lemma own_picks_empty :
+    ⊢@{iProp Σ} own_picks (λ i : gid Σ, ∅).
+  Proof. iExists ε. rewrite ownM_unit' left_id. iPureIntro. done. Qed.
+
+  Lemma res_for_promises_empty :
+    res_for_promises [] (ε : iResUR Σ).
+  Proof. intros ? elem. inversion elem. Qed.
+
+  Lemma own_promises_empty :
+    ⊢@{iProp Σ} own_promises [].
+  Proof.
+    iExists ε. rewrite ownM_unit' left_id.
+    iPureIntro. apply res_for_promises_empty.
+  Qed.
+
+End nextgen_properties.
 
 (* Ownership over generational ghost state. *)
 
