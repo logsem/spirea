@@ -59,6 +59,7 @@ Proof.
   - intros [[?|] [[[??]|]?]]; try done.
     * destruct c; destruct d; try done.
     * destruct c; done.
-  - intros [[?|] [[[??]|]?]];
-      intros [[?|] [[[??]|]?]]; try done; admit.
+  - intros [[[q| |q]|] [[[??]|]?]];
+      intros [[[q'| |q']|] [[[??]|]?]]; try done.
+    * simpl.
 Admitted.

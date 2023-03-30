@@ -234,8 +234,9 @@ Proof. rewrite 3!prod_validI. iIntros "[_ $]". Qed.
 
 Class genInG {n} (Σ : gFunctors) (A : cmra) (DS : deps n) := GenInG {
   genInG_inG : inG Σ (generational_cmraR A DS);
+  genInG_inG_deps : ∀ i d, DS !!! i = d → inG Σ (generational_cmraR A DS);
   (* genInG_id : gid Σ; *)
-  (* genInG_apply := rFunctor_apply (gFunctors_lookup Σ genInG_id); *)
+  ( genInG_apply := rFunctor_apply (gFunctors_lookup Σ genInG_id); *)
   (* genInG_gti : gen_trans_info Σ (genInG_id); *)
   (* genInG_gen_trans : Ω.(g_valid_gt) (genInG_id) = Some2 genInG_gti; *)
   (* genInG_gti_typ : A = genInG_gti.(gti_car); *)
@@ -474,6 +475,9 @@ Section promises.
 
   Definition deps_to_trans n (deps : ivec n promise_self_info) :=
     hvec (λ dep, T Σ dep.(psi_id)) n deps.
+
+  Definition deps_to_gnames {n} (deps : ivec n promise_self_info) :=
+    ivec_map (λ dep, dep.(psi_γ)) deps.
 
   (** The transformations [ts] satisfies the predicates [ps]. *)
   Equations deps_preds_hold {n}
@@ -1016,9 +1020,16 @@ Section generational_resources.
         gP (● to_max_prefix_list all) ⋅ gV (●□ to_max_prefix_list all)
       ) : generational_cmraR A DS).
 
+  (* TODO: We need some way of converting between the relations stored in
+   * promise_info and the relations stored by the user. *)
+
   (** Knowledge that γ is accociated with the predicates R and P. *)
   Definition rely (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
-    ∃ (all : list (pred_over DS A)),
+    ∃ (p : promise_info Σ) (all : list (pred_over DS A)),
+      ⌜ p.(pi_γ) = γ ⌝ ∗
+      ⌜ p.(pi_rel) = R ⌝ ∗
+      ⌜ p.(pi_pred) = P ⌝ ∗
+      ⌜ deps_to_gnames (p.(pi_deps)) γs ⌝
       ⌜ pred_prefix_list_for' all R P ⌝ ∗
       own γ ((None, (None, None), None,
               gPV (◯ to_max_prefix_list all)) : generational_cmraR A DS).
@@ -1083,16 +1094,16 @@ Section rules.
   Admitted.
 
   Lemma token_nextgen γ γs (R : pred_over DS A) P :
-    token γ γs R P ⊢ ⚡==> token γ γs R P.
+    used_token γ γs R P ⊢ ⚡==> token γ γs R P.
   Proof.
-    iDestruct 1 as (??) "own".
+    iDestruct 1 as (? (HPL & ?)) "own".
+    destruct HPL as (? & ?).
+
     iExists (λ i, ∅), [].
-    iSplitL "".
-    { iExists ε. rewrite ownM_unit' left_id. iPureIntro.
-      apply m_contains_tokens_for_transmap_empty. }
+    iSplitL "". { iApply own_picks_empty. }
+    iSplitL "". { iApply own_promises_empty. }
     iSplit; first done.
-    iSplit; first done.
-    iIntros (full_picks).
+    iIntros (full_picks ?).
     iEval (rewrite own.own_eq) in "own".
     rewrite /own.own_def.
     (* iModIntro. *)

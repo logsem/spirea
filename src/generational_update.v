@@ -651,7 +651,7 @@ Section picks_lemmas.
         rewrite -cmra_morphism_pcore.
         specialize (picksGT i γ pick pickLook) as [??].
         rewrite -generation_pcore.
-        rewrite -cmra_morphism_pcore.
+        rewrite -(cmra_morphism_pcore map_fold).
         destruct (pcore a); done.
       * destruct (g_valid_gt Ω i).
         + rewrite core_Some_pcore.
