@@ -1288,7 +1288,7 @@ Section wp_at_rules.
       destruct TV' as [[??]?].
       destruct incl as [[??]?].
       destruct incl2 as [[??]?].
-      eapply gt_le_trans; first done.
+      eapply Nat.le_lt_trans; last done.
       etrans; first done.
       f_equiv.
       etrans; done. }

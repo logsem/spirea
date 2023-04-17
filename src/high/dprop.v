@@ -158,8 +158,8 @@ Section definitions.
   Proof.
     intros ?? impl.
     iModel.
-    simpl.
-    rewrite impl; auto.
+    iApply impl.
+    done.
   Qed.
 
   Definition know_gnames (gnames : nvmDeltaG) : dProp Σ :=

@@ -250,14 +250,14 @@ Section recovery_adequacy.
       iSpecialize ("H" with "[Hlc]").
       { rewrite {1}Nat.add_comm ?Nat.iter_add //. }
       iMod "H". iModIntro.
-      rewrite {1}plus_comm Nat.iter_add.
+      rewrite {1}Nat.add_comm Nat.iter_add.
       rewrite -Nat.iter_succ Nat.iter_succ_r.
       iApply step_fupd2N_le; last iApply (step_fupd2N_wand with "H").
       { apply Nat.eq_le_incl. f_equal.
-        rewrite {1}plus_comm ?Nat.iter_add.
+        rewrite {1}Nat.add_comm ?Nat.iter_add.
         f_equal. rewrite -Nat.iter_succ_r //. }
       iIntros ">H".
-      rewrite {1}plus_comm ?Nat.iter_add.
+      rewrite {1}Nat.add_comm ?Nat.iter_add.
       iDestruct "H" as (??? Heq) "(H1 & Hg & ? & ?)".
       iExists _, _, _. iFrame "∗".
       iSplitL ""; first eauto.
@@ -279,7 +279,7 @@ Section recovery_adequacy.
       iSplit; first done.
       iIntros "Hlc".
       rewrite /sum_crash_steps.
-      rewrite plus_0_r.
+      rewrite Nat.add_0_r.
       rewrite Nat.iter_succ.
       iSpecialize ("H" with "[Hlc]").
       { iExactEq "Hlc". f_equal. }

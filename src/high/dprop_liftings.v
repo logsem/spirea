@@ -18,8 +18,9 @@ Section lift_d_lemmas.
     rewrite /lift_d.
     intros ?? eq.
     f_equiv.
-    intros ???.
-    rewrite eq; done.
+    intros ?? eq2.
+    rewrite (eq _ _ eq2).
+    done.
   Qed.
 
   Lemma lift_wand (P Q : _ → iProp Σ) :

@@ -528,14 +528,6 @@ Section mapsto_at_lemmas.
     BufferFree (mapsto_na ℓ prot q ss).
   Proof. apply _. Qed.
 
-(* End points_to_at. *)
-
-(* Section points_to_at_more. *)
-(*   Context `{nvmG Σ, hGD : nvmDeltaG, AbstractState ST}. *)
-
-(*   Implicit Types (e : expr) (ℓ : loc) (s : ST) *)
-(*            (ss : list ST) (prot : LocationProtocol ST). *)
-
   Lemma post_crash_persist_lb (ℓ : loc) prot (s : ST) :
     persist_lb ℓ prot s -∗
     <PC>

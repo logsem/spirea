@@ -776,7 +776,7 @@ Section wpr.
           done. }
         { rewrite lookup_fmap drop_above_lookup_t physHistLook. done. }
 
-        iIntros ([lt | ->]%le_lt_or_eq).
+        iIntros ([lt | ->]%Nat.lt_eq_cases).
         2: { assert (s = recS) as -> by congruence. iFrame "frag". done. }
 
         iDestruct (big_sepM_lookup with "fragHistories") as "HI"; try done.
