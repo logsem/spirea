@@ -5,6 +5,8 @@ From iris.proofmode Require Import classes tactics.
 From iris.base_logic.lib Require Export iprop own invariants.
 From iris.prelude Require Import options.
 
+From iris_named_props Require Import named_props.
+
 From self Require Import hvec extra basic_nextgen_modality gen_trans
   gen_single_shot gen_pv.
 
@@ -999,6 +1001,22 @@ Section nextgen_properties.
     iPureIntro. apply res_for_promises_empty.
   Qed.
 
+  Lemma nextgen_emp_2 : emp ⊢@{iProp Σ} ⚡==> emp.
+  Proof.
+    iIntros "emp".
+    rewrite /nextgen.
+    iExists (λ i, ∅), [].
+    iSplitL "". { iApply own_picks_empty. }
+    iSplitL "". { iApply own_promises_empty. }
+    iSplit; first done.
+    iIntros (full_picks ?).
+  Qed.
+
+  Lemma nextgen_sep_2 P Q :
+    (⚡==> P) ∗ (⚡==> Q) ⊢@{iProp Σ} ⚡==> (P ∗ Q) .
+  Proof.
+  Admitted.
+
 End nextgen_properties.
 
 (* Ownership over generational ghost state. *)
@@ -1061,8 +1079,8 @@ Section generational_resources.
   (** Knowledge that γ is accociated with the predicates R and P. *)
   Definition rely (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
     ∃ (all : list (pred_over DS A)),
-      ⌜ pred_prefix_list_for' all R P ⌝ ∗
-      own γ ((None, (None, None), None,
+      "#pref_list" ∷ ⌜ pred_prefix_list_for' all R P ⌝ ∗
+      "own_preds" ∷ own γ ((None, (None, None), None,
               gPV (◯ to_max_prefix_list all)) : generational_cmraR A DS).
 
 End generational_resources.
@@ -1167,17 +1185,23 @@ Section rules.
   (*   iFrame "own". *)
   (* Qed. *)
 
+  (* TODO: Prove this lemma. *)
   Lemma rely_nextgen γ γs (R : pred_over DS A) P `{∀ (i : fin n), genInSelfG Σ (DS !!! i)} :
     rely γ γs R P
-    ⊢ rely γ γs R P ∗
-      ∃ (t : A → A),
-      ⌜ ∃ (ts : trans_for n DS),
-        huncurry R ts t ∧ (* The transformations satisfy the promise. *)
-        P t ⌝ ∗ (* For convenience we also get this directly. *)
-      gen_picked_in γ t ∗
-      (∃ (ts' : trans_for n DS), (* FIXME: Temp universe workaround. *)
-        (∀ (i : fin n), gen_picked_in (γs !!! i) (hvec_lookup_fmap ts' i))).
-  Proof. Admitted.
+    ⊢ ⚡==> (
+      rely γ γs R P ∗
+      ∃ (t : A → A) (ts : trans_for n DS),
+        ⌜ huncurry R ts t ∧ (* The transformations satisfy the promise *)
+          P t ⌝ ∗ (* For convenience we also get this directly *)
+        gen_picked_in γ t ∗
+        (* The transformations for the dependencies are the "right" ones *)
+        (∀ i, gen_picked_in (γs !!! i) (hvec_lookup_fmap ts i))).
+  Proof.
+    rewrite /rely.
+    iNamed 1.
+    iSplitL.
+    iModIntro.
+  Admitted.
 
   Lemma token_to_rely γ γs (R : pred_over DS A) P :
     token γ γs R P ⊢ rely γ γs R P.
