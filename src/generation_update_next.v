@@ -163,6 +163,22 @@ Section dependency_relation_extra.
   Definition pred_prefix_list_for' (all : list (pred_over DS A)) R P :=
     pred_prefix_list_for all R ∧ rel_implies_pred R P.
 
+  Lemma pred_prefix_list_for_singleton p :
+    pred_prefix_list_for (p :: []) p.
+  Proof.
+    split; first done.
+    intros ????? [-> ->]%list_lookup_singleton_Some
+      [-> ->]%list_lookup_singleton_Some.
+    intros ??. done.
+  Qed.
+
+  Lemma pred_prefix_list_for'_True :
+    pred_prefix_list_for' (True_pred :: []) True_pred (λ _ : A → A, True).
+  Proof.
+    rewrite /pred_prefix_list_for'.
+    split; [apply pred_prefix_list_for_singleton | done].
+  Qed.
+
 End dependency_relation_extra.
 
 Definition generational_cmra {n} A (DS : deps_ty n) : Type :=
@@ -988,8 +1004,11 @@ Section generational_resources.
   Context {n} {A} {DS : deps n} `{!genInG Σ A DS}.
   Implicit Types (R : pred_over DS A) (P : (A → A) → Prop).
 
+  Definition gen_own_res (a : A) : generational_cmraR A DS :=
+    (None, (None, None), Some a, ε).
+
   Definition gen_own (γ : gname) (a : A) : iProp Σ :=
-    own γ (None, (None, None), Some a, ε).
+    own γ (gen_own_res a).
 
   Definition own_shot γ t : iProp Σ :=
     own γ ((None, GTS_tok_gen_shot t, None, ε)).
@@ -1003,12 +1022,14 @@ Section generational_resources.
   Definition gen_token γ : iProp Σ :=
     own γ ((None, GTS_tok_both, None, ε)).
 
+  Definition token_res all : generational_cmraR A DS :=
+    (None, GTS_tok_both, None, gPV (● (to_max_prefix_list all))).
+
   (** Ownership over the token and the promises for [γ]. *)
   Definition token (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
     ∃ (all : list (pred_over DS A)),
       ⌜ pred_prefix_list_for' all R P ⌝ ∗
-      own γ ((None, GTS_tok_both, None,
-               gPV (● (to_max_prefix_list all))) : generational_cmraR A DS).
+      own γ (token_res all).
 
   Definition used_token (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
     ∃ (all : list (pred_over DS A)),
@@ -1059,7 +1080,22 @@ Section rules.
 
   Lemma own_gen_alloc (a : A) γs :
     ✓ a → ⊢ |==> ∃ γ, gen_own γ a ∗ token γ γs True_pred (λ _, True%type).
-  Proof. Admitted.
+  Proof.
+    iIntros (Hv).
+    rewrite /gen_own.
+    rewrite /token.
+    iMod (own_alloc (gen_own_res a ⋅ token_res (True_pred :: []))) as (γ) "[A B]".
+    { split; simpl; try done.
+      rewrite ucmra_unit_left_id.
+      apply gen_pv_valid.
+      apply auth_auth_valid.
+      apply to_max_prefix_list_valid. }
+    iExists γ.
+    iModIntro. iFrame "A".
+    iExists _. iFrame "B".
+    iPureIntro.
+    apply pred_prefix_list_for'_True.
+  Qed.
 
   Lemma gen_token_split γ :
     gen_token γ ⊣⊢
