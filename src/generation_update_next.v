@@ -27,7 +27,7 @@ Section types.
     iimpl id DS ((A → A) → Prop).
 
   Definition pred_over {n} (DS : deps n) A :=
-    iimpl cmra_to_trans DS ((A → A) → Prop).
+    iimpl id (ivec_map cmra_to_trans DS) ((A → A) → Prop).
 
   Definition True_pred {n} {DS : deps n} {A} : pred_over DS A :=
     hcurry (λ _ _, True).
@@ -38,16 +38,19 @@ Section types.
 
 End types.
 
-Notation trans_for := (hvec cmra_to_trans).
-Definition trans_for_alt n (DS : deps n) := hvec id n (cmra_to_trans <$> DS).
+Definition trans_for n (DS : deps n) := hvec id n (cmra_to_trans <$> DS).
 
 Notation preds_for := (hvec cmra_to_pred).
 
-(* trans_for_alt does not give universe issue. *)
+(* trans_for does not give universe issue. *)
 Definition test_exist {Σ} {n : nat} {DS : deps n} : iProp Σ :=
-  ∃ (ts : trans_for_alt n DS), ⌜ True ⌝.
+  ∃ (ts : trans_for n DS), ⌜ True ⌝.
 
-(* trans_for _does_ give universe issue. The root cause is the way the [cmra] appears in the type. In [trans_for_alt] the occurence of [cmra_car] prevents the universe issue somehow. *)
+(* Notation trans_for_old := (hvec cmra_to_trans). *)
+
+(* trans_for_old _does_ give universe issue. The root cause is the way the
+ * [cmra] appears in the type. In [trans_for] the occurence of [cmra_car]
+ * prevents the universe issue somehow. *)
 (* Definition test_exist {Σ} {n : nat} {DS : ivec cmra n} : iProp Σ := *)
 (*   ∃ (ts : trans_for n DS), ⌜ True ⌝. *)
 
@@ -1172,7 +1175,7 @@ Section rules.
         huncurry R ts t ∧ (* The transformations satisfy the promise. *)
         P t ⌝ ∗ (* For convenience we also get this directly. *)
       gen_picked_in γ t ∗
-      (∃ (ts' : trans_for_alt n DS), (* FIXME: Temp universe workaround. *)
+      (∃ (ts' : trans_for n DS), (* FIXME: Temp universe workaround. *)
         (∀ (i : fin n), gen_picked_in (γs !!! i) (hvec_lookup_fmap ts' i))).
   Proof. Admitted.
 
@@ -1262,7 +1265,7 @@ Section test.
     Variables (A : cmra) (B : cmra) (T1 : A → A) (T2 : B → B)
       (P1 : (A → A) → Prop) (P2 : (B → B) → Prop).
 
-    Definition TS : trans_for _ _ := [T1; T2].
+    Definition TS : trans_for _ [A; B] := [T1; T2]%HV.
     Definition PS : preds_for _ _ := [P1; P2].
     Compute (preds_hold (DS := [A; B]) TS PS).
 
