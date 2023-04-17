@@ -236,7 +236,7 @@ Class genInG {n} (Σ : gFunctors) (A : cmra) (DS : deps n) := GenInG {
   genInG_inG : inG Σ (generational_cmraR A DS);
   genInG_inG_deps : ∀ i d, DS !!! i = d → inG Σ (generational_cmraR A DS);
   (* genInG_id : gid Σ; *)
-  ( genInG_apply := rFunctor_apply (gFunctors_lookup Σ genInG_id); *)
+  (* genInG_apply := rFunctor_apply (gFunctors_lookup Σ genInG_id); *)
   (* genInG_gti : gen_trans_info Σ (genInG_id); *)
   (* genInG_gen_trans : Ω.(g_valid_gt) (genInG_id) = Some2 genInG_gti; *)
   (* genInG_gti_typ : A = genInG_gti.(gti_car); *)
@@ -1023,13 +1023,20 @@ Section generational_resources.
   (* TODO: We need some way of converting between the relations stored in
    * promise_info and the relations stored by the user. *)
 
+  (* (** Knowledge that γ is accociated with the predicates R and P. *) *)
+  (* Definition rely (γ : gname) (γs : ivec n gname) R P : iProp Σ := *)
+  (*   ∃ (p : promise_info Σ) (all : list (pred_over DS A)), *)
+  (*     ⌜ p.(pi_γ) = γ ⌝ ∗ *)
+  (*     ⌜ p.(pi_rel) = R ⌝ ∗ *)
+  (*     ⌜ p.(pi_pred) = P ⌝ ∗ *)
+  (*     ⌜ deps_to_gnames (p.(pi_deps)) γs ⌝ *)
+  (*     ⌜ pred_prefix_list_for' all R P ⌝ ∗ *)
+  (*     own γ ((None, (None, None), None, *)
+  (*             gPV (◯ to_max_prefix_list all)) : generational_cmraR A DS). *)
+
   (** Knowledge that γ is accociated with the predicates R and P. *)
   Definition rely (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
-    ∃ (p : promise_info Σ) (all : list (pred_over DS A)),
-      ⌜ p.(pi_γ) = γ ⌝ ∗
-      ⌜ p.(pi_rel) = R ⌝ ∗
-      ⌜ p.(pi_pred) = P ⌝ ∗
-      ⌜ deps_to_gnames (p.(pi_deps)) γs ⌝
+    ∃ (all : list (pred_over DS A)),
       ⌜ pred_prefix_list_for' all R P ⌝ ∗
       own γ ((None, (None, None), None,
               gPV (◯ to_max_prefix_list all)) : generational_cmraR A DS).
