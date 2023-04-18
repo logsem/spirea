@@ -920,23 +920,29 @@ Section next_gen_definition.
 
   Implicit Types (picks : TransMap Σ).
 
+  (* If a transformation has been picked for one ghost name, then all the
+   * dependencies must also have been picked. *)
+
   (* The resource [m] contains the agreement resources for all the picks in
-  [picks]. *)
+   * [picks]. We need to know that a picked transformation satisfies the most
+   * recent/strongest promise. We thus need the authorative part of the
+   * promises. *)
   Definition res_for_picks picks (m : iResUR Σ) :=
     ∀ i,
       dom (picks i) ≡ dom (m i) ∧
-      (∀ γ (a : Rpre Σ i),
+      ∀ γ (a : Rpre Σ i),
         m i !! γ = Some a  →
         (* NOTE: Maybe we'll need to pull this equality out of a global map as
          * before. *)
         ∃ n (A : cmra) (DS : deps n)
-          (eq : generational_cmraR A DS = R Σ i) (t : A → A) R Rs,
+          (eq : generational_cmraR A DS = R Σ i) ts (t : A → A) R Rs,
+          huncurry R ts t ∧
           (* ∃ gti (t : gti.(gti_car) → gti.(gti_car)), *)
             (* Ω.(g_valid_gt) i = Some2 gti ∧ *)
           picks i !! γ = Some (cmra_map_transport eq (gen_generation DS t)) ∧
           pred_prefix_list_for Rs R ∧
           a ≡ map_unfold (cmra_transport eq
-            (None, GTS_tok_gen_shot t, None, gV (●□ (to_max_prefix_list Rs))))).
+            (None, GTS_tok_gen_shot t, None, gV (●□ (to_max_prefix_list Rs)))).
 
   Definition own_picks picks : iProp Σ :=
     ∃ m, uPred_ownM m ∗ ⌜ res_for_picks picks m ⌝.
@@ -969,15 +975,105 @@ Section next_gen_definition.
       own_picks picks ∗ own_promises ps ∗
       ⌜ promises_well_formed ps ⌝ ∗
       ∀ full_picks (val : transmap_valid full_picks),
-        ⌜ transmap_resp_promises full_picks ps ⌝ ∗
-        ⌜ picks ⊆ full_picks ⌝ ∗
-        let _ := build_trans_generation full_picks val in (* Why is this instance not found automatically? *)
+        ⌜ transmap_resp_promises full_picks ps ⌝ -∗
+        ⌜ picks ⊆ full_picks ⌝ -∗
+        let _ := build_trans_generation full_picks val in
         ⚡={build_trans full_picks}=> P.
 
 End next_gen_definition.
 
 Notation "⚡==> P" := (nextgen P)
   (at level 99, P at level 200, format "⚡==>  P") : bi_scope.
+
+Section own_picks_properties.
+  Context {Σ : gFunctors}.
+  Implicit Types (picks : TransMap Σ).
+
+  Definition merge_picks picks1 picks2 := λ i, (picks1 i) ∪ (picks2 i).
+
+  Definition map_agree_overlap `{FinMap K M} {A} (m1 m2 : M A) :=
+    ∀ (k : K) (i j : A), m1 !! k = Some i → m2 !! k = Some j → i = j.
+
+  (* Lemma m_contains_tokens_for_picks_merge picks1 picks2 (m1 m2 : iResUR Σ) : *)
+  (*   (∀ i, map_agree_overlap (picks1 i) (picks2 i)) → *)
+  (*   (∀ i γ a b, (m1 i) !! γ = Some a → (m2 i) !! γ = Some b → a ≡ b) → *)
+  (*   res_for_picks picks1 m1 → *)
+  (*   res_for_picks picks2 m2 → *)
+  (*   res_for_picks (merge_picks picks1 picks2) (m1 ⋅ m2). *)
+  (* Proof. *)
+  (*   intros overlap1 overlap2 tok1 tok2. *)
+  (*   intros i. *)
+  (*   rewrite /merge_picks. *)
+  (*   rewrite dom_op. *)
+  (*   specialize (tok1 i) as (domEq1 & tok1). *)
+  (*   specialize (tok2 i) as (domEq2 & tok2). *)
+  (*   split. *)
+  (*   { rewrite -domEq1 -domEq2. rewrite dom_union. done. } *)
+  (*   intros γ a. *)
+  (*   rewrite discrete_fun_lookup_op. *)
+  (*   rewrite lookup_op. *)
+  (*   case (m1 i !! γ) eqn:look1; rewrite look1; *)
+  (*     case (m2 i !! γ) eqn:look2; rewrite look2. *)
+  (*   - specialize (overlap2 i _ _ _ look1 look2) as elemEq. *)
+  (*     apply tok1 in look1 as (n1 & c1 & ? & ? & t1 & r & rs & picksLook1 & prf1 & a1). *)
+  (*     apply tok2 in look2 as (? & ? & ? & ? & t2 & r2 & rs2 & picksLook2 & prf2 & a2). *)
+  (*     intros [= opEq]. *)
+  (*     eexists n1, c1, _, _, t1, r, rs. *)
+  (*     split. { erewrite lookup_union_Some_l; done. } *)
+  (*     split; first done. *)
+  (*     rewrite -opEq. *)
+  (*     rewrite -elemEq. *)
+  (*     rewrite a1. *)
+  (*     assert (gti1 = gti2) as -> by congruence. *)
+  (*     rewrite map_unfold_op. *)
+  (*     f_equiv. *)
+  (*     rewrite -cmra_transport_op. *)
+  (*     f_equiv. *)
+  (*     rewrite -pair_op. *)
+  (*     split; first split; [done| |done]. *)
+  (*     simpl. *)
+  (*     specialize (overlap1 i _ _ _ picksLook1 picksLook2) as hi. *)
+  (*     apply cmra_map_transport_inj in hi. *)
+  (*     rewrite /GTS_tok_gen_shot. *)
+  (*     rewrite -!pair_op. *)
+  (*     split; first done. simpl. *)
+  (*     rewrite -Some_op. *)
+  (*     f_equiv. *)
+  (*     rewrite -Cinr_op. *)
+  (*     f_equiv. *)
+  (*     apply agree_idemp. *)
+  (*   - intros [= ->]. *)
+  (*     apply tok1 in look1 as (gti1 & t1 & val1 & picksLook1 & a1). *)
+  (*     exists gti1, t1. *)
+  (*     split; first done. *)
+  (*     split. { erewrite lookup_union_Some_l; done. } *)
+  (*     apply a1. *)
+  (*   - intros [= ->]. *)
+  (*     apply tok2 in look2 as (gti2 & t2 & val2 & picksLook2 & a2). *)
+  (*     exists gti2, t2. *)
+  (*     split; first done. *)
+  (*     split; last done. *)
+  (*     erewrite lookup_union_r; try done. *)
+  (*     apply not_elem_of_dom. *)
+  (*     rewrite domEq1. *)
+  (*     rewrite not_elem_of_dom. *)
+  (*     done. *)
+  (*   - intros [=]. *)
+  (* Qed. *)
+
+  Lemma own_picks_sep picks1 picks2 :
+    own_picks picks1 -∗
+    own_picks picks2 -∗
+    own_picks (merge_picks picks1 picks2).
+  Proof.
+    iDestruct 1 as (m1) "[O1 %R1]".
+    iDestruct 1 as (m2) "[O2 %R2]".
+    iExists (m1 ⋅ m2).
+    iCombine "O1 O2" as "$".
+    iPureIntro.
+  Admitted.
+
+End own_picks_properties.
 
 Section nextgen_properties.
   Context {Σ : gFunctors}.
@@ -1003,18 +1099,26 @@ Section nextgen_properties.
 
   Lemma nextgen_emp_2 : emp ⊢@{iProp Σ} ⚡==> emp.
   Proof.
-    iIntros "emp".
+    iIntros "E".
     rewrite /nextgen.
     iExists (λ i, ∅), [].
     iSplitL "". { iApply own_picks_empty. }
     iSplitL "". { iApply own_promises_empty. }
     iSplit; first done.
-    iIntros (full_picks ?).
+    iIntros (full_picks ?) "? ?".
+    iModIntro.
+    iFrame "E".
   Qed.
 
   Lemma nextgen_sep_2 P Q :
     (⚡==> P) ∗ (⚡==> Q) ⊢@{iProp Σ} ⚡==> (P ∗ Q) .
   Proof.
+    rewrite /nextgen.
+    iIntros "[P Q]".
+    iDestruct "P" as (??) "(picks1 & pr1 & %wf1 & A)".
+    iDestruct "Q" as (??) "(picks2 & pr2 & %wf2 & B)".
+    (* Combine the picks. *)
+    (* Combine the promises. *)
   Admitted.
 
 End nextgen_properties.
@@ -1208,8 +1312,6 @@ Section rules.
   Proof.
     rewrite /rely.
     iNamed 1.
-    iSplitL.
-    iModIntro.
   Admitted.
 
   Lemma token_to_rely γ γs (R : pred_over DS A) P :
