@@ -1031,11 +1031,11 @@ Section generational_resources.
   Definition gen_own (γ : gname) (a : A) : iProp Σ :=
     own γ (gen_own_res a).
 
-  Definition own_shot γ t : iProp Σ :=
-    own γ ((None, GTS_tok_gen_shot t, None, ε)).
-
   Definition gen_token_used γ : iProp Σ :=
     own γ ((None, GTS_tok_perm, None, ε)).
+
+  Definition gen_picked_out γ t : iProp Σ :=
+    own γ ((None, GTS_tok_gen_shot t, None, ε)).
 
   Definition gen_picked_in γ (t : A → A) : iProp Σ :=
     own γ ((Some (to_agree t), (None, None), None, ε) : generational_cmraR A DS).
@@ -1154,6 +1154,15 @@ Section rules.
     (∀ (i : fin n), rely_self (γs !!! i) (deps_preds 👀 i)) -∗
     token γ γs R_1 P_1 -∗ (* Old token. *)
     token γ γs R_2 P_2. (* Updated token. *)
+  Proof.
+  Admitted.
+
+  Lemma token_pick γ γs (R : pred_over DS A) P (ts : trans_for n DS) t
+      `{∀ (i : fin n), genInSelfG Σ (DS !!! i)} :
+    huncurry R ts t →
+    (∀ i, gen_picked_out (γs !!! i) (hvec_lookup_fmap ts i)) -∗
+    token γ γs R P -∗ |==>
+    used_token γ γs R P ∗ gen_picked_out γ t.
   Proof.
   Admitted.
 
