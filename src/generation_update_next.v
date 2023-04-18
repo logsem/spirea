@@ -19,7 +19,7 @@ Bind Scope ivec_scope with deps.
 
 Section types.
 
-  (** A transformation over the carrier of [A]. *)
+  (** A transformation over the carrier of the camera [A]. *)
   Definition cmra_to_trans A := cmra_car A → cmra_car A.
 
   (** A predicate over a transformation over [A]. *)
@@ -186,29 +186,35 @@ Section dependency_relation_extra.
 
 End dependency_relation_extra.
 
-Definition generational_cmra {n} A (DS : deps_ty n) : Type :=
-  option (agree (A → A)) * GTS (A → A) *
-    option A * gen_pv (auth (promises A DS)).
+Definition generational_cmra {n Σ} A (DS : deps_ty n) : Type :=
+  option (agree (A → A)) * (* Agreement on transformation into generation *)
+  GTS (A → A) * (* Facilitates choice of transformation out of generation *)
+  option A * (* Ownership over A *)
+  option (agree (list (gid Σ * gname))) *
+  gen_pv (auth (promises A DS)) (* List of promises *).
 
-Definition generational_cmraR {n} (A : cmra) (DS : deps n) :=
-  prodR
-    (prodR (prodR (optionR (agreeR (leibnizO (A → A)))) (GTSR (A → A))) (optionR A))
-    (gen_pvR (authR (promisesR A DS))).
+(* Notation for [prodR] as the product below would otherwise get horrible to
+ * write. *)
+Local Infix "*R*" := prodR (at level 50, left associativity).
 
-Definition gen_generation_first {A : cmra} (f : A → A) :
-  prodR (optionR (agreeR (leibnizO (A → A)))) (GTSR (A → A)) →
-  prodR (optionR (agreeR (leibnizO (A → A)))) (GTSR (A → A))
-  := prod_map
-       (const (Some (to_agree f)) : optionR (agreeR (leibnizO (A → A))) → optionR (agreeR (leibnizO (A → A))))
-       (GTS_floor : (GTSR (A → A)) → (GTSR (A → A))).
+Definition generational_cmraR {n} Σ (A : cmra) (DS : deps n) : cmra :=
+  optionR (agreeR (leibnizO (A → A))) *R*
+  GTSR (A → A) *R*
+  optionR A *R*
+  optionR (agreeR (leibnizO (list (gid Σ * gname)))) *R*
+  gen_pvR (authR (promisesR A DS)).
+
+Local Infix "*M*" := prod_map (at level 50, left associativity).
 
 (* The generational transformation function for the encoding of each ownership
 over a generational camera. *)
-Definition gen_generation {n} {A : cmra} (DS : deps n)
-    (f : A → A) : generational_cmraR A DS → generational_cmraR A DS :=
-  prod_map
-    (prod_map (gen_generation_first f) (fmap f : optionR A → optionR A))
-    gen_pv_trans.
+Definition gen_generation {n Σ} {A : cmra} (DS : deps n)
+    (f : A → A) : generational_cmraR Σ A DS → generational_cmraR Σ A DS :=
+  (const (Some (to_agree f)) : optionR (agreeR (leibnizO (A → A))) → optionR (agreeR (leibnizO (A → A)))) *M*
+  (GTS_floor : (GTSR (A → A)) → (GTSR (A → A))) *M*
+  (fmap f : optionR A → optionR A) *M*
+  id *M*
+  gen_pv_trans.
 
 Global Instance gen_trans_const {A : ofe} (a : A) :
   GenTrans (const (Some (to_agree a))).
@@ -222,40 +228,49 @@ Proof.
     done.
 Qed.
 
-Global Instance gen_generation_gen_trans {n} {A : cmra} {DS : deps n} (f : A → A)
+Global Instance gen_generation_gen_trans {n Σ} {A : cmra} {DS : deps n} (f : A → A)
   `{!Proper (equiv ==> equiv) f} :
-  GenTrans f → GenTrans (gen_generation DS f).
+  GenTrans f → GenTrans (gen_generation (Σ := Σ) DS f).
 Proof. apply _. Qed.
 
-Global Instance gen_generation_proper {n} {A : cmra} (DS : deps n) (f : A → A) :
+Global Instance gen_generation_proper {n Σ} {A : cmra} (DS : deps n) (f : A → A) :
   Proper ((≡) ==> (≡)) f →
-  Proper ((≡) ==> (≡)) (gen_generation DS f).
+  Proper ((≡) ==> (≡)) (gen_generation (Σ := Σ) DS f).
 Proof.
   intros ? [[??]?] [[??]?] [[??]?]. simpl in *.
-  rewrite /gen_generation /gen_generation_first.
+  rewrite /gen_generation.
   solve_proper.
 Qed.
 
-(* Working with the 4-tuple is sometimes annoying. Then these lemmas help. *)
-Lemma prod_valid_1st {Σ} {A B C D : cmra} (a : A) (b : B) (c : C) (d : D) e f g h :
-  ✓ ((a, b, c, d) ⋅ (e, f, g, h)) ⊢@{iProp Σ} ✓ (a ⋅ e).
-Proof. rewrite 3!prod_validI. iIntros "[[[$ _] _] _]". Qed.
+(* Working with the 5-tuple is sometimes annoying. Then these lemmas help. *)
+Lemma prod_valid_1st {Σ}
+  {A B C D E : cmra} (a : A) (b : B) (c : C) (d : D) (e : E) f g h i j :
+  ✓ ((a, b, c, d, e) ⋅ (f, g, h, i, j)) ⊢@{iProp Σ} ✓ (a ⋅ f).
+Proof. rewrite 4!prod_validI. simpl. iIntros "[[[[$ _] _] _] _]". Qed.
 
-Lemma prod_valid_2st {Σ} {A B C D : cmra} (a : A) (b : B) (c : C) (d : D) e f g h :
-  ✓ ((a, b, c, d) ⋅ (e, f, g, h)) ⊢@{iProp Σ} ✓ (b ⋅ f).
-Proof. rewrite 3!prod_validI. iIntros "[[[_ $] _] _]". Qed.
+Lemma prod_valid_2st {Σ}
+  {A B C D E : cmra} (a : A) (b : B) (c : C) (d : D) (e : E) f g h i j :
+  ✓ ((a, b, c, d, e) ⋅ (f, g, h, i, j)) ⊢@{iProp Σ} ✓ (b ⋅ g).
+Proof. rewrite 4!prod_validI. simpl. iIntros "[[[[_ $] _] _] _]". Qed.
 
-Lemma prod_valid_3th {Σ} {A B C D : cmra} (a : A) (b : B) (c : C) (d : D) e f g h :
-  ✓ ((a, b, c, d) ⋅ (e, f, g, h)) ⊢@{iProp Σ} ✓ (c ⋅ g).
-Proof. rewrite 3!prod_validI. iIntros "[[_ $] _]". Qed.
+Lemma prod_valid_3th {Σ}
+  {A B C D E : cmra} (a : A) (b : B) (c : C) (d : D) (e : E) f g h i j :
+  ✓ ((a, b, c, d, e) ⋅ (f, g, h, i, j)) ⊢@{iProp Σ} ✓ (c ⋅ h).
+Proof. rewrite 4!prod_validI. simpl. iIntros "[[[_ $] _] _]". Qed.
 
-Lemma prod_valid_4th {Σ} {A B C D : cmra} (a : A) (b : B) (c : C) (d : D) e f g h :
-  ✓ ((a, b, c, d) ⋅ (e, f, g, h)) ⊢@{iProp Σ} ✓ (d ⋅ h).
-Proof. rewrite 3!prod_validI. iIntros "[_ $]". Qed.
+Lemma prod_valid_4th {Σ}
+  {A B C D E : cmra} (a : A) (b : B) (c : C) (d : D) (e : E) f g h i j :
+  ✓ ((a, b, c, d, e) ⋅ (f, g, h, i, j)) ⊢@{iProp Σ} ✓ (d ⋅ i).
+Proof. rewrite 4!prod_validI. iIntros "[[_ $] _]". Qed.
+
+Lemma prod_valid_5th {Σ}
+  {A B C D E : cmra} (a : A) (b : B) (c : C) (d : D) (e : E) f g h i j :
+  ✓ ((a, b, c, d, e) ⋅ (f, g, h, i, j)) ⊢@{iProp Σ} ✓ (e ⋅ j).
+Proof. rewrite 4!prod_validI. iIntros "[_ $]". Qed.
 
 Class genInG {n} (Σ : gFunctors) (A : cmra) (DS : deps n) := GenInG {
-  genInG_inG : inG Σ (generational_cmraR A DS);
-  genInG_inG_deps : ∀ i d, DS !!! i = d → inG Σ (generational_cmraR A DS);
+  genInG_inG : inG Σ (generational_cmraR Σ A DS);
+  genInG_inG_deps : ∀ i d, DS !!! i = d → inG Σ (generational_cmraR Σ A DS);
   (* genInG_id : gid Σ; *)
   (* genInG_apply := rFunctor_apply (gFunctors_lookup Σ genInG_id); *)
   (* genInG_gti : gen_trans_info Σ (genInG_id); *)
@@ -935,14 +950,14 @@ Section next_gen_definition.
         (* NOTE: Maybe we'll need to pull this equality out of a global map as
          * before. *)
         ∃ n (A : cmra) (DS : deps n)
-          (eq : generational_cmraR A DS = R Σ i) ts (t : A → A) R Rs,
+          (eq : generational_cmraR Σ A DS = R Σ i) ts (t : A → A) R Rs,
           huncurry R ts t ∧
           (* ∃ gti (t : gti.(gti_car) → gti.(gti_car)), *)
             (* Ω.(g_valid_gt) i = Some2 gti ∧ *)
           picks i !! γ = Some (cmra_map_transport eq (gen_generation DS t)) ∧
           pred_prefix_list_for Rs R ∧
           a ≡ map_unfold (cmra_transport eq
-            (None, GTS_tok_gen_shot t, None, gV (●□ (to_max_prefix_list Rs)))).
+            (None, GTS_tok_gen_shot t, None, None, gV (●□ (to_max_prefix_list Rs)))).
 
   Definition own_picks picks : iProp Σ :=
     ∃ m, uPred_ownM m ∗ ⌜ res_for_picks picks m ⌝.
@@ -951,11 +966,11 @@ Section next_gen_definition.
     ∀ p, p ∈ ps →
       ∃ n (a : Rpre Σ p.(pi_id)) (A : cmra) (DS : deps n)
       (* NOTE: Is there a better way to get a hold of [A] and [DS]? *)
-      (eq : generational_cmraR A DS = R Σ p.(pi_id)) Rel Rs,
+      (eq : generational_cmraR Σ A DS = R Σ p.(pi_id)) Rel Rs,
         m p.(pi_id) !! p.(pi_γ) = Some a ∧
         pred_prefix_list_for Rs Rel ∧
         a ≡ map_unfold (cmra_transport eq
-          (None, (None, None), None, gV (◯ (to_max_prefix_list Rs)))).
+          (None, (None, None), None, None, gV (◯ (to_max_prefix_list Rs)))).
 
   Definition own_promises (ps : list (promise_info Σ)) : iProp Σ :=
     ∃ m, uPred_ownM m ∗ ⌜ res_for_promises ps m ⌝ .
@@ -1129,26 +1144,27 @@ Section generational_resources.
   Context {n} {A} {DS : deps n} `{!genInG Σ A DS}.
   Implicit Types (R : pred_over DS A) (P : (A → A) → Prop).
 
-  Definition gen_own_res (a : A) : generational_cmraR A DS :=
-    (None, (None, None), Some a, ε).
+  Definition gen_own_res (a : A) : generational_cmraR Σ A DS :=
+    (None, (None, None), Some a, None, ε).
 
   Definition gen_own (γ : gname) (a : A) : iProp Σ :=
     own γ (gen_own_res a).
 
   Definition gen_token_used γ : iProp Σ :=
-    own γ ((None, GTS_tok_perm, None, ε)).
+    own γ ((None, GTS_tok_perm, None, None, ε)).
 
   Definition gen_picked_out γ t : iProp Σ :=
-    own γ ((None, GTS_tok_gen_shot t, None, ε)).
+    own γ ((None, GTS_tok_gen_shot t, None, None, ε)).
 
   Definition gen_picked_in γ (t : A → A) : iProp Σ :=
-    own γ ((Some (to_agree t), (None, None), None, ε) : generational_cmraR A DS).
+    own γ (
+      (Some (to_agree t), (None, None), None, None, ε) : generational_cmraR Σ A DS).
 
   Definition gen_token γ : iProp Σ :=
-    own γ ((None, GTS_tok_both, None, ε)).
+    own γ ((None, GTS_tok_both, None, None, ε)).
 
-  Definition token_res all : generational_cmraR A DS :=
-    (None, GTS_tok_both, None, gPV (● (to_max_prefix_list all))).
+  Definition token_res all : generational_cmraR Σ A DS :=
+    (None, GTS_tok_both, None, None, gPV (● (to_max_prefix_list all))).
 
   (** Ownership over the token and the promises for [γ]. *)
   Definition token (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
@@ -1163,8 +1179,9 @@ Section generational_resources.
         None,
         GTS_tok_both,
         None,
+        None,
         gP (● to_max_prefix_list all) ⋅ gV (●□ to_max_prefix_list all)
-      ) : generational_cmraR A DS).
+      ) : generational_cmraR Σ A DS).
 
   (* TODO: We need some way of converting between the relations stored in
    * promise_info and the relations stored by the user. *)
@@ -1178,14 +1195,14 @@ Section generational_resources.
   (*     ⌜ deps_to_gnames (p.(pi_deps)) γs ⌝ *)
   (*     ⌜ pred_prefix_list_for' all R P ⌝ ∗ *)
   (*     own γ ((None, (None, None), None, *)
-  (*             gPV (◯ to_max_prefix_list all)) : generational_cmraR A DS). *)
+  (*             gPV (◯ to_max_prefix_list all)) : generational_cmraR Σ A DS). *)
 
   (** Knowledge that γ is accociated with the predicates R and P. *)
   Definition rely (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
     ∃ (all : list (pred_over DS A)),
       "#pref_list" ∷ ⌜ pred_prefix_list_for' all R P ⌝ ∗
-      "own_preds" ∷ own γ ((None, (None, None), None,
-              gPV (◯ to_max_prefix_list all)) : generational_cmraR A DS).
+      "own_preds" ∷ own γ ((None, (None, None), None, None,
+              gPV (◯ to_max_prefix_list all)) : generational_cmraR Σ A DS).
 
 End generational_resources.
 
@@ -1224,8 +1241,8 @@ Section rules.
 
   Lemma gen_token_split γ :
     gen_token γ ⊣⊢
-    own γ (None, GTS_tok_perm, None, ε) ∗
-    own γ (None, GTS_tok_gen, None, ε).
+    own γ (None, GTS_tok_perm, None, None, ε) ∗
+    own γ (None, GTS_tok_gen, None, None, ε).
   Proof. rewrite -own_op. done. Qed.
 
   Lemma gen_picked_in_agree γ (f f' : A → A) :
@@ -1324,7 +1341,7 @@ Section rules.
     iDestruct 1 as (prs1 prefix1) "own1".
     iDestruct 1 as (prs2 prefix2) "own2".
     iDestruct (own_valid_2 with "own1 own2") as "val".
-    iDestruct (prod_valid_4th with "val") as "%val".
+    iDestruct (prod_valid_5th with "val") as "%val".
     iPureIntro.
     move: val.
     rewrite gen_pv_op. rewrite gen_pv_valid.
@@ -1348,7 +1365,7 @@ Section rules.
     iDestruct 1 as (prs1 prefix1) "own1".
     iDestruct 1 as (prs2 prefix2) "own2".
     iDestruct (own_valid_2 with "own1 own2") as "val".
-    iDestruct (prod_valid_4th with "val") as "%val".
+    iDestruct (prod_valid_5th with "val") as "%val".
     iPureIntro.
     move: val.
     rewrite gen_pv_op. rewrite gen_pv_valid.
