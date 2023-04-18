@@ -9,8 +9,8 @@ Set Transparent Obligations.
 Local Unset Mangle Names. (* work around https://github.com/mattam82/Coq-Equations/issues/407 *)
 
 (* Not using [list] in order to avoid universe inconsistencies. [ivec] stands
-for indenpendet list in the sense that it is independent from anything in stdpp
-that might cause universe problems. *)
+   for independent list in the sense that it is independent from anything in
+   stdpp that might cause universe problems. *)
 Inductive ivec' (A : Type) : nat → Type :=
 | inil : ivec' A 0
 | icons {n : nat} : A → ivec' A n → ivec' A (S n).
@@ -92,6 +92,23 @@ Section ivec.
     | inil => B
     | icons A As => F A → iimpl F As B
     end.
+
+  Fixpoint ivec_to_list {A n} (As : ivec n A) : list A :=
+    match As with
+    | inil => nil
+    | icons A As => cons A (ivec_to_list As)
+    end.
+
+  Global Instance ivec_to_list_inj {A n} : Inj (=) (=) (@ivec_to_list A n).
+  Proof.
+    intros l1 l2.
+    induction l1 as [ | ? ? ? IH].
+    - dependent elimination l2. done.
+    - dependent elimination l2. simpl.
+      inversion 1 as [[eq1 eq2]].
+      apply IH in eq2 as ->.
+      done.
+  Qed.
 
 End ivec.
 
