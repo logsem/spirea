@@ -709,9 +709,6 @@ Section promises.
   Definition promise_map_well_formed (pm : ∀ i, gmap gname promise_info) : Prop :=
     ∀ i γ p, (pm i) !! γ = Some p → p.(pi_id) = i ∧ p.(pi_γ) = γ.
 
-  (* TODO: We need to store evidence that the picks in [transmap] satisfies the
-   * relations and predicates in the [promises]. *)
-
   Equations transmap_insert_go transmap (id : gid Σ) (γ : gname) (pick : T Σ id)
     (id' : gid Σ) : gmap gname (T Σ id') :=
   | transmap, _, γ, pick, id', with decide (id = id') => {
@@ -824,7 +821,10 @@ Section promises.
     transmap_overlap_resp_promises transmap promises.
   Proof. intros HL. intros i ? look. apply (HL (S i) _ look). Qed.
 
- Lemma transmap_promises_to_maps transmap (promises : list promise_info) :
+  (* Grow a transformation map to satisfy a list of promises. This works by
+  * traversing the promises and using [promise_info] to extract a
+  * transformation. *)
+  Lemma transmap_promises_to_maps transmap (promises : list promise_info) :
     transmap_overlap_resp_promises transmap promises →
     promises_well_formed promises →
     ∃ (map : TransMap Σ),
@@ -884,48 +884,6 @@ Section promises.
     - exists m. apply resp.
   Qed.
 
-  (* (* Turn a map of picks and a list of promises into a full map of picks. *) *)
-  (* Definition build_full_promises picks (ps : list (promise_info)) : TransMap Σ := *)
-  (*   λ id, ∅. *)
-  (*   (* λ id, *) *)
-  (*   (*   foldl (λ p m, *) *)
-  (*   (*     if (id = p.(pi_id)) *) *)
-  (*   (*     then <[ p.(pi_γ) := p.(pi_) ] *) *)
-  (*   (*   ) (ø) ps. *) *)
-
-  (* (* TODO: This is the key result that we want to prove. *) *)
-  (* Lemma build_full_properties picks ps : *)
-  (*   let gt := build_full_promises picks ps *)
-  (*   in picks ⊆ gt ∧ transmap_resp_promises gt ps. *)
-  (* Proof. *)
-  (* Admitted. *)
-
-  (* NOTE: This is not possible! We need to feed the picks into the promises as
-  * the resulting transformation can depend on the picks. *)
-  (* TODO: This is the key result we want to prove. *)
-  Lemma map_from_transmap_promises transmap promises :
-    promises_well_formed promises →
-    ∃ (map : TransMap Σ),
-      transmap_resp_promises map promises ∧
-      transmap ⊆ map.
-  Proof.
-    intros WF.
-    edestruct (promises_to_maps) as (mapP & resp); first done.
-    exists (transmap ∪ mapP).
-    split; last apply transmap_union_subseteq_l.
-    intros ? p look.
-    destruct (resp i _ look) as (ts & t & ? & ? & ?).
-    destruct (transmap p.(pi_id) !! p.(pi_γ)) as [t2|] eqn:look2.
-    - eexists _, t2.
-      admit.
-    - exists ts, t.
-      split_and!; last done.
-      * rewrite lookup_union_r; done.
-      * intros idx.
-        simpl.
-        rewrite lookup_union_r; try done.
-  Abort.
-
 End promises.
 
 Arguments promise_info Σ : clear implicits.
@@ -953,12 +911,10 @@ Section next_gen_definition.
         ∃ n (A : cmra) (DS : deps n)
           (eq : generational_cmraR A DS = R Σ i) ts (t : A → A) R Rs,
           huncurry R ts t ∧
-          (* ∃ gti (t : gti.(gti_car) → gti.(gti_car)), *)
-            (* Ω.(g_valid_gt) i = Some2 gti ∧ *)
           picks i !! γ = Some (cmra_map_transport eq (gen_generation DS t)) ∧
           pred_prefix_list_for Rs R ∧
           a ≡ map_unfold (cmra_transport eq
-            (None, GTS_tok_gen_shot t, None, None, gV (●□ (to_max_prefix_list Rs)))).
+            (ε, GTS_tok_gen_shot t, ε, ε, gV (●□ (to_max_prefix_list Rs)))).
 
   Definition own_picks picks : iProp Σ :=
     ∃ m, uPred_ownM m ∗ ⌜ res_for_picks picks m ⌝.
@@ -971,7 +927,7 @@ Section next_gen_definition.
         m p.(pi_id) !! p.(pi_γ) = Some a ∧
         pred_prefix_list_for Rs Rel ∧
         a ≡ map_unfold (cmra_transport eq
-          (None, (None, None), None, None, gV (◯ (to_max_prefix_list Rs)))).
+          (ε, ε, ε, ε, gV (◯ (to_max_prefix_list Rs)))).
 
   Definition own_promises (ps : list (promise_info Σ)) : iProp Σ :=
     ∃ m, uPred_ownM m ∗ ⌜ res_for_promises ps m ⌝ .
