@@ -66,6 +66,12 @@ Proof.
   apply (anti_symm _); naive_solver.
 Qed.
 
+Lemma GTS_tok_gen_shot_idemp {A} (a : A) :
+  (GTS_tok_gen_shot a : GTSR A) ⋅ GTS_tok_gen_shot a ≡ GTS_tok_gen_shot a.
+Proof.
+  rewrite -pair_op -Some_op -Cinr_op. rewrite agree_idemp. done.
+Qed.
+
 Section gts.
 
   Lemma GTS_floor_perm {A : Type} :

@@ -125,7 +125,8 @@ Section dependency_relation_cmra.
   Definition promises (A : Type) (DS : deps_ty n) :=
     max_prefix_list (pred_over_ty DS A).
   Definition promisesR (A : cmra) (DS : deps n) :=
-    max_prefix_listR (pred_over DS A).
+    max_prefix_listR (pred_overO A DS).
+
   Definition promisesUR (A : cmra) (DS : deps n) :=
     max_prefix_listUR (pred_over DS A).
 
@@ -269,14 +270,52 @@ Lemma prod_valid_5th {Σ}
   ✓ ((a, b, c, d, e) ⋅ (f, g, h, i, j)) ⊢@{iProp Σ} ✓ (e ⋅ j).
 Proof. rewrite 4!prod_validI. iIntros "[_ $]". Qed.
 
-Class genInG {n} (Σ : gFunctors) (A : cmra) (DS : deps n) := GenInG {
+(** For every entry in [Ω] we store this record of information. The equality
+ * [gti_look] is the "canonical" equality we will use to show that the resource
+ * [R Σ i] has the proper form. Using this equality is necesarry as we
+ * otherwise end uup with different equalities of this form that we then do not
+ * know to be equal. *)
+Record gen_trans_info (Σ : gFunctors) (i : gid Σ) := {
+  gti_car : cmra;
+  gti_n : nat;
+  gti_deps : deps gti_n;
+  gti_look : generational_cmraR gti_car gti_deps = R Σ i;
+  (* gti_valid : valid_gen_trans (R Σ i); *)
+}.
+
+Arguments gti_car {_} {_}.
+Arguments gti_n {_} {_}.
+Arguments gti_deps {_} {_}.
+Arguments gti_look {_} {_}.
+(* Arguments gti_valid {_} {_}. *)
+
+(** A copy of [option] to work arround universe inconsistencies that arrise if
+we use [option]. *)
+Inductive option2 (A : Type) : Type :=
+  | Some2 : A -> option2 A
+  | None2 : option2 A.
+
+Arguments Some2 {A} a.
+Arguments None2 {A}.
+
+(** [gTransforms] contains a partial map from the type of cameras into a "set"
+of valid transformation function for that camera. *)
+Class gTransforms {Σ : gFunctors} := {
+  g_valid_gt :> ∀ (i : gid Σ), option2 (gen_trans_info Σ i)
+}.
+
+Global Arguments g_valid_gt {_} _.
+
+#[export] Hint Mode gTransforms +.
+
+Class genInG {n} (Σ : gFunctors) Ω (A : cmra) (DS : deps n) := GenInG {
   genInG_inG : inG Σ (generational_cmraR A DS);
   genInG_inG_deps : ∀ i d, DS !!! i = d → inG Σ (generational_cmraR A DS);
   (* genInG_id : gid Σ; *)
   (* genInG_apply := rFunctor_apply (gFunctors_lookup Σ genInG_id); *)
-  (* genInG_gti : gen_trans_info Σ (genInG_id); *)
-  (* genInG_gen_trans : Ω.(g_valid_gt) (genInG_id) = Some2 genInG_gti; *)
-  (* genInG_gti_typ : A = genInG_gti.(gti_car); *)
+  genInG_gti : gen_trans_info Σ (inG_id genInG_inG);
+  genInG_gen_trans : Ω.(g_valid_gt) (inG_id genInG_inG) = Some2 genInG_gti;
+  genInG_gti_typ : A = genInG_gti.(gti_car);
   (* genInG_prf : A = genInG_apply (iPropO Σ) _; *)
   (* genInG_gen_trans2 : *)
   (*   genInG_gti.(gti_valid) = *)
@@ -287,10 +326,10 @@ Existing Instance genInG_inG.
 
 (* Knowledge that [A] is a resource, with the information about its dependencies
 hidden in the dependent pair. *)
-Class genInSelfG (Σ : gFunctors) (A : cmra) := GenInG2 {
+Class genInSelfG (Σ : gFunctors) Ω (A : cmra) := GenInG2 {
   genInSelfG_n : nat;
   genInSelfG_DS : deps genInSelfG_n;
-  genInSelfG_gen : genInG Σ A (genInSelfG_DS);
+  genInSelfG_gen : genInG Σ Ω A (genInSelfG_DS);
 }.
 
 Existing Instance genInSelfG_gen.
@@ -894,6 +933,9 @@ Section next_gen_definition.
 
   Implicit Types (picks : TransMap Σ).
 
+  (* Every generational ghost location consists of a camera and a list of
+   * cameras for the dependencies. *)
+
   (* If a transformation has been picked for one ghost name, then all the
    * dependencies must also have been picked. *)
 
@@ -901,23 +943,26 @@ Section next_gen_definition.
    * [picks]. We need to know that a picked transformation satisfies the most
    * recent/strongest promise. We thus need the authorative part of the
    * promises. *)
-  Definition res_for_picks picks (m : iResUR Σ) :=
+  (* We need to *)
+  Definition res_for_picks Ω picks (m : iResUR Σ) :=
     ∀ i,
       dom (picks i) ≡ dom (m i) ∧
       ∀ γ (a : Rpre Σ i),
         m i !! γ = Some a  →
         (* NOTE: Maybe we'll need to pull this equality out of a global map as
          * before. *)
-        ∃ n (A : cmra) (DS : deps n)
-          (eq : generational_cmraR A DS = R Σ i) ts (t : A → A) R Rs,
+        ∃ gti ts γs (t : gti.(gti_car) → gti.(gti_car)) R Rs,
+          Ω.(g_valid_gt) i = Some2 gti ∧
+          (* BUG: [ts] is unrestricted. *)
           huncurry R ts t ∧
-          picks i !! γ = Some (cmra_map_transport eq (gen_generation DS t)) ∧
+          picks i !! γ = Some (cmra_map_transport gti.(gti_look) (gen_generation (gti.(gti_deps)) t)) ∧
           pred_prefix_list_for Rs R ∧
-          a ≡ map_unfold (cmra_transport eq
-            (ε, GTS_tok_gen_shot t, ε, ε, gV (●□ (to_max_prefix_list Rs)))).
+          a ≡ map_unfold (cmra_transport gti.(gti_look)
+            (ε, GTS_tok_gen_shot t, ε,
+             Some (to_agree γs), gV (●□ (to_max_prefix_list Rs)))).
 
-  Definition own_picks picks : iProp Σ :=
-    ∃ m, uPred_ownM m ∗ ⌜ res_for_picks picks m ⌝.
+  Definition own_picks Ω picks : iProp Σ :=
+    ∃ m, uPred_ownM m ∗ ⌜ res_for_picks Ω picks m ⌝.
 
   Definition res_for_promises (ps : list (promise_info Σ)) (m : iResUR Σ) :=
     ∀ p, p ∈ ps →
@@ -925,7 +970,9 @@ Section next_gen_definition.
       (* NOTE: Is there a better way to get a hold of [A] and [DS]? *)
       (eq : generational_cmraR A DS = R Σ p.(pi_id)) Rel Rs,
         m p.(pi_id) !! p.(pi_γ) = Some a ∧
+        (* BUG: [Rel] is not used for anything. *)
         pred_prefix_list_for Rs Rel ∧
+        (* Rel = p.(pi_rel) ∧ *)
         a ≡ map_unfold (cmra_transport eq
           (ε, ε, ε, ε, gV (◯ (to_max_prefix_list Rs)))).
 
@@ -941,10 +988,10 @@ Section next_gen_definition.
       picks i !! γ = Some t →
       (fG m) i !! γ = Some (map_unfold (t (map_fold a))).
 
-  Definition nextgen P : iProp Σ :=
+  Definition nextgen {Ω} P : iProp Σ :=
     ∃ picks (ps : list (promise_info Σ)),
       (* We own resources for everything in [picks] and [promises]. *)
-      own_picks picks ∗ own_promises ps ∗
+      own_picks Ω picks ∗ own_promises ps ∗
       ⌜ promises_well_formed ps ⌝ ∗
       ∀ full_picks (val : transmap_valid full_picks),
         ⌜ transmap_resp_promises full_picks ps ⌝ -∗
@@ -966,96 +1013,164 @@ Section own_picks_properties.
   Definition map_agree_overlap `{FinMap K M} {A} (m1 m2 : M A) :=
     ∀ (k : K) (i j : A), m1 !! k = Some i → m2 !! k = Some j → i = j.
 
-  (* Lemma m_contains_tokens_for_picks_merge picks1 picks2 (m1 m2 : iResUR Σ) : *)
-  (*   (∀ i, map_agree_overlap (picks1 i) (picks2 i)) → *)
-  (*   (∀ i γ a b, (m1 i) !! γ = Some a → (m2 i) !! γ = Some b → a ≡ b) → *)
-  (*   res_for_picks picks1 m1 → *)
-  (*   res_for_picks picks2 m2 → *)
-  (*   res_for_picks (merge_picks picks1 picks2) (m1 ⋅ m2). *)
-  (* Proof. *)
-  (*   intros overlap1 overlap2 tok1 tok2. *)
-  (*   intros i. *)
-  (*   rewrite /merge_picks. *)
-  (*   rewrite dom_op. *)
-  (*   specialize (tok1 i) as (domEq1 & tok1). *)
-  (*   specialize (tok2 i) as (domEq2 & tok2). *)
-  (*   split. *)
-  (*   { rewrite -domEq1 -domEq2. rewrite dom_union. done. } *)
-  (*   intros γ a. *)
-  (*   rewrite discrete_fun_lookup_op. *)
-  (*   rewrite lookup_op. *)
-  (*   case (m1 i !! γ) eqn:look1; rewrite look1; *)
-  (*     case (m2 i !! γ) eqn:look2; rewrite look2. *)
-  (*   - specialize (overlap2 i _ _ _ look1 look2) as elemEq. *)
-  (*     apply tok1 in look1 as (n1 & c1 & ? & ? & t1 & r & rs & picksLook1 & prf1 & a1). *)
-  (*     apply tok2 in look2 as (? & ? & ? & ? & t2 & r2 & rs2 & picksLook2 & prf2 & a2). *)
-  (*     intros [= opEq]. *)
-  (*     eexists n1, c1, _, _, t1, r, rs. *)
-  (*     split. { erewrite lookup_union_Some_l; done. } *)
-  (*     split; first done. *)
-  (*     rewrite -opEq. *)
-  (*     rewrite -elemEq. *)
-  (*     rewrite a1. *)
-  (*     assert (gti1 = gti2) as -> by congruence. *)
-  (*     rewrite map_unfold_op. *)
-  (*     f_equiv. *)
-  (*     rewrite -cmra_transport_op. *)
-  (*     f_equiv. *)
-  (*     rewrite -pair_op. *)
-  (*     split; first split; [done| |done]. *)
-  (*     simpl. *)
-  (*     specialize (overlap1 i _ _ _ picksLook1 picksLook2) as hi. *)
-  (*     apply cmra_map_transport_inj in hi. *)
-  (*     rewrite /GTS_tok_gen_shot. *)
-  (*     rewrite -!pair_op. *)
-  (*     split; first done. simpl. *)
-  (*     rewrite -Some_op. *)
-  (*     f_equiv. *)
-  (*     rewrite -Cinr_op. *)
-  (*     f_equiv. *)
-  (*     apply agree_idemp. *)
-  (*   - intros [= ->]. *)
-  (*     apply tok1 in look1 as (gti1 & t1 & val1 & picksLook1 & a1). *)
-  (*     exists gti1, t1. *)
-  (*     split; first done. *)
-  (*     split. { erewrite lookup_union_Some_l; done. } *)
-  (*     apply a1. *)
-  (*   - intros [= ->]. *)
-  (*     apply tok2 in look2 as (gti2 & t2 & val2 & picksLook2 & a2). *)
-  (*     exists gti2, t2. *)
-  (*     split; first done. *)
-  (*     split; last done. *)
-  (*     erewrite lookup_union_r; try done. *)
-  (*     apply not_elem_of_dom. *)
-  (*     rewrite domEq1. *)
-  (*     rewrite not_elem_of_dom. *)
-  (*     done. *)
-  (*   - intros [=]. *)
-  (* Qed. *)
+  Lemma cmra_transport_validI {A B : cmra} (eq : A =@{cmra} B) (a : A) :
+    ✓ cmra_transport eq a ⊣⊢@{iPropI Σ} ✓ a.
+  Proof. destruct eq. done. Qed.
 
-  Lemma own_picks_sep picks1 picks2 :
-    own_picks picks1 -∗
-    own_picks picks2 -∗
-    own_picks (merge_picks picks1 picks2).
+  Lemma tokens_for_picks_agree_overlap' Ω picks1 picks2 m1 m2 :
+    res_for_picks Ω picks1 m1 →
+    res_for_picks Ω picks2 m2 →
+    uPred_ownM m1 -∗
+    uPred_ownM m2 -∗
+    ⌜ ∀ i γ a b, (m1 i) !! γ = Some a → (m2 i) !! γ = Some b → a ≡ b ⌝.
+  Proof.
+    iIntros (t1 t2) "m1 m2". iIntros (i).
+    iIntros (γ a1 a2 m1Look m2Look).
+    specialize (t1 i) as (domEq1 & m1look).
+    edestruct m1look as (gti1 & t1 & ? & ? & ? & ? & ? & ? & picks1Look & ? & eq1);
+      first done.
+    specialize (t2 i) as (domEq2 & m2look).
+    (* edestruct m2look as (gti2 & t2 & ? & picks2Look & ?); first done. *)
+    edestruct m2look as (gti2 & t2 & ? & ? & ? & ? & ? & ? & picks2Look & ? & eq2);
+      first done.
+    clear m1look m2look.
+    assert (gti1 = gti2) as -> by congruence.
+    iCombine "m1 m2" as "m".
+    iDestruct (ownM_valid with "m") as "#Hv".
+    rewrite discrete_fun_validI.
+    setoid_rewrite gmap_validI.
+    iSpecialize ("Hv" $! i γ).
+    rewrite lookup_op.
+    rewrite m1Look m2Look.
+    rewrite option_validI /=.
+    rewrite eq1 eq2.
+    simplify_eq.
+    rewrite map_unfold_op.
+    rewrite map_unfold_validI.
+    rewrite -cmra_transport_op.
+    rewrite cmra_transport_validI.
+    rewrite -pair_op.
+    rewrite -pair_op.
+    rewrite prod_validI.
+    rewrite prod_validI.
+    rewrite prod_validI.
+    rewrite prod_validI.
+    iDestruct "Hv" as "((((_ & Hv1) & _) & Hv2) & %Hv3)".
+    simpl in Hv3.
+    simpl.
+    rewrite GTS_tok_gen_shot_foo.
+    rewrite -Some_op option_validI to_agree_op_validI.
+    iDestruct "Hv1" as %->.
+    rewrite gen_pv_op gen_pv_valid in Hv3.
+    rewrite auth_auth_dfrac_op_valid in Hv3.
+    destruct Hv3 as (? & eq & ?).
+    rewrite /map_unfold.
+    iDestruct "Hv2" as %hqq.
+    apply leibniz_equiv in hqq.
+    iPureIntro. f_equiv. f_equiv.
+    rewrite hqq.
+    rewrite /gV. rewrite /mk_gen_pv.
+    split; try done; simpl.
+    split; try done; simpl.
+    rewrite eq.
+    done.
+  Qed.
+
+  Lemma m_contains_tokens_for_picks_merge Ω picks1 picks2 (m1 m2 : iResUR Σ) :
+    (∀ i γ a b, (m1 i) !! γ = Some a → (m2 i) !! γ = Some b → a ≡ b) →
+    res_for_picks Ω picks1 m1 →
+    res_for_picks Ω picks2 m2 →
+    res_for_picks Ω (merge_picks picks1 picks2) (m1 ⋅ m2).
+  Proof.
+    intros overlap2 tok1 tok2.
+    intros i.
+    rewrite /merge_picks.
+    rewrite dom_op.
+    specialize (tok1 i) as (domEq1 & tok1).
+    specialize (tok2 i) as (domEq2 & tok2).
+    split.
+    { rewrite -domEq1 -domEq2. rewrite dom_union. done. }
+    intros γ a.
+    rewrite discrete_fun_lookup_op.
+    rewrite lookup_op.
+    case (m1 i !! γ) eqn:look1; rewrite look1;
+      case (m2 i !! γ) eqn:look2; rewrite look2.
+    - specialize (overlap2 i _ _ _ look1 look2) as elemEq.
+      (* Both [picks1] and [picks2] has a pick. *)
+      apply tok1 in look1 as (n1 & c1 & t1 & r & rs & R1 & Rlist1 & R1holds & picksLook1 & prf1 & a1).
+      apply tok2 in look2 as (n2 & c2 & t2 & ? & ? & R2 & Rlist2 & R2holds & picksLook2 & prf2 & a2).
+      intros [= opEq].
+      eexists n1, c1, t1, r, rs, R1.
+      split; first done.
+      split; first done.
+      split. { erewrite lookup_union_Some_l; done. }
+      split; first done.
+      rewrite -opEq.
+      rewrite -elemEq.
+      rewrite a1.
+      rewrite map_unfold_op.
+      f_equiv.
+      rewrite -cmra_transport_op.
+      f_equiv.
+      rewrite -4!pair_op.
+      rewrite GTS_tok_gen_shot_idemp.
+      rewrite -Some_op.
+      rewrite agree_idemp.
+      rewrite gen_pv_op.
+      rewrite /gV.
+      simpl.
+      rewrite -auth_auth_dfrac_op.
+      done.
+    - intros [= ->].
+      apply tok1 in look1 as (n & c & t & r & rs & R & Rlist & Rholds & picksLook & rest).
+      eexists n, c, t, r, rs, R.
+      split; first done.
+      split; first done.
+      split. { erewrite lookup_union_Some_l; done. }
+      apply rest.
+    - intros [= ->].
+      apply tok2 in look2 as (n & c & t & r & rs & R & Rlist & Rholds & picksLook & rest).
+      eexists n, c, t, r, rs, R.
+      split; first done.
+      split; first done.
+      split.
+      { erewrite lookup_union_r; try done.
+        apply not_elem_of_dom.
+        rewrite domEq1.
+        rewrite not_elem_of_dom.
+        done. }
+      apply rest.
+    - intros [=].
+  Qed.
+
+  Lemma own_picks_sep Ω picks1 picks2 :
+    own_picks Ω picks1 -∗
+    own_picks Ω picks2 -∗
+    own_picks Ω (merge_picks picks1 picks2).
   Proof.
     iDestruct 1 as (m1) "[O1 %R1]".
     iDestruct 1 as (m2) "[O2 %R2]".
     iExists (m1 ⋅ m2).
+    iDestruct (tokens_for_picks_agree_overlap' with "O1 O2") as %HI.
+    { done. } { done. }
     iCombine "O1 O2" as "$".
     iPureIntro.
-  Admitted.
+    apply m_contains_tokens_for_picks_merge; try done.
+  Qed.
 
 End own_picks_properties.
 
+(* In this section we prove structural rules of the nextgen modality. *)
+
 Section nextgen_properties.
-  Context {Σ : gFunctors}.
+  Context {Σ : gFunctors} {Ω : @gTransforms Σ}.
 
   Lemma res_for_picks_empty :
-    res_for_picks (λ i : gid Σ, ∅) ε.
+    res_for_picks Ω (λ i : gid Σ, ∅) ε.
   Proof. done. Qed.
 
   Lemma own_picks_empty :
-    ⊢@{iProp Σ} own_picks (λ i : gid Σ, ∅).
+    ⊢@{iProp Σ} own_picks _ (λ i : gid Σ, ∅).
   Proof. iExists ε. rewrite ownM_unit' left_id. iPureIntro. done. Qed.
 
   Lemma res_for_promises_empty :
@@ -1090,6 +1205,8 @@ Section nextgen_properties.
     iDestruct "P" as (??) "(picks1 & pr1 & %wf1 & A)".
     iDestruct "Q" as (??) "(picks2 & pr2 & %wf2 & B)".
     (* Combine the picks. *)
+    iExists _, _.
+    iDestruct (own_picks_sep with "picks1 picks2") as "$".
     (* Combine the promises. *)
   Admitted.
 
@@ -1098,7 +1215,7 @@ End nextgen_properties.
 (* Ownership over generational ghost state. *)
 
 Section generational_resources.
-  Context {n} {A} {DS : deps n} `{!genInG Σ A DS}.
+  Context {n} {A} {DS : deps n} `{!genInG Σ Ω A DS}.
   Implicit Types (R : pred_over DS A) (P : (A → A) → Prop).
 
   Definition gen_own_res (a : A) : generational_cmraR A DS :=
@@ -1147,7 +1264,15 @@ Section generational_resources.
       ) : generational_cmraR A DS).
 
   (* TODO: We need some way of converting between the relations stored in
-   * promise_info and the relations stored by the user. *)
+   * [promise_info] and the relations stored by the user.
+   *
+   * [promise_info] stores everything in relation to Σ. User predicates mention
+   * cameras directly and then have evidence (equalities) that the camera is in
+   * Σ. To convert a predicate by the user into one in [promise_info] we need
+   * to use all of this evidence. That is, we need to translate along all of
+   * the equalities. This is a bit like in [own] where users write an element
+   * of their camera and then this element is transported along the equality
+   * into an element of [Σ i]. *)
 
   (* (** Knowledge that γ is accociated with the predicates R and P. *) *)
   (* Definition rely (γ : gname) (γs : ivec n gname) R P : iProp Σ := *)
@@ -1166,13 +1291,12 @@ Section generational_resources.
       "%rely_pred_prefix" ∷ ⌜ pred_prefix_list_for' all R P ⌝ ∗
       "#deps" ∷ know_deps γ γs ∗
       "frag_preds" ∷ own γ (
-        (None, (None, None), None, ε,
-        gPV (◯ to_max_prefix_list all)) : generational_cmraR A DS
+        (ε, ε, ε, ε, gPV (◯ to_max_prefix_list all)) : generational_cmraR A DS
       ).
 
 End generational_resources.
 
-Definition rely_self `{i : !genInSelfG Σ A}
+Definition rely_self `{i : !genInSelfG Σ Ω A}
     γ (P : (A → A) → Prop) : iProp Σ :=
   ∃ γs R, rely (DS := genInSelfG_DS) γ γs R P.
 
@@ -1184,7 +1308,7 @@ Equations preds_hold {n} {DS : deps n}
 Global Transparent preds_hold.
 
 Section rules.
-  Context {n : nat} {DS : deps n} `{!genInG Σ A DS}.
+  Context {n : nat} {DS : deps n} `{!genInG Σ Ω A DS}.
 
   Lemma own_gen_alloc (a : A) γs :
     ✓ a → ⊢ |==> ∃ γ, gen_own γ a ∗ token γ γs True_pred (λ _, True%type).
@@ -1224,7 +1348,7 @@ Section rules.
   Qed.
 
   (** Strengthen a promise. *)
-  Lemma token_strengthen_promise `{∀ (i : fin n), genInSelfG Σ (DS !!! i)}
+  Lemma token_strengthen_promise `{∀ (i : fin n), genInSelfG Σ Ω (DS !!! i)}
       γ γs (deps_preds : preds_for n DS)
       (R_1 R_2 : pred_over DS A) (P_1 P_2 : (A → A) → Prop) :
     (* The new relation is stronger. *)
@@ -1245,7 +1369,7 @@ Section rules.
   Admitted.
 
   Lemma token_pick γ γs (R : pred_over DS A) P (ts : trans_for n DS) t
-      `{∀ (i : fin n), genInSelfG Σ (DS !!! i)} :
+      `{∀ (i : fin n), genInSelfG Σ Ω (DS !!! i)} :
     huncurry R ts t →
     (∀ i, gen_picked_out (γs !!! i) (hvec_lookup_fmap ts i)) -∗
     token γ γs R P -∗ |==>
@@ -1282,7 +1406,7 @@ Section rules.
   (* Qed. *)
 
   (* TODO: Prove this lemma. *)
-  Lemma rely_nextgen γ γs (R : pred_over DS A) P `{∀ (i : fin n), genInSelfG Σ (DS !!! i)} :
+  Lemma rely_nextgen γ γs (R : pred_over DS A) P `{∀ (i : fin n), genInSelfG Σ Ω (DS !!! i)} :
     rely γ γs R P
     ⊢ ⚡==> (
       rely γ γs R P ∗
@@ -1383,18 +1507,18 @@ exactly two dependencies. It would be nicer with a solution that could iterate
 over all the dependencies during type class resolution (maybe inspired by
 [TCForall] for lists). *)
 Global Instance genInG_forall_2 {Σ n m} {DS1 : deps n} {DS2 : deps m}
-  `{!genInG Σ A DS1} `{!genInG Σ B DS2} :
-  ∀ (i : fin 2), genInSelfG Σ ([A; B]%IL !!! i).
+  `{!genInG Σ Ω A DS1} `{!genInG Σ Ω B DS2} :
+  ∀ (i : fin 2), genInSelfG Σ Ω ([A; B]%IL !!! i).
 Proof.
   apply forall_fin_2.
   split.
-  - apply (GenInG2 _ _ n DS1 _).
-  - apply (GenInG2 _ _ m DS2 _).
+  - apply (GenInG2 _ _ _ n DS1 _).
+  - apply (GenInG2 _ _ _ m DS2 _).
 Qed.
 
 Section test.
   Context `{max_i : !inG Σ max_natR}.
-  Context `{i : !genInG Σ max_natR [max_natR; max_natR] }.
+  Context `{i : !genInG Σ Ω max_natR [max_natR; max_natR] }.
 
   Definition a_rely :=
     rely (1%positive) [2%positive; 3%positive] (λ Ta Tb Ts, Ta = Ts ∧ Tb = Ts) (λ _, True).
@@ -1407,8 +1531,8 @@ Section test.
     Definition PS : preds_for _ _ := [P1; P2].
     Compute (preds_hold (DS := [A; B]) TS PS).
 
-    Context `{!genInG Σ B [] }.
-    Context `{!genInG Σ A [A; B] }.
+    Context `{!genInG Σ Ω B [] }.
+    Context `{!genInG Σ Ω A [A; B] }.
 
     Lemma foo2 (γ : gname) (γs : ivec 2 gname) : True.
     Proof.

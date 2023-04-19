@@ -58,6 +58,10 @@ Section pv.
     (mk_gen_pv p a1) ⋅ (mk_gen_pv p a2) ≡ mk_gen_pv p (a1 ⋅ a2).
   Proof. destruct p; done. Qed.
 
+  #[global] Instance mk_gen_pv_proper p a :
+  Proper ((≡) ==> (≡)) (mk_gen_pv p).
+  Proof. solve_proper. Qed.
+
   (* As long as one status is [PV] the operation guarantees validity of the composition of two elements. *)
   Lemma gen_pv_op_valid p a1 a2 :
     ✓ ((gPV a1) ⋅ (mk_gen_pv p a2)) ↔ ✓ (a1 ⋅ a2).
