@@ -356,8 +356,9 @@ We need
 Section transmap.
   Context `{Σ : gFunctors}.
 
-  (** [TransMap] contains transformation functions for a subset of ghost names. It is
-  the entries that we have picked generational transformations for. *)
+  (** A [TransMap] contains transformation functions for a subset of ghost
+   * names. We use one to represent the transformations that a user has picked.
+   * the entries that we have picked generational transformations for. *)
   Definition TransMap : Type := ∀ i, gmap gname (T Σ i).
 
   Implicit Types (transmap : TransMap).
@@ -533,11 +534,8 @@ End transmap.
 
 Arguments TransMap Σ : clear implicits.
 
-(* Definition of the next generation modality. *)
 Section promises.
   Context `{Σ : gFunctors}.
-
-  Implicit Types (transmap : TransMap Σ).
 
   (** Information about a promise _except_ for any information concerning its
    * dependencies. This lets us talk about a promise without having to talk
@@ -610,10 +608,156 @@ Section promises.
     pi_witness : ∀ ts, deps_preds_hold pi_deps ts → ∃ t, pi_rel ts t;
   }.
 
+  Implicit Types (prs : list promise_info).
+
   (** Convert a [promise_info] into a [promise_self_info] by discarding fields
    * about dependencies. *)
   Definition promise_info_to_self (pi : promise_info) :=
     {| psi_id := pi_id pi; psi_γ := pi_γ pi; psi_pred := pi_pred pi |}.
+
+  Definition promises_different p1 p2 :=
+    p1.(pi_id) ≠ p2.(pi_id) ∨ p1.(pi_γ) ≠ p2.(pi_γ).
+
+  Definition promises_self_different p1 p2 :=
+    p1.(psi_id) ≠ p2.(psi_id) ∨ p1.(psi_γ) ≠ p2.(psi_γ).
+
+  Definition promises_has_deps (promises : list (promise_info)) p :=
+    ∀ idx, ∃ p_d j,
+      promises !! j = Some p_d ∧
+      p.(pi_deps) !!! idx = promise_info_to_self p_d.
+
+  Definition promise_wf p (promises : list (promise_info)) : Prop :=
+    (∀ p2, p2 ∈ promises → promises_different p p2) ∧
+    (* (∀ i p2, promises !! i = Some p2 → promises_different p p2) ∧ *)
+    promises_has_deps promises p.
+
+  (* This definition has nice computational behavior when applied to a [cons]. *)
+  Fixpoint promises_wf (promises : list (promise_info)) : Prop :=
+    match promises with
+    | nil => True
+    | cons p promises' =>
+      promise_wf p promises' ∧ promises_wf promises'
+    end.
+
+  (* NOTE: Not used, but should be implied by [promises_wf] *)
+  Definition promises_unique (promises : list promise_info) : Prop :=
+    ∀ i j p1 p2, i ≠ j → promises !! i = Some p1 → promises !! j = Some p2 →
+      p1.(pi_id) ≠ p2.(pi_id) ∨ p1.(pi_γ) ≠ p2.(pi_γ).
+
+  (* A well formed promise is not equal to any of its dependencies. *)
+  Lemma promise_well_formed_neq_deps p (promises : list (promise_info)) :
+    promise_wf p promises →
+    ∀ (idx : fin (p.(pi_n))),
+      (* promises_self_different (promise_info_to_self p) (pi_deps p !!! idx). *)
+      pi_id p ≠ psi_id (pi_deps p !!! idx) ∨ pi_γ p ≠ psi_γ (pi_deps p !!! idx).
+  Proof.
+    intros [uniq hasDeps] idx.
+    destruct (hasDeps idx) as (p2 & i & look & ->).
+    destruct p2.
+    apply (uniq _ (elem_of_list_lookup_2 _ _ _ look)).
+  Qed.
+
+  Lemma promises_well_formed_lookup promises idx p :
+    promises_wf promises →
+    promises !! idx = Some p →
+    promises_has_deps promises p. (* We forget the different part for now. *)
+  Proof.
+    intros WF look.
+    revert dependent idx.
+    induction promises as [ |?? IH].
+    - intros ? [=].
+    - destruct WF as [[? hasDeps] WF'].
+      intros [ | idx].
+      * simpl. intros [= ->].
+        intros idx.
+        destruct (hasDeps idx) as (? & i & ? & ?).
+        eexists _, (S i). done.
+      * intros look.
+        intros d.
+        destruct (IH WF' idx look d) as (? & i & ? & ?).
+        eexists _, (S i). done.
+  Qed.
+
+  (* For soundness we need to be able to build a map of gts that agree with
+   * picks and that satisfy all promises.
+
+     We need to be able to extend picks along a list of promises.
+
+     We must also be able to combine to lists of promises.
+  *)
+
+  Fixpoint promises_lookup promises id γ : option promise_info :=
+    match promises with
+    | nil => None
+    | p :: ps' =>
+        if decide (p.(pi_id) = id ∧ p.(pi_γ) = γ)
+        then Some p
+        else promises_lookup ps' id γ
+    end.
+
+  (* Equations promises_lookup *)
+  (*   (ps : list (promise_info)) (id : gid Σ) (γ : gname) : option (T Σ id) := *)
+  (* | [], id, γ => None *)
+  (* | p :: ps', id, γ with (decide (p.(pi_id) = id)) => { *)
+  (*   | left eq_refl => Some (p.(pi_)) *)
+  (*   | right neq => _ *)
+  (* }. *)
+
+  Fixpoint merge_promises prs1 prs2 :=
+    match prs1 with
+    | [] => prs2
+    | p :: prs1' =>
+      if decide (promises_lookup prs2 p.(pi_id) p.(pi_γ) = None)
+      then p :: (merge_promises prs1' prs2)
+      else merge_promises prs1' prs2
+    end.
+
+  Lemma merge_promises_elem p prs1 prs2 :
+    p ∈ merge_promises prs1 prs2 →
+    p ∈ prs1 ∨ p ∈ prs2.
+  Proof.
+  Admitted.
+
+  Lemma promises_lookup_different p p2 prs2 :
+    p2 ∈ prs2 →
+    promises_lookup prs2 (pi_id p) (pi_γ p) = None →
+    promises_different p p2.
+  Proof.
+  Admitted.
+
+  Lemma merge_promises_wf prs1 prs2 :
+    promises_wf prs1 →
+    promises_wf prs2 →
+    promises_wf (merge_promises prs1 prs2).
+  Proof.
+    intros wf1 wf2.
+    induction prs1 as [|p prs1 IH]; first done.
+    simpl.
+    destruct (decide (promises_lookup prs2 (pi_id p) (pi_γ p) = None)) as [eq|eq].
+    - simpl.
+      split; last (apply IH; apply wf1).
+      split.
+      * intros p2.
+        intros [in1|in2]%merge_promises_elem.
+        + apply wf1. done.
+        + eapply promises_lookup_different; done.
+      * admit.
+    - apply IH. apply wf1.
+  Admitted.
+
+  (* When we store picks we also need to store the promises that they are
+   * related with. We store these promises in a map. This map should contain
+   * promises at the "right" indices which this definition expresses. *)
+  (* NOTE: Not used *)
+  Definition promise_map_wf (pm : ∀ i, gmap gname promise_info) : Prop :=
+    ∀ i γ p, (pm i) !! γ = Some p → p.(pi_id) = i ∧ p.(pi_γ) = γ.
+
+End promises.
+
+Section transmap.
+  Context `{Σ : gFunctors}.
+
+  Implicit Types (transmap : TransMap Σ).
 
   (* We need to:
     - Be able to turn a list of promises and a map of picks into a
@@ -641,65 +785,8 @@ Section promises.
   Definition transmap_resp_promises transmap (ps : list (promise_info)) :=
     ∀ i p, ps !! i = Some p → transmap_satisfy_rel transmap p.
 
-  Definition promises_unique (promises : list promise_info) : Prop :=
-    ∀ i j p1 p2, i ≠ j → promises !! i = Some p1 → promises !! j = Some p2 →
-      p1.(pi_id) ≠ p2.(pi_id) ∨ p1.(pi_γ) ≠ p2.(pi_γ).
-
-  Definition promises_different p1 p2 :=
-    p1.(pi_id) ≠ p2.(pi_id) ∨ p1.(pi_γ) ≠ p2.(pi_γ).
-
-  Definition promises_has_deps (promises : list (promise_info)) p :=
-    ∀ idx, ∃ p_d j,
-      promises !! j = Some p_d ∧
-      p.(pi_deps) !!! idx = promise_info_to_self p_d.
-
-  Definition promise_well_formed p (promises : list (promise_info)) : Prop :=
-    (∀ i p2, promises !! i = Some p2 → promises_different p p2) ∧
-    promises_has_deps promises p.
-
-  (* This definition has nice computational behavior when applied to a [cons]. *)
-  Fixpoint promises_well_formed (promises : list (promise_info)) : Prop :=
-    match promises with
-    | nil => True
-    | cons p promises' =>
-      promise_well_formed p promises' ∧ promises_well_formed promises'
-    end.
-
-  (* A well formed promise is not equal to any of its dependencies. *)
-  Lemma promise_well_formed_neq_deps p (promises : list (promise_info)) :
-    promise_well_formed p promises →
-    ∀ idx,
-      pi_id p ≠ psi_id (pi_deps p !!! idx) ∨ pi_γ p ≠ psi_γ (pi_deps p !!! idx).
-  Proof.
-    intros [uniq hasDeps] idx.
-    destruct (hasDeps idx) as (p2 & i & look & ->).
-    destruct p2.
-    apply (uniq i _ look).
-  Qed.
-
-  Lemma promises_well_formed_lookup promises idx p :
-    promises_well_formed promises →
-    promises !! idx = Some p →
-    promises_has_deps promises p. (* We forget the different part for now. *)
-  Proof.
-    intros WF look.
-    revert dependent idx.
-    induction promises as [ |?? IH].
-    - intros ? [=].
-    - destruct WF as [[? hasDeps] WF'].
-      intros [ | idx].
-      * simpl. intros [= ->].
-        intros idx.
-        destruct (hasDeps idx) as (? & i & ? & ?).
-        eexists _, (S i). done.
-      * intros look.
-        intros d.
-        destruct (IH WF' idx look d) as (? & i & ? & ?).
-        eexists _, (S i). done.
-  Qed.
-
   Lemma transmap_satisfy_well_formed_cons p promises transmap :
-    promises_well_formed (p :: promises) →
+    promises_wf (p :: promises) →
     transmap_resp_promises transmap promises →
     ∃ ts,
       trans_at_deps transmap p ts ∧
@@ -725,28 +812,6 @@ Section promises.
     - intros di. apply H.
     - intros di. apply H.
   Qed.
-
-  (* For soundness we need to be able to build a map of gts that agree with
-   * picks and that satisfy all promises.
-
-     We need to be able to extend picks along a list of promises.
-
-     We must also be able to combine to lists of promises.
-  *)
-
-  (* Equations promises_lookup *)
-  (*   (ps : list (promise_info)) (id : gid Σ) (γ : gname) : option (T Σ id) := *)
-  (* | [], id, γ => None *)
-  (* | p :: ps', id, γ with (decide (p.(pi_id) = id)) => { *)
-  (*   | left eq_refl => Some (p.(pi_)) *)
-  (*   | right neq => _ *)
-  (* }. *)
-
-  (* When we store picks we also need to store the promises that they are
-   * related with. We store these promises in a map. This map should contain
-   * promises at the "right" indices which this definition expresses. *)
-  Definition promise_map_well_formed (pm : ∀ i, gmap gname promise_info) : Prop :=
-    ∀ i γ p, (pm i) !! γ = Some p → p.(pi_id) = i ∧ p.(pi_γ) = γ.
 
   Equations transmap_insert_go transmap (id : gid Σ) (γ : gname) (pick : T Σ id)
     (id' : gid Σ) : gmap gname (T Σ id') :=
@@ -815,7 +880,7 @@ Section promises.
   Qed.
 
   Lemma transmap_resp_promises_insert p promises transmap t :
-    promises_well_formed (p :: promises) →
+    promises_wf (p :: promises) →
     transmap_resp_promises transmap promises →
     transmap_resp_promises (transmap_insert transmap (pi_id p) (pi_γ p) t) promises.
   Proof.
@@ -827,14 +892,13 @@ Section promises.
     rewrite /trans_at_deps.
     setoid_rewrite transmap_insert_lookup_ne.
     + apply hi.
-    + apply (uniq idx p2 look).
+    + apply (uniq _ (elem_of_list_lookup_2 _ _ _ look)).
     + specialize (
         promises_well_formed_lookup promises idx p2 WF look) as hasDeps2.
       specialize (hasDeps2 idx0) as (p3 & ? & look3 & eq).
       rewrite eq.
-      specialize (uniq _ p3 look3).
       destruct p3.
-      apply uniq.
+      apply (uniq _ (elem_of_list_lookup_2 _ _ _ look3)).
   Qed.
 
   Definition transmap_overlap_resp_promises transmap (ps : list (promise_info)) :=
@@ -865,7 +929,7 @@ Section promises.
   * transformation. *)
   Lemma transmap_promises_to_maps transmap (promises : list promise_info) :
     transmap_overlap_resp_promises transmap promises →
-    promises_well_formed promises →
+    promises_wf promises →
     ∃ (map : TransMap Σ),
       transmap_resp_promises map promises ∧
       transmap ⊆ map.
@@ -913,7 +977,7 @@ Section promises.
   Qed.
 
   Lemma promises_to_maps (promises : list promise_info) :
-    promises_well_formed promises →
+    promises_wf promises →
     ∃ (transmap : TransMap Σ), transmap_resp_promises transmap promises.
   Proof.
     intros WF.
@@ -923,7 +987,7 @@ Section promises.
     - exists m. apply resp.
   Qed.
 
-End promises.
+End transmap.
 
 Arguments promise_info Σ : clear implicits.
 Arguments promise_self_info Σ : clear implicits.
@@ -992,7 +1056,7 @@ Section next_gen_definition.
     ∃ picks (ps : list (promise_info Σ)),
       (* We own resources for everything in [picks] and [promises]. *)
       own_picks Ω picks ∗ own_promises ps ∗
-      ⌜ promises_well_formed ps ⌝ ∗
+      ⌜ promises_wf ps ⌝ ∗
       ∀ full_picks (val : transmap_valid full_picks),
         ⌜ transmap_resp_promises full_picks ps ⌝ -∗
         ⌜ picks ⊆ full_picks ⌝ -∗
@@ -1159,6 +1223,20 @@ Section own_picks_properties.
   Qed.
 
 End own_picks_properties.
+
+Section own_promises_properties.
+  Context {Σ : gFunctors}.
+
+  Implicit Types (prs : list (promise_info Σ)).
+
+  Lemma own_promises_sep prs1 prs2 :
+    own_promises prs1 -∗
+    own_promises prs2 -∗
+    own_promises (merge_promises prs1 prs2).
+  Proof.
+  Admitted.
+
+End own_promises_properties.
 
 (* In this section we prove structural rules of the nextgen modality. *)
 
