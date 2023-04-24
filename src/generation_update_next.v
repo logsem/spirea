@@ -153,7 +153,7 @@ Section dependency_relation_extra.
     ∀ (ts : trans_for n DS) (t : A → A),
       huncurry R1 ts t → huncurry R2 ts t.
 
-  Definition pred_weaker (R1 R2 : pred_over DS A) := rel_stronger R2 R1.
+  Definition rel_weaker (R1 R2 : pred_over DS A) := rel_stronger R2 R1.
 
   Definition pred_stronger (P1 P2 : (A → A) → Prop) :=
     ∀ (t : A → A), P1 t → P2 t.
@@ -166,7 +166,7 @@ Section dependency_relation_extra.
     last all = Some R ∧
     (* The list of promises increases in strength. *)
     ∀ i j (Ri Rj : pred_over DS A),
-      i ≤ j → all !! i = Some Ri → all !! j = Some Rj → pred_weaker Ri Rj.
+      i ≤ j → all !! i = Some Ri → all !! j = Some Rj → rel_weaker Ri Rj.
 
   (* Includes [P] as well. *)
   Definition pred_prefix_list_for' (all : list (pred_over DS A)) R P :=
@@ -597,12 +597,14 @@ Section promises.
    * would otherwise be an inductive record--simplifying things at the cost of
    * some power. *)
   Record promise_info := MkPromiseInfo {
+    (* "Static" information that is the same for all promises about the same
+    * id+γ *)
     pi_id : gid Σ; (* The index of the RA in the global RA. *)
     pi_γ : gname; (* Ghost name for the promise. *)
     pi_n : nat; (* The number of dependencies. *)
     pi_deps : ivec pi_n promise_self_info;
+    (* Dynamic information that changes per promise *)
     (* The predicate that relates our transformation to those of the dependencies. *)
-    (* pi_rel : hvec (λ dep, T Σ dep.(psi_id)) pi_n pi_deps → T Σ pi_id → Prop; *)
     pi_rel : deps_to_trans pi_n pi_deps → T Σ pi_id → Prop;
     (* A predicate that holds for the promise's own transformation whenever
     * [pi_rel] holds. A "canonical" choice could be: [λ t, ∃ ts, pi_rel ts t]. *)
@@ -716,22 +718,59 @@ Section promises.
      We must also be able to combine to lists of promises.
   *)
 
-  Fixpoint promises_lookup promises id γ : option promise_info :=
-    match promises with
-    | nil => None
-    | p :: ps' =>
-        if decide (p.(pi_id) = id ∧ p.(pi_γ) = γ)
-        then Some p
-        else promises_lookup ps' id γ
-    end.
+  Record promise_at id γ := mk_promise_at {
+    pa_promise : promise_info;
+    pa_id_eq : pa_promise.(pi_id) = id;
+    pa_γ_eq : γ = pa_promise.(pi_γ);
+  }.
+  Arguments pa_promise {_} {_}.
+  Arguments pa_id_eq {_} {_}.
+  Arguments pa_γ_eq {_} {_}.
 
-  (* Equations promises_lookup *)
-  (*   (ps : list (promise_info)) (id : gid Σ) (γ : gname) : option (T Σ id) := *)
-  (* | [], id, γ => None *)
-  (* | p :: ps', id, γ with (decide (p.(pi_id) = id)) => { *)
-  (*   | left eq_refl => Some (p.(pi_)) *)
-  (*   | right neq => _ *)
-  (* }. *)
+  Equations promises_lookup_at (promises : list promise_info) iid γ : option (promise_at iid γ) :=
+  | [], iid, γ => None
+  | p :: ps', iid, γ with decide (p.(pi_id) = iid), decide (p.(pi_γ) = γ) => {
+    | left eq_refl, left eq_refl => Some (mk_promise_at p.(pi_id) p.(pi_γ) p eq_refl eq_refl);
+    | left eq_refl, right _ => promises_lookup_at ps' p.(pi_id) γ
+    | right _, _ => promises_lookup_at ps' iid γ
+  }.
+
+  Fixpoint promises_lookup promises id γ : option promise_info :=
+    pa_promise <$> (promises_lookup_at promises id γ).
+
+  Definition promise_at_pred {id γ} (pa : promise_at id γ) : (T Σ id → Prop) :=
+    res_pred_transport pa.(pa_id_eq) pa.(pa_promise).(pi_pred).
+
+  Definition promises_lookup_pred (promises : list promise_info)
+      id (γ : gname) : option (T Σ id → Prop) :=
+      promise_at_pred <$> promises_lookup_at promises id γ.
+
+  Lemma promises_lookup_at_Some promises id γ pa :
+    promises_lookup_at promises id γ = Some pa →
+    pa.(pa_promise) ∈ promises.
+  Proof.
+    induction promises as [|? ? IH]; first by inversion 1.
+    rewrite promises_lookup_at_equation_2.
+    rewrite promises_lookup_at_clause_2_equation_1.
+    destruct (decide (pi_id a = id)) as [eq1|neq].
+    - destruct (decide (pi_γ a = γ)) as [eq2|neq].
+      * destruct eq1.
+        destruct eq2.
+        simpl.
+        intros [= <-].
+        apply elem_of_list_here.
+      * destruct eq1.
+        rewrite promises_lookup_at_clause_2_clause_1_equation_2.
+        intros look.
+        apply elem_of_list_further.
+        apply IH.
+        apply look.
+    - rewrite promises_lookup_at_clause_2_clause_1_equation_3.
+      intros look.
+      apply elem_of_list_further.
+      apply IH.
+      done.
+  Qed.
 
   (* FIXME: We need to take the strongest promise when two exist for the same
    * idx and gname. *)
@@ -1273,6 +1312,31 @@ Section own_promises_properties.
   Context {Σ : gFunctors}.
 
   Implicit Types (prs : list (promise_info Σ)).
+
+  Definition promises_overlap_pred prs1 prs2 : Prop :=
+    ∀ id γ p1 p2,
+      promises_lookup_at prs1 id γ = Some p1 →
+      promises_lookup_at prs2 id γ = Some p2 →
+      pred_stronger (promise_at_pred p1) (promise_at_pred p2) ∨
+        pred_stronger (promise_at_pred p2) (promise_at_pred p1).
+
+  (* If two promise lists has an overlap then one of the overlapping promises
+  * is strictly stronger than the other. *)
+  Lemma own_promises_overlap prs1 prs2 :
+    own_promises prs1 -∗
+    own_promises prs2 -∗
+    ⌜ promises_overlap_pred prs1 prs2 ⌝.
+  Proof.
+    iIntros "(%m1 & O1 & %P1) (%m2 & O2 & %P2)".
+    iIntros (id γ p1 p2 look1 look2).
+    iCombine "O1 O2" as "O".
+    iDestruct (ownM_valid with "O") as "#Hv".
+    rewrite discrete_fun_validI.
+    setoid_rewrite gmap_validI.
+    iSpecialize ("Hv" $! id γ).
+    rewrite lookup_op.
+    (* rewrite /res_for_promises in P1, P2. *)
+  Admitted.
 
   Lemma own_promises_sep prs1 prs2 :
     own_promises prs1 -∗
