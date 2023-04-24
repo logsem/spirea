@@ -149,11 +149,14 @@ Section dependency_relation_extra.
   Context {n} {A : cmra} {DS : deps n}.
   Implicit Types (R : pred_over DS A) (P : (A → A) → Prop).
 
-  Definition pred_stronger (R1 R2 : pred_over DS A) :=
+  Definition rel_stronger (R1 R2 : pred_over DS A) :=
     ∀ (ts : trans_for n DS) (t : A → A),
       huncurry R1 ts t → huncurry R2 ts t.
 
-  Definition pred_weaker (R1 R2 : pred_over DS A) := pred_stronger R2 R1.
+  Definition pred_weaker (R1 R2 : pred_over DS A) := rel_stronger R2 R1.
+
+  Definition pred_stronger (P1 P2 : (A → A) → Prop) :=
+    ∀ (t : A → A), P1 t → P2 t.
 
   Definition rel_implies_pred R P : Prop :=
     ∀ (ts : trans_for n DS) (t : A → A), huncurry R ts t → P t.
@@ -621,15 +624,34 @@ Section promises.
   Definition promises_self_different p1 p2 :=
     p1.(psi_id) ≠ p2.(psi_id) ∨ p1.(psi_γ) ≠ p2.(psi_γ).
 
-  Definition promises_has_deps (promises : list (promise_info)) p :=
-    ∀ idx, ∃ p_d j,
-      promises !! j = Some p_d ∧
-      p.(pi_deps) !!! idx = promise_info_to_self p_d.
+  Definition res_trans_transport {id1 id2}
+      (eq : id1 = id2) (t : R Σ id1 → R Σ id1) : (R Σ id2 → R Σ id2) :=
+    eq_rect _ (λ id, _) t _ eq.
 
+  Definition res_pred_transport {id1 id2} (eq : id1 = id2)
+      (t : (R Σ id1 → R Σ id1) → Prop) : ((R Σ id2 → R Σ id2) → Prop) :=
+    eq_rect _ (λ id, _) t _ eq.
+
+  (** The promise [p] satisfies the dependency [p_d]. Note that the predicate
+   * in [p_d] may not be the same as the one in [p]. When we combine lists of
+   * promises some promises might be replaced by stronger ones. Hence we only
+   * require that the predicate in [p] is stronger than the one in [p_d]. *)
+  Definition promise_satisfy_dep (p_d : promise_self_info) (p : promise_info) :=
+    ∃ (eq : p.(pi_id) = p_d.(psi_id)),
+      p_d.(psi_γ) = p.(pi_γ) ∧
+      (* The predicate in [p] is stronger than what is stated in [p_d] *)
+      pred_stronger (res_pred_transport eq p.(pi_pred)) p_d.(psi_pred).
+
+  (** For every dependency in [p] the list [promises] has a sufficicent
+   * promise. *)
+  Definition promises_has_deps p (promises : list promise_info) :=
+    ∀ idx, ∃ p2, p2 ∈ promises ∧ promise_satisfy_dep (p.(pi_deps) !!! idx) p2.
+
+  (** The promise [p] is well-formed wrt. the list [promises] of promises that
+   * preceeded it. *)
   Definition promise_wf p (promises : list (promise_info)) : Prop :=
     (∀ p2, p2 ∈ promises → promises_different p p2) ∧
-    (* (∀ i p2, promises !! i = Some p2 → promises_different p p2) ∧ *)
-    promises_has_deps promises p.
+    promises_has_deps p promises.
 
   (* This definition has nice computational behavior when applied to a [cons]. *)
   Fixpoint promises_wf (promises : list (promise_info)) : Prop :=
@@ -644,38 +666,46 @@ Section promises.
     ∀ i j p1 p2, i ≠ j → promises !! i = Some p1 → promises !! j = Some p2 →
       p1.(pi_id) ≠ p2.(pi_id) ∨ p1.(pi_γ) ≠ p2.(pi_γ).
 
+  Lemma promises_has_deps_cons p prs :
+    promises_has_deps p prs →
+    promises_has_deps p (p :: prs).
+  Proof.
+    intros hasDeps idx.
+    destruct (hasDeps idx) as (p2 & ? & ?).
+    eauto using elem_of_list_further.
+  Qed.
+
   (* A well formed promise is not equal to any of its dependencies. *)
-  Lemma promise_well_formed_neq_deps p (promises : list (promise_info)) :
+  Lemma promise_wf_neq_deps p (promises : list (promise_info)) :
     promise_wf p promises →
     ∀ (idx : fin (p.(pi_n))),
       (* promises_self_different (promise_info_to_self p) (pi_deps p !!! idx). *)
       pi_id p ≠ psi_id (pi_deps p !!! idx) ∨ pi_γ p ≠ psi_γ (pi_deps p !!! idx).
   Proof.
     intros [uniq hasDeps] idx.
-    destruct (hasDeps idx) as (p2 & i & look & ->).
-    destruct p2.
-    apply (uniq _ (elem_of_list_lookup_2 _ _ _ look)).
+    destruct (hasDeps idx) as (p2 & elem & i & eq & jhhi).
+    destruct (uniq _ elem) as [h|h].
+    - left. congruence.
+    - right. congruence.
   Qed.
 
   Lemma promises_well_formed_lookup promises idx p :
     promises_wf promises →
     promises !! idx = Some p →
-    promises_has_deps promises p. (* We forget the different part for now. *)
+    promises_has_deps p promises. (* We forget the different part for now. *)
   Proof.
     intros WF look.
     revert dependent idx.
-    induction promises as [ |?? IH].
-    - intros ? [=].
-    - destruct WF as [[? hasDeps] WF'].
-      intros [ | idx].
-      * simpl. intros [= ->].
-        intros idx.
-        destruct (hasDeps idx) as (? & i & ? & ?).
-        eexists _, (S i). done.
-      * intros look.
-        intros d.
-        destruct (IH WF' idx look d) as (? & i & ? & ?).
-        eexists _, (S i). done.
+    induction promises as [ |?? IH]; first intros ? [=].
+    destruct WF as [[? hasDeps] WF'].
+    intros [ | idx].
+    * simpl. intros [= ->].
+      apply promises_has_deps_cons.
+      done.
+    * intros look.
+      intros d.
+      destruct (IH WF' idx look d) as (? & ? & ?).
+      eauto using elem_of_list_further.
   Qed.
 
   (* For soundness we need to be able to build a map of gts that agree with
@@ -703,6 +733,8 @@ Section promises.
   (*   | right neq => _ *)
   (* }. *)
 
+  (* FIXME: We need to take the strongest promise when two exist for the same
+   * idx and gname. *)
   Fixpoint merge_promises prs1 prs2 :=
     match prs1 with
     | [] => prs2
@@ -783,9 +815,32 @@ Section transmap.
    * promise and all the relations in the promises are satisfied by the
    * transformations in transmap. *)
   Definition transmap_resp_promises transmap (ps : list (promise_info)) :=
-    ∀ i p, ps !! i = Some p → transmap_satisfy_rel transmap p.
+    Forall (transmap_satisfy_rel transmap) ps.
 
-  Lemma transmap_satisfy_well_formed_cons p promises transmap :
+  Lemma promises_had_deps_resp_promises p idx p_d promises transmap :
+    p.(pi_deps) !!! idx = p_d →
+    promises_has_deps p promises →
+    transmap_resp_promises transmap promises →
+    ∃ t, psi_pred p_d t ∧ transmap (psi_id p_d) !! psi_γ p_d = Some t.
+  Proof.
+    intros look hasDeps resp.
+    rewrite /transmap_resp_promises Forall_forall in resp.
+    rewrite -look.
+    specialize (hasDeps idx) as (p2 & Helem & eq1 & -> & strong).
+    destruct (resp _ Helem) as (ts & (t & tmLook & ? & relHolds)).
+    specialize (p2.(pi_rel_to_pred) ts t relHolds) as predHolds.
+    exists (res_trans_transport eq1 t).
+    simpl.
+    split.
+    * apply strong. clear -predHolds. destruct eq1. simpl. done.
+    * clear -tmLook. destruct eq1. done.
+  Qed.
+
+  (** If a [transmap] respects a list [promises] and growing the list with [p]
+   * is well formed, then we can conjur up a list of transitions from
+   * [transmap] that match the dependencies in [p] and that satisfy their
+   * predicates. *)
+  Lemma transmap_satisfy_wf_cons p promises transmap :
     promises_wf (p :: promises) →
     transmap_resp_promises transmap promises →
     ∃ ts,
@@ -796,16 +851,13 @@ Section transmap.
     destruct WF as [[uniq hasDeps] WF'].
     set (F := (λ dep, T Σ dep.(psi_id))).
     edestruct (fun_ex_to_ex_hvec (F := F) p.(pi_deps)
-      (λ i x,
+      (λ i t,
         let pd := p.(pi_deps) !!! i in
-        pd.(psi_pred) x ∧
-        transmap (psi_id pd) !! psi_γ pd = Some x))
+        pd.(psi_pred) t ∧
+        transmap (psi_id pd) !! psi_γ pd = Some t))
       as (ts & ?).
-    { intros di.
-      destruct (hasDeps di) as (p' & j & look & ->).
-      destruct (resp _ _ look) as (ts & (t & ? & ? & ?)).
-      specialize (p'.(pi_rel_to_pred) ts t H1) as hipo.
-      exists t. destruct p'. done. }
+    { intros idx.
+      eapply promises_had_deps_resp_promises; done. }
     exists ts.
     rewrite deps_preds_hold_alt.
     split.
@@ -866,39 +918,31 @@ Section transmap.
       * apply not_and_r in Hneq; done.
   Qed.
 
-  Lemma transmap_resp_promises_cons transmap p promises :
-    transmap_resp_promises transmap promises ∧ transmap_satisfy_rel transmap p ↔
-    transmap_resp_promises transmap (p :: promises).
-  Proof.
-    rewrite /transmap_resp_promises. split.
-    - intros [all sat] [|n'] p'; simpl.
-      * intros [= ->]. apply sat.
-      * apply all.
-    - intros all. split.
-      * intros i p' look. apply (all (S i)). apply look.
-      * apply (all 0). done.
-  Qed.
-
   Lemma transmap_resp_promises_insert p promises transmap t :
     promises_wf (p :: promises) →
     transmap_resp_promises transmap promises →
     transmap_resp_promises (transmap_insert transmap (pi_id p) (pi_γ p) t) promises.
   Proof.
-    intros [[uniq hasDeps] WF] resp idx p2 look.
-    rewrite /transmap_satisfy_rel.
-    specialize (resp idx p2 look).
-    destruct resp as (t' & ts & hi).
+    intros [[uniq hasDeps] WF].
+    rewrite /transmap_resp_promises !Forall_forall.
+    intros impl p2 elem.
+    destruct (impl _ elem) as (t' & ts & hi).
     exists t', ts.
     rewrite /trans_at_deps.
+    (* NOTE: This proof might be a bit of a mess. *)
     setoid_rewrite transmap_insert_lookup_ne.
     + apply hi.
-    + apply (uniq _ (elem_of_list_lookup_2 _ _ _ look)).
-    + specialize (
-        promises_well_formed_lookup promises idx p2 WF look) as hasDeps2.
-      specialize (hasDeps2 idx0) as (p3 & ? & look3 & eq).
-      rewrite eq.
+    + apply (uniq _ elem).
+    + apply elem_of_list_lookup_1 in elem as (ii & look).
+      specialize (
+        promises_well_formed_lookup promises _ p2 WF look) as hasDeps2.
+      specialize (hasDeps2 idx) as (p3 & look3 & eq & eq2 & ?).
+      rewrite eq2.
       destruct p3.
-      apply (uniq _ (elem_of_list_lookup_2 _ _ _ look3)).
+      simpl in *.
+      specialize (uniq _ look3) as [? | ?].
+      - rewrite -eq. left. done.
+      - right. done.
   Qed.
 
   Definition transmap_overlap_resp_promises transmap (ps : list (promise_info)) :=
@@ -937,9 +981,9 @@ Section transmap.
     induction promises as [|p promises' IH].
     - intros _. exists transmap.
       split; last done.
-      intros ? ?. inversion 1.
+      apply Forall_nil_2.
     - intros HR [WF WF'].
-      specialize (promise_well_formed_neq_deps _ _ WF) as depsDiff.
+      specialize (promise_wf_neq_deps _ _ WF) as depsDiff.
       destruct IH as (map & resp & sub).
       {  eapply transmap_overlap_resp_promises_cons. done. } { done. }
       (* We either need to use the transformation in [picks] or extract one
@@ -949,7 +993,8 @@ Section transmap.
         destruct sat as (ts & t & transIn & hold & pRelHolds).
         exists map. (* We don't insert as map already has transformation. *)
         split; last done.
-        apply transmap_resp_promises_cons. split; try done.
+        apply Forall_cons.
+        split; try done.
         eexists _, _. split_and!; last done.
         -- specialize (sub p.(pi_id)).
            rewrite map_subseteq_spec in sub.
@@ -957,15 +1002,14 @@ Section transmap.
            done.
         -- eapply trans_at_deps_subseteq; done.
       + eassert _ as sat.
-        { eapply transmap_satisfy_well_formed_cons; done. }
+        { eapply transmap_satisfy_wf_cons; done. }
         destruct sat as (ts & transIn & hold).
         eassert (∃ t, _) as [t pRelHolds].
         { apply p.(pi_witness). apply hold. }
         exists (transmap_insert map p.(pi_id) p.(pi_γ) t).
         split.
-        * apply transmap_resp_promises_cons.
+        * apply Forall_cons.
           split.
-          -- apply transmap_resp_promises_insert; done.
           -- rewrite /transmap_satisfy_rel.
             exists ts, t.
             split. { by rewrite transmap_insert_lookup. }
@@ -973,6 +1017,7 @@ Section transmap.
             intros ??.
             rewrite transmap_insert_lookup_ne; first apply transIn.
             apply depsDiff.
+          -- apply transmap_resp_promises_insert; done.
         * apply transmap_insert_subseteq_r; done.
   Qed.
 
@@ -1504,7 +1549,7 @@ Section rules.
   Proof. Admitted.
 
   Lemma token_rely_combine_pred γ γs R1 P1 R2 P2 :
-    token γ γs R1 P1 -∗ rely γ γs R2 P2 -∗ ⌜ pred_stronger R1 R2 ⌝.
+    token γ γs R1 P1 -∗ rely γ γs R2 P2 -∗ ⌜ rel_stronger R1 R2 ⌝.
   Proof.
     iNamed 1.
     iNamed 1.
@@ -1546,7 +1591,7 @@ Section rules.
     rely γ γs1 R1 P1 -∗
     rely γ γs2 R2 P2 -∗
     ⌜ γs1 = γs2 ⌝ ∗
-    ⌜ pred_stronger R1 R2 ∨ pred_stronger R2 R1 ⌝.
+    ⌜ rel_stronger R1 R2 ∨ rel_stronger R2 R1 ⌝.
   Proof.
     iNamed 1.
     iDestruct 1 as (prs2 prefix2) "[deps2 preds2]".
