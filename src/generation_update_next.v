@@ -12,11 +12,6 @@ From self Require Import hvec extra basic_nextgen_modality gen_trans
 
 Import uPred.
 
-(** Data describing the cameras that a given camera depends on. *)
-Definition deps_ty n := ivec n Type.
-Definition deps n := ivec n cmra.
-Bind Scope ivec_scope with deps.
-
 Section types.
 
   (** A transformation over the carrier of the camera [A]. *)
@@ -25,13 +20,13 @@ Section types.
   (** A predicate over a transformation over [A]. *)
   Definition cmra_to_pred A := (cmra_to_trans A) → Prop.
 
-  Definition pred_over_ty {n} (DS : deps_ty n) (A : Type) :=
+  Definition pred_over_ty {n} (DS : ivec n Type) (A : Type) :=
     iimpl id DS ((A → A) → Prop).
 
-  Definition pred_over {n} (DS : deps n) A :=
+  Definition pred_over {n} (DS : ivec n cmra) A :=
     iimpl id (ivec_map cmra_to_trans DS) ((A → A) → Prop).
 
-  Definition True_pred {n} {DS : deps n} {A} : pred_over DS A :=
+  Definition True_pred {n} {DS : ivec n cmra} {A} : pred_over DS A :=
     hcurry (λ _ _, True).
 
   (* This results in the type:
@@ -40,12 +35,12 @@ Section types.
 
 End types.
 
-Definition trans_for n (DS : deps n) := hvec id n (cmra_to_trans <$> DS).
+Definition trans_for n (DS : ivec n cmra) := hvec id n (cmra_to_trans <$> DS).
 
 Notation preds_for := (hvec cmra_to_pred).
 
 (* trans_for does not give universe issue. *)
-Definition test_exist {Σ} {n : nat} {DS : deps n} : iProp Σ :=
+Definition test_exist {Σ} {n : nat} {DS : ivec n cmra} : iProp Σ :=
   ∃ (ts : trans_for n DS), ⌜ True ⌝.
 
 (* Notation trans_for_old := (hvec cmra_to_trans). *)
@@ -117,36 +112,36 @@ Proof. naive_solver. Qed.
 Section dependency_relation_cmra.
   Context {n : nat}.
 
-  Canonical Structure pred_over_tyO (A : Type) (DS : deps_ty n) :=
+  Canonical Structure pred_over_tyO (A : Type) (DS : ivec n Type) :=
     leibnizO (pred_over_ty DS A).
-  Canonical Structure pred_overO (A : Type) (DS : deps n) :=
+  Canonical Structure pred_overO (A : Type) (DS : ivec n cmra) :=
     leibnizO (pred_over DS A).
 
-  Definition promises (A : Type) (DS : deps_ty n) :=
+  Definition promises (A : Type) (DS : ivec n Type) :=
     max_prefix_list (pred_over_ty DS A).
-  Definition promisesR (A : cmra) (DS : deps n) :=
+  Definition promisesR (A : cmra) (DS : ivec n cmra) :=
     max_prefix_listR (pred_overO A DS).
 
-  Definition promisesUR (A : cmra) (DS : deps n) :=
+  Definition promisesUR (A : cmra) (DS : ivec n cmra) :=
     max_prefix_listUR (pred_over DS A).
 
   (* Authorative promises. *)
-  Definition auth_promises {A : Type} {DS : deps n}
+  Definition auth_promises {A : Type} {DS : ivec n cmra}
     (ps : list (pred_over DS A)) : auth (max_prefix_list (pred_over DS A)) :=
     ● (to_max_prefix_list ps).
-  Definition auth_promises_ty {A : Type} {DS : deps_ty n}
+  Definition auth_promises_ty {A : Type} {DS : ivec n Type}
     (ps : list (pred_over_ty DS A)) : auth (promises A DS) :=
     ● (to_max_prefix_list ps).
 
   (* Fragmental promises. *)
-  Definition frag_promises {A : Type} {DS : deps_ty n}
+  Definition frag_promises {A : Type} {DS : ivec n Type}
     (ps : list (pred_over_ty DS A)) : auth (promises A DS) :=
     ◯ (to_max_prefix_list ps).
 
 End dependency_relation_cmra.
 
 Section dependency_relation_extra.
-  Context {n} {A : cmra} {DS : deps n}.
+  Context {n} {A : cmra} {DS : ivec n cmra}.
   Implicit Types (R : pred_over DS A) (P : (A → A) → Prop).
 
   Definition rel_stronger (R1 R2 : pred_over DS A) :=
@@ -190,7 +185,7 @@ Section dependency_relation_extra.
 
 End dependency_relation_extra.
 
-Definition generational_cmra {n} A (DS : deps_ty n) : Type :=
+Definition generational_cmra {n} A (DS : ivec n Type) : Type :=
   option (agree (A → A)) * (* Agreement on transformation into generation *)
   GTS (A → A) * (* Facilitates choice of transformation out of generation *)
   option A * (* Ownership over A *)
@@ -202,7 +197,7 @@ Definition generational_cmra {n} A (DS : deps_ty n) : Type :=
  * write. *)
 Local Infix "*R*" := prodR (at level 50, left associativity).
 
-Definition generational_cmraR {n} (A : cmra) (DS : deps n) : cmra :=
+Definition generational_cmraR {n} (A : cmra) (DS : ivec n cmra) : cmra :=
   optionR (agreeR (leibnizO (A → A))) *R*
   GTSR (A → A) *R*
   optionR A *R*
@@ -213,7 +208,7 @@ Local Infix "*M*" := prod_map (at level 50, left associativity).
 
 (* The generational transformation function for the encoding of each ownership
 over a generational camera. *)
-Definition gen_generation {n} {A : cmra} (DS : deps n)
+Definition gen_generation {n} {A : cmra} (DS : ivec n cmra)
     (f : A → A) : generational_cmraR A DS → generational_cmraR A DS :=
   (const (Some (to_agree f)) : optionR (agreeR (leibnizO (A → A))) → optionR (agreeR (leibnizO (A → A)))) *M*
   (GTS_floor : (GTSR (A → A)) → (GTSR (A → A))) *M*
@@ -233,12 +228,12 @@ Proof.
     done.
 Qed.
 
-Global Instance gen_generation_gen_trans {n} {A : cmra} {DS : deps n} (f : A → A)
+Global Instance gen_generation_gen_trans {n} {A : cmra} {DS : ivec n cmra} (f : A → A)
   `{!Proper (equiv ==> equiv) f} :
   GenTrans f → GenTrans (gen_generation DS f).
 Proof. apply _. Qed.
 
-Global Instance gen_generation_proper {n} {A : cmra} (DS : deps n) (f : A → A) :
+Global Instance gen_generation_proper {n} {A : cmra} (DS : ivec n cmra) (f : A → A) :
   Proper ((≡) ==> (≡)) f →
   Proper ((≡) ==> (≡)) (gen_generation DS f).
 Proof.
@@ -276,12 +271,12 @@ Proof. rewrite 4!prod_validI. iIntros "[_ $]". Qed.
 (** For every entry in [Ω] we store this record of information. The equality
  * [gti_look] is the "canonical" equality we will use to show that the resource
  * [R Σ i] has the proper form. Using this equality is necesarry as we
- * otherwise end uup with different equalities of this form that we then do not
+ * otherwise end up with different equalities of this form that we then do not
  * know to be equal. *)
 Record gen_trans_info (Σ : gFunctors) (i : gid Σ) := {
   gti_car : cmra;
   gti_n : nat;
-  gti_deps : deps gti_n;
+  gti_deps : ivec gti_n cmra;
   gti_look : generational_cmraR gti_car gti_deps = R Σ i;
   (* gti_valid : valid_gen_trans (R Σ i); *)
 }.
@@ -304,20 +299,20 @@ Arguments None2 {A}.
 (** [gTransforms] contains a partial map from the type of cameras into a "set"
 of valid transformation function for that camera. *)
 Class gTransforms {Σ : gFunctors} := {
-  g_valid_gt :> ∀ (i : gid Σ), option2 (gen_trans_info Σ i)
+  g_gen_infos :> ∀ (i : gid Σ), option2 (gen_trans_info Σ i)
 }.
 
-Global Arguments g_valid_gt {_} _.
+Global Arguments g_gen_infos {_} _.
 
 #[export] Hint Mode gTransforms +.
 
-Class genInG {n} (Σ : gFunctors) Ω (A : cmra) (DS : deps n) := GenInG {
+Class genInG {n} (Σ : gFunctors) Ω (A : cmra) (DS : ivec n cmra) := GenInG {
   genInG_inG : inG Σ (generational_cmraR A DS);
   genInG_inG_deps : ∀ i d, DS !!! i = d → inG Σ (generational_cmraR A DS);
   (* genInG_id : gid Σ; *)
   (* genInG_apply := rFunctor_apply (gFunctors_lookup Σ genInG_id); *)
   genInG_gti : gen_trans_info Σ (inG_id genInG_inG);
-  genInG_gen_trans : Ω.(g_valid_gt) (inG_id genInG_inG) = Some2 genInG_gti;
+  genInG_gen_trans : Ω.(g_gen_infos) (inG_id genInG_inG) = Some2 genInG_gti;
   genInG_gti_typ : A = genInG_gti.(gti_car);
   (* genInG_prf : A = genInG_apply (iPropO Σ) _; *)
   (* genInG_gen_trans2 : *)
@@ -331,13 +326,13 @@ Existing Instance genInG_inG.
 hidden in the dependent pair. *)
 Class genInSelfG (Σ : gFunctors) Ω (A : cmra) := GenInG2 {
   genInSelfG_n : nat;
-  genInSelfG_DS : deps genInSelfG_n;
+  genInSelfG_DS : ivec genInSelfG_n cmra;
   genInSelfG_gen : genInG Σ Ω A (genInSelfG_DS);
 }.
 
 Existing Instance genInSelfG_gen.
 (* Global Arguments genInG_id {_ _ _ _} _. *)
-(* Global Program Instance genInG_inG {n} {DS : deps n} `{i : !genInG Σ A DS} : *)
+(* Global Program Instance genInG_inG {n} {DS : ivec n cmra} `{i : !genInG Σ A DS} : *)
 (*       inG Σ (generational_cmraR A) := *)
 (*   {| *)
 (*     inG_id := genInG_id i; *)
@@ -390,7 +385,7 @@ Section transmap.
     ∀ i γ t, transmap i !! γ = Some t → GenTrans t.
 
   (** Build a global generational transformation based on the transformations
-  * in [transmap]. *)
+   * in [transmap]. *)
   Definition build_trans (transmap : TransMap) : (iResUR Σ → iResUR Σ) :=
     λ (m : iResUR Σ) (i : gid Σ),
       map_imap (λ γ a,
@@ -597,8 +592,7 @@ Section promises.
    * would otherwise be an inductive record--simplifying things at the cost of
    * some power. *)
   Record promise_info := MkPromiseInfo {
-    (* "Static" information that is the same for all promises about the same
-    * id+γ *)
+    (* "Static" info that is the same for all promises about the same id+γ *)
     pi_id : gid Σ; (* The index of the RA in the global RA. *)
     pi_γ : gname; (* Ghost name for the promise. *)
     pi_n : nat; (* The number of dependencies. *)
@@ -607,7 +601,7 @@ Section promises.
     (* The predicate that relates our transformation to those of the dependencies. *)
     pi_rel : deps_to_trans pi_n pi_deps → T Σ pi_id → Prop;
     (* A predicate that holds for the promise's own transformation whenever
-    * [pi_rel] holds. A "canonical" choice could be: [λ t, ∃ ts, pi_rel ts t]. *)
+     * [pi_rel] holds. A "canonical" choice could be: [λ t, ∃ ts, pi_rel ts t]. *)
     pi_pred : T Σ pi_id → Prop;
     pi_rel_to_pred : ∀ ts t, pi_rel ts t → pi_pred t;
     pi_witness : ∀ ts, deps_preds_hold pi_deps ts → ∃ t, pi_rel ts t;
@@ -1091,17 +1085,15 @@ Section next_gen_definition.
    * [picks]. We need to know that a picked transformation satisfies the most
    * recent/strongest promise. We thus need the authorative part of the
    * promises. *)
-  (* We need to *)
   Definition res_for_picks Ω picks (m : iResUR Σ) :=
     ∀ i,
       dom (picks i) ≡ dom (m i) ∧
       ∀ γ (a : Rpre Σ i),
         m i !! γ = Some a  →
-        (* NOTE: Maybe we'll need to pull this equality out of a global map as
-         * before. *)
         ∃ gti ts γs (t : gti.(gti_car) → gti.(gti_car)) R Rs,
-          Ω.(g_valid_gt) i = Some2 gti ∧
-          (* BUG: [ts] is unrestricted. *)
+          Ω.(g_gen_infos) i = Some2 gti ∧
+          (* BUG: [ts] is unrestricted. The transformations in [ts] should be
+           * the result of looking up in [picks]. *)
           huncurry R ts t ∧
           picks i !! γ = Some (cmra_map_transport gti.(gti_look) (gen_generation (gti.(gti_deps)) t)) ∧
           pred_prefix_list_for Rs R ∧
@@ -1112,20 +1104,19 @@ Section next_gen_definition.
   Definition own_picks Ω picks : iProp Σ :=
     ∃ m, uPred_ownM m ∗ ⌜ res_for_picks Ω picks m ⌝.
 
-  Definition res_for_promises (ps : list (promise_info Σ)) (m : iResUR Σ) :=
+  Definition res_for_promises Ω (ps : list (promise_info Σ)) (m : iResUR Σ) :=
     ∀ p, p ∈ ps →
-      ∃ n (a : Rpre Σ p.(pi_id)) (A : cmra) (DS : deps n)
-      (* NOTE: Is there a better way to get a hold of [A] and [DS]? *)
-      (eq : generational_cmraR A DS = R Σ p.(pi_id)) Rel Rs,
+      ∃ gti (a : Rpre Σ p.(pi_id)) Rel Rs,
+        Ω.(g_gen_infos) p.(pi_id) = Some2 gti ∧
         m p.(pi_id) !! p.(pi_γ) = Some a ∧
         (* BUG: [Rel] is not used for anything. *)
         pred_prefix_list_for Rs Rel ∧
         (* Rel = p.(pi_rel) ∧ *)
-        a ≡ map_unfold (cmra_transport eq
+        a ≡ map_unfold (cmra_transport gti.(gti_look)
           (ε, ε, ε, ε, gV (◯ (to_max_prefix_list Rs)))).
 
-  Definition own_promises (ps : list (promise_info Σ)) : iProp Σ :=
-    ∃ m, uPred_ownM m ∗ ⌜ res_for_promises ps m ⌝ .
+  Definition own_promises Ω (ps : list (promise_info Σ)) : iProp Σ :=
+    ∃ m, uPred_ownM m ∗ ⌜ res_for_promises Ω ps m ⌝.
 
   (* The global transformation [fG] respects the entries in [picks].
    * NOTE: We may not need this given how [⚡==>] now quantifies over picks and
@@ -1139,7 +1130,7 @@ Section next_gen_definition.
   Definition nextgen {Ω} P : iProp Σ :=
     ∃ picks (ps : list (promise_info Σ)),
       (* We own resources for everything in [picks] and [promises]. *)
-      own_picks Ω picks ∗ own_promises ps ∗
+      own_picks Ω picks ∗ own_promises Ω ps ∗
       ⌜ promises_wf ps ⌝ ∗
       ∀ full_picks (val : transmap_valid full_picks),
         ⌜ transmap_resp_promises full_picks ps ⌝ -∗
@@ -1322,9 +1313,9 @@ Section own_promises_properties.
 
   (* If two promise lists has an overlap then one of the overlapping promises
   * is strictly stronger than the other. *)
-  Lemma own_promises_overlap prs1 prs2 :
-    own_promises prs1 -∗
-    own_promises prs2 -∗
+  Lemma own_promises_overlap Ω prs1 prs2 :
+    own_promises Ω prs1 -∗
+    own_promises Ω prs2 -∗
     ⌜ promises_overlap_pred prs1 prs2 ⌝.
   Proof.
     iIntros "(%m1 & O1 & %P1) (%m2 & O2 & %P2)".
@@ -1338,10 +1329,10 @@ Section own_promises_properties.
     (* rewrite /res_for_promises in P1, P2. *)
   Admitted.
 
-  Lemma own_promises_sep prs1 prs2 :
-    own_promises prs1 -∗
-    own_promises prs2 -∗
-    own_promises (merge_promises prs1 prs2).
+  Lemma own_promises_sep Ω prs1 prs2 :
+    own_promises Ω prs1 -∗
+    own_promises Ω prs2 -∗
+    own_promises Ω (merge_promises prs1 prs2).
   Proof.
   Admitted.
 
@@ -1361,11 +1352,11 @@ Section nextgen_properties.
   Proof. iExists ε. rewrite ownM_unit' left_id. iPureIntro. done. Qed.
 
   Lemma res_for_promises_empty :
-    res_for_promises [] (ε : iResUR Σ).
+    res_for_promises Ω [] (ε : iResUR Σ).
   Proof. intros ? elem. inversion elem. Qed.
 
   Lemma own_promises_empty :
-    ⊢@{iProp Σ} own_promises [].
+    ⊢@{iProp Σ} own_promises Ω [].
   Proof.
     iExists ε. rewrite ownM_unit' left_id.
     iPureIntro. apply res_for_promises_empty.
@@ -1402,7 +1393,7 @@ End nextgen_properties.
 (* Ownership over generational ghost state. *)
 
 Section generational_resources.
-  Context {n} {A} {DS : deps n} `{!genInG Σ Ω A DS}.
+  Context {n} {A} {DS : ivec n cmra} `{!genInG Σ Ω A DS}.
   Implicit Types (R : pred_over DS A) (P : (A → A) → Prop).
 
   Definition gen_own_res (a : A) : generational_cmraR A DS :=
@@ -1488,14 +1479,14 @@ Definition rely_self `{i : !genInSelfG Σ Ω A}
   ∃ γs R, rely (DS := genInSelfG_DS) γ γs R P.
 
 (** The transformations [ts] satisfies the predicates [ps]. *)
-Equations preds_hold {n} {DS : deps n}
+Equations preds_hold {n} {DS : ivec n cmra}
     (ts : trans_for n DS) (ps : preds_for n DS) : Prop :=
   | hcons t ts', hcons p ps' := p t ∧ preds_hold ts' ps' ;
   | hnil, hnil := True.
 Global Transparent preds_hold.
 
 Section rules.
-  Context {n : nat} {DS : deps n} `{!genInG Σ Ω A DS}.
+  Context {n : nat} {DS : ivec n cmra} `{!genInG Σ Ω A DS}.
 
   Lemma own_gen_alloc (a : A) γs :
     ✓ a → ⊢ |==> ∃ γ, gen_own γ a ∗ token γ γs True_pred (λ _, True%type).
@@ -1693,7 +1684,7 @@ Equations forall_fin_2 (P : fin 2 → Type) : P 0%fin * P 1%fin → ∀ (i : fin
 exactly two dependencies. It would be nicer with a solution that could iterate
 over all the dependencies during type class resolution (maybe inspired by
 [TCForall] for lists). *)
-Global Instance genInG_forall_2 {Σ n m} {DS1 : deps n} {DS2 : deps m}
+Global Instance genInG_forall_2 {Σ n m} {DS1 : ivec n cmra} {DS2 : ivec m cmra}
   `{!genInG Σ Ω A DS1} `{!genInG Σ Ω B DS2} :
   ∀ (i : fin 2), genInSelfG Σ Ω ([A; B]%IL !!! i).
 Proof.
