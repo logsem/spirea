@@ -273,17 +273,17 @@ Proof. rewrite 4!prod_validI. iIntros "[_ $]". Qed.
  * [R Σ i] has the proper form. Using this equality is necesarry as we
  * otherwise end up with different equalities of this form that we then do not
  * know to be equal. *)
-Record gen_trans_info (Σ : gFunctors) (i : gid Σ) := {
-  gti_car : cmra;
-  gti_n : nat;
-  gti_deps : ivec gti_n cmra;
-  gti_look : generational_cmraR gti_car gti_deps = R Σ i;
+Record gen_cmra_data (Σ : gFunctors) (i : gid Σ) := {
+  gcd_cmra : cmra;
+  gcd_n : nat;
+  gcd_deps : ivec gcd_n cmra;
+  gti_look : generational_cmraR gcd_cmra gcd_deps = R Σ i;
   (* gti_valid : valid_gen_trans (R Σ i); *)
 }.
 
-Arguments gti_car {_} {_}.
-Arguments gti_n {_} {_}.
-Arguments gti_deps {_} {_}.
+Arguments gcd_cmra {_} {_}.
+Arguments gcd_n {_} {_}.
+Arguments gcd_deps {_} {_}.
 Arguments gti_look {_} {_}.
 (* Arguments gti_valid {_} {_}. *)
 
@@ -299,7 +299,7 @@ Arguments None2 {A}.
 (** [gTransforms] contains a partial map from the type of cameras into a "set"
 of valid transformation function for that camera. *)
 Class gTransforms {Σ : gFunctors} := {
-  g_gen_infos :> ∀ (i : gid Σ), option2 (gen_trans_info Σ i)
+  g_gen_infos :> ∀ (i : gid Σ), option2 (gen_cmra_data Σ i)
 }.
 
 Global Arguments g_gen_infos {_} _.
@@ -311,9 +311,9 @@ Class genInG {n} (Σ : gFunctors) Ω (A : cmra) (DS : ivec n cmra) := GenInG {
   genInG_inG_deps : ∀ i d, DS !!! i = d → inG Σ (generational_cmraR A DS);
   (* genInG_id : gid Σ; *)
   (* genInG_apply := rFunctor_apply (gFunctors_lookup Σ genInG_id); *)
-  genInG_gti : gen_trans_info Σ (inG_id genInG_inG);
+  genInG_gti : gen_cmra_data Σ (inG_id genInG_inG);
   genInG_gen_trans : Ω.(g_gen_infos) (inG_id genInG_inG) = Some2 genInG_gti;
-  genInG_gti_typ : A = genInG_gti.(gti_car);
+  genInG_gti_typ : A = genInG_gti.(gcd_cmra);
   (* genInG_prf : A = genInG_apply (iPropO Σ) _; *)
   (* genInG_gen_trans2 : *)
   (*   genInG_gti.(gti_valid) = *)
@@ -1090,12 +1090,12 @@ Section next_gen_definition.
       dom (picks i) ≡ dom (m i) ∧
       ∀ γ (a : Rpre Σ i),
         m i !! γ = Some a  →
-        ∃ gti ts γs (t : gti.(gti_car) → gti.(gti_car)) R Rs,
+        ∃ gti ts γs (t : gti.(gcd_cmra) → gti.(gcd_cmra)) R Rs,
           Ω.(g_gen_infos) i = Some2 gti ∧
           (* BUG: [ts] is unrestricted. The transformations in [ts] should be
            * the result of looking up in [picks]. *)
           huncurry R ts t ∧
-          picks i !! γ = Some (cmra_map_transport gti.(gti_look) (gen_generation (gti.(gti_deps)) t)) ∧
+          picks i !! γ = Some (cmra_map_transport gti.(gti_look) (gen_generation (gti.(gcd_deps)) t)) ∧
           pred_prefix_list_for Rs R ∧
           a ≡ map_unfold (cmra_transport gti.(gti_look)
             (ε, GTS_tok_gen_shot t, ε,
@@ -1103,6 +1103,9 @@ Section next_gen_definition.
 
   Definition own_picks Ω picks : iProp Σ :=
     ∃ m, uPred_ownM m ∗ ⌜ res_for_picks Ω picks m ⌝.
+
+  (* NOTE: We need to translate the type of relation stored in [promise_info]
+   * with the type of relation used by gti. We need to ensure that the *)
 
   Definition res_for_promises Ω (ps : list (promise_info Σ)) (m : iResUR Σ) :=
     ∀ p, p ∈ ps →
@@ -1114,6 +1117,7 @@ Section next_gen_definition.
         (* Rel = p.(pi_rel) ∧ *)
         a ≡ map_unfold (cmra_transport gti.(gti_look)
           (ε, ε, ε, ε, gV (◯ (to_max_prefix_list Rs)))).
+  (* Print res_for_promises. *)
 
   Definition own_promises Ω (ps : list (promise_info Σ)) : iProp Σ :=
     ∃ m, uPred_ownM m ∗ ⌜ res_for_promises Ω ps m ⌝.
