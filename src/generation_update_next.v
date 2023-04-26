@@ -156,6 +156,13 @@ Section dependency_relation_extra.
   Definition rel_implies_pred R P : Prop :=
     ∀ (ts : trans_for n DS) (t : A → A), huncurry R ts t → P t.
 
+  (** The transformations [ts] satisfies the predicates [ps]. *)
+  Equations preds_hold {n} {DS : ivec n cmra}
+      (ts : trans_for n DS) (ps : preds_for n DS) : Prop :=
+    | hcons t ts', hcons p ps' := p t ∧ preds_hold ts' ps' ;
+    | hnil, hnil := True.
+  Global Transparent preds_hold.
+
   Definition pred_prefix_list_for (all : list (pred_over DS A)) R :=
     (* The given promise [R] is the last promise out of all promises. *)
     last all = Some R ∧
@@ -277,13 +284,14 @@ Record gen_cmra_data (Σ : gFunctors) (i : gid Σ) := {
   gcd_cmra : cmra;
   gcd_n : nat;
   gcd_deps : ivec gcd_n cmra;
+  gcd_deps_ids : ivec gcd_n (gid Σ);
   gti_look : generational_cmraR gcd_cmra gcd_deps = R Σ i;
-  (* gti_valid : valid_gen_trans (R Σ i); *)
 }.
 
 Arguments gcd_cmra {_} {_}.
 Arguments gcd_n {_} {_}.
 Arguments gcd_deps {_} {_}.
+Arguments gcd_deps_ids {_} {_}.
 Arguments gti_look {_} {_}.
 (* Arguments gti_valid {_} {_}. *)
 
@@ -296,13 +304,27 @@ Inductive option2 (A : Type) : Type :=
 Arguments Some2 {A} a.
 Arguments None2 {A}.
 
+Inductive list2 (A : Type) : Type :=
+ | nil2 : list2 A
+ | cons2 : A -> list2 A -> list2 A.
+
+Arguments nil2 {A}.
+Arguments cons2 {A} a l.
+
+Fixpoint list2_lookup {A} (l : list2 A) (n : nat) : option A :=
+  match n, l with
+    | O, cons2 x _ => Some x
+    | S n, cons2 _ l => list2_lookup l n
+    | _, _ => None
+  end.
+
 (** [gTransforms] contains a partial map from the type of cameras into a "set"
 of valid transformation function for that camera. *)
-Class gTransforms {Σ : gFunctors} := {
+Class gTransforms (Σ : gFunctors) := {
   g_gen_infos :> ∀ (i : gid Σ), option2 (gen_cmra_data Σ i)
 }.
 
-Global Arguments g_gen_infos {_} _.
+Global Arguments g_gen_infos {_} {_}.
 
 #[export] Hint Mode gTransforms +.
 
@@ -539,86 +561,130 @@ Section promises.
    * dependencies. This lets us talk about a promise without having to talk
    * about it's depencencies (and their dependencies, and their dependencies,
    * and so on recursively). *)
-  Record promise_self_info := MkSelfPromiseInfo {
+  Record promise_self_info Ω := MkSelfPromiseInfo {
     psi_id : gid Σ; (* The index of the RA in the global RA. *)
     psi_γ : gname; (* Ghost name for the promise. *)
-    psi_pred : T Σ psi_id → Prop;
+    psi_gcd : gen_cmra_data Σ psi_id;
+    psi_gcd_lookup : Ω.(g_gen_infos) psi_id = Some2 psi_gcd;
+    psi_pred : cmra_to_pred psi_gcd.(gcd_cmra);
   }.
 
-  Definition deps_to_trans n (deps : ivec n promise_self_info) :=
-    hvec (λ dep, T Σ dep.(psi_id)) n deps.
+  Arguments psi_id {_}.
+  Arguments psi_γ {_}.
+  Arguments psi_gcd {_}.
+  Arguments psi_gcd_lookup {_}.
+  Arguments psi_pred {_}.
+  (* Definition deps_to_trans n (deps : ivec n promise_self_info) := *)
+  (*   hvec (λ dep, T Σ dep.(psi_id)) n deps. *)
 
-  Definition deps_to_gnames {n} (deps : ivec n promise_self_info) :=
-    ivec_map (λ dep, dep.(psi_γ)) deps.
+  (* Definition deps_to_gnames {n} (deps : ivec n promise_self_info) := *)
+  (*   ivec_map (λ dep, dep.(psi_γ)) deps. *)
 
-  (** The transformations [ts] satisfies the predicates [ps]. *)
-  Equations deps_preds_hold {n}
-      (deps : ivec n promise_self_info)
-      (ts : deps_to_trans n deps) : Prop :=
-    | inil, hnil := True
-    | icons d deps', hcons t ts' := d.(psi_pred) t ∧ deps_preds_hold deps' ts'.
-  (* Global Transparent deps_preds_hold. *)
+  (* (** The transformations [ts] satisfies the predicates [ps]. *) *)
+  (* Equations deps_preds_hold {n} *)
+  (*     (deps : ivec n promise_self_info) *)
+  (*     (ts : deps_to_trans n deps) : Prop := *)
+  (*   | inil, hnil := True *)
+  (*   | icons d deps', hcons t ts' := d.(psi_pred) t ∧ deps_preds_hold deps' ts'. *)
+  (* (* Global Transparent deps_preds_hold. *) *)
 
-  Lemma deps_preds_hold_alt {n}
-      (deps : ivec n promise_self_info)
-      (ts : hvec (λ dep, T Σ dep.(psi_id)) n deps) :
-    deps_preds_hold deps ts ↔ ∀ i, (deps !!! i).(psi_pred) (ts 👀 i).
-  Proof.
-    split.
-    - intros holds i.
-      induction i as [hi|ho] eqn:eq.
-      * dependent elimination ts.
-        destruct holds as [pred ?].
-        apply pred.
-      * dependent elimination deps.
-        dependent elimination ts.
-        rewrite deps_preds_hold_equation_2 in holds.
-        destruct holds as [? holds].
-        apply (IHt _ _ holds t).
-        done.
-    - intros i.
-      induction deps.
-      * dependent elimination ts. done.
-      * dependent elimination ts.
-        rewrite deps_preds_hold_equation_2.
-        split. { apply (i 0%fin). }
-        apply IHdeps.
-        intros i'.
-        apply (i (FS i')).
-  Qed.
+(*   Lemma deps_preds_hold_alt {n} *)
+(*       (deps : ivec n promise_self_info) *)
+(*       (ts : hvec (λ dep, T Σ dep.(psi_id)) n deps) : *)
+(*     deps_preds_hold deps ts ↔ ∀ i, (deps !!! i).(psi_pred) (ts 👀 i). *)
+(*   Proof. *)
+(*     split. *)
+(*     - intros holds i. *)
+(*       induction i as [hi|ho] eqn:eq. *)
+(*       * dependent elimination ts. *)
+(*         destruct holds as [pred ?]. *)
+(*         apply pred. *)
+(*       * dependent elimination deps. *)
+(*         dependent elimination ts. *)
+(*         rewrite deps_preds_hold_equation_2 in holds. *)
+(*         destruct holds as [? holds]. *)
+(*         apply (IHt _ _ holds t). *)
+(*         done. *)
+(*     - intros i. *)
+(*       induction deps. *)
+(*       * dependent elimination ts. done. *)
+(*       * dependent elimination ts. *)
+(*         rewrite deps_preds_hold_equation_2. *)
+(*         split. { apply (i 0%fin). } *)
+(*         apply IHdeps. *)
+(*         intros i'. *)
+(*         apply (i (FS i')). *)
+(*   Qed. *)
+(* End promises. *)
 
-  (** A record of all the information that is a associated with a promise. Note
-   * that we use [promise_self_info] for the dependencies, this cuts off what
-   * would otherwise be an inductive record--simplifying things at the cost of
-   * some power. *)
-  Record promise_info := MkPromiseInfo {
-    (* "Static" info that is the same for all promises about the same id+γ *)
-    pi_id : gid Σ; (* The index of the RA in the global RA. *)
-    pi_γ : gname; (* Ghost name for the promise. *)
-    pi_n : nat; (* The number of dependencies. *)
-    pi_deps : ivec pi_n promise_self_info;
-    (* Dynamic information that changes per promise *)
-    (* The predicate that relates our transformation to those of the dependencies. *)
-    pi_rel : deps_to_trans pi_n pi_deps → T Σ pi_id → Prop;
-    (* A predicate that holds for the promise's own transformation whenever
-     * [pi_rel] holds. A "canonical" choice could be: [λ t, ∃ ts, pi_rel ts t]. *)
-    pi_pred : T Σ pi_id → Prop;
-    pi_rel_to_pred : ∀ ts t, pi_rel ts t → pi_pred t;
-    pi_witness : ∀ ts, deps_preds_hold pi_deps ts → ∃ t, pi_rel ts t;
-  }.
+(** Inside the model of the [nextgen] modality we need to store a list of all
+ * known promises. To this end, [promise_info] is a record of all the
+ * information that is associated with a promise. Note that we use
+ * [promise_self_info] for the dependencies, this cuts off what would
+ * otherwise be an inductive record - simplifying things at the cost of some
+ * power. *)
+Record promise_info {Σ} (Ω : gTransforms Σ) := MkPromiseInfo {
+  (* We need to know the specific ghost location that this promise is about *)
+  pi_id : gid Σ; (* The index of the RA in the global RA *)
+  pi_γ : gname; (* Ghost name for the promise *)
+  (* We have the generational cmra data for this index, this contains all
+   * static info about the promise dependency for this index. *)
+  pi_gcd : gen_cmra_data Σ pi_id;
+  pi_gcd_lookup : Ω.(g_gen_infos) pi_id = Some2 pi_gcd;
+  (* pi_deps : ivec (pi_gcd.(gcd_n)) promise_self_info; *)
+  pi_deps_γs : ivec pi_gcd.(gcd_n) gname;
+  pi_deps_preds : preds_for pi_gcd.(gcd_n) pi_gcd.(gcd_deps);
+  (* Dynamic information that changes per promise *)
+  (* The predicate that relates our transformation to those of the dependencies. *)
+  (* NOTE: Maybe store the rel in curried form? *)
+  pi_rel : trans_for pi_gcd.(gcd_n) pi_gcd.(gcd_deps) → cmra_to_trans pi_gcd.(gcd_cmra) → Prop;
+  (* pi_rel : deps_to_trans (pi_gcd.(gcd_n)) pi_deps → T Σ pi_id → Prop; *)
+  (* A predicate that holds for the promise's own transformation whenever
+   * [pi_rel] holds. A "canonical" choice could be: [λ t, ∃ ts, pi_rel ts t]. *)
+  pi_pred : cmra_to_pred pi_gcd.(gcd_cmra);
+  pi_rel_to_pred : ∀ ts t, pi_rel ts t → pi_pred t;
+  pi_witness : ∀ ts, preds_hold ts pi_deps_preds → ∃ t, pi_rel ts t;
+}.
 
-  Implicit Types (prs : list promise_info).
+Arguments pi_id {_ _}.
+Arguments pi_γ {_ _}.
+Arguments pi_gcd {_ _}.
+Arguments pi_gcd_lookup {_ _}.
+Arguments pi_deps_γs {_ _}.
+Arguments pi_deps_preds {_ _}.
+Arguments pi_rel {_ _}.
+Arguments pi_pred {_ _}.
+Arguments pi_rel_to_pred {_ _}.
+Arguments pi_witness {_ _}.
+
+Record dependency_data {Σ} {Ω : gTransforms Σ} := {
+  dd_id : gid Σ;
+  dd_γ : gname;
+}.
+
+Definition pi_get_dd {Σ} {Ω : gTransforms Σ}
+    (pi : promise_info Ω) n : dependency_data := {|
+  dd_id := pi.(pi_gcd).(gcd_deps_ids) !!! n;
+  dd_γ := pi.(pi_deps_γs) !!! n;
+|}.
+
+Section promise_info.
+  Context `{Ω : gTransforms Σ}.
+
+  Implicit Types (prs : list2 (promise_info Ω)).
+  Implicit Types (promises : list2 (promise_info Ω)).
+  Implicit Types (pi : promise_info Ω).
 
   (** Convert a [promise_info] into a [promise_self_info] by discarding fields
    * about dependencies. *)
-  Definition promise_info_to_self (pi : promise_info) :=
-    {| psi_id := pi_id pi; psi_γ := pi_γ pi; psi_pred := pi_pred pi |}.
+  (* Definition promise_info_to_self pi := *)
+  (*   {| psi_id := pi_id pi; psi_γ := pi_γ pi; psi_pred := pi_pred pi |}. *)
 
   Definition promises_different p1 p2 :=
     p1.(pi_id) ≠ p2.(pi_id) ∨ p1.(pi_γ) ≠ p2.(pi_γ).
 
-  Definition promises_self_different p1 p2 :=
-    p1.(psi_id) ≠ p2.(psi_id) ∨ p1.(psi_γ) ≠ p2.(psi_γ).
+  (* Definition promises_self_different p1 p2 := *)
+  (*   p1.(psi_id) ≠ p2.(psi_id) ∨ p1.(psi_γ) ≠ p2.(psi_γ). *)
 
   Definition res_trans_transport {id1 id2}
       (eq : id1 = id2) (t : R Σ id1 → R Σ id1) : (R Σ id2 → R Σ id2) :=
@@ -628,67 +694,84 @@ Section promises.
       (t : (R Σ id1 → R Σ id1) → Prop) : ((R Σ id2 → R Σ id2) → Prop) :=
     eq_rect _ (λ id, _) t _ eq.
 
+  Definition gcd_transport {id1 id2}
+      (eq : id1 = id2) (gcd : gen_cmra_data Σ id1) : gen_cmra_data Σ id2 :=
+    eq_rect _ (λ id, _) gcd _ eq.
+
+  Definition pred_gcd_transport {p_d ps}
+      (eq1 : p_d.(psi_id) = ps.(pi_id))
+      (eq2 : gcd_transport eq1 (psi_gcd p_d) = pi_gcd ps)
+      (psi_pred : cmra_to_pred (gcd_cmra (psi_gcd p_d))) :
+      (gcd_cmra (pi_gcd ps) → gcd_cmra (pi_gcd ps)) → Prop.
+  Admitted.
+    (* match eq1 with *)
+    (* | eq_refl => eq_rect _ (λ id, cmra_to_pred (gcd_cmra id)) psi_pred _ eq2 *)
+    (* end. *)
+
   (** The promise [p] satisfies the dependency [p_d]. Note that the predicate
    * in [p_d] may not be the same as the one in [p]. When we combine lists of
    * promises some promises might be replaced by stronger ones. Hence we only
    * require that the predicate in [p] is stronger than the one in [p_d]. *)
-  Definition promise_satisfy_dep (p_d : promise_self_info) (p : promise_info) :=
-    ∃ (eq : p.(pi_id) = p_d.(psi_id)),
-      p_d.(psi_γ) = p.(pi_γ) ∧
-      (* The predicate in [p] is stronger than what is stated in [p_d] *)
-      pred_stronger (res_pred_transport eq p.(pi_pred)) p_d.(psi_pred).
+  Definition promise_satisfy_dep (p_d : promise_self_info Ω) ps :=
+    ∃ (eq : gcd_cmra (psi_gcd p_d) = gcd_cmra (pi_gcd ps)),
+      ps.(pi_id) = p_d.(psi_id) ∧
+      p_d.(psi_γ) = ps.(pi_γ) ∧
+      (* The predicate in [ps] is stronger than what is stated in [p_d] *)
+      pred_stronger ps.(pi_pred) (eq_rect _ _ p_d.(psi_pred) _ eq).
 
-  (** For every dependency in [p] the list [promises] has a sufficicent
+  (** For every dependency in [p] the list [promises] has a sufficient
    * promise. *)
-  Definition promises_has_deps p (promises : list promise_info) :=
-    ∀ idx, ∃ p2, p2 ∈ promises ∧ promise_satisfy_dep (p.(pi_deps) !!! idx) p2.
+  Definition promises_has_deps pi promises :=
+    True.
+    (* ∀ idx, ∃ p2, p2 ∈ promises ∧ promise_satisfy_dep (pi.(pi_deps) !!! idx) p2. *)
 
   (** The promise [p] is well-formed wrt. the list [promises] of promises that
    * preceeded it. *)
-  Definition promise_wf p (promises : list (promise_info)) : Prop :=
-    (∀ p2, p2 ∈ promises → promises_different p p2) ∧
-    promises_has_deps p promises.
+  Definition promise_wf pi promises : Prop :=
+    True.
+    (* (∀ p2, p2 ∈ promises → promises_different p p2) ∧ *)
+    (* promises_has_deps p promises. *)
 
   (* This definition has nice computational behavior when applied to a [cons]. *)
-  Fixpoint promises_wf (promises : list (promise_info)) : Prop :=
+  Fixpoint promises_wf promises : Prop :=
     match promises with
-    | nil => True
-    | cons p promises' =>
-      promise_wf p promises' ∧ promises_wf promises'
+    | nil2 => True
+    | cons2 p promises' => promise_wf p promises' ∧ promises_wf promises'
     end.
 
   (* NOTE: Not used, but should be implied by [promises_wf] *)
-  Definition promises_unique (promises : list promise_info) : Prop :=
-    ∀ i j p1 p2, i ≠ j → promises !! i = Some p1 → promises !! j = Some p2 →
-      p1.(pi_id) ≠ p2.(pi_id) ∨ p1.(pi_γ) ≠ p2.(pi_γ).
+  Definition promises_unique promises : Prop :=
+    ∀ (i j : nat) pi1 pi2, i ≠ j →
+      (* promises !! i = Some p1 → promises !! j = Some p2 → *)
+      pi1.(pi_id) ≠ pi2.(pi_id) ∨ pi1.(pi_γ) ≠ pi2.(pi_γ).
 
   Lemma promises_has_deps_cons p prs :
     promises_has_deps p prs →
-    promises_has_deps p (p :: prs).
-  Proof.
-    intros hasDeps idx.
-    destruct (hasDeps idx) as (p2 & ? & ?).
-    eauto using elem_of_list_further.
-  Qed.
+    promises_has_deps p (cons2 p prs).
+  Proof. Admitted.
+  (*   intros hasDeps idx. *)
+  (*   destruct (hasDeps idx) as (p2 & ? & ?). *)
+  (*   eauto using elem_of_list_further. *)
+  (* Qed. *)
 
   (* A well formed promise is not equal to any of its dependencies. *)
-  Lemma promise_wf_neq_deps p (promises : list (promise_info)) :
+  Lemma promise_wf_neq_deps p promises :
     promise_wf p promises →
-    ∀ (idx : fin (p.(pi_n))),
+    ∀ (idx : fin (p.(pi_gcd).(gcd_n))),
       (* promises_self_different (promise_info_to_self p) (pi_deps p !!! idx). *)
-      pi_id p ≠ psi_id (pi_deps p !!! idx) ∨ pi_γ p ≠ psi_γ (pi_deps p !!! idx).
-  Proof.
-    intros [uniq hasDeps] idx.
-    destruct (hasDeps idx) as (p2 & elem & i & eq & jhhi).
-    destruct (uniq _ elem) as [h|h].
-    - left. congruence.
-    - right. congruence.
-  Qed.
+      pi_id p ≠ dd_id (pi_get_dd p idx) ∨ pi_γ p ≠ dd_γ (pi_get_dd p idx).
+  Proof. Admitted.
+  (*   intros [uniq hasDeps] idx. *)
+  (*   destruct (hasDeps idx) as (p2 & elem & i & eq & jhhi). *)
+  (*   destruct (uniq _ elem) as [h|h]. *)
+  (*   - left. congruence. *)
+  (*   - right. congruence. *)
+  (* Qed. *)
 
-  Lemma promises_well_formed_lookup promises idx p :
+  Lemma promises_well_formed_lookup promises idx pi :
     promises_wf promises →
-    promises !! idx = Some p →
-    promises_has_deps p promises. (* We forget the different part for now. *)
+    promises !! idx = Some pi →
+    promises_has_deps pi promises. (* We forget the different part for now. *)
   Proof.
     intros WF look.
     revert dependent idx.
@@ -1068,7 +1151,7 @@ Section transmap.
 End transmap.
 
 Arguments promise_info Σ : clear implicits.
-Arguments promise_self_info Σ : clear implicits.
+(* Arguments promise_self_info Σ : clear implicits. *)
 
 Section next_gen_definition.
   Context `{Σ : gFunctors}.
@@ -1089,7 +1172,7 @@ Section next_gen_definition.
     ∀ i,
       dom (picks i) ≡ dom (m i) ∧
       ∀ γ (a : Rpre Σ i),
-        m i !! γ = Some a  →
+        m i !! γ = Some a →
         ∃ gti ts γs (t : gti.(gcd_cmra) → gti.(gcd_cmra)) R Rs,
           Ω.(g_gen_infos) i = Some2 gti ∧
           (* BUG: [ts] is unrestricted. The transformations in [ts] should be
@@ -1105,7 +1188,8 @@ Section next_gen_definition.
     ∃ m, uPred_ownM m ∗ ⌜ res_for_picks Ω picks m ⌝.
 
   (* NOTE: We need to translate the type of relation stored in [promise_info]
-   * with the type of relation used by gti. We need to ensure that the *)
+   * with the type of relation used by gcd. We need to ensure that the cameras
+   * in gcd are equal to those in promise_info. *)
 
   Definition res_for_promises Ω (ps : list (promise_info Σ)) (m : iResUR Σ) :=
     ∀ p, p ∈ ps →
@@ -1345,7 +1429,7 @@ End own_promises_properties.
 (* In this section we prove structural rules of the nextgen modality. *)
 
 Section nextgen_properties.
-  Context {Σ : gFunctors} {Ω : @gTransforms Σ}.
+  Context {Σ : gFunctors} {Ω : gTransforms Σ}.
 
   Lemma res_for_picks_empty :
     res_for_picks Ω (λ i : gid Σ, ∅) ε.
@@ -1481,13 +1565,6 @@ End generational_resources.
 Definition rely_self `{i : !genInSelfG Σ Ω A}
     γ (P : (A → A) → Prop) : iProp Σ :=
   ∃ γs R, rely (DS := genInSelfG_DS) γ γs R P.
-
-(** The transformations [ts] satisfies the predicates [ps]. *)
-Equations preds_hold {n} {DS : ivec n cmra}
-    (ts : trans_for n DS) (ps : preds_for n DS) : Prop :=
-  | hcons t ts', hcons p ps' := p t ∧ preds_hold ts' ps' ;
-  | hnil, hnil := True.
-Global Transparent preds_hold.
 
 Section rules.
   Context {n : nat} {DS : ivec n cmra} `{!genInG Σ Ω A DS}.
