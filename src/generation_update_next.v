@@ -36,9 +36,9 @@ Section types.
 
 End types.
 
-Definition trans_for n (DS : ivec n cmra) := hvec id n (cmra_to_trans <$> DS).
+Definition trans_for n (DS : ivec n cmra) := hvec n (cmra_to_trans <$> DS).
 
-Notation preds_for n ls := (hvec id n (cmra_to_pred <$> ls)).
+Notation preds_for n ls := (hvec n (cmra_to_pred <$> ls)).
 
 (* trans_for does not give universe issue. *)
 Definition test_exist {Σ} {n : nat} {DS : ivec n cmra} : iProp Σ :=
@@ -704,7 +704,6 @@ Record promise_info {Σ} (Ω : gTransforms Σ) := MkPromiseInfo {
   pi_witness : ∀ (ts : trans_for (On Ω pi_id) (Ocs Ω pi_id)),
     preds_hold ts pi_deps_preds → ∃ t, huncurry pi_rel ts t;
 }.
-Print promise_info.
 
 (* Check that we can existentially quantify over [promise_info] wihout
  * universe inconsistencies. *)
@@ -890,7 +889,7 @@ Section promise_info.
     | right _, _ => promises_lookup_at ps' iid γ
   }.
 
-  Fixpoint promises_lookup promises id γ : option (promise_info _) :=
+  Definition promises_lookup promises id γ : option (promise_info _) :=
     pa_promise <$> (promises_lookup_at promises id γ).
 
   Definition promise_at_pred {id γ} (pa : promise_at id γ) : (cmra_to_pred (Oc Ω id)) :=
@@ -1001,7 +1000,6 @@ Section transmap.
     ∀ idx,
       let dep := p.(pi_deps) !!! idx
       in transmap dep.(psi_id) !! dep.(psi_γ) = Some (trans 👀 idx).
-   *)
 
   (** The transformations in [transmap] satisfy the relation in [p]. *)
   Definition transmap_satisfy_rel transmap p :=
@@ -1009,6 +1007,7 @@ Section transmap.
       transmap p.(pi_id) !! p.(pi_γ) = Some t ∧
       (* trans_at_deps transmap p trans ∧ *)
       huncurry p.(pi_rel) trans t.
+   *)
 
   (** The [transmap] respect the promises in [ps]: There is a pick for every
    * promise and all the relations in the promises are satisfied by the
