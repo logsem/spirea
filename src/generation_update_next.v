@@ -311,18 +311,20 @@ Inductive list2 (A : Type) : Type :=
 Arguments nil2 {A}.
 Arguments cons2 {A} a l.
 
-Fixpoint list2_lookup {A} (l : list2 A) (n : nat) : option A :=
-  match n, l with
-    | O, cons2 x _ => Some x
-    | S n, cons2 _ l => list2_lookup l n
-    | _, _ => None
-  end.
-
 (** [gTransforms] contains a partial map from the type of cameras into a "set"
 of valid transformation function for that camera. *)
 Class gTransforms (Σ : gFunctors) := {
   g_gen_infos :> ∀ (i : gid Σ), option2 (gen_cmra_data Σ i)
 }.
+
+Fixpoint list2_lookup {A} (l : list2 A) (n : nat) : option2 A :=
+  match n, l with
+    | O, cons2 x _ => Some2 x
+    | S n, cons2 _ l => list2_lookup l n
+    | _, _ => None2
+  end.
+
+Local Infix "!!2" := list2_lookup (at level 50, left associativity).
 
 Global Arguments g_gen_infos {_} {_}.
 
@@ -646,6 +648,8 @@ Record promise_info {Σ} (Ω : gTransforms Σ) := MkPromiseInfo {
   pi_witness : ∀ ts, preds_hold ts pi_deps_preds → ∃ t, pi_rel ts t;
 }.
 
+(* Definition test Σ Ω : option (@promise_info Σ Ω) := None. *)
+
 Arguments pi_id {_ _}.
 Arguments pi_γ {_ _}.
 Arguments pi_gcd {_ _}.
@@ -768,24 +772,25 @@ Section promise_info.
   (*   - right. congruence. *)
   (* Qed. *)
 
-  Lemma promises_well_formed_lookup promises idx pi :
+  Lemma promises_well_formed_lookup promises (idx : nat) pi :
     promises_wf promises →
-    promises !! idx = Some pi →
+    promises !!2 idx = Some2 pi →
     promises_has_deps pi promises. (* We forget the different part for now. *)
   Proof.
     intros WF look.
     revert dependent idx.
     induction promises as [ |?? IH]; first intros ? [=].
-    destruct WF as [[? hasDeps] WF'].
-    intros [ | idx].
-    * simpl. intros [= ->].
-      apply promises_has_deps_cons.
-      done.
-    * intros look.
-      intros d.
-      destruct (IH WF' idx look d) as (? & ? & ?).
-      eauto using elem_of_list_further.
-  Qed.
+  Admitted.
+  (*   destruct WF as [[? hasDeps] WF']. *)
+  (*   intros [ | idx]. *)
+  (*   * simpl. intros [= ->]. *)
+  (*     apply promises_has_deps_cons. *)
+  (*     done. *)
+  (*   * intros look. *)
+  (*     intros d. *)
+  (*     destruct (IH WF' idx look d) as (? & ? & ?). *)
+  (*     eauto using elem_of_list_further. *)
+  (* Qed. *)
 
   (* For soundness we need to be able to build a map of gts that agree with
    * picks and that satisfy all promises.
