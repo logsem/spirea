@@ -429,12 +429,12 @@ We need
 *)
 
 Section transmap.
-  Context `{Σ : gFunctors}.
+  Context `{Σ : gFunctors, Ω : gTransforms Σ}.
 
   (** A [TransMap] contains transformation functions for a subset of ghost
    * names. We use one to represent the transformations that a user has picked.
    * the entries that we have picked generational transformations for. *)
-  Definition TransMap : Type := ∀ i, gmap gname (T Σ i).
+  Definition TransMap : Type := ∀ i, gmap gname (Oc Ω i → Oc Ω i).
 
   Implicit Types (transmap : TransMap).
 
@@ -465,15 +465,18 @@ Section transmap.
    * in [transmap]. *)
   Definition build_trans (transmap : TransMap) : (iResUR Σ → iResUR Σ) :=
     λ (m : iResUR Σ) (i : gid Σ),
-      map_imap (λ γ a,
+      match Oeq Ω i with
+      | Some2 eq =>
+        map_imap (λ γ a,
         (* If the map of transmap contains a transformation then we apply the
          * transformation. If no pick exists then we return the elemment
          * unchanged. Hence, we default to the identity transformation. *)
         match transmap i !! γ with
-        | Some picked_gt => Some $ map_unfold $ picked_gt $ map_fold a
+        | Some picked_gt => Some $ map_unfold $ (eq_rect _ _ picked_gt _ eq) $ map_fold a
         | None => Some a
-        end
-      ) (m i).
+        end) (m i)
+      | None2 => ∅
+      end.
 
   Lemma core_Some_pcore {A : cmra} (a : A) : core (Some a) = pcore a.
   Proof. done. Qed.
@@ -804,9 +807,9 @@ Section promise_info.
   (** The promise [p] is well-formed wrt. the list [promises] of promises that
    * preceeded it. *)
   Definition promise_wf pi promises : Prop :=
-    True.
-    (* (∀ p2, p2 ∈ promises → promises_different p p2) ∧ *)
-    (* promises_has_deps p promises. *)
+    (* True. *)
+    (∀ p2, p2 ∈ promises → promises_different pi p2) ∧
+    promises_has_deps pi promises.
 
   (* This definition has nice computational behavior when applied to a [cons]. *)
   Fixpoint promises_wf promises : Prop :=
@@ -1013,8 +1016,8 @@ Section transmap.
    * promise and all the relations in the promises are satisfied by the
    * transformations in transmap. *)
   Definition transmap_resp_promises transmap ps :=
-    True.
-    (* Forall (transmap_satisfy_rel transmap) ps. *)
+    (* True. *)
+    Forall (transmap_satisfy_rel transmap) ps.
 
   (*
   Lemma promises_had_deps_resp_promises p idx p_d promises transmap :
@@ -1064,6 +1067,7 @@ Section transmap.
     - intros di. apply H.
     - intros di. apply H.
   Qed.
+   *)
 
   Equations transmap_insert_go transmap (id : gid Σ) (γ : gname) (pick : T Σ id)
     (id' : gid Σ) : gmap gname (T Σ id') :=
