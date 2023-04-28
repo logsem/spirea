@@ -1002,6 +1002,20 @@ Section promise_info.
 
 End promise_info.
 
+Definition omega_wf_at {Σ} (Ω : gTransforms Σ) id : Prop :=
+  match Ω.(g_gen_infos) id with
+  | None2 => True
+  | Some2 gcd =>
+      ∀ idx, ∃ gcd2,
+        let id2 := gcd.(gcd_deps_ids) !!! idx in
+        Ω.(g_gen_infos) id2 = Some2 gcd2 ∧
+        gcd2.(gcd_cmra) = gcd.(gcd_deps) !!! idx
+  end.
+
+(** [Ω] is internally consistent with itself. *)
+Definition omega_wf {Σ} (Ω : gTransforms Σ) : Prop :=
+  ∀ id, omega_wf_at Ω id.
+
 Section transmap.
   Context `{Ω : gTransforms Σ}.
 
@@ -1015,11 +1029,33 @@ Section transmap.
     - Merge two lists of promises.
    *)
 
-  (* Definition trans_at_deps transmap (p : promise_info) *)
+  (* Definition trans_at_deps transmap (p : promise_info Ω) *)
   (*     (trans : deps_to_trans p.(pi_n) p.(pi_deps)) := *)
   (*   ∀ idx, *)
   (*     let dep := p.(pi_deps) !!! idx *)
   (*     in transmap dep.(psi_id) !! dep.(psi_γ) = Some (trans 👀 idx). *)
+
+  Lemma Ocs_Oids_distr id (idx : fin (On Ω id)) :
+    omega_wf_at Ω id →
+    Ocs Ω id !!! idx = Oc Ω (Oids Ω id !!! idx).
+  Proof.
+    revert idx.
+    rewrite /omega_wf_at /omega_wf_at /Oids /Oc /Ocs /On.
+    destruct (g_gen_infos id) eqn:eq.
+    - intros idx wf.
+      destruct (wf idx) as (gcd2 & -> & ->).
+      reflexivity.
+    - intros i. inversion i.
+  Qed.
+
+  Definition trans_at_deps transmap (p : promise_info Ω) (wf : omega_wf_at Ω p.(pi_id))
+      (trans : hvec (On Ω (pi_id p)) (cmra_to_trans <$> Ocs Ω (pi_id p))) :=
+    ∀ idx,
+      let id := Oids Ω p.(pi_id) !!! idx in
+      let γ := p.(pi_deps_γs) !!! idx in
+      let t : Oc Ω id → Oc Ω id :=
+        eq_rect _ _ (hvec_lookup_fmap trans idx) _ (Ocs_Oids_distr _ _ wf) in
+      transmap id !! γ = Some t.
 
   (** The transformations in [transmap] satisfy the relation in [p]. *)
   Definition transmap_satisfy_rel transmap p :=
