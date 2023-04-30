@@ -357,6 +357,10 @@ Class gGenCmras (Σ : gFunctors) := {
   gc_map_wf : omega_wf gc_map;
 }.
 
+Global Arguments gc_map {_} {_}.
+
+#[export] Hint Mode gGenCmras +.
+
 (** Lookup the camera in [Ω] at the index [i] *)
 Definition Oc {Σ} (Ω : gGenCmras Σ) i : cmra :=
   match Ω.(gc_map) i with
@@ -399,12 +403,22 @@ Proof.
   - apply None2.
 Defined.
 
+Lemma Ocs_Oids_distr `{Ω : gGenCmras} id (idx : fin (On Ω id)) :
+  (* omega_wf_at Ω id → *)
+  Ocs Ω id !!! idx = Oc Ω (Oids Ω id !!! idx).
+Proof.
+  specialize (gc_map_wf id).
+  revert idx.
+  rewrite /omega_wf_at /omega_wf_at /Oids /Oc /Ocs /On.
+  destruct (gc_map id) eqn:eq.
+  - intros idx wf.
+    destruct (wf idx) as (gcd2 & -> & ->).
+    reflexivity.
+  - intros i. inversion i.
+Qed.
+
 (** Lookup the dependency cameras in [Ω] at the index [i] *)
 (* Definition Ocs'' {Σ} (Ω : gGenCmras Σ) i : ivec (On Ω i) cmra := Ocs' Ω i. *)
-
-Global Arguments gc_map {_} {_}.
-
-#[export] Hint Mode gGenCmras +.
 
 Class genInG {n} (Σ : gFunctors) Ω (A : cmra) (DS : ivec n cmra) := GenInG {
   genInG_inG : inG Σ (generational_cmraR A DS);
@@ -657,7 +671,7 @@ Arguments TransMap {Σ} _. (* : clear implicits. *)
  * dependencies. This lets us talk about a promise without having to talk
  * about it's depencencies (and their dependencies, and their dependencies,
  * and so on recursively). *)
-Record promise_self_info {Σ} Ω := MkSelfPromiseInfo {
+Record promise_self_info {Σ} Ω := MkPromiseSelfInfo {
   psi_id : gid Σ; (* The index of the RA in the global RA. *)
   psi_γ : gname; (* Ghost name for the promise. *)
   (* psi_gcd : gen_cmra_data Σ psi_id; *)
@@ -775,12 +789,16 @@ Record dependency_data {Σ} {Ω : gGenCmras Σ} := {
 (*   := *)
 (*   preds !!! n. *)
 
-(* FIXME: This does not work *)
-(* Definition pi_get {Σ} {Ω : gGenCmras Σ} (pi : promise_info Ω) n : promise_self_info Ω := {| *)
-(*   psi_id := Oids Ω pi.(pi_id) !!! n; *)
-(*   psi_γ := pi.(pi_deps_γs) !!! n; *)
-(*   psi_pred := pi.(pi_deps_preds) !!! n; *)
-(* |}. *)
+Definition lookup_fmap_Ocs `{Ω : gGenCmras Σ} {f id}
+    (cs : hvec (On Ω id) (f <$> Ocs Ω id)) i : f (Oc Ω (Oids Ω id !!! i)) :=
+  eq_rect _ _ (hvec_lookup_fmap cs i) _ (Ocs_Oids_distr _ _).
+
+Definition pi_get {Σ} {Ω : gGenCmras Σ} (pi : promise_info Ω) n : promise_self_info Ω :=
+  let id := Oids Ω pi.(pi_id) !!! n in
+  let γ := pi.(pi_deps_γs) !!! n in
+  let pred : cmra_to_pred (Oc Ω id) := lookup_fmap_Ocs pi.(pi_deps_preds) n in
+  (* let pred : cmra_to_pred (Oc Ω id) := pi_get_dep_pred pi n in *)
+  MkPromiseSelfInfo  _ _ id γ pred.
 
 Definition pi_get_dd {Σ} {Ω : gGenCmras Σ}
     (pi : promise_info Ω) n : dependency_data := {|
@@ -1038,20 +1056,6 @@ Section transmap.
     - Merge two lists of promises.
    *)
 
-  Lemma Ocs_Oids_distr id (idx : fin (On Ω id)) :
-    (* omega_wf_at Ω id → *)
-    Ocs Ω id !!! idx = Oc Ω (Oids Ω id !!! idx).
-  Proof.
-    specialize (gc_map_wf id).
-    revert idx.
-    rewrite /omega_wf_at /omega_wf_at /Oids /Oc /Ocs /On.
-    destruct (gc_map id) eqn:eq.
-    - intros idx wf.
-      destruct (wf idx) as (gcd2 & -> & ->).
-      reflexivity.
-    - intros i. inversion i.
-  Qed.
-
   (* Definition trans_at_deps transmap (p : promise_info Ω) *)
   (*     (trans : deps_to_trans p.(pi_n) p.(pi_deps)) := *)
   (*   ∀ idx, *)
@@ -1065,8 +1069,7 @@ Section transmap.
     ∀ idx,
       let id := Oids Ω p.(pi_id) !!! idx in
       let γ := p.(pi_deps_γs) !!! idx in
-      let t : Oc Ω id → Oc Ω id :=
-        eq_rect _ _ (hvec_lookup_fmap trans idx) _ (Ocs_Oids_distr _ _) in
+      let t : Oc Ω id → Oc Ω id := lookup_fmap_Ocs trans idx in
       transmap id !! γ = Some t.
 
   (** The transformations in [transmap] satisfy the relation in [p]. *)
