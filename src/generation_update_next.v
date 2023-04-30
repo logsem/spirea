@@ -12,6 +12,33 @@ From self Require Import hvec extra basic_nextgen_modality gen_trans
 
 Import uPred.
 
+(** A copy of [option] to work arround universe inconsistencies that arrise if
+we use [option]. *)
+Inductive option2 (A : Type) : Type :=
+  | Some2 : A -> option2 A
+  | None2 : option2 A.
+
+Arguments Some2 {A} a.
+Arguments None2 {A}.
+
+(*
+Inductive list2 (A : Type) : Type :=
+ | nil2 : list2 A
+ | cons2 : A -> list2 A -> list2 A.
+
+Arguments nil2 {A}.
+Arguments cons2 {A} a l.
+
+Fixpoint list2_lookup {A} (l : list2 A) (n : nat) : option2 A :=
+  match n, l with
+    | O, cons2 x _ => Some2 x
+    | S n, cons2 _ l => list2_lookup l n
+    | _, _ => None2
+  end.
+
+Local Infix "!!2" := list2_lookup (at level 50, left associativity).
+ *)
+
 Section types.
 
   (** A transformation over the carrier of the camera [A]. *)
@@ -303,85 +330,81 @@ Arguments gcd_deps_ids {_} {_}.
 Arguments gti_look {_} {_}.
 (* Arguments gti_valid {_} {_}. *)
 
-(** A copy of [option] to work arround universe inconsistencies that arrise if
-we use [option]. *)
-Inductive option2 (A : Type) : Type :=
-  | Some2 : A -> option2 A
-  | None2 : option2 A.
+(* NOTE: [gen_cmra_data] contains a [cmra] and hence we use [option2] as using
+ * [option] would give a universe inconsistency. *)
+Definition gen_cmras_data Σ := ∀ (i : gid Σ), option2 (gen_cmra_data Σ i).
 
-Arguments Some2 {A} a.
-Arguments None2 {A}.
+Definition omega_wf_at {Σ} (map : gen_cmras_data Σ) id : Prop :=
+  match map id with
+  | None2 => True
+  | Some2 gcd =>
+      ∀ idx, ∃ gcd2,
+        let id2 := gcd.(gcd_deps_ids) !!! idx in
+        map id2 = Some2 gcd2 ∧
+        gcd2.(gcd_cmra) = gcd.(gcd_deps) !!! idx
+  end.
 
-Inductive list2 (A : Type) : Type :=
- | nil2 : list2 A
- | cons2 : A -> list2 A -> list2 A.
+(** [Ω] is internally consistent with itself. *)
+Definition omega_wf {Σ} (Ω : gen_cmras_data Σ) : Prop :=
+  ∀ id, omega_wf_at Ω id.
 
-Arguments nil2 {A}.
-Arguments cons2 {A} a l.
-
-(** [gTransforms] contains a partial map from the type of cameras into a "set"
+(** [gGenCmras] contains a partial map from the type of cameras into a "set"
 of valid transformation function for that camera. *)
-Class gTransforms (Σ : gFunctors) := {
-  g_gen_infos : ∀ (i : gid Σ), option2 (gen_cmra_data Σ i)
+Class gGenCmras (Σ : gFunctors) := {
+  gc_map : ∀ (i : gid Σ), option2 (gen_cmra_data Σ i);
+  (* Storing this wf-ness criteria for the whole map may be too strong. If this
+  * gives problems we can wiggle this requirement around to somewhere else. *)
+  gc_map_wf : omega_wf gc_map;
 }.
 
 (** Lookup the camera in [Ω] at the index [i] *)
-Definition Oc {Σ} (Ω : gTransforms Σ) i : cmra :=
-  match Ω.(g_gen_infos) i with
+Definition Oc {Σ} (Ω : gGenCmras Σ) i : cmra :=
+  match Ω.(gc_map) i with
   | Some2 gcd => gcd.(gcd_cmra)
   | None2 => unit
   end.
 
 (** Lookup the number of depenencies in [Ω] at the index [i] *)
-Definition On {Σ} (Ω : gTransforms Σ) i : nat :=
-  match Ω.(g_gen_infos) i with
+Definition On {Σ} (Ω : gGenCmras Σ) i : nat :=
+  match Ω.(gc_map) i with
   | Some2 gcd => gcd.(gcd_n)
   | None2 => 0
   end.
 
 (** Lookup the number of depenencies in [Ω] at the index [i] *)
-Definition Oids {Σ} (Ω : gTransforms Σ) i : ivec (On Ω i) (gid Σ).
+Definition Oids {Σ} (Ω : gGenCmras Σ) i : ivec (On Ω i) (gid Σ).
 Proof.
   rewrite /On.
-  destruct Ω.(g_gen_infos) as [gcd|].
+  destruct Ω.(gc_map) as [gcd|].
   - apply gcd.(gcd_deps_ids).
   - apply inil.
 Defined.
 
 (** Lookup the dependency cameras in [Ω] at the index [i] *)
-Definition Ocs {Σ} (Ω : gTransforms Σ) i : ivec (On Ω i) cmra.
+Definition Ocs {Σ} (Ω : gGenCmras Σ) i : ivec (On Ω i) cmra.
 Proof.
   rewrite /On.
-  destruct Ω.(g_gen_infos) as [gcd|].
+  destruct Ω.(gc_map) as [gcd|].
   - apply gcd.(gcd_deps).
   - apply inil.
 Defined.
 
 (** Lookup the dependency cameras in [Ω] at the index [i] *)
-Definition Oeq {Σ} (Ω : gTransforms Σ) i :
+Definition Oeq {Σ} (Ω : gGenCmras Σ) i :
   option2 (generational_cmraR (Oc Ω i) (Ocs Ω i) = R Σ i).
 Proof.
   rewrite /On /Oc /Ocs.
-  destruct Ω.(g_gen_infos) as [gcd|].
+  destruct Ω.(gc_map) as [gcd|].
   - constructor. apply gcd.(gti_look).
   - apply None2.
 Defined.
 
 (** Lookup the dependency cameras in [Ω] at the index [i] *)
-(* Definition Ocs'' {Σ} (Ω : gTransforms Σ) i : ivec (On Ω i) cmra := Ocs' Ω i. *)
+(* Definition Ocs'' {Σ} (Ω : gGenCmras Σ) i : ivec (On Ω i) cmra := Ocs' Ω i. *)
 
-Fixpoint list2_lookup {A} (l : list2 A) (n : nat) : option2 A :=
-  match n, l with
-    | O, cons2 x _ => Some2 x
-    | S n, cons2 _ l => list2_lookup l n
-    | _, _ => None2
-  end.
+Global Arguments gc_map {_} {_}.
 
-Local Infix "!!2" := list2_lookup (at level 50, left associativity).
-
-Global Arguments g_gen_infos {_} {_}.
-
-#[export] Hint Mode gTransforms +.
+#[export] Hint Mode gGenCmras +.
 
 Class genInG {n} (Σ : gFunctors) Ω (A : cmra) (DS : ivec n cmra) := GenInG {
   genInG_inG : inG Σ (generational_cmraR A DS);
@@ -389,7 +412,7 @@ Class genInG {n} (Σ : gFunctors) Ω (A : cmra) (DS : ivec n cmra) := GenInG {
   (* genInG_id : gid Σ; *)
   (* genInG_apply := rFunctor_apply (gFunctors_lookup Σ genInG_id); *)
   genInG_gti : gen_cmra_data Σ (inG_id genInG_inG);
-  genInG_gen_trans : Ω.(g_gen_infos) (inG_id genInG_inG) = Some2 genInG_gti;
+  genInG_gen_trans : Ω.(gc_map) (inG_id genInG_inG) = Some2 genInG_gti;
   genInG_gti_typ : A = genInG_gti.(gcd_cmra);
   (* genInG_prf : A = genInG_apply (iPropO Σ) _; *)
   (* genInG_gen_trans2 : *)
@@ -429,7 +452,7 @@ We need
 *)
 
 Section transmap.
-  Context `{Σ : gFunctors, Ω : gTransforms Σ}.
+  Context `{Σ : gFunctors, Ω : gGenCmras Σ}.
 
   (** A [TransMap] contains transformation functions for a subset of ghost
    * names. We use one to represent the transformations that a user has picked.
@@ -638,7 +661,7 @@ Record promise_self_info {Σ} Ω := MkSelfPromiseInfo {
   psi_id : gid Σ; (* The index of the RA in the global RA. *)
   psi_γ : gname; (* Ghost name for the promise. *)
   (* psi_gcd : gen_cmra_data Σ psi_id; *)
-  (* psi_gcd_lookup : Ω.(g_gen_infos) psi_id = Some2 psi_gcd; *)
+  (* psi_gcd_lookup : Ω.(gc_map) psi_id = Some2 psi_gcd; *)
   psi_pred : cmra_to_pred (Oc Ω psi_id);
 }.
 
@@ -702,14 +725,14 @@ Arguments psi_pred {_ _}.
  * universe issues (in particular, any Iris existential quantification over
  * something involing a [cmra] fails. We hence store all cameras in [Ω] and
  * look up into it). *)
-Record promise_info {Σ} (Ω : gTransforms Σ) := MkPromiseInfo {
+Record promise_info {Σ} (Ω : gGenCmras Σ) := MkPromiseInfo {
   (* We need to know the specific ghost location that this promise is about *)
   pi_id : gid Σ; (* The index of the RA in the global RA *)
   pi_γ : gname; (* Ghost name for the promise *)
   (* We have the generational cmra data for this index, this contains all
    * static info about the promise dependency for this index. *)
   (* pi_gcd : gen_cmra_data Σ pi_id; *)
-  (* pi_gcd_lookup : Ω.(g_gen_infos) pi_id = Some2 pi_gcd; *)
+  (* pi_gcd_lookup : Ω.(gc_map) pi_id = Some2 pi_gcd; *)
   (* pi_deps : ivec (pi_gcd.(gcd_n)) promise_self_info; *)
   pi_deps_γs : ivec (On Ω pi_id) gname;
   pi_deps_preds : preds_for (On Ω pi_id) (Ocs Ω pi_id);
@@ -728,7 +751,7 @@ Record promise_info {Σ} (Ω : gTransforms Σ) := MkPromiseInfo {
 
 (* Check that we can existentially quantify over [promise_info] wihout
  * universe inconsistencies. *)
-#[local] Definition promise_info_universe_test {Σ} {Ω : gTransforms Σ} : iProp Σ :=
+#[local] Definition promise_info_universe_test {Σ} {Ω : gGenCmras Σ} : iProp Σ :=
   ∃ (ps : promise_info Ω), True.
 
 Arguments pi_id {_ _}.
@@ -742,31 +765,31 @@ Arguments pi_pred {_ _}.
 Arguments pi_rel_to_pred {_ _}.
 Arguments pi_witness {_ _}.
 
-Record dependency_data {Σ} {Ω : gTransforms Σ} := {
+Record dependency_data {Σ} {Ω : gGenCmras Σ} := {
   dd_id : gid Σ;
   dd_γ : gname;
 }.
 
-(* Definition test {Σ} {Ω : gTransforms Σ} (id : gid Σ) *)
+(* Definition test {Σ} {Ω : gGenCmras Σ} (id : gid Σ) *)
 (*     (preds : preds_for (On Ω id) (Ocs Ω id)) n : cmra_to_pred (Oc Ω (Oids Ω id !!! n)) *)
 (*   := *)
 (*   preds !!! n. *)
 
 (* FIXME: This does not work *)
-(* Definition pi_get {Σ} {Ω : gTransforms Σ} (pi : promise_info Ω) n : promise_self_info Ω := {| *)
+(* Definition pi_get {Σ} {Ω : gGenCmras Σ} (pi : promise_info Ω) n : promise_self_info Ω := {| *)
 (*   psi_id := Oids Ω pi.(pi_id) !!! n; *)
 (*   psi_γ := pi.(pi_deps_γs) !!! n; *)
 (*   psi_pred := pi.(pi_deps_preds) !!! n; *)
 (* |}. *)
 
-Definition pi_get_dd {Σ} {Ω : gTransforms Σ}
+Definition pi_get_dd {Σ} {Ω : gGenCmras Σ}
     (pi : promise_info Ω) n : dependency_data := {|
   dd_id := Oids Ω pi.(pi_id) !!! n;
   dd_γ := pi.(pi_deps_γs) !!! n;
 |}.
 
 Section promise_info.
-  Context `{Ω : gTransforms Σ}.
+  Context `{Ω : gGenCmras Σ}.
 
   Implicit Types (prs : list (promise_info Ω)).
   Implicit Types (promises : list (promise_info Ω)).
@@ -1002,22 +1025,8 @@ Section promise_info.
 
 End promise_info.
 
-Definition omega_wf_at {Σ} (Ω : gTransforms Σ) id : Prop :=
-  match Ω.(g_gen_infos) id with
-  | None2 => True
-  | Some2 gcd =>
-      ∀ idx, ∃ gcd2,
-        let id2 := gcd.(gcd_deps_ids) !!! idx in
-        Ω.(g_gen_infos) id2 = Some2 gcd2 ∧
-        gcd2.(gcd_cmra) = gcd.(gcd_deps) !!! idx
-  end.
-
-(** [Ω] is internally consistent with itself. *)
-Definition omega_wf {Σ} (Ω : gTransforms Σ) : Prop :=
-  ∀ id, omega_wf_at Ω id.
-
 Section transmap.
-  Context `{Ω : gTransforms Σ}.
+  Context `{Ω : gGenCmras Σ}.
 
   Implicit Types (transmap : TransMap Ω).
   Implicit Types (ps : list (promise_info Ω)).
@@ -1029,39 +1038,42 @@ Section transmap.
     - Merge two lists of promises.
    *)
 
-  (* Definition trans_at_deps transmap (p : promise_info Ω) *)
-  (*     (trans : deps_to_trans p.(pi_n) p.(pi_deps)) := *)
-  (*   ∀ idx, *)
-  (*     let dep := p.(pi_deps) !!! idx *)
-  (*     in transmap dep.(psi_id) !! dep.(psi_γ) = Some (trans 👀 idx). *)
-
   Lemma Ocs_Oids_distr id (idx : fin (On Ω id)) :
-    omega_wf_at Ω id →
+    (* omega_wf_at Ω id → *)
     Ocs Ω id !!! idx = Oc Ω (Oids Ω id !!! idx).
   Proof.
+    specialize (gc_map_wf id).
     revert idx.
     rewrite /omega_wf_at /omega_wf_at /Oids /Oc /Ocs /On.
-    destruct (g_gen_infos id) eqn:eq.
+    destruct (gc_map id) eqn:eq.
     - intros idx wf.
       destruct (wf idx) as (gcd2 & -> & ->).
       reflexivity.
     - intros i. inversion i.
   Qed.
 
-  Definition trans_at_deps transmap (p : promise_info Ω) (wf : omega_wf_at Ω p.(pi_id))
+  (* Definition trans_at_deps transmap (p : promise_info Ω) *)
+  (*     (trans : deps_to_trans p.(pi_n) p.(pi_deps)) := *)
+  (*   ∀ idx, *)
+  (*     let dep := p.(pi_deps) !!! idx *)
+  (*     in transmap dep.(psi_id) !! dep.(psi_γ) = Some (trans 👀 idx). *)
+
+  (** A vector that for every dependency in [p] contains the transition in
+  * [transmap] for that dependency. *)
+  Definition trans_at_deps transmap (p : promise_info Ω)
       (trans : hvec (On Ω (pi_id p)) (cmra_to_trans <$> Ocs Ω (pi_id p))) :=
     ∀ idx,
       let id := Oids Ω p.(pi_id) !!! idx in
       let γ := p.(pi_deps_γs) !!! idx in
       let t : Oc Ω id → Oc Ω id :=
-        eq_rect _ _ (hvec_lookup_fmap trans idx) _ (Ocs_Oids_distr _ _ wf) in
+        eq_rect _ _ (hvec_lookup_fmap trans idx) _ (Ocs_Oids_distr _ _) in
       transmap id !! γ = Some t.
 
   (** The transformations in [transmap] satisfy the relation in [p]. *)
   Definition transmap_satisfy_rel transmap p :=
     ∃ trans t,
       transmap p.(pi_id) !! p.(pi_γ) = Some t ∧
-      (* trans_at_deps transmap p trans ∧ *)
+      trans_at_deps transmap p trans ∧
       huncurry p.(pi_rel) trans t.
 
   (** The [transmap] respect the promises in [ps]: There is a pick for every
@@ -1296,7 +1308,7 @@ End transmap.
 (* Arguments promise_self_info Σ : clear implicits. *)
 
 Section next_gen_definition.
-  Context `{Ω : gTransforms Σ}.
+  Context `{Ω : gGenCmras Σ}.
 
   Implicit Types (picks : TransMap Ω).
 
@@ -1316,7 +1328,7 @@ Section next_gen_definition.
       ∀ γ (a : Rpre Σ i),
         m i !! γ = Some a →
         ∃ eq ts γs (t : Oc Ω i → Oc Ω i) R Rs,
-          (* Ω.(g_gen_infos) i = Some2 gti ∧ *)
+          (* Ω.(gc_map) i = Some2 gti ∧ *)
           Oeq Ω i = Some2 eq ∧
           (* BUG: [ts] is unrestricted. The transformations in [ts] should be
            * the result of looking up in [picks]. *)
@@ -1337,7 +1349,7 @@ Section next_gen_definition.
     ∀ p, p ∈ ps →
       ∃ eq (a : Rpre Σ p.(pi_id)) Rs,
         Oeq Ω p.(pi_id) = Some2 eq ∧
-        (* Ω.(g_gen_infos) (p.(pi_id)) = Some2 gcd ∧ *)
+        (* Ω.(gc_map) (p.(pi_id)) = Some2 gcd ∧ *)
         m p.(pi_id) !! p.(pi_γ) = Some a ∧
         pred_prefix_list_for Rs p.(pi_rel) ∧
         a ≡ map_unfold (
@@ -1374,7 +1386,7 @@ Notation "⚡==> P" := (nextgen P)
   (at level 99, P at level 200, format "⚡==>  P") : bi_scope.
 
 Section own_picks_properties.
-  Context `{Ω : gTransforms Σ}.
+  Context `{Ω : gGenCmras Σ}.
   Implicit Types (picks : TransMap Ω).
 
   Definition merge_picks picks1 picks2 := λ i, (picks1 i) ∪ (picks2 i).
@@ -1530,7 +1542,7 @@ Section own_picks_properties.
 End own_picks_properties.
 
 Section own_promises_properties.
-  Context `{Ω : gTransforms Σ}.
+  Context `{Ω : gGenCmras Σ}.
 
   Implicit Types (prs : list (promise_info Ω)).
 
@@ -1571,7 +1583,7 @@ End own_promises_properties.
 (* In this section we prove structural rules of the nextgen modality. *)
 
 Section nextgen_properties.
-  Context {Σ : gFunctors} {Ω : gTransforms Σ}.
+  Context {Σ : gFunctors} {Ω : gGenCmras Σ}.
 
   Lemma res_for_picks_empty :
     res_for_picks (λ i : gid Σ, ∅) ε.
