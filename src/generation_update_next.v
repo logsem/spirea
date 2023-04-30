@@ -793,11 +793,10 @@ Definition lookup_fmap_Ocs `{Ω : gGenCmras Σ} {f id}
     (cs : hvec (On Ω id) (f <$> Ocs Ω id)) i : f (Oc Ω (Oids Ω id !!! i)) :=
   eq_rect _ _ (hvec_lookup_fmap cs i) _ (Ocs_Oids_distr _ _).
 
-Definition pi_get {Σ} {Ω : gGenCmras Σ} (pi : promise_info Ω) n : promise_self_info Ω :=
+Definition pi_get_dep {Σ} {Ω : gGenCmras Σ} (pi : promise_info Ω) n : promise_self_info Ω :=
   let id := Oids Ω pi.(pi_id) !!! n in
   let γ := pi.(pi_deps_γs) !!! n in
   let pred : cmra_to_pred (Oc Ω id) := lookup_fmap_Ocs pi.(pi_deps_preds) n in
-  (* let pred : cmra_to_pred (Oc Ω id) := pi_get_dep_pred pi n in *)
   MkPromiseSelfInfo  _ _ id γ pred.
 
 Definition pi_get_dd {Σ} {Ω : gGenCmras Σ}
@@ -815,14 +814,14 @@ Section promise_info.
 
   (** Convert a [promise_info] into a [promise_self_info] by discarding fields
    * about dependencies. *)
-  (* Definition promise_info_to_self pi := *)
-  (*   {| psi_id := pi_id pi; psi_γ := pi_γ pi; psi_pred := pi_pred pi |}. *)
+  Definition promise_info_to_self pi :=
+    {| psi_id := pi_id pi; psi_γ := pi_γ pi; psi_pred := pi_pred pi |}.
 
   Definition promises_different p1 p2 :=
     p1.(pi_id) ≠ p2.(pi_id) ∨ p1.(pi_γ) ≠ p2.(pi_γ).
 
-  (* Definition promises_self_different p1 p2 := *)
-  (*   p1.(psi_id) ≠ p2.(psi_id) ∨ p1.(psi_γ) ≠ p2.(psi_γ). *)
+  Definition promises_self_different p1 p2 :=
+    p1.(psi_id) ≠ p2.(psi_id) ∨ p1.(psi_γ) ≠ p2.(psi_γ).
 
   Definition res_trans_transport {id1 id2}
       (eq : id1 = id2) (t : R Σ id1 → R Σ id1) : (R Σ id2 → R Σ id2) :=
@@ -860,13 +859,11 @@ Section promise_info.
   (** For every dependency in [p] the list [promises] has a sufficient
    * promise. *)
   Definition promises_has_deps pi promises :=
-    True.
-    (* ∀ idx, ∃ p2, p2 ∈ promises ∧ promise_satisfy_dep (pi.(pi_deps) !!! idx) p2. *)
+    ∀ idx, ∃ p2, p2 ∈ promises ∧ promise_satisfy_dep (pi_get_dep pi idx) p2.
 
   (** The promise [p] is well-formed wrt. the list [promises] of promises that
    * preceeded it. *)
   Definition promise_wf pi promises : Prop :=
-    (* True. *)
     (∀ p2, p2 ∈ promises → promises_different pi p2) ∧
     promises_has_deps pi promises.
 
@@ -886,25 +883,25 @@ Section promise_info.
   Lemma promises_has_deps_cons p prs :
     promises_has_deps p prs →
     promises_has_deps p (p :: prs).
-  Proof. Admitted.
-  (*   intros hasDeps idx. *)
-  (*   destruct (hasDeps idx) as (p2 & ? & ?). *)
-  (*   eauto using elem_of_list_further. *)
-  (* Qed. *)
+  Proof.
+    intros hasDeps idx.
+    destruct (hasDeps idx) as (p2 & ? & ?).
+    eauto using elem_of_list_further.
+  Qed.
 
   (* A well formed promise is not equal to any of its dependencies. *)
   Lemma promise_wf_neq_deps p promises :
     promise_wf p promises →
     ∀ (idx : fin (On Ω p.(pi_id))),
-      (* promises_self_different (promise_info_to_self p) (pi_deps p !!! idx). *)
-      pi_id p ≠ dd_id (pi_get_dd p idx) ∨ pi_γ p ≠ dd_γ (pi_get_dd p idx).
-  Proof. Admitted.
-  (*   intros [uniq hasDeps] idx. *)
-  (*   destruct (hasDeps idx) as (p2 & elem & i & eq & jhhi). *)
-  (*   destruct (uniq _ elem) as [h|h]. *)
-  (*   - left. congruence. *)
-  (*   - right. congruence. *)
-  (* Qed. *)
+      promises_self_different (promise_info_to_self p) (pi_get_dep p idx).
+      (* pi_id p ≠ dd_id (pi_get_dd p idx) ∨ pi_γ p ≠ dd_γ (pi_get_dd p idx). *)
+  Proof.
+    intros [uniq hasDeps] idx.
+    rewrite /promises_self_different.
+    destruct (hasDeps idx) as (p2 & elem & idEq & γEq & jhhi).
+    rewrite idEq γEq.
+    destruct (uniq _ elem) as [?|?]; auto.
+  Qed.
 
   Lemma promises_well_formed_lookup promises (idx : nat) pi :
     promises_wf promises →
@@ -914,17 +911,16 @@ Section promise_info.
     intros WF look.
     revert dependent idx.
     induction promises as [ |?? IH]; first intros ? [=].
-  Admitted.
-  (*   destruct WF as [[? hasDeps] WF']. *)
-  (*   intros [ | idx]. *)
-  (*   * simpl. intros [= ->]. *)
-  (*     apply promises_has_deps_cons. *)
-  (*     done. *)
-  (*   * intros look. *)
-  (*     intros d. *)
-  (*     destruct (IH WF' idx look d) as (? & ? & ?). *)
-  (*     eauto using elem_of_list_further. *)
-  (* Qed. *)
+    destruct WF as [[? hasDeps] WF'].
+    intros [ | idx].
+    * simpl. intros [= ->].
+      apply promises_has_deps_cons.
+      done.
+    * intros look.
+      intros d.
+      destruct (IH WF' idx look d) as (? & ? & ?).
+      eauto using elem_of_list_further.
+  Qed.
 
   (* For soundness we need to be able to build a map of gts that agree with
    * picks and that satisfy all promises.
@@ -999,7 +995,6 @@ Section promise_info.
       else merge_promises prs1' prs2
     end.
 
-  (*
   Lemma merge_promises_elem p prs1 prs2 :
     p ∈ merge_promises prs1 prs2 →
     p ∈ prs1 ∨ p ∈ prs2.
@@ -1037,9 +1032,8 @@ Section promise_info.
    * related with. We store these promises in a map. This map should contain
    * promises at the "right" indices which this definition expresses. *)
   (* NOTE: Not used *)
-  Definition promise_map_wf (pm : ∀ i, gmap gname promise_info) : Prop :=
+  Definition promise_map_wf (pm : ∀ i, gmap gname _) : Prop :=
     ∀ i γ p, (pm i) !! γ = Some p → p.(pi_id) = i ∧ p.(pi_γ) = γ.
- *)
 
 End promise_info.
 
@@ -1085,9 +1079,12 @@ Section transmap.
   Definition transmap_resp_promises transmap ps :=
     Forall (transmap_satisfy_rel transmap) ps.
 
-  (*
+  Definition Oc_trans_transport {id1 id2} (eq : id1 = id2)
+    (o : Oc Ω id1 → _) : Oc Ω id2 → Oc Ω id2 :=
+      eq_rect _ (λ id, Oc Ω id → Oc Ω id) o _ eq.
+
   Lemma promises_had_deps_resp_promises p idx p_d promises transmap :
-    p.(pi_deps) !!! idx = p_d →
+    pi_get_dep p idx = p_d →
     promises_has_deps p promises →
     transmap_resp_promises transmap promises →
     ∃ t, psi_pred p_d t ∧ transmap (psi_id p_d) !! psi_γ p_d = Some t.
@@ -1098,13 +1095,16 @@ Section transmap.
     specialize (hasDeps idx) as (p2 & Helem & eq1 & -> & strong).
     destruct (resp _ Helem) as (ts & (t & tmLook & ? & relHolds)).
     specialize (p2.(pi_rel_to_pred) ts t relHolds) as predHolds.
-    exists (res_trans_transport eq1 t).
-    simpl.
-    split.
-    * apply strong. clear -predHolds. destruct eq1. simpl. done.
-    * clear -tmLook. destruct eq1. done.
-  Qed.
+    exists (Oc_trans_transport (eq_sym eq1) t).
+    (* exists (res_trans_transport eq1 t). *)
+  Admitted.
+  (*   simpl. *)
+  (*   split. *)
+  (*   * apply strong. clear -predHolds. destruct eq1. simpl. done. *)
+  (*   * clear -tmLook. destruct eq1. done. *)
+  (* Qed. *)
 
+  (*
   (** If a [transmap] respects a list [promises] and growing the list with [p]
    * is well formed, then we can conjur up a list of transitions from
    * [transmap] that match the dependencies in [p] and that satisfy their
@@ -1133,7 +1133,7 @@ Section transmap.
     - intros di. apply H.
     - intros di. apply H.
   Qed.
-   *)
+  *)
 
   Equations transmap_insert_go transmap (id : gid Σ) (γ : gname) (pick : Oc Ω id → Oc Ω id)
     (id' : gid Σ) : gmap gname (Oc Ω id' → Oc Ω id') :=
