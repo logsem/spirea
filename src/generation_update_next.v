@@ -1134,6 +1134,11 @@ Section transmap.
     * rewrite eq2. clear -tmLook. destruct eq1. apply tmLook.
   Qed.
 
+  (* What would a more general version of this lemma look like? *)
+  Lemma rew_cmra_to_pred (x : cmra) f y (eq : x = y) t :
+    (eq_rect x cmra_to_pred f y eq) t = f (eq_rect_r cmra_to_trans t eq).
+  Proof. destruct eq. done. Qed.
+
   (** If a [transmap] respects a list [promises] and growing the list with [p]
    * is well formed, then we can conjur up a list of transitions from
    * [transmap] that match the dependencies in [p] and that satisfy their
@@ -1144,7 +1149,6 @@ Section transmap.
     ∃ ts,
       trans_at_deps transmap p ts ∧
       preds_hold p.(pi_deps_preds) ts.
-      (* deps_preds_hold p.(pi_deps) ts. *)
   Proof.
     intros WF resp.
     destruct WF as [[uniq hasDeps] WF'].
@@ -1160,23 +1164,24 @@ Section transmap.
     { intros idx.
       specialize (promises_has_deps_resp_promises _ _ (pi_get_dep p idx) _ transmap eq_refl hasDeps resp).
       intros (t & ? & ?).
-      exists (eq_rect _ _ t _ (eq_sym (Ocs_Oids_distr _ _) )).
+      exists (eq_rect_r _ t (Ocs_Oids_distr _ _)).
+      (* exists (eq_rect_r _ _ t _ (Ocs_Oids_distr _ _)). *)
       simpl.
-      split; try done.
+      split.
       * rewrite /pi_get_dep /lookup_fmap_Ocs in H.
-        simpl in H. admit. (* apply H. *)
-      * simpl.
-        rewrite H0.
-        f_equiv.
-        clear.
-        (* destruct (Ocs_Oids_distr (pi_id p) idx). *)
-        admit. }
+        simpl in H.
+        clear -H.
+        rewrite <- rew_cmra_to_pred.
+        apply H.
+      * rewrite H0.
+        rewrite rew_opp_r.
+        done. }
     exists ts.
     split.
     - intros di. apply H.
     - apply preds_hold_alt. intros di.
       apply (H di).
-  Admitted.
+  Qed.
 
   Equations transmap_insert_go transmap (id : gid Σ) (γ : gname) (pick : Oc Ω id → Oc Ω id)
     (id' : gid Σ) : gmap gname (Oc Ω id' → Oc Ω id') :=
@@ -1239,25 +1244,24 @@ Section transmap.
     intros [[uniq hasDeps] WF].
     rewrite /transmap_resp_promises !Forall_forall.
     intros impl p2 elem.
-    destruct (impl _ elem) as (t' & ts & hi).
+    destruct (impl _ elem) as (t' & ts & rest).
     exists t', ts.
-  Admitted.
-  (*   rewrite /trans_at_deps. *)
-  (*   (* NOTE: This proof might be a bit of a mess. *) *)
-  (*   setoid_rewrite transmap_insert_lookup_ne. *)
-  (*   + apply hi. *)
-  (*   + apply (uniq _ elem). *)
-  (*   + apply elem_of_list_lookup_1 in elem as (ii & look). *)
-  (*     specialize ( *)
-  (*       promises_well_formed_lookup promises _ p2 WF look) as hasDeps2. *)
-  (*     specialize (hasDeps2 idx) as (p3 & look3 & eq & eq2 & ?). *)
-  (*     rewrite eq2. *)
-  (*     destruct p3. *)
-  (*     simpl in *. *)
-  (*     specialize (uniq _ look3) as [? | ?]. *)
-  (*     - rewrite -eq. left. done. *)
-  (*     - right. done. *)
-  (* Qed. *)
+    rewrite /trans_at_deps.
+    (* NOTE: This proof might be a bit of a mess. *)
+    setoid_rewrite transmap_insert_lookup_ne.
+    + apply rest.
+    + apply (uniq _ elem).
+    + apply elem_of_list_lookup_1 in elem as (? & look).
+      specialize (
+        promises_well_formed_lookup promises _ p2 WF look) as hasDeps2.
+      specialize (hasDeps2 idx) as (p3 & look3 & eq & eq2 & ?).
+      simpl in *.
+      rewrite eq2.
+      destruct p3.
+      specialize (uniq _ look3) as [? | ?].
+      - rewrite eq. left. done.
+      - right. done.
+  Qed.
 
   Definition transmap_overlap_resp_promises transmap ps :=
     ∀ i p, ps !! i = Some p →
@@ -1818,7 +1822,7 @@ Section rules.
     (∀ ts t, huncurry R_2 ts t → P_2 t) →
     (* Evidence that the promise is realizeable. *)
     (∀ (ts : trans_for n DS),
-      preds_hold ts deps_preds → ∃ (e : A → A), (huncurry R_2) ts e) →
+      preds_hold deps_preds ts → ∃ (e : A → A), (huncurry R_2) ts e) →
     (* For every dependency we own a [rely_self]. *)
     (∀ (i : fin n), rely_self (γs !!! i) (hvec_lookup_fmap deps_preds i)) -∗
     token γ γs R_1 P_1 -∗ (* Old token. *)
@@ -1987,7 +1991,7 @@ Section test.
 
     Definition TS : trans_for _ [A; B] := [T1; T2]%HV.
     Definition PS : preds_for _ [A; B] := [P1; P2].
-    Compute (preds_hold (DS := [A; B]) TS PS).
+    Compute (preds_hold (DS := [A; B]) PS TS).
 
     Context `{!genInG Σ Ω B [] }.
     Context `{!genInG Σ Ω A [A; B] }.
