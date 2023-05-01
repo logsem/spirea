@@ -70,16 +70,16 @@ Section ivec.
 
   #[global] Existing Instance ivec_lookup_total.
 
-  (* Lookup in a [ivec Type] with [unit] as a fallback. *)
-  Fixpoint ivec_type_lookup {n} (As : ivec n Type) (i : nat) : Type :=
-    match As with
-    | inil => unit
-    | icons t ts =>
-        match i with
-        | 0 => t
-        | S i' => ivec_type_lookup ts i'
-        end
-    end.
+  (* (* Lookup in a [ivec Type] with [unit] as a fallback. *) *)
+  (* Fixpoint ivec_type_lookup {n} (As : ivec n Type) (i : nat) : Type := *)
+  (*   match As with *)
+  (*   | inil => unit *)
+  (*   | icons t ts => *)
+  (*       match i with *)
+  (*       | 0 => t *)
+  (*       | S i' => ivec_type_lookup ts i' *)
+  (*       end *)
+  (*   end. *)
 
   Fixpoint iapp {A n m} (As : ivec n A) (Bs : ivec m A) : ivec (n + m) A :=
     match As with
@@ -109,6 +109,14 @@ Section ivec.
       apply IH in eq2 as ->.
       done.
   Qed.
+
+  Lemma ivec_lookup_fmap {A B n} (F : A → B) (As : ivec n A) i :
+    F (As !!! i) = (ivec_map F As) !!! i.
+  Proof.
+    induction As as [|??? IH]. { inversion i. }
+    dependent elimination i. { reflexivity. }
+    apply IH.
+  Defined.
 
 End ivec.
 
@@ -235,11 +243,45 @@ Section hvec.
     @hvec_lookup_fmap _ _ _ (_ :: _) (xx :: _) 0%fin := xx ;
     @hvec_lookup_fmap _ _ _ (_ :: _) (_ :: xs) (FS i') := hvec_lookup_fmap xs i'.
 
+  Lemma hvec_lookup_fmap_eq {n A F As} (l : hvec n (F <$> As)) i :
+    hvec_lookup l i =
+      eq_rect _ id (hvec_lookup_fmap (A := A) l i) _ (ivec_lookup_fmap _ _ _).
+  Proof.
+    induction As as [|??? IH]. { inversion i. }
+    dependent elimination l.
+    dependent elimination i.
+    { simpl. done. }
+    apply IH.
+  Qed.
+
   Equations hvec_lookup_to_vec_involution A F n (As : ivec n A) f i :
     (hvec_lookup_fmap (fun_to_hvec F As f)) i = f i :=
   hvec_lookup_to_vec_involution _ _ _ (_ :: _) f 0%fin => eq_refl ;
   hvec_lookup_to_vec_involution _ _ n1 (_ :: As') f (FS i) =>
     hvec_lookup_to_vec_involution _ _  n1 As' (λ i, f (FS i)) i.
+
+  Lemma fun_ex_to_ex_hvec_fmap {n A F} (As : ivec n A) (P : ∀ i (x : F (As !!! i)), Prop) :
+    (∀ (i : fin n), ∃ (x : F (As !!! i)), P i x) →
+    (∃ (xs : hvec n (F <$> As)), (∀ i, P i (hvec_lookup_fmap xs i))).
+  Proof.
+    (* NOTE: This proof is copy pasted from the non-fmap version. This was
+     * easier than reusing the other lemma. *)
+    intros ?.
+    induction n.
+    - dependent elimination As.
+      exists []%HV.
+      intros i.
+      dependent elimination i.
+    - dependent elimination As as [icons a As'].
+      edestruct IHn as (xs & allP).
+      { intros i. destruct (H (FS i)). exists x. apply H0. }
+      destruct (H 0%fin) as (x & xP).
+      exists (x :: xs)%HV.
+      intros i.
+      dependent elimination i as [0%fin | FS ii].
+      * apply xP.
+      * apply allP.
+  Qed.
 
   (* Alternative proof of the above using tactics and [dependent elimination]
   * instead of dependent pattern matching. *)

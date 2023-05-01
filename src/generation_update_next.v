@@ -168,6 +168,45 @@ Section dependency_relation_cmra.
 
 End dependency_relation_cmra.
 
+(** The transformations [ts] satisfies the predicates [ps]. *)
+Equations preds_hold {n} {DS : ivec n cmra}
+    (ps : preds_for n DS) (ts : trans_for n DS) : Prop :=
+  @preds_hold _ (icons _ DS') (hcons p ps') (hcons t ts') := p t ∧ preds_hold ps' ts';
+  @preds_hold _ (inil) hnil hnil := True.
+Global Transparent preds_hold.
+
+Lemma preds_hold_alt {n DS} (ps : preds_for n DS) (ts : trans_for n DS) :
+  preds_hold ps ts ↔ ∀ (i : fin n), (hvec_lookup_fmap ps i) (hvec_lookup_fmap ts i).
+Proof.
+  split.
+  - intros holds i.
+    induction i as [?|?? IH] eqn:eq.
+    * dependent elimination DS.
+      dependent elimination ts.
+      dependent elimination ps.
+      destruct holds as [pred ?].
+      apply pred.
+    * dependent elimination DS.
+      dependent elimination ts.
+      dependent elimination ps.
+      rewrite preds_hold_equation_2 in holds.
+      destruct holds as [? holds].
+      apply (IH  _ _ _ holds t).
+      done.
+  - intros i.
+    induction DS as [|??? IH].
+    * dependent elimination ts.
+      dependent elimination ps.
+      done.
+    * dependent elimination ts.
+      dependent elimination ps.
+      rewrite preds_hold_equation_2.
+      split. { apply (i 0%fin). }
+      apply IH.
+      intros i'.
+      apply (i (FS i')).
+Qed.
+
 Section dependency_relation_extra.
   Context {n} {A : cmra} {DS : ivec n cmra}.
   Implicit Types (R : pred_over DS A) (P : (A → A) → Prop).
@@ -185,13 +224,6 @@ Section dependency_relation_extra.
     ∀ (ts : trans_for n DS) (t : A → A), huncurry R ts t → P t.
 
   (* Notation preds_for n ls := (hvec cmra_to_pred n ls). *)
-
-  (** The transformations [ts] satisfies the predicates [ps]. *)
-  Equations preds_hold {n} {DS : ivec n cmra}
-      (ts : trans_for n DS) (ps : preds_for n DS) : Prop :=
-    @preds_hold _ (icons _ DS') (hcons t ts') (hcons p ps') := p t ∧ preds_hold ts' ps' ;
-    @preds_hold _ (inil) hnil hnil := True.
-  Global Transparent preds_hold.
 
   Definition pred_prefix_list_for (all : list (pred_over DS A)) R :=
     (* The given promise [R] is the last promise out of all promises. *)
@@ -760,7 +792,7 @@ Record promise_info {Σ} (Ω : gGenCmras Σ) := MkPromiseInfo {
   pi_rel_to_pred : ∀ (ts : trans_for (On Ω pi_id) (Ocs Ω pi_id)) t,
     huncurry pi_rel ts t → pi_pred t;
   pi_witness : ∀ (ts : trans_for (On Ω pi_id) (Ocs Ω pi_id)),
-    preds_hold ts pi_deps_preds → ∃ t, huncurry pi_rel ts t;
+    preds_hold pi_deps_preds ts → ∃ t, huncurry pi_rel ts t;
 }.
 
 (* Check that we can existentially quantify over [promise_info] wihout
@@ -1083,7 +1115,7 @@ Section transmap.
     (o : Oc Ω id1 → _) : Oc Ω id2 → Oc Ω id2 :=
       eq_rect _ (λ id, Oc Ω id → Oc Ω id) o _ eq.
 
-  Lemma promises_had_deps_resp_promises p idx p_d promises transmap :
+  Lemma promises_has_deps_resp_promises p idx p_d promises transmap :
     pi_get_dep p idx = p_d →
     promises_has_deps p promises →
     transmap_resp_promises transmap promises →
@@ -1092,19 +1124,16 @@ Section transmap.
     intros look hasDeps resp.
     rewrite /transmap_resp_promises Forall_forall in resp.
     rewrite -look.
-    specialize (hasDeps idx) as (p2 & Helem & eq1 & -> & strong).
+    specialize (hasDeps idx) as (p2 & Helem & eq1 & eq2 & strong).
     destruct (resp _ Helem) as (ts & (t & tmLook & ? & relHolds)).
     specialize (p2.(pi_rel_to_pred) ts t relHolds) as predHolds.
     exists (Oc_trans_transport (eq_sym eq1) t).
-    (* exists (res_trans_transport eq1 t). *)
-  Admitted.
-  (*   simpl. *)
-  (*   split. *)
-  (*   * apply strong. clear -predHolds. destruct eq1. simpl. done. *)
-  (*   * clear -tmLook. destruct eq1. done. *)
-  (* Qed. *)
+    split.
+    * apply strong in predHolds.
+      clear -predHolds. destruct eq1. simpl. done.
+    * rewrite eq2. clear -tmLook. destruct eq1. apply tmLook.
+  Qed.
 
-  (*
   (** If a [transmap] respects a list [promises] and growing the list with [p]
    * is well formed, then we can conjur up a list of transitions from
    * [transmap] that match the dependencies in [p] and that satisfy their
@@ -1114,26 +1143,40 @@ Section transmap.
     transmap_resp_promises transmap promises →
     ∃ ts,
       trans_at_deps transmap p ts ∧
-      deps_preds_hold p.(pi_deps) ts.
+      preds_hold p.(pi_deps_preds) ts.
+      (* deps_preds_hold p.(pi_deps) ts. *)
   Proof.
     intros WF resp.
     destruct WF as [[uniq hasDeps] WF'].
-    set (F := (λ dep, T Σ dep.(psi_id))).
-    edestruct (fun_ex_to_ex_hvec (F := F) p.(pi_deps)
+    (* exists (fun_to_hvec _ _ _). *)
+    (* set (F := (λ dep, T Σ dep.(psi_id))). *)
+    edestruct (fun_ex_to_ex_hvec_fmap (F := cmra_to_trans) (Ocs Ω (pi_id p))
       (λ i t,
-        let pd := p.(pi_deps) !!! i in
-        pd.(psi_pred) t ∧
-        transmap (psi_id pd) !! psi_γ pd = Some t))
+        let t' := eq_rect _ _ t _ (Ocs_Oids_distr _ _) in
+        let pred := hvec_lookup_fmap p.(pi_deps_preds) i in
+        pred t ∧
+        transmap (Oids Ω p.(pi_id) !!! i) !! (p.(pi_deps_γs) !!! i) = Some t'))
       as (ts & ?).
     { intros idx.
-      eapply promises_had_deps_resp_promises; done. }
+      specialize (promises_has_deps_resp_promises _ _ (pi_get_dep p idx) _ transmap eq_refl hasDeps resp).
+      intros (t & ? & ?).
+      exists (eq_rect _ _ t _ (eq_sym (Ocs_Oids_distr _ _) )).
+      simpl.
+      split; try done.
+      * rewrite /pi_get_dep /lookup_fmap_Ocs in H.
+        simpl in H. admit. (* apply H. *)
+      * simpl.
+        rewrite H0.
+        f_equiv.
+        clear.
+        (* destruct (Ocs_Oids_distr (pi_id p) idx). *)
+        admit. }
     exists ts.
-    rewrite deps_preds_hold_alt.
     split.
     - intros di. apply H.
-    - intros di. apply H.
-  Qed.
-  *)
+    - apply preds_hold_alt. intros di.
+      apply (H di).
+  Admitted.
 
   Equations transmap_insert_go transmap (id : gid Σ) (γ : gname) (pick : Oc Ω id → Oc Ω id)
     (id' : gid Σ) : gmap gname (Oc Ω id' → Oc Ω id') :=
@@ -1220,26 +1263,25 @@ Section transmap.
     ∀ i p, ps !! i = Some p →
       transmap_satisfy_rel transmap p ∨ (transmap p.(pi_id) !! p.(pi_γ) = None).
 
-  (* Lemma trans_at_deps_subseteq transmap1 transmap2 p ts : *)
-  (*   transmap1 ⊆ transmap2 → *)
-  (*   trans_at_deps transmap1 p ts → *)
-  (*   trans_at_deps transmap2 p ts. *)
-  (* Proof. *)
-  (*   intros sub ta. *)
-  (*   intros idx. simpl. *)
-  (*   specialize (sub (psi_id (pi_deps p !!! idx))). *)
-  (*   rewrite map_subseteq_spec in sub. *)
-  (*   specialize (ta idx). *)
-  (*   apply sub. *)
-  (*   apply ta. *)
-  (* Qed. *)
+  Lemma trans_at_deps_subseteq transmap1 transmap2 p ts :
+    transmap1 ⊆ transmap2 →
+    trans_at_deps transmap1 p ts →
+    trans_at_deps transmap2 p ts.
+  Proof.
+    intros sub ta.
+    intros idx. simpl.
+    specialize (sub (psi_id (pi_get_dep p idx))).
+    rewrite map_subseteq_spec in sub.
+    specialize (ta idx).
+    apply sub.
+    apply ta.
+  Qed.
 
   Lemma transmap_overlap_resp_promises_cons transmap p promises :
     transmap_overlap_resp_promises transmap (p :: promises) →
     transmap_overlap_resp_promises transmap promises.
   Proof. intros HL. intros i ? look. apply (HL (S i) _ look). Qed.
 
-  (*
   (* Grow a transformation map to satisfy a list of promises. This works by
   * traversing the promises and using [promise_info] to extract a
   * transformation. *)
@@ -1287,15 +1329,16 @@ Section transmap.
             split. { by rewrite transmap_insert_lookup. }
             split; last done.
             intros ??.
+            simpl.
             rewrite transmap_insert_lookup_ne; first apply transIn.
             apply depsDiff.
           -- apply transmap_resp_promises_insert; done.
         * apply transmap_insert_subseteq_r; done.
   Qed.
 
-  Lemma promises_to_maps (promises : list promise_info) :
+  Lemma promises_to_maps (promises : list _) :
     promises_wf promises →
-    ∃ (transmap : TransMap Σ), transmap_resp_promises transmap promises.
+    ∃ (transmap : TransMap _), transmap_resp_promises transmap promises.
   Proof.
     intros WF.
     edestruct (transmap_promises_to_maps (λ i : gid Σ, ∅)) as [m [resp a]].
@@ -1303,7 +1346,6 @@ Section transmap.
     - intros ???. right. done.
     - exists m. apply resp.
   Qed.
-  *)
 
 End transmap.
 
