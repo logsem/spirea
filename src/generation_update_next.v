@@ -252,6 +252,22 @@ Section dependency_relation_extra.
     split; [apply pred_prefix_list_for_singleton | done].
   Qed.
 
+  Lemma pred_prefix_list_for_prefix_of Rs1 Rs2 R1 R2:
+    pred_prefix_list_for Rs1 R1 →
+    pred_prefix_list_for Rs2 R2 →
+    Rs1 `prefix_of` Rs2 →
+    rel_stronger R2 R1.
+  Proof.
+    intros PP1 PP2 pref.
+    destruct PP1 as [isLast1 _].
+    destruct PP2 as [isLast2 weaker].
+    rewrite last_lookup in isLast1.
+    rewrite last_lookup in isLast2.
+    eapply weaker; last done.
+    - apply le_pred. apply prefix_length. eassumption.
+    - eapply prefix_lookup; done.
+  Qed.
+
 End dependency_relation_extra.
 
 Definition generational_cmra {n} A (DS : ivec n Type) : Type :=
@@ -1344,12 +1360,13 @@ Section next_gen_definition.
       ∀ γ (a : Rpre Σ i),
         m i !! γ = Some a →
         ∃ eq ts γs (t : Oc Ω i → Oc Ω i) R Rs,
-          (* Ω.(gc_map) i = Some2 gti ∧ *)
           Oeq Ω i = Some2 eq ∧
           (* BUG: [ts] is unrestricted. The transformations in [ts] should be
-           * the result of looking up in [picks]. *)
+           * the result of looking up in [picks]. We somehow need some promise
+           * info as well here to know which deps to look up. Maybe store the
+           * auth in [res_for_promises]? *)
           huncurry R ts t ∧
-          picks i !! γ = Some (t) ∧
+          picks i !! γ = Some t ∧
           pred_prefix_list_for Rs R ∧
           a ≡ map_unfold (cmra_transport eq
             (ε, GTS_tok_gen_shot t, ε,
@@ -1365,7 +1382,6 @@ Section next_gen_definition.
     ∀ p, p ∈ ps →
       ∃ eq (a : Rpre Σ p.(pi_id)) Rs,
         Oeq Ω p.(pi_id) = Some2 eq ∧
-        (* Ω.(gc_map) (p.(pi_id)) = Some2 gcd ∧ *)
         m p.(pi_id) !! p.(pi_γ) = Some a ∧
         pred_prefix_list_for Rs p.(pi_rel) ∧
         a ≡ map_unfold (
@@ -1427,7 +1443,6 @@ Section own_picks_properties.
     edestruct m1look as (gti1 & t1 & ? & ? & ? & ? & ? & ? & picks1Look & ? & eq1);
       first done.
     specialize (t2 i) as (domEq2 & m2look).
-    (* edestruct m2look as (gti2 & t2 & ? & picks2Look & ?); first done. *)
     edestruct m2look as (gti2 & t2 & ? & ? & ? & ? & ? & ? & picks2Look & ? & eq2);
       first done.
     clear m1look m2look.
@@ -1566,8 +1581,10 @@ Section own_promises_properties.
     ∀ id γ p1 p2,
       promises_lookup_at prs1 id γ = Some p1 →
       promises_lookup_at prs2 id γ = Some p2 →
-      pred_stronger p1.(pi_pred) p2.(pi_pred) ∨
-        pred_stronger p2.(pi_pred) p1.(pi_pred).
+      rel_stronger p1.(pi_rel) p2.(pi_rel) ∨
+        rel_stronger p2.(pi_rel) p1.(pi_rel).
+      (* pred_stronger p1.(pi_pred) p2.(pi_pred) ∨ *)
+      (*   pred_stronger p2.(pi_pred) p1.(pi_pred). *)
 
   (* If two promise lists has an overlap then one of the overlapping promises
    * is strictly stronger than the other. *)
@@ -1580,12 +1597,38 @@ Section own_promises_properties.
     iIntros (id γ p1 p2 look1 look2).
     iCombine "O1 O2" as "O".
     iDestruct (ownM_valid with "O") as "#Hv".
+    iClear "O".
     rewrite discrete_fun_validI.
     setoid_rewrite gmap_validI.
     iSpecialize ("Hv" $! id γ).
     rewrite lookup_op.
-    (* rewrite /res_for_promises in P1, P2. *)
-  Admitted.
+    apply promises_lookup_at_Some in look1 as elem1.
+    apply promises_lookup_at_Some in look2 as elem2.
+    specialize (P1 _ elem1). simpl in P1.
+    destruct P1 as (eq & ? & Rs1 & ? & resEq1 & ? & ?).
+    rewrite resEq1.
+    specialize (P2 _ elem2). simpl in P2.
+    destruct P2 as (eq' & ? & Rs2 & ? & resEq2 & ? & ?).
+    assert (eq' = eq) as -> by congruence.
+    rewrite resEq2.
+    rewrite -Some_op option_validI.
+    rewrite H1.
+    rewrite H4.
+    rewrite map_unfold_op.
+    rewrite map_unfold_validI.
+    rewrite -cmra_transport_op.
+    rewrite cmra_transport_validI.
+    rewrite -pair_op.
+    rewrite prod_validI /=.
+    iDestruct "Hv" as "[_ %Hv]". iPureIntro.
+    rewrite gen_pv_op gen_pv_valid in Hv.
+    rewrite auth_frag_op_valid in Hv.
+    apply to_max_prefix_list_op_valid_L in Hv as [Hv|Hv].
+    - right.
+      eapply pred_prefix_list_for_prefix_of; done.
+    - left.
+      eapply pred_prefix_list_for_prefix_of; done.
+  Qed.
 
   Lemma own_promises_sep prs1 prs2 :
     own_promises prs1 -∗
@@ -1869,13 +1912,9 @@ Section rules.
     rewrite auth_both_valid_discrete.
     rewrite to_max_prefix_list_included_L.
     intros [prefix _].
-    destruct pred_prefix as [(isLast1 & look1) ?].
-    destruct rely_pred_prefix as [(isLast2 & look2) ?].
-    rewrite last_lookup in isLast1.
-    rewrite last_lookup in isLast2.
-    eapply look1; last done.
-    { apply le_pred. apply prefix_length. eassumption. }
-    eapply prefix_lookup; done.
+    destruct pred_prefix as [? ?].
+    destruct rely_pred_prefix as [? ?].
+    eapply pred_prefix_list_for_prefix_of; done.
   Qed.
 
   Lemma know_deps_agree γ γs1 γs2 :
