@@ -706,8 +706,6 @@ Arguments TransMap {Σ} _. (* : clear implicits. *)
 Record promise_self_info {Σ} Ω := MkPromiseSelfInfo {
   psi_id : gid Σ; (* The index of the RA in the global RA. *)
   psi_γ : gname; (* Ghost name for the promise. *)
-  (* psi_gcd : gen_cmra_data Σ psi_id; *)
-  (* psi_gcd_lookup : Ω.(gc_map) psi_id = Some2 psi_gcd; *)
   psi_pred : cmra_to_pred (Oc Ω psi_id);
 }.
 
@@ -771,55 +769,50 @@ Arguments psi_pred {_ _}.
  * universe issues (in particular, any Iris existential quantification over
  * something involing a [cmra] fails. We hence store all cameras in [Ω] and
  * look up into it). *)
+Record promise_info_at {Σ} (Ω : gGenCmras Σ) id := {
+  (* We have the generational cmra data for this index, this contains all
+   * static info about the promise dependency for this index. *)
+  pi_deps_γs : ivec (On Ω id) gname;
+  pi_deps_preds : preds_for (On Ω id) (Ocs Ω id);
+  (* Dynamic information that changes per promise *)
+  (* The predicate that relates our transformation to those of the dependencies. *)
+  (* NOTE: Maybe store the rel in curried form? *)
+  pi_rel : pred_over (Ocs Ω id) (Oc Ω id);
+  (* A predicate that holds for the promise's own transformation whenever
+   * [pi_rel] holds. A "canonical" choice could be: [λ t, ∃ ts, pi_rel ts t]. *)
+  pi_pred : cmra_to_pred (Oc Ω id);
+  pi_rel_to_pred : ∀ (ts : trans_for (On Ω id) (Ocs Ω id)) t,
+    huncurry pi_rel ts t → pi_pred t;
+  pi_witness : ∀ (ts : trans_for (On Ω id) (Ocs Ω id)),
+    preds_hold pi_deps_preds ts → ∃ t, huncurry pi_rel ts t;
+}.
+
 Record promise_info {Σ} (Ω : gGenCmras Σ) := MkPromiseInfo {
   (* We need to know the specific ghost location that this promise is about *)
   pi_id : gid Σ; (* The index of the RA in the global RA *)
   pi_γ : gname; (* Ghost name for the promise *)
-  (* We have the generational cmra data for this index, this contains all
-   * static info about the promise dependency for this index. *)
-  (* pi_gcd : gen_cmra_data Σ pi_id; *)
-  (* pi_gcd_lookup : Ω.(gc_map) pi_id = Some2 pi_gcd; *)
-  (* pi_deps : ivec (pi_gcd.(gcd_n)) promise_self_info; *)
-  pi_deps_γs : ivec (On Ω pi_id) gname;
-  pi_deps_preds : preds_for (On Ω pi_id) (Ocs Ω pi_id);
-  (* Dynamic information that changes per promise *)
-  (* The predicate that relates our transformation to those of the dependencies. *)
-  (* NOTE: Maybe store the rel in curried form? *)
-  pi_rel : pred_over (Ocs Ω pi_id) (Oc Ω pi_id);
-  (* A predicate that holds for the promise's own transformation whenever
-   * [pi_rel] holds. A "canonical" choice could be: [λ t, ∃ ts, pi_rel ts t]. *)
-  pi_pred : cmra_to_pred (Oc Ω pi_id);
-  pi_rel_to_pred : ∀ (ts : trans_for (On Ω pi_id) (Ocs Ω pi_id)) t,
-    huncurry pi_rel ts t → pi_pred t;
-  pi_witness : ∀ (ts : trans_for (On Ω pi_id) (Ocs Ω pi_id)),
-    preds_hold pi_deps_preds ts → ∃ t, huncurry pi_rel ts t;
+  (* With this coercion the inner [promise_info_at] record behaves as if it was
+   * included in [promise_info] directly. *)
+  pi_at :> promise_info_at Ω pi_id;
 }.
 
-(* Check that we can existentially quantify over [promise_info] wihout
+(* Check that we can existentially quantify over [promise_info] without
  * universe inconsistencies. *)
 #[local] Definition promise_info_universe_test {Σ} {Ω : gGenCmras Σ} : iProp Σ :=
   ∃ (ps : promise_info Ω), True.
 
+Arguments MkPromiseInfo {_ _}.
+
 Arguments pi_id {_ _}.
 Arguments pi_γ {_ _}.
-(* Arguments pi_gcd {_ _}. *)
-(* Arguments pi_gcd_lookup {_ _}. *)
-Arguments pi_deps_γs {_ _}.
-Arguments pi_deps_preds {_ _}.
-Arguments pi_rel {_ _}.
-Arguments pi_pred {_ _}.
-Arguments pi_rel_to_pred {_ _}.
-Arguments pi_witness {_ _}.
+Arguments pi_at {_ _}.
 
-Record dependency_data {Σ} {Ω : gGenCmras Σ} := {
-  dd_id : gid Σ;
-  dd_γ : gname;
-}.
-
-(* Definition test {Σ} {Ω : gGenCmras Σ} (id : gid Σ) *)
-(*     (preds : preds_for (On Ω id) (Ocs Ω id)) n : cmra_to_pred (Oc Ω (Oids Ω id !!! n)) *)
-(*   := *)
-(*   preds !!! n. *)
+Arguments pi_deps_γs {_ _ _}.
+Arguments pi_deps_preds {_ _ _}.
+Arguments pi_rel {_ _ _}.
+Arguments pi_pred {_ _ _}.
+Arguments pi_rel_to_pred {_ _ _}.
+Arguments pi_witness {_ _ _}.
 
 Definition lookup_fmap_Ocs `{Ω : gGenCmras Σ} {f id}
     (cs : hvec (On Ω id) (f <$> Ocs Ω id)) i : f (Oc Ω (Oids Ω id !!! i)) :=
@@ -830,12 +823,6 @@ Definition pi_get_dep {Σ} {Ω : gGenCmras Σ} (pi : promise_info Ω) n : promis
   let γ := pi.(pi_deps_γs) !!! n in
   let pred : cmra_to_pred (Oc Ω id) := lookup_fmap_Ocs pi.(pi_deps_preds) n in
   MkPromiseSelfInfo  _ _ id γ pred.
-
-Definition pi_get_dd {Σ} {Ω : gGenCmras Σ}
-    (pi : promise_info Ω) n : dependency_data := {|
-  dd_id := Oids Ω pi.(pi_id) !!! n;
-  dd_γ := pi.(pi_deps_γs) !!! n;
-|}.
 
 Section promise_info.
   Context `{Ω : gGenCmras Σ}.
@@ -962,49 +949,32 @@ Section promise_info.
      We must also be able to combine to lists of promises.
   *)
 
-  Record promise_at id γ := mk_promise_at {
-    pa_promise : promise_info Ω;
-    pa_id_eq : pa_promise.(pi_id) = id;
-    pa_γ_eq : γ = pa_promise.(pi_γ);
-  }.
-  Arguments pa_promise {_} {_}.
-  Arguments pa_id_eq {_} {_}.
-  Arguments pa_γ_eq {_} {_}.
-
-  Equations promises_lookup_at promises iid γ : option (promise_at iid γ) :=
+  Equations promises_lookup_at promises iid (γ : gname) : option (promise_info_at _ iid) :=
   | [], iid, γ => None
   | p :: ps', iid, γ with decide (p.(pi_id) = iid), decide (p.(pi_γ) = γ) => {
-    | left eq_refl, left eq_refl => Some (mk_promise_at p.(pi_id) p.(pi_γ) p eq_refl eq_refl);
+    | left eq_refl, left eq_refl => Some (p.(pi_at));
     | left eq_refl, right _ => promises_lookup_at ps' p.(pi_id) γ
     | right _, _ => promises_lookup_at ps' iid γ
   }.
 
+  (* NOTE: Not sure if this function is a good idea. *)
   Definition promises_lookup promises id γ : option (promise_info _) :=
-    pa_promise <$> (promises_lookup_at promises id γ).
+    MkPromiseInfo id γ <$> (promises_lookup_at promises id γ).
 
-  Definition promise_at_pred {id γ} (pa : promise_at id γ) : (cmra_to_pred (Oc Ω id)) :=
-    eq_rect _ (λ id, cmra_to_pred (Oc Ω id)) pa.(pa_promise).(pi_pred) _ pa.(pa_id_eq).
-
-  (* Definition promises_lookup_pred promises *)
-  (*     id (γ : gname) : option (T Σ id → Prop) := *)
-  (*     promise_at_pred <$> promises_lookup_at promises id γ. *)
-
-  Lemma promises_lookup_at_Some promises id γ pa :
-    promises_lookup_at promises id γ = Some pa →
-    pa.(pa_promise) ∈ promises.
+  Lemma promises_lookup_at_Some promises id γ pia :
+    promises_lookup_at promises id γ = Some pia →
+    MkPromiseInfo id γ pia ∈ promises.
   Proof.
-    induction promises as [|? ? IH]; first by inversion 1.
+    induction promises as [|[id' γ' ?] ? IH]; first by inversion 1.
     rewrite promises_lookup_at_equation_2.
     rewrite promises_lookup_at_clause_2_equation_1.
-    destruct (decide (pi_id a = id)) as [eq1|neq].
-    - destruct (decide (pi_γ a = γ)) as [eq2|neq].
-      * destruct eq1.
-        destruct eq2.
-        simpl.
+    simpl.
+    destruct (decide (id' = id)) as [->|neq].
+    - destruct (decide (γ' = γ)) as [->|neq].
+      * simpl.
         intros [= <-].
         apply elem_of_list_here.
-      * destruct eq1.
-        rewrite promises_lookup_at_clause_2_clause_1_equation_2.
+      * rewrite promises_lookup_at_clause_2_clause_1_equation_2.
         intros look.
         apply elem_of_list_further.
         apply IH.
@@ -1152,8 +1122,6 @@ Section transmap.
   Proof.
     intros WF resp.
     destruct WF as [[uniq hasDeps] WF'].
-    (* exists (fun_to_hvec _ _ _). *)
-    (* set (F := (λ dep, T Σ dep.(psi_id))). *)
     edestruct (fun_ex_to_ex_hvec_fmap (F := cmra_to_trans) (Ocs Ω (pi_id p))
       (λ i t,
         let t' := eq_rect _ _ t _ (Ocs_Oids_distr _ _) in
@@ -1165,7 +1133,6 @@ Section transmap.
       specialize (promises_has_deps_resp_promises _ _ (pi_get_dep p idx) _ transmap eq_refl hasDeps resp).
       intros (t & ? & ?).
       exists (eq_rect_r _ t (Ocs_Oids_distr _ _)).
-      (* exists (eq_rect_r _ _ t _ (Ocs_Oids_distr _ _)). *)
       simpl.
       split.
       * rewrite /pi_get_dep /lookup_fmap_Ocs in H.
@@ -1599,11 +1566,11 @@ Section own_promises_properties.
     ∀ id γ p1 p2,
       promises_lookup_at prs1 id γ = Some p1 →
       promises_lookup_at prs2 id γ = Some p2 →
-      pred_stronger (promise_at_pred p1) (promise_at_pred p2) ∨
-        pred_stronger (promise_at_pred p2) (promise_at_pred p1).
+      pred_stronger p1.(pi_pred) p2.(pi_pred) ∨
+        pred_stronger p2.(pi_pred) p1.(pi_pred).
 
   (* If two promise lists has an overlap then one of the overlapping promises
-  * is strictly stronger than the other. *)
+   * is strictly stronger than the other. *)
   Lemma own_promises_overlap prs1 prs2 :
     own_promises prs1 -∗
     own_promises prs2 -∗
