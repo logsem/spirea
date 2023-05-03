@@ -49,7 +49,7 @@ Proof.
   - do 2 intros [[[[]|]|] [[[[]|]|?|]|]]; try done.
 Qed.
 
-Lemma GTS_tok_gen_shot_foo {M} {A} (t1 t2 : A) :
+Lemma GTS_tok_gen_shot_agree {M} {A} (t1 t2 : A) :
   ✓ ((GTS_tok_gen_shot t1 : GTSR A) ⋅ (GTS_tok_gen_shot t2 : GTSR A))
     ⊣⊢@{uPredI M} ⌜ t1 = t2 ⌝.
 Proof.

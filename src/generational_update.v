@@ -807,7 +807,7 @@ Section picks_lemmas.
     rewrite prod_validI.
     rewrite prod_validI.
     iDestruct "Hv" as "((_ & Hv) & _)". simpl.
-    rewrite GTS_tok_gen_shot_foo.
+    rewrite GTS_tok_gen_shot_agree.
     iDestruct "Hv" as %->.
     done.
   Qed.

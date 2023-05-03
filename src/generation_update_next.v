@@ -513,6 +513,32 @@ We need
 - To be able to do an ∧ or a ∗ over the transformation functions.
 *)
 
+Definition map_agree_overlap `{FinMap K M} {A} (m1 m2 : M A) :=
+  ∀ (k : K) (i j : A), m1 !! k = Some i → m2 !! k = Some j → i = j.
+
+Lemma lookup_union_r_overlap `{FinMap K M} {B} (m1 m2 : M B) γ t :
+  map_agree_overlap m1 m2 →
+  m2 !! γ = Some t →
+  (m1 ∪ m2) !! γ = Some t.
+Proof.
+  intros lap look.
+  destruct (m1 !! γ) eqn:eq.
+  - apply lookup_union_Some_l.
+    rewrite eq.
+    f_equiv.
+    eapply lap; done.
+  - rewrite -look. apply lookup_union_r. done.
+Qed.
+
+Lemma map_union_subseteq_l_overlap `{FinMap K M} {B} (m1 m2 : M B) :
+  map_agree_overlap m1 m2 →
+  m2 ⊆ m1 ∪ m2.
+Proof.
+  intros lap.
+  apply map_subseteq_spec => i x look.
+  apply lookup_union_r_overlap; done.
+Qed.
+
 Section transmap.
   Context `{Σ : gFunctors, Ω : gGenCmras Σ}.
 
@@ -550,6 +576,11 @@ Section transmap.
   Lemma transmap_union_subseteq_l transmap1 transmap2 :
     transmap1 ⊆ transmap1 ∪ transmap2.
   Proof. intros ?. apply map_union_subseteq_l. Qed.
+
+  Lemma transmap_union_subseteq_r transmap1 transmap2 :
+    (∀ i, map_agree_overlap (transmap1 i) (transmap2 i)) →
+    transmap2 ⊆ transmap1 ∪ transmap2.
+  Proof. intros ? i. apply map_union_subseteq_l_overlap. done. Qed.
 
   (** Every pick in [transmap] is a valid generational transformation and satisfies
   the conditions for that cmra in [Ω]. *)
@@ -1466,10 +1497,48 @@ Section own_picks_properties.
   Context `{Ω : gGenCmras Σ}.
   Implicit Types (picks : TransMap Ω).
 
-  Definition merge_picks picks1 picks2 := λ i, (picks1 i) ∪ (picks2 i).
-
-  Definition map_agree_overlap `{FinMap K M} {A} (m1 m2 : M A) :=
-    ∀ (k : K) (i j : A), m1 !! k = Some i → m2 !! k = Some j → i = j.
+  Lemma tokens_for_picks_agree_overlap picks1 picks2 m1 m2 :
+    res_for_picks picks1 m1 →
+    res_for_picks picks2 m2 →
+    uPred_ownM m1 -∗
+    uPred_ownM m2 -∗
+    ⌜ ∀ i, map_agree_overlap (picks1 i) (picks2 i) ⌝.
+  Proof.
+    iIntros (t1 t2) "m1 m2". iIntros (i).
+    iIntros (γ a1 a2 look1 look2).
+    specialize (t1 i) as (domEq1 & m1look).
+    assert (is_Some (m1 i !! γ)) as [? m1Look].
+    { rewrite -elem_of_dom -domEq1 elem_of_dom. done. }
+    edestruct m1look as (gti1 & t1 & ? & ? & ? & ? & ? & ? & picks1Look & ? & eq1);
+      first done.
+    specialize (t2 i) as (domEq2 & m2look).
+    assert (is_Some (m2 i !! γ)) as [? m2Look].
+    { rewrite -elem_of_dom -domEq2 elem_of_dom. done. }
+    edestruct m2look as (gti2 & t2 & ? & ? & ? & ? & ? & ? & picks2Look & ? & eq2);
+      first done.
+    clear m1look m2look.
+    assert (gti1 = gti2) as -> by congruence.
+    iCombine "m1 m2" as "m".
+    iDestruct (ownM_valid with "m") as "#Hv".
+    rewrite discrete_fun_validI.
+    setoid_rewrite gmap_validI.
+    iSpecialize ("Hv" $! i γ).
+    rewrite lookup_op.
+    rewrite m1Look m2Look.
+    rewrite option_validI /=.
+    rewrite eq1 eq2.
+    simplify_eq.
+    rewrite map_unfold_op.
+    clear.
+    iClear "m".
+    rewrite map_unfold_validI.
+    destruct gti2.
+    simpl.
+    (* destruct (gti_look gti2); simpl. *)
+    rewrite prod_valid_2st.
+    rewrite GTS_tok_gen_shot_agree.
+    done.
+  Qed.
 
   Lemma cmra_transport_validI {A B : cmra} (eq : A =@{cmra} B) (a : A) :
     ✓ cmra_transport eq a ⊣⊢@{iPropI Σ} ✓ a.
@@ -1515,7 +1584,7 @@ Section own_picks_properties.
     iDestruct "Hv" as "((((_ & Hv1) & _) & Hv2) & %Hv3)".
     simpl in Hv3.
     simpl.
-    rewrite GTS_tok_gen_shot_foo.
+    rewrite GTS_tok_gen_shot_agree.
     rewrite -Some_op option_validI to_agree_op_validI.
     iDestruct "Hv1" as %->.
     rewrite gen_pv_op gen_pv_valid in Hv3.
@@ -1537,11 +1606,11 @@ Section own_picks_properties.
     (∀ i γ a b, (m1 i) !! γ = Some a → (m2 i) !! γ = Some b → a ≡ b) →
     res_for_picks picks1 m1 →
     res_for_picks picks2 m2 →
-    res_for_picks (merge_picks picks1 picks2) (m1 ⋅ m2).
+    res_for_picks (picks1 ∪ picks2) (m1 ⋅ m2).
   Proof.
     intros overlap2 tok1 tok2.
     intros i.
-    rewrite /merge_picks.
+    rewrite /union /transmap_union. 
     rewrite dom_op.
     specialize (tok1 i) as (domEq1 & tok1).
     specialize (tok2 i) as (domEq2 & tok2).
@@ -1603,10 +1672,13 @@ Section own_picks_properties.
   Lemma own_picks_sep picks1 picks2 :
     own_picks picks1 -∗
     own_picks picks2 -∗
-    own_picks (merge_picks picks1 picks2).
+    own_picks (picks1 ∪ picks2) ∗ ⌜ picks2 ⊆ picks1 ∪ picks2 ⌝.
   Proof.
     iDestruct 1 as (m1) "[O1 %R1]".
     iDestruct 1 as (m2) "[O2 %R2]".
+    iDestruct (tokens_for_picks_agree_overlap with "O1 O2") as %disj;
+      [done|done|].
+    iSplit; last first. { iPureIntro. apply transmap_union_subseteq_r. done. }
     iExists (m1 ⋅ m2).
     iDestruct (tokens_for_picks_agree_overlap' with "O1 O2") as %HI.
     { done. } { done. }
@@ -1711,14 +1783,6 @@ Section nextgen_properties.
     iFrame "E".
   Qed.
 
-  Lemma merge_picks_subset_l picks1 picks2 : picks1 ⊆ merge_picks picks1 picks2.
-  Proof.
-  Admitted.
-
-  Lemma merge_picks_subset_r picks1 picks2 : picks2 ⊆ merge_picks picks1 picks2.
-  Proof.
-  Admitted.
-
   Lemma transmap_resp_promises_weak transmap prs1 prs2 :
     promise_list_stronger prs1 prs2 →
     transmap_resp_promises transmap prs1 →
@@ -1737,7 +1801,7 @@ Section nextgen_properties.
       [done|done|].
     (* Combine the picks. *)
     iExists _, prs3.
-    iDestruct (own_picks_sep with "picks1 picks2") as "$".
+    iDestruct (own_picks_sep with "picks1 picks2") as "[$ %sub]".
     iSplitL "pr1 pr2".
     { (* (* Maybe the following could be a lemma. *) *)
       iIntros (pi elm).
@@ -1750,10 +1814,10 @@ Section nextgen_properties.
     iIntros (fp vv a b).
     iSpecialize ("HP" $! fp vv with "[%] [%]").
     { eapply transmap_resp_promises_weak; done. }
-    { etrans; last done. apply merge_picks_subset_l. }
+    { etrans; last done. apply transmap_union_subseteq_l. }
     iSpecialize ("HQ" $! fp vv with "[%] [%]").
     { eapply transmap_resp_promises_weak; done. }
-    { etrans; last done. apply merge_picks_subset_r. }
+    { etrans; done. }
     iModIntro.
     iFrame.
   Qed.
