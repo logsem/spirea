@@ -978,7 +978,7 @@ Section promise_info.
   Equations promises_lookup_at promises iid (γ : gname) : option (promise_info_at _ iid) :=
   | [], iid, γ => None
   | p :: ps', iid, γ with decide (p.(pi_id) = iid), decide (p.(pi_γ) = γ) => {
-    | left eq_refl, left eq_refl => Some (p.(pi_at));
+    | left eq_refl, left eq_refl => Some p.(pi_at);
     | left eq_refl, right _ => promises_lookup_at ps' p.(pi_id) γ
     | right _, _ => promises_lookup_at ps' iid γ
   }.
@@ -1419,20 +1419,15 @@ Section next_gen_definition.
   Definition own_picks picks : iProp Σ :=
     ∃ m, uPred_ownM m ∗ ⌜ res_for_picks picks m ⌝.
 
-  (* NOTE: We need to translate the type of relation stored in [promise_info]
-   * with the type of relation used by gcd. We need to ensure that the cameras
-   * in gcd are equal to those in promise_info. *)
-  Definition res_for_promises (ps : list (promise_info Ω)) (m : iResUR Σ) :=
-    ∀ p, p ∈ ps →
-      ∃ eq (a : Rpre Σ p.(pi_id)) Rs,
-        Oeq Ω p.(pi_id) = Some2 eq ∧
-        m p.(pi_id) !! p.(pi_γ) = Some a ∧
-        pred_prefix_list_for Rs p.(pi_rel) ∧
-        a ≡ map_unfold (
-          cmra_transport eq (ε, ε, ε, ε, gV (◯ (to_max_prefix_list Rs)))).
-
   Definition own_promises (ps : list (promise_info Ω)) : iProp Σ :=
-    ∃ m, uPred_ownM m ∗ ⌜ res_for_promises ps m ⌝.
+    (∀ p, ⌜ p ∈ ps ⌝ →
+      ∃ eq Rs,
+        ⌜ Oeq Ω p.(pi_id) = Some2 eq ⌝ ∧
+        ⌜ pred_prefix_list_for Rs p.(pi_rel) ⌝ ∧
+        uPred_ownM (discrete_fun_singleton p.(pi_id)
+          {[ p.(pi_γ) := map_unfold
+            (cmra_transport eq (ε, ε, ε, ε, gV (◯ (to_max_prefix_list Rs)))) ]}
+        )).
 
   (* The global transformation [fG] respects the entries in [picks].
    * NOTE: We may not need this given how [⚡==>] now quantifies over picks and
@@ -1628,27 +1623,28 @@ Section own_promises_properties.
     own_promises prs2 -∗
     ⌜ promises_overlap_pred prs1 prs2 ⌝.
   Proof.
-    iIntros "(%m1 & O1 & %P1) (%m2 & O2 & %P2)".
+    iIntros "O1 O2".
     iIntros (id γ p1 p2 look1 look2).
-    iCombine "O1 O2" as "O".
-    iDestruct (ownM_valid with "O") as "#Hv".
-    iClear "O".
+    apply promises_lookup_at_Some in look1 as elem1.
+    apply promises_lookup_at_Some in look2 as elem2.
+    iSpecialize ("O1" $! _ elem1).
+    iSpecialize ("O2" $! _ elem2).
+    simpl.
+    iDestruct "O1" as (eq ???) "O1".
+    iDestruct "O2" as (eq' ???) "O2".
+    assert (eq' = eq) as -> by congruence.
+    iCombine "O1 O2" as "O3".
+    rewrite discrete_fun_singleton_op.
+    rewrite singleton_op.
+    iDestruct (ownM_valid with "O3") as "#Hv".
+    iClear "O3".
     rewrite discrete_fun_validI.
     setoid_rewrite gmap_validI.
     iSpecialize ("Hv" $! id γ).
-    rewrite lookup_op.
-    apply promises_lookup_at_Some in look1 as elem1.
-    apply promises_lookup_at_Some in look2 as elem2.
-    specialize (P1 _ elem1). simpl in P1.
-    destruct P1 as (eq & ? & Rs1 & ? & resEq1 & ? & ?).
-    rewrite resEq1.
-    specialize (P2 _ elem2). simpl in P2.
-    destruct P2 as (eq' & ? & Rs2 & ? & resEq2 & ? & ?).
-    assert (eq' = eq) as -> by congruence.
-    rewrite resEq2.
-    rewrite -Some_op option_validI.
-    rewrite H1.
-    rewrite H4.
+    simpl.
+    rewrite discrete_fun_lookup_singleton.
+    rewrite lookup_singleton.
+    rewrite option_validI.
     rewrite map_unfold_op.
     rewrite map_unfold_validI.
     rewrite -cmra_transport_op.
@@ -1687,15 +1683,12 @@ Section nextgen_properties.
     ⊢@{iProp Σ} own_picks (λ i : gid Σ, ∅).
   Proof. iExists ε. rewrite ownM_unit' left_id. iPureIntro. done. Qed.
 
-  Lemma res_for_promises_empty :
-    res_for_promises [] (ε : iResUR Σ).
-  Proof. intros ? elem. inversion elem. Qed.
-
   Lemma own_promises_empty :
     ⊢@{iProp Σ} own_promises [].
   Proof.
-    iExists ε. rewrite ownM_unit' left_id.
-    iPureIntro. apply res_for_promises_empty.
+    rewrite /own_promises.
+    iIntros (? elm).
+    inversion elm.
   Qed.
 
   Lemma nextgen_emp_2 : emp ⊢@{iProp Σ} ⚡==> emp.
@@ -2050,4 +2043,4 @@ Section test.
   Definition a_rel (Ta : max_natR → max_natR) Tb Ts :=
     Ta = Ts ∧ Tb = Ts.
 
-End test. 
+End test.
