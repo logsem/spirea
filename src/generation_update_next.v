@@ -1002,20 +1002,54 @@ Section promise_info.
       done.
   Qed.
 
-  (* FIXME: We need to take the strongest promise when two exist for the same
-   * idx and gname. *)
-  Fixpoint merge_promises prs1 prs2 :=
-    match prs1 with
-    | [] => prs2
-    | p :: prs1' =>
-      if decide (promises_lookup prs2 p.(pi_id) p.(pi_γ) = None)
-      then p :: (merge_promises prs1' prs2)
-      else merge_promises prs1' prs2
-    end.
+  Definition promise_stronger {id} (pia1 pia2 : promise_info_at _ id) : Prop :=
+    rel_stronger pia1.(pi_rel) pia2.(pi_rel)
+    (* pred_stronger p1.(pi_pred) p2.(pi_pred) ∨ *)
+    .
 
-  Lemma merge_promises_elem p prs1 prs2 :
-    p ∈ merge_promises prs1 prs2 →
-    p ∈ prs1 ∨ p ∈ prs2.
+  (** This definition is supposed to encapsulate what ownership over the
+   * resources for [prs1] and [prs2] entails. *)
+  Definition promises_overlap_pred prs1 prs2 : Prop :=
+    ∀ id γ p1 p2,
+      promises_lookup_at prs1 id γ = Some p1 →
+      promises_lookup_at prs2 id γ = Some p2 →
+      promise_stronger p1 p2 ∨ promise_stronger p2 p1.
+
+  (* (* FIXME: We need to take the strongest promise when two exist for the same *)
+  (*  * idx and gname. *) *)
+  (* Fixpoint merge_promises prs1 prs2 := *)
+  (*   match prs1 with *)
+  (*   | [] => prs2 *)
+  (*   | p :: prs1' => *)
+  (*     if decide (promises_lookup prs2 p.(pi_id) p.(pi_γ) = None) *)
+  (*     then p :: (merge_promises prs1' prs2) *)
+  (*     else merge_promises prs1' prs2 *)
+  (*   end. *)
+
+  (* Lemma merge_promises_elem p prs1 prs2 : *)
+  (*   p ∈ merge_promises prs1 prs2 → *)
+  (*   p ∈ prs1 ∨ p ∈ prs2. *)
+  (* Proof. *)
+  (* Admitted. *)
+
+  (* How to merge promises, intuitively?
+   * 1. From the first list add the suffix of promises not in the other.
+   * 2. From the second list add the suffix of promises not in the other.
+   * 3. The last element in both lists is now also present in the other.
+   *    - If they are for the same id+γ then add the strongest.
+   *    - If one of them is stronger than the one in the other list then add that one.
+   *    - If they are both weaker???
+   *)
+  Lemma merge_promise_lists prs1 prs2 :
+    promises_wf prs1 →
+    promises_wf prs2 →
+    ∃ prs3,
+      promises_wf prs3 ∧
+      (∀ pi, pi ∈ prs3 → pi ∈ prs1 ∨ pi ∈ prs2) ∧
+      (∀ id γ pia1 pia2,
+        promises_lookup_at prs1 id γ = Some pia1 →
+        promises_lookup_at prs2 id γ = Some pia2 →
+        promise_stronger pia2 pia1).
   Proof.
   Admitted.
 
@@ -1026,25 +1060,25 @@ Section promise_info.
   Proof.
   Admitted.
 
-  Lemma merge_promises_wf prs1 prs2 :
-    promises_wf prs1 →
-    promises_wf prs2 →
-    promises_wf (merge_promises prs1 prs2).
-  Proof.
-    intros wf1 wf2.
-    induction prs1 as [|p prs1 IH]; first done.
-    simpl.
-    destruct (decide (promises_lookup prs2 (pi_id p) (pi_γ p) = None)) as [eq|eq].
-    - simpl.
-      split; last (apply IH; apply wf1).
-      split.
-      * intros p2.
-        intros [in1|in2]%merge_promises_elem.
-        + apply wf1. done.
-        + eapply promises_lookup_different; done.
-      * admit.
-    - apply IH. apply wf1.
-  Admitted.
+  (* Lemma merge_promises_wf prs1 prs2 : *)
+  (*   promises_wf prs1 → *)
+  (*   promises_wf prs2 → *)
+  (*   promises_wf (merge_promises prs1 prs2). *)
+  (* Proof. *)
+  (*   intros wf1 wf2. *)
+  (*   induction prs1 as [|p prs1 IH]; first done. *)
+  (*   simpl. *)
+  (*   destruct (decide (promises_lookup prs2 (pi_id p) (pi_γ p) = None)) as [eq|eq]. *)
+  (*   - simpl. *)
+  (*     split; last (apply IH; apply wf1). *)
+  (*     split. *)
+  (*     * intros p2. *)
+  (*       intros [in1|in2]%merge_promises_elem. *)
+  (*       + apply wf1. done. *)
+  (*       + eapply promises_lookup_different; done. *)
+  (*     * admit. *)
+  (*   - apply IH. apply wf1. *)
+  (* Admitted. *)
 
   (* When we store picks we also need to store the promises that they are
    * related with. We store these promises in a map. This map should contain
@@ -1577,15 +1611,6 @@ Section own_promises_properties.
 
   Implicit Types (prs : list (promise_info Ω)).
 
-  Definition promises_overlap_pred prs1 prs2 : Prop :=
-    ∀ id γ p1 p2,
-      promises_lookup_at prs1 id γ = Some p1 →
-      promises_lookup_at prs2 id γ = Some p2 →
-      rel_stronger p1.(pi_rel) p2.(pi_rel) ∨
-        rel_stronger p2.(pi_rel) p1.(pi_rel).
-      (* pred_stronger p1.(pi_pred) p2.(pi_pred) ∨ *)
-      (*   pred_stronger p2.(pi_pred) p1.(pi_pred). *)
-
   (* If two promise lists has an overlap then one of the overlapping promises
    * is strictly stronger than the other. *)
   Lemma own_promises_overlap prs1 prs2 :
@@ -1630,12 +1655,12 @@ Section own_promises_properties.
       eapply pred_prefix_list_for_prefix_of; done.
   Qed.
 
-  Lemma own_promises_sep prs1 prs2 :
-    own_promises prs1 -∗
-    own_promises prs2 -∗
-    own_promises (merge_promises prs1 prs2).
-  Proof.
-  Admitted.
+  (* Lemma own_promises_sep prs1 prs2 : *)
+  (*   own_promises prs1 -∗ *)
+  (*   own_promises prs2 -∗ *)
+  (*   own_promises (merge_promises prs1 prs2). *)
+  (* Proof. *)
+  (* Admitted. *)
 
 End own_promises_properties.
 
@@ -2015,4 +2040,4 @@ Section test.
   Definition a_rel (Ta : max_natR → max_natR) Tb Ts :=
     Ta = Ts ∧ Tb = Ts.
 
-End test.
+End test. 
