@@ -830,8 +830,8 @@ Record promise_info_at {Σ} (Ω : gGenCmras Σ) id := {
   (* We have the generational cmra data for this index, this contains all
    * static info about the promise dependency for this index. *)
   pi_deps_γs : ivec (On Ω id) gname;
-  pi_deps_preds : preds_for (On Ω id) (Ocs Ω id);
   (* Dynamic information that changes per promise *)
+  pi_deps_preds : preds_for (On Ω id) (Ocs Ω id);
   (* The predicate that relates our transformation to those of the dependencies. *)
   (* NOTE: Maybe store the rel in curried form? *)
   pi_rel : pred_over (Ocs Ω id) (Oc Ω id);
@@ -1044,6 +1044,7 @@ Section promise_info.
   Qed.
 
   Definition promise_stronger {id} (pia1 pia2 : promise_info_at _ id) : Prop :=
+    pia1.(pi_deps_γs) = pia2.(pi_deps_γs) ∧ (* maybe this req can be handled in a slightly less ad-hoc manner *)
     rel_stronger pia1.(pi_rel) pia2.(pi_rel)
     (* pred_stronger p1.(pi_pred) p2.(pi_pred) ∨ *)
     .
@@ -1078,7 +1079,7 @@ Section promise_info.
     ∀ id γ pia2,
       promises_lookup_at prs2 id γ = Some pia2 →
       ∃ pia1,
-        promises_lookup_at prs1 id γ = Some pia1 →
+        promises_lookup_at prs1 id γ = Some pia1 ∧
         promise_stronger pia1 pia2.
 
   (* How to merge promises, intuitively?
@@ -1463,6 +1464,7 @@ Section next_gen_definition.
         ⌜ pred_prefix_list_for Rs p.(pi_rel) ⌝ ∧
         uPred_ownM (discrete_fun_singleton p.(pi_id)
           {[ p.(pi_γ) := map_unfold
+            (* Store the list of dependency gnames here. *)
             (cmra_transport eq (ε, ε, ε, ε, gV (◯ (to_max_prefix_list Rs)))) ]}
         )).
 
@@ -1734,10 +1736,14 @@ Section own_promises_properties.
     rewrite auth_frag_op_valid in Hv.
     apply to_max_prefix_list_op_valid_L in Hv as [Hv|Hv].
     - right.
-      eapply pred_prefix_list_for_prefix_of; done.
+      split.
+      + (* We need to store the list of gnames in the ghost state. *) admit.
+      + eapply pred_prefix_list_for_prefix_of; done.
     - left.
-      eapply pred_prefix_list_for_prefix_of; done.
-  Qed.
+      split.
+      + (* We need to store the list of gnames in the ghost state. *) admit.
+      + eapply pred_prefix_list_for_prefix_of; done.
+  Admitted.
 
   (* Lemma own_promises_sep prs1 prs2 : *)
   (*   own_promises prs1 -∗ *)
@@ -1788,6 +1794,23 @@ Section nextgen_properties.
     transmap_resp_promises transmap prs1 →
     transmap_resp_promises transmap prs2.
   Proof.
+    intros strong.
+    rewrite /transmap_resp_promises.
+    rewrite !Forall_forall.
+    intros resp [id γ pia2] elm.
+    destruct (strong id γ pia2) as (pia1 & look2 & stronger).
+    { (* This relies on [prs2] being well-formed. *) admit. }
+    destruct (resp (MkPromiseInfo id γ pia1)) as (? & ? & ? & ? & ?).
+    { apply promises_lookup_at_Some. done. }
+    eexists _, _.
+    split; first done.
+    split.
+    { rewrite /trans_at_deps. simpl.
+      destruct stronger as [<- ho].
+      apply H0. }
+    simpl.
+    apply stronger.
+    done.
   Admitted.
 
   Lemma nextgen_sep_2 P Q :
