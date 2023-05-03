@@ -1042,6 +1042,14 @@ Section promise_info.
   (* Proof. *)
   (* Admitted. *)
 
+  (** For every promise in [prs2] there is a stronger promise in [prs1]. *)
+  Definition promise_list_stronger prs1 prs2 : Prop :=
+    ∀ id γ pia2,
+      promises_lookup_at prs2 id γ = Some pia2 →
+      ∃ pia1,
+        promises_lookup_at prs1 id γ = Some pia1 →
+        promise_stronger pia1 pia2.
+
   (* How to merge promises, intuitively?
    * 1. From the first list add the suffix of promises not in the other.
    * 2. From the second list add the suffix of promises not in the other.
@@ -1050,16 +1058,14 @@ Section promise_info.
    *    - If one of them is stronger than the one in the other list then add that one.
    *    - If they are both weaker???
    *)
-  Lemma merge_promise_lists prs1 prs2 :
+  Lemma merge_promises prs1 prs2 :
     promises_wf prs1 →
     promises_wf prs2 →
     ∃ prs3,
       promises_wf prs3 ∧
       (∀ pi, pi ∈ prs3 → pi ∈ prs1 ∨ pi ∈ prs2) ∧
-      (∀ id γ pia1 pia2,
-        promises_lookup_at prs1 id γ = Some pia1 →
-        promises_lookup_at prs2 id γ = Some pia2 →
-        promise_stronger pia2 pia1).
+      promise_list_stronger prs3 prs1 ∧
+      promise_list_stronger prs3 prs2.
   Proof.
   Admitted.
 
@@ -1674,6 +1680,7 @@ End own_promises_properties.
 
 Section nextgen_properties.
   Context {Σ : gFunctors} {Ω : gGenCmras Σ}.
+  Implicit Types (P : iProp Σ) (Q : iProp Σ).
 
   Lemma res_for_picks_empty :
     res_for_picks (λ i : gid Σ, ∅) ε.
@@ -1704,18 +1711,52 @@ Section nextgen_properties.
     iFrame "E".
   Qed.
 
+  Lemma merge_picks_subset_l picks1 picks2 : picks1 ⊆ merge_picks picks1 picks2.
+  Proof.
+  Admitted.
+
+  Lemma merge_picks_subset_r picks1 picks2 : picks2 ⊆ merge_picks picks1 picks2.
+  Proof.
+  Admitted.
+
+  Lemma transmap_resp_promises_weak transmap prs1 prs2 :
+    promise_list_stronger prs1 prs2 →
+    transmap_resp_promises transmap prs1 →
+    transmap_resp_promises transmap prs2.
+  Proof.
+  Admitted.
+
   Lemma nextgen_sep_2 P Q :
-    (⚡==> P) ∗ (⚡==> Q) ⊢@{iProp Σ} ⚡==> (P ∗ Q) .
+    (⚡==> P) ∗ (⚡==> Q) ⊢ ⚡==> (P ∗ Q) .
   Proof.
     rewrite /nextgen.
     iIntros "[P Q]".
-    iDestruct "P" as (??) "(picks1 & pr1 & %wf1 & A)".
-    iDestruct "Q" as (??) "(picks2 & pr2 & %wf2 & B)".
+    iDestruct "P" as (? prs1) "(picks1 & pr1 & %wf1 & HP)".
+    iDestruct "Q" as (? prs2) "(picks2 & pr2 & %wf2 & HQ)".
+    destruct (merge_promises prs1 prs2) as (prs3 & ? & ? & ? & ?);
+      [done|done|].
     (* Combine the picks. *)
-    iExists _, _.
+    iExists _, prs3.
     iDestruct (own_picks_sep with "picks1 picks2") as "$".
-    (* Combine the promises. *)
-  Admitted.
+    iSplitL "pr1 pr2".
+    { (* (* Maybe the following could be a lemma. *) *)
+      iIntros (pi elm).
+      edestruct (H0) as [elm2|elm2]; first apply elm.
+      - iDestruct ("pr1" $! _ elm2) as (??) "?".
+        iExists _, _. iFrame.
+      - iDestruct ("pr2" $! _ elm2) as (??) "?".
+        iExists _, _. iFrame. }
+    iSplit; first done.
+    iIntros (fp vv a b).
+    iSpecialize ("HP" $! fp vv with "[%] [%]").
+    { eapply transmap_resp_promises_weak; done. }
+    { etrans; last done. apply merge_picks_subset_l. }
+    iSpecialize ("HQ" $! fp vv with "[%] [%]").
+    { eapply transmap_resp_promises_weak; done. }
+    { etrans; last done. apply merge_picks_subset_r. }
+    iModIntro.
+    iFrame.
+  Qed.
 
 End nextgen_properties.
 
