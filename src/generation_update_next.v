@@ -528,10 +528,20 @@ Section transmap.
     λ p1 p2, ∀ i, p1 i ⊆ p2 i.
 
   #[global]
-  Instance transmap_subseteq_partialorder : PartialOrder transmap_subseteq.
-  Proof.
-    split.
-  Admitted.
+  Instance transmap_subseteq_reflexive : Reflexive transmap_subseteq.
+  Proof. intros ??. done. Qed.
+
+  #[global]
+  Instance transmap_subseteq_transitive : Transitive transmap_subseteq.
+  Proof. intros ??? H1 H2 ?. etrans. - apply H1. - apply H2. Qed.
+
+  #[global]
+  Instance transmap_subseteq_preorder : PreOrder transmap_subseteq.
+  Proof. constructor; apply _. Qed.
+
+  #[global]
+  Instance transmap_subseteq_antisym : AntiSymm eq transmap_subseteq.
+  Proof. intros ?? H1 H2. (* apply function_extensionality. lol jk. *) Abort.
 
   #[global]
   Instance transmap_union : Union TransMap :=
