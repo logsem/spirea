@@ -274,7 +274,7 @@ Definition generational_cmra {n} A (DS : ivec n Type) : Type :=
   option (agree (A → A)) * (* Agreement on transformation into generation *)
   GTS (A → A) * (* Facilitates choice of transformation out of generation *)
   option A * (* Ownership over A *)
-  option (agree (list gname)) * (* Gname of dependencies, we don't need to
+  option (agree (list gname)) * (* Gname of dependencies - we don't need to
                                  * store their [gid] as that is static. *)
   gen_pv (auth (promises A DS)) (* List of promises *).
 
@@ -1043,6 +1043,7 @@ Section promise_info.
       done.
   Qed.
 
+  (** [pia1] is a better promise than [pia2]. *)
   Definition promise_stronger {id} (pia1 pia2 : promise_info_at _ id) : Prop :=
     pia1.(pi_deps_γs) = pia2.(pi_deps_γs) ∧ (* maybe this req can be handled in a slightly less ad-hoc manner *)
     rel_stronger pia1.(pi_rel) pia2.(pi_rel)
@@ -1465,7 +1466,11 @@ Section next_gen_definition.
         uPred_ownM (discrete_fun_singleton p.(pi_id)
           {[ p.(pi_γ) := map_unfold
             (* Store the list of dependency gnames here. *)
-            (cmra_transport eq (ε, ε, ε, ε, gV (◯ (to_max_prefix_list Rs)))) ]}
+            (cmra_transport eq (
+              ε, ε, ε,
+              Some (to_agree (ivec_to_list p.(pi_deps_γs))),
+              gV (◯ (to_max_prefix_list Rs))
+            )) ]}
         )).
 
   (* The global transformation [fG] respects the entries in [picks].
@@ -1729,21 +1734,22 @@ Section own_promises_properties.
     rewrite map_unfold_validI.
     rewrite -cmra_transport_op.
     rewrite cmra_transport_validI.
-    rewrite -pair_op.
+    rewrite -2!pair_op.
     rewrite prod_validI /=.
-    iDestruct "Hv" as "[_ %Hv]". iPureIntro.
+    rewrite prod_validI /=.
+    iDestruct "Hv" as "[[_ %Hv2] %Hv]". iPureIntro.
+    rewrite -Some_op Some_valid to_agree_op_valid_L in Hv2.
+    apply ivec_to_list_inj in Hv2.
     rewrite gen_pv_op gen_pv_valid in Hv.
     rewrite auth_frag_op_valid in Hv.
     apply to_max_prefix_list_op_valid_L in Hv as [Hv|Hv].
     - right.
-      split.
-      + (* We need to store the list of gnames in the ghost state. *) admit.
-      + eapply pred_prefix_list_for_prefix_of; done.
+      split; first done.
+      eapply pred_prefix_list_for_prefix_of; done.
     - left.
-      split.
-      + (* We need to store the list of gnames in the ghost state. *) admit.
-      + eapply pred_prefix_list_for_prefix_of; done.
-  Admitted.
+      split; first done.
+      eapply pred_prefix_list_for_prefix_of; done.
+  Qed.
 
   (* Lemma own_promises_sep prs1 prs2 : *)
   (*   own_promises prs1 -∗ *)
