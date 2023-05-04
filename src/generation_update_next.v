@@ -2116,53 +2116,10 @@ Section rules.
   Proof.
   Admitted.
 
-  Lemma token_nextgen γ γs (R : pred_over DS A) P :
-    used_token γ γs R P ⊢ ⚡==> token γ γs R P.
-  Proof.
-    iDestruct 1 as (? (HPL & ?)) "own".
-    destruct HPL as (? & ?).
-
-    iExists (λ i, ∅), [].
-    iSplitL "". { iApply own_picks_empty. }
-    iSplitL "". { iApply own_promises_empty. }
-    iSplit; first done.
-    iIntros (full_picks ?).
-    iEval (rewrite own.own_eq) in "own".
-    rewrite /own.own_def.
-    (* iModIntro. *)
-  Admitted.
-  (*   iDestruct (uPred_own_resp_omega _ _ with "own") as (to) "(%cond & own)". *)
-  (*   { done. } *)
-  (*   simpl in cond. *)
-  (*   destruct cond as (t & -> & cond). *)
-  (*   iExists t. *)
-  (*   iSplit; first done. *)
-  (*   simpl. *)
-  (*   rewrite /gen_picked_in. *)
-  (*   rewrite -own_op. *)
-  (*   rewrite own.own_eq. *)
-  (*   iFrame "own". *)
-  (* Qed. *)
-
-  (* TODO: Prove this lemma. *)
-  Lemma rely_nextgen γ γs (R : pred_over DS A) P `{∀ (i : fin n), genInSelfG Σ Ω (DS !!! i)} :
-    rely γ γs R P
-    ⊢ ⚡==> (
-      rely γ γs R P ∗
-      ∃ (t : A → A) (ts : trans_for n DS),
-        ⌜ huncurry R ts t ∧ (* The transformations satisfy the promise *)
-          P t ⌝ ∗ (* For convenience we also get this directly *)
-        gen_picked_in γ t ∗
-        (* The transformations for the dependencies are the "right" ones *)
-        (∀ i, gen_picked_in (γs !!! i) (hvec_lookup_fmap ts i))).
-  Proof.
-    rewrite /rely.
-    iNamed 1.
-  Admitted.
-
   Lemma token_to_rely γ γs (R : pred_over DS A) P :
     token γ γs R P ⊢ rely γ γs R P.
-  Proof. Admitted.
+  Proof.
+  Admitted.
 
   Lemma token_rely_combine_pred γ γs R1 P1 R2 P2 :
     token γ γs R1 P1 -∗ rely γ γs R2 P2 -∗ ⌜ rel_stronger R1 R2 ⌝.
@@ -2230,6 +2187,77 @@ Section rules.
   Qed.
 
 End rules.
+
+Section nextgen_assertion_rules.
+  (* Rules about the nextgen modality. *)
+  Context {n : nat} {DS : ivec n cmra} `{!genInG Σ Ω A DS}.
+
+  Lemma know_deps_nextgen γ γs :
+    know_deps γ γs ⊢ ⚡==> know_deps γ γs.
+  Proof.
+    rewrite /know_deps.
+    iIntros "H".
+    iExists (λ i, ∅), [].
+    iSplitL "". { iApply own_picks_empty. }
+    iSplitL "". { iApply own_promises_empty. }
+    iSplit; first done.
+    iIntros (full_picks ?) "? %sub".
+    iEval (rewrite own.own_eq) in "H".
+    rewrite /own.own_def.
+    iModIntro.
+    simpl.
+    iEval (rewrite own.own_eq).
+    rewrite /own.own_def.
+    simpl.
+    (* We need a lemma for [build_trans]. *)
+    (* rewrite /build_trans. simpl. *)
+  Admitted.
+
+  Lemma token_nextgen γ γs (R : pred_over DS A) P :
+    used_token γ γs R P ⊢ ⚡==> token γ γs R P.
+  Proof.
+    iDestruct 1 as (? (HPL & ?)) "own".
+    destruct HPL as (? & ?).
+
+    iExists (λ i, ∅), [].
+    iSplitL "". { iApply own_picks_empty. }
+    iSplitL "". { iApply own_promises_empty. }
+    iSplit; first done.
+    iIntros (full_picks ?).
+    iEval (rewrite own.own_eq) in "own".
+    rewrite /own.own_def.
+    (* iModIntro. *)
+  Admitted.
+  (*   iDestruct (uPred_own_resp_omega _ _ with "own") as (to) "(%cond & own)". *)
+  (*   { done. } *)
+  (*   simpl in cond. *)
+  (*   destruct cond as (t & -> & cond). *)
+  (*   iExists t. *)
+  (*   iSplit; first done. *)
+  (*   simpl. *)
+  (*   rewrite /gen_picked_in. *)
+  (*   rewrite -own_op. *)
+  (*   rewrite own.own_eq. *)
+  (*   iFrame "own". *)
+  (* Qed. *)
+
+  (* TODO: Prove this lemma. *)
+  Lemma rely_nextgen γ γs (R : pred_over DS A) P `{∀ (i : fin n), genInSelfG Σ Ω (DS !!! i)} :
+    rely γ γs R P
+    ⊢ ⚡==> (
+      rely γ γs R P ∗
+      ∃ (t : A → A) (ts : trans_for n DS),
+        ⌜ huncurry R ts t ∧ (* The transformations satisfy the promise *)
+          P t ⌝ ∗ (* For convenience we also get this directly *)
+        gen_picked_in γ t ∗
+        (* The transformations for the dependencies are the "right" ones *)
+        (∀ i, gen_picked_in (γs !!! i) (hvec_lookup_fmap ts i))).
+  Proof.
+    rewrite /rely.
+    iNamed 1.
+  Admitted.
+
+End nextgen_assertion_rules.
 
 Equations forall_fin_2 (P : fin 2 → Type) : P 0%fin * P 1%fin → ∀ (i : fin 2), P i :=
 | P, p, 0%fin => fst p
