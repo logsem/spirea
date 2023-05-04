@@ -331,6 +331,11 @@ Proof.
   solve_proper.
 Qed.
 
+Global Instance gen_generation_ne {n} {A : cmra} (DS : ivec n cmra) (f : A → A) :
+  NonExpansive f →
+  NonExpansive (gen_cmra_trans DS f).
+Proof. solve_proper. Qed.
+
 (* Working with the 5-tuple is sometimes annoying. Then these lemmas help. *)
 Lemma prod_valid_1st {Σ}
   {A B C D E : cmra} (a : A) (b : B) (c : C) (d : D) (e : E) f g h i j :
@@ -607,24 +612,41 @@ Section transmap.
   (** Build a global generational transformation based on the transformations
    * in [transmap]. *)
   Definition build_trans (transmap : TransMap) : (iResUR Σ → iResUR Σ) :=
-    λ (m : iResUR Σ) (i : gid Σ),
+    λ (m : iResUR Σ), λ (i : gid Σ),
       match Oeq Ω i with
       | Some2 eq =>
         map_imap (λ γ (a : Rpre Σ i),
-        (* If the map of transmap contains a transformation then we apply the
-         * transformation. If no pick exists then we return the elemment
-         * unchanged. Hence, we default to the identity transformation. *)
-        match transmap i !! γ with
-        | Some picked_gt =>
-            let trans := cmra_map_transport eq (gen_cmra_trans _ (picked_gt))
-            in Some $ map_unfold $ trans $ map_fold a
-        | None => Some a
-        end) (m i)
+          (* If the map of transmap contains a transformation then we apply the
+           * transformation otherwise we leave the element unchanged. In all
+           * cases we apply something of the form [cmra_map_transport]. *)
+          let inner_trans := default (λ a, a) (transmap i !! γ) in
+          let trans := cmra_map_transport eq (gen_cmra_trans _ inner_trans)
+          in Some $ map_unfold $ trans $ map_fold a
+        ) (m i)
       | None2 => m i
       end.
 
   Lemma core_Some_pcore {A : cmra} (a : A) : core (Some a) = pcore a.
   Proof. done. Qed.
+
+  Lemma build_trans_singleton {A n} (DS : ivec n cmra) {i : genInG Σ Ω A DS}
+      (γ : gname) picks a b c d e f :
+    build_trans picks (
+      own.iRes_singleton γ ((a, b, c, d, e) : generational_cmraR A DS)) ≡
+        own.iRes_singleton γ (f : generational_cmraR A DS).
+  Proof.
+    rewrite /build_trans. simpl.
+    intros id.
+    rewrite /own.iRes_singleton.
+    destruct (decide (id = inG_id genInG_inG)) as [eq|neq].
+    - rewrite eq.
+      clear id eq.
+      rewrite /Oeq. simpl.
+      (* pose proof genInG_gen_trans. *)
+      admit.
+    - simpl.
+      admit.
+  Abort.
 
   #[global]
   Lemma build_trans_generation transmap :
@@ -638,36 +660,36 @@ Section transmap.
       specialize (eq i γ).
       destruct (Oeq Ω i); last apply eq.
       rewrite 2!map_lookup_imap.
-      destruct (y i !! γ) as [b|] eqn:look1; rewrite look1; rewrite look1 in eq; simpl.
+      destruct (y i !! γ) as [b|] eqn:look1;
+        rewrite look1; rewrite look1 in eq; simpl.
       2: { apply dist_None in eq. rewrite eq. done. }
-      (* destruct eq as [a b eq'|hipo] eqn:qqq; simpl. 2: { } last done. *)
       apply dist_Some_inv_r' in eq as (a & look2 & eq).
       apply symmetry in eq.
       rewrite look2.
-      destruct (transmap i !! γ) eqn:look.
-      * apply transmapGT in look as [gt ?]. simpl.
-        admit.
-        (* Trivial but Coq is stupid. *)
-        (* solve_proper. *)
-      * solve_proper.
+      destruct (transmap i !! γ) eqn:look; simpl.
+      2: { solve_proper. }
+      apply transmapGT in look as [gt ?].
+      solve_proper.
     - intros ?? Hval.
       intros i γ.
       destruct (Oeq Ω i); last apply Hval.
-      rewrite !map_lookup_imap. simpl.
+      rewrite !map_lookup_imap.
       specialize (Hval i γ).
       destruct (a i !! γ) eqn:eq; rewrite eq /=; last done.
       rewrite eq in Hval.
+      apply Some_validN.
+      apply: cmra_morphism_validN.
+      (* rewrite /cmra_map_transport. *)
       destruct (transmap i !! γ) as [pick|] eqn:eq2.
-      * apply Some_validN.
+      * simpl.
+        specialize (transmapGT i γ pick eq2) as GT.
+        apply: cmra_map_transport_validN.
         apply: cmra_morphism_validN.
-        apply Some_validN.
-        specialize (transmapGT i γ pick eq2) as [??].
-        rewrite /cmra_map_transport.
-        admit.
-        (* apply generation_valid. *)
-        (* apply: cmra_morphism_validN. *)
-        (* apply Hval. *)
-      * done.
+        apply Hval.
+      * simpl.
+        apply: cmra_map_transport_validN.
+        apply: cmra_morphism_validN.
+        apply Hval.
     - move=> m /=.
       rewrite cmra_pcore_core.
       simpl.
@@ -680,17 +702,17 @@ Section transmap.
       destruct (m i !! γ) as [a|] eqn:look; rewrite look; simpl; last done.
       simpl.
       rewrite core_Some_pcore.
+      rewrite core_Some_pcore.
       destruct (transmap i !! γ) as [pick|] eqn:pickLook; simpl.
-      * rewrite core_Some_pcore.
-        rewrite -cmra_morphism_pcore.
+      * rewrite -cmra_morphism_pcore.
         specialize (transmapGT i γ pick pickLook) as ?.
         admit.
         (* rewrite -generation_pcore. *)
         (* rewrite -(cmra_morphism_pcore map_fold). *)
         (* (* rewrite -cmra_morphism_pcore. *) *)
         (* destruct (pcore a); try done. *)
-      * rewrite core_Some_pcore.
-        destruct (pcore a); done.
+      * (* destruct (pcore a); try done. *)
+        admit.
     - intros m1 m2.
       intros i γ.
       rewrite 2!discrete_fun_lookup_op.
@@ -698,16 +720,23 @@ Section transmap.
       rewrite !map_lookup_imap.
       rewrite 2!lookup_op.
       rewrite !map_lookup_imap.
+      destruct (m1 i !! γ) eqn:eq1; destruct (m2 i !! γ) eqn:eq2;
+        rewrite eq1 eq2; simpl; try done.
+      rewrite -Some_op.
+      f_equiv.
+      rewrite map_unfold_op.
+      f_equiv.
       destruct (transmap i !! γ) as [pick|] eqn:pickLook.
       * specialize (transmapGT i γ pick pickLook) as ?.
-        destruct (m1 i !! γ) eqn:eq1; destruct (m2 i !! γ) eqn:eq2;
-          rewrite eq1 eq2; simpl; try done.
-        rewrite -Some_op.
-        admit.
-        (* rewrite -cmra_morphism_op -generation_op -cmra_morphism_op. *)
-        (* done. *)
-      * destruct (m1 i !! γ) eqn:eq1; destruct (m2 i !! γ) eqn:eq2;
-          rewrite eq1 eq2; simpl; try done.
+        rewrite -cmra_map_transport_op.
+        f_equiv.
+        rewrite -cmra_morphism_op.
+        done.
+      * simpl.
+        rewrite -cmra_map_transport_op.
+        f_equiv.
+        rewrite -cmra_morphism_op.
+        done.
   Admitted.
 
   (** A map of picks that for the resource at [idx] and the ghost name [γ] picks
