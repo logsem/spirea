@@ -125,17 +125,39 @@ Definition cmra_map_transport {A B : cmra}
     (Heq : A = B) (f : A → A) : (B → B) :=
   eq_rect A (λ T, T → T) f _ Heq.
 
-Lemma cmra_map_transport_cmra_transport {A B : cmra}
-    (f : A → A) a (Heq : A = B) :
-  (cmra_map_transport Heq f) (cmra_transport Heq a) =
-  (cmra_transport Heq (f a)).
-Proof. destruct Heq. simpl. reflexivity. Qed.
+Section cmra_map_transport.
+  Context {A B : cmra} (eq : A = B).
 
-Global Instance cmra_map_transport_proper {A B : cmra}
-    (f : A → A) (Heq : A = B) :
-  (Proper ((≡) ==> (≡)) f) →
-  (Proper ((≡) ==> (≡)) (cmra_map_transport Heq f)).
-Proof. naive_solver. Qed.
+  #[global]
+  Instance cmra_map_transport_ne' f :
+    NonExpansive f →
+    NonExpansive (cmra_map_transport (A := A) (B := B) eq f).
+  Proof. solve_proper. Qed.
+
+  Lemma cmra_map_transport_cmra_transport
+      (f : A → A) a :
+    (cmra_map_transport eq f) (cmra_transport eq a) =
+    (cmra_transport eq (f a)).
+  Proof. destruct eq. simpl. reflexivity. Qed.
+
+  Global Instance cmra_map_transport_proper (f : A → A) :
+    (Proper ((≡) ==> (≡)) f) →
+    (Proper ((≡) ==> (≡)) (cmra_map_transport eq f)).
+  Proof. naive_solver. Qed.
+
+  Lemma cmra_map_transport_op f `{!GenTrans f} x y :
+    cmra_map_transport eq f (x ⋅ y) ≡
+      cmra_map_transport eq f x ⋅ cmra_map_transport eq f y.
+  Proof. destruct eq. simpl. apply: generation_op. Qed.
+
+  (* Lemma cmra_map_transport_core x : T (core x) = core (T x). *)
+  (* Proof. by destruct H. Qed. *)
+
+  Lemma cmra_map_transport_validN n f `{!GenTrans f} a :
+    ✓{n} a → ✓{n} cmra_map_transport eq f a.
+  Proof. destruct eq. apply generation_valid. Qed.
+
+End cmra_map_transport.
 
 (* Resources for generational ghost state. *)
 
@@ -491,13 +513,15 @@ End omega_helpers.
 (* Definition Ocs'' {Σ} (Ω : gGenCmras Σ) i : ivec (On Ω i) cmra := Ocs' Ω i. *)
 
 Class genInG {n} (Σ : gFunctors) Ω (A : cmra) (DS : ivec n cmra) := GenInG {
-  genInG_inG : inG Σ (generational_cmraR A DS);
+  genInG_inG : inG Σ (@generational_cmraR n A DS);
   genInG_inG_deps : ∀ i d, DS !!! i = d → inG Σ (generational_cmraR A DS);
   (* genInG_id : gid Σ; *)
   (* genInG_apply := rFunctor_apply (gFunctors_lookup Σ genInG_id); *)
   genInG_gti : gen_cmra_data Σ (inG_id genInG_inG);
   genInG_gen_trans : Ω.(gc_map) (inG_id genInG_inG) = Some2 genInG_gti;
   genInG_gti_typ : A = genInG_gti.(gcd_cmra);
+  genInG_gcd_n : genInG_gti.(gcd_n) = n;
+  genInG_gcd_deps : DS = eq_rect _ (λ n, ivec n _) genInG_gti.(gcd_deps) _ genInG_gcd_n;
   (* genInG_prf : A = genInG_apply (iPropO Σ) _; *)
   (* genInG_gen_trans2 : *)
   (*   genInG_gti.(gti_valid) = *)
@@ -628,6 +652,93 @@ Section transmap.
 
   Lemma core_Some_pcore {A : cmra} (a : A) : core (Some a) = pcore a.
   Proof. done. Qed.
+
+  Lemma Oc_inG {A n} {DS : ivec n cmra} {i : genInG Σ Ω A DS} :
+    Oc Ω (inG_id genInG_inG) = gcd_cmra genInG_gti.
+  Proof.
+    rewrite /Oc.
+    rewrite genInG_gen_trans.
+    done.
+  Qed.
+
+  Lemma On_inG' {n} id gti
+      (eq1 : Ω.(gc_map) id = Some2 gti)
+      (eq2 : gti.(gcd_n) = n) :
+    match Ω.(gc_map) id with
+    | Some2 gcd => gcd.(gcd_n)
+    | None2 => 0
+    end = n.
+  Proof.
+    rewrite eq1.
+    rewrite eq2.
+    reflexivity.
+  Qed.
+
+  Lemma On_inG {A n} {DS : ivec n cmra} {i : genInG Σ Ω A DS} :
+    On Ω (inG_id genInG_inG) = n.
+  Proof.
+    apply (On_inG' (inG_id genInG_inG) (_) genInG_gen_trans (genInG_gcd_n (genInG := i))).
+  Defined.
+
+  (* Lemma Ocd_inG {n} {DS : ivec n cmra} id *)
+  (*   (eq : On Ω id = n) : *)
+  (*   (* Ocs Ω (inG_id genInG_inG) = eq_rect _ (λ n, ivec n _) DS _ On_inG. *) *)
+  (*   (* eq_rect _ (λ n, ivec n _) (Ocs Ω (inG_id genInG_inG)) _ On_inG = DS. *) *)
+  (*   match eq in (_ = nn) return ivec nn cmra with *)
+  (*     eq_refl => Ocs Ω id *)
+  (*   end = DS. *)
+  (* Proof. *)
+  (*   destruct eq. *)
+  (* Qed. *)
+
+  Lemma Ocd_inG {A n} {DS : ivec n cmra} {i : genInG Σ Ω A DS} :
+    match On_inG in (_ = nn) return ivec nn cmra with
+      eq_refl => Ocs Ω (inG_id genInG_inG)
+    end = DS.
+  Proof.
+    rewrite /On_inG.
+    rewrite /Ocs.
+    destruct i.
+    destruct genInG_inG0.
+    simpl.
+    rewrite genInG_gcd_deps0.
+    clear genInG_gcd_deps0.
+    destruct (On_inG' inG_id genInG_gti0 genInG_gen_trans0 genInG_gcd_n0).
+    destruct genInG_gti0.
+    simpl in *.
+    clear -genInG_gcd_n0 genInG_gen_trans0.
+    destruct (gc_map inG_id).
+    2: { congruence. }
+    destruct g. simpl in *.
+    destruct genInG_gcd_n0.
+    simpl.
+    inversion genInG_gen_trans0.
+    apply inj_right_pair in H1.
+    congruence.
+  Qed.
+
+  (* Lemma foo {A n} {DS : ivec n cmra} {i : genInG Σ Ω A DS} : *)
+  (*   generational_cmraR (gcd_cmra genInG_gti) (gcd_deps genInG_gti) = *)
+  (*     generational_cmraR (Oc Ω (inG_id genInG_inG)) (_). *)
+  (* Proof. *)
+  (* Qed. *)
+
+  (* Lemma Ocs_inG {A n} {DS : ivec n cmra} {i : genInG Σ Ω A DS} : *)
+  (*   Ocs Ω (inG_id genInG_inG) = eq_rect _ (λ c, ivec _ c) genInG_gti.(gcd_deps) _ Oc_inG. *)
+  (* Proof. *)
+  (*   rewrite /Oc. *)
+  (*   rewrite genInG_gen_trans. *)
+  (*   done. *)
+  (* Qed. *)
+
+  (* Lemma Oeq_inG {A n} (DS : ivec n cmra) {i : genInG Σ Ω A DS} : *)
+  (*   Oeq Ω (inG_id genInG_inG) = *)
+  (*     Some2 genInG_gti.(gcd_cmra_eq). *)
+  (*     Some2 (eq_rect _ (λ c, c = rFunctor_apply (gFunctors_lookup Σ _) (iPropO Σ)) Oc_inG _ genInG_gti.(gcd_cmra_eq)). *)
+  (* Proof. *)
+  (*   rewrite /Oeq. *)
+  (*   pose proof genInG_gen_trans. *)
+  (* Qed. *)
 
   Lemma build_trans_singleton {A n} (DS : ivec n cmra) {i : genInG Σ Ω A DS}
       (γ : gname) picks a b c d e f :
