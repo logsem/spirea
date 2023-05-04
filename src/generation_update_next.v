@@ -12,6 +12,9 @@ From self Require Import hvec extra basic_nextgen_modality gen_trans
 
 Import uPred.
 
+#[global] Instance eqdecision_eqdec a : EqDecision a → EqDec a.
+Proof. done. Qed.
+
 (** A copy of [option] to work arround universe inconsistencies that arrise if
 we use [option]. *)
 Inductive option2 (A : Type) : Type :=
@@ -1017,6 +1020,43 @@ Section promise_info.
       done.
   Qed.
 
+  Lemma promises_wf_elem_of_head id γ pia1 pia2 promises :
+    promises_wf ({| pi_id := id; pi_γ := γ; pi_at := pia2 |} :: promises) →
+    {| pi_id := id; pi_γ := γ; pi_at := pia1 |}
+      ∈ {| pi_id := id; pi_γ := γ; pi_at := pia2 |} :: promises →
+    pia1 = pia2.
+  Proof.
+    intros [(diff & ?) ?].
+    intros [eq|?]%elem_of_cons.
+    - inversion eq.
+      apply inj_right_pair.
+      done.
+    - destruct (diff _ H1) as [neq|neq]; simpl in neq; congruence.
+  Qed.
+
+  Lemma promises_elem_of promises id γ pia :
+    promises_wf promises →
+    MkPromiseInfo id γ pia ∈ promises →
+    promises_lookup_at promises id γ = Some pia.
+  Proof.
+    intros wf.
+    induction promises as [|[id' γ' ?] ? IH]; first by inversion 1.
+    rewrite promises_lookup_at_equation_2.
+    rewrite promises_lookup_at_clause_2_equation_1.
+    simpl.
+    destruct (decide (id' = id)) as [->|neq].
+    - destruct (decide (γ' = γ)) as [->|neq].
+      * simpl.
+        intros ?%promises_wf_elem_of_head; [congruence | assumption].
+      * rewrite promises_lookup_at_clause_2_clause_1_equation_2.
+        simpl.
+        intros [?|?]%elem_of_cons; first congruence.
+        apply IH; [apply wf | done].
+    - rewrite promises_lookup_at_clause_2_clause_1_equation_3.
+      intros [?|?]%elem_of_cons; first congruence.
+      apply IH; [apply wf | done].
+  Qed.
+
   (** [pia1] is a better promise than [pia2]. *)
   Definition promise_stronger {id} (pia1 pia2 : promise_info_at _ id) : Prop :=
     pia1.(pi_deps_γs) = pia2.(pi_deps_γs) ∧ (* maybe this req can be handled in a slightly less ad-hoc manner *)
@@ -1032,8 +1072,8 @@ Section promise_info.
       promises_lookup_at prs2 id γ = Some p2 →
       promise_stronger p1 p2 ∨ promise_stronger p2 p1.
 
-  (* (* FIXME: We need to take the strongest promise when two exist for the same *)
-  (*  * idx and gname. *) *)
+  (* (* NOTE: We can note merge promises with a definition as we need to rely
+      * on evidence that is in [Prop]. *) *)
   (* Fixpoint merge_promises prs1 prs2 := *)
   (*   match prs1 with *)
   (*   | [] => prs2 *)
@@ -1042,12 +1082,6 @@ Section promise_info.
   (*     then p :: (merge_promises prs1' prs2) *)
   (*     else merge_promises prs1' prs2 *)
   (*   end. *)
-
-  (* Lemma merge_promises_elem p prs1 prs2 : *)
-  (*   p ∈ merge_promises prs1 prs2 → *)
-  (*   p ∈ prs1 ∨ p ∈ prs2. *)
-  (* Proof. *)
-  (* Admitted. *)
 
   (** For every promise in [prs2] there is a stronger promise in [prs1]. *)
   Definition promise_list_stronger prs1 prs2 : Prop :=
@@ -1726,16 +1760,17 @@ Section nextgen_properties.
   Qed.
 
   Lemma transmap_resp_promises_weak transmap prs1 prs2 :
+    promises_wf prs2 →
     promise_list_stronger prs1 prs2 →
     transmap_resp_promises transmap prs1 →
     transmap_resp_promises transmap prs2.
   Proof.
-    intros strong.
+    intros wf strong.
     rewrite /transmap_resp_promises.
     rewrite !Forall_forall.
     intros resp [id γ pia2] elm.
     destruct (strong id γ pia2) as (pia1 & look2 & stronger).
-    { (* This relies on [prs2] being well-formed. *) admit. }
+    { apply promises_elem_of; done. }
     destruct (resp (MkPromiseInfo id γ pia1)) as (? & ? & ? & ? & ?).
     { apply promises_lookup_at_Some. done. }
     eexists _, _.
@@ -1747,7 +1782,7 @@ Section nextgen_properties.
     simpl.
     apply stronger.
     done.
-  Admitted.
+  Qed.
 
   Lemma nextgen_sep_2 P Q :
     (⚡==> P) ∗ (⚡==> Q) ⊢ ⚡==> (P ∗ Q) .
