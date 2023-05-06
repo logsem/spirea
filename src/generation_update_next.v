@@ -10,6 +10,7 @@ From iris_named_props Require Import named_props.
 From self Require Import hvec extra basic_nextgen_modality gen_trans
   gen_single_shot gen_pv.
 
+Import EqNotations. (* Get the [rew] notation. *)
 Import uPred.
 
 #[global] Instance eqdecision_eqdec a : EqDecision a → EqDec a.
@@ -437,61 +438,122 @@ Class gGenCmras (Σ : gFunctors) := {
   gc_map_wf : omega_wf gc_map;
 }.
 
-Global Arguments gc_map {_} {_}.
+Global Arguments gc_map {_} _.
 
 #[export] Hint Mode gGenCmras +.
 
-Section omega_helpers.
-  Context {Σ : gFunctors}.
-  Implicit Types (Ω : gGenCmras Σ).
 
   (* Various helpers to lookup values in [Ω], hiding the partiality of the map. *)
 
   (** Lookup the camera in [Ω] at the index [i] *)
-  Definition Oc Ω i : cmra :=
-    match Ω.(gc_map) i with
+  #[global]
+  Notation Oc Ω i :=
+    (match Ω.(gc_map) i with
     | Some2 gcd => gcd.(gcd_cmra)
     | None2 => unit
-    end.
+    end).
 
   (** Lookup the number of depenencies in [Ω] at the index [i] *)
-  Definition On Ω i : nat :=
-    match Ω.(gc_map) i with
+  #[global]
+  Notation On Ω i :=
+    (match Ω.(gc_map) i with
     | Some2 gcd => gcd.(gcd_n)
     | None2 => 0
-    end.
+    end).
+
+  (** Lookup the dependency cameras in [Ω] at the index [i] *)
+  #[global]
+  Notation Ocs Ω i :=
+    (match Ω.(gc_map) i as o return ivec (
+      match o with Some2 gcd12 => gcd12.(gcd_n) | None2 => 0 end
+    ) _ with
+    | Some2 gcd => gcd.(gcd_deps)
+    | Nil2 => inil
+    end).
 
   (* The remaining helpers are defined using tactics as I could not get Equations
    * to unfold [On], [Oc] and [Ocs] and the definitions need the unfoldings in
    * order to type-check. *)
 
-  (** Lookup the number of depenencies in [Ω] at the index [i] *)
-  Definition Oids Ω i : ivec (On Ω i) (gid Σ).
-  Proof.
-    rewrite /On.
-    destruct Ω.(gc_map) as [gcd|].
-    - apply gcd.(gcd_deps_ids).
-    - apply inil.
-  Defined.
+  (* (** Lookup the number of depenencies in [Ω] at the index [i] *) *)
+  (* Equations Oids Ω i : ivec (On Ω i) (gid Σ) := *)
+  (*   | Ω, i with Ω.(gc_map) i => { *)
+  (*     | Some2 gcccd => gcccd.(gcd_deps_ids) *)
+  (*     | Nil2 => inil *)
+  (*   }. *)
 
-  (** Lookup the dependency cameras in [Ω] at the index [i] *)
-  Definition Ocs Ω i : ivec (On Ω i) cmra.
-  Proof.
-    rewrite /On.
-    destruct Ω.(gc_map) as [gcd|].
-    - apply gcd.(gcd_deps).
-    - apply inil.
-  Defined.
+Section omega_helpers.
+  Context {Σ : gFunctors}.
+  Implicit Types (Ω : gGenCmras Σ).
+  (** Lookup the number of depenencies in [Ω] at the index [i] *)
+  Definition Oids Ω i : ivec (On Ω i) (gid Σ) :=
+    match Ω.(gc_map) i as o return ivec (
+      match o with Some2 gcd12 => gcd12.(gcd_n) | None2 => 0 end
+    ) (gid Σ) with
+    | Some2 gcd => gcd.(gcd_deps_ids)
+    | Nil2 => inil
+    end.
+
+  (* (** Lookup the number of depenencies in [Ω] at the index [i] *) *)
+  (* Definition Oids Ω i : ivec (On Ω i) (gid Σ). *)
+  (* Proof. *)
+  (*   rewrite /On. *)
+  (*   destruct (Ω.(gc_map) i) as [gcd|]. *)
+  (*   - apply gcd.(gcd_deps_ids). *)
+  (*   - apply inil. *)
+  (* Defined. *)
+
+  Equations Oeq' Ω i : option2 (generational_cmraR (Oc Ω i) (Ocs Ω i) = R Σ i) :=
+  | Ω, i with Ω.(gc_map) i => {
+    | Some2 gcccd => Some2 gcccd.(gcd_cmra_eq)
+    | None2 => None2
+  }.
 
   (** Lookup the dependency cameras in [Ω] at the index [i] *)
   Definition Oeq Ω i :
-    option2 (generational_cmraR (Oc Ω i) (Ocs Ω i) = R Σ i).
-  Proof.
-    rewrite /On /Oc /Ocs.
-    destruct Ω.(gc_map) as [gcd|].
-    - constructor. apply gcd.(gcd_cmra_eq).
-    - apply None2.
-  Defined.
+    option2 (generational_cmraR (Oc Ω i) (Ocs Ω i) = R Σ i) :=
+    (match Ω.(gc_map) i as o return 
+    (
+ option2
+    (generational_cmraR
+       match o with
+       | Some2 gcd => gcd_cmra gcd
+       | None2 => unitR
+       end
+       match
+         o
+         return
+           (ivec match o with
+                 | Some2 gcd12 => gcd_n gcd12
+                 | None2 => 0
+                 end cmra)
+       with
+       | Some2 gcd => gcd_deps gcd
+       | None2 => []
+       end = rFunctor_apply (gFunctors_lookup Σ i) (iPropO Σ))
+    )
+    (*   match o with *)
+    (*   | Some2 gcd12 => generational_cmraR gcd12.(gcd_cmra) gcd12.(gcd_deps) = _ *)
+    (*   | None2 => generational_cmraR unit inil = _ end *)
+    (* ) *)
+    with
+    | Some2 gcd => Some2 gcd.(gcd_cmra_eq)
+    | None2 => None2
+    end).
+  (*   destruct Ω.(gc_map) as [gcd|]. *)
+  (*   - apply Some2. apply gcd.(gcd_cmra_eq). *)
+  (*   - apply None2. *)
+  (* Defined. *)
+
+  (* (** Lookup the dependency cameras in [Ω] at the index [i] *) *)
+  (* Definition Oeq Ω i : *)
+  (*   option2 (generational_cmraR (Oc Ω i) (Ocs Ω i) = R Σ i). *)
+  (* Proof. *)
+  (*   rewrite /Oc /Ocs. *)
+  (*   destruct Ω.(gc_map) as [gcd|]. *)
+  (*   - apply Some2. apply gcd.(gcd_cmra_eq). *)
+  (*   - apply None2. *)
+  (* Defined. *)
 
   Lemma Ocs_Oids_distr {Ω : gGenCmras Σ} id (idx : fin (On Ω id)) :
     (* Ω Ω id → *)
@@ -499,8 +561,8 @@ Section omega_helpers.
   Proof.
     specialize (gc_map_wf id).
     revert idx.
-    rewrite /omega_wf_at /omega_wf_at /Oids /Oc /Ocs /On.
-    destruct (gc_map id) eqn:eq.
+    rewrite /omega_wf_at /omega_wf_at /Oids.
+    destruct (gc_map Ω id) eqn:eq.
     - intros idx wf.
       destruct (wf idx) as (gcd2 & -> & ->).
       reflexivity.
@@ -633,6 +695,26 @@ Section transmap.
   Definition transmap_valid (transmap : TransMap) :=
     ∀ i γ t, transmap i !! γ = Some t → GenTrans t.
 
+  (* Definition TransMap : Type := ∀ i, gmap gname (Oc Ω i → Oc Ω i). *)
+
+  (** Build a global generational transformation based on the transformations
+   * in [transmap]. *)
+  Definition build_trans (transmap : TransMap) : (iResUR Σ → iResUR Σ) :=
+    λ (m : iResUR Σ), λ (i : gid Σ),
+      let t := (transmap i) in
+      match Ω.(gc_map) i with
+      | Some2 gcd =>
+        map_imap (λ γ (a : Rpre Σ i),
+          (* If the map of transmap contains a transformation then we apply the
+           * transformation otherwise we leave the element unchanged. In all
+           * cases we apply something of the form [cmra_map_transport]. *)
+          let inner_trans := default (λ a, a) (t !! γ) in
+          let trans := cmra_map_transport gcd.(gcd_cmra_eq) (gen_cmra_trans _ inner_trans)
+          in Some $ map_unfold $ trans $ map_fold a
+        ) (m i)
+      | None2 => m i
+      end.
+
   (** Build a global generational transformation based on the transformations
    * in [transmap]. *)
   Definition build_trans (transmap : TransMap) : (iResUR Σ → iResUR Σ) :=
@@ -653,31 +735,43 @@ Section transmap.
   Lemma core_Some_pcore {A : cmra} (a : A) : core (Some a) = pcore a.
   Proof. done. Qed.
 
-  Lemma Oc_inG {A n} {DS : ivec n cmra} {i : genInG Σ Ω A DS} :
+  (** Equality for [Oc] and [genInG]. *)
+  Lemma Oc_inG_eq {A n} {DS : ivec n cmra} {i : genInG Σ Ω A DS} :
     Oc Ω (inG_id genInG_inG) = gcd_cmra genInG_gti.
   Proof.
-    rewrite /Oc.
     rewrite genInG_gen_trans.
     done.
   Qed.
 
-  Lemma On_inG' {n} id gti
+  Lemma On_omega_lookup {n} id gti
       (eq1 : Ω.(gc_map) id = Some2 gti)
       (eq2 : gti.(gcd_n) = n) :
-    match Ω.(gc_map) id with
-    | Some2 gcd => gcd.(gcd_n)
-    | None2 => 0
-    end = n.
+    On Ω id = n.
+    (* match Ω.(gc_map) id with *)
+    (* | Some2 gcd => gcd.(gcd_n) *)
+    (* | None2 => 0 *)
+    (* end = n. *)
   Proof.
     rewrite eq1.
     rewrite eq2.
     reflexivity.
   Qed.
 
+  (* Lemma On_omega_lookup' id gti *)
+  (*     (eq1 : Ω.(gc_map) id = Some2 gti) : *)
+  (*   On Ω id = gti.(gcd_n). *)
+  (* Proof. *)
+  (*   rewrite /On. *)
+  (*   rewrite eq1. *)
+  (*   reflexivity. *)
+  (* Defined. *)
+
+  (** Equality for [On] and [genInG]. *)
   Lemma On_inG {A n} {DS : ivec n cmra} {i : genInG Σ Ω A DS} :
     On Ω (inG_id genInG_inG) = n.
   Proof.
-    apply (On_inG' (inG_id genInG_inG) (_) genInG_gen_trans (genInG_gcd_n (genInG := i))).
+    apply (
+      On_omega_lookup (inG_id genInG_inG) (_) genInG_gen_trans (genInG_gcd_n (genInG := i))).
   Defined.
 
   (* Lemma Ocd_inG {n} {DS : ivec n cmra} id *)
@@ -697,17 +791,17 @@ Section transmap.
     end = DS.
   Proof.
     rewrite /On_inG.
-    rewrite /Ocs.
+    (* rewrite /Ocs. *)
     destruct i.
     destruct genInG_inG0.
     simpl.
     rewrite genInG_gcd_deps0.
     clear genInG_gcd_deps0.
-    destruct (On_inG' inG_id genInG_gti0 genInG_gen_trans0 genInG_gcd_n0).
+    destruct (On_omega_lookup inG_id genInG_gti0 genInG_gen_trans0 genInG_gcd_n0).
     destruct genInG_gti0.
     simpl in *.
     clear -genInG_gcd_n0 genInG_gen_trans0.
-    destruct (gc_map inG_id).
+    destruct (gc_map Ω inG_id).
     2: { congruence. }
     destruct g. simpl in *.
     destruct genInG_gcd_n0.
@@ -731,14 +825,49 @@ Section transmap.
   (*   done. *)
   (* Qed. *)
 
-  (* Lemma Oeq_inG {A n} (DS : ivec n cmra) {i : genInG Σ Ω A DS} : *)
+  Lemma foo {A n} (DS : ivec n cmra) id (eq_n : On Ω id = n) :
+    Oc Ω id = A →
+    (* Ocs Ω id = eq_rect _ _ DS _ (eq_sym eq_n) → *)
+    Ocs Ω id = rew <- eq_n in DS →
+    generational_cmraR A DS = generational_cmraR (Oc Ω id) (Ocs Ω id).
+  Proof.
+    revert eq_n.
+    destruct (Ω.(gc_map) id); simpl.
+    - intros <- <- ->. done.
+    - intros <- <- ->. done.
+  Qed.
+
+  Lemma omega_genInG_cmra_eq {A n} (DS : ivec n cmra) {i : genInG Σ Ω A DS} :
+    generational_cmraR (gcd_cmra genInG_gti) (gcd_deps genInG_gti) =
+    generational_cmraR (Oc Ω (inG_id genInG_inG)) (Ocs Ω (inG_id genInG_inG)).
+  Proof.
+    destruct i.
+    destruct (Ω.(gc_map) (inG_id genInG_inG)) eqn:eq; simpl.
+    - assert (Some2 genInG_gti0 = Some2 g) as [= <-].
+      { rewrite -eq. done. }
+      done.
+    - assert (Some2 genInG_gti0 = None2) as [=].
+      rewrite -eq. done.
+  Qed.
+
+  (* Lemma Oeq_lookup id gcd : *)
+  (*   Ω.(gc_map) id = Some2 gcd → *)
+  (*   Oeq Ω (inG_id genInG_inG) = Some2 gcd.(gcd_cmra_eq). *)
+
+  (* Lemma Oeq_inG_eq {A n} (DS : ivec n cmra) {i : genInG Σ Ω A DS} : *)
   (*   Oeq Ω (inG_id genInG_inG) = *)
-  (*     Some2 genInG_gti.(gcd_cmra_eq). *)
-  (*     Some2 (eq_rect _ (λ c, c = rFunctor_apply (gFunctors_lookup Σ _) (iPropO Σ)) Oc_inG _ genInG_gti.(gcd_cmra_eq)). *)
+  (*     Some2 ( *)
+  (*       eq_rect _ (λ c, c = rFunctor_apply (gFunctors_lookup Σ _) (iPropO Σ)) *)
+  (*               genInG_gti.(gcd_cmra_eq) _ (omega_genInG_cmra_eq DS)). *)
   (* Proof. *)
+  (*   destruct i. *)
   (*   rewrite /Oeq. *)
-  (*   pose proof genInG_gen_trans. *)
+  (*   clear -genInG_gen_trans0. *)
+  (*   rewrite genInG_gen_trans0. *)
   (* Qed. *)
+
+  (* Lemma build_trans_lookup  *)
+  (*   build_trans transmap a *)
 
   Lemma build_trans_singleton {A n} (DS : ivec n cmra) {i : genInG Σ Ω A DS}
       (γ : gname) picks a b c d e f :
@@ -747,13 +876,22 @@ Section transmap.
         own.iRes_singleton γ (f : generational_cmraR A DS).
   Proof.
     rewrite /build_trans. simpl.
-    intros id.
+    intros id γ2.
     rewrite /own.iRes_singleton.
     destruct (decide (id = inG_id genInG_inG)) as [eq|neq].
     - rewrite eq.
-      clear id eq.
-      rewrite /Oeq. simpl.
-      (* pose proof genInG_gen_trans. *)
+      destruct (Ω.(gc_map) (inG_id genInG_inG)) eqn:eq2; simpl.
+      rewrite Oeq_inG_eq.
+      rewrite map_lookup_imap.
+      rewrite 2!discrete_fun_lookup_singleton.
+      destruct (decide (γ = γ2)) as [<- | neqγ].
+      2: { rewrite !lookup_singleton_ne; done. }
+      rewrite 2!lookup_singleton.
+      simpl.
+      f_equiv.
+      f_equiv.
+      rewrite /cmra_transport.
+      destruct (omega_genInG_cmra_eq DS).
       admit.
     - simpl.
       admit.
