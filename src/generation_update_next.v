@@ -575,12 +575,12 @@ End omega_helpers.
 (* Definition Ocs'' {Σ} (Ω : gGenCmras Σ) i : ivec (On Ω i) cmra := Ocs' Ω i. *)
 
 Class genInG {n} (Σ : gFunctors) Ω (A : cmra) (DS : ivec n cmra) := GenInG {
-  genInG_inG : inG Σ (@generational_cmraR n A DS);
+  genInG_id : gid Σ;
+  (* genInG_inG : inG Σ (@generational_cmraR n A DS); *)
   genInG_inG_deps : ∀ i d, DS !!! i = d → inG Σ (generational_cmraR A DS);
-  (* genInG_id : gid Σ; *)
-  (* genInG_apply := rFunctor_apply (gFunctors_lookup Σ genInG_id); *)
-  genInG_gti : gen_cmra_data Σ (inG_id genInG_inG);
-  genInG_gen_trans : Ω.(gc_map) (inG_id genInG_inG) = Some2 genInG_gti;
+  genInG_apply := rFunctor_apply (gFunctors_lookup Σ genInG_id);
+  genInG_gti : gen_cmra_data Σ genInG_id;
+  genInG_gen_trans : Ω.(gc_map) genInG_id = Some2 genInG_gti;
   genInG_gti_typ : A = genInG_gti.(gcd_cmra);
   genInG_gcd_n : genInG_gti.(gcd_n) = n;
   genInG_gcd_deps : DS = eq_rect _ (λ n, ivec n _) genInG_gti.(gcd_deps) _ genInG_gcd_n;
@@ -590,7 +590,28 @@ Class genInG {n} (Σ : gFunctors) Ω (A : cmra) (DS : ivec n cmra) := GenInG {
   (*     (gen_transport (gen_cmra_eq genInG_gti_typ genInG_gti.(gcd_cmra_eq)) (lift g)); *)
 }.
 
-Existing Instance genInG_inG.
+Global Arguments genInG_id {_} {_} {_} {_} {_} _.
+
+Definition gen_cmra_eq {A DA C : cmra} {dn n} {DS : ivec n cmra} {DDS : ivec dn cmra}
+  (eq : A = DA)
+  (eqN : dn = n)
+  (eqDS : DS = eq_rect _ (λ n, ivec n _) DDS _ eqN)
+  (eq2 : generational_cmraR DA DDS = C) : generational_cmraR A DS = C.
+Proof.
+  rewrite -eq2.
+  rewrite -eq.
+  destruct eqN.
+  rewrite eqDS.
+  reflexivity.
+Qed.
+
+Global Instance genInG_inG {n : nat} `{i : !genInG Σ Ω A DS} :
+    inG Σ (generational_cmraR A DS) :=
+  {|
+    inG_id := genInG_id (n := n) i;
+    inG_prf := gen_cmra_eq genInG_gti_typ genInG_gcd_n
+                           genInG_gcd_deps genInG_gti.(gcd_cmra_eq);
+  |}.
 
 (* Knowledge that [A] is a resource, with the information about its dependencies
 hidden in the dependent pair. *)
