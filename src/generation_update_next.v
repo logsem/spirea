@@ -546,11 +546,10 @@ End omega_helpers.
 
 Class genInG {n} (Σ : gFunctors) Ω (A : cmra) (DS : ivec n cmra) := GenInG {
   genInG_id : gid Σ;
-  (* genInG_inG : inG Σ (@generational_cmraR n A DS); *)
   genInG_inG_deps : ∀ i d, DS !!! i = d → inG Σ (generational_cmraR A DS);
   genInG_apply := rFunctor_apply (gFunctors_lookup Σ genInG_id);
   genInG_gti : gen_cmra_data Σ genInG_id;
-  genInG_gen_trans : Ω.(gc_map) genInG_id = Some2 genInG_gti;
+  genInG_gen_trans : Some2 genInG_gti = Ω.(gc_map) genInG_id;
   genInG_gti_typ : A = genInG_gti.(gcd_cmra);
   genInG_gcd_n : genInG_gti.(gcd_n) = n;
   genInG_gcd_deps : DS = eq_rect _ (λ n, ivec n _) genInG_gti.(gcd_deps) _ genInG_gcd_n;
@@ -708,10 +707,15 @@ Section transmap.
   (** Equality for [Oc] and [genInG]. *)
   Lemma Oc_inG_eq {A n} {DS : ivec n cmra} {i : genInG Σ Ω A DS} :
     Oc Ω (genInG_id i) = gcd_cmra genInG_gti.
+  Proof. rewrite -genInG_gen_trans. done. Qed.
+
+  (* This equality is used in [build_trans_singleton]. *)
+  Lemma Oc_genInG_eq {A n} {DS : ivec n cmra} {i : genInG Σ Ω A DS} :
+    Oc Ω (genInG_id i) = A.
   Proof.
-    rewrite genInG_gen_trans.
-    done.
-  Qed.
+    rewrite -genInG_gen_trans.
+    apply (eq_sym genInG_gti_typ).
+  Defined.
 
   Lemma On_omega_lookup {n} id gti
       (eq1 : Ω.(gc_map) id = Some2 gti)
@@ -728,7 +732,7 @@ Section transmap.
     On Ω (genInG_id i) = n.
   Proof.
     apply (
-      On_omega_lookup (genInG_id i) (_) genInG_gen_trans (genInG_gcd_n (genInG := i))).
+      On_omega_lookup (genInG_id i) (_) (eq_sym genInG_gen_trans) (genInG_gcd_n (genInG := i))).
   Defined.
 
   Lemma Ocd_inG {A n} {DS : ivec n cmra} {i : genInG Σ Ω A DS} :
@@ -741,7 +745,7 @@ Section transmap.
     simpl.
     rewrite genInG_gcd_deps0.
     clear genInG_gcd_deps0.
-    destruct (On_omega_lookup genInG_id0 genInG_gti0 genInG_gen_trans0 genInG_gcd_n0).
+    destruct (On_omega_lookup genInG_id0 genInG_gti0 _ genInG_gcd_n0).
     destruct genInG_gti0.
     simpl in *.
     clear -genInG_gcd_n0 genInG_gen_trans0.
@@ -755,7 +759,7 @@ Section transmap.
     congruence.
   Qed.
 
-  Lemma foo {A n} (DS : ivec n cmra) id (eq_n : On Ω id = n) :
+  Lemma generational_cmraR_Oc_Ocs {A n} (DS : ivec n cmra) id (eq_n : On Ω id = n) :
     Oc Ω id = A →
     Ocs Ω id = rew <- eq_n in DS →
     generational_cmraR A DS = generational_cmraR (Oc Ω id) (Ocs Ω id).
@@ -791,105 +795,6 @@ Section transmap.
     destruct genInG_gcd_deps0.
     done.
   Defined.
-
-  Lemma fungi {i} {A : cmra} (c : gen_cmra_data Σ i) b :
-    A = c.(gcd_cmra) →
-    b = Some2 c →
-    match b with
-      | Some2 gcd => gcd_cmra gcd
-      | None2 => unitR
-      end = A.
-  Proof. intros eq1 eq2. rewrite eq2 -eq1. reflexivity. Defined.
-
-  Lemma Oc_genInG_eq {A n} {DS : ivec n cmra} {i : genInG Σ Ω A DS} :
-    Oc Ω (genInG_id i) = A.
-  Proof.
-    apply (fungi _ _ genInG_gti_typ genInG_gen_trans).
-    (* pose proof (genInG_gti_typ). *)
-    (* pose proof (genInG_gen_trans). *)
-    (* destruct (Ω.(gc_map) (genInG_id i)) eqn:eq. *)
-    (* - congruence. *)
-    (* - congruence. *)
-    (* rewrite genInG_gen_trans. *)
-    (* apply (genInG_gti_typ). *)
-  Defined.
-
-  (* Lemma teststs {A n} (DS : ivec n cmra) {i : genInG Σ Ω A DS} (ttt : Oc Ω (genInG_id i) → Oc Ω (genInG_id i)) t : *)
-  (*   (* ttt = (cmra_map_transport Oc_genInG_eq t). *) *)
-  (*   (* ttt = (match Oc_genInG_eq with eq_refl => t end). *) *)
-  (*   ttt = (rew dependent Oc_genInG_eq in t). *)
-  (* Proof. *)
-  (*   destruct Oc_genInG_eq. *)
-  (*   (* rewrite /cmra_map_transport. *) *)
-  (*   destruct (Ω.(gc_map) (genInG_id i)) eqn:eq. *)
-  (*   - rewrite /Oc_genInG_eq. *)
-  (*     rewrite eq. *)
-  (* Qed. *)
-
-  Lemma build_trans_singleton {A n} (DS : ivec n cmra) {i : genInG Σ Ω A DS}
-      (γ : gname) picks a pps (t : Oc Ω _ → Oc Ω _) `{!Proper ((≡) ==> (≡)) t} (ttt : A → A) :
-    picks (genInG_id i) = pps →
-    pps !! γ = Some t →
-    ttt = (rew dependent [(λ c _, c → c)] Oc_genInG_eq in t) →
-    (* ttt = (cmra_map_transport Oc_genInG_eq t) → *)
-    build_trans picks (
-      own.iRes_singleton γ (a : generational_cmraR A DS)) ≡
-        own.iRes_singleton γ ((gen_cmra_trans DS ttt a) : generational_cmraR A DS).
-        (* own.iRes_singleton γ (f : generational_cmraR A DS). *)
-  Proof.
-    rewrite /build_trans. simpl.
-    intros picksLook pickLook ttIs id γ2.
-
-    rewrite /own.iRes_singleton.
-    destruct (decide (id = genInG_id i)) as [eq|neq].
-    - rewrite build_trans_at_equation_1.
-      rewrite eq.
-      rewrite picksLook.
-      rewrite /build_trans_at_clause_1.
-      clear picksLook picks.
-      destruct i.
-      rewrite /Oc_genInG_eq in ttIs. simpl in *.
-      rewrite /fungi in ttIs.
-      rewrite /eq_ind_r in ttIs.
-      simpl in ttIs.
-      (* destruct genInG_gti_typ0. *)
-      (* clear ttIs. *)
-      (* setoid_rewrite genInG_gen_trans in * |- *. *)
-      (* rewrite genInG_gen_trans in pps, t, Proper0. *)
-      destruct (Ω.(gc_map) (genInG_id0)) eqn:omegaLook.
-      destruct (Ω.(gc_map) (genInG_id i)) eqn:omegaLook.
-      2: { rewrite genInG_gen_trans in omegaLook. congruence. }
-      rewrite map_lookup_imap.
-      rewrite 2!discrete_fun_lookup_singleton.
-      destruct (decide (γ = γ2)) as [<- | neqγ].
-      2: { rewrite !lookup_singleton_ne; done. }
-      rewrite 2!lookup_singleton.
-      simpl.
-      f_equiv.
-      f_equiv.
-      rewrite pickLook. simpl.
-      rewrite /own.inG_unfold.
-      rewrite map_fold_unfold.
-      destruct i. simpl in *.
-      assert (genInG_gti0 = g) as -> by congruence.
-      (* rewrite /gen_cmra_eq. *)
-      simpl.
-      rewrite /genInG_inG. simpl.
-      clear.
-      destruct g. simpl in *.
-      clear.
-      simpl.
-      destruct genInG_gcd_n0. simpl.
-      destruct genInG_gti_typ0. simpl.
-      simpl in genInG_gcd_deps0.
-      destruct genInG_gcd_deps0.
-      rewrite gen_cmra_eq_refl.
-      rewrite cmra_map_transport_cmra_transport.
-      f_equiv.
-      admit.
-    - simpl.
-      rewrite discrete_fun_lookup_singleton_ne; last done.
-  Abort.
 
   #[global]
   Lemma build_trans_generation transmap :
@@ -986,6 +891,76 @@ Section transmap.
         done.
   Admitted.
    *)
+
+  Lemma build_trans_at_singleton_neq id1 id2 mm pick :
+    id1 ≠ id2 →
+    build_trans_at (discrete_fun_singleton id1 mm) id2 pick ≡ ε.
+  Proof.
+    intros neq.
+    rewrite build_trans_at_equation_1.
+    rewrite /build_trans_at_clause_1.
+    destruct (gc_map Ω id2).
+    - rewrite discrete_fun_lookup_singleton_ne; last done.
+      rewrite map_imap_empty.
+      done.
+    - rewrite discrete_fun_lookup_singleton_ne; last done.
+      done.
+  Qed.
+
+  Lemma build_trans_singleton {A n} (DS : ivec n cmra) {i : genInG Σ Ω A DS}
+      (γ : gname) picks a pps (t : Oc Ω _ → Oc Ω _) `{!Proper ((≡) ==> (≡)) t}
+      (Oceq : Oc Ω (genInG_id i) = A) :
+    picks (genInG_id i) = pps →
+    pps !! γ = Some t →
+    build_trans picks (own.iRes_singleton γ (a : generational_cmraR A DS)) ≡
+      own.iRes_singleton γ (
+        (gen_cmra_trans DS (cmra_map_transport Oc_genInG_eq t) a) : generational_cmraR A DS).
+  Proof.
+    rewrite /build_trans. simpl.
+    intros picksLook pickLook id.
+    rewrite /own.iRes_singleton.
+    destruct (decide (id = genInG_id i)) as [eq|neq].
+    - intros γ2.
+      rewrite build_trans_at_equation_1.
+      rewrite eq.
+      rewrite picksLook.
+      rewrite /build_trans_at_clause_1.
+      clear picksLook picks.
+      rewrite /Oc_genInG_eq.
+      (* NOTE: This destruct only works when the circumstances are exactly right. *)
+      destruct genInG_gen_trans.
+      (* destruct (Ω.(gc_map) (genInG_id i)) eqn:omegaLook. *)
+      (* 2: { rewrite genInG_gen_trans in omegaLook. congruence. } *)
+      rewrite map_lookup_imap.
+      rewrite 2!discrete_fun_lookup_singleton.
+      destruct (decide (γ = γ2)) as [<- | neqγ].
+      2: { rewrite !lookup_singleton_ne; done. }
+      rewrite 2!lookup_singleton.
+      simpl.
+      f_equiv.
+      f_equiv.
+      rewrite pickLook. simpl.
+      rewrite /own.inG_unfold.
+      rewrite map_fold_unfold.
+      destruct i. simpl in *.
+      simpl.
+      rewrite /genInG_inG. simpl.
+      clear.
+      destruct genInG_gti0. simpl in *.
+      clear.
+      simpl.
+      destruct genInG_gcd_n0. simpl.
+      destruct genInG_gti_typ0. simpl.
+      simpl in genInG_gcd_deps0.
+      destruct genInG_gcd_deps0.
+      rewrite gen_cmra_eq_refl.
+      rewrite cmra_map_transport_cmra_transport.
+      f_equiv.
+    - simpl.
+      rewrite discrete_fun_lookup_singleton_ne; last done.
+      apply build_trans_at_singleton_neq.
+      done.
+  Qed.
 
   (** A map of picks that for the resource at [idx] and the ghost name [γ] picks
   the generational transformation [t]. *)
