@@ -908,16 +908,15 @@ Section transmap.
   Qed.
 
   Lemma build_trans_singleton {A n} (DS : ivec n cmra) {i : genInG Σ Ω A DS}
-      (γ : gname) picks a pps (t : Oc Ω _ → Oc Ω _) `{!Proper ((≡) ==> (≡)) t}
-      (Oceq : Oc Ω (genInG_id i) = A) :
+        (γ : gname) picks a pps (V : transmap_valid picks) :
     picks (genInG_id i) = pps →
-    pps !! γ = Some t →
+    (* pps !! γ = Some t → *)
     build_trans picks (own.iRes_singleton γ (a : generational_cmraR A DS)) ≡
       own.iRes_singleton γ (
-        (gen_cmra_trans DS (cmra_map_transport Oc_genInG_eq t) a) : generational_cmraR A DS).
+        (gen_cmra_trans DS (cmra_map_transport Oc_genInG_eq (default (λ a, a) (pps !! γ) )) a) : generational_cmraR A DS).
   Proof.
     rewrite /build_trans. simpl.
-    intros picksLook pickLook id.
+    intros picksLook id.
     rewrite /own.iRes_singleton.
     destruct (decide (id = genInG_id i)) as [eq|neq].
     - intros γ2.
@@ -925,7 +924,14 @@ Section transmap.
       rewrite eq.
       rewrite picksLook.
       rewrite /build_trans_at_clause_1.
-      clear picksLook picks.
+      assert (∃ bingo, pps !! γ = bingo ∧ (bingo = None ∨ (∃ t, bingo = Some t ∧ GenTrans t)))
+          as (mt & ppsLook & disj).
+      { exists (pps !! γ).
+        split; first done.
+        destruct (pps !! γ) eqn:ppsLook. 2: { left. done. }
+        right. eexists _. split; try done.
+        eapply V. rewrite picksLook. done. }
+      clear V picksLook picks.
       rewrite /Oc_genInG_eq.
       (* NOTE: This destruct only works when the circumstances are exactly right. *)
       destruct genInG_gen_trans.
@@ -939,23 +945,39 @@ Section transmap.
       simpl.
       f_equiv.
       f_equiv.
-      rewrite pickLook. simpl.
+      rewrite ppsLook. simpl.
       rewrite /own.inG_unfold.
-      rewrite map_fold_unfold.
-      destruct i. simpl in *.
-      simpl.
-      rewrite /genInG_inG. simpl.
-      clear.
-      destruct genInG_gti0. simpl in *.
-      clear.
-      simpl.
-      destruct genInG_gcd_n0. simpl.
-      destruct genInG_gti_typ0. simpl.
-      simpl in genInG_gcd_deps0.
-      destruct genInG_gcd_deps0.
-      rewrite gen_cmra_eq_refl.
-      rewrite cmra_map_transport_cmra_transport.
-      f_equiv.
+      destruct disj as [-> | (t & -> & GT)].
+      + rewrite map_fold_unfold.
+        destruct i. simpl in *.
+        simpl.
+        rewrite /genInG_inG. simpl.
+        clear.
+        destruct genInG_gti0. simpl in *.
+        clear.
+        simpl.
+        destruct genInG_gcd_n0. simpl.
+        destruct genInG_gti_typ0. simpl.
+        simpl in genInG_gcd_deps0.
+        destruct genInG_gcd_deps0.
+        rewrite gen_cmra_eq_refl.
+        rewrite cmra_map_transport_cmra_transport.
+        f_equiv.
+      + rewrite map_fold_unfold.
+        destruct i. simpl in *.
+        simpl.
+        rewrite /genInG_inG. simpl.
+        clear.
+        destruct genInG_gti0. simpl in *.
+        clear.
+        simpl.
+        destruct genInG_gcd_n0. simpl.
+        destruct genInG_gti_typ0. simpl.
+        simpl in genInG_gcd_deps0.
+        destruct genInG_gcd_deps0.
+        rewrite gen_cmra_eq_refl.
+        rewrite cmra_map_transport_cmra_transport.
+        f_equiv.
     - simpl.
       rewrite discrete_fun_lookup_singleton_ne; last done.
       apply build_trans_at_singleton_neq.
@@ -2300,6 +2322,23 @@ Section rules.
 
 End rules.
 
+Lemma iRes_singleton_included `{i : inG Σ A} (a b : A) γ :
+  a ≼ b →
+  (own.iRes_singleton γ a) ≼ (own.iRes_singleton γ b).
+Proof.
+  intros incl.
+  rewrite /own.iRes_singleton.
+  apply discrete_fun_included_spec => id.
+  simpl.
+  destruct (decide (id = inG_id i)) as [->|idNeq].
+  2: { by rewrite !discrete_fun_lookup_singleton_ne. }
+  rewrite !discrete_fun_lookup_singleton.
+  apply singleton_mono.
+  apply: cmra_morphism_monotone.
+  destruct inG_prf.
+  apply incl.
+Qed.
+
 Section nextgen_assertion_rules.
   (* Rules about the nextgen modality. *)
   Context {n : nat} {DS : ivec n cmra} `{!genInG Σ Ω A DS}.
@@ -2313,7 +2352,7 @@ Section nextgen_assertion_rules.
     iSplitL "". { iApply own_picks_empty. }
     iSplitL "". { iApply own_promises_empty. }
     iSplit; first done.
-    iIntros (full_picks ?) "? %sub".
+    iIntros (full_picks ?) "_ %sub".
     iEval (rewrite own.own_eq) in "H".
     rewrite /own.own_def.
     iModIntro.
@@ -2321,9 +2360,16 @@ Section nextgen_assertion_rules.
     iEval (rewrite own.own_eq).
     rewrite /own.own_def.
     simpl.
-    (* We need a lemma for [build_trans]. *)
-    (* rewrite /build_trans. simpl. *)
-  Admitted.
+    rewrite build_trans_singleton; [ |done|done].
+    simpl.
+    rewrite /gen_cmra_trans. simpl.
+    iStopProof.
+    f_equiv. simpl.
+    apply iRes_singleton_included.
+    rewrite !pair_included.
+    split_and!; try done.
+    apply ucmra_unit_least.
+  Qed.
 
   Lemma token_nextgen γ γs (R : pred_over DS A) P :
     used_token γ γs R P ⊢ ⚡==> token γ γs R P.
@@ -2335,10 +2381,10 @@ Section nextgen_assertion_rules.
     iSplitL "". { iApply own_picks_empty. }
     iSplitL "". { iApply own_promises_empty. }
     iSplit; first done.
-    iIntros (full_picks ?).
+    iIntros (full_picks ? ? ?).
     iEval (rewrite own.own_eq) in "own".
     rewrite /own.own_def.
-    (* iModIntro. *)
+    iModIntro.
   Admitted.
   (*   iDestruct (uPred_own_resp_omega _ _ with "own") as (to) "(%cond & own)". *)
   (*   { done. } *)
