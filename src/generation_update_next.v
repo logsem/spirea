@@ -340,7 +340,7 @@ Local Infix "*M*" := prod_map (at level 50, left associativity).
 
 (* The generational transformation function for the encoding of each ownership
 over a generational camera. *)
-Definition gen_cmra_trans {n} {A : cmra} (DS : ivec n cmra)
+Definition gen_cmra_trans {n} {A : cmra} {DS : ivec n cmra}
     (f : A → A) : generational_cmraR A DS → generational_cmraR A DS :=
   (const (Some (to_agree f)) : _ → optionR (agreeR (leibnizO (A → A)))) *M*
   (GTS_floor : (GTSR (A → A)) → (GTSR (A → A))) *M*
@@ -405,12 +405,12 @@ Qed.
 
 Global Instance gen_generation_gen_trans {n} {A : cmra} {DS : ivec n cmra} (f : A → A)
   `{!Proper (equiv ==> equiv) f} :
-  GenTrans f → GenTrans (gen_cmra_trans DS f).
+  GenTrans f → GenTrans (gen_cmra_trans (DS := DS) f).
 Proof. apply _. Qed.
 
 Global Instance gen_generation_proper {n} {A : cmra} (DS : ivec n cmra) (f : A → A) :
   Proper ((≡) ==> (≡)) f →
-  Proper ((≡) ==> (≡)) (gen_cmra_trans DS f).
+  Proper ((≡) ==> (≡)) (gen_cmra_trans (DS := DS) f).
 Proof.
   intros ? [[??]?] [[??]?] [[??]?]. simpl in *.
   rewrite /gen_cmra_trans.
@@ -419,7 +419,7 @@ Qed.
 
 Global Instance gen_generation_ne {n} {A : cmra} (DS : ivec n cmra) (f : A → A) :
   NonExpansive f →
-  NonExpansive (gen_cmra_trans DS f).
+  NonExpansive (gen_cmra_trans (DS := DS) f).
 Proof. solve_proper. Qed.
 
 (** For every entry in [Ω] we store this record of information. The equality
@@ -670,7 +670,7 @@ Section omega_helpers_genInG.
   Defined.
 
   (** Equality for [On] and [genInG]. *)
-  Lemma On_inG :
+  Lemma On_genInG :
     On Ω (genInG_id i) = n.
   Proof.
     apply (
@@ -678,9 +678,9 @@ Section omega_helpers_genInG.
   Defined.
 
   Lemma Ocs_inG :
-    rew dependent [fun n _ => ivec n cmra] On_inG in Ocs Ω (genInG_id i) = DS.
+    rew dependent [fun n _ => ivec n cmra] On_genInG in Ocs Ω (genInG_id i) = DS.
   Proof.
-    rewrite /On_inG.
+    rewrite /On_genInG.
     destruct i.
     simpl.
     rewrite genInG_gcd_deps0.
@@ -832,7 +832,7 @@ Section transmap.
           let inner_trans : gccd.(gcd_cmra) → gccd.(gcd_cmra) :=
             default (λ a, a) (tts !! γ) in
           let trans :=
-            cmra_map_transport gccd.(gcd_cmra_eq) (gen_cmra_trans gccd.(gcd_deps) inner_trans)
+            cmra_map_transport gccd.(gcd_cmra_eq) (gen_cmra_trans inner_trans)
           in Some $ map_unfold $ trans $ map_fold a
         ) (m i)
     | None2 => m i
@@ -960,10 +960,10 @@ Section transmap.
   Lemma build_trans_singleton {A n} (DS : ivec n cmra) {i : genInG Σ Ω A DS}
         (γ : gname) picks a pps (V : transmap_valid picks) :
     picks (genInG_id i) = pps →
-    (* pps !! γ = Some t → *)
     build_trans picks (own.iRes_singleton γ (a : generational_cmraR A DS)) ≡
       own.iRes_singleton γ (
-        (gen_cmra_trans DS (cmra_map_transport Oc_genInG_eq (default (λ a, a) (pps !! γ) )) a) : generational_cmraR A DS).
+        gen_cmra_trans (cmra_map_transport Oc_genInG_eq (default (λ a, a) (pps !! γ) )) a
+      ).
   Proof.
     rewrite /build_trans. simpl.
     intros picksLook id.
@@ -2413,6 +2413,27 @@ Section nextgen_assertion_rules.
   (* Rules about the nextgen modality. *)
   Context {n : nat} {DS : ivec n cmra} `{!genInG Σ Ω A DS}.
 
+  Lemma own_build_trans_next_gen γ (m : generational_cmraR A DS) picks
+      `{!GenTrans (build_trans picks)} :
+    transmap_valid picks →
+    own γ m ⊢ ⚡={build_trans picks}=> own γ (
+      gen_cmra_trans (cmra_map_transport Oc_genInG_eq (default (λ a, a) (picks _ !! γ))) m
+    ).
+  Proof.
+    iIntros (?) "H".
+    iEval (rewrite own.own_eq) in "H".
+    rewrite /own.own_def.
+    iModIntro.
+    iEval (rewrite own.own_eq).
+    rewrite /own.own_def.
+    simpl.
+    rewrite build_trans_singleton; [ |done|done].
+    simpl.
+    rewrite /gen_cmra_trans. simpl.
+    iStopProof.
+    f_equiv.
+  Qed.
+
   Lemma know_deps_nextgen γ γs :
     know_deps γ γs ⊢ ⚡==> know_deps γ γs.
   Proof.
@@ -2423,19 +2444,10 @@ Section nextgen_assertion_rules.
     iSplitL "". { iApply own_promises_empty. }
     iSplit; first done.
     iIntros (full_picks ?) "_ %sub".
-    iEval (rewrite own.own_eq) in "H".
-    rewrite /own.own_def.
+    iDestruct (own_build_trans_next_gen with "H") as "H"; first done.
     iModIntro.
-    simpl.
-    iEval (rewrite own.own_eq).
-    rewrite /own.own_def.
-    simpl.
-    rewrite build_trans_singleton; [ |done|done].
-    simpl.
-    rewrite /gen_cmra_trans. simpl.
     iStopProof.
     f_equiv. simpl.
-    apply iRes_singleton_included.
     rewrite !pair_included.
     split_and!; try done.
     apply ucmra_unit_least.
