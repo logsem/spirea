@@ -1628,6 +1628,39 @@ Section transmap.
       - right. done.
   Qed.
 
+  Lemma transmap_resp_promises_weak transmap prs1 prs2 :
+    promises_wf prs2 →
+    promise_list_stronger prs1 prs2 →
+    transmap_resp_promises transmap prs1 →
+    transmap_resp_promises transmap prs2.
+  Proof.
+    intros wf strong.
+    rewrite /transmap_resp_promises.
+    rewrite !Forall_forall.
+    intros resp [id γ pia2] elm.
+    destruct (strong id γ pia2) as (pia1 & look2 & stronger).
+    { apply promises_elem_of; done. }
+    destruct (resp (MkPromiseInfo id γ pia1)) as (? & ? & ? & ? & ?).
+    { apply promises_lookup_at_Some. done. }
+    eexists _, _.
+    split; first done.
+    split.
+    { rewrite /trans_at_deps. simpl.
+      destruct stronger as [<- ho].
+      apply H0. }
+    simpl.
+    apply stronger.
+    done.
+  Qed.
+
+  Lemma transmap_resp_promises_lookup_at picks promises id γ pia :
+    transmap_resp_promises picks promises →
+    promises_lookup_at promises id γ = Some pia →
+    ∃ t, (* ts *)
+      picks id !! γ = Some t (* Plus something about t satsifyign pred. *).
+  Proof.
+  Admitted. (* TODO: *)
+
   Definition transmap_overlap_resp_promises transmap ps :=
     ∀ i p, ps !! i = Some p →
       transmap_satisfy_rel transmap p ∨ (transmap p.(pi_id) !! p.(pi_γ) = None).
@@ -2095,31 +2128,6 @@ Section nextgen_properties.
     iFrame "E".
   Qed.
 
-  Lemma transmap_resp_promises_weak transmap prs1 prs2 :
-    promises_wf prs2 →
-    promise_list_stronger prs1 prs2 →
-    transmap_resp_promises transmap prs1 →
-    transmap_resp_promises transmap prs2.
-  Proof.
-    intros wf strong.
-    rewrite /transmap_resp_promises.
-    rewrite !Forall_forall.
-    intros resp [id γ pia2] elm.
-    destruct (strong id γ pia2) as (pia1 & look2 & stronger).
-    { apply promises_elem_of; done. }
-    destruct (resp (MkPromiseInfo id γ pia1)) as (? & ? & ? & ? & ?).
-    { apply promises_lookup_at_Some. done. }
-    eexists _, _.
-    split; first done.
-    split.
-    { rewrite /trans_at_deps. simpl.
-      destruct stronger as [<- ho].
-      apply H0. }
-    simpl.
-    apply stronger.
-    done.
-  Qed.
-
   Lemma nextgen_sep_2 P Q :
     (⚡==> P) ∗ (⚡==> Q) ⊢ ⚡==> (P ∗ Q) .
   Proof.
@@ -2232,12 +2240,16 @@ Section generational_resources.
 
   (** Knowledge that γ is accociated with the predicates R and P. *)
   Definition rely (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
-    ∃ (all : list (rel_over DS A)),
+    ∃ (all : list (rel_over DS A)) promises pia,
+      "%γs_eq" ∷ ⌜ pia.(pi_deps_γs) = rew <- [λ n, ivec n _] On_genInG in γs ⌝ ∗
+      "%pred_eq" ∷ ⌜ pia.(pi_pred) = rew <- [pred_over] Oc_genInG_eq in P ⌝ ∗
+      "%rel_eq" ∷ ⌜ pia.(pi_rel) = rew [id] rel_over_Oc_Ocs_genInG in R ⌝ ∗
       "%rely_pred_prefix" ∷ ⌜ pred_prefix_list_for' all R P ⌝ ∗
+      "%pia_in" ∷ ⌜ promises_lookup_at promises _ γ = Some pia ⌝ ∗
+      "%prs_wf" ∷ ⌜ promises_wf promises ⌝ ∗
       "#rely_deps" ∷ know_deps γ γs ∗
-      "frag_preds" ∷ own γ (
-        (ε, ε, ε, ε, gPV (◯ to_max_prefix_list all)) : generational_cmraR A DS
-      ).
+      "prs" ∷ own_promises promises ∗
+      "frag_preds" ∷ gen_promise_list γ ((gPV (◯ to_max_prefix_list all))).
 
 End generational_resources.
 
@@ -2365,7 +2377,7 @@ Section rules.
     ⌜ rel_stronger R1 R2 ∨ rel_stronger R2 R1 ⌝.
   Proof.
     iNamed 1.
-    iDestruct 1 as (prs2 prefix2) "[deps2 preds2]".
+    iDestruct 1 as (prs2 pia2 ? ? ? ? prefix2 ?) "(? & deps2 & ? & preds2)".
     iDestruct (know_deps_agree with "rely_deps deps2") as %<-.
     iDestruct (own_valid_2 with "frag_preds preds2") as "val".
     iDestruct (prod_valid_5th with "val") as "%val".
@@ -2434,6 +2446,31 @@ Section nextgen_assertion_rules.
     f_equiv.
   Qed.
 
+  Lemma own_build_trans_next_gen_picked_in γ (m : generational_cmraR A DS) picks
+      `{!GenTrans (build_trans picks)} :
+    transmap_valid picks →
+    own γ m ⊢ ⚡={build_trans picks}=> own γ (
+      gc_tup_pick_in DS (cmra_map_transport Oc_genInG_eq (default (λ a, a) (picks _ !! γ)))
+    ).
+  Proof.
+    iIntros (?) "H".
+    iEval (rewrite own.own_eq) in "H".
+    rewrite /own.own_def.
+    iModIntro.
+    iEval (rewrite own.own_eq).
+    rewrite /own.own_def.
+    simpl.
+    rewrite build_trans_singleton; [ |done|done].
+    simpl.
+    rewrite /gen_cmra_trans. simpl.
+    iStopProof.
+    f_equiv.
+    simpl.
+    apply iRes_singleton_included.
+    rewrite !pair_included.
+    split_and!; try apply: ucmra_unit_least. done.
+  Qed.
+
   Lemma know_deps_nextgen γ γs :
     know_deps γ γs ⊢ ⚡==> know_deps γ γs.
   Proof.
@@ -2482,20 +2519,34 @@ Section nextgen_assertion_rules.
   (* Qed. *)
 
   (* TODO: Prove this lemma. *)
-  Lemma rely_nextgen γ γs (R : rel_over DS A) P `{∀ (i : fin n), genInSelfG Σ Ω (DS !!! i)} :
+  Lemma rely_nextgen γ γs (R : rel_over DS A) (P : pred_over A)
+      `{∀ (i : fin n), genInSelfG Σ Ω (DS !!! i)} :
     rely γ γs R P
-    ⊢ ⚡==> (
+    ⊢ ⚡==>
       rely γ γs R P ∗
       ∃ (t : A → A) (ts : trans_for n DS),
         ⌜ huncurry R ts t ∧ (* The transformations satisfy the promise *)
           P t ⌝ ∗ (* For convenience we also get this directly *)
         gen_picked_in γ t ∗
         (* The transformations for the dependencies are the "right" ones *)
-        (∀ i, gen_picked_in (γs !!! i) (hvec_lookup_fmap ts i))).
+        (∀ i, gen_picked_in (γs !!! i) (hvec_lookup_fmap ts i)).
   Proof.
     rewrite /rely.
     iNamed 1.
+    rewrite /nextgen.
+    iExists (λ i, ∅), promises.
+    iSplitL ""; first iApply own_picks_empty.
+    iFrame "prs".
+    iSplit; first done.
+    iIntros (full_picks val resp _).
+    iDestruct (own_build_trans_next_gen_picked_in with "rely_deps") as "picked_in"; first done.
+    iDestruct (own_build_trans_next_gen with "rely_deps") as "rely_deps'"; first done.
+    iDestruct (own_build_trans_next_gen with "frag_preds") as "frag_preds"; first done.
+    iModIntro.
   Admitted.
+  (*   rewrite !sep_exist_l. *)
+  (*   rewrite bi.exist_sep. *)
+  (* Qed. *)
 
 End nextgen_assertion_rules.
 
