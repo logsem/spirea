@@ -2111,6 +2111,14 @@ Section generational_resources.
       (ε, ε, ε, Some (to_agree (ivec_to_list γs)), ε) : generational_cmraR A DS
     ).
 
+  Definition own_frozen_auth_promise_list γ all : iProp Σ :=
+    own γ ((ε, ε, ε, ε,
+      gP (● to_max_prefix_list all) ⋅ gV (●□ to_max_prefix_list all)
+    ) : generational_cmraR A DS).
+
+  Definition own_auth_promise_list γ all : iProp Σ :=
+    own γ ((ε, ε, ε, ε, gPV (● to_max_prefix_list all)) : generational_cmraR A DS).
+
   Definition token_res all : generational_cmraR A DS :=
     (None, GTS_tok_both, None, None, gPV (● (to_max_prefix_list all))).
 
