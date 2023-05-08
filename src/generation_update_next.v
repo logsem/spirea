@@ -64,7 +64,7 @@ Section types.
   Definition cmra_to_trans A := cmra_car A → cmra_car A.
 
   (** A predicate over a transformation over [A]. *)
-  Definition cmra_to_pred A := (cmra_to_trans A) → Prop.
+  Definition pred_over A := (cmra_to_trans A) → Prop.
 
   (* Definition rel_over_typ {n} (DS : ivec n Type) (A : Type) := *)
   (*   iimpl id ((λ a, a → a) <$> DS) ((A → A) → Prop). *)
@@ -102,7 +102,7 @@ Section types.
 
 End types.
 
-Notation preds_for n ls := (hvec n (cmra_to_pred <$> ls)).
+Notation preds_for n ls := (hvec n (pred_over <$> ls)).
 
 (* The functor in [Σ] at index [i] applied to [iProp]. *)
 Notation R Σ i := (rFunctor_apply (gFunctors_lookup Σ i) (iPropO Σ)).
@@ -270,7 +270,7 @@ Section dependency_relation_extra.
   Definition rel_implies_pred R P : Prop :=
     ∀ (ts : trans_for n DS) (t : A → A), huncurry R ts t → P t.
 
-  (* Notation preds_for n ls := (hvec cmra_to_pred n ls). *)
+  (* Notation preds_for n ls := (hvec pred_over n ls). *)
 
   Definition pred_prefix_list_for (all : list (rel_over DS A)) R :=
     (* The given promise [R] is the last promise out of all promises. *)
@@ -1102,7 +1102,7 @@ Record promise_info_at {Σ} (Ω : gGenCmras Σ) id := {
   pi_rel : rel_over (Ocs Ω id) (Oc Ω id);
   (* A predicate that holds for the promise's own transformation whenever
    * [pi_rel] holds. A "canonical" choice could be: [λ t, ∃ ts, pi_rel ts t]. *)
-  pi_pred : cmra_to_pred (Oc Ω id);
+  pi_pred : pred_over (Oc Ω id);
   pi_rel_to_pred : ∀ (ts : trans_for (On Ω id) (Ocs Ω id)) t,
     huncurry pi_rel ts t → pi_pred t;
   pi_witness : ∀ (ts : trans_for (On Ω id) (Ocs Ω id)),
@@ -1138,7 +1138,7 @@ Arguments pi_witness {_ _ _}.
 
 (* This lemma combines a use of [hvec_lookup_fmap} and [Ocs_Oids_distr] to
  * ensure that looking up in [cs] results in a useful return type. [f] will
- * usually be [cmra_to_pred] or [cmra_to_trans]. *)
+ * usually be [pred_over] or [cmra_to_trans]. *)
 Definition lookup_fmap_Ocs `{Ω : gGenCmras Σ} {f id}
     (cs : hvec (On Ω id) (f <$> Ocs Ω id)) i : f (Oc Ω (Oids Ω id !!! i)) :=
   eq_rect _ _ (hvec_lookup_fmap cs i) _ (Ocs_Oids_distr _ _).
@@ -1151,7 +1151,7 @@ Definition lookup_fmap_Ocs `{Ω : gGenCmras Σ} {f id}
 Record promise_self_info {Σ} Ω := MkPromiseSelfInfo {
   psi_id : gid Σ; (* The index of the RA in the global RA. *)
   psi_γ : gname; (* Ghost name for the promise. *)
-  psi_pred : cmra_to_pred (Oc Ω psi_id);
+  psi_pred : pred_over (Oc Ω psi_id);
 }.
 
 Arguments psi_id {_ _}.
@@ -1162,7 +1162,7 @@ Definition pi_get_dep `{Ω : gGenCmras Σ}
     (pi : promise_info Ω) idx : promise_self_info Ω :=
   let id := Oids Ω pi.(pi_id) !!! idx in
   let γ := pi.(pi_deps_γs) !!! idx in
-  let pred : cmra_to_pred (Oc Ω id) := lookup_fmap_Ocs pi.(pi_deps_preds) idx in
+  let pred : pred_over (Oc Ω id) := lookup_fmap_Ocs pi.(pi_deps_preds) idx in
   MkPromiseSelfInfo  _ _ id γ pred.
 
 Section promise_info.
@@ -1198,11 +1198,11 @@ Section promise_info.
   (* Definition pred_gcd_transport {p_d ps} *)
   (*     (eq1 : p_d.(psi_id) = ps.(pi_id)) *)
   (*     (eq2 : gcd_transport eq1 (psi_gcd p_d) = pi_gcd ps) *)
-  (*     (psi_pred : cmra_to_pred (gcd_cmra (psi_gcd p_d))) : *)
+  (*     (psi_pred : pred_over (gcd_cmra (psi_gcd p_d))) : *)
   (*     (gcd_cmra (pi_gcd ps) → gcd_cmra (pi_gcd ps)) → Prop. *)
   (* Admitted. *)
   (*   (* match eq1 with *) *)
-  (*   (* | eq_refl => eq_rect _ (λ id, cmra_to_pred (gcd_cmra id)) psi_pred _ eq2 *) *)
+  (*   (* | eq_refl => eq_rect _ (λ id, pred_over (gcd_cmra id)) psi_pred _ eq2 *) *)
   (*   (* end. *) *)
 
   (** The promise [p] satisfies the dependency [p_d]. Note that the predicate
@@ -1214,7 +1214,7 @@ Section promise_info.
       p_d.(psi_γ) = ps.(pi_γ) ∧
       (* The predicate in [ps] is stronger than what is stated in [p_d] *)
       (* pred_stronger ps.(pi_pred) p_d.(psi_pred). *)
-      pred_stronger ps.(pi_pred) (eq_rect _ (λ id, cmra_to_pred (Oc Ω id)) p_d.(psi_pred) _ eq).
+      pred_stronger ps.(pi_pred) (eq_rect _ (λ id, pred_over (Oc Ω id)) p_d.(psi_pred) _ eq).
 
   (** For every dependency in [p] the list [promises] has a sufficient
    * promise. *)
@@ -1442,20 +1442,19 @@ Section transmap.
 
   (** The vector [trans] contains at every index the transition for the
    * corresponding dependency in [p] from [transmap] *)
-  Definition trans_at_deps transmap (p : promise_info Ω)
-      (trans : hvec (On Ω (pi_id p)) (cmra_to_trans <$> Ocs Ω (pi_id p))) :=
+  Definition trans_at_deps transmap (i : gid Σ) (γs : ivec (On Ω i) gname)
+      (ts : hvec (On Ω i) (cmra_to_trans <$> Ocs Ω i)) :=
     ∀ idx,
-      let id := Oids Ω p.(pi_id) !!! idx in
-      let γ := p.(pi_deps_γs) !!! idx in
-      let t : Oc Ω id → Oc Ω id := lookup_fmap_Ocs trans idx in
-      transmap id !! γ = Some t.
+      let id := Oids Ω i !!! idx in
+      let t : Oc Ω id → Oc Ω id := lookup_fmap_Ocs ts idx in
+      transmap id !! (γs !!! idx) = Some t.
 
   (** The transformations in [transmap] satisfy the relation in [p]. *)
   Definition transmap_satisfy_rel transmap p :=
-    ∃ trans t,
+    ∃ ts t,
       transmap p.(pi_id) !! p.(pi_γ) = Some t ∧
-      trans_at_deps transmap p trans ∧
-      huncurry p.(pi_rel) trans t.
+      trans_at_deps transmap p.(pi_id) p.(pi_deps_γs) ts ∧
+      huncurry p.(pi_rel) ts t.
 
   (** The [transmap] respect the promises in [ps]: There is a pick for every
    * promise and all the relations in the promises are satisfied by the
@@ -1488,7 +1487,7 @@ Section transmap.
 
   (* What would a more general version of this lemma look like? *)
   Lemma rew_cmra_to_pred (x : cmra) f y (eq : x = y) t :
-    (eq_rect x cmra_to_pred f y eq) t = f (eq_rect_r cmra_to_trans t eq).
+    (eq_rect x pred_over f y eq) t = f (eq_rect_r cmra_to_trans t eq).
   Proof. destruct eq. done. Qed.
 
   (** If a [transmap] respects a list [promises] and growing the list with [p]
@@ -1499,7 +1498,7 @@ Section transmap.
     promises_wf (p :: promises) →
     transmap_resp_promises transmap promises →
     ∃ ts,
-      trans_at_deps transmap p ts ∧
+      trans_at_deps transmap p.(pi_id) p.(pi_deps_γs) ts ∧
       preds_hold p.(pi_deps_preds) ts.
   Proof.
     intros WF resp.
@@ -1616,18 +1615,37 @@ Section transmap.
     ∀ i p, ps !! i = Some p →
       transmap_satisfy_rel transmap p ∨ (transmap p.(pi_id) !! p.(pi_γ) = None).
 
-  Lemma trans_at_deps_subseteq transmap1 transmap2 p ts :
+  Lemma trans_at_deps_subseteq transmap1 transmap2 id γs ts :
     transmap1 ⊆ transmap2 →
-    trans_at_deps transmap1 p ts →
-    trans_at_deps transmap2 p ts.
+    trans_at_deps transmap1 id γs ts →
+    trans_at_deps transmap2 id γs ts.
   Proof.
     intros sub ta.
     intros idx. simpl.
-    specialize (sub (psi_id (pi_get_dep p idx))).
+    specialize (sub (Oids Ω id !!! idx)).
     rewrite map_subseteq_spec in sub.
     specialize (ta idx).
     apply sub.
     apply ta.
+  Qed.
+
+  Lemma trans_at_deps_union_l picks1 picks2 i t1 c1 :
+    trans_at_deps picks1 i t1 c1 →
+    trans_at_deps (picks1 ∪ picks2) i t1 c1.
+  Proof.
+    apply trans_at_deps_subseteq.
+    apply transmap_union_subseteq_l.
+  Qed.
+
+  Lemma trans_at_deps_union_r picks1 picks2 i t2 c2 :
+    (∀ i, map_agree_overlap (picks1 i) (picks2 i)) →
+    trans_at_deps picks2 i t2 c2 →
+    trans_at_deps (picks1 ∪ picks2) i t2 c2.
+  Proof.
+    intros over.
+    apply trans_at_deps_subseteq.
+    apply transmap_union_subseteq_r.
+    done.
   Qed.
 
   Lemma transmap_overlap_resp_promises_cons transmap p promises :
@@ -1725,18 +1743,16 @@ Section next_gen_definition.
       dom (picks i) ≡ dom (m i) ∧
       ∀ γ (a : Rpre Σ i),
         m i !! γ = Some a →
-        ∃ eq ts γs (t : Oc Ω i → Oc Ω i) R Rs,
+        ∃ eq (ts : hvec (On Ω i) (cmra_to_trans <$> Ocs Ω i))
+            (γs : ivec (On Ω i) gname) (t : Oc Ω i → Oc Ω i) R Rs,
           Oeq Ω i = Some2 eq ∧
-          (* BUG: [ts] is unrestricted. The transformations in [ts] should be
-           * the result of looking up in [picks]. We somehow need some promise
-           * info as well here to know which deps to look up. Maybe store the
-           * auth in [res_for_promises]? *)
+          trans_at_deps picks i γs ts ∧
           huncurry R ts t ∧
           picks i !! γ = Some t ∧
           pred_prefix_list_for Rs R ∧
           a ≡ map_unfold (cmra_transport eq
             (ε, GTS_tok_gen_shot t, ε,
-             Some (to_agree γs), gV (●□ (to_max_prefix_list Rs)))).
+             Some (to_agree (ivec_to_list γs)), gV (●□ (to_max_prefix_list Rs)))).
 
   Definition own_picks picks : iProp Σ :=
     ∃ m, uPred_ownM m ∗ ⌜ res_for_picks picks m ⌝.
@@ -1748,7 +1764,6 @@ Section next_gen_definition.
         ⌜ pred_prefix_list_for Rs p.(pi_rel) ⌝ ∧
         uPred_ownM (discrete_fun_singleton p.(pi_id)
           {[ p.(pi_γ) := map_unfold
-            (* Store the list of dependency gnames here. *)
             (cmra_transport eq (
               ε, ε, ε,
               Some (to_agree (ivec_to_list p.(pi_deps_γs))),
@@ -1788,12 +1803,12 @@ Section own_picks_properties.
     specialize (t1 i) as (domEq1 & m1look).
     assert (is_Some (m1 i !! γ)) as [? m1Look].
     { rewrite -elem_of_dom -domEq1 elem_of_dom. done. }
-    edestruct m1look as (gti1 & t1 & ? & ? & ? & ? & ? & ? & picks1Look & ? & eq1);
+    edestruct m1look as (gti1 & t1 & ? & ? & ? & ? & ? & ? & ? & picks1Look & ? & eq1);
       first done.
     specialize (t2 i) as (domEq2 & m2look).
     assert (is_Some (m2 i !! γ)) as [? m2Look].
     { rewrite -elem_of_dom -domEq2 elem_of_dom. done. }
-    edestruct m2look as (gti2 & t2 & ? & ? & ? & ? & ? & ? & picks2Look & ? & eq2);
+    edestruct m2look as (gti2 & t2 & ? & ? & ? & ? & ? & ? & ? & picks2Look & ? & eq2);
       first done.
     clear m1look m2look.
     assert (gti1 = gti2) as -> by congruence.
@@ -1832,10 +1847,10 @@ Section own_picks_properties.
     iIntros (t1 t2) "m1 m2". iIntros (i).
     iIntros (γ a1 a2 m1Look m2Look).
     specialize (t1 i) as (domEq1 & m1look).
-    edestruct m1look as (gti1 & t1 & ? & ? & ? & ? & ? & ? & picks1Look & ? & eq1);
+    edestruct m1look as (gti1 & t1 & ? & ? & ? & ? & ? & ? & ? & picks1Look & ? & eq1);
       first done.
     specialize (t2 i) as (domEq2 & m2look).
-    edestruct m2look as (gti2 & t2 & ? & ? & ? & ? & ? & ? & picks2Look & ? & eq2);
+    edestruct m2look as (gti2 & t2 & ? & ? & ? & ? & ? & ? & ? & picks2Look & ? & eq2);
       first done.
     clear m1look m2look.
     assert (gti1 = gti2) as -> by congruence.
@@ -1881,12 +1896,13 @@ Section own_picks_properties.
   Qed.
 
   Lemma m_contains_tokens_for_picks_merge picks1 picks2 (m1 m2 : iResUR Σ) :
+    (∀ i, map_agree_overlap (picks1 i) (picks2 i)) →
     (∀ i γ a b, (m1 i) !! γ = Some a → (m2 i) !! γ = Some b → a ≡ b) →
     res_for_picks picks1 m1 →
     res_for_picks picks2 m2 →
     res_for_picks (picks1 ∪ picks2) (m1 ⋅ m2).
   Proof.
-    intros overlap2 tok1 tok2.
+    intros overlap1 overlap2 tok1 tok2.
     intros i.
     rewrite /union /transmap_union.
     rewrite dom_op.
@@ -1901,11 +1917,12 @@ Section own_picks_properties.
       case (m2 i !! γ) eqn:look2; rewrite look2.
     - specialize (overlap2 i _ _ _ look1 look2) as elemEq.
       (* Both [picks1] and [picks2] has a pick. *)
-      apply tok1 in look1 as (n1 & c1 & t1 & r & rs & R1 & Rlist1 & R1holds & picksLook1 & prf1 & a1).
-      apply tok2 in look2 as (n2 & c2 & t2 & ? & ? & R2 & Rlist2 & R2holds & picksLook2 & prf2 & a2).
+      apply tok1 in look1 as (n1 & c1 & t1 & r & rs & R1 & Rlist1 & ? & R1holds & picksLook1 & prf1 & a1).
+      apply tok2 in look2 as (n2 & c2 & t2 & ? & ? & R2 & Rlist2 & ? & R2holds & picksLook2 & prf2 & a2).
       intros [= opEq].
       eexists n1, c1, t1, r, rs, R1.
       split; first done.
+      split. { apply trans_at_deps_union_l. done. }
       split; first done.
       split. { erewrite lookup_union_Some_l; done. }
       split; first done.
@@ -1926,16 +1943,18 @@ Section own_picks_properties.
       rewrite -auth_auth_dfrac_op.
       done.
     - intros [= ->].
-      apply tok1 in look1 as (n & c & t & r & rs & R & Rlist & Rholds & picksLook & rest).
+      apply tok1 in look1 as (n & c & t & r & rs & R & Rlist & ? & Rholds & picksLook & rest).
       eexists n, c, t, r, rs, R.
       split; first done.
+      split. { apply trans_at_deps_union_l; done. }
       split; first done.
-      split. { erewrite lookup_union_Some_l; done. }
+      split. { erewrite lookup_union_Some_l; try done. }
       apply rest.
     - intros [= ->].
-      apply tok2 in look2 as (n & c & t & r & rs & R & Rlist & Rholds & picksLook & rest).
+      apply tok2 in look2 as (n & c & t & r & rs & R & Rlist & ? & Rholds & picksLook & rest).
       eexists n, c, t, r, rs, R.
       split; first done.
+      split. { apply trans_at_deps_union_r; done. }
       split; first done.
       split.
       { erewrite lookup_union_r; try done.
