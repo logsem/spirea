@@ -43,6 +43,21 @@ Fixpoint list2_lookup {A} (l : list2 A) (n : nat) : option2 A :=
 Local Infix "!!2" := list2_lookup (at level 50, left associativity).
  *)
 
+(* NOTE: Some terminology used in this module.
+ *
+ * If [A] is a camera a _transformation_ for [A] is a function of type [A → A].
+ *
+ * A _predicate_ is a unary-predicate over a transformation for [A] with type
+ * [(A → A) → Prop].
+ *
+ * A _relation_ is an n-ary predicate over transformation for a list of cameras
+ * [DS] and a camera [A]. I.e., with the type [(DS_0 → DS_0) → ... (DS_n →
+ * DS_n) → (A → A) → Prop].
+ *
+ * Note that we use "predicate" to mean "unary-predicate" and "relation" to
+ * mean "n-aray" predicate where n > 1.
+ *)
+
 Section types.
 
   (** A transformation over the carrier of the camera [A]. *)
@@ -51,38 +66,43 @@ Section types.
   (** A predicate over a transformation over [A]. *)
   Definition cmra_to_pred A := (cmra_to_trans A) → Prop.
 
-  Definition pred_over_ty {n} (DS : ivec n Type) (A : Type) :=
-    iimpl id DS ((A → A) → Prop).
+  (* Definition rel_over_typ {n} (DS : ivec n Type) (A : Type) := *)
+  (*   iimpl id ((λ a, a → a) <$> DS) ((A → A) → Prop). *)
 
-  (* A curried predicate over the cameras [DS] and [A]. *)
-  Definition pred_over {n} (DS : ivec n cmra) (A : cmra) :=
-    iimpl id (ivec_map cmra_to_trans DS) ((A → A) → Prop).
+  (* (* An example to demonstrate [rel_over_typ]. This results in the type: *)
+  (*    [(bool → bool) → (() → ()) → (nat → nat) → Prop] *) *)
+  (* Compute (rel_over_typ [bool : Type; unit : Type] nat). *)
 
-  (* This results in the type:
+  (** A relation over transformations between the cameras in [DS and [A]. *)
+  Definition rel_over {n} (DS : ivec n cmra) (A : cmra) :=
+    iimpl id (cmra_to_trans <$> DS) ((A → A) → Prop).
+
+  (* An example to demonstrate [rel_over]. This results in the type:
      [(max_nat → max_nat) → (excl () → excl ()) → (nat → nat) → Prop] *)
-  Compute (pred_over [max_natR; exclR unitO] natR).
+  Compute (rel_over [max_natR; exclR unitO] natR).
 
-  Definition True_pred {n} {DS : ivec n cmra} {A} : pred_over DS A :=
+  (** Relation that is always true. *)
+  Definition True_rel {n} {DS : ivec n cmra} {A} : rel_over DS A :=
     hcurry (λ _ _, True).
+
+  Definition trans_for n (DS : ivec n cmra) := hvec n (cmra_to_trans <$> DS).
+
+  (* Test that [trans_for] does not give universe issue. *)
+  #[local]
+  Definition test_exist {Σ} {n : nat} {DS : ivec n cmra} : iProp Σ :=
+    ∃ (ts : trans_for n DS), ⌜ True ⌝.
+
+  (* Notation trans_for_old := (hvec cmra_to_trans). *)
+
+  (* trans_for_old _does_ give universe issue. The root cause is the way the
+   * [cmra] appears in the type. In [trans_for] the occurence of [cmra_car]
+   * prevents the universe issue somehow. *)
+  (* Definition test_exist {Σ} {n : nat} {DS : ivec cmra n} : iProp Σ := *)
+  (*   ∃ (ts : trans_for n DS), ⌜ True ⌝. *)
 
 End types.
 
-Definition trans_for n (DS : ivec n cmra) := hvec n (cmra_to_trans <$> DS).
-
 Notation preds_for n ls := (hvec n (cmra_to_pred <$> ls)).
-
-(* Test that [trans_for] does not give universe issue. *)
-#[local]
-Definition test_exist {Σ} {n : nat} {DS : ivec n cmra} : iProp Σ :=
-  ∃ (ts : trans_for n DS), ⌜ True ⌝.
-
-(* Notation trans_for_old := (hvec cmra_to_trans). *)
-
-(* trans_for_old _does_ give universe issue. The root cause is the way the
- * [cmra] appears in the type. In [trans_for] the occurence of [cmra_car]
- * prevents the universe issue somehow. *)
-(* Definition test_exist {Σ} {n : nat} {DS : ivec cmra n} : iProp Σ := *)
-(*   ∃ (ts : trans_for n DS), ⌜ True ⌝. *)
 
 (* The functor in [Σ] at index [i] applied to [iProp]. *)
 Notation R Σ i := (rFunctor_apply (gFunctors_lookup Σ i) (iPropO Σ)).
@@ -167,31 +187,31 @@ End cmra_map_transport.
 Section dependency_relation_cmra.
   Context {n : nat}.
 
-  Canonical Structure pred_over_tyO (A : Type) (DS : ivec n Type) :=
-    leibnizO (pred_over_ty DS A).
+  (* Canonical Structure pred_over_tyO (A : Type) (DS : ivec n Type) := *)
+  (*   leibnizO (rel_over_typ DS A). *)
   Canonical Structure pred_overO (A : cmra) (DS : ivec n cmra) :=
-    leibnizO (pred_over DS A).
+    leibnizO (rel_over DS A).
 
-  Definition promises (A : Type) (DS : ivec n Type) :=
-    max_prefix_list (pred_over_ty DS A).
+  (* Definition promises (A : Type) (DS : ivec n Type) := *)
+  (*   max_prefix_list (rel_over_typ DS A). *)
   Definition promisesR (A : cmra) (DS : ivec n cmra) :=
     max_prefix_listR (pred_overO A DS).
 
   Definition promisesUR (A : cmra) (DS : ivec n cmra) :=
-    max_prefix_listUR (pred_over DS A).
+    max_prefix_listUR (rel_over DS A).
 
   (* Authorative promises. *)
   Definition auth_promises {A : cmra} {DS : ivec n cmra}
-    (ps : list (pred_over DS A)) : auth (max_prefix_list (pred_over DS A)) :=
+    (ps : list (rel_over DS A)) : auth (max_prefix_list (rel_over DS A)) :=
     ● (to_max_prefix_list ps).
-  Definition auth_promises_ty {A : Type} {DS : ivec n Type}
-    (ps : list (pred_over_ty DS A)) : auth (promises A DS) :=
-    ● (to_max_prefix_list ps).
+  (* Definition auth_promises_ty {A : Type} {DS : ivec n Type} *)
+  (*   (ps : list (rel_over_typ DS A)) : auth (promises A DS) := *)
+  (*   ● (to_max_prefix_list ps). *)
 
   (* Fragmental promises. *)
-  Definition frag_promises {A : Type} {DS : ivec n Type}
-    (ps : list (pred_over_ty DS A)) : auth (promises A DS) :=
-    ◯ (to_max_prefix_list ps).
+  (* Definition frag_promises {A : Type} {DS : ivec n Type} *)
+  (*   (ps : list (rel_over_typ DS A)) : auth (promises A DS) := *)
+  (*   ◯ (to_max_prefix_list ps). *)
 
 End dependency_relation_cmra.
 
@@ -236,13 +256,13 @@ Qed.
 
 Section dependency_relation_extra.
   Context {n} {A : cmra} {DS : ivec n cmra}.
-  Implicit Types (R : pred_over DS A) (P : (A → A) → Prop).
+  Implicit Types (R : rel_over DS A) (P : (A → A) → Prop).
 
-  Definition rel_stronger (R1 R2 : pred_over DS A) :=
+  Definition rel_stronger (R1 R2 : rel_over DS A) :=
     ∀ (ts : trans_for n DS) (t : A → A),
       huncurry R1 ts t → huncurry R2 ts t.
 
-  Definition rel_weaker (R1 R2 : pred_over DS A) := rel_stronger R2 R1.
+  Definition rel_weaker (R1 R2 : rel_over DS A) := rel_stronger R2 R1.
 
   Definition pred_stronger (P1 P2 : (A → A) → Prop) :=
     ∀ (t : A → A), P1 t → P2 t.
@@ -252,15 +272,15 @@ Section dependency_relation_extra.
 
   (* Notation preds_for n ls := (hvec cmra_to_pred n ls). *)
 
-  Definition pred_prefix_list_for (all : list (pred_over DS A)) R :=
+  Definition pred_prefix_list_for (all : list (rel_over DS A)) R :=
     (* The given promise [R] is the last promise out of all promises. *)
     last all = Some R ∧
     (* The list of promises increases in strength. *)
-    ∀ i j (Ri Rj : pred_over DS A),
+    ∀ i j (Ri Rj : rel_over DS A),
       i ≤ j → all !! i = Some Ri → all !! j = Some Rj → rel_weaker Ri Rj.
 
   (* Includes [P] as well. *)
-  Definition pred_prefix_list_for' (all : list (pred_over DS A)) R P :=
+  Definition pred_prefix_list_for' (all : list (rel_over DS A)) R P :=
     pred_prefix_list_for all R ∧ rel_implies_pred R P.
 
   Lemma pred_prefix_list_for_singleton p :
@@ -273,7 +293,7 @@ Section dependency_relation_extra.
   Qed.
 
   Lemma pred_prefix_list_for'_True :
-    pred_prefix_list_for' (True_pred :: []) True_pred (λ _ : A → A, True).
+    pred_prefix_list_for' (True_rel :: []) True_rel (λ _ : A → A, True).
   Proof.
     rewrite /pred_prefix_list_for'.
     split; [apply pred_prefix_list_for_singleton | done].
@@ -297,13 +317,13 @@ Section dependency_relation_extra.
 
 End dependency_relation_extra.
 
-Definition generational_cmra {n} A (DS : ivec n Type) : Type :=
-  option (agree (A → A)) * (* Agreement on transformation into generation *)
-  GTS (A → A) * (* Facilitates choice of transformation out of generation *)
-  option A * (* Ownership over A *)
-  option (agree (list gname)) * (* Gname of dependencies - we don't need to
-                                 * store their [gid] as that is static. *)
-  gen_pv (auth (promises A DS)) (* List of promises *).
+(* Definition generational_cmra {n} A (DS : ivec n Type) : Type := *)
+(*   option (agree (A → A)) * (* Agreement on transformation into generation *) *)
+(*   GTS (A → A) * (* Facilitates choice of transformation out of generation *) *)
+(*   option A * (* Ownership over A *) *)
+(*   option (agree (list gname)) * (* Gname of dependencies - we don't need to *)
+(*                                  * store their [gid] as that is static. *) *)
+(*   gen_pv (auth (promises A DS)) (* List of promises *). *)
 
 (* Notation for [prodR] as the product below would otherwise get horrible to
  * write. *)
@@ -1079,7 +1099,7 @@ Record promise_info_at {Σ} (Ω : gGenCmras Σ) id := {
   pi_deps_preds : preds_for (On Ω id) (Ocs Ω id);
   (* The predicate that relates our transformation to those of the dependencies. *)
   (* NOTE: Maybe store the rel in curried form? *)
-  pi_rel : pred_over (Ocs Ω id) (Oc Ω id);
+  pi_rel : rel_over (Ocs Ω id) (Oc Ω id);
   (* A predicate that holds for the promise's own transformation whenever
    * [pi_rel] holds. A "canonical" choice could be: [λ t, ∃ ts, pi_rel ts t]. *)
   pi_pred : cmra_to_pred (Oc Ω id);
@@ -2102,7 +2122,7 @@ End nextgen_properties.
 
 Section generational_resources.
   Context {n} {A} {DS : ivec n cmra} `{!genInG Σ Ω A DS}.
-  Implicit Types (R : pred_over DS A) (P : (A → A) → Prop).
+  Implicit Types (R : rel_over DS A) (P : (A → A) → Prop).
 
   Definition gen_picked_in γ (t : A → A) : iProp Σ :=
     own γ (gc_tup_pick_in DS t).
@@ -2139,14 +2159,14 @@ Section generational_resources.
 
   (** Ownership over the token and the promises for [γ]. *)
   Definition token (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
-    ∃ (all : list (pred_over DS A)),
+    ∃ (all : list (rel_over DS A)),
       "%pred_prefix" ∷ ⌜ pred_prefix_list_for' all R P ⌝ ∗
       "#deps" ∷ know_deps γ γs ∗
       "token" ∷ gen_token γ ∗
       "auth_preds" ∷ own_auth_promise_list γ all.
 
   Definition used_token (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
-    ∃ (all : list (pred_over DS A)),
+    ∃ (all : list (rel_over DS A)),
       ⌜ pred_prefix_list_for' all R P ⌝ ∗
       know_deps γ γs ∗
       own_frozen_auth_promise_list γ all ∗
@@ -2165,7 +2185,7 @@ Section generational_resources.
 
   (* (** Knowledge that γ is accociated with the predicates R and P. *) *)
   (* Definition rely (γ : gname) (γs : ivec n gname) R P : iProp Σ := *)
-  (*   ∃ (p : promise_info Σ) (all : list (pred_over DS A)), *)
+  (*   ∃ (p : promise_info Σ) (all : list (rel_over DS A)), *)
   (*     ⌜ p.(pi_γ) = γ ⌝ ∗ *)
   (*     ⌜ p.(pi_rel) = R ⌝ ∗ *)
   (*     ⌜ p.(pi_pred) = P ⌝ ∗ *)
@@ -2176,7 +2196,7 @@ Section generational_resources.
 
   (** Knowledge that γ is accociated with the predicates R and P. *)
   Definition rely (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
-    ∃ (all : list (pred_over DS A)),
+    ∃ (all : list (rel_over DS A)),
       "%rely_pred_prefix" ∷ ⌜ pred_prefix_list_for' all R P ⌝ ∗
       "#rely_deps" ∷ know_deps γ γs ∗
       "frag_preds" ∷ own γ (
@@ -2193,7 +2213,7 @@ Section rules.
   Context {n : nat} {DS : ivec n cmra} `{!genInG Σ Ω A DS}.
 
   Lemma own_gen_alloc (a : A) γs :
-    ✓ a → ⊢ |==> ∃ γ, gen_own γ a ∗ token γ γs True_pred (λ _, True%type).
+    ✓ a → ⊢ |==> ∃ γ, gen_own γ a ∗ token γ γs True_rel (λ _, True%type).
   Proof.
     iIntros (Hv).
     rewrite /gen_own.
@@ -2202,7 +2222,7 @@ Section rules.
       (gc_tup_deps A DS (ivec_to_list γs) ⋅
        gc_tup_elem DS a ⋅
        gc_tup_pick_out DS GTS_tok_both ⋅
-       gc_tup_promise_list (gPV (● to_max_prefix_list (True_pred :: [])))
+       gc_tup_promise_list (gPV (● to_max_prefix_list (True_rel :: [])))
        )) as (γ) "[[[?A] A'] B]".
     { split; simpl; try done.
       rewrite ucmra_unit_left_id.
@@ -2237,7 +2257,7 @@ Section rules.
   (** Strengthen a promise. *)
   Lemma token_strengthen_promise `{∀ (i : fin n), genInSelfG Σ Ω (DS !!! i)}
       γ γs (deps_preds : preds_for n DS)
-      (R_1 R_2 : pred_over DS A) (P_1 P_2 : (A → A) → Prop) :
+      (R_1 R_2 : rel_over DS A) (P_1 P_2 : (A → A) → Prop) :
     (* The new relation is stronger. *)
     (∀ (ts : trans_for n DS) (t : A → A),
        huncurry R_1 ts t → huncurry R_2 ts t ∧ P_2 t) →
@@ -2255,7 +2275,7 @@ Section rules.
   Proof.
   Admitted.
 
-  Lemma token_pick γ γs (R : pred_over DS A) P (ts : trans_for n DS) t
+  Lemma token_pick γ γs (R : rel_over DS A) P (ts : trans_for n DS) t
       `{∀ (i : fin n), genInSelfG Σ Ω (DS !!! i)} :
     huncurry R ts t →
     (∀ i, gen_picked_out (γs !!! i) (hvec_lookup_fmap ts i)) -∗
@@ -2264,7 +2284,7 @@ Section rules.
   Proof.
   Admitted.
 
-  Lemma token_to_rely γ γs (R : pred_over DS A) P :
+  Lemma token_to_rely γ γs (R : rel_over DS A) P :
     token γ γs R P ⊢ rely γ γs R P.
   Proof.
   Admitted.
@@ -2385,7 +2405,7 @@ Section nextgen_assertion_rules.
     apply ucmra_unit_least.
   Qed.
 
-  Lemma token_nextgen γ γs (R : pred_over DS A) P :
+  Lemma token_nextgen γ γs (R : rel_over DS A) P :
     used_token γ γs R P ⊢ ⚡==> token γ γs R P.
   Proof.
     iDestruct 1 as (? (HPL & ?)) "[deps own]".
@@ -2414,7 +2434,7 @@ Section nextgen_assertion_rules.
   (* Qed. *)
 
   (* TODO: Prove this lemma. *)
-  Lemma rely_nextgen γ γs (R : pred_over DS A) P `{∀ (i : fin n), genInSelfG Σ Ω (DS !!! i)} :
+  Lemma rely_nextgen γ γs (R : rel_over DS A) P `{∀ (i : fin n), genInSelfG Σ Ω (DS !!! i)} :
     rely γ γs R P
     ⊢ ⚡==> (
       rely γ γs R P ∗
@@ -2470,7 +2490,7 @@ Section test.
     Lemma foo2 (γ : gname) (γs : ivec 2 gname) : True.
     Proof.
       pose proof (token_strengthen_promise γ γs PS) as st.
-      rewrite /pred_over in st.
+      rewrite /rel_over in st.
       rewrite /cmra_to_trans in st.
       simpl in st.
     Abort.
