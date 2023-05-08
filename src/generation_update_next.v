@@ -328,6 +328,49 @@ Definition gen_cmra_trans {n} {A : cmra} (DS : ivec n cmra)
   id *M*
   gen_pv_trans.
 
+(* Working with the 5-tuple is sometimes annoying. Then these lemmas help. *)
+Lemma prod_valid_1st {Σ}
+  {A B C D E : cmra} (a : A) (b : B) (c : C) (d : D) (e : E) f g h i j :
+  ✓ ((a, b, c, d, e) ⋅ (f, g, h, i, j)) ⊢@{iProp Σ} ✓ (a ⋅ f).
+Proof. rewrite 4!prod_validI. simpl. iIntros "[[[[$ _] _] _] _]". Qed.
+
+Lemma prod_valid_2st {Σ}
+  {A B C D E : cmra} (a : A) (b : B) (c : C) (d : D) (e : E) f g h i j :
+  ✓ ((a, b, c, d, e) ⋅ (f, g, h, i, j)) ⊢@{iProp Σ} ✓ (b ⋅ g).
+Proof. rewrite 4!prod_validI. simpl. iIntros "[[[[_ $] _] _] _]". Qed.
+
+Lemma prod_valid_3th {Σ}
+  {A B C D E : cmra} (a : A) (b : B) (c : C) (d : D) (e : E) f g h i j :
+  ✓ ((a, b, c, d, e) ⋅ (f, g, h, i, j)) ⊢@{iProp Σ} ✓ (c ⋅ h).
+Proof. rewrite 4!prod_validI. simpl. iIntros "[[[_ $] _] _]". Qed.
+
+Lemma prod_valid_4th {Σ}
+  {A B C D E : cmra} (a : A) (b : B) (c : C) (d : D) (e : E) f g h i j :
+  ✓ ((a, b, c, d, e) ⋅ (f, g, h, i, j)) ⊢@{iProp Σ} ✓ (d ⋅ i).
+Proof. rewrite 4!prod_validI. iIntros "[[_ $] _]". Qed.
+
+Lemma prod_valid_5th {Σ}
+  {A B C D E : cmra} (a : A) (b : B) (c : C) (d : D) (e : E) f g h i j :
+  ✓ ((a, b, c, d, e) ⋅ (f, g, h, i, j)) ⊢@{iProp Σ} ✓ (e ⋅ j).
+Proof. rewrite 4!prod_validI. iIntros "[_ $]". Qed.
+
+(* Constructors for each of the elements in the pair. *)
+
+Definition gc_tup_pick_in {n A} (DS : ivec n cmra) pick_in : generational_cmraR A DS :=
+ (Some (to_agree (pick_in)), ε, ε, ε, ε).
+
+Definition gc_tup_pick_out {A n} (DS : ivec n cmra) pick_out : generational_cmraR A DS :=
+ (ε, pick_out, ε, ε, ε).
+
+Definition gc_tup_elem {A n} (DS : ivec n cmra) a : generational_cmraR A DS :=
+ (ε, ε, Some a, ε, ε).
+
+Definition gc_tup_deps {n} A (DS : ivec n cmra) deps : generational_cmraR A DS :=
+ (ε, ε, ε, Some (to_agree deps), ε).
+
+Definition gc_tup_promise_list {n A} {DS : ivec n cmra} l : generational_cmraR A DS :=
+ (ε, ε, ε, ε, l).
+
 Global Instance gen_trans_const {A : ofe} (a : A) :
   GenTrans (const (Some (to_agree a))).
 Proof.
@@ -358,32 +401,6 @@ Global Instance gen_generation_ne {n} {A : cmra} (DS : ivec n cmra) (f : A → A
   NonExpansive f →
   NonExpansive (gen_cmra_trans DS f).
 Proof. solve_proper. Qed.
-
-(* Working with the 5-tuple is sometimes annoying. Then these lemmas help. *)
-Lemma prod_valid_1st {Σ}
-  {A B C D E : cmra} (a : A) (b : B) (c : C) (d : D) (e : E) f g h i j :
-  ✓ ((a, b, c, d, e) ⋅ (f, g, h, i, j)) ⊢@{iProp Σ} ✓ (a ⋅ f).
-Proof. rewrite 4!prod_validI. simpl. iIntros "[[[[$ _] _] _] _]". Qed.
-
-Lemma prod_valid_2st {Σ}
-  {A B C D E : cmra} (a : A) (b : B) (c : C) (d : D) (e : E) f g h i j :
-  ✓ ((a, b, c, d, e) ⋅ (f, g, h, i, j)) ⊢@{iProp Σ} ✓ (b ⋅ g).
-Proof. rewrite 4!prod_validI. simpl. iIntros "[[[[_ $] _] _] _]". Qed.
-
-Lemma prod_valid_3th {Σ}
-  {A B C D E : cmra} (a : A) (b : B) (c : C) (d : D) (e : E) f g h i j :
-  ✓ ((a, b, c, d, e) ⋅ (f, g, h, i, j)) ⊢@{iProp Σ} ✓ (c ⋅ h).
-Proof. rewrite 4!prod_validI. simpl. iIntros "[[[_ $] _] _]". Qed.
-
-Lemma prod_valid_4th {Σ}
-  {A B C D E : cmra} (a : A) (b : B) (c : C) (d : D) (e : E) f g h i j :
-  ✓ ((a, b, c, d, e) ⋅ (f, g, h, i, j)) ⊢@{iProp Σ} ✓ (d ⋅ i).
-Proof. rewrite 4!prod_validI. iIntros "[[_ $] _]". Qed.
-
-Lemma prod_valid_5th {Σ}
-  {A B C D E : cmra} (a : A) (b : B) (c : C) (d : D) (e : E) f g h i j :
-  ✓ ((a, b, c, d, e) ⋅ (f, g, h, i, j)) ⊢@{iProp Σ} ✓ (e ⋅ j).
-Proof. rewrite 4!prod_validI. iIntros "[_ $]". Qed.
 
 (** For every entry in [Ω] we store this record of information. The equality
  * [gcd_cmra_eq] is the "canonical" equality we will use to show that the resource
@@ -2087,58 +2104,53 @@ Section generational_resources.
   Context {n} {A} {DS : ivec n cmra} `{!genInG Σ Ω A DS}.
   Implicit Types (R : pred_over DS A) (P : (A → A) → Prop).
 
-  Definition gen_own_res (a : A) : generational_cmraR A DS :=
-    (None, (None, None), Some a, None, ε).
-
-  Definition gen_own (γ : gname) (a : A) : iProp Σ :=
-    own γ (gen_own_res a).
-
-  Definition gen_token_used γ : iProp Σ :=
-    own γ ((None, GTS_tok_perm, None, None, ε)).
-
-  Definition gen_picked_out γ t : iProp Σ :=
-    own γ ((None, GTS_tok_gen_shot t, None, None, ε)).
-
   Definition gen_picked_in γ (t : A → A) : iProp Σ :=
-    own γ (
-      (Some (to_agree t), (None, None), None, None, ε) : generational_cmraR A DS).
+    own γ (gc_tup_pick_in DS t).
 
-  Definition gen_token γ : iProp Σ :=
-    own γ ((None, GTS_tok_both, None, None, ε)).
+  Definition gen_pick_out γ r : iProp Σ :=
+    own γ (gc_tup_pick_out DS r).
+
+  (* The generational version of [own] that should be used instead of [own]. *)
+  Definition gen_own (γ : gname) (a : A) : iProp Σ :=
+    own γ (gc_tup_elem DS a).
 
   Definition know_deps γ (γs : ivec n gname) : iProp Σ :=
-    own γ (
-      (ε, ε, ε, Some (to_agree (ivec_to_list γs)), ε) : generational_cmraR A DS
-    ).
+    own γ (gc_tup_deps A DS (ivec_to_list γs)).
+
+  Definition gen_promise_list γ l :=
+    own γ (gc_tup_promise_list l).
+
+  Definition gen_token_used γ : iProp Σ :=
+    gen_pick_out γ GTS_tok_perm.
+
+  Definition gen_picked_out γ t : iProp Σ :=
+    gen_pick_out γ (GTS_tok_gen_shot t).
+
+  Definition gen_token γ : iProp Σ :=
+    gen_pick_out γ (GTS_tok_both).
 
   Definition own_frozen_auth_promise_list γ all : iProp Σ :=
-    own γ ((ε, ε, ε, ε,
+    gen_promise_list γ (
       gP (● to_max_prefix_list all) ⋅ gV (●□ to_max_prefix_list all)
-    ) : generational_cmraR A DS).
+    ).
 
   Definition own_auth_promise_list γ all : iProp Σ :=
-    own γ ((ε, ε, ε, ε, gPV (● to_max_prefix_list all)) : generational_cmraR A DS).
-
-  Definition token_res all : generational_cmraR A DS :=
-    (None, GTS_tok_both, None, None, gPV (● (to_max_prefix_list all))).
+    gen_promise_list γ (gPV (● to_max_prefix_list all)).
 
   (** Ownership over the token and the promises for [γ]. *)
   Definition token (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
     ∃ (all : list (pred_over DS A)),
       "%pred_prefix" ∷ ⌜ pred_prefix_list_for' all R P ⌝ ∗
-      "auth_preds" ∷ own γ (token_res all).
+      "#deps" ∷ know_deps γ γs ∗
+      "token" ∷ gen_token γ ∗
+      "auth_preds" ∷ own_auth_promise_list γ all.
 
   Definition used_token (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
     ∃ (all : list (pred_over DS A)),
       ⌜ pred_prefix_list_for' all R P ⌝ ∗
       know_deps γ γs ∗
-      own γ ((
-        None,
-        GTS_tok_both,
-        None,
-        None,
-        gP (● to_max_prefix_list all) ⋅ gV (●□ to_max_prefix_list all)
-      ) : generational_cmraR A DS).
+      own_frozen_auth_promise_list γ all ∗
+      gen_token γ.
 
   (* TODO: We need some way of converting between the relations stored in
    * [promise_info] and the relations stored by the user.
@@ -2166,7 +2178,7 @@ Section generational_resources.
   Definition rely (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
     ∃ (all : list (pred_over DS A)),
       "%rely_pred_prefix" ∷ ⌜ pred_prefix_list_for' all R P ⌝ ∗
-      "#deps" ∷ know_deps γ γs ∗
+      "#rely_deps" ∷ know_deps γ γs ∗
       "frag_preds" ∷ own γ (
         (ε, ε, ε, ε, gPV (◯ to_max_prefix_list all)) : generational_cmraR A DS
       ).
@@ -2186,15 +2198,20 @@ Section rules.
     iIntros (Hv).
     rewrite /gen_own.
     rewrite /token.
-    iMod (own_alloc (gen_own_res a ⋅ token_res (True_pred :: []))) as (γ) "[A B]".
+    iMod (own_alloc
+      (gc_tup_deps A DS (ivec_to_list γs) ⋅
+       gc_tup_elem DS a ⋅
+       gc_tup_pick_out DS GTS_tok_both ⋅
+       gc_tup_promise_list (gPV (● to_max_prefix_list (True_pred :: [])))
+       )) as (γ) "[[[?A] A'] B]".
     { split; simpl; try done.
       rewrite ucmra_unit_left_id.
       apply gen_pv_valid.
       apply auth_auth_valid.
       apply to_max_prefix_list_valid. }
     iExists γ.
-    iModIntro. iFrame "A".
-    iExists _. iFrame "B".
+    iModIntro. iFrame.
+    iExists _. iFrame.
     iPureIntro.
     apply pred_prefix_list_for'_True.
   Qed.
@@ -2293,7 +2310,7 @@ Section rules.
   Proof.
     iNamed 1.
     iDestruct 1 as (prs2 prefix2) "[deps2 preds2]".
-    iDestruct (know_deps_agree with "deps deps2") as %<-.
+    iDestruct (know_deps_agree with "rely_deps deps2") as %<-.
     iDestruct (own_valid_2 with "frag_preds preds2") as "val".
     iDestruct (prod_valid_5th with "val") as "%val".
     iPureIntro.
@@ -2379,9 +2396,9 @@ Section nextgen_assertion_rules.
     iSplitL "". { iApply own_promises_empty. }
     iSplit; first done.
     iIntros (full_picks ? ? ?).
-    iEval (rewrite own.own_eq) in "own".
-    rewrite /own.own_def.
-    iModIntro.
+    (* iEval (rewrite own.own_eq) in "own". *)
+    (* rewrite /own.own_def. *)
+    (* iModIntro. *)
   Admitted.
   (*   iDestruct (uPred_own_resp_omega _ _ with "own") as (to) "(%cond & own)". *)
   (*   { done. } *)
