@@ -503,7 +503,7 @@ Notation On Ω i :=
 Notation Ocs Ω i :=
   (match Ω.(gc_map) i as o return ivec (
     match o with Some2 gcd12 => gcd12.(gcd_n) | None2 => 0 end
-  ) _ with
+  ) cmra with
   | Some2 gcd => gcd.(gcd_deps)
   | Nil2 => inil
   end).
@@ -637,6 +637,17 @@ Class genInSelfG (Σ : gFunctors) Ω (A : cmra) := GenInG2 {
 
 Existing Instance genInSelfG_gen.
 
+Lemma rel_over_eq {n m A1 A2} {DS1 : ivec n cmra} {DS2 : ivec m cmra} (eq : m = n) :
+  A1 = A2 →
+  DS1 = eq_rect _ (λ n, ivec n _) DS2 _ eq →
+  rel_over DS1 A1 = rel_over DS2 A2.
+Proof.
+  intros ->.
+  intros ->.
+  destruct eq.
+  done.
+Qed.
+
 Section omega_helpers_genInG.
   Context `{Σ : gFunctors, Ω : gGenCmras Σ}.
   Context {A n} {DS : ivec n cmra} {i : genInG Σ Ω A DS}.
@@ -646,12 +657,12 @@ Section omega_helpers_genInG.
    * in this section establishes these equalities. *)
 
   (** Equality for [Oc] and [genInG]. *)
-  Lemma Oc_inG_eq   :
+  Lemma Oc_inG_eq :
     Oc Ω (genInG_id i) = gcd_cmra genInG_gti.
   Proof. rewrite -genInG_gen_trans. done. Qed.
 
   (* This equality is used in [build_trans_singleton]. *)
-  Lemma Oc_genInG_eq   :
+  Lemma Oc_genInG_eq :
     Oc Ω (genInG_id i) = A.
   Proof.
     rewrite -genInG_gen_trans.
@@ -659,23 +670,20 @@ Section omega_helpers_genInG.
   Defined.
 
   (** Equality for [On] and [genInG]. *)
-  Lemma On_inG   :
+  Lemma On_inG :
     On Ω (genInG_id i) = n.
   Proof.
     apply (
       On_omega_lookup (genInG_id i) (_) (eq_sym genInG_gen_trans) (genInG_gcd_n (genInG := i))).
   Defined.
 
-  Lemma Ocd_inG   :
-    match On_inG in (_ = nn) return ivec nn cmra with
-      eq_refl => Ocs Ω (genInG_id i)
-    end = DS.
+  Lemma Ocs_inG :
+    rew dependent [fun n _ => ivec n cmra] On_inG in Ocs Ω (genInG_id i) = DS.
   Proof.
     rewrite /On_inG.
     destruct i.
     simpl.
     rewrite genInG_gcd_deps0.
-    clear genInG_gcd_deps0.
     destruct (On_omega_lookup genInG_id0 genInG_gti0 _ genInG_gcd_n0).
     destruct genInG_gti0.
     simpl in *.
@@ -715,6 +723,15 @@ Section omega_helpers_genInG.
     destruct genInG_gcd_deps0.
     done.
   Defined.
+
+  Lemma rel_over_Oc_Ocs_genInG :
+    rel_over DS A = rel_over (Ocs Ω (genInG_id _)) (Oc Ω (genInG_id _)).
+  Proof.
+    destruct genInG_gen_trans.
+    apply (rel_over_eq genInG_gcd_n).
+    - apply genInG_gti_typ.
+    - apply genInG_gcd_deps.
+  Qed.
 
 End omega_helpers_genInG.
 
