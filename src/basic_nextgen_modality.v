@@ -111,13 +111,32 @@ Section bnextgen_rules.
     eauto using uPred_mono, ucmra_unit_leastN.
   Qed.
 
-  Lemma bnextgen_wand_plain_2 P Q :
-    (■ P -∗ ⚡={f}=> Q) ⊢
-    ⚡={f}=> (■ P -∗ Q).
+  Lemma bnextgen_wand_plainly P Q :
+    (⚡={f}=> (■ P -∗ Q)) ⊣⊢ (■ P -∗ ⚡={f}=> Q).
   Proof.
-    unseal. split. simpl. intros ????.
-    intros n' x' le val HP.
-  Abort.
+    unseal. split. simpl. intros ???.
+    split.
+    * intros Hi n' x' le val Hp.
+      specialize (Hi n' ε le).
+      rewrite right_id in Hi.
+      eapply uPred_mono.
+      - apply Hi.
+        + eapply cmra_validN_le; last done.
+          apply generation_valid.
+          done.
+        + done.
+      - apply: generation_monoN. eexists _. done.
+      - done.
+    * intros Hi n' x' le val Hp.
+      specialize (Hi n' ε le).
+      rewrite right_id in Hi.
+      eapply uPred_mono.
+      - apply Hi.
+        + eapply cmra_validN_le; try done.
+        + done.
+      - eexists _. done.
+      - done.
+  Qed.
 
   Lemma bnextgen_mono P Q :
     (P ⊢ Q) → (⚡={f}=> P) ⊢ ⚡={f}=> Q.
@@ -294,6 +313,17 @@ Section into_bnextgen.
     iApply "Hi".
   Qed.
 
+  Global Instance into_bnextgen_wand_plain P `{!Plain P} Q Q' :
+      IntoBnextgen f Q Q' → IntoBnextgen f (P -∗ Q) (P -∗ Q').
+  Proof.
+    rewrite /IntoBnextgen.
+    rewrite -(plain_plainly P).
+    iIntros (H) "I".
+    iApply bnextgen_wand_plainly.
+    rewrite H.
+    done.
+  Qed.
+
   Lemma bnextgen_wand_plain P `{!Plain P, !Absorbing P} Q :
     (⚡={f}=> (P -∗ Q)) ⊢ P -∗ ⚡={f}=> Q.
   Proof.
@@ -346,7 +376,6 @@ Section into_bnextgen.
   (* Qed. *)
 
 End into_bnextgen.
-
 
 Section bnextgen_inv.
   Context `{!invGS Σ}.
