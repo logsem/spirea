@@ -981,18 +981,69 @@ Section transmap.
       done.
   Qed.
 
-  Lemma build_trans_singleton_alt
-      picks id γ
+  Lemma build_trans_singleton_alt picks id γ
       (a : generational_cmraR (Oc Ω id) (Ocs Ω id)) eqIn (V : transmap_valid picks) pps :
+    Oeq Ω id = Some2 eqIn →
     picks id = pps →
-    build_trans picks (discrete_fun_singleton id {[ γ := (map_unfold (cmra_transport eqIn a))
+    build_trans picks (discrete_fun_singleton id {[
+      γ := map_unfold (cmra_transport eqIn a)
       ]}) ≡
-    (discrete_fun_singleton id {[
-      γ := map_unfold (cmra_transport eqIn (gen_cmra_trans
-            (default (λ a, a) (picks id !! γ)) a))
-    ]}).
+      discrete_fun_singleton id {[
+        γ := map_unfold (cmra_transport eqIn (gen_cmra_trans
+        (default (λ a, a) (picks id !! γ)) a))
+      ]}.
   Proof.
-  Admitted.
+    rewrite /build_trans. simpl.
+    intros eqLook picksLook id2.
+    rewrite /own.iRes_singleton.
+    destruct (decide (id2 = id)) as [eq|neq].
+    - intros γ2.
+      rewrite build_trans_at_equation_1.
+      rewrite eq.
+      rewrite picksLook.
+      rewrite /build_trans_at_clause_1.
+      assert (∃ bingo, pps !! γ = bingo ∧ (bingo = None ∨ (∃ t, bingo = Some t ∧ GenTrans t)))
+          as (mt & ppsLook & disj).
+      { exists (pps !! γ).
+        split; first done.
+        destruct (pps !! γ) eqn:ppsLook. 2: { left. done. }
+        right. eexists _. split; try done.
+        eapply V. rewrite picksLook. done. }
+      clear V picksLook picks.
+      rewrite /Oc_genInG_eq.
+      clear id2 eq.
+      rewrite /Oeq in eqLook.
+      (* NOTE: This destruct only works when the circumstances are exactly right. *)
+      (* destruct genInG_gen_trans. *)
+      destruct (Ω.(gc_map) id) eqn:omegaLook.
+      2: { congruence. }
+      assert (gcd_cmra_eq g = eqIn) as <- by congruence.
+      rewrite map_lookup_imap.
+      rewrite 2!discrete_fun_lookup_singleton.
+      destruct (decide (γ = γ2)) as [<- | neqγ].
+      2: { rewrite !lookup_singleton_ne; done. }
+      rewrite 2!lookup_singleton.
+      simpl.
+      f_equiv.
+      f_equiv.
+      rewrite ppsLook. simpl.
+      rewrite /own.inG_unfold.
+      destruct disj as [-> | (t & -> & GT)].
+      + rewrite map_fold_unfold.
+        (* destruct i. simpl in *. *)
+        simpl.
+        rewrite /genInG_inG. simpl.
+        clear.
+        rewrite cmra_map_transport_cmra_transport.
+        done.
+      + rewrite map_fold_unfold.
+        rewrite cmra_map_transport_cmra_transport.
+        done.
+    - simpl.
+      rewrite discrete_fun_lookup_singleton_ne; last done.
+      apply build_trans_at_singleton_neq.
+      done.
+  Qed.
 
   Lemma build_trans_singleton {A n} (DS : ivec n cmra) {i : genInG Σ Ω A DS}
         (γ : gname) picks a pps (V : transmap_valid picks) :
@@ -1005,6 +1056,10 @@ Section transmap.
     rewrite /build_trans. simpl.
     intros picksLook id.
     rewrite /own.iRes_singleton.
+    (* TODO: Prove this lemma using the lemma above *)
+    (* rewrite /own.inG_unfold. *)
+    (* fold (@map_unfold Σ (inG_id genInG_inG)). *)
+    (* rewrite (build_trans_singleton_alt picks). *)
     destruct (decide (id = genInG_id i)) as [eq|neq].
     - intros γ2.
       rewrite build_trans_at_equation_1.
@@ -2514,10 +2569,12 @@ Section nextgen_assertion_rules.
     rewrite /own_promises.
     iModIntro.
     iIntros (pi elm).
-    iDestruct ("prs" $! pi elm) as (??) "-#H". iClear "prs".
+    iDestruct ("prs" $! pi elm) as (????) "-#H".
+    iClear "prs".
     iExists _, _.
-    iDestruct "H" as "($ & $ & own)".
-    rewrite build_trans_singleton_alt; [ |done|done].
+    iSplit; first done.
+    iSplit; first done.
+    rewrite build_trans_singleton_alt; [ |done|done|done].
     iStopProof.
     f_equiv.
     simpl.
