@@ -159,7 +159,7 @@ Section cmra_map_transport.
       (f : A → A) a :
     (cmra_map_transport eq f) (cmra_transport eq a) =
     (cmra_transport eq (f a)).
-  Proof. destruct eq. simpl. reflexivity. Qed.
+  Proof. destruct eq. simpl. reflexivity. Defined.
 
   Global Instance cmra_map_transport_proper (f : A → A) :
     (Proper ((≡) ==> (≡)) f) →
@@ -403,24 +403,33 @@ Proof.
     done.
 Qed.
 
-Global Instance gen_generation_gen_trans {n} {A : cmra} {DS : ivec n cmra} (f : A → A)
-  `{!Proper (equiv ==> equiv) f} :
-  GenTrans f → GenTrans (gen_cmra_trans (DS := DS) f).
-Proof. apply _. Qed.
+Section gen_cmra.
+  Context {n} {A : cmra} {DS : ivec n cmra}.
+  Global Instance gen_generation_gen_trans (f : A → A)
+    `{!Proper (equiv ==> equiv) f} :
+    GenTrans f → GenTrans (gen_cmra_trans (DS := DS) f).
+  Proof. apply _. Qed.
 
-Global Instance gen_generation_proper {n} {A : cmra} (DS : ivec n cmra) (f : A → A) :
-  Proper ((≡) ==> (≡)) f →
-  Proper ((≡) ==> (≡)) (gen_cmra_trans (DS := DS) f).
-Proof.
-  intros ? [[??]?] [[??]?] [[??]?]. simpl in *.
-  rewrite /gen_cmra_trans.
-  solve_proper.
-Qed.
+  Global Instance gen_generation_proper (f : A → A) :
+    Proper ((≡) ==> (≡)) f →
+    Proper ((≡) ==> (≡)) (gen_cmra_trans (DS := DS) f).
+  Proof.
+    intros ? [[??]?] [[??]?] [[??]?]. simpl in *.
+    rewrite /gen_cmra_trans.
+    solve_proper.
+  Qed.
 
-Global Instance gen_generation_ne {n} {A : cmra} (DS : ivec n cmra) (f : A → A) :
-  NonExpansive f →
-  NonExpansive (gen_cmra_trans (DS := DS) f).
-Proof. solve_proper. Qed.
+  Global Instance gen_generation_ne (f : A → A) :
+    NonExpansive f →
+    NonExpansive (gen_cmra_trans (DS := DS) f).
+  Proof. solve_proper. Qed.
+
+  Lemma gen_cmra_trans_apply f (a : generational_cmraR A DS) :
+    (gen_cmra_trans f) a =
+      (Some (to_agree f), GTS_floor a.1.1.1.2, f <$> a.1.1.2, a.1.2, gen_pv_trans a.2).
+  Proof. done. Qed.
+
+End gen_cmra.
 
 (** For every entry in [Ω] we store this record of information. The equality
  * [gcd_cmra_eq] is the "canonical" equality we will use to show that the resource
@@ -646,7 +655,17 @@ Proof.
   intros ->.
   destruct eq.
   done.
-Qed.
+Defined.
+
+Lemma hvec_eq {n m} (eq : m = n) (DS : ivec n Type) (DS2 : ivec m Type) :
+  DS = rew [λ n, ivec n _] eq in DS2 →
+  hvec n DS = hvec m DS2.
+Proof. destruct eq. intros ->. done. Qed.
+
+Lemma hvec_fmap_eq {n m A} {f : A → Type} (eq : m = n) (DS : ivec n A) (DS2 : ivec m A) :
+  DS = rew [λ n, ivec n _] eq in DS2 →
+  hvec n (f <$> DS) = hvec m (f <$> DS2).
+Proof. destruct eq. intros ->. done. Defined.
 
 Section omega_helpers_genInG.
   Context `{Σ : gFunctors, Ω : gGenCmras Σ}.
@@ -656,12 +675,8 @@ Section omega_helpers_genInG.
    * and [DS]) that are in fact equal to some of the types in [Ω]. The lemmas
    * in this section establishes these equalities. *)
 
-  (** Equality for [Oc] and [genInG]. *)
-  Lemma Oc_inG_eq :
-    Oc Ω (genInG_id i) = gcd_cmra genInG_gti.
-  Proof. rewrite -genInG_gen_trans. done. Qed.
-
-  (* This equality is used in [build_trans_singleton]. *)
+  (** Equality for [Oc].
+   * This equality is used in [build_trans_singleton]. *)
   Lemma Oc_genInG_eq :
     Oc Ω (genInG_id i) = A.
   Proof.
@@ -731,7 +746,16 @@ Section omega_helpers_genInG.
     apply (rel_over_eq genInG_gcd_n).
     - apply genInG_gti_typ.
     - apply genInG_gcd_deps.
-  Qed.
+  Defined.
+
+  Lemma trans_for_genInG :
+    trans_for n DS = trans_for (On Ω _) (Ocs Ω (genInG_id _)).
+  Proof.
+    destruct genInG_gen_trans.
+    rewrite /trans_for.
+    apply (hvec_fmap_eq genInG_gcd_n).
+    apply genInG_gcd_deps.
+  Defined.
 
 End omega_helpers_genInG.
 
@@ -1126,7 +1150,7 @@ Record promise_info_at {Σ} (Ω : gGenCmras Σ) id := {
     preds_hold pi_deps_preds ts → ∃ t, huncurry pi_rel ts t;
 }.
 
-Record promise_info {Σ} (Ω : gGenCmras Σ) := MkPromiseInfo {
+Record promise_info {Σ} (Ω : gGenCmras Σ) := MkPi {
   (* We need to know the specific ghost location that this promise is about *)
   pi_id : gid Σ; (* The index of the RA in the global RA *)
   pi_γ : gname; (* Ghost name for the promise *)
@@ -1140,7 +1164,7 @@ Record promise_info {Σ} (Ω : gGenCmras Σ) := MkPromiseInfo {
 #[local] Definition promise_info_universe_test {Σ} {Ω : gGenCmras Σ} : iProp Σ :=
   ∃ (ps : promise_info Ω), True.
 
-Arguments MkPromiseInfo {_ _}.
+Arguments MkPi {_ _}.
 
 Arguments pi_id {_ _}.
 Arguments pi_γ {_ _}.
@@ -1317,11 +1341,11 @@ Section promise_info.
 
   (* NOTE: Not sure if this function is a good idea. *)
   Definition promises_lookup promises id γ : option (promise_info _) :=
-    MkPromiseInfo id γ <$> (promises_lookup_at promises id γ).
+    MkPi id γ <$> (promises_lookup_at promises id γ).
 
   Lemma promises_lookup_at_Some promises id γ pia :
     promises_lookup_at promises id γ = Some pia →
-    MkPromiseInfo id γ pia ∈ promises.
+    MkPi id γ pia ∈ promises.
   Proof.
     induction promises as [|[id' γ' ?] ? IH]; first by inversion 1.
     rewrite promises_lookup_at_equation_2.
@@ -1360,7 +1384,7 @@ Section promise_info.
 
   Lemma promises_elem_of promises id γ pia :
     promises_wf promises →
-    MkPromiseInfo id γ pia ∈ promises →
+    MkPi id γ pia ∈ promises →
     promises_lookup_at promises id γ = Some pia.
   Proof.
     intros wf.
@@ -1640,7 +1664,7 @@ Section transmap.
     intros resp [id γ pia2] elm.
     destruct (strong id γ pia2) as (pia1 & look2 & stronger).
     { apply promises_elem_of; done. }
-    destruct (resp (MkPromiseInfo id γ pia1)) as (? & ? & ? & ? & ?).
+    destruct (resp (MkPi id γ pia1)) as (? & ? & ? & ? & ?).
     { apply promises_lookup_at_Some. done. }
     eexists _, _.
     split; first done.
@@ -1653,13 +1677,15 @@ Section transmap.
     done.
   Qed.
 
-  Lemma transmap_resp_promises_lookup_at picks promises id γ pia :
-    transmap_resp_promises picks promises →
+  Lemma transmap_resp_promises_lookup_at transmap promises id γ pia :
+    transmap_resp_promises transmap promises →
     promises_lookup_at promises id γ = Some pia →
-    ∃ t, (* ts *)
-      picks id !! γ = Some t (* Plus something about t satsifyign pred. *).
+    transmap_satisfy_rel transmap (MkPi id γ pia).
   Proof.
-  Admitted. (* TODO: *)
+    rewrite /transmap_resp_promises Forall_forall.
+    intros resp ?%promises_lookup_at_Some.
+    apply resp. done.
+  Qed.
 
   Definition transmap_overlap_resp_promises transmap ps :=
     ∀ i p, ps !! i = Some p →
@@ -2449,16 +2475,15 @@ Section nextgen_assertion_rules.
   Lemma own_build_trans_next_gen_picked_in γ (m : generational_cmraR A DS) picks
       `{!GenTrans (build_trans picks)} :
     transmap_valid picks →
-    own γ m ⊢ ⚡={build_trans picks}=> own γ (
-      gc_tup_pick_in DS (cmra_map_transport Oc_genInG_eq (default (λ a, a) (picks _ !! γ)))
+    own γ m ⊢ ⚡={build_trans picks}=>
+      gen_picked_in γ (cmra_map_transport Oc_genInG_eq (default (λ a, a) (picks _ !! γ))
     ).
   Proof.
     iIntros (?) "H".
     iEval (rewrite own.own_eq) in "H".
     rewrite /own.own_def.
     iModIntro.
-    iEval (rewrite own.own_eq).
-    rewrite /own.own_def.
+    rewrite /gen_picked_in own.own_eq /own.own_def.
     simpl.
     rewrite build_trans_singleton; [ |done|done].
     simpl.
@@ -2518,6 +2543,17 @@ Section nextgen_assertion_rules.
   (*   iFrame "own". *)
   (* Qed. *)
 
+  Lemma own_gen_cmra_split_picked_in γ a b c d e :
+    own γ (a, b, c, d, e) ⊣⊢ own γ (a, ε, ε, ε, ε) ∗ own γ (ε, b, c, d, e).
+   Proof.
+     rewrite -own_op.
+     f_equiv.
+     rewrite -!pair_op.
+     rewrite !(right_id ε (⋅)).
+     repeat split; simpl; try done;
+       rewrite !(left_id ε (⋅)); done.
+  Qed.
+
   (* TODO: Prove this lemma. *)
   Lemma rely_nextgen γ γs (R : rel_over DS A) (P : pred_over A)
       `{∀ (i : fin n), genInSelfG Σ Ω (DS !!! i)} :
@@ -2539,14 +2575,50 @@ Section nextgen_assertion_rules.
     iFrame "prs".
     iSplit; first done.
     iIntros (full_picks val resp _).
-    iDestruct (own_build_trans_next_gen_picked_in with "rely_deps") as "picked_in"; first done.
     iDestruct (own_build_trans_next_gen with "rely_deps") as "rely_deps'"; first done.
     iDestruct (own_build_trans_next_gen with "frag_preds") as "frag_preds"; first done.
     iModIntro.
+    edestruct (transmap_resp_promises_lookup_at)
+      as (ts & t & look & ? & relHolds); [done|done| ].
+    simpl in *.
+    rewrite look.
+    iDestruct (own_gen_cmra_split_picked_in with "rely_deps'") as "[picked_in $]".
+    iSplitL "frag_preds".
+    - iExists all, promises, pia.
+      iFrame "%".
+      clear.
+      simpl.
+      rewrite /gen_cmra_trans.
+      rewrite /gc_tup_promise_list.
+      simpl.
+      iDestruct (own_gen_cmra_split_picked_in with "frag_preds") as "[_ $]".
+      (* we should still have own_promises as it is persistent *)
+      admit.
+    - iExists (rew [cmra_to_trans] Oc_genInG_eq in t).
+      iExists (rew <- [id] trans_for_genInG in ts).
+      simpl.
+      iFrame "picked_in".
+      iSplit; first iPureIntro.
+      { pose proof (pi_rel_to_pred pia _ _ relHolds) as predHolds.
+        rewrite rel_eq in relHolds.
+        rewrite pred_eq in predHolds.
+        clear -relHolds predHolds.
+        rewrite /rel_over_Oc_Ocs_genInG in relHolds.
+        rewrite /rel_over_eq in relHolds.
+        rewrite /Oc_genInG_eq in predHolds.
+        rewrite /trans_for_genInG.
+        rewrite /Oc_genInG_eq.
+        rewrite /hvec_fmap_eq.
+        destruct genInG0. simpl in *.
+        destruct genInG_gen_trans0. simpl.
+        destruct genInG_gcd_n0. simpl in *.
+        destruct genInG_gti_typ0. simpl in *.
+        destruct genInG_gcd_deps0. simpl in *.
+        split.
+        + apply relHolds.
+        + apply predHolds. }
+      admit.
   Admitted.
-  (*   rewrite !sep_exist_l. *)
-  (*   rewrite bi.exist_sep. *)
-  (* Qed. *)
 
 End nextgen_assertion_rules.
 
