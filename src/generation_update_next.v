@@ -981,6 +981,19 @@ Section transmap.
       done.
   Qed.
 
+  Lemma build_trans_singleton_alt
+      picks id γ
+      (a : generational_cmraR (Oc Ω id) (Ocs Ω id)) eqIn (V : transmap_valid picks) pps :
+    picks id = pps →
+    build_trans picks (discrete_fun_singleton id {[ γ := (map_unfold (cmra_transport eqIn a))
+      ]}) ≡
+    (discrete_fun_singleton id {[
+      γ := map_unfold (cmra_transport eqIn (gen_cmra_trans
+            (default (λ a, a) (picks id !! γ)) a))
+    ]}).
+  Proof.
+  Admitted.
+
   Lemma build_trans_singleton {A n} (DS : ivec n cmra) {i : genInG Σ Ω A DS}
         (γ : gname) picks a pps (V : transmap_valid picks) :
     picks (genInG_id i) = pps →
@@ -1833,8 +1846,19 @@ Section next_gen_definition.
   Definition own_picks picks : iProp Σ :=
     ∃ m, uPred_ownM m ∗ ⌜ res_for_picks picks m ⌝.
 
+  (* This could be generalized to abritrary camera morphisms and upstreamed *)
+  Instance cmra_transport_coreid i (a : R Σ i) :
+    CoreId a → CoreId (map_unfold (Σ := Σ) a).
+  Proof.
+    intros ?. rewrite /map_unfold.
+    rewrite /CoreId.
+    rewrite -cmra_morphism_pcore.
+    rewrite core_id.
+    done.
+  Qed.
+
   Definition own_promises (ps : list (promise_info Ω)) : iProp Σ :=
-    (∀ p, ⌜ p ∈ ps ⌝ →
+    (∀ p, ⌜ p ∈ ps ⌝ -∗
       ∃ eq Rs,
         ⌜ Oeq Ω p.(pi_id) = Some2 eq ⌝ ∧
         ⌜ pred_prefix_list_for Rs p.(pi_rel) ⌝ ∧
@@ -1846,6 +1870,10 @@ Section next_gen_definition.
               gV (◯ (to_max_prefix_list Rs))
             )) ]}
         )).
+
+  #[global]
+  Instance own_promise_persistent ps : Persistent (own_promises ps).
+  Proof. apply _. Qed.
 
   Definition nextgen P : iProp Σ :=
     ∃ picks (ps : list (promise_info Ω)),
@@ -2274,8 +2302,8 @@ Section generational_resources.
       "%pia_in" ∷ ⌜ promises_lookup_at promises _ γ = Some pia ⌝ ∗
       "%prs_wf" ∷ ⌜ promises_wf promises ⌝ ∗
       "#rely_deps" ∷ know_deps γ γs ∗
-      "prs" ∷ own_promises promises ∗
-      "frag_preds" ∷ gen_promise_list γ ((gPV (◯ to_max_prefix_list all))).
+      "#prs" ∷ own_promises promises ∗
+      "#frag_preds" ∷ gen_promise_list γ ((gPV (◯ to_max_prefix_list all))).
 
 End generational_resources.
 
@@ -2430,22 +2458,28 @@ Section rules.
 
 End rules.
 
-Lemma iRes_singleton_included `{i : inG Σ A} (a b : A) γ :
+Lemma discrete_fun_singleton_included {Σ} {i : gid Σ} {A : cmra} eq (γ : gname)
+  (a b : A) :
   a ≼ b →
-  (own.iRes_singleton γ a) ≼ (own.iRes_singleton γ b).
+  ((discrete_fun_singleton i {[γ := map_unfold (cmra_transport eq a)]} : iResUR Σ)
+    ≼ discrete_fun_singleton i {[γ := map_unfold (cmra_transport eq b)]}).
 Proof.
   intros incl.
-  rewrite /own.iRes_singleton.
   apply discrete_fun_included_spec => id.
   simpl.
-  destruct (decide (id = inG_id i)) as [->|idNeq].
+  destruct (decide (id = i)) as [->|idNeq].
   2: { by rewrite !discrete_fun_lookup_singleton_ne. }
   rewrite !discrete_fun_lookup_singleton.
   apply singleton_mono.
   apply: cmra_morphism_monotone.
-  destruct inG_prf.
+  destruct eq.
   apply incl.
 Qed.
+
+Lemma iRes_singleton_included `{i : inG Σ A} (a b : A) γ :
+  a ≼ b →
+  (own.iRes_singleton γ a) ≼ (own.iRes_singleton γ b).
+Proof. apply discrete_fun_singleton_included. Qed.
 
 Section nextgen_assertion_rules.
   (* Rules about the nextgen modality. *)
@@ -2470,6 +2504,27 @@ Section nextgen_assertion_rules.
     rewrite /gen_cmra_trans. simpl.
     iStopProof.
     f_equiv.
+  Qed.
+
+  Lemma own_promises_nextgen picks ps `{!GenTrans (build_trans picks)} :
+    transmap_valid picks →
+    own_promises ps ⊢ ⚡={build_trans picks}=> own_promises ps.
+  Proof.
+    iIntros (val) "#prs".
+    rewrite /own_promises.
+    iModIntro.
+    iIntros (pi elm).
+    iDestruct ("prs" $! pi elm) as (??) "-#H". iClear "prs".
+    iExists _, _.
+    iDestruct "H" as "($ & $ & own)".
+    rewrite build_trans_singleton_alt; [ |done|done].
+    iStopProof.
+    f_equiv.
+    simpl.
+    apply discrete_fun_singleton_included.
+    rewrite gen_cmra_trans_apply. simpl.
+    rewrite 4!pair_included.
+    split_and!; try done. apply ucmra_unit_least.
   Qed.
 
   Lemma own_build_trans_next_gen_picked_in γ (m : generational_cmraR A DS) picks
@@ -2562,7 +2617,7 @@ Section nextgen_assertion_rules.
       rely γ γs R P ∗
       ∃ (t : A → A) (ts : trans_for n DS),
         ⌜ huncurry R ts t ∧ (* The transformations satisfy the promise *)
-          P t ⌝ ∗ (* For convenience we also get this directly *)
+          P t ⌝ ∗ (* For convenience we also give this directly *)
         gen_picked_in γ t ∗
         (* The transformations for the dependencies are the "right" ones *)
         (∀ i, gen_picked_in (γs !!! i) (hvec_lookup_fmap ts i)).
@@ -2576,24 +2631,24 @@ Section nextgen_assertion_rules.
     iSplit; first done.
     iIntros (full_picks val resp _).
     iDestruct (own_build_trans_next_gen with "rely_deps") as "rely_deps'"; first done.
-    iDestruct (own_build_trans_next_gen with "frag_preds") as "frag_preds"; first done.
+    iDestruct (own_build_trans_next_gen with "frag_preds") as "frag_preds'"; first done.
+    iDestruct (own_promises_nextgen with "prs") as "prs'"; first done.
     iModIntro.
     edestruct (transmap_resp_promises_lookup_at)
       as (ts & t & look & ? & relHolds); [done|done| ].
     simpl in *.
     rewrite look.
     iDestruct (own_gen_cmra_split_picked_in with "rely_deps'") as "[picked_in $]".
-    iSplitL "frag_preds".
+    iSplitL "".
     - iExists all, promises, pia.
-      iFrame "%".
+      do 6 (iSplit; first done).
+      iFrame "prs'".
       clear.
       simpl.
       rewrite /gen_cmra_trans.
       rewrite /gc_tup_promise_list.
       simpl.
-      iDestruct (own_gen_cmra_split_picked_in with "frag_preds") as "[_ $]".
-      (* we should still have own_promises as it is persistent *)
-      admit.
+      iDestruct (own_gen_cmra_split_picked_in with "frag_preds'") as "[_ $]".
     - iExists (rew [cmra_to_trans] Oc_genInG_eq in t).
       iExists (rew <- [id] trans_for_genInG in ts).
       simpl.
