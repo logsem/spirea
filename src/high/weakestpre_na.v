@@ -26,7 +26,7 @@ Section wp_na_rules.
   Implicit Types (ℓ : loc) (s : ST) (prot : LocationProtocol ST).
 
   Lemma wp_alloc_na v s prot `{!ProtocolConditions prot} st E :
-    {{{ prot.(p_inv) s v }}}
+    {{{ prot.(p_full) s v ∗ prot.(p_pers) s v }}}
       ref_NA v @ st; E
     {{{ ℓ, RET #ℓ; ℓ ↦_{prot} ([] ++ [s]) }}}.
   Proof.
@@ -62,7 +62,7 @@ Section wp_na_rules.
       iDestruct (mapsto_valid_2 with "pts pts'") as (?) "_".
       done. }
 
-    iDestruct (big_sepM2_dom with "predsHold") as %domEq.
+    iDestruct (big_sepM2_dom with "predsFullHold") as %domEq.
     iDestruct (big_sepM2_dom with "bumperSome") as %domEq2.
     iDestruct (big_sepM2_dom with "predPostCrash") as %domEq3.
     iDestruct (big_sepM2_dom with "bumpMono") as %domEq4.
@@ -74,10 +74,15 @@ Section wp_na_rules.
     { done. }
 
     (* Add the predicate to the ghost state of predicates. *)
-    iMod (own_all_preds_insert with "predicates") as "[predicates knowPred]".
+    iMod (own_all_preds_insert with "full_predicates") as "[full_predicates knowFullPred]".
     { eapply map_dom_eq_lookup_None; last apply physHistsLook.
       rewrite domEq3. congruence. }
-
+    iMod (own_all_preds_insert with "read_predicates") as "[read_predicates knowReadPred]".
+    { eapply map_dom_eq_lookup_None; last apply physHistsLook.
+      rewrite ReadBumperDoms. congruence. }
+    iMod (own_all_preds_insert with "pers_predicates") as "[pers_predicates knowPersPred]".
+    { eapply map_dom_eq_lookup_None; last apply physHistsLook.
+      rewrite PersBumperDoms. congruence. }
     (* Add a new offset to the ghost state of offfsets. *)
     iMod (ghost_map_insert_persist ℓ 0 with "offsets") as "[offsets #offset]".
     { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
@@ -122,7 +127,7 @@ Section wp_na_rules.
 
     iModIntro.
     rewrite -assoc. iSplit; first done.
-    iSplitL "Φpost knowPred knowBumper knowOrder ownHist ownNaView ownPhysHist".
+    iSplitL "Φpost knowFullPred knowReadPred knowPersPred knowBumper knowOrder ownHist ownNaView ownPhysHist".
     { setoid_rewrite monPred_at_wand.
       iApply "Φpost"; first done.
       rewrite /mapsto_na.
@@ -131,7 +136,7 @@ Section wp_na_rules.
       simpl.
       iEval (rewrite !monPred_at_embed).
       iSplit.
-      { iFrame "knowPred knowOrder knowBumper". }
+      { iFrame "knowFullPred knowReadPred knowPersPred knowOrder knowBumper". }
       iFrame "isExclusive".
       repeat iExists _.
       rewrite -map_fmap_singleton. iFrame "ownHist".
@@ -153,7 +158,7 @@ Section wp_na_rules.
       iSplitPure; first lia.
       iRight. done. }
     repeat iExists _.
-    iFrame "physHist crashedAt history predicates allOrders naLocs
+    iFrame "physHist crashedAt history full_predicates read_predicates pers_predicates allOrders naLocs
       atLocs".
     iFrame.
     iFrame "#".
@@ -192,10 +197,10 @@ Section wp_na_rules.
       apply mapShared. }
     (* increasingMap *)
     iSplitPure; first apply increasing_map_singleton.
-    (* predsHold *)
-    iSplitL "predsHold phi".
+    (* predsFullHold *)
+    iSplitL "predsFullHold phi".
     { iSplitL "phi".
-      - iExists _. rewrite !lookup_insert.
+      - iExists _, _. rewrite !lookup_insert.
         iSplit; first done.
         rewrite /initial_history.
         simpl.

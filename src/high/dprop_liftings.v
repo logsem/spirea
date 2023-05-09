@@ -123,8 +123,14 @@ Section post_crash_interact.
   Definition know_preorder_loc_d `{Countable ST} ℓ (preorder : relation2 ST) : dProp Σ :=
     lift_d (λ nD, know_preorder_loc ℓ (abs_state_relation (ST := ST)))%I.
 
-  Definition know_pred_d `{Countable ST} ℓ (ϕ : predicate ST) : dProp Σ :=
-    lift_d (λ nD, know_pred ℓ ϕ)%I.
+  Definition know_full_pred_d `{Countable ST} ℓ (ϕ : predicate ST) : dProp Σ :=
+    lift_d (λ nD, know_full_pred ℓ ϕ)%I.
+
+  Definition know_read_pred_d `{Countable ST} ℓ (ϕ : predicate ST) : dProp Σ :=
+    lift_d (λ nD, know_read_pred ℓ ϕ)%I.
+
+  Definition know_pers_pred_d `{Countable ST} ℓ (ϕ : predicate ST) : dProp Σ :=
+    lift_d (λ nD, know_pers_pred ℓ ϕ)%I.
 
   Definition is_at_loc ℓ : dProp Σ :=
     lift_d (λ nD, own shared_locs_name (◯ {[ ℓ ]}))%I.

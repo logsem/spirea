@@ -22,7 +22,9 @@ Class nvmHighDeltaG := MkNvmHighDeltaG {
   phys_history_name : gname;
   non_atomic_views_gname : gname;
   crashed_in_name : gname;
-  predicates_name : gname;
+  full_predicates_name : gname;
+  read_predicates_name : gname;
+  pers_predicates_name : gname;
   preorders_name : gname;
   offset_name : gname;
   exclusive_locs_name : gname;

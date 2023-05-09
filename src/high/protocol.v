@@ -20,38 +20,56 @@ Definition loc_predO `{nvmG Σ} ST := ST -d> val -d> dPropO Σ.
   - A function [bumper] that specifies how the state of a location changes
     after a crash. *)
 Record LocationProtocol ST `{AbstractState ST, nvmG Σ} := MkProt {
-  p_inv : loc_pred ST;
+  p_full : loc_pred ST;
+  p_read : loc_pred ST;
+  p_pers : loc_pred ST;
   p_bumper : ST → ST;
 }.
 
 Global Arguments MkProt {_} {_} {_} {_} {_} {_} _%I _%I.
 
-Global Arguments p_inv {ST} {_} {_} {_} {_} {_} _.
+Global Arguments p_full {ST} {_} {_} {_} {_} {_} _.
+Global Arguments p_read {ST} {_} {_} {_} {_} {_} _.
+Global Arguments p_pers {ST} {_} {_} {_} {_} {_} _.
 Global Arguments p_bumper {ST} {_} {_} {_} {_} {_} _.
 
 (* Type class collection the properties that a protocol should have.
 
 Note: The fields are ordered by "difficulty" in the sense of how difficult these
 conditions usually are to show.  *)
+
 Class ProtocolConditions `{AbstractState ST, nvmG Σ} (prot : LocationProtocol ST) := {
   bumper_mono :
     Proper ((⊑@{ST}) ==> (⊑))%signature (prot.(p_bumper));
-  inv_nobuf :>
-    ∀ s v, BufferFree (prot.(p_inv) s v);
+  full_nobuf :>
+    ∀ s v, BufferFree (prot.(p_full) s v);
+  read_nobuf :>
+    ∀ s v, BufferFree (prot.(p_read) s v);
+  pers_nobuf :>
+    ∀ s v, BufferFree (prot.(p_pers) s v);
+  full_read_split :
+    forall s v, prot.(p_full) s v ⊣⊢ prot.(p_read) s v ∗ (prot.(p_read) s v -∗ prot.(p_full) s v);
   pred_condition :
-    (⊢ ∀ s v, prot.(p_inv) s v -∗ <PCF> prot.(p_inv) (prot.(p_bumper) s) v : dProp Σ)%I;
+    ⊢ ∀ s v s_p v_p, prot.(p_full) s v ∗ prot.(p_pers) s_p v_p -∗
+      ∀ s_c v_c, prot.(p_read) s_c v_c ∗ ⌜ s_p ⊑ s_c ⌝ ∗ ⌜ s_c ⊑ s ⌝ -∗
+                 <PCF> prot.(p_full) (prot.(p_bumper) s_c) v_c ∗ prot.(p_pers) (prot.(p_bumper) s_c) v_c
 }.
 
+(* I'm not sure about this part *)
 #[global] Hint Mode ProtocolConditions + + + + + + ! : typeclass_instances.
 
+Existing Instance full_nobuf.
+Existing Instance read_nobuf.
+Existing Instance pers_nobuf.
 Existing Instance bumper_mono.
-Existing Instance inv_nobuf.
 
 (** [know_protocol] represents the knowledge that a location is associated with a
 specific protocol. It's defined simply using more "primitive" assertions. *)
 Definition know_protocol `{AbstractState ST, nvmG Σ}
            ℓ (prot : LocationProtocol ST) : dProp Σ :=
-  "#knowPred" ∷ know_pred_d ℓ prot.(p_inv) ∗
+  "#knowFullPred" ∷ know_full_pred_d ℓ prot.(p_full) ∗
+  "#knowReadPred" ∷ know_read_pred_d ℓ prot.(p_read) ∗
+  "#knowPersPred" ∷ know_pers_pred_d ℓ prot.(p_pers) ∗
   "#knowPreorder" ∷ know_preorder_loc_d ℓ (⊑@{ST}) ∗
   "#knowBumper" ∷ know_bumper ℓ prot.(p_bumper).
 
@@ -78,8 +96,9 @@ Section protocol.
   Lemma post_crash_know_protocol ℓ prot :
     know_protocol ℓ prot -∗ <PC> if_rec ℓ (know_protocol ℓ prot).
   Proof.
-    iIntros "(a & b & c)".
-    iModIntro. iModIntro. iFrame.
+    iIntros "(a & b & c & d & e)".
+    iModIntro.
+    iModIntro. iFrame.
   Qed.
 
   Global Instance know_protocol_into_crash ℓ prot :
@@ -92,14 +111,18 @@ Section protocol.
 
   Lemma know_protocol_extract ℓ prot :
     know_protocol ℓ prot -∗
-      know_pred_d ℓ prot.(p_inv) ∗
+      know_full_pred_d ℓ prot.(p_full) ∗
+      know_read_pred_d ℓ prot.(p_read) ∗
+      know_pers_pred_d ℓ prot.(p_pers) ∗
       know_preorder_loc_d ℓ (⊑@{ST}) ∗
       know_bumper ℓ prot.(p_bumper).
   Proof. iNamed 1. iFrame "#". Qed.
 
   Lemma know_protocol_unfold ℓ prot i :
     know_protocol ℓ prot i ⊣⊢
-       ("#knowPred" ∷ know_pred_d ℓ (p_inv prot) i ∗
+       ("#knowFullPred" ∷ know_full_pred_d ℓ (p_full prot) i ∗
+        "#knowReadPred" ∷ know_read_pred_d ℓ (p_read prot) i ∗
+        "#knowPersPred" ∷ know_pers_pred_d ℓ (p_pers prot) i ∗
         "#knowPreorder" ∷ know_preorder_loc_d ℓ (⊑@{ST}) i ∗
         "#knowBumper" ∷ know_bumper ℓ (p_bumper prot) i).
   Proof. rewrite /know_protocol !monPred_at_sep //. Qed.
@@ -110,7 +133,9 @@ Section protocol.
 
   Lemma know_protocol_at ℓ prot TV gnames :
     (know_protocol ℓ prot) (TV, gnames) ⊣⊢
-      know_pred ℓ prot.(p_inv) ∗
+      know_full_pred ℓ prot.(p_full) ∗
+      know_read_pred ℓ prot.(p_read) ∗
+      know_pers_pred ℓ prot.(p_pers) ∗
       know_preorder_loc ℓ (⊑@{ST}) ∗
       own_know_bumper (get_bumpers_name gnames) ℓ prot.(p_bumper).
   Proof.
@@ -120,17 +145,19 @@ Section protocol.
   Qed.
 
   Global Instance know_protocol_contractive ℓ bumper :
-    Contractive (λ (inv : loc_predO ST), (know_protocol ℓ (MkProt inv bumper))).
+    Contractive (λ (invs : (prodO (prodO (loc_predO ST) (loc_predO ST)) (loc_predO ST))),
+                      let '(full, read, pers) := invs in
+                      (know_protocol ℓ (MkProt full read pers bumper))).
   Proof.
     rewrite /know_protocol.
-    rewrite /know_pred_d.
+    rewrite /know_full_pred_d /know_read_pred_d /know_pers_pred_d.
     intros ????.
-    f_equiv; last done.
-    f_equiv.
-    f_equiv.
-    intros ?? ->.
-    f_contractive.
-    assumption.
+    destruct x as [[full read] pers].
+    destruct y as [[full' read'] pers'].
+    repeat
+      done ||
+      f_equiv ||
+      (intros ?? ->; f_contractive; apply H2).
   Qed.
 
 End protocol.

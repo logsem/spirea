@@ -5,7 +5,7 @@ From iris_named_props Require Import named_props.
 From self Require Import extra view_slice.
 From self.algebra Require Import ghost_map ghost_map_map.
 From self.base Require Import primitive_laws.
-From self.high Require Export dprop resources post_crash_modality increasing_map predicates.
+From self.high Require Export dprop_liftings dprop resources post_crash_modality increasing_map predicates.
 
 (* Convert a message to a thread_view corresponding to what is stored in the
 message. *)
@@ -71,10 +71,14 @@ Section state_interpretation.
   (** This is our analog to the state interpretation in the Iris weakest
   precondition. We keep this in our crash weakest precondition ensuring that it
   holds before and after each step. **)
+
   Definition interp : iProp Σ :=
     (∃ (phys_hists : gmap loc (gmap time message))
        (abs_hists : gmap loc (gmap time positive))
-       (predicates : gmap loc enc_predicate)
+       (global_pview : view)
+       (predicates_full : gmap loc enc_predicate)
+       (predicates_read: gmap loc enc_predicate)
+       (predicates_pers: gmap loc enc_predicate)
        (CV : view)
        (orders : gmap loc (relation2 positive))
        (bumpers : gmap loc (positive → option positive))
@@ -106,9 +110,14 @@ Section state_interpretation.
         ([∗ map] k1 ↦ mi ∈ abs_hists,
           [∗ map] k2 ↦ v ∈ mi, frag_entry abs_history_name k1 k2 v) ∗
       (* Knowledge of all the predicates. *)
-      "predicates" ∷ own_all_preds (DfracOwn 1) predicates ∗
+      "full_predicates" ∷ own_all_full_preds (DfracOwn 1) predicates_full ∗
+      "read_predicates" ∷ own_all_read_preds (DfracOwn 1) predicates_read ∗
+      "pers_predicates" ∷ own_all_pers_preds (DfracOwn 1) predicates_pers ∗
       (* All the encoded orders *)
       "allOrders" ∷ own_all_preorders preorders_name orders ∗
+
+      (* TODO: add ghost resource for high level persisted view  *)
+      "#globalPViewPersisted" ∷ persisted global_pview ∗
 
       (* Seperation of locations. *)
       "%locsDisjoint" ∷ ⌜ na_locs ## at_locs ⌝ ∗
@@ -130,18 +139,57 @@ Section state_interpretation.
       "#ordered" ∷ ([∗ map] ℓ ↦ hist; order ∈ abs_hists; orders,
                     ⌜ increasing_map order hist ⌝) ∗
 
-      (* The predicates hold for all the locations. *)
-      "predsHold" ∷
+      (* persistent knowledge matches that of abstract history *)
+      "%histPViewDoms" ∷ ⌜ dom abs_hists = dom global_pview ⌝ ∗
+
+      (* The full/read predicates hold for all locations. *)
+      "predsFullHold" ∷
         ([∗ map] ℓ ↦ phys_hist;abs_hist ∈ phys_hists;abs_hists,
-          ∃ pred,
-            ⌜predicates !! ℓ = Some pred⌝ ∗
-            (* The predicate holds for each message in the history. *)
+          ∃ pred offset,
+            ⌜predicates_full !! ℓ = Some pred⌝ ∗
+            ⌜ offsets !! ℓ = Some $ offset ⌝ ∗
+            (* The predicate holds for "exclusive-write" message in the history. *)
             ([∗ map] t ↦ msg; encS ∈ phys_hist; abs_hist,
+               ⌜ offset ≤ t ⌝ -∗
+               ⌜ ¬ is_Some $ phys_hist !! (S t) ⌝ -∗
                encoded_predicate_holds
                  pred
                  encS
                  msg.(msg_val)
-                 ((default msg.(msg_store_view) (na_views !! ℓ)), msg.(msg_persisted_after_view), ∅, nD))) ∗
+                 ((default msg.(msg_store_view) (na_views !! ℓ)), msg.(msg_persisted_after_view), ∅, nD))
+        ) ∗
+
+      "predsReadHold" ∷
+        ([∗ map] ℓ ↦ phys_hist;abs_hist ∈ phys_hists;abs_hists,
+          ∃ pred offset,
+            ⌜predicates_read !! ℓ = Some pred⌝ ∗
+            ⌜ offsets !! ℓ = Some $ offset ⌝ ∗
+            (* The predicate holds for each message in the history. *)
+            ([∗ map] t ↦ msg; encS ∈ phys_hist; abs_hist,
+               ⌜ offset ≤ t ⌝ -∗
+               ⌜ is_Some $ phys_hist !! (S t) ⌝ -∗
+               encoded_predicate_holds
+                 pred
+                 encS
+                 msg.(msg_val)
+                 ((default msg.(msg_store_view) (na_views !! ℓ)), msg.(msg_persisted_after_view), ∅, nD))
+        ) ∗
+
+      (* persistent knowledge of every locations *)
+      "predsPersHold" ∷
+        ([∗ map] ℓ ↦ phys_hist;abs_hist ∈ phys_hists;abs_hists,
+          ∃ pred_pers (t: nat) encS msg,
+            ⌜ predicates_pers !! ℓ = Some pred_pers ⌝ ∗
+            (* It seems like the timestamp in [persisted] assertion is before
+               offset, we need to add it here *)
+            ⌜ offsets_add offsets global_pview !! ℓ = Some t ⌝ ∗
+            ⌜ abs_hist !! t = Some encS ⌝ ∗
+            ⌜ phys_hist !! t = Some msg ⌝ ∗
+            encoded_predicate_holds
+              pred_pers
+              encS
+              msg.(msg_val)
+              ((default msg.(msg_store_view) (na_views !! ℓ)), msg.(msg_persisted_after_view), ∅, nD)) ∗
 
       (** * Bump-back function *)
       (* We know about all the bumpers. *)
@@ -150,11 +198,30 @@ Section state_interpretation.
       "#bumpMono" ∷ ([∗ map] ℓ ↦ order; bump ∈ orders; bumpers,
         ∀ e1 e2 e1' e2', ⌜bump e1 = Some e1'⌝ → ⌜bump e2 = Some e2'⌝ →
                          ⌜order e1 e2⌝ → ⌜order e1' e2'⌝) ∗
+
+      "%FullBumperDoms" ∷
+        ⌜ dom predicates_full = dom bumpers ⌝ ∗
+      "%ReadBumperDoms" ∷
+        ⌜ dom predicates_read = dom bumpers ⌝ ∗
+      "%PersBumperDoms" ∷
+        ⌜ dom predicates_pers = dom bumpers ⌝ ∗
+
       (* The predicate holds after a crash for the bumped state. *)
-      "#predPostCrash" ∷ ([∗ map] ℓ ↦ pred; bump ∈ predicates; bumpers,
-        □ (∀ (e : positive) (v : val) (hG : nvmDeltaG) TV (P : dPropO Σ) e',
-          ⌜bump e = Some e'⌝ ∗ pred e v ≡ Some P ∗ P (TV, hG) -∗
-          ∃ P', ⌜pred e' v = Some P'⌝ ∗ ((post_crash_flush P') (TV, hG)))) ∗
+      "#predPostCrash" ∷ ([∗ map] ℓ ↦ pred_full; bump ∈ predicates_full; bumpers,
+        ∃ pred_read pred_pers order,
+        ⌜ predicates_read !! ℓ = Some pred_read ⌝ ∗
+        ⌜ predicates_pers !! ℓ = Some pred_pers ⌝ ∗
+        ⌜ orders !! ℓ = Some order ⌝ ∗
+        □ (∀ (e_f e_p e_c e_c': positive) (v_f v_p v_c : val) (hG : nvmDeltaG) TV (P_full P_pers P_read : dPropO Σ),
+          pred_full e_f v_f ≡ Some P_full ∗
+          pred_read e_c v_c ≡ Some P_read ∗
+          pred_pers e_p v_p ≡ Some P_pers ∗
+          ⌜ bump e_c = Some e_c' ⌝ ∗
+          ⌜ order e_p e_c ⌝ ∗ ⌜ order e_c e_f ⌝ ∗
+          P_full (TV, hG) ∗ P_pers (TV, hG) ∗ P_read (TV, hG) -∗
+          ∃ P_full' P_pers', pred_full e_c' v_c ≡ Some P_full' ∗ pred_pers e_c' v_c ≡ Some P_pers' ∗
+                             ((post_crash_flush (P_full' ∗ P_pers': dPropO Σ)) (TV, hG)))) ∗
+
       (* Bumpers map valid input to valid output. *)
       "%bumperBumpToValid" ∷
         ⌜ map_Forall
@@ -162,12 +229,12 @@ Section state_interpretation.
             bumpers⌝ ∗
       (* All the abstract state are "valid" inputs to the bumpers. *)
       "#bumperSome" ∷ ([∗ map] ℓ ↦ abs_hist; bumper ∈ abs_hists; bumpers,
-        ⌜ map_Forall (λ _ e, is_Some (bumper e)) abs_hist ⌝)).
+        ⌜ map_Forall (λ _ e, is_Some (bumper e)) abs_hist ⌝)
+    ).
 
   Global Instance highExtraStateInterp : extraStateInterp Σ := {
     extra_state_interp := interp;
   }.
-
 End state_interpretation.
 
 Opaque interp.

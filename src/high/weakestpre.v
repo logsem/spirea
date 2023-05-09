@@ -266,11 +266,11 @@ Section wp_rules.
 
     (* Get the points-to predicate. *)
     iDestruct (know_protocol_extract with "locationProtocol")
-      as "(_ & order & _)".
+      as "(_ & _ & _ & order & _)".
     rewrite /know_preorder_loc_d lift_d_at.
     iDestruct (ghost_map_lookup with "allOrders order") as %look.
     iDestruct (big_sepM2_dom with "ordered") as %domEq.
-    iDestruct (big_sepM2_dom with "predsHold") as %domEq2.
+    iDestruct (big_sepM2_dom with "predsFullHold") as %domEq2.
     assert (is_Some (phys_hists !! ℓ)) as [physHist ?].
     { apply elem_of_dom. rewrite domEq2 domEq. apply elem_of_dom. naive_solver. }
     rewrite /offset_loc lift_d_at.

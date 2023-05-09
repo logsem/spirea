@@ -19,10 +19,20 @@ Notation base_post_crash := post_crash_modality.post_crash.
 (** We define the post crash modality. *)
 
 (* The three implications for the things stored for a protocolt. *)
-Definition post_crash_pred_impl `{nvmG Σ} (nD nD' : nvmDeltaG) : iProp Σ :=
+Definition post_crash_full_pred_impl `{nvmG Σ} (nD nD' : nvmDeltaG) : iProp Σ :=
   □ ∀ ST (_ : EqDecision ST) (_ : Countable ST) ℓ (ϕ : ST → val → dProp Σ),
-    know_pred (hGD := nD) ℓ ϕ -∗
-    or_lost_post_crash_no_t ℓ (▷ know_pred (hGD := nD') ℓ ϕ).
+    know_full_pred (hGD := nD) ℓ ϕ -∗
+    or_lost_post_crash_no_t ℓ (▷ know_full_pred (hGD := nD') ℓ ϕ).
+
+Definition post_crash_read_pred_impl `{nvmG Σ} (nD nD' : nvmDeltaG) : iProp Σ :=
+  □ ∀ ST (_ : EqDecision ST) (_ : Countable ST) ℓ (ϕ : ST → val → dProp Σ),
+    know_read_pred (hGD := nD) ℓ ϕ -∗
+    or_lost_post_crash_no_t ℓ (▷ know_read_pred (hGD := nD') ℓ ϕ).
+
+Definition post_crash_pers_pred_impl `{nvmG Σ} (nD nD' : nvmDeltaG) : iProp Σ :=
+  □ ∀ ST (_ : EqDecision ST) (_ : Countable ST) ℓ (ϕ : ST → val → dProp Σ),
+    know_pers_pred (hGD := nD) ℓ ϕ -∗
+    or_lost_post_crash_no_t ℓ (▷ know_pers_pred (hGD := nD') ℓ ϕ).
 
 Definition post_crash_preorder_impl `{nvmG Σ}
            (nD nD' : nvmDeltaG) : iProp Σ :=
@@ -158,7 +168,9 @@ Definition post_crash_resource_persistent `{nvmG Σ}
            (nD nD' : nvmDeltaG) : iProp Σ :=
   "#post_crash_frag_history_impl" ∷ post_crash_frag_history_impl nD nD' ∗
   "#post_crash_preorder_impl" ∷ post_crash_preorder_impl nD nD' ∗
-  "#post_crash_pred_impl" ∷ post_crash_pred_impl nD nD' ∗
+  "#post_crash_full_pred_impl" ∷ post_crash_full_pred_impl nD nD' ∗
+  "#post_crash_read_pred_impl" ∷ post_crash_read_pred_impl nD nD' ∗
+  "#post_crash_pers_pred_impl" ∷ post_crash_pers_pred_impl nD nD' ∗
   "#post_crash_at_loc_impl" ∷ post_crash_at_loc_impl nD nD' ∗
   "#post_crash_na_loc_impl" ∷ post_crash_na_loc_impl nD nD' ∗
   "#post_crash_offsets_impl" ∷ offsets_impl nD nD' ∗
@@ -506,8 +518,8 @@ Section post_crash_interact.
     iApply "impl".
   Qed.
 
-  Lemma post_crash_know_pred `{Countable ST} ℓ (ϕ : ST → val → dProp Σ) :
-    know_pred_d ℓ ϕ ⊢ <PC> if_rec ℓ (know_pred_d ℓ ϕ).
+  Lemma post_crash_know_full_pred `{Countable ST} ℓ (ϕ : ST → val → dProp Σ) :
+    know_full_pred_d ℓ ϕ -∗ <PC> if_rec ℓ (know_full_pred_d ℓ ϕ).
   Proof.
     iModel.
     iIntros "HP".
@@ -516,7 +528,37 @@ Section post_crash_interact.
     post_crash_modality.iCrash.
     iIntros "[Ha $]". iNamed "Ha".
     rewrite /post_crash_resource. iFrameNamed.
-    iDestruct ("post_crash_pred_impl" with "HP") as "H".
+    iDestruct ("post_crash_full_pred_impl" with "HP") as "H".
+    iNext.
+    iApply or_lost_if_rec_with_names_embed. iFrame.
+  Qed.
+
+  Lemma post_crash_know_read_pred `{Countable ST} ℓ (ϕ : ST → val → dProp Σ) :
+    know_read_pred_d ℓ ϕ -∗ <PC> if_rec ℓ (know_read_pred_d ℓ ϕ).
+  Proof.
+    iModel.
+    iIntros "HP".
+    iIntrosPostCrash.
+    iDestruct (base.post_crash_modality.post_crash_nodep with "HP") as "HP".
+    post_crash_modality.iCrash.
+    iIntros "[Ha $]". iNamed "Ha".
+    rewrite /post_crash_resource. iFrameNamed.
+    iDestruct ("post_crash_read_pred_impl" with "HP") as "H".
+    iNext.
+    iApply or_lost_if_rec_with_names_embed. iFrame.
+  Qed.
+
+  Lemma post_crash_know_pers_pred `{Countable ST} ℓ (ϕ : ST → val → dProp Σ) :
+    know_pers_pred_d ℓ ϕ -∗ <PC> if_rec ℓ (know_pers_pred_d ℓ ϕ).
+  Proof.
+    iModel.
+    iIntros "HP".
+    iIntrosPostCrash.
+    iDestruct (base.post_crash_modality.post_crash_nodep with "HP") as "HP".
+    post_crash_modality.iCrash.
+    iIntros "[Ha $]". iNamed "Ha".
+    rewrite /post_crash_resource. iFrameNamed.
+    iDestruct ("post_crash_pers_pred_impl" with "HP") as "H".
     iNext.
     iApply or_lost_if_rec_with_names_embed. iFrame.
   Qed.
@@ -787,9 +829,17 @@ Section IntoCrash.
   (*        ℓ bumper t offset (s : ST) : IntoCrash _ _ := *)
   (*   post_crash_frag_history ℓ bumper t offset s. *)
 
-  Global Instance know_pred_into_crash `{Countable ST}
+  Global Instance know_full_pred_into_crash `{Countable ST}
          ℓ (ϕ : ST → _ → dProp Σ) :
-    IntoCrash _ _ := post_crash_know_pred ℓ ϕ.
+    IntoCrash _ _ := post_crash_know_full_pred ℓ ϕ.
+
+  Global Instance know_read_pred_into_crash `{Countable ST}
+         ℓ (ϕ : ST → _ → dProp Σ) :
+    IntoCrash _ _ := post_crash_know_read_pred ℓ ϕ.
+
+  Global Instance know_pers_pred_into_crash `{Countable ST}
+         ℓ (ϕ : ST → _ → dProp Σ) :
+    IntoCrash _ _ := post_crash_know_pers_pred ℓ ϕ.
 
   Global Instance at_loc_into_crash ℓ : IntoCrash _ _ := post_crash_at_loc ℓ.
 
@@ -1220,10 +1270,20 @@ Section IntoCrashFlush.
   Global Instance offset_into_crash_flush ℓ t : IntoCrashFlush _ _ :=
       into_crash_into_crash_flushed _ _ (offset_into_crash ℓ t).
 
-  Global Instance know_pred_into_crash_flush `{Countable ST}
+  Global Instance know_full_pred_into_crash_flush `{Countable ST}
          ℓ (ϕ : ST → _ → _) :
     IntoCrashFlush _ _ :=
-      into_crash_into_crash_flushed _ _ (know_pred_into_crash ℓ ϕ).
+      into_crash_into_crash_flushed _ _ (know_full_pred_into_crash ℓ ϕ).
+
+  Global Instance know_read_pred_into_crash_flush `{Countable ST}
+         ℓ (ϕ : ST → _ → _) :
+    IntoCrashFlush _ _ :=
+      into_crash_into_crash_flushed _ _ (know_read_pred_into_crash ℓ ϕ).
+
+  Global Instance know_pers_pred_into_crash_flush `{Countable ST}
+         ℓ (ϕ : ST → _ → _) :
+    IntoCrashFlush _ _ :=
+      into_crash_into_crash_flushed _ _ (know_pers_pred_into_crash ℓ ϕ).
 
   Global Instance post_crash_flush_into_crash_flush P : IntoCrashFlush (<PCF> P) P.
   Proof. done. Qed.
@@ -1246,9 +1306,9 @@ Section post_crash_flush_test.
 
   Lemma foo P `{Countable ST'} ℓ (ϕ : ST' → val → dProp Σ) t :
     ⌜ P ⌝ -∗
-    know_pred_d ℓ ϕ -∗
+    know_full_pred_d ℓ ϕ -∗
     persisted_loc_d ℓ t -∗
-    <PCF> ⌜ P ⌝ ∗ if_rec ℓ (know_pred_d ℓ ϕ).
+    <PCF> ⌜ P ⌝ ∗ if_rec ℓ (know_full_pred_d ℓ ϕ).
   Proof.
     iIntros "P pred pers".
     iModIntro.
