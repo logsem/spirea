@@ -760,6 +760,14 @@ Section omega_helpers_genInG.
     apply genInG_gcd_deps.
   Defined.
 
+  Lemma preds_for_genInG :
+    preds_for n DS = preds_for (On Ω _) (Ocs Ω (genInG_id _)).
+  Proof.
+    destruct genInG_gen_trans.
+    apply (hvec_fmap_eq genInG_gcd_n).
+    apply genInG_gcd_deps.
+  Defined.
+
 End omega_helpers_genInG.
 
 (*
@@ -2421,16 +2429,20 @@ Section rules.
     done.
   Qed.
 
+  Lemma eq_rect_app_swap {B} (f : B → Prop) (eq : B = A) (a : A) :
+    (rew [λ a, a → Prop] eq in f) a ↔ f (rew <- [id] eq in a).
+  Proof. destruct eq. done. Qed.
+
   (** Strengthen a promise. *)
   Lemma token_strengthen_promise `{∀ (i : fin n), genInSelfG Σ Ω (DS !!! i)}
       γ γs (deps_preds : preds_for n DS)
       (R_1 R_2 : rel_over DS A) (P_1 P_2 : (A → A) → Prop) :
     (* The new relation is stronger. *)
     (∀ (ts : trans_for n DS) (t : A → A),
-       huncurry R_1 ts t → huncurry R_2 ts t ∧ P_2 t) →
+       huncurry R_2 ts t → huncurry R_1 ts t) →
     (* The new predicate is stronger. *)
-    (∀ t, P_1 t → P_2 t) →
-    (* The new relation implies the predicate. *)
+    (∀ t, P_2 t → P_1 t) →
+    (* The new relation implies the new predicate. *)
     (∀ ts t, huncurry R_2 ts t → P_2 t) →
     (* Evidence that the promise is realizeable. *)
     (∀ (ts : trans_for n DS),
@@ -2440,6 +2452,48 @@ Section rules.
     token γ γs R_1 P_1 -∗ (* Old token. *)
     token γ γs R_2 P_2. (* Updated token. *)
   Proof.
+    iIntros (relStronger predStronger relToPred evidence) "relyDeps".
+    iNamed 1.
+    (* For each dependency we have a rely and that rely will have a list of
+     * promises. We need to merge all of these promises and then create an
+     * updated promise for the token.*)
+    rewrite /token.
+
+    eset (pia2 := {|
+      pi_deps_γs := (rew <- [λ n, ivec n _] On_genInG in γs);
+      pi_deps_preds := rew [id] preds_for_genInG in deps_preds;
+      pi_rel := rew [id] rel_over_Oc_Ocs_genInG in R_2;
+      pi_pred := rew <- [pred_over] Oc_genInG_eq in P_2;
+    |}).
+    Unshelve. 2: {
+      rewrite /rel_over_Oc_Ocs_genInG.
+      rewrite /Oc_genInG_eq.
+      destruct genInG_gen_trans. simpl.
+      destruct genInG_gti_typ.
+      intros ??.
+      destruct genInG0.
+      destruct genInG_gcd_n0.
+      simpl in *.
+      destruct genInG_gcd_deps0.
+      simpl.
+      apply relToPred. }
+    Unshelve. 2: {
+      rewrite /rel_over_eq /=.
+      rewrite /rel_over_Oc_Ocs_genInG.
+      rewrite /preds_for_genInG.
+      destruct genInG0. simpl in *.
+      destruct genInG_gen_trans0.
+      destruct genInG_gti_typ0.
+      intros ts holds.
+      destruct genInG_gcd_n0. simpl in *.
+      destruct genInG_gcd_deps0. simpl in *.
+      destruct (evidence ts holds) as (t & HR2).
+      exists t. apply HR2. }
+    simpl in *.
+
+    iExists (app all (R_2 :: nil)).
+    iExists _. (* TODO: Build this list of promises. *)
+    iExists pia2.
   Admitted.
 
   Lemma token_pick γ γs (R : rel_over DS A) P (ts : trans_for n DS) t
