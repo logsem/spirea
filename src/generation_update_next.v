@@ -66,6 +66,9 @@ Section types.
   (** A predicate over a transformation over [A]. *)
   Definition pred_over A := (cmra_to_trans A) → Prop.
 
+  (** Relation that is always true. *)
+  Definition True_pred {A} : pred_over A := λ _, True.
+
   (* Definition rel_over_typ {n} (DS : ivec n Type) (A : Type) := *)
   (*   iimpl id ((λ a, a → a) <$> DS) ((A → A) → Prop). *)
 
@@ -293,7 +296,7 @@ Section dependency_relation_extra.
   Qed.
 
   Lemma pred_prefix_list_for'_True :
-    pred_prefix_list_for' (True_rel :: []) True_rel (λ _ : A → A, True).
+    pred_prefix_list_for' (True_rel :: []) True_rel True_pred.
   Proof.
     rewrite /pred_prefix_list_for'.
     split; [apply pred_prefix_list_for_singleton | done].
@@ -1200,7 +1203,7 @@ End transmap.
  * universe issues (in particular, any Iris existential quantification over
  * something involing a [cmra] fails. We hence store all cameras in [Ω] and
  * look up into it). *)
-Record promise_info_at {Σ} (Ω : gGenCmras Σ) id := {
+Record promise_info_at {Σ} (Ω : gGenCmras Σ) id := MkPia {
   (* We have the generational cmra data for this index, this contains all
    * static info about the promise dependency for this index. *)
   pi_deps_γs : ivec (On Ω id) gname;
@@ -2296,9 +2299,6 @@ Section generational_resources.
   Definition gen_token_used γ : iProp Σ :=
     gen_pick_out γ GTS_tok_perm.
 
-  Definition gen_picked_out γ t : iProp Σ :=
-    gen_pick_out γ (GTS_tok_gen_shot t).
-
   Definition gen_token γ : iProp Σ :=
     gen_pick_out γ (GTS_tok_both).
 
@@ -2310,55 +2310,41 @@ Section generational_resources.
   Definition own_auth_promise_list γ all : iProp Σ :=
     gen_promise_list γ (gPV (● to_max_prefix_list all)).
 
+  (** Resources shared between [token], [used_token], and [rely]. *)
+  Definition know_promise γ γs R P pia promises all : iProp Σ :=
+    "%γs_eq" ∷ ⌜ pia.(pi_deps_γs) = rew <- [λ n, ivec n _] On_genInG in γs ⌝ ∗
+    "%pred_eq" ∷ ⌜ pia.(pi_pred) = rew <- [pred_over] Oc_genInG_eq in P ⌝ ∗
+    "%rel_eq" ∷ ⌜ pia.(pi_rel) = rew [id] rel_over_Oc_Ocs_genInG in R ⌝ ∗
+    "%pred_prefix" ∷ ⌜ pred_prefix_list_for' all R P ⌝ ∗
+    "%pia_in" ∷ ⌜ promises_lookup_at promises _ γ = Some pia ⌝ ∗
+    "%prs_wf" ∷ ⌜ promises_wf promises ⌝ ∗
+    "#deps" ∷ know_deps γ γs ∗
+    "#prs" ∷ own_promises promises.
+
   (** Ownership over the token and the promises for [γ]. *)
   Definition token (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
-    ∃ (all : list (rel_over DS A)),
-      "%pred_prefix" ∷ ⌜ pred_prefix_list_for' all R P ⌝ ∗
-      "#deps" ∷ know_deps γ γs ∗
-      "token" ∷ gen_token γ ∗
+    ∃ (all : list (rel_over DS A)) promises pia,
+      "tokenPromise" ∷ know_promise γ γs R P pia promises all ∗
+      "token" ∷ gen_pick_out γ GTS_tok_both ∗
       "auth_preds" ∷ own_auth_promise_list γ all.
 
   Definition used_token (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
-    ∃ (all : list (rel_over DS A)),
-      ⌜ pred_prefix_list_for' all R P ⌝ ∗
-      know_deps γ γs ∗
+    ∃ (all : list (rel_over DS A)) promises pia,
+      "tokenPromise" ∷ know_promise γ γs R P pia promises all ∗
       own_frozen_auth_promise_list γ all ∗
-      gen_token γ.
-
-  (* TODO: We need some way of converting between the relations stored in
-   * [promise_info] and the relations stored by the user.
-   *
-   * [promise_info] stores everything in relation to Σ. User predicates mention
-   * cameras directly and then have evidence (equalities) that the camera is in
-   * Σ. To convert a predicate by the user into one in [promise_info] we need
-   * to use all of this evidence. That is, we need to translate along all of
-   * the equalities. This is a bit like in [own] where users write an element
-   * of their camera and then this element is transported along the equality
-   * into an element of [Σ i]. *)
-
-  (* (** Knowledge that γ is accociated with the predicates R and P. *) *)
-  (* Definition rely (γ : gname) (γs : ivec n gname) R P : iProp Σ := *)
-  (*   ∃ (p : promise_info Σ) (all : list (rel_over DS A)), *)
-  (*     ⌜ p.(pi_γ) = γ ⌝ ∗ *)
-  (*     ⌜ p.(pi_rel) = R ⌝ ∗ *)
-  (*     ⌜ p.(pi_pred) = P ⌝ ∗ *)
-  (*     ⌜ deps_to_gnames (p.(pi_deps)) γs ⌝ *)
-  (*     ⌜ pred_prefix_list_for' all R P ⌝ ∗ *)
-  (*     own γ ((None, (None, None), None, *)
-  (*             gPV (◯ to_max_prefix_list all)) : generational_cmraR A DS). *)
+      "usedToken" ∷ gen_pick_out γ GTS_tok_perm.
 
   (** Knowledge that γ is accociated with the predicates R and P. *)
   Definition rely (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
     ∃ (all : list (rel_over DS A)) promises pia,
-      "%γs_eq" ∷ ⌜ pia.(pi_deps_γs) = rew <- [λ n, ivec n _] On_genInG in γs ⌝ ∗
-      "%pred_eq" ∷ ⌜ pia.(pi_pred) = rew <- [pred_over] Oc_genInG_eq in P ⌝ ∗
-      "%rel_eq" ∷ ⌜ pia.(pi_rel) = rew [id] rel_over_Oc_Ocs_genInG in R ⌝ ∗
-      "%rely_pred_prefix" ∷ ⌜ pred_prefix_list_for' all R P ⌝ ∗
-      "%pia_in" ∷ ⌜ promises_lookup_at promises _ γ = Some pia ⌝ ∗
-      "%prs_wf" ∷ ⌜ promises_wf promises ⌝ ∗
-      "#rely_deps" ∷ know_deps γ γs ∗
-      "#prs" ∷ own_promises promises ∗
-      "#frag_preds" ∷ gen_promise_list γ ((gPV (◯ to_max_prefix_list all))).
+      "#relyPromise" ∷ know_promise γ γs R P pia promises all ∗
+      "#fragPreds" ∷ gen_promise_list γ ((gPV (◯ to_max_prefix_list all))).
+
+  Definition picked_out γ t : iProp Σ :=
+    gen_pick_out γ (GTS_tok_gen_shot t).
+
+  Definition picked_in γ (t : A → A) : iProp Σ :=
+    own γ (gc_tup_pick_in DS t).
 
 End generational_resources.
 
@@ -2366,8 +2352,30 @@ Definition rely_self `{i : !genInSelfG Σ Ω A}
     γ (P : (A → A) → Prop) : iProp Σ :=
   ∃ γs R, rely (DS := genInSelfG_DS) γ γs R P.
 
+Equations True_preds_for {n} (ts : ivec n cmra) : preds_for n ts :=
+| inil => hnil;
+| icons t ts' => hcons True_pred (True_preds_for ts').
+
+Definition True_preds_for_id `{Ω : gGenCmras Σ}
+    id : preds_for (On Ω id) (Ocs Ω id) :=
+  True_preds_for (Ocs Ω id).
+
 Section rules.
   Context {n : nat} {DS : ivec n cmra} `{!genInG Σ Ω A DS}.
+
+  Program Definition make_true_pia id γs : promise_info_at Ω id := {|
+    pi_deps_γs := γs;
+    pi_deps_preds := True_preds_for_id id;
+    pi_rel := True_rel;
+    pi_pred := True_pred;
+  |}.
+  Next Obligation. done. Qed.
+  Next Obligation.
+    intros.
+    exists (λ a, a).
+    rewrite huncurry_curry.
+    done.
+  Qed.
 
   Lemma own_gen_alloc (a : A) γs :
     ✓ a → ⊢ |==> ∃ γ, gen_own γ a ∗ token γ γs True_rel (λ _, True%type).
@@ -2380,23 +2388,25 @@ Section rules.
        gc_tup_elem DS a ⋅
        gc_tup_pick_out DS GTS_tok_both ⋅
        gc_tup_promise_list (gPV (● to_max_prefix_list (True_rel :: [])))
-       )) as (γ) "[[[?A] A'] B]".
+       )) as (γ) "[[[?OA] A'] B]".
     { split; simpl; try done.
       rewrite ucmra_unit_left_id.
       apply gen_pv_valid.
       apply auth_auth_valid.
       apply to_max_prefix_list_valid. }
     iExists γ.
-    iModIntro. iFrame.
-    iExists _. iFrame.
-    iPureIntro.
-    apply pred_prefix_list_for'_True.
-  Qed.
+    iModIntro. iFrame "OA".
+    eset (pia := make_true_pia _ (rew <- [λ n, ivec n _] On_genInG in γs)).
+    iExists (True_rel :: nil), ((MkPi _ γ pia) :: nil), pia.
+  Admitted.
+  (*   iPureIntro. *)
+  (*   apply pred_prefix_list_for'_True. *)
+  (* Qed. *)
 
   Lemma gen_token_split γ :
-    gen_token γ ⊣⊢
-    own γ (None, GTS_tok_perm, None, None, ε) ∗
-    own γ (None, GTS_tok_gen, None, None, ε).
+    gen_pick_out γ GTS_tok_both ⊣⊢
+      gen_pick_out γ GTS_tok_perm ∗
+      gen_pick_out γ GTS_tok_gen.
   Proof. rewrite -own_op. done. Qed.
 
   Lemma gen_picked_in_agree γ (f f' : A → A) :
@@ -2435,9 +2445,9 @@ Section rules.
   Lemma token_pick γ γs (R : rel_over DS A) P (ts : trans_for n DS) t
       `{∀ (i : fin n), genInSelfG Σ Ω (DS !!! i)} :
     huncurry R ts t →
-    (∀ i, gen_picked_out (γs !!! i) (hvec_lookup_fmap ts i)) -∗
+    (∀ i, picked_out (γs !!! i) (hvec_lookup_fmap ts i)) -∗
     token γ γs R P -∗ |==>
-    used_token γ γs R P ∗ gen_picked_out γ t.
+    used_token γ γs R P ∗ picked_out γ t.
   Proof.
   Admitted.
 
@@ -2449,9 +2459,9 @@ Section rules.
   Lemma token_rely_combine_pred γ γs R1 P1 R2 P2 :
     token γ γs R1 P1 -∗ rely γ γs R2 P2 -∗ ⌜ rel_stronger R1 R2 ⌝.
   Proof.
-    iNamed 1.
-    iNamed 1.
-    iDestruct (own_valid_2 with "auth_preds frag_preds") as "val".
+    iNamed 1. iNamed "tokenPromise".
+    iNamed 1. iDestruct "relyPromise" as "(? & ? & ? & %relyPredPrefix & ?)".
+    iDestruct (own_valid_2 with "auth_preds fragPreds") as "val".
     iDestruct (prod_valid_5th with "val") as "%val".
     iPureIntro.
     move: val.
@@ -2460,7 +2470,7 @@ Section rules.
     rewrite to_max_prefix_list_included_L.
     intros [prefix _].
     destruct pred_prefix as [? ?].
-    destruct rely_pred_prefix as [? ?].
+    destruct relyPredPrefix as [? ?].
     eapply pred_prefix_list_for_prefix_of; done.
   Qed.
 
@@ -2485,10 +2495,10 @@ Section rules.
     ⌜ γs1 = γs2 ⌝ ∗
     ⌜ rel_stronger R1 R2 ∨ rel_stronger R2 R1 ⌝.
   Proof.
-    iNamed 1.
-    iDestruct 1 as (prs2 pia2 ? ? ? ? prefix2 ?) "(? & deps2 & ? & preds2)".
-    iDestruct (know_deps_agree with "rely_deps deps2") as %<-.
-    iDestruct (own_valid_2 with "frag_preds preds2") as "val".
+    iNamed 1. iNamed "relyPromise".
+    iDestruct 1 as (???) "((? & ? & ? & %prefix2 & ? & ? & deps2 & ?) & preds2)".
+    iDestruct (know_deps_agree with "deps deps2") as %<-.
+    iDestruct (own_valid_2 with "fragPreds preds2") as "val".
     iDestruct (prod_valid_5th with "val") as "%val".
     iPureIntro.
     split; first done.
@@ -2496,7 +2506,7 @@ Section rules.
     rewrite gen_pv_op. rewrite gen_pv_valid.
     rewrite auth_frag_valid.
     rewrite to_max_prefix_list_op_valid_L.
-    destruct rely_pred_prefix as [(isLast1 & look1) ?].
+    destruct pred_prefix as [(isLast1 & look1) ?].
     destruct prefix2 as [(isLast2 & look2) ?].
     rewrite last_lookup in isLast1.
     rewrite last_lookup in isLast2.
@@ -2630,8 +2640,7 @@ Section nextgen_assertion_rules.
   Lemma token_nextgen γ γs (R : rel_over DS A) P :
     used_token γ γs R P ⊢ ⚡==> token γ γs R P.
   Proof.
-    iDestruct 1 as (? (HPL & ?)) "[deps own]".
-    destruct HPL as (? & ?).
+    iNamed 1. iNamed "tokenPromise".
 
     iExists (λ i, ∅), [].
     iSplitL "". { iApply own_picks_empty. }
@@ -2680,15 +2689,15 @@ Section nextgen_assertion_rules.
         (∀ i, gen_picked_in (γs !!! i) (hvec_lookup_fmap ts i)).
   Proof.
     rewrite /rely.
-    iNamed 1.
+    iNamed 1. iNamed "relyPromise".
     rewrite /nextgen.
     iExists (λ i, ∅), promises.
     iSplitL ""; first iApply own_picks_empty.
     iFrame "prs".
     iSplit; first done.
     iIntros (full_picks val resp _).
-    iDestruct (own_build_trans_next_gen with "rely_deps") as "rely_deps'"; first done.
-    iDestruct (own_build_trans_next_gen with "frag_preds") as "frag_preds'"; first done.
+    iDestruct (own_build_trans_next_gen with "deps") as "rely_deps'"; first done.
+    iDestruct (own_build_trans_next_gen with "fragPreds") as "frag_preds'"; first done.
     iDestruct (own_promises_nextgen with "prs") as "prs'"; first done.
     iModIntro.
     edestruct (transmap_resp_promises_lookup_at)
@@ -2696,15 +2705,11 @@ Section nextgen_assertion_rules.
     simpl in *.
     rewrite look.
     iDestruct (own_gen_cmra_split_picked_in with "rely_deps'") as "[picked_in $]".
-    iSplitL "".
+    iSplit.
     - iExists all, promises, pia.
-      do 6 (iSplit; first done).
-      iFrame "prs'".
-      clear.
-      simpl.
-      rewrite /gen_cmra_trans.
-      rewrite /gc_tup_promise_list.
-      simpl.
+      iSplit.
+      { do 6 (iSplit; first done).
+        iFrame "prs'". }
       iDestruct (own_gen_cmra_split_picked_in with "frag_preds'") as "[_ $]".
     - iExists (rew [cmra_to_trans] Oc_genInG_eq in t).
       iExists (rew <- [id] trans_for_genInG in ts).
