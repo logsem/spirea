@@ -193,29 +193,8 @@ Section dependency_relation_cmra.
 
   (* Canonical Structure pred_over_tyO (A : Type) (DS : ivec n Type) := *)
   (*   leibnizO (rel_over_typ DS A). *)
-  Canonical Structure pred_overO (A : cmra) (DS : ivec n cmra) :=
+  Canonical Structure rel_overO (A : cmra) (DS : ivec n cmra) :=
     leibnizO (rel_over DS A).
-
-  (* Definition promises (A : Type) (DS : ivec n Type) := *)
-  (*   max_prefix_list (rel_over_typ DS A). *)
-  Definition promisesR (A : cmra) (DS : ivec n cmra) :=
-    max_prefix_listR (pred_overO A DS).
-
-  Definition promisesUR (A : cmra) (DS : ivec n cmra) :=
-    max_prefix_listUR (rel_over DS A).
-
-  (* Authorative promises. *)
-  Definition auth_promises {A : cmra} {DS : ivec n cmra}
-    (ps : list (rel_over DS A)) : auth (max_prefix_list (rel_over DS A)) :=
-    ● (to_max_prefix_list ps).
-  (* Definition auth_promises_ty {A : Type} {DS : ivec n Type} *)
-  (*   (ps : list (rel_over_typ DS A)) : auth (promises A DS) := *)
-  (*   ● (to_max_prefix_list ps). *)
-
-  (* Fragmental promises. *)
-  (* Definition frag_promises {A : Type} {DS : ivec n Type} *)
-  (*   (ps : list (rel_over_typ DS A)) : auth (promises A DS) := *)
-  (*   ◯ (to_max_prefix_list ps). *)
 
 End dependency_relation_cmra.
 
@@ -338,7 +317,7 @@ Definition generational_cmraR {n} (A : cmra) (DS : ivec n cmra) : cmra :=
   GTSR (A → A) *R*
   optionR A *R*
   optionR (agreeR (leibnizO (list gname))) *R*
-  gen_pvR (mono_listR (pred_overO A DS)).
+  gen_pvR (mono_listR (rel_overO A DS)).
 
 Local Infix "*M*" := prod_map (at level 50, left associativity).
 
@@ -513,10 +492,10 @@ Notation On Ω i :=
   end).
 
 (** Lookup the dependency cameras in [Ω] at the index [i] *)
-Notation Ocs Ω i :=
-  (match Ω.(gc_map) i as o return ivec (
-    match o with Some2 gcd12 => gcd12.(gcd_n) | None2 => 0 end
-  ) cmra with
+Notation Ocs Ω i := (
+  match Ω.(gc_map) i as o
+  return ivec match o with Some2 gcd12 => gcd12.(gcd_n) | None2 => 0 end cmra
+  with
   | Some2 gcd => gcd.(gcd_deps)
   | Nil2 => inil
   end).
@@ -648,7 +627,11 @@ Class genInSelfG (Σ : gFunctors) Ω (A : cmra) := GenInG2 {
   genInSelfG_gen : genInG Σ Ω A (genInSelfG_DS);
 }.
 
-Existing Instance genInSelfG_gen.
+Instance genInG_genInSelfG {n} `{i : !genInG Σ Ω A DS} : genInSelfG Σ Ω A := {|
+  genInSelfG_n := n;
+  genInSelfG_DS := DS;
+  genInSelfG_gen := i;
+|}.
 
 Lemma rel_over_eq {n m A1 A2} {DS1 : ivec n cmra} {DS2 : ivec m cmra} (eq : m = n) :
   A1 = A2 →
@@ -1469,7 +1452,7 @@ Section promise_info.
 
   (* (* NOTE: We can note merge promises with a definition as we need to rely
       * on evidence that is in [Prop]. *) *)
-  (* Fixpoint merge_promises prs1 prs2 := *)
+  (* Fixpoint merge_promises prs1 prs2 := .. *)
   (*   match prs1 with *)
   (*   | [] => prs2 *)
   (*   | p :: prs1' => *)
@@ -1486,6 +1469,89 @@ Section promise_info.
         promises_lookup_at prs1 id γ = Some pia1 ∧
         promise_stronger pia1 pia2.
 
+  Lemma elem_of_elem_of_cons {A} x y (xs : list A) :
+    x ∈ xs →
+    y ∈ (x :: xs) ↔ y ∈ xs.
+  Proof. intros elm. rewrite elem_of_cons. naive_solver. Qed.
+
+  Lemma promises_different_not_eq pi1 pi2 :
+    ¬ (pi1.(pi_id) = pi2.(pi_id) ∧ pi1.(pi_γ) = pi2.(pi_γ)) →
+    promises_different pi1 pi2.
+  Proof.
+    intros n.
+    destruct pi1, pi2.
+    rewrite /promises_different. simpl.
+    destruct (decide (pi_id0 = pi_id1));
+      destruct (decide (pi_γ0 = pi_γ1)); naive_solver.
+  Qed.
+
+  Lemma merge_promises_ds prs1 prs2 (restrict : list (gid Σ * gname)) :
+    promises_overlap_pred prs1 prs2 →
+    promises_wf prs1 →
+    promises_wf prs2 →
+    ∃ prs3,
+      promises_wf prs3 ∧
+      (∀ pi, pi ∈ prs3 →
+        ((pi ∈ prs1 ∨ pi ∈ prs2) ∧
+         (pi.(pi_id), pi.(pi_γ)) ∈ restrict)) ∧
+      (∀ id γ pia2,
+        (id, γ) ∈ restrict →
+        promises_lookup_at prs2 id γ = Some pia2 →
+        ∃ pia3,
+          promises_lookup_at prs3 id γ = Some pia3 ∧
+          promise_stronger pia3 pia2) ∧
+      (∀ id γ pia1,
+        (id, γ) ∈ restrict →
+        promises_lookup_at prs1 id γ = Some pia1 →
+        ∃ pia3,
+          promises_lookup_at prs3 id γ = Some pia3 ∧
+          promise_stronger pia3 pia1
+      ).
+  Proof.
+    intros lap wf1 wf2.
+    induction restrict as [|[id γ] restrict' IH].
+    { exists [].
+      split; first done.
+      split; first inversion 1.
+      split; intros ???; inversion 1. }
+    destruct IH as (prs3 & wf3 & from & stronger1 & stronger2).
+    (* Where good if id+γ is already in [restrict']. *)
+
+    (* destruct (promises_lookup_at prs3 id γ) as [pia3|] eqn:look. *)
+    (* { exists prs3. *)
+    (*   setoid_rewrite (elem_of_elem_of_cons _ _ _ elm). *)
+    (*   done. } *)
+    (* destruct (decide ((id, γ) ∈ restrict')) as [elm|notElm]. *)
+
+
+
+    destruct (decide ((id, γ) ∈ restrict')) as [elm|notElm].
+    { exists prs3.
+      setoid_rewrite (elem_of_elem_of_cons _ _ _ elm).
+      done. }
+    destruct (promises_lookup_at prs1 id γ) as [pia1|] eqn:look1;
+      destruct (promises_lookup_at prs2 id γ) as [pia2|] eqn:look2.
+    - (* Both lists has the path in question. *)
+      specialize (lap _ _ _ _ look1 look2) as [?|].
+      * exists (cons (MkPi id γ pia1) prs3).
+        split.
+        { split; last done.
+          split.
+          - intros [id2 γ2 ?] elm.
+            destruct (from _ elm) as [_ elm2].
+            apply promises_different_not_eq.
+            simpl in *.
+            intros [<- <-].
+            apply notElm. apply elm2.
+          - (* We need to also all add deps of pia1. *)
+            admit.
+        }
+        admit.
+      * admit.
+    - (* The first list does not have the restrict in question. *)
+        admit.
+  Admitted.
+
   (* How to merge promises, intuitively?
    * 1. From the first list add the suffix of promises not in the other.
    * 2. From the second list add the suffix of promises not in the other.
@@ -1495,6 +1561,7 @@ Section promise_info.
    *    - If they are both weaker???
    *)
   Lemma merge_promises prs1 prs2 :
+    promises_overlap_pred prs1 prs2 →
     promises_wf prs1 →
     promises_wf prs2 →
     ∃ prs3,
@@ -2222,8 +2289,9 @@ Section nextgen_properties.
     iIntros "[P Q]".
     iDestruct "P" as (? prs1) "(picks1 & pr1 & %wf1 & HP)".
     iDestruct "Q" as (? prs2) "(picks2 & pr2 & %wf2 & HQ)".
+    iDestruct (own_promises_overlap with "pr1 pr2") as %lap.
     destruct (merge_promises prs1 prs2) as (prs3 & ? & ? & ? & ?);
-      [done|done|].
+      [done|done|done|].
     (* Combine the picks. *)
     iExists _, prs3.
     iDestruct (own_picks_sep with "picks1 picks2") as "[$ %sub]".
@@ -2252,7 +2320,7 @@ End nextgen_properties.
 (* Ownership over generational ghost state. *)
 
 Section generational_resources.
-  Context {n} {A} {DS : ivec n cmra} `{!genInG Σ Ω A DS}.
+  Context {n} {A} {DS : ivec n cmra} `{i : !genInG Σ Ω A DS}.
   Implicit Types (R : rel_over DS A) (P : (A → A) → Prop).
 
   Definition gen_picked_in γ (t : A → A) : iProp Σ :=
@@ -2325,7 +2393,7 @@ End generational_resources.
 
 Definition rely_self `{i : !genInSelfG Σ Ω A}
     γ (P : (A → A) → Prop) : iProp Σ :=
-  ∃ γs R, rely (DS := genInSelfG_DS) γ γs R P.
+  ∃ γs R, rely (i := genInSelfG_gen) γ γs R P.
 
 Equations True_preds_for {n} (ts : ivec n cmra) : preds_for n ts :=
 | inil => hnil;
@@ -2349,6 +2417,19 @@ Section rules.
     intros.
     exists (λ a, a).
     rewrite huncurry_curry.
+    done.
+  Qed.
+
+  Lemma auth_promise_list_snoc γ ps p :
+    own_auth_promise_list γ ps ==∗ own_auth_promise_list γ (app ps (cons p nil)).
+  Proof.
+    rewrite /own_auth_promise_list.
+    rewrite /gen_promise_list.
+    apply own_update.
+    apply prod_update; first done; simpl.
+    apply gen_pv_update.
+    apply mono_list_update.
+    apply prefix_app_r.
     done.
   Qed.
 
@@ -2415,7 +2496,7 @@ Section rules.
       preds_hold deps_preds ts → ∃ (e : A → A), (huncurry R_2) ts e) →
     (* For every dependency we own a [rely_self]. *)
     (∀ (i : fin n), rely_self (γs !!! i) (hvec_lookup_fmap deps_preds i)) -∗
-    token γ γs R_1 P_1 -∗ (* Old token. *)
+    token γ γs R_1 P_1 ==∗ (* Old token. *)
     token γ γs R_2 P_2. (* Updated token. *)
   Proof.
     iIntros (relStronger predStronger relToPred evidence) "relyDeps".
@@ -2460,12 +2541,14 @@ Section rules.
     iExists (app all (R_2 :: nil)).
     iExists _. (* TODO: Build this list of promises. *)
     iExists pia2.
+    iFrame "token".
+    iMod (auth_promise_list_snoc γ all with "auth_preds") as "$".
   Admitted.
 
   Lemma token_pick γ γs (R : rel_over DS A) P (ts : trans_for n DS) t
-      `{∀ (i : fin n), genInSelfG Σ Ω (DS !!! i)} :
+      `{∀ i, genInSelfG Σ Ω (DS !!! i)} :
     huncurry R ts t →
-    (∀ i, picked_out (γs !!! i) (hvec_lookup_fmap ts i)) -∗
+    (∀ i, picked_out (i := genInSelfG_gen) (γs !!! i) (hvec_lookup_fmap ts i)) -∗
     token γ γs R P -∗ |==>
     used_token γ γs R P ∗ picked_out γ t.
   Proof.
@@ -2704,7 +2787,7 @@ Section nextgen_assertion_rules.
           P t ⌝ ∗ (* For convenience we also give this directly *)
         gen_picked_in γ t ∗
         (* The transformations for the dependencies are the "right" ones *)
-        (∀ i, gen_picked_in (γs !!! i) (hvec_lookup_fmap ts i)).
+        (∀ i, gen_picked_in (i := genInSelfG_gen) (γs !!! i) (hvec_lookup_fmap ts i)).
   Proof.
     rewrite /rely.
     iNamed 1. iNamed "relyPromise".
