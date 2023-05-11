@@ -1,6 +1,7 @@
 From Equations Require Import Equations.
 
 From iris.algebra Require Import functions gmap agree excl csum max_prefix_list.
+From iris.algebra.lib Require Import mono_list.
 From iris.proofmode Require Import classes tactics.
 From iris.base_logic.lib Require Export iprop own invariants.
 From iris.prelude Require Import options.
@@ -337,7 +338,7 @@ Definition generational_cmraR {n} (A : cmra) (DS : ivec n cmra) : cmra :=
   GTSR (A → A) *R*
   optionR A *R*
   optionR (agreeR (leibnizO (list gname))) *R*
-  gen_pvR (authR (promisesR A DS)).
+  gen_pvR (mono_listR (pred_overO A DS)).
 
 Local Infix "*M*" := prod_map (at level 50, left associativity).
 
@@ -1907,7 +1908,7 @@ Section next_gen_definition.
           pred_prefix_list_for Rs R ∧
           a ≡ map_unfold (cmra_transport eq
             (ε, GTS_tok_gen_shot t, ε,
-             Some (to_agree (ivec_to_list γs)), gV (●□ (to_max_prefix_list Rs)))).
+            Some (to_agree (ivec_to_list γs)), gV (●ML□ Rs))).
 
   Definition own_picks picks : iProp Σ :=
     ∃ m, uPred_ownM m ∗ ⌜ res_for_picks picks m ⌝.
@@ -1933,7 +1934,7 @@ Section next_gen_definition.
             (cmra_transport eq (
               ε, ε, ε,
               Some (to_agree (ivec_to_list p.(pi_deps_γs))),
-              gV (◯ (to_max_prefix_list Rs))
+              gPV (◯ML Rs)
             )) ]}
         )).
 
@@ -2051,8 +2052,7 @@ Section own_picks_properties.
     rewrite -Some_op option_validI to_agree_op_validI.
     iDestruct "Hv1" as %->.
     rewrite gen_pv_op gen_pv_valid in Hv3.
-    rewrite auth_auth_dfrac_op_valid in Hv3.
-    destruct Hv3 as (? & eq & ?).
+    apply mono_list_auth_dfrac_op_valid in Hv3 as (? & eq).
     rewrite /map_unfold.
     iDestruct "Hv2" as %hqq.
     apply leibniz_equiv in hqq.
@@ -2110,7 +2110,7 @@ Section own_picks_properties.
       rewrite gen_pv_op.
       rewrite /gV.
       simpl.
-      rewrite -auth_auth_dfrac_op.
+      rewrite -mono_list_auth_dfrac_op.
       done.
     - intros [= ->].
       apply tok1 in look1 as (n & c & t & r & rs & R & Rlist & ? & Rholds & picksLook & rest).
@@ -2312,11 +2312,11 @@ Section generational_resources.
 
   Definition own_frozen_auth_promise_list γ all : iProp Σ :=
     gen_promise_list γ (
-      gP (● to_max_prefix_list all) ⋅ gV (●□ to_max_prefix_list all)
+      gP (●ML all) ⋅ gV (●ML□ all)
     ).
 
   Definition own_auth_promise_list γ all : iProp Σ :=
-    gen_promise_list γ (gPV (● to_max_prefix_list all)).
+    gen_promise_list γ (gPV (●ML all)).
 
   (** Resources shared between [token], [used_token], and [rely]. *)
   Definition know_promise γ γs R P pia promises all : iProp Σ :=
@@ -2346,7 +2346,7 @@ Section generational_resources.
   Definition rely (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
     ∃ (all : list (rel_over DS A)) promises pia,
       "#relyPromise" ∷ know_promise γ γs R P pia promises all ∗
-      "#fragPreds" ∷ gen_promise_list γ ((gPV (◯ to_max_prefix_list all))).
+      "#fragPreds" ∷ gen_promise_list γ ((gPV (◯ML all))).
 
   Definition picked_out γ t : iProp Σ :=
     gen_pick_out γ (GTS_tok_gen_shot t).
@@ -2395,13 +2395,12 @@ Section rules.
       (gc_tup_deps A DS (ivec_to_list γs) ⋅
        gc_tup_elem DS a ⋅
        gc_tup_pick_out DS GTS_tok_both ⋅
-       gc_tup_promise_list (gPV (● to_max_prefix_list (True_rel :: [])))
+       gc_tup_promise_list (gPV (●ML (True_rel :: [])))
        )) as (γ) "[[[?OA] A'] B]".
     { split; simpl; try done.
       rewrite ucmra_unit_left_id.
       apply gen_pv_valid.
-      apply auth_auth_valid.
-      apply to_max_prefix_list_valid. }
+      apply mono_list_auth_valid. }
     iExists γ.
     iModIntro. iFrame "OA".
     eset (pia := make_true_pia _ (rew <- [λ n, ivec n _] On_genInG in γs)).
@@ -2520,9 +2519,7 @@ Section rules.
     iPureIntro.
     move: val.
     rewrite gen_pv_op. rewrite gen_pv_valid.
-    rewrite auth_both_valid_discrete.
-    rewrite to_max_prefix_list_included_L.
-    intros [prefix _].
+    intros prefix%mono_list_both_valid_L.
     destruct pred_prefix as [? ?].
     destruct relyPredPrefix as [? ?].
     eapply pred_prefix_list_for_prefix_of; done.
