@@ -17,13 +17,15 @@ Definition gen_pvR (A : cmra) : cmra := prodR (optionR A) (optionR A).
 Definition gen_pvUR (A : ucmra) : cmra := prodUR (optionUR A) (optionUR A).
 
 Definition gen_pv_trans {A : cmra} (p : gen_pv A) : gen_pv A :=
-  match p with (a_p, a_v) => (a_p, a_v) end.
+  match p with (a_p, a_v) => (a_p, a_p) end.
 
 #[global]
 Instance gen_pv_trans_gentrans A : GenTrans (gen_pv_trans (A := A)).
 Proof.
   split.
-  - intros n [??] [??]. solve_proper.
+  - intros n [??] [??]. simpl.
+    intros [eq ?]. simpl in eq. rewrite eq.
+    done.
   - intros ? [??] [??]. done.
   - intros [??]. done.
   - intros [??] [??]. done.
@@ -49,26 +51,38 @@ Section pv.
   (* [a] is persisted. *)
   Definition gP (a : A) : gen_pv A := mk_gen_pv sP a.
 
+  Lemma gen_pv_trans_p a :
+    gen_pv_trans (gP a) = gPV a.
+  Proof. done. Qed.
+
   Lemma gen_pv_valid p a : ✓ (mk_gen_pv p a) ↔ ✓ a.
   Proof.
     destruct p; rewrite pair_valid Some_valid; naive_solver.
   Qed.
 
   Lemma gen_pv_op p a1 a2 :
-    (mk_gen_pv p a1) ⋅ (mk_gen_pv p a2) ≡ mk_gen_pv p (a1 ⋅ a2).
+    mk_gen_pv p a1 ⋅ mk_gen_pv p a2 ≡ mk_gen_pv p (a1 ⋅ a2).
   Proof. destruct p; done. Qed.
 
   #[global] Instance mk_gen_pv_proper p a :
   Proper ((≡) ==> (≡)) (mk_gen_pv p).
   Proof. solve_proper. Qed.
 
-  (* As long as one status is [PV] the operation guarantees validity of the composition of two elements. *)
+  (* As long as one status is [PV] the operation guarantees validity of the
+   * composition of two elements. *)
   Lemma gen_pv_op_valid p a1 a2 :
     ✓ ((gPV a1) ⋅ (mk_gen_pv p a2)) ↔ ✓ (a1 ⋅ a2).
   Proof.
     destruct p; rewrite pair_valid Some_valid; split; try naive_solver; simpl.
     - intros V. split; first done. apply cmra_valid_op_l in V. done.
     - intros V. split; last done. eapply cmra_valid_op_l. done.
+  Qed.
+
+  Lemma gen_pv_update p a a' :
+    a ~~> a' →
+    mk_gen_pv p a ~~> mk_gen_pv p a'.
+  Proof.
+    intros ?. destruct p; apply prod_update; try apply option_update; done.
   Qed.
 
 End pv.
