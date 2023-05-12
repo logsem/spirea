@@ -1469,6 +1469,22 @@ Section promise_info.
         promises_lookup_at prs1 id γ = Some pia1 ∧
         promise_stronger pia1 pia2.
 
+  (** For every promise in [prs2] there is a stronger promise in [prs1]. *)
+  Definition promise_list_restrict_stronger prs1 prs2 (restrict : list (gid Σ * gname)) : Prop :=
+    ∀ id γ pia2,
+      (id, γ) ∈ restrict →
+      promises_lookup_at prs2 id γ = Some pia2 →
+      ∃ pia1,
+        promises_lookup_at prs1 id γ = Some pia1 ∧
+        promise_stronger pia1 pia2.
+
+  (** For every promise in [prs2] and [prs1] the one in [prs1] is stronger. *)
+  Definition promise_list_overlap_stronger prs1 prs2 : Prop :=
+    ∀ id γ pia2 pia1,
+      promises_lookup_at prs1 id γ = Some pia1 →
+      promises_lookup_at prs2 id γ = Some pia2 →
+        promise_stronger pia1 pia2.
+
   Lemma elem_of_elem_of_cons {A} x y (xs : list A) :
     x ∈ xs →
     y ∈ (x :: xs) ↔ y ∈ xs.
@@ -1485,50 +1501,53 @@ Section promise_info.
       destruct (decide (pi_γ0 = pi_γ1)); naive_solver.
   Qed.
 
+  Lemma promise_list_restrict_stronger_cons id γ prs3 pia3 prs1 restrict :
+    promise_list_overlap_stronger prs3 prs1 →
+    promises_lookup_at prs3 id γ = Some pia3 →
+    promise_list_restrict_stronger prs3 prs1 restrict →
+    promise_list_restrict_stronger prs3 prs1 ((id, γ) :: restrict).
+  Proof.
+    intros lap look3 res id2 γ2 ?.
+    destruct (decide ((id2, γ2) = (id, γ))) as [[= -> ->]|neq].
+    - intros _ look2. exists pia3. split; first done.
+      eapply lap; done.
+    - intros elm. apply res.
+      inversion elm; congruence.
+  Qed.
+
   Lemma merge_promises_ds prs1 prs2 (restrict : list (gid Σ * gname)) :
     promises_overlap_pred prs1 prs2 →
     promises_wf prs1 →
     promises_wf prs2 →
     ∃ prs3,
+      (* [prs3] has no junk, everything in it is "good". *)
       promises_wf prs3 ∧
-      (∀ pi, pi ∈ prs3 →
-        ((pi ∈ prs1 ∨ pi ∈ prs2) ∧
-         (pi.(pi_id), pi.(pi_γ)) ∈ restrict)) ∧
-      (∀ id γ pia2,
-        (id, γ) ∈ restrict →
-        promises_lookup_at prs2 id γ = Some pia2 →
-        ∃ pia3,
-          promises_lookup_at prs3 id γ = Some pia3 ∧
-          promise_stronger pia3 pia2) ∧
-      (∀ id γ pia1,
-        (id, γ) ∈ restrict →
-        promises_lookup_at prs1 id γ = Some pia1 →
-        ∃ pia3,
-          promises_lookup_at prs3 id γ = Some pia3 ∧
-          promise_stronger pia3 pia1
-      ).
+      (∀ pi, pi ∈ prs3 → (pi ∈ prs1 ∨ pi ∈ prs2)) ∧
+      promise_list_overlap_stronger prs3 prs1 ∧
+      promise_list_overlap_stronger prs3 prs2 ∧
+      (* [prs3] has enough promises, everything required by [restrict] is there. *)
+      promise_list_restrict_stronger prs3 prs1 restrict ∧
+      promise_list_restrict_stronger prs3 prs2 restrict.
   Proof.
     intros lap wf1 wf2.
     induction restrict as [|[id γ] restrict' IH].
-    { exists [].
-      split; first done.
-      split; first inversion 1.
-      split; intros ???; inversion 1. }
-    destruct IH as (prs3 & wf3 & from & stronger1 & stronger2).
-    (* Where good if id+γ is already in [restrict']. *)
-
-    (* destruct (promises_lookup_at prs3 id γ) as [pia3|] eqn:look. *)
-    (* { exists prs3. *)
-    (*   setoid_rewrite (elem_of_elem_of_cons _ _ _ elm). *)
-    (*   done. } *)
-    (* destruct (decide ((id, γ) ∈ restrict')) as [elm|notElm]. *)
-
-
+    { exists []. rewrite /promise_list_restrict_stronger.
+      split_and!; try done; setoid_rewrite elem_of_nil; done. }
+    destruct IH as (prs3 & wf3 & from & lap1 & lap2 & stronger1 & stronger2).
 
     destruct (decide ((id, γ) ∈ restrict')) as [elm|notElm].
-    { exists prs3.
+    { (* Where good if id+γ is already in [restrict']. *)
+      exists prs3. rewrite /promise_list_restrict_stronger.
       setoid_rewrite (elem_of_elem_of_cons _ _ _ elm).
       done. }
+
+    destruct (promises_lookup_at prs3 id γ) as [pia3|] eqn:look.
+    { (* If the promise is already in [prs3] it should satisfy the conditions
+       * already for the expanded [restrict]. *)
+      exists prs3. split_and!; try done.
+      - eapply promise_list_restrict_stronger_cons; done.
+      - eapply promise_list_restrict_stronger_cons; done. }
+
     destruct (promises_lookup_at prs1 id γ) as [pia1|] eqn:look1;
       destruct (promises_lookup_at prs2 id γ) as [pia2|] eqn:look2.
     - (* Both lists has the path in question. *)
@@ -1538,14 +1557,14 @@ Section promise_info.
         { split; last done.
           split.
           - intros [id2 γ2 ?] elm.
-            destruct (from _ elm) as [_ elm2].
-            apply promises_different_not_eq.
-            simpl in *.
-            intros [<- <-].
-            apply notElm. apply elm2.
-          - (* We need to also all add deps of pia1. *)
+            (* destruct (from _ elm) as [_ elm2]. *)
+            (* apply promises_different_not_eq. *)
+            (* simpl in *. *)
+            (* intros [<- <-]. *)
+            (* apply notElm. apply elm2. *)
             admit.
-        }
+          - (* We need to also all add deps of pia1. *)
+            admit. }
         admit.
       * admit.
     - (* The first list does not have the restrict in question. *)
