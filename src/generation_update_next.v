@@ -1450,7 +1450,7 @@ Section promise_info.
       promises_lookup_at prs2 id γ = Some p2 →
       promise_stronger p1 p2 ∨ promise_stronger p2 p1.
 
-  (* (* NOTE: We can note merge promises with a definition as we need to rely
+  (* (* NOTE: We can not merge promises with a definition as we need to rely
       * on evidence that is in [Prop]. *) *)
   (* Fixpoint merge_promises prs1 prs2 := .. *)
   (*   match prs1 with *)
@@ -1515,61 +1515,97 @@ Section promise_info.
       inversion elm; congruence.
   Qed.
 
-  Lemma merge_promises_ds prs1 prs2 (restrict : list (gid Σ * gname)) :
+  Definition promises_is_valid_restricted_merge prs3 prs1 prs2 restrict :=
+    (* [prs3] has no junk, everything in it is "good". *)
+    (∀ pi, pi ∈ prs3 → (pi ∈ prs1 ∨ pi ∈ prs2)) ∧
+    promise_list_overlap_stronger prs3 prs1 ∧
+    promise_list_overlap_stronger prs3 prs2 ∧
+    (* [prs3] has enough promises, everything required by [restrict] is there. *)
+    promise_list_restrict_stronger prs3 prs1 restrict ∧
+    promise_list_restrict_stronger prs3 prs2 restrict.
+
+  (* Grow [prs3] by inserting the promise id+γ and all of its dependencies from
+   * [prs1] and [prs2]. *)
+  Lemma merge_promises_insert_promise prs1 prs2 prs3 id γ restrict :
+    promises_is_valid_restricted_merge prs3 prs1 prs2 restrict →
+    (is_Some (promises_lookup_at prs1 id γ) ∨
+      is_Some (promises_lookup_at prs2 id γ)) →
+    promises_overlap_pred prs1 prs2 →
+    promises_wf prs1 →
+    promises_wf prs2 →
+    ∃ prs3' pia3,
+      promises_wf prs3' ∧
+      promises_lookup_at prs3' id γ = Some pia3 ∧
+      promises_is_valid_restricted_merge prs3' prs1 prs2 restrict.
+  Proof.
+    (* What to do induction over here?? *)
+    (* Check list_ind. *)
+    (* induction prs1 using sublist_ind. *)
+  Admitted.
+
+  Lemma merge_promises_restriced prs1 prs2 (restrict : list (gid Σ * gname)) :
     promises_overlap_pred prs1 prs2 →
     promises_wf prs1 →
     promises_wf prs2 →
     ∃ prs3,
-      (* [prs3] has no junk, everything in it is "good". *)
       promises_wf prs3 ∧
-      (∀ pi, pi ∈ prs3 → (pi ∈ prs1 ∨ pi ∈ prs2)) ∧
-      promise_list_overlap_stronger prs3 prs1 ∧
-      promise_list_overlap_stronger prs3 prs2 ∧
-      (* [prs3] has enough promises, everything required by [restrict] is there. *)
-      promise_list_restrict_stronger prs3 prs1 restrict ∧
-      promise_list_restrict_stronger prs3 prs2 restrict.
+      promises_is_valid_restricted_merge prs3 prs1 prs2 restrict.
   Proof.
+    rewrite /promises_is_valid_restricted_merge.
     intros lap wf1 wf2.
     induction restrict as [|[id γ] restrict' IH].
     { exists []. rewrite /promise_list_restrict_stronger.
       split_and!; try done; setoid_rewrite elem_of_nil; done. }
     destruct IH as (prs3 & wf3 & from & lap1 & lap2 & stronger1 & stronger2).
-
+    (* We're good if id+γ is already in [restrict']. *)
     destruct (decide ((id, γ) ∈ restrict')) as [elm|notElm].
-    { (* Where good if id+γ is already in [restrict']. *)
-      exists prs3. rewrite /promise_list_restrict_stronger.
+    { exists prs3. rewrite /promise_list_restrict_stronger.
       setoid_rewrite (elem_of_elem_of_cons _ _ _ elm).
       done. }
-
+    (* If the promise is already in [prs3] it should satisfy the conditions
+     * already for the expanded [restrict]. *)
     destruct (promises_lookup_at prs3 id γ) as [pia3|] eqn:look.
-    { (* If the promise is already in [prs3] it should satisfy the conditions
-       * already for the expanded [restrict]. *)
-      exists prs3. split_and!; try done.
-      - eapply promise_list_restrict_stronger_cons; done.
+    { exists prs3. split_and!; try done.
+      - eapply promise_list_restrict_stronger_cons; try done.
       - eapply promise_list_restrict_stronger_cons; done. }
-
     destruct (promises_lookup_at prs1 id γ) as [pia1|] eqn:look1;
       destruct (promises_lookup_at prs2 id γ) as [pia2|] eqn:look2.
-    - (* Both lists has the path in question. *)
-      specialize (lap _ _ _ _ look1 look2) as [?|].
-      * exists (cons (MkPi id γ pia1) prs3).
-        split.
-        { split; last done.
-          split.
-          - intros [id2 γ2 ?] elm.
-            (* destruct (from _ elm) as [_ elm2]. *)
-            (* apply promises_different_not_eq. *)
-            (* simpl in *. *)
-            (* intros [<- <-]. *)
-            (* apply notElm. apply elm2. *)
-            admit.
-          - (* We need to also all add deps of pia1. *)
-            admit. }
-        admit.
-      * admit.
-    - (* The first list does not have the restrict in question. *)
-        admit.
-  Admitted.
+    - edestruct (merge_promises_insert_promise) as (prs3' & temp);
+        try done; first naive_solver.
+      destruct temp as (pia3 & look3 & ? & ? & ? & ? & ? & ?).
+      exists prs3'.
+      split_and!; try done.
+       * eapply promise_list_restrict_stronger_cons; done.
+       * eapply promise_list_restrict_stronger_cons; done.
+    - edestruct (merge_promises_insert_promise) as (prs3' & temp);
+        try done; first naive_solver.
+      destruct temp as (pia3 & look3 & ? & ? & ? & ? & ? & ?).
+      exists prs3'.
+      split_and!; try done.
+       * eapply promise_list_restrict_stronger_cons; done.
+       * eapply promise_list_restrict_stronger_cons; done.
+    - edestruct (merge_promises_insert_promise) as (prs3' & temp);
+        try done; first naive_solver.
+      destruct temp as (pia3 & look3 & ? & ? & ? & ? & ? & ?).
+      exists prs3'.
+      split_and!; try done.
+       * eapply promise_list_restrict_stronger_cons; done.
+       * eapply promise_list_restrict_stronger_cons; done.
+    - (* None of the promise lists have the promise in question. *)
+      exists prs3.
+      split_and!; try done.
+      * intros ???. inversion 1; subst.
+        + congruence.
+        + apply stronger1. done.
+      * intros ???. inversion 1; subst.
+        + congruence.
+        + apply stronger2. done.
+  Qed.
+
+  Definition promises_is_valid_merge prs3 prs1 prs2 :=
+    (∀ pi, pi ∈ prs3 → pi ∈ prs1 ∨ pi ∈ prs2) ∧
+    promise_list_stronger prs3 prs1 ∧
+    promise_list_stronger prs3 prs2.
 
   (* How to merge promises, intuitively?
    * 1. From the first list add the suffix of promises not in the other.
@@ -1584,10 +1620,7 @@ Section promise_info.
     promises_wf prs1 →
     promises_wf prs2 →
     ∃ prs3,
-      promises_wf prs3 ∧
-      (∀ pi, pi ∈ prs3 → pi ∈ prs1 ∨ pi ∈ prs2) ∧
-      promise_list_stronger prs3 prs1 ∧
-      promise_list_stronger prs3 prs2.
+      promises_wf prs3 ∧ promises_is_valid_merge prs3 prs1 prs2.
   Proof.
   Admitted.
 
