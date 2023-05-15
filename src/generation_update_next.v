@@ -1563,10 +1563,73 @@ Section promise_info.
     promise_list_restrict_stronger prs3 prs1 restrict ∧
     promise_list_restrict_stronger prs3 prs2 restrict.
 
+  Lemma promises_lookup_at_None_different prs pi1 pi2 :
+    promises_lookup_at prs pi1.(pi_id) pi1.(pi_γ) = None →
+    pi2 ∈ prs →
+    promises_different pi1 pi2.
+  Proof. Admitted.
+
+  Lemma promise_list_valid_restricted_merge_cons pi prs3 prs1 prs2 restrict :
+    pi ∈ prs1 ∨ pi ∈ prs2 →
+    (∀ pia1,
+      promises_lookup_at prs1 pi.(pi_id) pi.(pi_γ) = Some pia1 →
+      promise_stronger pi pia1) →
+    (∀ pia2,
+      promises_lookup_at prs2 pi.(pi_id) pi.(pi_γ) = Some pia2 →
+      promise_stronger pi pia2) →
+    promises_is_valid_restricted_merge prs3 prs1 prs2 restrict →
+    promises_is_valid_restricted_merge (pi :: prs3) prs1 prs2 restrict.
+  Proof.
+    intros ??? H. split_and!.
+    - intros ?. inversion 1; first done. apply H. done.
+    - intros ????. admit.
+    - admit.
+    - admit.
+  Admitted.
+
+  (* Grow [prs3] by inserting the promise id+γ and all of its dependencies from
+   * [prs1] and [prs2]. *)
+  Lemma merge_promises_insert_promise_idx prs1 prs2 prs3 i pia restrict :
+    promises_is_valid_restricted_merge prs3 prs1 prs2 restrict →
+    prs1 !! i = Some pia →
+    promises_lookup_at prs3 (pia.(pi_id)) pia.(pi_γ) = None →
+    promises_overlap_pred prs1 prs2 →
+    promises_wf prs1 →
+    promises_wf prs2 →
+    promises_wf prs3 →
+    ∃ prs3' pia3,
+      promises_lookup_at prs3' (pia.(pi_id)) pia.(pi_γ) = Some pia3 ∧
+      promises_wf prs3' ∧
+      promises_is_valid_restricted_merge prs3' prs1 prs2 restrict.
+  Proof.
+    generalize dependent pia.
+    induction i using lt_wf_ind.
+    intros pia vm look notIn lap wf1 wf2 wf3.
+    destruct (gc_map Ω (pia.(pi_id))) eqn:eq.
+    -
+      destruct g.
+      destruct gcd_n0 eqn:eq2; simpl in *.
+      * eexists (cons (pia) prs3), pia.(pi_at).
+        split_and!.
+        + apply promises_lookup_at_cons_pr.
+        + split; last done.
+          split.
+          { intros pi2 in2.
+            subst. eapply promises_lookup_at_None_different; done. }
+          { intros ?. exfalso.
+            rewrite eq in idx. simpl in idx.
+            inversion idx. }
+        + apply promise_list_valid_restricted_merge_cons; try done; admit.
+      * admit.
+    - (* This case should be trivial. *)
+      admit.
+  Admitted.
+
   (* Grow [prs3] by inserting the promise id+γ and all of its dependencies from
    * [prs1] and [prs2]. *)
   Lemma merge_promises_insert_promise prs1 prs2 prs3 id γ restrict :
     promises_is_valid_restricted_merge prs3 prs1 prs2 restrict →
+    promises_lookup_at prs3 id γ = None →
     (is_Some (promises_lookup_at prs1 id γ) ∨
       is_Some (promises_lookup_at prs2 id γ)) →
     promises_overlap_pred prs1 prs2 →
