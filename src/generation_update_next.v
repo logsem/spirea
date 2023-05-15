@@ -1381,6 +1381,37 @@ Section promise_info.
     | right _, _ => promises_lookup_at ps' iid γ
   }.
 
+  Lemma promises_lookup_at_cons_neq prs id1 id2 γ1 γ2 pia2 :
+    (id1 ≠ id2 ∨ γ1 ≠ γ2) →
+    promises_lookup_at ((MkPi id1 γ1 pia2) :: prs) id2 γ2 =
+      promises_lookup_at prs id2 γ2.
+  Proof.
+    rewrite promises_lookup_at_equation_2.
+    rewrite promises_lookup_at_clause_2_equation_1 /=.
+    intros [neq|neq];
+      destruct (decide (id1 = id2)) as [->|?]; try done;
+      destruct (decide (γ1 = γ2)) as [->|?]; try done.
+  Qed.
+
+  Lemma promises_lookup_at_cons prs id γ pia :
+    promises_lookup_at ((MkPi id γ pia) :: prs) id γ = Some pia.
+  Proof.
+    rewrite promises_lookup_at_equation_2.
+    rewrite promises_lookup_at_clause_2_equation_1 /=.
+    destruct (decide (id = id)) as [eq|?]; last done.
+    destruct (decide (γ = γ)) as [eq2|?]; last done.
+    assert (eq = eq_refl) as ->.
+    { rewrite (proof_irrel eq eq_refl). done. }
+    assert (eq2 = eq_refl) as ->.
+    { rewrite (proof_irrel eq2 eq_refl). done. }
+    rewrite promises_lookup_at_clause_2_clause_1_equation_1.
+    done.
+  Qed.
+
+  Lemma promises_lookup_at_cons_pr prs pi :
+    promises_lookup_at (pi :: prs) (pi_id pi) (pi_γ pi) = Some pi.(pi_at).
+  Proof. destruct pi. apply promises_lookup_at_cons. Qed.
+
   (* NOTE: Not sure if this function is a good idea. *)
   Definition promises_lookup promises id γ : option (promise_info _) :=
     MkPi id γ <$> (promises_lookup_at promises id γ).
@@ -1390,24 +1421,20 @@ Section promise_info.
     MkPi id γ pia ∈ promises.
   Proof.
     induction promises as [|[id' γ' ?] ? IH]; first by inversion 1.
-    rewrite promises_lookup_at_equation_2.
-    rewrite promises_lookup_at_clause_2_equation_1.
-    simpl.
     destruct (decide (id' = id)) as [->|neq].
     - destruct (decide (γ' = γ)) as [->|neq].
-      * simpl.
+      * rewrite promises_lookup_at_cons.
+        simpl.
         intros [= <-].
         apply elem_of_list_here.
-      * rewrite promises_lookup_at_clause_2_clause_1_equation_2.
-        intros look.
+      * rewrite promises_lookup_at_cons_neq; last naive_solver.
+        intros ?.
         apply elem_of_list_further.
-        apply IH.
-        apply look.
-    - rewrite promises_lookup_at_clause_2_clause_1_equation_3.
-      intros look.
+        apply IH. done.
+    - rewrite promises_lookup_at_cons_neq; last naive_solver.
+      intros ?.
       apply elem_of_list_further.
-      apply IH.
-      done.
+      apply IH. done.
   Qed.
 
   Lemma promises_wf_elem_of_head id γ pia1 pia2 promises :
