@@ -492,13 +492,22 @@ Notation On Ω i :=
   end).
 
 (** Lookup the dependency cameras in [Ω] at the index [i] *)
-Notation Ocs Ω i := (
-  match Ω.(gc_map) i as o
-  return ivec match o with Some2 gcd12 => gcd12.(gcd_n) | None2 => 0 end cmra
+Definition Ocs {Σ} (Ω : gGenCmras Σ) i : ivec (On Ω i) cmra := (
+  match (Ω.(gc_map) i) as o
+  return (ivec match o with | Some2 gccd => gcd_n gccd | None2 => 0 end cmra)
   with
-  | Some2 gcd => gcd.(gcd_deps)
-  | Nil2 => inil
+  | Some2 g => gcd_deps g
+  | None2 => []%IL
   end).
+
+(* (** Lookup the dependency cameras in [Ω] at the index [i] *) *)
+(* Notation Ocs Ω i := ( *)
+(*   match Ω.(gc_map) i as o *)
+(*   return ivec match o with Some2 gcd12 => gcd12.(gcd_n) | None2 => 0 end cmra *)
+(*   with *)
+(*   | Some2 gcd => gcd.(gcd_deps) *)
+(*   | Nil2 => inil *)
+(*   end). *)
 
 (* The remaining helpers are not defined using notation as that has not been needed. *)
 
@@ -521,12 +530,6 @@ Section omega_helpers.
     | Some2 gcd => gcd.(gcd_deps_ids)
     | Nil2 => inil
     end.
-
-  Equations Oeq' Ω i : option2 (generational_cmraR (Oc Ω i) (Ocs Ω i) = R Σ i) :=
-  | Ω, i with Ω.(gc_map) i => {
-    | Some2 gcccd => Some2 gcccd.(gcd_cmra_eq)
-    | None2 => None2
-  }.
 
   (** Lookup the dependency cameras in [Ω] at the index [i] *)
   Definition Oeq Ω i :
@@ -559,6 +562,7 @@ Section omega_helpers.
     generational_cmraR A DS = generational_cmraR (Oc Ω id) (Ocs Ω id).
   Proof.
     revert eq_n.
+    rewrite /Ocs.
     destruct (Ω.(gc_map) id); simpl.
     - intros <- <- ->. done.
     - intros <- <- ->. done.
@@ -576,6 +580,7 @@ Section omega_helpers.
     specialize (gc_map_wf id).
     revert idx.
     rewrite /omega_wf_at /omega_wf_at /Oids.
+    rewrite /Ocs.
     destruct (gc_map Ω id) eqn:eq.
     - intros idx wf.
       destruct (wf idx) as (gcd2 & -> & ->).
@@ -690,6 +695,7 @@ Section omega_helpers_genInG.
     destruct genInG_gti0.
     simpl in *.
     clear -genInG_gcd_n0 genInG_gen_trans0.
+    rewrite /Ocs.
     destruct (gc_map Ω _).
     2: { congruence. }
     destruct g. simpl in *.
@@ -705,6 +711,7 @@ Section omega_helpers_genInG.
       generational_cmraR (Oc Ω (genInG_id i)) (Ocs Ω (genInG_id i)).
   Proof.
     destruct i. simpl.
+    rewrite /Ocs.
     destruct (Ω.(gc_map) genInG_id0) eqn:eq; simpl.
     - assert (Some2 genInG_gti0 = Some2 g) as [= <-].
       { congruence. }
@@ -729,6 +736,7 @@ Section omega_helpers_genInG.
   Lemma rel_over_Oc_Ocs_genInG :
     rel_over DS A = rel_over (Ocs Ω (genInG_id _)) (Oc Ω (genInG_id _)).
   Proof.
+    rewrite /Ocs.
     destruct genInG_gen_trans.
     apply (rel_over_eq genInG_gcd_n).
     - apply genInG_gti_typ.
@@ -738,6 +746,7 @@ Section omega_helpers_genInG.
   Lemma trans_for_genInG :
     trans_for n DS = trans_for (On Ω _) (Ocs Ω (genInG_id _)).
   Proof.
+    rewrite /Ocs.
     destruct genInG_gen_trans.
     rewrite /trans_for.
     apply (hvec_fmap_eq genInG_gcd_n).
@@ -747,6 +756,7 @@ Section omega_helpers_genInG.
   Lemma preds_for_genInG :
     preds_for n DS = preds_for (On Ω _) (Ocs Ω (genInG_id _)).
   Proof.
+    rewrite /Ocs.
     destruct genInG_gen_trans.
     apply (hvec_fmap_eq genInG_gcd_n).
     apply genInG_gcd_deps.
@@ -1008,7 +1018,9 @@ Section transmap.
       rewrite /Oc_genInG_eq.
       clear id2 eq.
       rewrite /Oeq in eqLook.
-      (* NOTE: This destruct only works when the circumstances are exactly right. *)
+      unfold Ocs in *.
+      (* NOTE: This destruct only works when the circumstances are exactly
+       * right, the stars align, and the weather is good. *)
       (* destruct genInG_gen_trans. *)
       destruct (Ω.(gc_map) id) eqn:omegaLook.
       2: { congruence. }
@@ -2567,6 +2579,7 @@ Section rules.
     Unshelve. 2: {
       rewrite /rel_over_Oc_Ocs_genInG.
       rewrite /Oc_genInG_eq.
+      unfold Ocs.
       destruct genInG_gen_trans. simpl.
       destruct genInG_gti_typ.
       intros ??.
@@ -2581,6 +2594,7 @@ Section rules.
       rewrite /rel_over_Oc_Ocs_genInG.
       rewrite /preds_for_genInG.
       destruct genInG0. simpl in *.
+      unfold Ocs.
       destruct genInG_gen_trans0.
       destruct genInG_gti_typ0.
       intros ts holds.
@@ -2880,6 +2894,7 @@ Section nextgen_assertion_rules.
         rewrite /Oc_genInG_eq.
         rewrite /hvec_fmap_eq.
         destruct genInG0. simpl in *.
+        unfold Ocs in *.
         destruct genInG_gen_trans0. simpl.
         destruct genInG_gcd_n0. simpl in *.
         destruct genInG_gti_typ0. simpl in *.
