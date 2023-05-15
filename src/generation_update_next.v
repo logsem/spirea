@@ -1481,6 +1481,10 @@ Section promise_info.
     (* pred_stronger p1.(pi_pred) p2.(pi_pred) ∨ *)
     .
 
+  Lemma promise_stronger_refl {id} (pia : promise_info_at _ id) :
+    promise_stronger pia pia.
+  Proof. split; first done. intros ??. naive_solver. Qed.
+
   (** This definition is supposed to encapsulate what ownership over the
    * resources for [prs1] and [prs2] entails. *)
   Definition promises_overlap_pred prs1 prs2 : Prop :=
@@ -1587,6 +1591,59 @@ Section promise_info.
     - admit.
   Admitted.
 
+  Lemma promise_lookup_lookup prs pi i :
+    promises_wf prs →
+    prs !! i = Some pi →
+    promises_lookup_at prs pi.(pi_id) pi.(pi_γ) = Some pi.(pi_at).
+  Proof. Admitted.
+
+  Lemma promise_lookup_at_eq prs id γ pia pia' :
+    promises_lookup_at prs id γ = Some pia →
+    promises_lookup_at prs id γ = Some pia' →
+    promises_wf prs →
+    pia = pia'.
+  Proof.
+  Admitted.
+
+  (* Get the strongest promise from [prs1] and [prs2]. *)
+  Lemma overlap_lookup_left prs1 prs2 id γ pia :
+    promises_lookup_at prs1 id γ = Some pia →
+    promises_overlap_pred prs1 prs2 →
+    promises_wf prs1 →
+    promises_wf prs2 →
+    ∃ pia',
+      ((MkPi id γ pia') ∈ prs1 ∨ (MkPi id γ pia') ∈ prs2) ∧
+      (∀ pia1,
+        promises_lookup_at prs1 id γ = Some pia1 →
+        promise_stronger pia' pia1) ∧
+      (∀ pia2,
+        promises_lookup_at prs2 id γ = Some pia2 →
+        promise_stronger pia' pia2).
+  Proof.
+    intros look1 lap wf1 wf2.
+    destruct (promises_lookup_at prs2 id γ) as [pia2|] eqn:look2.
+    - edestruct lap as [?|?]; [apply look1 | apply look2 | | ].
+      + exists pia.
+        split_and!.
+        * left. apply promises_lookup_at_Some. done.
+        * intros ?. rewrite look1. intros [= ->]. apply promise_stronger_refl.
+        * intros pia' [= ->]. done.
+      + exists pia2.
+        split_and!.
+        * right. apply promises_lookup_at_Some. done.
+        * intros pia' look1'.
+          assert (pia = pia') as ->;
+            first eapply promise_lookup_at_eq; done.
+        * intros ? [= ->]. apply promise_stronger_refl.
+    - exists pia.
+      split_and!.
+      + left. apply promises_lookup_at_Some. done.
+      + intros pia' look1'.
+        assert (pia = pia') as ->; last apply promise_stronger_refl.
+        eapply promise_lookup_at_eq; done.
+      + naive_solver.
+  Qed.
+
   (* Grow [prs3] by inserting the promise id+γ and all of its dependencies from
    * [prs1] and [prs2]. *)
   Lemma merge_promises_insert_promise_idx prs1 prs2 prs3 i pia restrict :
@@ -1606,12 +1663,16 @@ Section promise_info.
     induction i using lt_wf_ind.
     intros pia vm look notIn lap wf1 wf2 wf3.
     destruct (gc_map Ω (pia.(pi_id))) eqn:eq.
-    -
-      destruct g.
+    - destruct g.
       destruct gcd_n0 eqn:eq2; simpl in *.
-      * eexists (cons (pia) prs3), pia.(pi_at).
+      * edestruct overlap_lookup_left as (pia' & ? & ? & ?).
+        { eapply promise_lookup_lookup; last apply look. done. }
+        { done. } { done. } { done. }
+        destruct pia as [id γ pia]. simpl in *.
+        (* The promise has zero dependencies. *)
+        eexists (cons (MkPi id γ pia') prs3), pia'.
         split_and!.
-        + apply promises_lookup_at_cons_pr.
+        + apply promises_lookup_at_cons.
         + split; last done.
           split.
           { intros pi2 in2.
@@ -1619,8 +1680,9 @@ Section promise_info.
           { intros ?. exfalso.
             rewrite eq in idx. simpl in idx.
             inversion idx. }
-        + apply promise_list_valid_restricted_merge_cons; try done; admit.
-      * admit.
+        + apply promise_list_valid_restricted_merge_cons; try done.
+     * (* One or more dependencies. *)
+       admit.
     - (* This case should be trivial. *)
       admit.
   Admitted.
