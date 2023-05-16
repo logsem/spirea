@@ -1525,9 +1525,9 @@ Section promise_info.
 
   (** [pia1] is a better promise than [pia2]. *)
   Definition promise_stronger {id} (pia1 pia2 : promise_info_at _ id) : Prop :=
-    pia1.(pi_deps_γs) = pia2.(pi_deps_γs) ∧ (* maybe this req can be handled in a slightly less ad-hoc manner *)
+    pia1.(pi_deps_γs) = pia2.(pi_deps_γs) ∧
     rel_stronger pia1.(pi_rel) pia2.(pi_rel)
-    (* pred_stronger p1.(pi_pred) p2.(pi_pred) ∨ *)
+    (* pred_stronger p1.(pi_pred) p2.(pi_pred) *)
     .
 
   Lemma promise_stronger_refl {id} (pia : promise_info_at _ id) :
@@ -1686,30 +1686,74 @@ Section promise_info.
     generalize dependent pia.
     induction i using lt_wf_ind.
     intros pia vm look notIn lap wf1 wf2 wf3.
-    destruct (gc_map Ω (pia.(pi_id))) eqn:eq.
-    - destruct g.
-      destruct gcd_n0 eqn:eq2; simpl in *.
-      * edestruct overlap_lookup_left as (pia' & ? & ? & ?).
-        { eapply promise_lookup_lookup; last apply look. done. }
-        { done. } { done. } { done. }
-        destruct pia as [id γ pia]. simpl in *.
-        (* The promise has zero dependencies. *)
-        eexists (cons (MkPi id γ pia') prs3), pia'.
-        split_and!.
-        + apply promises_lookup_at_cons.
-        + split; last done.
-          split.
-          { intros pi2 in2.
-            subst. eapply promises_lookup_at_None_different; done. }
-          { intros ?. exfalso.
-            rewrite eq in idx. simpl in idx.
-            inversion idx. }
-        + apply promise_list_valid_restricted_merge_cons; try done.
-     * (* One or more dependencies. *)
-       admit.
-    - (* This case should be trivial. *)
+    (* rewrite /promises_wf /promise_wf /promises_has_deps. *)
+    (* destruct (gc_map Ω (pia.(pi_id))) eqn:eq. *)
+    (* - destruct g. *)
+      (* rewrite /promises_wf /promise_wf /promises_has_deps. *)
+
+    edestruct overlap_lookup_left as (pia' & ? & ? & ?).
+    { eapply promise_lookup_lookup; last apply look. done. }
+    { done. } { done. } { done. }
+    set (bestPia := MkPi pia.(pi_id) pia.(pi_γ) pia').
+    (* destruct pia as [id γ pia]; simpl in *. *)
+
+    (* TODO: Add all dependencies to list somehow. *)
+    assert (∃ prs3',
+      (* promises_lookup_at prs3' (pia.(pi_id)) pia.(pi_γ) = Some pia3 ∧ *)
+      promises_wf prs3' ∧
+      promises_lookup_at prs3' pia.(pi_id) pia.(pi_γ) = None ∧
+      promises_has_deps bestPia prs3' ∧
+      promises_is_valid_restricted_merge prs3' prs1 prs2 restrict)
+        as (prs3' & ? & ? & ? & ?).
+    { rewrite /promises_has_deps /=.
+      clear.
+      (* destruct (gc_map Ω pia.(pi_id)). eqn:eq. *)
       admit.
+    }
+    (* The promise has zero dependencies. *)
+    eexists (cons bestPia prs3'), pia'.
+    split_and!.
+    + apply promises_lookup_at_cons.
+    + split; last done.
+      split.
+      { intros pi2 in2.
+        subst. eapply promises_lookup_at_None_different; done. }
+      { done. }
+        (* rewrite eq in idx. simpl in idx. *)
+        (* inversion idx. } *)
+    + apply promise_list_valid_restricted_merge_cons; try done.
   Admitted.
+  (*     (* Get the right promise *) *)
+  (*     (* destruct eq. *) *)
+  (*     clear eq gcd_cmra_eq0. *)
+  (*     induction gcd_n0 as [|n' IH]; simpl in *. *)
+  (*     (* destruct gcd_n0 eqn:eq2; simpl in *. *) *)
+  (*     * edestruct overlap_lookup_left as (pia' & ? & ? & ?). *)
+  (*       { eapply promise_lookup_lookup; last apply look. done. } *)
+  (*       { done. } { done. } { done. } *)
+  (*       destruct pia as [id γ pia]. simpl in *. *)
+  (*       (* The promise has zero dependencies. *) *)
+  (*       eexists (cons (MkPi id γ pia') prs3), pia'. *)
+  (*       split_and!. *)
+  (*       + apply promises_lookup_at_cons. *)
+  (*       + split; last done. *)
+  (*         split. *)
+  (*         { intros pi2 in2. *)
+  (*           subst. eapply promises_lookup_at_None_different; done. } *)
+  (*         { intros ?. exfalso. admit. } *)
+  (*           (* rewrite eq in idx. simpl in idx. *) *)
+  (*           (* inversion idx. } *) *)
+  (*       + apply promise_list_valid_restricted_merge_cons; try done. *)
+  (*    * (* One or more dependencies. *) *)
+  (*      dependent elimination gcd_deps0 as [icons d_c deps']. *)
+  (*      dependent elimination gcd_deps_ids0 as [icons d_id deps_ids']. *)
+  (*      specialize (IH deps' deps_ids'). *)
+  (*      apply IH. *)
+  (*      destruct (IH deps' deps_ids') as (d_prs3 & d_pia3 & ?). *)
+  (*      admit. *)
+  (*   - (* This case should be trivial. *) *)
+  (*     admit. *)
+  (* Admitted. *)
 
   (* Grow [prs3] by inserting the promise id+γ and all of its dependencies from
    * [prs1] and [prs2]. *)
