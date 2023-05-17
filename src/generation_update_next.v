@@ -574,19 +574,27 @@ Section omega_helpers.
   Proof. rewrite eq1. rewrite eq2. reflexivity. Qed.
 
   (** This lemma crucially relies on [Ω] being well-formed. *)
-  Lemma Ocs_Oids_distr {Ω : gGenCmras Σ} id (idx : fin (On Ω id)) :
+  Lemma Ocs_Oids_distr {Ω : gGenCmras Σ}
+      id (idx : fin (On Ω id)) (wf : omega_wf_at Ω.(gc_map) id) :
     Ocs Ω id !!! idx = Oc Ω (Oids Ω id !!! idx).
   Proof.
-    specialize (gc_map_wf id).
-    revert idx.
-    rewrite /omega_wf_at /omega_wf_at /Oids.
-    rewrite /Ocs.
+    rewrite /omega_wf_at in wf.
+    rewrite /Ocs /Oids.
     destruct (gc_map Ω id) eqn:eq.
-    - intros idx wf.
-      destruct (wf idx) as (gcd2 & -> & ->).
+    - destruct (wf idx) as (gcd2 & -> & ->).
       reflexivity.
-    - intros i. inversion i.
-  Qed.
+    - inversion idx.
+    (* Alternative proof, this might have worse behavior, investigate. *)
+    (* revert idx. *)
+    (* rewrite /omega_wf_at /omega_wf_at /Oids. *)
+    (* rewrite /Ocs. *)
+    (* rewrite /omega_wf_at in wf. *)
+    (* destruct (gc_map Ω id) eqn:eq. *)
+    (* - intros idx. *)
+    (*   destruct (wf idx) as (gcd2 & -> & ->). *)
+    (*   reflexivity. *)
+    (* - intros i. inversion i. *)
+  Defined.
 
 End omega_helpers.
 
@@ -1256,14 +1264,17 @@ Arguments pi_witness {_ _ _}.
  * ensure that looking up in [cs] results in a useful return type. [f] will
  * usually be [pred_over] or [cmra_to_trans]. *)
 Definition lookup_fmap_Ocs `{Ω : gGenCmras Σ} {f id}
-    (cs : hvec (On Ω id) (f <$> Ocs Ω id)) i : f (Oc Ω (Oids Ω id !!! i)) :=
-  eq_rect _ _ (hvec_lookup_fmap cs i) _ (Ocs_Oids_distr _ _).
+    (cs : hvec (On Ω id) (f <$> Ocs Ω id)) i (wf : omega_wf_at Ω.(gc_map) id)
+    : f (Oc Ω (Oids Ω id !!! i)) :=
+  eq_rect _ _ (hvec_lookup_fmap cs i) _ (Ocs_Oids_distr _ _ wf).
+
+(* Print lookup_fmap_Ocs. *)
 
 Definition pi_deps_id `{Ω : gGenCmras Σ} pi idx := Oids Ω pi.(pi_id) !!! idx.
 
-Definition pi_deps_pred `{Ω : gGenCmras Σ} pi idx :=
+Definition pi_deps_pred `{Ω : gGenCmras Σ} pi idx wf :=
   let id := pi_deps_id pi idx in
-  lookup_fmap_Ocs pi.(pi_deps_preds) idx.
+  lookup_fmap_Ocs pi.(pi_deps_preds) idx wf.
 
 Section promise_info.
   Context `{Ω : gGenCmras Σ}.
@@ -1308,9 +1319,9 @@ Section promise_info.
    * combine lists of promises some promises might be replaced by stronger
    * ones. Hence we only require that the predicate in [pSat] is stronger than
    * the one in [pi]. *)
-  Definition promise_satisfy_dep (pi pSat : promise_info Ω) idx :=
+  Definition promise_satisfy_dep (pi pSat : promise_info Ω) idx wf :=
     let id := Oids Ω pi.(pi_id) !!! idx in
-    let pred : pred_over (Oc Ω id) := lookup_fmap_Ocs pi.(pi_deps_preds) idx in
+    let pred : pred_over (Oc Ω id) := lookup_fmap_Ocs pi.(pi_deps_preds) idx wf in
     pi.(pi_deps_γs) !!! idx = pSat.(pi_γ) ∧
     ∃ (eq : id = pSat.(pi_id)),
       (* The predicate in [pSat] is stronger than what is stated in [pi] *)
@@ -1320,20 +1331,20 @@ Section promise_info.
 
   (** For every dependency in [p] the list [promises] has a sufficient
    * promise. *)
-  Definition promises_has_deps pi promises :=
-    ∀ idx, ∃ pSat, pSat ∈ promises ∧ promise_satisfy_dep pi pSat idx.
+  Definition promises_has_deps pi promises wf :=
+    ∀ idx, ∃ pSat, pSat ∈ promises ∧ promise_satisfy_dep pi pSat idx wf.
 
   (** The promise [p] is well-formed wrt. the list [promises] of promises that
    * preceeded it. *)
-  Definition promise_wf pi promises : Prop :=
+  Definition promise_wf pi promises wf : Prop :=
     (∀ p2, p2 ∈ promises → promises_different pi p2) ∧
-    promises_has_deps pi promises.
+    promises_has_deps pi promises wf.
 
   (* This definition has nice computational behavior when applied to a [cons]. *)
   Fixpoint promises_wf promises : Prop :=
     match promises with
     | nil => True
-    | cons p promises' => promise_wf p promises' ∧ promises_wf promises'
+    | cons p promises' => promise_wf p promises' (Ω.(gc_map_wf) p.(pi_id)) ∧ promises_wf promises'
     end.
 
   Lemma promises_wf_unique prs :
@@ -1352,9 +1363,9 @@ Section promise_info.
     ∀ (i j : nat) pi1 pi2, i ≠ j →
       pi1.(pi_id) ≠ pi2.(pi_id) ∨ pi1.(pi_γ) ≠ pi2.(pi_γ).
 
-  Lemma promises_has_deps_cons p prs :
-    promises_has_deps p prs →
-    promises_has_deps p (p :: prs).
+  Lemma promises_has_deps_cons p prs wf :
+    promises_has_deps p prs wf →
+    promises_has_deps p (p :: prs) wf.
   Proof.
     intros hasDeps idx.
     destruct (hasDeps idx) as (p2 & ? & ?).
@@ -1362,8 +1373,8 @@ Section promise_info.
   Qed.
 
   (* A well formed promise is not equal to any of its dependencies. *)
-  Lemma promise_wf_neq_deps p promises :
-    promise_wf p promises →
+  Lemma promise_wf_neq_deps p promises wf :
+    promise_wf p promises wf →
     ∀ (idx : fin (On Ω p.(pi_id))),
       p.(pi_id) ≠ (pi_deps_id p idx) ∨ p.(pi_γ) ≠ p.(pi_deps_γs) !!! idx.
   Proof.
@@ -1376,7 +1387,7 @@ Section promise_info.
   Lemma promises_well_formed_lookup promises (idx : nat) pi :
     promises_wf promises →
     promises !! idx = Some pi →
-    promises_has_deps pi promises. (* We forget the different part for now. *)
+    promises_has_deps pi promises (gc_map_wf (pi_id pi)). (* We forget the different part for now. *)
   Proof.
     intros WF look.
     revert dependent idx.
@@ -1668,6 +1679,32 @@ Section promise_info.
       + naive_solver.
   Qed.
 
+  (* Test what it takes to be able to do inversion on the number of
+   * dependencies of [pi] when proving a goal that contains
+   * [promises_has_deps]. *)
+  Lemma promise_has_deps_test_destruct pi prs3' wf :
+    promises_has_deps pi prs3' wf.
+  Proof.
+    rewrite /promises_has_deps.
+    rewrite /promise_satisfy_dep.
+    destruct pi. simpl.
+    destruct pi_at0. simpl in *.
+    rewrite /lookup_fmap_Ocs.
+    rewrite /Ocs_Oids_distr.
+    unfold Ocs in *.
+    unfold Oids in *.
+    unfold omega_wf_at in wf.
+    simpl in *.
+    destruct (Ω.(gc_map) pi_id0).
+    - simpl.
+      destruct g; simpl in *.
+      clear gcd_cmra_eq0.
+      induction (gcd_n0); simpl in *.
+      * inversion idx.
+      * admit.
+    - inversion idx.
+  Abort.
+
   (* Grow [prs3] by inserting the promise id+γ and all of its dependencies from
    * [prs1] and [prs2]. *)
   Lemma merge_promises_insert_promise_idx prs1 prs2 prs3 i pia restrict :
@@ -1698,18 +1735,30 @@ Section promise_info.
     (* destruct pia as [id γ pia]; simpl in *. *)
 
     (* TODO: Add all dependencies to list somehow. *)
-    assert (∃ prs3',
+    assert (∀ wf, ∃ prs3',
       (* promises_lookup_at prs3' (pia.(pi_id)) pia.(pi_γ) = Some pia3 ∧ *)
       promises_wf prs3' ∧
-      promises_lookup_at prs3' pia.(pi_id) pia.(pi_γ) = None ∧
-      promises_has_deps bestPia prs3' ∧
+      promises_lookup_at prs3' bestPia.(pi_id) bestPia.(pi_γ) = None ∧
+      promises_has_deps bestPia prs3' wf ∧
       promises_is_valid_restricted_merge prs3' prs1 prs2 restrict)
         as (prs3' & ? & ? & ? & ?).
-    { rewrite /promises_has_deps /=.
-      clear.
-      (* destruct (gc_map Ω pia.(pi_id)). eqn:eq. *)
-      admit.
-    }
+    { intros ?.
+      rewrite /promises_has_deps.
+      rewrite /promise_satisfy_dep.
+      destruct bestPia. simpl.
+      destruct pi_at0. simpl in *.
+      rewrite /lookup_fmap_Ocs.
+      rewrite /Ocs_Oids_distr.
+      unfold Ocs in *.
+      unfold Oids in *.
+      simpl in *.
+      unfold omega_wf_at in wf.
+      destruct (gc_map Ω pi_id0).
+      + destruct g; simpl in *.
+        induction (gcd_n0).
+        - admit.
+        - admit.
+      + admit. }
     (* The promise has zero dependencies. *)
     eexists (cons bestPia prs3'), pia'.
     split_and!.
@@ -1877,7 +1926,7 @@ Section transmap.
       (ts : hvec (On Ω i) (cmra_to_trans <$> Ocs Ω i)) :=
     ∀ idx,
       let id := Oids Ω i !!! idx in
-      let t : Oc Ω id → Oc Ω id := lookup_fmap_Ocs ts idx in
+      let t : Oc Ω id → Oc Ω id := lookup_fmap_Ocs ts idx (Ω.(gc_map_wf) i) in
       transmap id !! (γs !!! idx) = Some t.
 
   (** The transformations in [transmap] satisfy the relation in [p]. *)
@@ -1898,9 +1947,9 @@ Section transmap.
       eq_rect _ (λ id, Oc Ω id → Oc Ω id) o _ eq.
 
   Lemma promises_has_deps_resp_promises p idx promises transmap :
-    promises_has_deps p promises →
+    promises_has_deps p promises (Ω.(gc_map_wf) p.(pi_id)) →
     transmap_resp_promises transmap promises →
-    ∃ t, (pi_deps_pred p idx) t ∧
+    ∃ t, (pi_deps_pred p idx (Ω.(gc_map_wf) p.(pi_id))) t ∧
          transmap (pi_deps_id p idx) !! (p.(pi_deps_γs) !!! idx) = Some t.
   Proof.
     intros hasDeps resp.
@@ -1935,7 +1984,7 @@ Section transmap.
     destruct WF as [[uniq hasDeps] WF'].
     edestruct (fun_ex_to_ex_hvec_fmap (F := cmra_to_trans) (Ocs Ω (pi_id p))
       (λ i t,
-        let t' := eq_rect _ _ t _ (Ocs_Oids_distr _ _) in
+        let t' := eq_rect _ _ t _ (Ocs_Oids_distr p.(pi_id) _ (Ω.(gc_map_wf) _)) in
         let pred := hvec_lookup_fmap p.(pi_deps_preds) i in
         pred t ∧
         transmap (Oids Ω p.(pi_id) !!! i) !! (p.(pi_deps_γs) !!! i) = Some t'))
@@ -1943,7 +1992,7 @@ Section transmap.
     { intros idx.
       specialize (promises_has_deps_resp_promises _ idx _ transmap hasDeps resp).
       intros (t & ? & ?).
-      exists (eq_rect_r _ t (Ocs_Oids_distr _ _)).
+      exists (eq_rect_r _ t (Ocs_Oids_distr _ _ (Ω.(gc_map_wf) _))).
       simpl.
       split.
       * rewrite /lookup_fmap_Ocs in H.
@@ -2134,7 +2183,7 @@ Section transmap.
       split; last done.
       apply Forall_nil_2.
     - intros HR [WF WF'].
-      specialize (promise_wf_neq_deps _ _ WF) as depsDiff.
+      specialize (promise_wf_neq_deps _ _ _ WF) as depsDiff.
       destruct IH as (map & resp & sub).
       {  eapply transmap_overlap_resp_promises_cons. done. } { done. }
       (* We either need to use the transformation in [picks] or extract one
