@@ -1731,36 +1731,56 @@ Section promise_info.
     edestruct overlap_lookup_left as (pia' & ? & ? & ?).
     { eapply promise_lookup_lookup; last apply look. done. }
     { done. } { done. } { done. }
-    set (bestPia := MkPi pia.(pi_id) pia.(pi_γ) pia').
+    (* set (bestPia := MkPi pia.(pi_id) pia.(pi_γ) pia'). *)
     (* destruct pia as [id γ pia]; simpl in *. *)
 
     (* TODO: Add all dependencies to list somehow. *)
     assert (∀ wf, ∃ prs3',
       (* promises_lookup_at prs3' (pia.(pi_id)) pia.(pi_γ) = Some pia3 ∧ *)
       promises_wf prs3' ∧
-      promises_lookup_at prs3' bestPia.(pi_id) bestPia.(pi_γ) = None ∧
-      promises_has_deps bestPia prs3' wf ∧
+      promises_lookup_at prs3' pia.(pi_id) pia.(pi_γ) = None ∧
+      promises_has_deps (MkPi pia.(pi_id) pia.(pi_γ) pia') prs3' wf ∧
       promises_is_valid_restricted_merge prs3' prs1 prs2 restrict)
-        as (prs3' & ? & ? & ? & ?).
+        as res.
     { intros ?.
       rewrite /promises_has_deps.
       rewrite /promise_satisfy_dep.
-      destruct bestPia. simpl.
-      destruct pi_at0. simpl in *.
+      destruct pia'. simpl in *.
       rewrite /lookup_fmap_Ocs.
       rewrite /Ocs_Oids_distr.
       unfold Ocs in *.
       unfold Oids in *.
       simpl in *.
       unfold omega_wf_at in wf.
+      destruct pia. simpl in *.
+      clear H2 H1 H0.
       destruct (gc_map Ω pi_id0).
       + destruct g; simpl in *.
+        clear gcd_cmra_eq0.
+        (* clear pi_witness0 pi_rel_to_pred0 pi. *)
+        clear -prs3 wf3 notIn vm.
         induction (gcd_n0).
-        - admit.
-        - admit.
+        - exists prs3.
+          split_and!; try done.
+          intros idx.
+          inversion idx.
+        - dependent elimination gcd_deps0 as [icons d_c deps'].
+          dependent elimination gcd_deps_ids0 as [icons d_id deps_ids'].
+          dependent elimination pi_deps_γs0 as [icons d_γ deps_γs'].
+          dependent elimination pi_deps_preds0 as [hcons d_pred deps_preds'].
+          edestruct (IHn deps' deps_ids' deps_γs' deps_preds') as (prs3' & ?).
+          Unshelve.
+          2: {
+            intros idx.
+            specialize (wf (FS idx)).
+            rewrite !ivec_lookup_total_cons in wf.
+            apply wf. }
+          admit.
       + admit. }
+    simpl in res.
+    destruct (res (Ω.(gc_map_wf) (pia.(pi_id)))) as (prs3' & ? & ? & ? & ?).
     (* The promise has zero dependencies. *)
-    eexists (cons bestPia prs3'), pia'.
+    eexists (cons (MkPi pia.(pi_id) pia.(pi_γ) pia') prs3'), pia'.
     split_and!.
     + apply promises_lookup_at_cons.
     + split; last done.

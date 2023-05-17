@@ -110,6 +110,10 @@ Section ivec.
       done.
   Qed.
 
+  Lemma ivec_lookup_total_cons {A n} (As : ivec n A) a i :
+    (a :: As)%IL !!! FS i = As !!! i.
+  Proof. done. Qed.
+
   Lemma ivec_lookup_fmap {A B n} (F : A → B) (As : ivec n A) i :
     F (As !!! i) = (ivec_map F As) !!! i.
   Proof.
