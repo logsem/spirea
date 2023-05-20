@@ -1981,6 +1981,22 @@ Section promise_info.
     promise_list_stronger prs3 prs1 ∧
     promise_list_stronger prs3 prs2.
 
+  Definition promise_get_path (pi : promise_info Ω) := (pi.(pi_id), pi.(pi_γ)).
+
+  Definition restrict_merge prs1 prs2 :=
+    (promise_get_path <$> prs1) ++ (promise_get_path <$> prs2).
+
+  Lemma restrict_merge_lookup_Some prs1 prs2 id γ :
+    is_Some (promises_lookup_at prs1 id γ) →
+    (id, γ) ∈ restrict_merge prs1 prs2.
+  Proof.
+    intros (? & look%promises_lookup_at_Some).
+    apply elem_of_app.
+    left.
+    apply elem_of_list_fmap.
+    eexists _. split; last done. done.
+  Qed.
+
   (* How to merge promises, intuitively?
    * 1. From the first list add the suffix of promises not in the other.
    * 2. From the second list add the suffix of promises not in the other.
@@ -1996,7 +2012,23 @@ Section promise_info.
     ∃ prs3,
       promises_wf prs3 ∧ promises_is_valid_merge prs3 prs1 prs2.
   Proof.
-  Admitted.
+    intros lap wf1 wf2.
+    destruct (merge_promises_restriced prs1 prs2 (restrict_merge prs1 prs2) lap wf1 wf2)
+      as (prs3 & ? & (? & ? & ? & str1 & str2)).
+    exists prs3.
+    split; first done.
+    split_and!.
+    - done.
+    - intros ??? look. apply str1; last done.
+      apply restrict_merge_lookup_Some.
+      done.
+    - intros ??? look. apply str2; last done.
+      assert ((id, γ) ∈ restrict_merge prs2 prs1) as elm.
+      { apply restrict_merge_lookup_Some; try done. }
+      move: elm.
+      rewrite !elem_of_app.
+      naive_solver.
+  Qed.
 
 End promise_info.
 
