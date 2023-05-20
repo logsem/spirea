@@ -250,6 +250,10 @@ Section dependency_relation_extra.
   Definition pred_stronger (P1 P2 : (A → A) → Prop) :=
     ∀ (t : A → A), P1 t → P2 t.
 
+  Lemma pred_stronger_trans (P1 P2 P3 : (A → A) → Prop) :
+    pred_stronger P1 P2 → pred_stronger P2 P3 → pred_stronger P1 P3.
+  Proof. intros S1 S2 ? ?. apply S2. apply S1. done. Qed.
+
   Definition rel_implies_pred R P : Prop :=
     ∀ (ts : trans_for n DS) (t : A → A), huncurry R ts t → P t.
 
@@ -1407,8 +1411,7 @@ Section promise_info.
     promises_wf prs →
     prs !! i = Some pi1 →
     ∀ (idx : fin (On Ω pi1.(pi_id))),
-      ∃ j pi2 wf, j < i ∧ prs !! j = Some pi2 ∧ promise_satisfy_dep pi1 pi2 idx wf
-  .
+      ∃ j pi2 wf, j < i ∧ prs !! j = Some pi2 ∧ promise_satisfy_dep pi1 pi2 idx wf.
   Proof. Admitted.
 
   (* For soundness we need to be able to build a map of gts that agree with
@@ -1717,7 +1720,6 @@ Section promise_info.
   Proof.
     intros wf1 look.
     destruct pi.
-
     specialize (promises_well_formed_lookup_index prs (MkPi pi_id0 pi_γ0 pi_at0) i wf1 look) as lem.
     simpl in lem.
     rewrite /promise_satisfy_dep /= in lem.
@@ -1741,6 +1743,7 @@ Section promise_info.
   Lemma merge_promises_insert_promise_idx prs1 prs2 prs3 i pi restrict :
     promises_is_valid_restricted_merge prs3 prs1 prs2 restrict →
     prs1 !! i = Some pi →
+    (* TODO: Add all dependencies to list somehow. *)
     promises_overlap_pred prs1 prs2 →
     promises_wf prs1 →
     promises_wf prs2 →
@@ -1755,29 +1758,34 @@ Section promise_info.
     generalize dependent prs3.
     induction i as [i IH] using lt_wf_ind.
     intros prs3 pi vm look lap wf1 wf2 wf3.
+    (* We consider wether the promise is already in the list *)
     destruct (promises_lookup_at prs3 (pi.(pi_id)) pi.(pi_γ)) eqn:notIn.
     { (* The promise is already in the list so inserting it is easy peasy -
        * even a naive solver could do it. *)
       naive_solver. }
 
-    edestruct overlap_lookup_left as (pia' & ? & ? & ?).
+    (* We find the promise that we have to insert - the stronger we can find. *)
+    edestruct overlap_lookup_left as (piaIns & ? & stronger & ?).
     { eapply promise_lookup_lookup; last apply look. done. }
     { done. } { done. } { done. }
 
-    (* TODO: Add all dependencies to list somehow. *)
+    (* To add the promise we must first add all of its dependencies. We state
+     * that we can do this as a sub-assertion as we need to do a second
+     * induction to prove it. *)
     assert (∀ wf, ∃ prs3',
       (* promises_lookup_at prs3' (pi.(pi_id)) pi.(pi_γ) = Some pia3 ∧ *)
       promises_wf prs3' ∧
       (∀ pi, pi ∈ prs3 → pi ∈ prs3') ∧
-      promises_lookup_at prs3' pi.(pi_id) pi.(pi_γ) = None ∧
-      promises_has_deps (MkPi pi.(pi_id) pi.(pi_γ) pia') prs3' wf ∧
+      (* promises_lookup_at prs3' pi.(pi_id) pi.(pi_γ) = None ∧ *)
+      promises_has_deps (MkPi pi.(pi_id) pi.(pi_γ) piaIns) prs3' wf ∧
       promises_is_valid_restricted_merge prs3' prs1 prs2 restrict)
         as res.
-    { intros ?.
-      destruct pi.
-      destruct pia'.
+    { simpl. intros ?.
+      destruct pi. destruct piaIns.
       simpl in *.
 
+      (* We specialize this lemmas such that the following destructs also
+       * breaks down this statemens. *)
       specialize (promises_well_formed_lookup_index prs1 (MkPi pi_id0 pi_γ0 pi_at0) i wf1 look) as lem.
       simpl in lem.
       rewrite /promise_satisfy_dep /= in lem.
@@ -1792,9 +1800,7 @@ Section promise_info.
       unfold Oids in lem.
       unfold omega_wf_at in lem.
       simpl in lem.
-      assert (pi_deps_γs0 = pi_deps_γs1) as <-.
-      { apply H0. }
-
+      destruct stronger as [depsEq impl]. simpl in depsEq. destruct depsEq.
       rewrite /promises_has_deps.
       rewrite /promise_satisfy_dep.
       unfold lookup_fmap_Ocs in *.
@@ -1803,36 +1809,27 @@ Section promise_info.
       unfold Oids in *.
       simpl in *.
       unfold omega_wf_at in *.
-      clear H1 H0 H.
-      unfold Oids in *.
+      clear H0 H.
       simpl in *.
       destruct (gc_map Ω pi_id0).
       + destruct g; simpl in *.
-        clear gcd_cmra_eq0.
         clear -prs3 notIn vm wf1 wf2 wf3 IH lap lem.
         induction (gcd_n0).
         { (* There are no dependencies. *)
           exists prs3.
           split_and!; try done.
           intros idx. inversion idx. }
+        (* There is some number of dependencies. *)
         dependent elimination gcd_deps0 as [icons d_c deps'].
         dependent elimination gcd_deps_ids0 as [icons d_id deps_ids'].
         dependent elimination pi_deps_γs0 as [icons d_γ deps_γs'].
         dependent elimination pi_deps_preds0 as [hcons d_pred deps_preds'].
         dependent elimination pi_deps_preds1 as [hcons prec_pred prec_deps_preds'].
         (* Insert all but the first dependency using the inner induction hypothesis. *)
-        edestruct (IHn deps' deps_ids' prec_deps_preds' deps_γs' deps_preds') as (prs3' & ? & ? & sub & hasDeps & vm2).
-        Unshelve.
-        3: {
-          intros idx.
-          specialize (wf (FS idx)).
-          rewrite !ivec_lookup_total_cons in wf.
-          apply wf. }
-        1: {
-          intros idx.
+        destruct (IHn deps' deps_ids' prec_deps_preds' deps_γs' deps_preds' (λ idx, wf (FS idx))) as (prs3' & ? & sub & hasDeps & vm2).
+        { intros idx.
           specialize (lem (FS idx)) as (j & pi2 & wf0 & ? & ? & ? & (? & rest)).
-          exists j, pi2.
-          exists (λ i, wf0 (FS i)).
+          exists j, pi2, (λ i, wf0 (FS i)).
           split; first done.
           split; first done.
           split; first done.
@@ -1840,60 +1837,62 @@ Section promise_info.
           rewrite hvec_lookup_fmap_equation_3 in rest.
           done. }
         clear IHn.
-        specialize (lem 0%fin) as (j & piD & ? & le & look2 & lookDeps & (idEq & hhhy)).
-        (* [piD] is the inserted dependency. *)
-        assert (d_γ = piD.(pi_γ)).
-        { apply lookDeps. }
-        assert (piD.(pi_id) = d_id). { done. }
+        specialize (lem 0%fin) as
+          (j & piD & ? & le & look2 & lookDeps & (idEq & stronger)).
+          (* what is the differente between [d_pred] and [pred_pred]. *)
+        (* [piD] is the dependency found in [prs1]. *)
+        (* assert (d_γ = piD.(pi_γ)). { apply lookDeps. } *)
+        (* assert (piD.(pi_id) = d_id). { done. } *)
         (* Insert the dependency into [prs3] by using the induction hypothesis. *)
         specialize (IH j le _ piD.(pi_at) vm2 look2 lap wf1 wf2 H)
-          as (prs3'' & piaD & ? & ? & ? & ?).
+          as (prs3'' & piaD & ? & ? & sub2 & ?).
+        (* [piaD] is the promise that we insert to satisfy the first dependency. *)
         exists prs3''.
         split; first done.
-        split. { intros ??. apply H5. apply H0. done. }
-        split. { admit. }
+        split. { intros ??. apply sub2. apply sub. done. }
         split; last done.
         intros idx.
         dependent elimination idx as [FS idx|F0].
         2: {
           specialize (hasDeps idx) as (pSat & elm & deps & (eq & predStronger)).
           exists pSat.
-          split. { apply H5. done. }
+          split. { apply sub2. done. }
           split; first done.
-          assert ((d_id :: deps_ids')%IL !!! FS idx = pi_id pSat) as eq'.
-          { rewrite ivec_lookup_total_cons. done. }
-          exists eq'.
-          (* rewrite ivec_lookup_total_cons. *)
-          (* apply predStronger. *)
-          admit. }
+          exists eq.
+          rewrite hvec_lookup_fmap_equation_3.
+          clear -predStronger.
+          apply predStronger. }
         exists (MkPi piD.(pi_id) piD.(pi_γ) piaD).
         split. { apply promises_lookup_at_Some. done. }
         split; first done.
-        assert (
-(d_id :: deps_ids')%IL !!! 0%fin =
-     pi_id {| pi_id := pi_id piD; pi_γ := pi_γ piD; pi_at := piaD |}
-        ) as eq. { done. }
-        exists eq.
+        exists idEq.
         simpl.
         rewrite hvec_lookup_fmap_equation_2.
-        rewrite /eq_ind_r. simpl.
         admit.
       + simpl.
         eexists _. split; first apply wf3.
         split_and!; try done.
         intros idx. inversion idx. }
+    (* end of assert *)
     simpl in res.
-    destruct (res (Ω.(gc_map_wf) pi.(pi_id))) as (prs3' & ? & ? & ? & ?).
-    (* The promise has zero dependencies. *)
-    eexists (cons (MkPi pi.(pi_id) pi.(pi_γ) pia') prs3'), pia'.
+    destruct (res (Ω.(gc_map_wf) pi.(pi_id))) as (prs3' & ? & sub2 & ? & ?).
+    (* Check if the promise we want to insert is now in [prs3']. In reality
+     * this will never happend as [prs3'] is only extended with the
+     * dependencies of [pi], but it is easier just to consider the case that it
+     * might than to carry through the fact that it is not. *)
+    destruct (promises_lookup_at prs3' (pi.(pi_id)) pi.(pi_γ)) eqn:notIn2.
+    { (* The promise is already in the list so inserting it is easy peasy -
+       * even a naive solver could do it. *)
+      naive_solver. }
+    eexists (cons (MkPi pi.(pi_id) pi.(pi_γ) piaIns) prs3'), piaIns.
     split_and!.
     + apply promises_lookup_at_cons.
     + split; last done.
       split.
       { intros pi2 in2.
         subst. eapply promises_lookup_at_None_different; done. }
-      { apply H5. }
-    + intros ??. apply elem_of_list_further. apply H3. done.
+      { done. }
+    + intros ??. apply elem_of_list_further. apply sub2. done.
     + apply promise_list_valid_restricted_merge_cons; try done.
   Admitted.
 
