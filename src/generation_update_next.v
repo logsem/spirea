@@ -1489,6 +1489,29 @@ Section promise_info.
     intros ?%promises_lookup_at_Some. apply elem_of_list_lookup_1. done.
   Qed.
 
+  Lemma promises_lookup_at_cons_None prs id γ pi :
+    promises_lookup_at (pi :: prs) id γ = None →
+    promises_lookup_at prs id γ = None ∧ (pi.(pi_id) ≠ id ∨ pi.(pi_γ) ≠ γ).
+  Proof.
+    rewrite promises_lookup_at_equation_2.
+    rewrite promises_lookup_at_clause_2_equation_1.
+    destruct pi as [id' γ' ?].
+    destruct (decide (id' = id)) as [->|neq1] eqn:eqI;
+      destruct (decide (γ' = γ)) as [->|neq2] eqn:eqG;
+      rewrite eqI eqG; naive_solver.
+  Qed.
+
+   Lemma promises_lookup_at_None prs pi1 pi2 :
+    promises_lookup_at prs pi1.(pi_id) pi1.(pi_γ) = None →
+    pi2 ∈ prs →
+    promises_different pi1 pi2.
+  Proof.
+    induction prs as [|?? IH]; first inversion 2.
+    intros [eq diff]%promises_lookup_at_cons_None [<-|?]%elem_of_cons.
+    - rewrite /promises_different. naive_solver.
+    - apply IH; done.
+  Qed.
+
   Lemma promises_wf_elem_of_head id γ pia1 pia2 promises :
     promises_wf ({| pi_id := id; pi_γ := γ; pi_at := pia2 |} :: promises) →
     {| pi_id := id; pi_γ := γ; pi_at := pia1 |}
@@ -1626,12 +1649,6 @@ Section promise_info.
     (* [prs3] has enough promises, everything required by [restrict] is there. *)
     promise_list_restrict_stronger prs3 prs1 restrict ∧
     promise_list_restrict_stronger prs3 prs2 restrict.
-
-  Lemma promises_lookup_at_None_different prs pi1 pi2 :
-    promises_lookup_at prs pi1.(pi_id) pi1.(pi_γ) = None →
-    pi2 ∈ prs →
-    promises_different pi1 pi2.
-  Proof. Admitted.
 
   Lemma promise_list_valid_restricted_merge_cons pi prs3 prs1 prs2 restrict :
     pi ∈ prs1 ∨ pi ∈ prs2 →
@@ -1890,7 +1907,7 @@ Section promise_info.
     + split; last done.
       split.
       { intros pi2 in2.
-        subst. eapply promises_lookup_at_None_different; done. }
+        subst. eapply promises_lookup_at_None; done. }
       { done. }
     + intros ??. apply elem_of_list_further. apply sub2. done.
     + apply promise_list_valid_restricted_merge_cons; try done.
