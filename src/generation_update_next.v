@@ -10,6 +10,7 @@ From iris_named_props Require Import named_props.
 
 From self Require Import hvec extra basic_nextgen_modality gen_trans
   gen_single_shot gen_pv.
+From self.high Require Import increasing_map.
 
 Import EqNotations. (* Get the [rew] notation. *)
 Import uPred.
@@ -191,9 +192,9 @@ End cmra_map_transport.
 Section dependency_relation_cmra.
   Context {n : nat}.
 
-  (* Canonical Structure pred_over_tyO (A : Type) (DS : ivec n Type) := *)
-  (*   leibnizO (rel_over_typ DS A). *)
-  Canonical Structure rel_overO (A : cmra) (DS : ivec n cmra) :=
+  Canonical Structure pred_overO (A : cmra) :=
+    leibnizO (pred_over A).
+  Canonical Structure rel_overO (DS : ivec n cmra) (A : cmra) :=
     leibnizO (rel_over DS A).
 
 End dependency_relation_cmra.
@@ -245,7 +246,22 @@ Section dependency_relation_extra.
     ∀ (ts : trans_for n DS) (t : A → A),
       huncurry R1 ts t → huncurry R2 ts t.
 
-  Definition rel_weaker (R1 R2 : rel_over DS A) := rel_stronger R2 R1.
+  #[global]
+  Instance rel_stronger_preorder : PreOrder rel_stronger.
+  Proof.
+    split.
+    - intros ??. naive_solver.
+    - intros ???????. naive_solver.
+  Qed.
+
+  Definition rel_weaker := flip rel_stronger.
+
+  Lemma rel_weaker_stronger R1 R2 : rel_stronger R1 R2 ↔ rel_weaker R2 R1.
+  Proof. done. Qed.
+
+  #[global]
+  Instance rel_weaker_preorder : PreOrder rel_weaker.
+  Proof. unfold rel_weaker. apply _. Qed.
 
   Definition pred_stronger (P1 P2 : (A → A) → Prop) :=
     ∀ (t : A → A), P1 t → P2 t.
@@ -259,25 +275,19 @@ Section dependency_relation_extra.
 
   (* Notation preds_for n ls := (hvec pred_over n ls). *)
 
-  Definition pred_prefix_list_for (all : list (rel_over DS A)) R :=
+  Definition rel_prefix_list_for (all : list (rel_over DS A)) R :=
     (* The given promise [R] is the last promise out of all promises. *)
     last all = Some R ∧
     (* The list of promises increases in strength. *)
-    ∀ i j (Ri Rj : rel_over DS A),
-      i ≤ j → all !! i = Some Ri → all !! j = Some Rj → rel_weaker Ri Rj.
+    increasing_list rel_weaker all.
 
   (* Includes [P] as well. *)
   Definition pred_prefix_list_for' (all : list (rel_over DS A)) R P :=
-    pred_prefix_list_for all R ∧ rel_implies_pred R P.
+    rel_prefix_list_for all R ∧ rel_implies_pred R P.
 
   Lemma pred_prefix_list_for_singleton p :
-    pred_prefix_list_for (p :: []) p.
-  Proof.
-    split; first done.
-    intros ????? [-> ->]%list_lookup_singleton_Some
-      [-> ->]%list_lookup_singleton_Some.
-    intros ??. done.
-  Qed.
+    rel_prefix_list_for (p :: []) p.
+  Proof. split; first done. apply increasing_list_singleton. Qed.
 
   Lemma pred_prefix_list_for'_True :
     pred_prefix_list_for' (True_rel :: []) True_rel True_pred.
@@ -287,19 +297,17 @@ Section dependency_relation_extra.
   Qed.
 
   Lemma pred_prefix_list_for_prefix_of Rs1 Rs2 R1 R2:
-    pred_prefix_list_for Rs1 R1 →
-    pred_prefix_list_for Rs2 R2 →
+    rel_prefix_list_for Rs1 R1 →
+    rel_prefix_list_for Rs2 R2 →
     Rs1 `prefix_of` Rs2 →
-    rel_stronger R2 R1.
+    rel_weaker R1 R2.
   Proof.
     intros PP1 PP2 pref.
     destruct PP1 as [isLast1 _].
     destruct PP2 as [isLast2 weaker].
     rewrite last_lookup in isLast1.
-    rewrite last_lookup in isLast2.
-    eapply weaker; last done.
-    - apply le_pred. apply prefix_length. eassumption.
-    - eapply prefix_lookup; done.
+    eapply prefix_lookup in isLast1; last done.
+    apply: increasing_list_last_greatest; done.
   Qed.
 
 End dependency_relation_extra.
@@ -321,7 +329,8 @@ Definition generational_cmraR {n} (A : cmra) (DS : ivec n cmra) : cmra :=
   GTSR (A → A) *R*
   optionR A *R*
   optionR (agreeR (leibnizO (list gname))) *R*
-  gen_pvR (mono_listR (rel_overO A DS)).
+  gen_pvR (mono_listR (rel_overO DS A)) *R*
+  gen_pvR (mono_listR (pred_overO A)).
 
 Local Infix "*M*" := prod_map (at level 50, left associativity).
 
@@ -333,50 +342,74 @@ Definition gen_cmra_trans {n} {A : cmra} {DS : ivec n cmra}
   (GTS_floor : (GTSR (A → A)) → (GTSR (A → A))) *M*
   (fmap f : optionR A → optionR A) *M*
   id *M*
+  gen_pv_trans *M*
   gen_pv_trans.
 
-(* Working with the 5-tuple is sometimes annoying. Then these lemmas help. *)
-Lemma prod_valid_1st {Σ}
-  {A B C D E : cmra} (a : A) (b : B) (c : C) (d : D) (e : E) f g h i j :
-  ✓ ((a, b, c, d, e) ⋅ (f, g, h, i, j)) ⊢@{iProp Σ} ✓ (a ⋅ f).
-Proof. rewrite 4!prod_validI. simpl. iIntros "[[[[$ _] _] _] _]". Qed.
+Section tuple_helpers.
+  (* Working with the 6-tuple is sometimes annoying. These lemmas help. *)
+  Context {A B C D E F : cmra}.
+  Implicit Types (a : A) (b : B) (c : C) (d : D) (e : E) (f : F).
 
-Lemma prod_valid_2st {Σ}
-  {A B C D E : cmra} (a : A) (b : B) (c : C) (d : D) (e : E) f g h i j :
-  ✓ ((a, b, c, d, e) ⋅ (f, g, h, i, j)) ⊢@{iProp Σ} ✓ (b ⋅ g).
-Proof. rewrite 4!prod_validI. simpl. iIntros "[[[[_ $] _] _] _]". Qed.
+  Lemma prod_valid_1st {Σ} a1 b1 c1 d1 e1 f1 a2 b2 c2 d2 e2 f2 :
+    ✓ ((a1, b1, c1, d1, e1, f1) ⋅ (a2, b2, c2, d2, e2, f2)) ⊢@{iProp Σ} ✓ (a1 ⋅ a2).
+  Proof. rewrite 5!prod_validI /= -4!assoc. iIntros "(? & ? & ? & ? & ? & ?)". done. Qed.
 
-Lemma prod_valid_3th {Σ}
-  {A B C D E : cmra} (a : A) (b : B) (c : C) (d : D) (e : E) f g h i j :
-  ✓ ((a, b, c, d, e) ⋅ (f, g, h, i, j)) ⊢@{iProp Σ} ✓ (c ⋅ h).
-Proof. rewrite 4!prod_validI. simpl. iIntros "[[[_ $] _] _]". Qed.
+  Lemma prod_valid_2nd {Σ} a1 b1 c1 d1 e1 f1 a2 b2 c2 d2 e2 f2 :
+    ✓ ((a1, b1, c1, d1, e1, f1) ⋅ (a2, b2, c2, d2, e2, f2)) ⊢@{iProp Σ} ✓ (b1 ⋅ b2).
+  Proof. rewrite 5!prod_validI /= -4!assoc. iIntros "(? & ? & ? & ? & ? & ?)". done. Qed.
 
-Lemma prod_valid_4th {Σ}
-  {A B C D E : cmra} (a : A) (b : B) (c : C) (d : D) (e : E) f g h i j :
-  ✓ ((a, b, c, d, e) ⋅ (f, g, h, i, j)) ⊢@{iProp Σ} ✓ (d ⋅ i).
-Proof. rewrite 4!prod_validI. iIntros "[[_ $] _]". Qed.
+  Lemma prod_valid_3th {Σ} a1 b1 c1 d1 e1 f1 a2 b2 c2 d2 e2 f2 :
+    ✓ ((a1, b1, c1, d1, e1, f1) ⋅ (a2, b2, c2, d2, e2, f2)) ⊢@{iProp Σ} ✓ (c1 ⋅ c2).
+  Proof. rewrite 5!prod_validI /= -4!assoc. iIntros "(? & ? & ? & ? & ? & ?)". done. Qed.
 
-Lemma prod_valid_5th {Σ}
-  {A B C D E : cmra} (a : A) (b : B) (c : C) (d : D) (e : E) f g h i j :
-  ✓ ((a, b, c, d, e) ⋅ (f, g, h, i, j)) ⊢@{iProp Σ} ✓ (e ⋅ j).
-Proof. rewrite 4!prod_validI. iIntros "[_ $]". Qed.
+  Lemma prod_valid_4th {Σ} a1 b1 c1 d1 e1 f1 a2 b2 c2 d2 e2 f2 :
+    ✓ ((a1, b1, c1, d1, e1, f1) ⋅ (a2, b2, c2, d2, e2, f2)) ⊢@{iProp Σ} ✓ (d1 ⋅ d2).
+  Proof. rewrite 5!prod_validI /= -4!assoc. iIntros "(? & ? & ? & ? & ? & ?)". done. Qed.
+
+  Lemma prod_valid_5th {Σ} a1 b1 c1 d1 e1 f1 a2 b2 c2 d2 e2 f2 :
+    ✓ ((a1, b1, c1, d1, e1, f1) ⋅ (a2, b2, c2, d2, e2, f2)) ⊢@{iProp Σ} ✓ (e1 ⋅ e2).
+  Proof. rewrite 5!prod_validI /= -4!assoc. iIntros "(? & ? & ? & ? & ? & ?)". done. Qed.
+
+  Lemma prod_valid_6th {Σ} a1 b1 c1 d1 e1 f1 a2 b2 c2 d2 e2 f2 :
+    ✓ ((a1, b1, c1, d1, e1, f1) ⋅ (a2, b2, c2, d2, e2, f2))
+    ⊢@{iProp Σ} ✓ (f1 ⋅ f2).
+  Proof. rewrite 5!prod_validI /= -4!assoc. iIntros "(? & ? & ? & ? & ? & ?)". done. Qed.
+
+  Lemma prod_6_equiv a1 b1 c1 d1 e1 f1 a2 b2 c2 d2 e2 f2 :
+    (a1, b1, c1, d1, e1, f1) ≡ (a2, b2, c2, d2, e2, f2)
+    ↔ (a1 ≡ a2) ∧ (b1 ≡ b2) ∧ (c1 ≡ c2) ∧ (d1 ≡ d2) ∧ (e1 ≡ e2) ∧ (f1 ≡ f2).
+  Proof.
+    split.
+    - intros (((((? & ?) & ?) & ?) & ?) & ?). done.
+    - intros (? & ? & ? & ? & ? & ?). done.
+  Qed.
+
+  Lemma prod_6_equivI {Σ} a1 b1 c1 d1 e1 f1 a2 b2 c2 d2 e2 f2 :
+    (a1, b1, c1, d1, e1, f1) ≡ (a2, b2, c2, d2, e2, f2)
+    ⊣⊢@{iProp Σ} (a1 ≡ a2) ∧ (b1 ≡ b2) ∧ (c1 ≡ c2) ∧ (d1 ≡ d2) ∧ (e1 ≡ e2) ∧ (f1 ≡ f2).
+  Proof. rewrite !prod_equivI. simpl. rewrite -4!assoc. done. Qed.
+
+End tuple_helpers.
 
 (* Constructors for each of the elements in the pair. *)
 
 Definition gc_tup_pick_in {n A} (DS : ivec n cmra) pick_in : generational_cmraR A DS :=
- (Some (to_agree (pick_in)), ε, ε, ε, ε).
+ (Some (to_agree (pick_in)), ε, ε, ε, ε, ε).
 
 Definition gc_tup_pick_out {A n} (DS : ivec n cmra) pick_out : generational_cmraR A DS :=
- (ε, pick_out, ε, ε, ε).
+ (ε, pick_out, ε, ε, ε, ε).
 
 Definition gc_tup_elem {A n} (DS : ivec n cmra) a : generational_cmraR A DS :=
- (ε, ε, Some a, ε, ε).
+ (ε, ε, Some a, ε, ε, ε).
 
 Definition gc_tup_deps {n} A (DS : ivec n cmra) deps : generational_cmraR A DS :=
- (ε, ε, ε, Some (to_agree deps), ε).
+ (ε, ε, ε, Some (to_agree deps), ε, ε).
 
 Definition gc_tup_promise_list {n A} {DS : ivec n cmra} l : generational_cmraR A DS :=
- (ε, ε, ε, ε, l).
+ (ε, ε, ε, ε, l, ε).
+
+Definition gc_tup_rel_pred {n A} {DS : ivec n cmra} l1 l2 : generational_cmraR A DS :=
+ (ε, ε, ε, ε, l1, l2).
 
 Global Instance gen_trans_const {A : ofe} (a : A) :
   GenTrans (const (Some (to_agree a))).
@@ -413,7 +446,8 @@ Section gen_cmra.
 
   Lemma gen_cmra_trans_apply f (a : generational_cmraR A DS) :
     (gen_cmra_trans f) a =
-      (Some (to_agree f), GTS_floor a.1.1.1.2, f <$> a.1.1.2, a.1.2, gen_pv_trans a.2).
+      (Some (to_agree f), GTS_floor a.1.1.1.1.2, f <$> a.1.1.1.2, a.1.1.2,
+        gen_pv_trans a.1.2, gen_pv_trans a.2).
   Proof. done. Qed.
 
 End gen_cmra.
@@ -1571,13 +1605,12 @@ Section promise_info.
   (** [pia1] is a better promise than [pia2]. *)
   Definition promise_stronger {id} (pia1 pia2 : promise_info_at _ id) : Prop :=
     pia1.(pi_deps_γs) = pia2.(pi_deps_γs) ∧
-    rel_stronger pia1.(pi_rel) pia2.(pi_rel)
-    (* pred_stronger p1.(pi_pred) p2.(pi_pred) *)
-    .
+    rel_stronger pia1.(pi_rel) pia2.(pi_rel) ∧
+    pred_stronger pia1.(pi_pred) pia2.(pi_pred).
 
   Lemma promise_stronger_refl {id} (pia : promise_info_at _ id) :
     promise_stronger pia pia.
-  Proof. split; first done. intros ??. naive_solver. Qed.
+  Proof. split_and!; first done; intros ?; naive_solver. Qed.
 
   (** This definition is supposed to encapsulate what ownership over the
    * resources for [prs1] and [prs2] entails. *)
@@ -1672,7 +1705,7 @@ Section promise_info.
     - admit.
   Admitted.
 
-  Lemma promise_stringer_pred_stronger id (pia1 pia2 : promise_info_at Ω id) :
+  Lemma promise_stronger_pred_stronger id (pia1 pia2 : promise_info_at Ω id) :
     promise_stronger pia1 pia2 → pred_stronger pia1.(pi_pred) pia2.(pi_pred).
   Proof. Admitted.
 
@@ -1923,12 +1956,8 @@ Section promise_info.
           rewrite hvec_lookup_fmap_equation_2.
           rewrite hvec_lookup_fmap_equation_2 in stronger'.
           destruct piD, piSat. simpl in *. subst.
-          (* assert (pi_id piD = pi_id piSat). *)
-          (* { congruence. } *)
-          (* rewrite ivec_lookup_equation_2 in idEq', stronger. *)
-          (* rewrite ivec_lookup_equation_2 in idEq'. *)
           assert (pred_stronger (pi_pred piaD) (pi_pred pi_at1)).
-          { apply promise_stringer_pred_stronger.
+          { apply promise_stronger_pred_stronger.
             eapply promises_is_valid_restricted_merge_stronger; done. }
           eapply pred_stronger_trans; first apply H3.
           simpl in *.
@@ -2455,15 +2484,15 @@ Section next_gen_definition.
       ∀ γ (a : Rpre Σ i),
         m i !! γ = Some a →
         ∃ eq (ts : hvec (On Ω i) (cmra_to_trans <$> Ocs Ω i))
-            (γs : ivec (On Ω i) gname) (t : Oc Ω i → Oc Ω i) R Rs,
+            (γs : ivec (On Ω i) gname) (t : Oc Ω i → Oc Ω i) Ps R Rs,
           Oeq Ω i = Some2 eq ∧
           trans_at_deps picks i γs ts ∧
           huncurry R ts t ∧
           picks i !! γ = Some t ∧
-          pred_prefix_list_for Rs R ∧
+          rel_prefix_list_for Rs R ∧
           a ≡ map_unfold (cmra_transport eq
-            (ε, GTS_tok_gen_shot t, ε,
-            Some (to_agree (ivec_to_list γs)), gV (●ML□ Rs))).
+            (ε, GTS_tok_gen_shot t, ε, Some (to_agree (ivec_to_list γs)),
+              gV (●ML□ Rs), gV (●ML□ Ps))).
 
   Definition own_picks picks : iProp Σ :=
     ∃ m, uPred_ownM m ∗ ⌜ res_for_picks picks m ⌝.
@@ -2481,15 +2510,14 @@ Section next_gen_definition.
 
   Definition own_promises (ps : list (promise_info Ω)) : iProp Σ :=
     (∀ p, ⌜ p ∈ ps ⌝ -∗
-      ∃ eq Rs,
+      ∃ eq Rs Ps,
         ⌜ Oeq Ω p.(pi_id) = Some2 eq ⌝ ∧
-        ⌜ pred_prefix_list_for Rs p.(pi_rel) ⌝ ∧
+        ⌜ rel_prefix_list_for Rs p.(pi_rel) ⌝ ∧
         uPred_ownM (discrete_fun_singleton p.(pi_id)
           {[ p.(pi_γ) := map_unfold
             (cmra_transport eq (
-              ε, ε, ε,
-              Some (to_agree (ivec_to_list p.(pi_deps_γs))),
-              gPV (◯ML Rs)
+              ε, ε, ε, Some (to_agree (ivec_to_list p.(pi_deps_γs))),
+              gPV (◯ML Rs), gPV (◯ML Ps)
             )) ]}
         )).
 
@@ -2529,12 +2557,12 @@ Section own_picks_properties.
     specialize (t1 i) as (domEq1 & m1look).
     assert (is_Some (m1 i !! γ)) as [? m1Look].
     { rewrite -elem_of_dom -domEq1 elem_of_dom. done. }
-    edestruct m1look as (gti1 & t1 & ? & ? & ? & ? & ? & ? & ? & picks1Look & ? & eq1);
+    edestruct m1look as (gti1 & t1 & ? & ? & ? & ? & ? & ? & ? & ? & picks1Look & ? & eq1);
       first done.
     specialize (t2 i) as (domEq2 & m2look).
     assert (is_Some (m2 i !! γ)) as [? m2Look].
     { rewrite -elem_of_dom -domEq2 elem_of_dom. done. }
-    edestruct m2look as (gti2 & t2 & ? & ? & ? & ? & ? & ? & ? & picks2Look & ? & eq2);
+    edestruct m2look as (gti2 & t2 & ? & ? & ? & ? & ? & ? & ? & ? & picks2Look & ? & eq2);
       first done.
     clear m1look m2look.
     assert (gti1 = gti2) as -> by congruence.
@@ -2554,7 +2582,7 @@ Section own_picks_properties.
     rewrite map_unfold_validI.
     destruct gti2.
     simpl.
-    rewrite prod_valid_2st.
+    rewrite prod_valid_2nd.
     rewrite GTS_tok_gen_shot_agree.
     done.
   Qed.
@@ -2573,10 +2601,10 @@ Section own_picks_properties.
     iIntros (t1 t2) "m1 m2". iIntros (i).
     iIntros (γ a1 a2 m1Look m2Look).
     specialize (t1 i) as (domEq1 & m1look).
-    edestruct m1look as (gti1 & t1 & ? & ? & ? & ? & ? & ? & ? & picks1Look & ? & eq1);
+    edestruct m1look as (gti1 & t1 & ? & ? & ? & ? & ? & ? & ? & ? & picks1Look & ? & eq1);
       first done.
     specialize (t2 i) as (domEq2 & m2look).
-    edestruct m2look as (gti2 & t2 & ? & ? & ? & ? & ? & ? & ? & picks2Look & ? & eq2);
+    edestruct m2look as (gti2 & t2 & ? & ? & ? & ? & ? & ? & ? & ? & picks2Look & ? & eq2);
       first done.
     clear m1look m2look.
     assert (gti1 = gti2) as -> by congruence.
@@ -2594,20 +2622,18 @@ Section own_picks_properties.
     rewrite map_unfold_validI.
     rewrite -cmra_transport_op.
     rewrite cmra_transport_validI.
-    rewrite -pair_op.
-    rewrite -pair_op.
-    rewrite prod_validI.
-    rewrite prod_validI.
-    rewrite prod_validI.
-    rewrite prod_validI.
-    iDestruct "Hv" as "((((_ & Hv1) & _) & Hv2) & %Hv3)".
-    simpl in Hv3.
+    iDestruct (prod_valid_2nd with "Hv") as "Hv1".
+    iDestruct (prod_valid_4th with "Hv") as "Hv2".
+    iDestruct (prod_valid_5th with "Hv") as %Hv3.
+    iDestruct (prod_valid_6th with "Hv") as %Hv4.
+    simpl in Hv3, Hv4.
     simpl.
     rewrite GTS_tok_gen_shot_agree.
     rewrite -Some_op option_validI to_agree_op_validI.
     iDestruct "Hv1" as %->.
-    rewrite gen_pv_op gen_pv_valid in Hv3.
+    rewrite 2!gen_pv_op 2!gen_pv_valid in Hv3 Hv4.
     apply mono_list_auth_dfrac_op_valid in Hv3 as (? & eq).
+    apply mono_list_auth_dfrac_op_valid in Hv4 as (? & eq3).
     rewrite /map_unfold.
     iDestruct "Hv2" as %hqq.
     apply leibniz_equiv in hqq.
@@ -2615,6 +2641,7 @@ Section own_picks_properties.
     rewrite hqq.
     rewrite /gV. rewrite /mk_gen_pv.
     split; try done; simpl.
+    2: { by rewrite eq3. }
     split; try done; simpl.
     rewrite eq.
     done.
@@ -2642,10 +2669,10 @@ Section own_picks_properties.
       case (m2 i !! γ) eqn:look2; rewrite look2.
     - specialize (overlap2 i _ _ _ look1 look2) as elemEq.
       (* Both [picks1] and [picks2] has a pick. *)
-      apply tok1 in look1 as (n1 & c1 & t1 & r & rs & R1 & Rlist1 & ? & R1holds & picksLook1 & prf1 & a1).
-      apply tok2 in look2 as (n2 & c2 & t2 & ? & ? & R2 & Rlist2 & ? & R2holds & picksLook2 & prf2 & a2).
+      apply tok1 in look1 as (n1 & c1 & t1 & ps & r & rs & R1 & Rlist1 & ? & R1holds & picksLook1 & prf1 & a1) .
+      apply tok2 in look2 as (n2 & c2 & t2 & ? & ? & R2 & Rlist2 & ? & R2holds & picksLook2 & prf2 & ? & a2).
       intros [= opEq].
-      eexists n1, c1, t1, r, rs, R1.
+      eexists n1, c1, t1, ps, r, rs, R1.
       split; first done.
       split. { apply trans_at_deps_union_l. done. }
       split; first done.
@@ -2658,26 +2685,28 @@ Section own_picks_properties.
       f_equiv.
       rewrite -cmra_transport_op.
       f_equiv.
-      rewrite -4!pair_op.
-      rewrite GTS_tok_gen_shot_idemp.
-      rewrite -Some_op.
-      rewrite agree_idemp.
-      rewrite gen_pv_op.
-      rewrite /gV.
-      simpl.
-      rewrite -mono_list_auth_dfrac_op.
-      done.
+      Set Printing All.
+      rewrite -5!pair_op.
+      apply prod_6_equiv. split_and!; try reflexivity.
+      * rewrite GTS_tok_gen_shot_idemp. done.
+      * rewrite -Some_op agree_idemp. done.
+      * rewrite gen_pv_op. simpl.
+        rewrite -mono_list_auth_dfrac_op.
+        done.
+      * rewrite gen_pv_op. simpl.
+        rewrite -mono_list_auth_dfrac_op.
+        done.
     - intros [= ->].
-      apply tok1 in look1 as (n & c & t & r & rs & R & Rlist & ? & Rholds & picksLook & rest).
-      eexists n, c, t, r, rs, R.
+      apply tok1 in look1 as (n & c & t & ? & r & rs & R & Rlist & ? & Rholds & picksLook & rest).
+      eexists n, c, t, _, r, rs, R.
       split; first done.
       split. { apply trans_at_deps_union_l; done. }
       split; first done.
       split. { erewrite lookup_union_Some_l; try done. }
       apply rest.
     - intros [= ->].
-      apply tok2 in look2 as (n & c & t & r & rs & R & Rlist & ? & Rholds & picksLook & rest).
-      eexists n, c, t, r, rs, R.
+      apply tok2 in look2 as (n & c & t & ? & r & rs & R & Rlist & ? & Rholds & picksLook & rest).
+      eexists n, c, t, _, r, rs, R.
       split; first done.
       split. { apply trans_at_deps_union_r; done. }
       split; first done.
@@ -2730,8 +2759,8 @@ Section own_promises_properties.
     iSpecialize ("O1" $! _ elem1).
     iSpecialize ("O2" $! _ elem2).
     simpl.
-    iDestruct "O1" as (eq ???) "O1".
-    iDestruct "O2" as (eq' ???) "O2".
+    iDestruct "O1" as (eq ????) "O1".
+    iDestruct "O2" as (eq' ????) "O2".
     assert (eq' = eq) as -> by congruence.
     iCombine "O1 O2" as "O3".
     rewrite discrete_fun_singleton_op.
@@ -2749,10 +2778,13 @@ Section own_promises_properties.
     rewrite map_unfold_validI.
     rewrite -cmra_transport_op.
     rewrite cmra_transport_validI.
-    rewrite -2!pair_op.
-    rewrite prod_validI /=.
-    rewrite prod_validI /=.
-    iDestruct "Hv" as "[[_ %Hv2] %Hv]". iPureIntro.
+    rewrite -5!pair_op.
+    iDestruct (prod_valid_5th with "Hv") as %Hv.
+    iDestruct (prod_valid_4th with "Hv") as %Hv2.
+    (* rewrite prod_validI /=. *)
+    (* rewrite prod_validI /=. *)
+    (* iDestruct "Hv" as "[[_ %Hv2] %Hv]". iPureIntro. *)
+    iPureIntro.
     rewrite -Some_op Some_valid to_agree_op_valid_L in Hv2.
     apply ivec_to_list_inj in Hv2.
     rewrite gen_pv_op gen_pv_valid in Hv.
@@ -2760,11 +2792,17 @@ Section own_promises_properties.
     apply to_max_prefix_list_op_valid_L in Hv as [Hv|Hv].
     - right.
       split; first done.
-      eapply pred_prefix_list_for_prefix_of; done.
+      split.
+      * apply rel_weaker_stronger.
+        eapply pred_prefix_list_for_prefix_of; try done.
+      * admit.
     - left.
       split; first done.
-      eapply pred_prefix_list_for_prefix_of; done.
-  Qed.
+      split.
+      * apply rel_weaker_stronger.
+        eapply pred_prefix_list_for_prefix_of; try done.
+      * admit.
+  Admitted.
 
 End own_promises_properties.
 
@@ -2857,8 +2895,11 @@ Section generational_resources.
   Definition know_deps γ (γs : ivec n gname) : iProp Σ :=
     own γ (gc_tup_deps A DS (ivec_to_list γs)).
 
-  Definition gen_promise_list γ l :=
-    own γ (gc_tup_promise_list l).
+  (* Definition gen_promise_list γ l := *)
+  (*   own γ (gc_tup_promise_list l). *)
+
+  Definition gen_promise_rel_pred_list γ rels preds :=
+    own γ (gc_tup_rel_pred rels preds).
 
   Definition gen_token_used γ : iProp Σ :=
     gen_pick_out γ GTS_tok_perm.
@@ -2866,13 +2907,15 @@ Section generational_resources.
   Definition gen_token γ : iProp Σ :=
     gen_pick_out γ (GTS_tok_both).
 
-  Definition own_frozen_auth_promise_list γ all : iProp Σ :=
-    gen_promise_list γ (
-      gP (●ML all) ⋅ gV (●ML□ all)
-    ).
+  Definition own_frozen_auth_promise_list γ rels preds : iProp Σ :=
+    gen_promise_rel_pred_list γ
+      (gP (●ML rels) ⋅ gV (●ML□ rels)) (gP (●ML preds) ⋅ gV (●ML□ preds)).
 
-  Definition own_auth_promise_list γ all : iProp Σ :=
-    gen_promise_list γ (gPV (●ML all)).
+  Definition own_auth_promise_list γ rels preds : iProp Σ :=
+    gen_promise_rel_pred_list γ (gPV (●ML rels)) (gPV (●ML preds)).
+
+  (* Definition own_auth_promise_list γ all : iProp Σ := *)
+  (*   gen_promise_list γ (gPV (●ML all)). *)
 
   (** Resources shared between [token], [used_token], and [rely]. *)
   Definition know_promise γ γs R P pia promises all : iProp Σ :=
@@ -2887,22 +2930,22 @@ Section generational_resources.
 
   (** Ownership over the token and the promises for [γ]. *)
   Definition token (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
-    ∃ (all : list (rel_over DS A)) promises pia,
+    ∃ (all : list (rel_over DS A)) ps promises pia,
       "tokenPromise" ∷ know_promise γ γs R P pia promises all ∗
       "token" ∷ gen_pick_out γ GTS_tok_both ∗
-      "auth_preds" ∷ own_auth_promise_list γ all.
+      "auth_preds" ∷ own_auth_promise_list γ all ps.
 
   Definition used_token (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
-    ∃ (all : list (rel_over DS A)) promises pia,
+    ∃ (all : list (rel_over DS A)) ps promises pia,
       "tokenPromise" ∷ know_promise γ γs R P pia promises all ∗
-      own_frozen_auth_promise_list γ all ∗
+      own_frozen_auth_promise_list γ all ps ∗
       "usedToken" ∷ gen_pick_out γ GTS_tok_perm.
 
   (** Knowledge that γ is accociated with the predicates R and P. *)
   Definition rely (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
-    ∃ (all : list (rel_over DS A)) promises pia,
+    ∃ (all : list (rel_over DS A)) ps promises pia,
       "#relyPromise" ∷ know_promise γ γs R P pia promises all ∗
-      "#fragPreds" ∷ gen_promise_list γ ((gPV (◯ML all))).
+      "#fragPreds" ∷ gen_promise_rel_pred_list γ (gPV (◯ML all)) (gPV (◯ML ps)).
 
   Definition picked_out γ t : iProp Σ :=
     gen_pick_out γ (GTS_tok_gen_shot t).
@@ -2941,17 +2984,22 @@ Section rules.
     done.
   Qed.
 
-  Lemma auth_promise_list_snoc γ ps p :
-    own_auth_promise_list γ ps ==∗ own_auth_promise_list γ (app ps (cons p nil)).
+  Lemma auth_promise_list_snoc γ rs ps r p :
+    own_auth_promise_list γ rs ps
+    ==∗ own_auth_promise_list γ (app rs (cons r nil)) (app ps (cons p nil)).
   Proof.
     rewrite /own_auth_promise_list.
-    rewrite /gen_promise_list.
+    rewrite /gen_promise_rel_pred_list.
     apply own_update.
-    apply prod_update; first done; simpl.
-    apply gen_pv_update.
-    apply mono_list_update.
-    apply prefix_app_r.
-    done.
+    apply prod_update; first apply prod_update; simpl; try done.
+    - apply gen_pv_update.
+      apply mono_list_update.
+      apply prefix_app_r.
+      done.
+    - apply gen_pv_update.
+      apply mono_list_update.
+      apply prefix_app_r.
+      done.
   Qed.
 
   Lemma own_gen_alloc (a : A) γs :
@@ -2964,16 +3012,21 @@ Section rules.
       (gc_tup_deps A DS (ivec_to_list γs) ⋅
        gc_tup_elem DS a ⋅
        gc_tup_pick_out DS GTS_tok_both ⋅
-       gc_tup_promise_list (gPV (●ML (True_rel :: [])))
+       gc_tup_rel_pred
+         (gPV (●ML (True_rel :: [])))
+         (gPV (●ML (True_pred :: [])))
        )) as (γ) "[[[?OA] A'] B]".
-    { split; simpl; try done.
-      rewrite ucmra_unit_left_id.
-      apply gen_pv_valid.
-      apply mono_list_auth_valid. }
+    { split; first split; simpl; try done.
+      - rewrite ucmra_unit_left_id.
+        apply gen_pv_valid.
+        apply mono_list_auth_valid.
+      - rewrite ucmra_unit_left_id.
+        apply gen_pv_valid.
+        apply mono_list_auth_valid. }
     iExists γ.
     iModIntro. iFrame "OA".
     eset (pia := make_true_pia _ (rew <- [λ n, ivec n _] On_genInG in γs)).
-    iExists (True_rel :: nil), ((MkPi _ γ pia) :: nil), pia.
+    iExists ((True_rel) :: nil), ((True_pred) :: nil), ((MkPi _ γ pia) :: nil), pia.
   Admitted.
   (*   iPureIntro. *)
   (*   apply pred_prefix_list_for'_True. *)
@@ -3062,10 +3115,10 @@ Section rules.
     simpl in *.
 
     iExists (app all (R_2 :: nil)).
-    iExists _. (* TODO: Build this list of promises. *)
+    iExists _, _. (* TODO: Build this list of promises. *)
     iExists pia2.
     iFrame "token".
-    iMod (auth_promise_list_snoc γ all with "auth_preds") as "$".
+    (* iMod (auth_promise_list_snoc γ (zip all ps) with "auth_preds") as "$". *)
   Admitted.
 
   Lemma token_pick γ γs (R : rel_over DS A) P (ts : trans_for n DS) t
@@ -3095,8 +3148,8 @@ Section rules.
     intros prefix%mono_list_both_valid_L.
     destruct pred_prefix as [? ?].
     destruct relyPredPrefix as [? ?].
-    eapply pred_prefix_list_for_prefix_of; done.
-  Qed.
+    eapply pred_prefix_list_for_prefix_of; try done.
+  Admitted.
 
   Lemma know_deps_agree γ γs1 γs2 :
     know_deps γ γs1 -∗
@@ -3120,7 +3173,7 @@ Section rules.
     ⌜ rel_stronger R1 R2 ∨ rel_stronger R2 R1 ⌝.
   Proof.
     iNamed 1. iNamed "relyPromise".
-    iDestruct 1 as (???) "((? & ? & ? & %prefix2 & ? & ? & deps2 & ?) & preds2)".
+    iDestruct 1 as (????) "((? & ? & ? & %prefix2 & ? & ? & deps2 & ?) & preds2)".
     iDestruct (know_deps_agree with "deps deps2") as %<-.
     iDestruct (own_valid_2 with "fragPreds preds2") as "val".
     iDestruct (prod_valid_5th with "val") as "%val".
@@ -3130,19 +3183,13 @@ Section rules.
     rewrite gen_pv_op. rewrite gen_pv_valid.
     rewrite auth_frag_valid.
     rewrite to_max_prefix_list_op_valid_L.
-    destruct pred_prefix as [(isLast1 & look1) ?].
-    destruct prefix2 as [(isLast2 & look2) ?].
-    rewrite last_lookup in isLast1.
-    rewrite last_lookup in isLast2.
+    destruct pred_prefix as [? ?].
+    destruct prefix2 as [? ?].
     intros [prefix | prefix].
     - right.
-      eapply look2; last done.
-      { apply le_pred. apply prefix_length. eassumption. }
-      eapply prefix_lookup; done.
+      eapply pred_prefix_list_for_prefix_of; try done.
     - left.
-      eapply look1; last done.
-      { apply le_pred. apply prefix_length. eassumption. }
-      eapply prefix_lookup; done.
+      eapply pred_prefix_list_for_prefix_of; try done.
   Qed.
 
 End rules.
@@ -3203,9 +3250,9 @@ Section nextgen_assertion_rules.
     rewrite /own_promises.
     iModIntro.
     iIntros (pi elm).
-    iDestruct ("prs" $! pi elm) as (????) "-#H".
+    iDestruct ("prs" $! pi elm) as (?? Ps ??) "-#H".
     iClear "prs".
-    iExists _, _.
+    iExists _, _, Ps.
     iSplit; first done.
     iSplit; first done.
     rewrite build_trans_singleton_alt; [ |done|done|done].
@@ -3214,7 +3261,7 @@ Section nextgen_assertion_rules.
     simpl.
     apply discrete_fun_singleton_included.
     rewrite gen_cmra_trans_apply. simpl.
-    rewrite 4!pair_included.
+    rewrite 5!pair_included.
     split_and!; try done. apply ucmra_unit_least.
   Qed.
 
@@ -3288,15 +3335,17 @@ Section nextgen_assertion_rules.
   (*   iFrame "own". *)
   (* Qed. *)
 
-  Lemma own_gen_cmra_split_picked_in γ a b c d e :
-    own γ (a, b, c, d, e) ⊣⊢ own γ (a, ε, ε, ε, ε) ∗ own γ (ε, b, c, d, e).
+  Lemma own_gen_cmra_split_picked_in γ a b c d e f :
+    own γ (a, b, c, d, e, f) ⊣⊢ own γ (a, ε, ε, ε, ε, ε) ∗ own γ (ε, b, c, d, e, f).
    Proof.
      rewrite -own_op.
      f_equiv.
      rewrite -!pair_op.
-     rewrite !(right_id ε (⋅)).
-     repeat split; simpl; try done;
-       rewrite !(left_id ε (⋅)); done.
+     rewrite prod_6_equiv.
+     unfold gen_pvR in *.
+     split_and!;
+       rewrite ?ucmra_unit_left_id;
+       rewrite ?ucmra_unit_right_id; done.
   Qed.
 
   (* TODO: Prove this lemma. *)
@@ -3330,7 +3379,7 @@ Section nextgen_assertion_rules.
     rewrite look.
     iDestruct (own_gen_cmra_split_picked_in with "rely_deps'") as "[picked_in $]".
     iSplit.
-    - iExists all, promises, pia.
+    - iExists all, ps, promises, pia.
       iSplit.
       { do 6 (iSplit; first done).
         iFrame "prs'". }
@@ -3376,10 +3425,14 @@ Global Instance genInG_forall_2 {Σ n m} {DS1 : ivec n cmra} {DS2 : ivec m cmra}
   `{!genInG Σ Ω A DS1} `{!genInG Σ Ω B DS2} :
   ∀ (i : fin 2), genInSelfG Σ Ω ([A; B]%IL !!! i).
 Proof.
-  apply forall_fin_2.
-  split.
-  - apply (GenInG2 _ _ _ n DS1 _).
-  - apply (GenInG2 _ _ _ m DS2 _).
+  intros i.
+  dependent elimination i.
+  dependent elimination t.
+  dependent elimination t.
+  (* apply forall_fin_2. *)
+  (* split. *)
+  (* - apply (GenInG2 _ _ _ n DS1 _). *)
+  (* - apply (GenInG2 _ _ _ m DS2 _). *)
 Qed.
 
 Section test.

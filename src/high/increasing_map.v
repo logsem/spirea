@@ -207,24 +207,33 @@ Section increasing_list.
     - right. auto with lia.
   Qed.
 
+  Lemma increasing_list_lookup_le `{!PreOrder R} xs i j (x y : A) :
+    increasing_list R xs →
+    xs !! i = Some x →
+    xs !! j = Some y →
+    i ≤ j →
+    R x y.
+  Proof.
+    intros incr look1 look2 [lt | ->]%Nat.lt_eq_cases.
+    - naive_solver.
+    - simplify_eq. reflexivity.
+  Qed.
+
   Lemma increasing_list_last_greatest R `{!PreOrder R} ss s i s' :
     increasing_list R ss →
-    last ss = Some s →
     ss !! i = Some s' →
+    last ss = Some s →
     R s' s.
   Proof.
     rewrite last_lookup.
-    unfold increasing_list.
-    intros incr lookLast look.
-    destruct (decide (i = pred (length ss))).
-    { simplify_eq. reflexivity. }
-    eapply incr; try done.
+    intros ? look ?.
+    eapply increasing_list_lookup_le; try done.
     apply lookup_lt_Some in look.
     lia.
   Qed.
 
   Lemma increasing_list_snoc `{!PreOrder R} xs xs__last (x : A) :
-    (last xs) = Some xs__last →
+    last xs = Some xs__last →
     R xs__last x →
     increasing_list R xs → increasing_list R (xs ++ [x]).
   Proof.
@@ -245,9 +254,8 @@ Section increasing_list.
     R s1 s2.
   Proof.
     intros incr pref.
-    apply: increasing_list_last_greatest; first done.
-    { apply last_snoc. }
-    eapply prefix_lookup_Some; last done.
+    apply: increasing_list_last_greatest; eauto using last_snoc.
+    eapply prefix_lookup; last done.
     apply lookup_app_Some.
     right.
     split; first done.
