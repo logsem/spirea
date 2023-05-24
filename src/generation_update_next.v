@@ -266,6 +266,11 @@ Section dependency_relation_extra.
   Definition pred_stronger (P1 P2 : (A → A) → Prop) :=
     ∀ (t : A → A), P1 t → P2 t.
 
+  Definition pred_weaker := flip pred_stronger.
+
+  Lemma pred_weaker_stronger P1 P2 : pred_stronger P1 P2 ↔ pred_weaker P2 P1.
+  Proof. done. Qed.
+
   Lemma pred_stronger_trans (P1 P2 P3 : (A → A) → Prop) :
     pred_stronger P1 P2 → pred_stronger P2 P3 → pred_stronger P1 P3.
   Proof. intros S1 S2 ? ?. apply S2. apply S1. done. Qed.
@@ -275,30 +280,32 @@ Section dependency_relation_extra.
 
   (* Notation preds_for n ls := (hvec pred_over n ls). *)
 
-  Definition rel_prefix_list_for (all : list (rel_over DS A)) R :=
+  (* TODO: Delete this probably. *)
+  Definition rel_prefix_list_for {A} rel (all : list A) e :=
     (* The given promise [R] is the last promise out of all promises. *)
-    last all = Some R ∧
+    last all = Some e ∧
     (* The list of promises increases in strength. *)
-    increasing_list rel_weaker all.
+    increasing_list rel all.
 
   (* Includes [P] as well. *)
-  Definition pred_prefix_list_for' (all : list (rel_over DS A)) R P :=
-    rel_prefix_list_for all R ∧ rel_implies_pred R P.
-
-  Lemma pred_prefix_list_for_singleton p :
-    rel_prefix_list_for (p :: []) p.
-  Proof. split; first done. apply increasing_list_singleton. Qed.
+  Definition pred_prefix_list_for' (rels : list (rel_over DS A)) preds R P :=
+    length rels = length preds ∧
+    rel_prefix_list_for rel_weaker rels R ∧
+    rel_prefix_list_for pred_weaker preds P ∧
+    rel_implies_pred R P.
 
   Lemma pred_prefix_list_for'_True :
-    pred_prefix_list_for' (True_rel :: []) True_rel True_pred.
+    pred_prefix_list_for' (True_rel :: []) (True_pred :: []) True_rel True_pred.
   Proof.
     rewrite /pred_prefix_list_for'.
-    split; [apply pred_prefix_list_for_singleton | done].
+    rewrite /rel_prefix_list_for.
+    split_and!; eauto using increasing_list_singleton.
+    done.
   Qed.
 
   Lemma pred_prefix_list_for_prefix_of Rs1 Rs2 R1 R2:
-    rel_prefix_list_for Rs1 R1 →
-    rel_prefix_list_for Rs2 R2 →
+    rel_prefix_list_for rel_weaker Rs1 R1 →
+    rel_prefix_list_for rel_weaker Rs2 R2 →
     Rs1 `prefix_of` Rs2 →
     rel_weaker R1 R2.
   Proof.
@@ -2489,7 +2496,7 @@ Section next_gen_definition.
           trans_at_deps picks i γs ts ∧
           huncurry R ts t ∧
           picks i !! γ = Some t ∧
-          rel_prefix_list_for Rs R ∧
+          rel_prefix_list_for rel_weaker Rs R ∧
           a ≡ map_unfold (cmra_transport eq
             (ε, GTS_tok_gen_shot t, ε, Some (to_agree (ivec_to_list γs)),
               gV (●ML□ Rs), gV (●ML□ Ps))).
@@ -2510,9 +2517,9 @@ Section next_gen_definition.
 
   Definition own_promises (ps : list (promise_info Ω)) : iProp Σ :=
     (∀ p, ⌜ p ∈ ps ⌝ -∗
-      ∃ eq Rs Ps,
+      ∃ eq Rs (Ps : list (pred_over (Oc Ω p.(pi_id)))),
         ⌜ Oeq Ω p.(pi_id) = Some2 eq ⌝ ∧
-        ⌜ rel_prefix_list_for Rs p.(pi_rel) ⌝ ∧
+        ⌜ pred_prefix_list_for' Rs Ps p.(pi_rel) p.(pi_pred) ⌝ ∧
         uPred_ownM (discrete_fun_singleton p.(pi_id)
           {[ p.(pi_γ) := map_unfold
             (cmra_transport eq (
@@ -2520,6 +2527,7 @@ Section next_gen_definition.
               gPV (◯ML Rs), gPV (◯ML Ps)
             )) ]}
         )).
+  Print own_promises.
 
   #[global]
   Instance own_promise_persistent ps : Persistent (own_promises ps).
@@ -2745,6 +2753,16 @@ Section own_promises_properties.
 
   Implicit Types (prs : list (promise_info Ω)).
 
+  Lemma prefix_of_disj {A B} (ls1 ls2 : list A) (ls3 ls4 : list B):
+    length ls1 = length ls3 →
+    length ls2 = length ls4 →
+    (ls1 `prefix_of` ls2 ∨ ls2 `prefix_of` ls1) →
+    (ls1 `prefix_of` ls2 ∨ ls2 `prefix_of` ls1) →
+    (ls1 `prefix_of` ls2 ∧ ls3 `prefix_of` ls4) ∨
+    (ls2 `prefix_of` ls1 ∧ ls4 `prefix_of` ls3).
+  Proof.
+  Admitted.
+
   (* If two promise lists has an overlap then one of the overlapping promises
    * is strictly stronger than the other. *)
   Lemma own_promises_overlap prs1 prs2 :
@@ -2779,30 +2797,34 @@ Section own_promises_properties.
     rewrite -cmra_transport_op.
     rewrite cmra_transport_validI.
     rewrite -5!pair_op.
-    iDestruct (prod_valid_5th with "Hv") as %Hv.
     iDestruct (prod_valid_4th with "Hv") as %Hv2.
-    (* rewrite prod_validI /=. *)
-    (* rewrite prod_validI /=. *)
-    (* iDestruct "Hv" as "[[_ %Hv2] %Hv]". iPureIntro. *)
+    iDestruct (prod_valid_5th with "Hv") as %Hv.
+    iDestruct (prod_valid_6th with "Hv") as %Hv3.
     iPureIntro.
     rewrite -Some_op Some_valid to_agree_op_valid_L in Hv2.
     apply ivec_to_list_inj in Hv2.
-    rewrite gen_pv_op gen_pv_valid in Hv.
-    rewrite auth_frag_op_valid in Hv.
-    apply to_max_prefix_list_op_valid_L in Hv as [Hv|Hv].
-    - right.
-      split; first done.
-      split.
-      * apply rel_weaker_stronger.
-        eapply pred_prefix_list_for_prefix_of; try done.
-      * admit.
-    - left.
-      split; first done.
-      split.
-      * apply rel_weaker_stronger.
-        eapply pred_prefix_list_for_prefix_of; try done.
-      * admit.
+    rewrite gen_pv_op gen_pv_valid auth_frag_op_valid in Hv.
+    rewrite gen_pv_op gen_pv_valid auth_frag_op_valid in Hv3.
+    apply to_max_prefix_list_op_valid_L in Hv.
+    apply to_max_prefix_list_op_valid_L in Hv3.
+    destruct (prefix_of_disj Rs Rs0 Ps Ps0) as [[pref1 pref2]|[??]]; try done.
   Admitted.
+  (*   (* rewrite /promise_stronger. *) *)
+  (*   (* apply to_max_prefix_list_op_valid_L in Hv as [Hv|Hv]. *) *)
+  (*   - right. *)
+  (*     split; first done. *)
+  (*     split. *)
+  (*     * apply rel_weaker_stronger. *)
+  (*       eapply pred_prefix_list_for_prefix_of; try done. *)
+  (*     * apply rel_weaker_stronger. *)
+  (*       eapply pred_prefix_list_for_prefix_of; try done. *)
+  (*   - left. *)
+  (*     split; first done. *)
+  (*     split. *)
+  (*     * apply rel_weaker_stronger. *)
+  (*       eapply pred_prefix_list_for_prefix_of; try done. *)
+  (*     * admit. *)
+  (* Admitted. *)
 
 End own_promises_properties.
 
@@ -2926,7 +2948,7 @@ Section generational_resources.
     "%pia_in" ∷ ⌜ promises_lookup_at promises _ γ = Some pia ⌝ ∗
     "%prs_wf" ∷ ⌜ promises_wf promises ⌝ ∗
     "#deps" ∷ know_deps γ γs ∗
-    "#prs" ∷ own_promises promises.
+    "#prs" ∷ own_promises promises. (* NOTE: There seems to be some duplication between whats's in here and the above. *)
 
   (** Ownership over the token and the promises for [γ]. *)
   Definition token (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
