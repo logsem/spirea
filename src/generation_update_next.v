@@ -266,7 +266,19 @@ Section dependency_relation_extra.
   Definition pred_stronger (P1 P2 : (A → A) → Prop) :=
     ∀ (t : A → A), P1 t → P2 t.
 
+  #[global]
+  Instance pred_stronger_preorder : PreOrder pred_stronger.
+  Proof.
+    split.
+    - intros ??. naive_solver.
+    - intros ???????. naive_solver.
+  Qed.
+
   Definition pred_weaker := flip pred_stronger.
+
+  #[global]
+  Instance pred_weaker_preorder : PreOrder pred_weaker.
+  Proof. unfold pred_weaker. apply _. Qed.
 
   Lemma pred_weaker_stronger P1 P2 : pred_stronger P1 P2 ↔ pred_weaker P2 P1.
   Proof. done. Qed.
@@ -303,11 +315,12 @@ Section dependency_relation_extra.
     done.
   Qed.
 
-  Lemma pred_prefix_list_for_prefix_of Rs1 Rs2 R1 R2:
-    rel_prefix_list_for rel_weaker Rs1 R1 →
-    rel_prefix_list_for rel_weaker Rs2 R2 →
+  Lemma pred_prefix_list_for_prefix_of {B} (Rel : relation B) `{!PreOrder Rel}
+      (Rs1 Rs2 : list B) e e2:
+    rel_prefix_list_for Rel Rs1 e →
+    rel_prefix_list_for Rel Rs2 e2 →
     Rs1 `prefix_of` Rs2 →
-    rel_weaker R1 R2.
+    Rel e e2.
   Proof.
     intros PP1 PP2 pref.
     destruct PP1 as [isLast1 _].
@@ -2748,15 +2761,73 @@ Section own_promises_properties.
 
   Implicit Types (prs : list (promise_info Ω)).
 
-  Lemma prefix_of_disj {A B} (ls1 ls2 : list A) (ls3 ls4 : list B):
+  Lemma prefix_of_eq_length {A} (l1 l2 : list A) :
+    length l2 ≤ length l1 → l1 `prefix_of` l2 → l2 = l1.
+  Proof.
+    intros len [[|a l] eq].
+    - rewrite -app_nil_end in eq. done.
+    - assert (length l2 = length (l1 ++ a :: l)) by (rewrite eq; done).
+      rewrite app_length /= in H. lia.
+  Qed.
+
+  Lemma prefix_of_disj {A} (l1 l2 : list A) :
+    length l1 ≤ length l2 →
+    l1 `prefix_of` l2 ∨ l2 `prefix_of` l1 →
+    l1 `prefix_of` l2.
+  Proof.
+    intros len [pref|pref]; first done.
+    assert (l1 = l2) as ->; last done.
+    apply prefix_of_eq_length; done.
+  Qed.
+
+  Lemma prefix_of_conj_disj {A B} (ls1 ls2 : list A) (ls3 ls4 : list B):
     length ls1 = length ls3 →
     length ls2 = length ls4 →
     (ls1 `prefix_of` ls2 ∨ ls2 `prefix_of` ls1) →
-    (ls1 `prefix_of` ls2 ∨ ls2 `prefix_of` ls1) →
+    (ls3 `prefix_of` ls4 ∨ ls4 `prefix_of` ls3) →
     (ls1 `prefix_of` ls2 ∧ ls3 `prefix_of` ls4) ∨
     (ls2 `prefix_of` ls1 ∧ ls4 `prefix_of` ls3).
   Proof.
-  Admitted.
+    intros len1 len2 [pre1|pre1] disj.
+    - left. split; first done.
+      apply prefix_of_disj; last done.
+      apply prefix_length in pre1.
+      lia.
+    - right. split; first done.
+      apply prefix_of_disj; last naive_solver.
+      apply prefix_length in pre1.
+      lia.
+  Qed.
+
+  Lemma pred_prefix_list_for_stronger id Rs Rs0 Ps Ps0
+      (p1 p2 : promise_info_at Ω id) :
+    pred_prefix_list_for' Rs Ps (pi_rel p1) (pi_pred p1) →
+    pred_prefix_list_for' Rs0 Ps0 (pi_rel p2) (pi_pred p2) →
+    pi_deps_γs p1 = pi_deps_γs p2 →
+    Rs `prefix_of` Rs0 ∨ Rs0 `prefix_of` Rs →
+    Ps `prefix_of` Ps0 ∨ Ps0 `prefix_of` Ps →
+    promise_stronger p1 p2 ∨ promise_stronger p2 p1.
+  Proof.
+    intros (len1 & relPref1 & predPref1 & impl1).
+    intros (len2 & relPref2 & predPref2 & impl2).
+    intros depsEq rPref pPred.
+    destruct (prefix_of_conj_disj Rs Rs0 Ps Ps0) as [[pref1 pref2]|[??]]; try done.
+    - rewrite /promise_stronger.
+      right.
+      split; first done.
+      split.
+      * apply rel_weaker_stronger.
+        apply: pred_prefix_list_for_prefix_of; done.
+      * apply pred_weaker_stronger.
+        apply: pred_prefix_list_for_prefix_of; try done.
+    - left.
+      split; first done.
+      split.
+      * apply rel_weaker_stronger.
+        apply: pred_prefix_list_for_prefix_of; done.
+      * apply pred_weaker_stronger.
+        apply: pred_prefix_list_for_prefix_of; try done.
+  Qed.
 
   (* If two promise lists has an overlap then one of the overlapping promises
    * is strictly stronger than the other. *)
@@ -2802,24 +2873,8 @@ Section own_promises_properties.
     rewrite gen_pv_op gen_pv_valid auth_frag_op_valid in Hv3.
     apply to_max_prefix_list_op_valid_L in Hv.
     apply to_max_prefix_list_op_valid_L in Hv3.
-    destruct (prefix_of_disj Rs Rs0 Ps Ps0) as [[pref1 pref2]|[??]]; try done.
-  Admitted.
-  (*   (* rewrite /promise_stronger. *) *)
-  (*   (* apply to_max_prefix_list_op_valid_L in Hv as [Hv|Hv]. *) *)
-  (*   - right. *)
-  (*     split; first done. *)
-  (*     split. *)
-  (*     * apply rel_weaker_stronger. *)
-  (*       eapply pred_prefix_list_for_prefix_of; try done. *)
-  (*     * apply rel_weaker_stronger. *)
-  (*       eapply pred_prefix_list_for_prefix_of; try done. *)
-  (*   - left. *)
-  (*     split; first done. *)
-  (*     split. *)
-  (*     * apply rel_weaker_stronger. *)
-  (*       eapply pred_prefix_list_for_prefix_of; try done. *)
-  (*     * admit. *)
-  (* Admitted. *)
+    eapply pred_prefix_list_for_stronger; done.
+  Qed.
 
 End own_promises_properties.
 
@@ -3469,8 +3524,7 @@ Section nextgen_assertion_rules.
         clear -relHolds predHolds.
         rewrite /rel_over_Oc_Ocs_genInG in relHolds.
         rewrite /rel_over_eq in relHolds.
-        rewrite /Oc_genInG_eq in predHolds.
-        rewrite /trans_for_genInG.
+        rewrite /Oc_genInG_eq in predHolds?        rewrite /trans_for_genInG.
         rewrite /Oc_genInG_eq.
         rewrite /hvec_fmap_eq.
         destruct genInG0. simpl in *.
