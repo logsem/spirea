@@ -1395,14 +1395,15 @@ Section promise_info.
     promises_has_deps pi promises wf.
 
   (* This definition has nice computational behavior when applied to a [cons]. *)
-  Fixpoint promises_wf promises : Prop :=
+  Fixpoint promises_wf (owf : omega_wf (gc_map Ω)) promises : Prop :=
     match promises with
     | nil => True
-    | cons p promises' => promise_wf p promises' (Ω.(gc_map_wf) p.(pi_id)) ∧ promises_wf promises'
+    | cons p promises' =>
+        promise_wf p promises' (owf p.(pi_id)) ∧ promises_wf owf promises'
     end.
 
-  Lemma promises_wf_unique prs :
-    promises_wf prs →
+  Lemma promises_wf_unique owf prs :
+    promises_wf owf prs →
     ∀ pi1 pi2, pi1 ∈ prs → pi2 ∈ prs → pi1 = pi2 ∨ promises_different pi1 pi2.
   Proof.
     induction prs as [| ?? IH].
@@ -1438,10 +1439,10 @@ Section promise_info.
     destruct (uniq _ elem) as [?|?]; auto.
   Qed.
 
-  Lemma promises_well_formed_lookup promises (idx : nat) pi :
-    promises_wf promises →
+  Lemma promises_well_formed_lookup owf promises (idx : nat) pi :
+    promises_wf owf promises →
     promises !! idx = Some pi →
-    promises_has_deps pi promises (gc_map_wf (pi_id pi)). (* We forget the different part for now. *)
+    promises_has_deps pi promises (owf (pi_id pi)). (* We forget the different part for now. *)
   Proof.
     intros WF look.
     revert dependent idx.
@@ -1457,8 +1458,8 @@ Section promise_info.
       eauto using elem_of_list_further.
   Qed.
 
-  Lemma promises_well_formed_lookup_index prs pi1 i :
-    promises_wf prs →
+  Lemma promises_well_formed_lookup_index owf prs pi1 i :
+    promises_wf owf prs →
     prs !! i = Some pi1 →
     ∀ (idx : fin (On Ω pi1.(pi_id))),
       ∃ j pi2 wf, j < i ∧ prs !! j = Some pi2 ∧ promise_satisfy_dep pi1 pi2 idx wf.
@@ -1562,8 +1563,8 @@ Section promise_info.
     - apply IH; done.
   Qed.
 
-  Lemma promises_wf_elem_of_head id γ pia1 pia2 promises :
-    promises_wf ({| pi_id := id; pi_γ := γ; pi_at := pia2 |} :: promises) →
+  Lemma promises_wf_elem_of_head owf id γ pia1 pia2 promises :
+    promises_wf owf ({| pi_id := id; pi_γ := γ; pi_at := pia2 |} :: promises) →
     {| pi_id := id; pi_γ := γ; pi_at := pia1 |}
       ∈ {| pi_id := id; pi_γ := γ; pi_at := pia2 |} :: promises →
     pia1 = pia2.
@@ -1574,8 +1575,8 @@ Section promise_info.
     - destruct (diff _ H1) as [neq|neq]; simpl in neq; congruence.
   Qed.
 
-  Lemma promises_elem_of promises id γ pia :
-    promises_wf promises →
+  Lemma promises_elem_of owf promises id γ pia :
+    promises_wf owf promises →
     MkPi id γ pia ∈ promises →
     promises_lookup_at promises id γ = Some pia.
   Proof.
@@ -1587,7 +1588,7 @@ Section promise_info.
     destruct (decide (id' = id)) as [->|neq].
     - destruct (decide (γ' = γ)) as [->|neq].
       * simpl.
-        intros ?%promises_wf_elem_of_head; [congruence | assumption].
+        intros ?%(promises_wf_elem_of_head owf); [congruence | assumption].
       * rewrite promises_lookup_at_clause_2_clause_1_equation_2.
         simpl.
         intros [?|?]%elem_of_cons; first congruence.
@@ -1597,14 +1598,14 @@ Section promise_info.
       apply IH; [apply wf | done].
   Qed.
 
-  Lemma promise_lookup_lookup prs pi i :
-    promises_wf prs →
+  Lemma promise_lookup_lookup owf prs pi i :
+    promises_wf owf prs →
     prs !! i = Some pi →
     promises_lookup_at prs pi.(pi_id) pi.(pi_γ) = Some pi.(pi_at).
   Proof. Admitted.
 
-  Lemma promise_lookup_at_eq id γ prs pia pia' :
-    promises_wf prs →
+  Lemma promise_lookup_at_eq owf id γ prs pia pia' :
+    promises_wf owf prs →
     promises_lookup_at prs id γ = Some pia →
     promises_lookup_at prs id γ = Some pia' →
     pia = pia'.
@@ -1734,11 +1735,11 @@ Section promise_info.
   Admitted.
 
   (* Get the strongest promise from [prsL] and [prs2]. *)
-  Lemma overlap_lookup_left prsL prs2 id γ pia :
+  Lemma overlap_lookup_left owf prsL prs2 id γ pia :
     promises_lookup_at prsL id γ = Some pia →
     promises_overlap_pred prsL prs2 →
-    promises_wf prsL →
-    promises_wf prs2 →
+    promises_wf owf prsL →
+    promises_wf owf prs2 →
     ∃ pia',
       ((MkPi id γ pia') ∈ prsL ∨ (MkPi id γ pia') ∈ prs2) ∧
       promise_stronger pia' pia ∧
@@ -1766,18 +1767,28 @@ Section promise_info.
       + naive_solver.
   Qed.
 
-  Lemma promises_well_formed_in_either prsL prsR pi :
-    promises_wf prsL →
-    promises_wf prsR →
-    (* promises_overlap_pred prsL prsR → *)
+  Lemma promises_well_formed_in_either owf prsL prsR pi wf :
+    owf pi.(pi_id) = wf →
+    promises_wf owf prsL →
+    promises_wf owf prsR →
     (pi ∈ prsL ∨ pi ∈ prsR) →
     ∀ (idx : fin (On Ω pi.(pi_id))),
-      ∃ piSat wf',
-        (* wf' = gc_map_wf pi.(pi_id) ∧ *)
+      ∃ piSat,
         (piSat ∈ prsL ∨ piSat ∈ prsR) ∧
-        promise_satisfy_dep pi piSat idx wf'.
+        (* promise_satisfy_dep pi piSat idx wf. *)
+        promise_satisfy_dep pi piSat idx wf.
   Proof.
-  Admitted.
+    intros eq wf1 wf2 [[idx look]%elem_of_list_lookup_1 |
+                    [idx look]%elem_of_list_lookup_1].
+    - intros i.
+      eapply promises_well_formed_lookup in wf1; last done.
+      destruct (wf1 i) as (piSat & rest).
+      exists piSat. naive_solver.
+    - intros i.
+      eapply promises_well_formed_lookup in wf2; last done.
+      destruct (wf2 i) as (piSat & rest).
+      exists piSat. naive_solver.
+  Qed.
 
   (* Test what it takes to be able to do inversion on the number of
    * dependencies of [pi] when proving a goal that contains
@@ -1805,46 +1816,41 @@ Section promise_info.
     - inversion idx.
   Abort.
 
-  Lemma test prs i pi :
-    promises_wf prs →
-    prs !! i = Some pi →
-    True.
-    (* ∃ prs3' pia3, T *)
-    (*   promises_lookup_at prs3' (pi.(pi_id)) pi.(pi_γ) = Some pia3 ∧ *)
-    (*   promises_wf prs3'. *)
+  (* This test serves to demonstrate how destructuring [gc_map Ω id] with some
+   * thing of the form [owf id] present in the proof fails. The [generalize
+   * dependent] here is necessary for the [destruct] to succeed. A similar
+   * destruct is used in the prof of [merge_promises_insert_promise_idx]. *)
+  Lemma test_destruct_omega_wf_at (owf : omega_wf (gc_map Ω)) pi piSat idx :
+    promise_satisfy_dep pi piSat idx (owf pi.(pi_id)).
   Proof.
-    intros wf1 look.
-    destruct pi.
-    specialize (promises_well_formed_lookup_index prs (MkPi pi_id0 pi_γ0 pi_at0) i wf1 look) as lem.
-    simpl in lem.
-    rewrite /promise_satisfy_dep /= in lem.
+    destruct pi. simpl in *.
+    unfold promise_satisfy_dep.
     destruct pi_at0. simpl in *.
-    clear look.
     unfold Ocs in *.
-    unfold lookup_fmap_Ocs in lem.
-    unfold Ocs_Oids_distr in lem.
-    rewrite /lookup_fmap_Ocs in lem.
-    rewrite /Ocs_Oids_distr in lem.
-    unfold Ocs in lem.
-    unfold Oids in lem.
-    unfold omega_wf_at in lem.
-    simpl in lem.
-
-    destruct (Ω.(gc_map) pi_id0).
+    unfold lookup_fmap_Ocs in *.
+    unfold Ocs_Oids_distr in *.
+    unfold lookup_fmap_Ocs in *.
+    unfold Ocs_Oids_distr in *.
+    unfold Ocs in *.
+    unfold Oids in *.
+    (* without this generalization the destruct below fails *)
+    generalize dependent (owf pi_id0). intros wf.
+    unfold omega_wf_at in *.
+    destruct (gc_map Ω pi_id0).
   Abort.
 
   (* Grow [prs3] by inserting the promise id+γ and all of its dependencies from
    * [prsL] and [prs2]. *)
-  Lemma merge_promises_insert_promise_idx prsL prs2 prs3 i pi restrict :
+  Lemma merge_promises_insert_promise_idx owf prsL prs2 prs3 i pi restrict :
     promises_is_valid_restricted_merge prs3 prsL prs2 restrict →
     prsL !! i = Some pi →
     promises_overlap_pred prsL prs2 →
-    promises_wf prsL →
-    promises_wf prs2 →
-    promises_wf prs3 →
+    promises_wf owf prsL →
+    promises_wf owf prs2 →
+    promises_wf owf prs3 →
     ∃ prs3' pia3,
       promises_lookup_at prs3' (pi.(pi_id)) pi.(pi_γ) = Some pia3 ∧
-      promises_wf prs3' ∧
+      promises_wf owf prs3' ∧
       (∀ pi, pi ∈ prs3 → pi ∈ prs3') ∧
       promises_is_valid_restricted_merge prs3' prsL prs2 restrict.
   Proof.
@@ -1866,20 +1872,21 @@ Section promise_info.
     (* To add the promise we must first add all of its dependencies. We state
      * that we can do this as a sub-assertion as we need to do a second
      * induction to prove it. *)
-    assert (∀ wf, ∃ prs3',
-      promises_wf prs3' ∧
+    assert (∃ prs3',
+      promises_wf owf prs3' ∧
       (∀ pi, pi ∈ prs3 → pi ∈ prs3') ∧
-      promises_has_deps (MkPi id γ piaIns) prs3' wf ∧
+      promises_has_deps (MkPi id γ piaIns) prs3' (owf id) ∧
       promises_is_valid_restricted_merge prs3' prsL prs2 restrict)
         as res.
-    { simpl. intros ?.
+    { simpl.
 
       specialize (
-        promises_well_formed_in_either prsL prs2 (MkPi id γ piaIns) wf1 wf2 inEither
+        promises_well_formed_in_either owf prsL prs2 (MkPi id γ piaIns) (owf id) eq_refl wf1 wf2 inEither
       ) as satisfyingPromiseInEither.
+      generalize dependent (owf id). intros wf satisfyingPromiseInEither.
       (* We specialize this lemmas such that the following destructs also
        * breaks down this statemens. *)
-      specialize (promises_well_formed_lookup_index prsL (MkPi id γ pia) i wf1 look) as lem.
+      specialize (promises_well_formed_lookup_index owf prsL (MkPi id γ pia) i wf1 look) as lem.
       destruct piaIns. simpl in *.
 
       simpl in *.
@@ -1903,9 +1910,10 @@ Section promise_info.
       unfold Ocs in *.
       unfold Oids in *.
       simpl in *.
-      unfold omega_wf_at in *.
       clear inEither H.
       simpl in *.
+      (* destruct wfEq. *)
+      (* clear wfEq. *)
       (* After all the unfolding we can finally carry out this destruct. *)
       destruct (gc_map Ω id).
       + destruct g; simpl in *.
@@ -1926,9 +1934,10 @@ Section promise_info.
         (* Insert all but the first dependency using the inner induction hypothesis. *)
         specialize (IHn deps' deps_ids' prec_deps_preds' deps_γs' deps_preds' (λ idx, wf (FS idx))) as (prs3' & ? & sub & hasDeps & vm2).
         { intros idx.
-          specialize (satisfyingPromiseInEither (FS idx)) as (piSat & wf0 & ?).
-          exists piSat, (λ i, wf0 (FS i)).
-          done. }
+          specialize (satisfyingPromiseInEither (FS idx)) as (piSat & ?).
+          exists piSat. done. }
+          (* exists piSat, (λ i, wf (FS i)). *)
+          (* done. } *)
         { intros idx.
           specialize (lem (FS idx)) as (j & pi2 & wf0 & ? & ? & ? & (? & rest)).
           exists j, pi2, (λ i, wf0 (FS i)).
@@ -1943,7 +1952,7 @@ Section promise_info.
         (* Insert the dependency into [prs3] by using the induction hypothesis. *)
         specialize (IH j le _ piD.(pi_at) vm2 look2 lap wf1 wf2 H)
           as (prs3'' & piaD & ? & ? & sub2 & ?).
-        specialize (satisfyingPromiseInEither 0%fin) as (piSat & wfAt4 & inEither & ? & (idEq' & stronger')).
+        specialize (satisfyingPromiseInEither 0%fin) as (piSat & inEither & ? & (idEq' & stronger')).
         (* [piaD] is the promise that we insert to satisfy the first dependency. *)
         (* What is the relationship between [piaD] and the dependency
          * information stored in [piaIns]? *)
@@ -1978,13 +1987,8 @@ Section promise_info.
           eapply pred_stronger_trans; first apply H3.
           simpl in *.
           destruct (wf 0%fin) as (bingo & bongo & bango).
-          destruct (wfAt4 0%fin) as (bingo2 & bongo2 & bango2).
+          (* destruct (wfAt4 0%fin) as (bingo2 & bongo2 & bango2). *)
           clear -stronger'.
-          assert (bingo = bingo2) as ->.
-          { congruence. }
-          destruct bingo2. simpl in *.
-          assert (bango = bango2) as ->. { admit. }
-          assert (bongo = bongo2) as ->. { admit. }
           apply stronger'.
       + simpl.
         eexists _. split; first apply wf3.
@@ -1992,7 +1996,7 @@ Section promise_info.
         intros idx. inversion idx. }
     (* end of assert *)
     simpl in res.
-    destruct (res (Ω.(gc_map_wf) id)) as (prs3' & ? & sub2 & ? & ?).
+    destruct res as (prs3' & ? & sub2 & ? & ?).
     (* Check if the promise we want to insert is now in [prs3']. In reality
      * this will never happend as [prs3'] is only extended with the
      * dependencies of [pi], but it is easier just to consider the case that it
@@ -2011,20 +2015,25 @@ Section promise_info.
       { done. }
     + intros ??. apply elem_of_list_further. apply sub2. done.
     + apply promise_list_valid_restricted_merge_cons; try done.
-  Admitted.
+      intros pia2 look2. simpl in look2.
+      apply (promise_lookup_lookup owf) in look; last done.
+      simpl in look.
+      simplify_eq.
+      apply stronger.
+  Qed.
 
   (* Grow [prs3] by inserting the promise id+γ and all of its dependencies from
    * [prs1] and [prs2]. *)
-  Lemma merge_promises_insert_promise prs1 prs2 prs3 id γ restrict :
+  Lemma merge_promises_insert_promise owf prs1 prs2 prs3 id γ restrict :
     promises_is_valid_restricted_merge prs3 prs1 prs2 restrict →
     promises_lookup_at prs3 id γ = None →
     (is_Some (promises_lookup_at prs1 id γ) ∨
       is_Some (promises_lookup_at prs2 id γ)) →
     promises_overlap_pred prs1 prs2 →
-    promises_wf prs1 →
-    promises_wf prs2 →
+    promises_wf owf prs1 →
+    promises_wf owf prs2 →
     ∃ prs3' pia3,
-      promises_wf prs3' ∧
+      promises_wf owf prs3' ∧
       promises_lookup_at prs3' id γ = Some pia3 ∧
       promises_is_valid_restricted_merge prs3' prs1 prs2 restrict.
   Proof.
@@ -2033,12 +2042,12 @@ Section promise_info.
     (* induction prs1 using sublist_ind. *)
   Admitted.
 
-  Lemma merge_promises_restriced prs1 prs2 (restrict : list (gid Σ * gname)) :
+  Lemma merge_promises_restriced owf prs1 prs2 (restrict : list (gid Σ * gname)) :
     promises_overlap_pred prs1 prs2 →
-    promises_wf prs1 →
-    promises_wf prs2 →
+    promises_wf owf prs1 →
+    promises_wf owf prs2 →
     ∃ prs3,
-      promises_wf prs3 ∧
+      promises_wf owf prs3 ∧
       promises_is_valid_restricted_merge prs3 prs1 prs2 restrict.
   Proof.
     rewrite /promises_is_valid_restricted_merge.
@@ -2121,15 +2130,15 @@ Section promise_info.
    *    - If one of them is stronger than the one in the other list then add that one.
    *    - If they are both weaker???
    *)
-  Lemma merge_promises prs1 prs2 :
+  Lemma merge_promises owf prs1 prs2 :
     promises_overlap_pred prs1 prs2 →
-    promises_wf prs1 →
-    promises_wf prs2 →
+    promises_wf owf prs1 →
+    promises_wf owf prs2 →
     ∃ prs3,
-      promises_wf prs3 ∧ promises_is_valid_merge prs3 prs1 prs2.
+      promises_wf owf prs3 ∧ promises_is_valid_merge prs3 prs1 prs2.
   Proof.
     intros lap wf1 wf2.
-    destruct (merge_promises_restriced prs1 prs2 (restrict_merge prs1 prs2) lap wf1 wf2)
+    destruct (merge_promises_restriced owf prs1 prs2 (restrict_merge prs1 prs2) lap wf1 wf2)
       as (prs3 & ? & (? & ? & ? & str1 & str2)).
     exists prs3.
     split; first done.
@@ -2215,7 +2224,7 @@ Section transmap.
    * [transmap] that match the dependencies in [p] and that satisfy their
    * predicates. *)
   Lemma transmap_satisfy_wf_cons p promises transmap :
-    promises_wf (p :: promises) →
+    promises_wf (Ω.(gc_map_wf)) (p :: promises) →
     transmap_resp_promises transmap promises →
     ∃ ts,
       trans_at_deps transmap p.(pi_id) p.(pi_deps_γs) ts ∧
@@ -2304,8 +2313,8 @@ Section transmap.
       * apply not_and_r in Hneq; done.
   Qed.
 
-  Lemma transmap_resp_promises_insert p promises transmap t :
-    promises_wf (p :: promises) →
+  Lemma transmap_resp_promises_insert owf p promises transmap t :
+    promises_wf owf (p :: promises) →
     transmap_resp_promises transmap promises →
     transmap_resp_promises (transmap_insert transmap (pi_id p) (pi_γ p) t) promises.
   Proof.
@@ -2321,7 +2330,7 @@ Section transmap.
     + apply (uniq _ elem).
     + apply elem_of_list_lookup_1 in elem as (? & look).
       specialize (
-        promises_well_formed_lookup promises _ p2 WF look) as hasDeps2.
+        promises_well_formed_lookup owf promises _ p2 WF look) as hasDeps2.
       specialize (hasDeps2 idx) as (p3 & look3 & eq & eq2 & ?).
       simpl in *.
       rewrite eq2.
@@ -2332,8 +2341,8 @@ Section transmap.
       - right. done.
   Qed.
 
-  Lemma transmap_resp_promises_weak transmap prs1 prs2 :
-    promises_wf prs2 →
+  Lemma transmap_resp_promises_weak owf transmap prs1 prs2 :
+    promises_wf owf prs2 →
     promise_list_stronger prs1 prs2 →
     transmap_resp_promises transmap prs1 →
     transmap_resp_promises transmap prs2.
@@ -2343,7 +2352,7 @@ Section transmap.
     rewrite !Forall_forall.
     intros resp [id γ pia2] elm.
     destruct (strong id γ pia2) as (pia1 & look2 & stronger).
-    { apply promises_elem_of; done. }
+    { apply (promises_elem_of owf); done. }
     destruct (resp (MkPi id γ pia1)) as (? & ? & ? & ? & ?).
     { apply promises_lookup_at_Some. done. }
     eexists _, _.
@@ -2414,7 +2423,7 @@ Section transmap.
   * transformation. *)
   Lemma transmap_promises_to_maps transmap promises :
     transmap_overlap_resp_promises transmap promises →
-    promises_wf promises →
+    promises_wf (Ω.(gc_map_wf)) promises →
     ∃ (map : TransMap Ω),
       transmap_resp_promises map promises ∧
       transmap ⊆ map.
@@ -2459,12 +2468,12 @@ Section transmap.
             simpl.
             rewrite transmap_insert_lookup_ne; first apply transIn.
             apply depsDiff.
-          -- apply transmap_resp_promises_insert; done.
+          -- apply (transmap_resp_promises_insert Ω.(gc_map_wf)); done.
         * apply transmap_insert_subseteq_r; done.
   Qed.
 
   Lemma promises_to_maps (promises : list _) :
-    promises_wf promises →
+    promises_wf Ω.(gc_map_wf) promises →
     ∃ (transmap : TransMap _), transmap_resp_promises transmap promises.
   Proof.
     intros WF.
@@ -2545,7 +2554,7 @@ Section next_gen_definition.
     ∃ picks (ps : list (promise_info Ω)),
       (* We own resources for everything in [picks] and [promises]. *)
       own_picks picks ∗ own_promises ps ∗
-      ⌜ promises_wf ps ⌝ ∗
+      ⌜ promises_wf Ω.(gc_map_wf) ps ⌝ ∗
       ∀ full_picks (val : transmap_valid full_picks),
         ⌜ transmap_resp_promises full_picks ps ⌝ -∗
         ⌜ picks ⊆ full_picks ⌝ -∗
@@ -2921,7 +2930,7 @@ Section nextgen_properties.
     iDestruct "P" as (? prs1) "(picks1 & pr1 & %wf1 & HP)".
     iDestruct "Q" as (? prs2) "(picks2 & pr2 & %wf2 & HQ)".
     iDestruct (own_promises_overlap with "pr1 pr2") as %lap.
-    destruct (merge_promises prs1 prs2) as (prs3 & ? & ? & ? & ?);
+    destruct (merge_promises Ω.(gc_map_wf) prs1 prs2) as (prs3 & ? & ? & ? & ?);
       [done|done|done|].
     (* Combine the picks. *)
     iExists _, prs3.
@@ -2996,7 +3005,7 @@ Section generational_resources.
     "%rel_eq" ∷ ⌜ pia.(pi_rel) = rew [id] rel_over_Oc_Ocs_genInG in R ⌝ ∗
     "%pred_prefix" ∷ ⌜ pred_prefix_list_for' all preds R P ⌝ ∗
     "%pia_in" ∷ ⌜ promises_lookup_at promises _ γ = Some pia ⌝ ∗
-    "%prs_wf" ∷ ⌜ promises_wf promises ⌝ ∗
+    "%prs_wf" ∷ ⌜ promises_wf Ω.(gc_map_wf) promises ⌝ ∗
     "#prs" ∷ own_promises promises. (* NOTE: There seems to be some duplication between whats's in here and the above. *)
 
   (** Ownership over the token and the promises for [γ]. *)
@@ -3524,7 +3533,8 @@ Section nextgen_assertion_rules.
         clear -relHolds predHolds.
         rewrite /rel_over_Oc_Ocs_genInG in relHolds.
         rewrite /rel_over_eq in relHolds.
-        rewrite /Oc_genInG_eq in predHolds?        rewrite /trans_for_genInG.
+        rewrite /Oc_genInG_eq in predHolds.
+        rewrite /trans_for_genInG.
         rewrite /Oc_genInG_eq.
         rewrite /hvec_fmap_eq.
         destruct genInG0. simpl in *.
