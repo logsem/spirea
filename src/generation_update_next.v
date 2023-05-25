@@ -791,9 +791,7 @@ Section omega_helpers_genInG.
   Proof.
     rewrite /Ocs.
     destruct genInG_gen_trans.
-    apply (rel_over_eq genInG_gcd_n).
-    - apply genInG_gti_typ.
-    - apply genInG_gcd_deps.
+    apply (rel_over_eq genInG_gcd_n genInG_gti_typ genInG_gcd_deps).
   Defined.
 
   Lemma trans_for_genInG :
@@ -1312,8 +1310,6 @@ Definition lookup_fmap_Ocs `{Ω : gGenCmras Σ} {f id}
     (cs : hvec (On Ω id) (f <$> Ocs Ω id)) i (wf : omega_wf_at Ω.(gc_map) id)
     : f (Oc Ω (Oids Ω id !!! i)) :=
   eq_rect _ _ (hvec_lookup_fmap cs i) _ (Ocs_Oids_distr _ _ wf).
-
-(* Print lookup_fmap_Ocs. *)
 
 Definition pi_deps_id `{Ω : gGenCmras Σ} pi idx := Oids Ω pi.(pi_id) !!! idx.
 
@@ -2527,7 +2523,6 @@ Section next_gen_definition.
               gPV (◯ML Rs), gPV (◯ML Ps)
             )) ]}
         )).
-  Print own_promises.
 
   #[global]
   Instance own_promise_persistent ps : Persistent (own_promises ps).
@@ -2940,34 +2935,33 @@ Section generational_resources.
   (*   gen_promise_list γ (gPV (●ML all)). *)
 
   (** Resources shared between [token], [used_token], and [rely]. *)
-  Definition know_promise γ γs R P pia promises all : iProp Σ :=
+  Definition know_promise γ γs R P pia promises all preds : iProp Σ :=
     "%γs_eq" ∷ ⌜ pia.(pi_deps_γs) = rew <- [λ n, ivec n _] On_genInG in γs ⌝ ∗
     "%pred_eq" ∷ ⌜ pia.(pi_pred) = rew <- [pred_over] Oc_genInG_eq in P ⌝ ∗
     "%rel_eq" ∷ ⌜ pia.(pi_rel) = rew [id] rel_over_Oc_Ocs_genInG in R ⌝ ∗
-    "%pred_prefix" ∷ ⌜ pred_prefix_list_for' all R P ⌝ ∗
+    "%pred_prefix" ∷ ⌜ pred_prefix_list_for' all preds R P ⌝ ∗
     "%pia_in" ∷ ⌜ promises_lookup_at promises _ γ = Some pia ⌝ ∗
     "%prs_wf" ∷ ⌜ promises_wf promises ⌝ ∗
-    "#deps" ∷ know_deps γ γs ∗
     "#prs" ∷ own_promises promises. (* NOTE: There seems to be some duplication between whats's in here and the above. *)
 
   (** Ownership over the token and the promises for [γ]. *)
   Definition token (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
-    ∃ (all : list (rel_over DS A)) ps promises pia,
-      "tokenPromise" ∷ know_promise γ γs R P pia promises all ∗
+    ∃ (all : list (rel_over DS A)) preds promises pia,
+      "tokenPromise" ∷ know_promise γ γs R P pia promises all preds ∗
       "token" ∷ gen_pick_out γ GTS_tok_both ∗
-      "auth_preds" ∷ own_auth_promise_list γ all ps.
+      "auth_preds" ∷ own_auth_promise_list γ all preds.
 
   Definition used_token (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
-    ∃ (all : list (rel_over DS A)) ps promises pia,
-      "tokenPromise" ∷ know_promise γ γs R P pia promises all ∗
+    ∃ (all : list (rel_over DS A)) preds ps promises pia,
+      "tokenPromise" ∷ know_promise γ γs R P pia promises all preds ∗
       own_frozen_auth_promise_list γ all ps ∗
       "usedToken" ∷ gen_pick_out γ GTS_tok_perm.
 
   (** Knowledge that γ is accociated with the predicates R and P. *)
   Definition rely (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
-    ∃ (all : list (rel_over DS A)) ps promises pia,
-      "#relyPromise" ∷ know_promise γ γs R P pia promises all ∗
-      "#fragPreds" ∷ gen_promise_rel_pred_list γ (gPV (◯ML all)) (gPV (◯ML ps)).
+    ∃ (all : list (rel_over DS A)) (preds : list (pred_over A)) promises pia,
+      "#relyPromise" ∷ know_promise γ γs R P pia promises all preds ∗
+      "#fragPreds" ∷ gen_promise_rel_pred_list γ (gPV (◯ML all)) (gPV (◯ML preds)).
 
   Definition picked_out γ t : iProp Σ :=
     gen_pick_out γ (GTS_tok_gen_shot t).
@@ -2988,6 +2982,21 @@ Equations True_preds_for {n} (ts : ivec n cmra) : preds_for n ts :=
 Definition True_preds_for_id `{Ω : gGenCmras Σ}
     id : preds_for (On Ω id) (Ocs Ω id) :=
   True_preds_for (Ocs Ω id).
+
+Lemma eq_inj {A} P (x y : A) (T1 : P x) T2 (eq : x = y) :
+  rew [P] eq in T1 = rew [P] eq in T2 → T1 = T2.
+Proof. destruct eq. done. Qed.
+
+Lemma eq_rect_app_swap {A B} (f : B → Prop) (eq : B = A) (a : A) :
+  (rew [λ a, a → Prop] eq in f) a ↔ f (rew <- [id] eq in a).
+Proof. destruct eq. done. Qed.
+
+Lemma rel_stronger_rew {n1 n2 A B} {DS1 : ivec n1 cmra} {DS2 : ivec n2 cmra}
+    (eq1 : n2 = n1) (eq2 : A = B) eq3 (R1 R2 : rel_over DS1 A) :
+  rel_stronger
+    (rew [id] (rel_over_eq (DS2 := DS2) eq1 eq2 eq3) in R1)
+    (rew [id] (rel_over_eq eq1 eq2 eq3)in R2) → rel_stronger R1 R2.
+Proof. destruct eq1. destruct eq2. simpl in eq3. destruct eq3. done. Qed.
 
 Section rules.
   Context {n : nat} {DS : ivec n cmra} `{!genInG Σ Ω A DS}.
@@ -3071,10 +3080,6 @@ Section rules.
     apply (to_agree_op_inv_L (A := leibnizO (A → A))) in val.
     done.
   Qed.
-
-  Lemma eq_rect_app_swap {B} (f : B → Prop) (eq : B = A) (a : A) :
-    (rew [λ a, a → Prop] eq in f) a ↔ f (rew <- [id] eq in a).
-  Proof. destruct eq. done. Qed.
 
   (** Strengthen a promise. *)
   Lemma token_strengthen_promise `{∀ (i : fin n), genInSelfG Σ Ω (DS !!! i)}
@@ -3188,30 +3193,77 @@ Section rules.
     apply val.
   Qed.
 
+  Lemma know_promise_combine γ γs1 R1 P1 pia1 promises1 all1 preds1
+    γs2 R2 P2 pia2 promises2 all2 preds2 :
+    know_promise γ γs1 R1 P1 pia1 promises1 all1 preds1 -∗
+    know_promise γ γs2 R2 P2 pia2 promises2 all2 preds2 -∗
+    ⌜ γs1 = γs2 ∧
+      ((rel_stronger R1 R2 ∧ pred_stronger P1 P2) ∨
+       (rel_stronger R2 R1 ∧ pred_stronger P2 P1)) ⌝.
+  Proof.
+    iNamed 1.
+    iDestruct 1 as (depsEq2 pred_eq2 rel_eq2 ???) "#prs2".
+    iDestruct (own_promises_overlap with "prs prs2") as %lap.
+    iPureIntro.
+    eassert (_ ∨ _) as [str|str]. { eapply lap; done. }
+    - destruct str as (depsEq & rStr & pStr).
+      split. {
+        rewrite depsEq depsEq2 in γs_eq. clear -γs_eq.
+        rewrite /eq_rect_r in γs_eq.
+        apply (eq_inj (λ y : nat, ivec y gname)) in γs_eq.
+        done. }
+      left.
+      rewrite rel_eq rel_eq2 in rStr.
+      split.
+      { clear -rStr.
+        rewrite /rel_over_Oc_Ocs_genInG in rStr.
+        destruct genInG0. simpl in *.
+        unfold Ocs in *.
+        destruct genInG_gen_trans0.
+        eapply rel_stronger_rew.
+        apply rStr. }
+      rewrite pred_eq pred_eq2 in pStr.
+      clear -pStr.
+      destruct genInG0. simpl in *.
+      rewrite /Oc_genInG_eq in pStr. simpl in *.
+      destruct genInG_gen_trans0. simpl in pStr.
+      destruct genInG_gti_typ0.
+      apply pStr.
+    - destruct str as (depsEq & rStr & pStr).
+      split. {
+        rewrite -depsEq depsEq2 in γs_eq. clear -γs_eq.
+        rewrite /eq_rect_r in γs_eq.
+        apply (eq_inj (λ y : nat, ivec y gname)) in γs_eq.
+        done. }
+      right.
+      rewrite rel_eq rel_eq2 in rStr.
+      split.
+      { clear -rStr.
+        rewrite /rel_over_Oc_Ocs_genInG in rStr.
+        destruct genInG0. simpl in *.
+        unfold Ocs in *.
+        destruct genInG_gen_trans0.
+        eapply rel_stronger_rew.
+        apply rStr. }
+      rewrite pred_eq pred_eq2 in pStr.
+      clear -pStr.
+      destruct genInG0. simpl in *.
+      rewrite /Oc_genInG_eq in pStr. simpl in *.
+      destruct genInG_gen_trans0. simpl in pStr.
+      destruct genInG_gti_typ0.
+      apply pStr.
+  Qed.
+
   Lemma rely_combine γ γs1 γs2 R1 P1 R2 P2 :
     rely γ γs1 R1 P1 -∗
     rely γ γs2 R2 P2 -∗
     ⌜ γs1 = γs2 ⌝ ∗
-    ⌜ rel_stronger R1 R2 ∨ rel_stronger R2 R1 ⌝.
+    ⌜ (rel_stronger R1 R2 ∧ pred_stronger P1 P2) ∨
+      (rel_stronger R2 R1 ∧ pred_stronger P2 P1) ⌝.
   Proof.
-    iNamed 1. iNamed "relyPromise".
-    iDestruct 1 as (????) "((? & ? & ? & %prefix2 & ? & ? & deps2 & ?) & preds2)".
-    iDestruct (know_deps_agree with "deps deps2") as %<-.
-    iDestruct (own_valid_2 with "fragPreds preds2") as "val".
-    iDestruct (prod_valid_5th with "val") as "%val".
-    iPureIntro.
-    split; first done.
-    move: val.
-    rewrite gen_pv_op. rewrite gen_pv_valid.
-    rewrite auth_frag_valid.
-    rewrite to_max_prefix_list_op_valid_L.
-    destruct pred_prefix as [? ?].
-    destruct prefix2 as [? ?].
-    intros [prefix | prefix].
-    - right.
-      eapply pred_prefix_list_for_prefix_of; try done.
-    - left.
-      eapply pred_prefix_list_for_prefix_of; try done.
+    iNamed 1.
+    iDestruct 1 as (????) "(relyPromise2 & ?)".
+    iDestruct (know_promise_combine with "relyPromise relyPromise2") as "$".
   Qed.
 
 End rules.
@@ -3391,21 +3443,21 @@ Section nextgen_assertion_rules.
     iFrame "prs".
     iSplit; first done.
     iIntros (full_picks val resp _).
-    iDestruct (own_build_trans_next_gen with "deps") as "rely_deps'"; first done.
-    iDestruct (own_build_trans_next_gen with "fragPreds") as "frag_preds'"; first done.
+    (* iDestruct (own_build_trans_next_gen with "fragPreds") as "rely_deps'"; first done. *)
+    iDestruct (own_build_trans_next_gen with "fragPreds") as "-#frag_preds'"; first done.
     iDestruct (own_promises_nextgen with "prs") as "prs'"; first done.
     iModIntro.
     edestruct (transmap_resp_promises_lookup_at)
       as (ts & t & look & ? & relHolds); [done|done| ].
     simpl in *.
     rewrite look.
-    iDestruct (own_gen_cmra_split_picked_in with "rely_deps'") as "[picked_in $]".
+    iDestruct (own_gen_cmra_split_picked_in with "frag_preds'") as "[picked_in frag_preds']".
     iSplit.
-    - iExists all, ps, promises, pia.
+    - iExists all, preds, promises, pia.
       iSplit.
       { do 6 (iSplit; first done).
         iFrame "prs'". }
-      iDestruct (own_gen_cmra_split_picked_in with "frag_preds'") as "[_ $]".
+      iFrame "frag_preds'".
     - iExists (rew [cmra_to_trans] Oc_genInG_eq in t).
       iExists (rew <- [id] trans_for_genInG in ts).
       simpl.
