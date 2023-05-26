@@ -1473,6 +1473,14 @@ Section promise_info.
      We must also be able to combine to lists of promises.
   *)
 
+  Lemma path_equal_or_different (id1 id2 : gid Σ) (γ1 γ2 : gname) :
+    id1 = id2 ∧ γ1 = γ2 ∨ (id1 ≠ id2 ∨ γ1 ≠ γ2).
+  Proof.
+    destruct (decide (id1 = id2)) as [eq|?]; last naive_solver.
+    destruct (decide (γ1 = γ2)) as [eq2|?]; last naive_solver.
+    left. naive_solver.
+  Qed.
+
   Equations promises_lookup_at promises iid (γ : gname) : option (promise_info_at _ iid) :=
   | [], iid, γ => None
   | p :: ps', iid, γ with decide (p.(pi_id) = iid), decide (p.(pi_γ) = γ) => {
@@ -1538,6 +1546,20 @@ Section promise_info.
     ∃ i, prs !! i = Some (MkPi id γ pia).
   Proof.
     intros ?%promises_lookup_at_Some. apply elem_of_list_lookup_1. done.
+  Qed.
+
+  Lemma promises_lookup_at_cons_Some_inv prs pi id γ pia :
+    promises_lookup_at (pi :: prs) id γ = Some pia →
+    (∃ (eq : pi.(pi_id) = id), pi.(pi_γ) = γ ∧ (rew eq in pi.(pi_at) = pia)) ∨
+    ((pi.(pi_id) ≠ id ∨ pi.(pi_γ) ≠ γ) ∧ promises_lookup_at prs id γ = Some pia).
+  Proof.
+    rewrite promises_lookup_at_equation_2.
+    rewrite promises_lookup_at_clause_2_equation_1 /=.
+    destruct (decide (pi.(pi_id) = id)) as [eq|?]; last naive_solver.
+    destruct (decide (pi.(pi_γ) = γ)) as [eq2|?]; last naive_solver.
+    destruct eq. destruct eq2.
+    rewrite promises_lookup_at_clause_2_clause_1_equation_1.
+    intros ?. left. exists eq_refl. naive_solver.
   Qed.
 
   Lemma promises_lookup_at_cons_None prs id γ pi :
@@ -1630,46 +1652,53 @@ Section promise_info.
   Proof. split_and!; first done; intros ?; naive_solver. Qed.
 
   (** This definition is supposed to encapsulate what ownership over the
-   * resources for [prs1] and [prs2] entails. *)
-  Definition promises_overlap_pred prs1 prs2 : Prop :=
+   * resources for [prs1] and [prsR] entails. *)
+  Definition promises_overlap_pred prs1 prsR : Prop :=
     ∀ id γ p1 p2,
       promises_lookup_at prs1 id γ = Some p1 →
-      promises_lookup_at prs2 id γ = Some p2 →
+      promises_lookup_at prsR id γ = Some p2 →
       promise_stronger p1 p2 ∨ promise_stronger p2 p1.
+
+  Lemma promises_overlap_pred_sym prsL prsR :
+    promises_overlap_pred prsL prsR ↔ promises_overlap_pred prsR prsL.
+  Proof.
+    unfold promises_overlap_pred.
+    split; intros Ha; intros; rewrite comm; naive_solver.
+  Qed.
 
   (* (* NOTE: We can not merge promises with a definition as we need to rely
       * on evidence that is in [Prop]. *) *)
-  (* Fixpoint merge_promises prs1 prs2 := .. *)
+  (* Fixpoint merge_promises prs1 prsR := .. *)
   (*   match prs1 with *)
-  (*   | [] => prs2 *)
+  (*   | [] => prsR *)
   (*   | p :: prs1' => *)
-  (*     if decide (promises_lookup prs2 p.(pi_id) p.(pi_γ) = None) *)
-  (*     then p :: (merge_promises prs1' prs2) *)
-  (*     else merge_promises prs1' prs2 *)
+  (*     if decide (promises_lookup prsR p.(pi_id) p.(pi_γ) = None) *)
+  (*     then p :: (merge_promises prs1' prsR) *)
+  (*     else merge_promises prs1' prsR *)
   (*   end. *)
 
-  (** For every promise in [prs2] there is a stronger promise in [prs1]. *)
-  Definition promise_list_stronger prs1 prs2 : Prop :=
+  (** For every promise in [prsR] there is a stronger promise in [prs1]. *)
+  Definition promise_list_stronger prs1 prsR : Prop :=
     ∀ id γ pia2,
-      promises_lookup_at prs2 id γ = Some pia2 →
+      promises_lookup_at prsR id γ = Some pia2 →
       ∃ pia1,
         promises_lookup_at prs1 id γ = Some pia1 ∧
         promise_stronger pia1 pia2.
 
-  (** For every promise in [prs2] there is a stronger promise in [prs1]. *)
-  Definition promise_list_restrict_stronger prs1 prs2 (restrict : list (gid Σ * gname)) : Prop :=
+  (** For every promise in [prsR] there is a stronger promise in [prs1]. *)
+  Definition promise_list_restrict_stronger prs1 prsR (restrict : list (gid Σ * gname)) : Prop :=
     ∀ id γ pia2,
       (id, γ) ∈ restrict →
-      promises_lookup_at prs2 id γ = Some pia2 →
+      promises_lookup_at prsR id γ = Some pia2 →
       ∃ pia1,
         promises_lookup_at prs1 id γ = Some pia1 ∧
         promise_stronger pia1 pia2.
 
-  (** For every promise in [prs2] and [prs1] the one in [prs1] is stronger. *)
-  Definition promise_list_overlap_stronger prs1 prs2 : Prop :=
+  (** For every promise in [prsR] and [prsM] the one in [prsM] is stronger. *)
+  Definition promise_list_overlap_stronger prsM prsR : Prop :=
     ∀ id γ pia2 pia1,
-      promises_lookup_at prs1 id γ = Some pia1 →
-      promises_lookup_at prs2 id γ = Some pia2 →
+      promises_lookup_at prsM id γ = Some pia1 →
+      promises_lookup_at prsR id γ = Some pia2 →
         promise_stronger pia1 pia2.
 
   Definition promise_list_promise_stronger id γ pia prs :=
@@ -1695,36 +1724,73 @@ Section promise_info.
       inversion elm; congruence.
   Qed.
 
-  Definition promises_is_valid_restricted_merge prs3 prs1 prs2 restrict :=
-    (* [prs3] has no junk, everything in it is "good". *)
-    (∀ pi, pi ∈ prs3 → (pi ∈ prs1 ∨ pi ∈ prs2)) ∧
-    promise_list_overlap_stronger prs3 prs1 ∧
-    promise_list_overlap_stronger prs3 prs2 ∧
-    (* [prs3] has enough promises, everything required by [restrict] is there. *)
-    promise_list_restrict_stronger prs3 prs1 restrict ∧
-    promise_list_restrict_stronger prs3 prs2 restrict.
+  Definition promises_is_valid_restricted_merge prsM prs1 prsR restrict :=
+    (* [prsM] has no junk, everything in it is "good". *)
+    (∀ pi, pi ∈ prsM → (pi ∈ prs1 ∨ pi ∈ prsR)) ∧
+    promise_list_overlap_stronger prsM prs1 ∧
+    promise_list_overlap_stronger prsM prsR ∧
+    (* [prsM] has enough promises, everything required by [restrict] is there. *)
+    promise_list_restrict_stronger prsM prs1 restrict ∧
+    promise_list_restrict_stronger prsM prsR restrict.
 
-  Lemma promise_list_valid_restricted_merge_cons pi prs3 prs1 prs2 restrict :
-    pi ∈ prs1 ∨ pi ∈ prs2 →
+  Lemma promises_is_valid_restricted_merge_sym prsM prsL prsR restrict :
+    promises_is_valid_restricted_merge prsM prsL prsR restrict ↔
+      promises_is_valid_restricted_merge prsM prsR prsL restrict.
+  Proof.
+    unfold promises_is_valid_restricted_merge.
+    naive_solver.
+  Qed.
+
+  Lemma promise_list_valid_restricted_merge_cons pi prsM prsL prsR restrict :
+    pi ∈ prsL ∨ pi ∈ prsR →
     (∀ pia1,
-      promises_lookup_at prs1 pi.(pi_id) pi.(pi_γ) = Some pia1 →
+      promises_lookup_at prsL pi.(pi_id) pi.(pi_γ) = Some pia1 →
       promise_stronger pi pia1) →
     (∀ pia2,
-      promises_lookup_at prs2 pi.(pi_id) pi.(pi_γ) = Some pia2 →
+      promises_lookup_at prsR pi.(pi_id) pi.(pi_γ) = Some pia2 →
       promise_stronger pi pia2) →
-    promises_is_valid_restricted_merge prs3 prs1 prs2 restrict →
-    promises_is_valid_restricted_merge (pi :: prs3) prs1 prs2 restrict.
+    promises_is_valid_restricted_merge prsM prsL prsR restrict →
+    promises_is_valid_restricted_merge (pi :: prsM) prsL prsR restrict.
   Proof.
-    intros ??? H. split_and!.
-    - intros ?. inversion 1; first done. apply H. done.
-    - intros ????. admit.
-    - admit.
-    - admit.
-  Admitted.
+    intros elm strL strR (elm2 & lsL & lsR & rsL & rsR). split_and!.
+    - intros ?. inversion 1; naive_solver.
+    - intros ???? look.
+      apply promises_lookup_at_cons_Some_inv in look as [(eqId & eqγ & eq)|(? & look)].
+      * destruct eqId, eqγ. rewrite -eq. apply strL.
+      * apply lsL. done.
+    - intros ???? look.
+      apply promises_lookup_at_cons_Some_inv in look as [(eqId & eqγ & eq)|(? & look)].
+      * destruct eqId, eqγ. rewrite -eq. apply strR.
+      * apply lsR. done.
+    - intros ???? look.
+      destruct (path_equal_or_different id pi.(pi_id) γ pi.(pi_γ))
+        as [(-> & ->) | neq].
+      * exists pi.
+        split; last apply strL; last done.
+        apply promises_lookup_at_cons_pr.
+      * apply rsL in look as (pia1 & ?); last done.
+        exists pia1.
+        destruct pi.
+        simpl in neq.
+        rewrite promises_lookup_at_cons_neq; last naive_solver.
+        done.
+    - intros ???? look.
+      destruct (path_equal_or_different id pi.(pi_id) γ pi.(pi_γ))
+        as [(-> & ->) | neq].
+      * exists pi.
+        split; last apply strR; last done.
+        apply promises_lookup_at_cons_pr.
+      * apply rsR in look as (pia1 & ?); last done.
+        exists pia1.
+        destruct pi.
+        simpl in neq.
+        rewrite promises_lookup_at_cons_neq; last naive_solver.
+        done.
+  Qed.
 
   Lemma promise_stronger_pred_stronger id (pia1 pia2 : promise_info_at Ω id) :
     promise_stronger pia1 pia2 → pred_stronger pia1.(pi_pred) pia2.(pi_pred).
-  Proof. Admitted.
+  Proof. unfold promise_stronger. naive_solver. Qed.
 
   Lemma promises_is_valid_restricted_merge_stronger prsM prsR prsL restrict id γ pia1 pia2 :
     ((MkPi id γ pia1) ∈ prsL ∨ (MkPi id γ pia1) ∈ prsR) →
@@ -1734,21 +1800,21 @@ Section promise_info.
   Proof.
   Admitted.
 
-  (* Get the strongest promise from [prsL] and [prs2]. *)
-  Lemma overlap_lookup_left owf prsL prs2 id γ pia :
+  (* Get the strongest promise from [prsL] and [prsR]. *)
+  Lemma overlap_lookup_left owf prsL prsR id γ pia :
     promises_lookup_at prsL id γ = Some pia →
-    promises_overlap_pred prsL prs2 →
+    promises_overlap_pred prsL prsR →
     promises_wf owf prsL →
-    promises_wf owf prs2 →
+    promises_wf owf prsR →
     ∃ pia',
-      ((MkPi id γ pia') ∈ prsL ∨ (MkPi id γ pia') ∈ prs2) ∧
+      ((MkPi id γ pia') ∈ prsL ∨ (MkPi id γ pia') ∈ prsR) ∧
       promise_stronger pia' pia ∧
       (∀ pia2,
-        promises_lookup_at prs2 id γ = Some pia2 →
+        promises_lookup_at prsR id γ = Some pia2 →
         promise_stronger pia' pia2).
   Proof.
     intros look1 lap wf1 wf2.
-    destruct (promises_lookup_at prs2 id γ) as [pia2|] eqn:look2.
+    destruct (promises_lookup_at prsR id γ) as [pia2|] eqn:look2.
     - edestruct lap as [?|?]; [apply look1 | apply look2 | | ].
       + exists pia.
         split_and!.
@@ -1840,19 +1906,19 @@ Section promise_info.
   Abort.
 
   (* Grow [prs3] by inserting the promise id+γ and all of its dependencies from
-   * [prsL] and [prs2]. *)
-  Lemma merge_promises_insert_promise_idx owf prsL prs2 prs3 i pi restrict :
-    promises_is_valid_restricted_merge prs3 prsL prs2 restrict →
+   * [prsL] and [prsR]. *)
+  Lemma merge_promises_insert_promise_idx owf prsL prsR prs3 i pi restrict :
+    promises_is_valid_restricted_merge prs3 prsL prsR restrict →
     prsL !! i = Some pi →
-    promises_overlap_pred prsL prs2 →
+    promises_overlap_pred prsL prsR →
     promises_wf owf prsL →
-    promises_wf owf prs2 →
+    promises_wf owf prsR →
     promises_wf owf prs3 →
     ∃ prs3' pia3,
       promises_lookup_at prs3' (pi.(pi_id)) pi.(pi_γ) = Some pia3 ∧
       promises_wf owf prs3' ∧
       (∀ pi, pi ∈ prs3 → pi ∈ prs3') ∧
-      promises_is_valid_restricted_merge prs3' prsL prs2 restrict.
+      promises_is_valid_restricted_merge prs3' prsL prsR restrict.
   Proof.
     generalize dependent pi.
     generalize dependent prs3.
@@ -1876,20 +1942,17 @@ Section promise_info.
       promises_wf owf prs3' ∧
       (∀ pi, pi ∈ prs3 → pi ∈ prs3') ∧
       promises_has_deps (MkPi id γ piaIns) prs3' (owf id) ∧
-      promises_is_valid_restricted_merge prs3' prsL prs2 restrict)
+      promises_is_valid_restricted_merge prs3' prsL prsR restrict)
         as res.
     { simpl.
-
       specialize (
-        promises_well_formed_in_either owf prsL prs2 (MkPi id γ piaIns) (owf id) eq_refl wf1 wf2 inEither
+        promises_well_formed_in_either owf prsL prsR (MkPi id γ piaIns) (owf id) eq_refl wf1 wf2 inEither
       ) as satisfyingPromiseInEither.
       generalize dependent (owf id). intros wf satisfyingPromiseInEither.
       (* We specialize this lemmas such that the following destructs also
        * breaks down this statemens. *)
       specialize (promises_well_formed_lookup_index owf prsL (MkPi id γ pia) i wf1 look) as lem.
       destruct piaIns. simpl in *.
-
-      simpl in *.
       unfold promise_satisfy_dep in *.
       destruct pia. simpl in *.
       clear look. (* look prevents the destruct below *)
@@ -1956,7 +2019,7 @@ Section promise_info.
         (* [piaD] is the promise that we insert to satisfy the first dependency. *)
         (* What is the relationship between [piaD] and the dependency
          * information stored in [piaIns]? *)
-          (* piaIns is from prsL or prs2, one of these have a promise that satisfy *)
+          (* piaIns is from prsL or prsR, one of these have a promise that satisfy *)
         exists prs3''.
         split; first done.
         split. { intros ??. apply sub2. apply sub. done. }
@@ -2022,53 +2085,64 @@ Section promise_info.
       apply stronger.
   Qed.
 
-  (* Grow [prs3] by inserting the promise id+γ and all of its dependencies from
-   * [prs1] and [prs2]. *)
-  Lemma merge_promises_insert_promise owf prs1 prs2 prs3 id γ restrict :
-    promises_is_valid_restricted_merge prs3 prs1 prs2 restrict →
-    promises_lookup_at prs3 id γ = None →
-    (is_Some (promises_lookup_at prs1 id γ) ∨
-      is_Some (promises_lookup_at prs2 id γ)) →
-    promises_overlap_pred prs1 prs2 →
-    promises_wf owf prs1 →
-    promises_wf owf prs2 →
-    ∃ prs3' pia3,
-      promises_wf owf prs3' ∧
-      promises_lookup_at prs3' id γ = Some pia3 ∧
-      promises_is_valid_restricted_merge prs3' prs1 prs2 restrict.
+  (* Grow [prsM] by inserting the promise id+γ and all of its dependencies from
+   * [prsL] and [prsR]. *)
+  Lemma merge_promises_insert_promise owf prsL prsR prsM id γ restrict :
+    promises_is_valid_restricted_merge prsM prsL prsR restrict →
+    promises_lookup_at prsM id γ = None →
+    (is_Some (promises_lookup_at prsL id γ) ∨
+      is_Some (promises_lookup_at prsR id γ)) →
+    promises_overlap_pred prsL prsR →
+    promises_wf owf prsL →
+    promises_wf owf prsR →
+    promises_wf owf prsM →
+    ∃ prsM' pia3,
+      promises_wf owf prsM' ∧
+      promises_lookup_at prsM' id γ = Some pia3 ∧
+      promises_is_valid_restricted_merge prsM' prsL prsR restrict.
   Proof.
-    (* What to do induction over here?? *)
-    (* Check list_ind. *)
-    (* induction prs1 using sublist_ind. *)
-  Admitted.
+    intros val _ [[? sm]|[? sm]] lap wf1 wf2 wfM.
+    - apply promises_lookup_at_Some_lookup in sm as [i look].
+      edestruct merge_promises_insert_promise_idx as (prsM' & pia3 & ?); try done.
+      exists prsM', pia3.
+      naive_solver.
+    - apply promises_lookup_at_Some_lookup in sm as [i look].
+      apply promises_overlap_pred_sym in lap.
+      apply promises_is_valid_restricted_merge_sym in val.
+      edestruct merge_promises_insert_promise_idx as (prsM' & pia3 & ?);
+        try apply look; try done.
+      exists prsM', pia3.
+      rewrite promises_is_valid_restricted_merge_sym.
+      naive_solver.
+  Qed.
 
-  Lemma merge_promises_restriced owf prs1 prs2 (restrict : list (gid Σ * gname)) :
-    promises_overlap_pred prs1 prs2 →
-    promises_wf owf prs1 →
-    promises_wf owf prs2 →
-    ∃ prs3,
-      promises_wf owf prs3 ∧
-      promises_is_valid_restricted_merge prs3 prs1 prs2 restrict.
+  Lemma merge_promises_restriced owf prsL prsR (restrict : list (gid Σ * gname)) :
+    promises_overlap_pred prsL prsR →
+    promises_wf owf prsL →
+    promises_wf owf prsR →
+    ∃ prsM,
+      promises_wf owf prsM ∧
+      promises_is_valid_restricted_merge prsM prsL prsR restrict.
   Proof.
     rewrite /promises_is_valid_restricted_merge.
     intros lap wf1 wf2.
     induction restrict as [|[id γ] restrict' IH].
     { exists []. rewrite /promise_list_restrict_stronger.
       split_and!; try done; setoid_rewrite elem_of_nil; done. }
-    destruct IH as (prs3 & wf3 & from & lap1 & lap2 & stronger1 & stronger2).
+    destruct IH as (prsM & wf3 & from & lap1 & lap2 & stronger1 & stronger2).
     (* We're good if id+γ is already in [restrict']. *)
     destruct (decide ((id, γ) ∈ restrict')) as [elm|notElm].
-    { exists prs3. rewrite /promise_list_restrict_stronger.
+    { exists prsM. rewrite /promise_list_restrict_stronger.
       setoid_rewrite (elem_of_elem_of_cons _ _ _ elm).
       done. }
-    (* If the promise is already in [prs3] it should satisfy the conditions
+    (* If the promise is already in [prsM] it should satisfy the conditions
      * already for the expanded [restrict]. *)
-    destruct (promises_lookup_at prs3 id γ) as [pia3|] eqn:look.
-    { exists prs3. split_and!; try done.
+    destruct (promises_lookup_at prsM id γ) as [pia3|] eqn:look.
+    { exists prsM. split_and!; try done.
       - eapply promise_list_restrict_stronger_cons; try done.
       - eapply promise_list_restrict_stronger_cons; done. }
-    destruct (promises_lookup_at prs1 id γ) as [pia1|] eqn:look1;
-      destruct (promises_lookup_at prs2 id γ) as [pia2|] eqn:look2.
+    destruct (promises_lookup_at prsL id γ) as [pia1|] eqn:look1;
+      destruct (promises_lookup_at prsR id γ) as [pia2|] eqn:look2.
     - edestruct (merge_promises_insert_promise) as (prs3' & temp);
         try done; first naive_solver.
       destruct temp as (pia3 & look3 & ? & ? & ? & ? & ? & ?).
@@ -2091,7 +2165,7 @@ Section promise_info.
        * eapply promise_list_restrict_stronger_cons; done.
        * eapply promise_list_restrict_stronger_cons; done.
     - (* None of the promise lists have the promise in question. *)
-      exists prs3.
+      exists prsM.
       split_and!; try done.
       * intros ???. inversion 1; subst.
         + congruence.
@@ -2101,19 +2175,19 @@ Section promise_info.
         + apply stronger2. done.
   Qed.
 
-  Definition promises_is_valid_merge prs3 prs1 prs2 :=
-    (∀ pi, pi ∈ prs3 → pi ∈ prs1 ∨ pi ∈ prs2) ∧
-    promise_list_stronger prs3 prs1 ∧
-    promise_list_stronger prs3 prs2.
+  Definition promises_is_valid_merge prsM prsL prsR :=
+    (∀ pi, pi ∈ prsM → pi ∈ prsL ∨ pi ∈ prsR) ∧
+    promise_list_stronger prsM prsL ∧
+    promise_list_stronger prsM prsR.
 
   Definition promise_get_path (pi : promise_info Ω) := (pi.(pi_id), pi.(pi_γ)).
 
-  Definition restrict_merge prs1 prs2 :=
-    (promise_get_path <$> prs1) ++ (promise_get_path <$> prs2).
+  Definition restrict_merge prsL prsR :=
+    (promise_get_path <$> prsL) ++ (promise_get_path <$> prsR).
 
-  Lemma restrict_merge_lookup_Some prs1 prs2 id γ :
-    is_Some (promises_lookup_at prs1 id γ) →
-    (id, γ) ∈ restrict_merge prs1 prs2.
+  Lemma restrict_merge_lookup_Some prsL prsR id γ :
+    is_Some (promises_lookup_at prsL id γ) →
+    (id, γ) ∈ restrict_merge prsL prsR.
   Proof.
     intros (? & look%promises_lookup_at_Some).
     apply elem_of_app.
@@ -2130,15 +2204,15 @@ Section promise_info.
    *    - If one of them is stronger than the one in the other list then add that one.
    *    - If they are both weaker???
    *)
-  Lemma merge_promises owf prs1 prs2 :
-    promises_overlap_pred prs1 prs2 →
-    promises_wf owf prs1 →
-    promises_wf owf prs2 →
+  Lemma merge_promises owf prsL prsR :
+    promises_overlap_pred prsL prsR →
+    promises_wf owf prsL →
+    promises_wf owf prsR →
     ∃ prs3,
-      promises_wf owf prs3 ∧ promises_is_valid_merge prs3 prs1 prs2.
+      promises_wf owf prs3 ∧ promises_is_valid_merge prs3 prsL prsR.
   Proof.
     intros lap wf1 wf2.
-    destruct (merge_promises_restriced owf prs1 prs2 (restrict_merge prs1 prs2) lap wf1 wf2)
+    destruct (merge_promises_restriced owf prsL prsR (restrict_merge prsL prsR) lap wf1 wf2)
       as (prs3 & ? & (? & ? & ? & str1 & str2)).
     exists prs3.
     split; first done.
@@ -2148,7 +2222,7 @@ Section promise_info.
       apply restrict_merge_lookup_Some.
       done.
     - intros ??? look. apply str2; last done.
-      assert ((id, γ) ∈ restrict_merge prs2 prs1) as elm.
+      assert ((id, γ) ∈ restrict_merge prsR prsL) as elm.
       { apply restrict_merge_lookup_Some; try done. }
       move: elm.
       rewrite !elem_of_app.
@@ -2341,11 +2415,11 @@ Section transmap.
       - right. done.
   Qed.
 
-  Lemma transmap_resp_promises_weak owf transmap prs1 prs2 :
-    promises_wf owf prs2 →
-    promise_list_stronger prs1 prs2 →
-    transmap_resp_promises transmap prs1 →
-    transmap_resp_promises transmap prs2.
+  Lemma transmap_resp_promises_weak owf transmap prsL prsR :
+    promises_wf owf prsR →
+    promise_list_stronger prsL prsR →
+    transmap_resp_promises transmap prsL →
+    transmap_resp_promises transmap prsR.
   Proof.
     intros wf strong.
     rewrite /transmap_resp_promises.
@@ -2840,10 +2914,10 @@ Section own_promises_properties.
 
   (* If two promise lists has an overlap then one of the overlapping promises
    * is strictly stronger than the other. *)
-  Lemma own_promises_overlap prs1 prs2 :
-    own_promises prs1 -∗
-    own_promises prs2 -∗
-    ⌜ promises_overlap_pred prs1 prs2 ⌝.
+  Lemma own_promises_overlap prsL prsR :
+    own_promises prsL -∗
+    own_promises prsR -∗
+    ⌜ promises_overlap_pred prsL prsR ⌝.
   Proof.
     iIntros "O1 O2".
     iIntros (id γ p1 p2 look1 look2).
