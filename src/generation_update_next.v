@@ -1460,10 +1460,47 @@ Section promise_info.
 
   Lemma promises_well_formed_lookup_index owf prs pi1 i :
     promises_wf owf prs →
-    prs !! i = Some pi1 →
+    prs !! (length prs - S i) = Some pi1 →
     ∀ (idx : fin (On Ω pi1.(pi_id))),
-      ∃ j pi2 wf, j < i ∧ prs !! j = Some pi2 ∧ promise_satisfy_dep pi1 pi2 idx wf.
-  Proof. Admitted.
+      ∃ j pi2 wf,
+        j < i ∧ prs !! (length prs - S j) = Some pi2 ∧
+        promise_satisfy_dep pi1 pi2 idx wf.
+  Proof.
+    intros wf look idx.
+    generalize dependent i.
+    induction prs as [|pi prs' IH]; first done.
+    simpl. intros i.
+    destruct wf as [[? deps] wfr].
+    intros look.
+    Search lookup Some.
+    eassert _. { eapply lookup_lt_Some. done. }
+    destruct (decide (length prs' ≤ i)).
+    * assert (length prs' - i = 0) as eq by lia.
+      rewrite eq in look. injection look as [= ->].
+      specialize (deps idx) as (pSat & elm & sat).
+      apply elem_of_list_lookup_1 in elm as (j' & look).
+      exists (length prs' - (S j')), pSat, (owf (pi1.(pi_id))).
+      pose proof look as look'.
+      apply lookup_lt_Some in look.
+      split_and!; last done.
+      - lia.
+      - replace (length prs' - (length prs' - S j')) with (S j') by lia.
+        done.
+    * apply not_le in n.
+      assert (1 ≤ length prs' - i) as le by lia.
+      apply Nat.le_exists_sub in le as (i' & ? & _).
+      rewrite (comm (Nat.add)) in H0.
+      simpl in H0.
+      rewrite H0 in look.
+      simpl in look.
+      destruct (IH wfr (length prs' - S i')) as (j & ? & ? & ? & ? & ?).
+      { replace (length prs' - S (length prs' - S i')) with i' by lia.
+        done. }
+      eexists j, _, _.
+      split_and!; try done; try lia.
+      replace (length prs' - j) with (S (length prs' - S j)) by lia.
+      done.
+  Qed.
 
   (* For soundness we need to be able to build a map of gts that agree with
    * picks and that satisfy all promises.
@@ -1624,7 +1661,8 @@ Section promise_info.
     promises_wf owf prs →
     prs !! i = Some pi →
     promises_lookup_at prs pi.(pi_id) pi.(pi_γ) = Some pi.(pi_at).
-  Proof. Admitted.
+  Proof.
+  Admitted. (* TODO: *)
 
   Lemma promise_lookup_at_eq owf id γ prs pia pia' :
     promises_wf owf prs →
@@ -1669,13 +1707,6 @@ Section promise_info.
   (* (* NOTE: We can not merge promises with a definition as we need to rely
       * on evidence that is in [Prop]. *) *)
   (* Fixpoint merge_promises prs1 prsR := .. *)
-  (*   match prs1 with *)
-  (*   | [] => prsR *)
-  (*   | p :: prs1' => *)
-  (*     if decide (promises_lookup prsR p.(pi_id) p.(pi_γ) = None) *)
-  (*     then p :: (merge_promises prs1' prsR) *)
-  (*     else merge_promises prs1' prsR *)
-  (*   end. *)
 
   (** For every promise in [prsR] there is a stronger promise in [prs1]. *)
   Definition promise_list_stronger prs1 prsR : Prop :=
@@ -1792,13 +1823,19 @@ Section promise_info.
     promise_stronger pia1 pia2 → pred_stronger pia1.(pi_pred) pia2.(pi_pred).
   Proof. unfold promise_stronger. naive_solver. Qed.
 
-  Lemma promises_is_valid_restricted_merge_stronger prsM prsR prsL restrict id γ pia1 pia2 :
+  Lemma promises_is_valid_restricted_merge_stronger
+      owf prsM prsR prsL restrict id γ pia1 pia2 :
     ((MkPi id γ pia1) ∈ prsL ∨ (MkPi id γ pia1) ∈ prsR) →
+    promises_wf owf prsL →
+    promises_wf owf prsR →
     promises_lookup_at prsM id γ = Some pia2 →
     promises_is_valid_restricted_merge prsM prsL prsR restrict →
     promise_stronger pia2 (MkPi id γ pia1).
   Proof.
-  Admitted.
+    intros [elm|elm] ? ? look (? & str1 & str2 & ? & ?).
+    - eapply str1; first done. eapply promises_elem_of; done.
+    - eapply str2; first done. eapply promises_elem_of; done.
+  Qed.
 
   (* Get the strongest promise from [prsL] and [prsR]. *)
   Lemma overlap_lookup_left owf prsL prsR id γ pia :
@@ -1909,7 +1946,7 @@ Section promise_info.
    * [prsL] and [prsR]. *)
   Lemma merge_promises_insert_promise_idx owf prsL prsR prs3 i pi restrict :
     promises_is_valid_restricted_merge prs3 prsL prsR restrict →
-    prsL !! i = Some pi →
+    prsL !! (length prsL - S i) = Some pi →
     promises_overlap_pred prsL prsR →
     promises_wf owf prsL →
     promises_wf owf prsR →
@@ -2007,11 +2044,8 @@ Section promise_info.
           rewrite hvec_lookup_fmap_equation_3 in rest.
           split_and!; naive_solver. }
         specialize (lem 0%fin) as
-          (j & piD & ? & le & look2 & lookDeps & (idEq & stronger)).
-          (* what is the differente between [piaIns_pred] and [pred_pred]. *)
+          (j & piD & ? & le & look2 & lookDeps & idEq & _).
         (* [piD] is the dependency found in [prsL]. *)
-        (* assert (d_γ = piD.(pi_γ)). { apply lookDeps. } *)
-        (* assert (piD.(pi_id) = d_id). { done. } *)
         (* Insert the dependency into [prs3] by using the induction hypothesis. *)
         specialize (IH j le _ piD.(pi_at) vm2 look2 lap wf1 wf2 H)
           as (prs3'' & piaD & ? & ? & sub2 & ?).
@@ -2046,7 +2080,7 @@ Section promise_info.
           destruct piD, piSat. simpl in *. subst.
           assert (pred_stronger (pi_pred piaD) (pi_pred pi_at1)).
           { apply promise_stronger_pred_stronger.
-            eapply promises_is_valid_restricted_merge_stronger; done. }
+            eapply (promises_is_valid_restricted_merge_stronger); done. }
           eapply pred_stronger_trans; first apply H3.
           simpl in *.
           destruct (wf 0%fin) as (bingo & bongo & bango).
@@ -2085,6 +2119,14 @@ Section promise_info.
       apply stronger.
   Qed.
 
+  Lemma lookup_Some_length {A} (l : list A) i v :
+    l !! i = Some v → ∃ j, i = length l - S j.
+  Proof.
+    intros le% lookup_lt_Some.
+    apply Nat.le_exists_sub in le as (i' & ? & _).
+    exists i'. lia.
+  Qed.
+
   (* Grow [prsM] by inserting the promise id+γ and all of its dependencies from
    * [prsL] and [prsR]. *)
   Lemma merge_promises_insert_promise owf prsL prsR prsM id γ restrict :
@@ -2103,12 +2145,16 @@ Section promise_info.
   Proof.
     intros val _ [[? sm]|[? sm]] lap wf1 wf2 wfM.
     - apply promises_lookup_at_Some_lookup in sm as [i look].
+      pose proof look as look2.
+      apply lookup_Some_length in look2 as (i' & ->).
       edestruct merge_promises_insert_promise_idx as (prsM' & pia3 & ?); try done.
       exists prsM', pia3.
       naive_solver.
     - apply promises_lookup_at_Some_lookup in sm as [i look].
       apply promises_overlap_pred_sym in lap.
       apply promises_is_valid_restricted_merge_sym in val.
+      pose proof look as look2.
+      apply lookup_Some_length in look2 as (i' & ->).
       edestruct merge_promises_insert_promise_idx as (prsM' & pia3 & ?);
         try apply look; try done.
       exists prsM', pia3.
