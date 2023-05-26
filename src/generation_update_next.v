@@ -1662,7 +1662,12 @@ Section promise_info.
     prs !! i = Some pi →
     promises_lookup_at prs pi.(pi_id) pi.(pi_γ) = Some pi.(pi_at).
   Proof.
-  Admitted. (* TODO: *)
+    intros wf look.
+    eapply promises_elem_of; first done.
+    destruct pi.
+    eapply elem_of_list_lookup_2.
+    apply look.
+  Qed.
 
   Lemma promise_lookup_at_eq owf id γ prs pia pia' :
     promises_wf owf prs →
