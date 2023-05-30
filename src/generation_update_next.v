@@ -807,6 +807,12 @@ Section omega_helpers_genInG.
     apply (rel_over_eq genInG_gcd_n genInG_gti_typ genInG_gcd_deps).
   Defined.
 
+  Lemma pred_over_Oc_genInG : pred_over A = pred_over (Oc Ω (genInG_id _)).
+  Proof.
+    apply (eq_rect _ (λ c, pred_over A = pred_over c) eq_refl _ (eq_sym Oc_genInG_eq)).
+  Defined.
+  (* Proof. rewrite Oc_genInG_eq. reflexivity. Defined. *)
+
   Lemma trans_for_genInG :
     trans_for n DS = trans_for (On Ω _) (Ocs Ω (genInG_id _)).
   Proof.
@@ -3124,33 +3130,34 @@ Section generational_resources.
   (*   gen_promise_list γ (gPV (●ML all)). *)
 
   (** Resources shared between [token], [used_token], and [rely]. *)
-  Definition know_promise γ γs R P pia promises all preds : iProp Σ :=
+  Definition know_promise γ γs R P pia promises rels preds : iProp Σ :=
     "%γs_eq" ∷ ⌜ pia.(pi_deps_γs) = rew <- [λ n, ivec n _] On_genInG in γs ⌝ ∗
-    "%pred_eq" ∷ ⌜ pia.(pi_pred) = rew <- [pred_over] Oc_genInG_eq in P ⌝ ∗
+    (* "%pred_eq" ∷ ⌜ pia.(pi_pred) = rew <- [pred_over] Oc_genInG_eq in P ⌝ ∗ *)
+    "%pred_eq" ∷ ⌜ pia.(pi_pred) = rew [id] pred_over_Oc_genInG in P ⌝ ∗
     "%rel_eq" ∷ ⌜ pia.(pi_rel) = rew [id] rel_over_Oc_Ocs_genInG in R ⌝ ∗
-    "%pred_prefix" ∷ ⌜ pred_prefix_list_for' all preds R P ⌝ ∗
+    "%pred_prefix" ∷ ⌜ pred_prefix_list_for' rels preds R P ⌝ ∗
     "%pia_in" ∷ ⌜ promises_lookup_at promises _ γ = Some pia ⌝ ∗
     "%prs_wf" ∷ ⌜ promises_wf Ω.(gc_map_wf) promises ⌝ ∗
     "#prs" ∷ own_promises promises. (* NOTE: There seems to be some duplication between whats's in here and the above. *)
 
   (** Ownership over the token and the promises for [γ]. *)
   Definition token (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
-    ∃ (all : list (rel_over DS A)) preds promises pia,
-      "tokenPromise" ∷ know_promise γ γs R P pia promises all preds ∗
+    ∃ (rels : list (rel_over DS A)) preds promises pia,
+      "tokenPromise" ∷ know_promise γ γs R P pia promises rels preds ∗
       "token" ∷ gen_pick_out γ GTS_tok_both ∗
-      "auth_preds" ∷ own_auth_promise_list γ all preds.
+      "auth_preds" ∷ own_auth_promise_list γ rels preds.
 
   Definition used_token (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
-    ∃ (all : list (rel_over DS A)) preds ps promises pia,
-      "tokenPromise" ∷ know_promise γ γs R P pia promises all preds ∗
-      own_frozen_auth_promise_list γ all ps ∗
+    ∃ (rels : list (rel_over DS A)) preds ps promises pia,
+      "tokenPromise" ∷ know_promise γ γs R P pia promises rels preds ∗
+      own_frozen_auth_promise_list γ rels ps ∗
       "usedToken" ∷ gen_pick_out γ GTS_tok_perm.
 
   (** Knowledge that γ is accociated with the predicates R and P. *)
   Definition rely (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
-    ∃ (all : list (rel_over DS A)) (preds : list (pred_over A)) promises pia,
-      "#relyPromise" ∷ know_promise γ γs R P pia promises all preds ∗
-      "#fragPreds" ∷ gen_promise_rel_pred_list γ (gPV (◯ML all)) (gPV (◯ML preds)).
+    ∃ (rels : list (rel_over DS A)) (preds : list (pred_over A)) promises pia,
+      "#relyPromise" ∷ know_promise γ γs R P pia promises rels preds
+      ∗ "#fragPreds" ∷ gen_promise_rel_pred_list γ (gPV (◯ML rels)) (gPV (◯ML preds)).
 
   Definition picked_out γ t : iProp Σ :=
     gen_pick_out γ (GTS_tok_gen_shot t).
@@ -3186,6 +3193,39 @@ Lemma rel_stronger_rew {n1 n2 A B} {DS1 : ivec n1 cmra} {DS2 : ivec n2 cmra}
     (rew [id] (rel_over_eq (DS2 := DS2) eq1 eq2 eq3) in R1)
     (rew [id] (rel_over_eq eq1 eq2 eq3)in R2) → rel_stronger R1 R2.
 Proof. destruct eq1. destruct eq2. simpl in eq3. destruct eq3. done. Qed.
+
+Lemma discrete_fun_singleton_included `{EqDecision A, finite.Finite A}
+    {B : A → ucmra} {x : A} (a b : B x) :
+  a ≼ b →
+  (discrete_fun_singleton x a) ≼ discrete_fun_singleton x b.
+Proof.
+  intros incl.
+  apply discrete_fun_included_spec => id.
+  simpl.
+  destruct (decide (id = x)) as [->|idNeq].
+  2: { by rewrite !discrete_fun_lookup_singleton_ne. }
+  rewrite !discrete_fun_lookup_singleton.
+  done.
+Qed.
+
+Lemma discrete_fun_singleton_map_included {Σ} {i : gid Σ} {A : cmra} eq (γ : gname)
+  (a b : A) :
+  a ≼ b →
+  ((discrete_fun_singleton i {[γ := map_unfold (cmra_transport eq a)]} : iResUR Σ)
+    ≼ discrete_fun_singleton i {[γ := map_unfold (cmra_transport eq b)]}).
+Proof.
+  intros incl.
+  apply discrete_fun_singleton_included.
+  apply singleton_mono.
+  apply: cmra_morphism_monotone.
+  destruct eq.
+  apply incl.
+Qed.
+
+Lemma iRes_singleton_included `{i : inG Σ A} (a b : A) γ :
+  a ≼ b →
+  (own.iRes_singleton γ a) ≼ (own.iRes_singleton γ b).
+Proof. apply discrete_fun_singleton_map_included. Qed.
 
 Section rules.
   Context {n : nat} {DS : ivec n cmra} `{!genInG Σ Ω A DS}.
@@ -3329,8 +3369,7 @@ Section rules.
       destruct (evidence ts holds) as (t & HR2).
       exists t. apply HR2. }
     simpl in *.
-
-    iExists (app all (R_2 :: nil)).
+    iExists (app rels (R_2 :: nil)).
     iExists _, _. (* TODO: Build this list of promises. *)
     iExists pia2.
     iFrame "token".
@@ -3413,6 +3452,7 @@ Section rules.
         apply rStr. }
       rewrite pred_eq pred_eq2 in pStr.
       clear -pStr.
+      rewrite /pred_over_Oc_genInG in pStr.
       destruct genInG0. simpl in *.
       rewrite /Oc_genInG_eq in pStr. simpl in *.
       destruct genInG_gen_trans0. simpl in pStr.
@@ -3435,6 +3475,7 @@ Section rules.
         eapply rel_stronger_rew.
         apply rStr. }
       rewrite pred_eq pred_eq2 in pStr.
+      rewrite /pred_over_Oc_genInG in pStr.
       clear -pStr.
       destruct genInG0. simpl in *.
       rewrite /Oc_genInG_eq in pStr. simpl in *.
@@ -3456,29 +3497,6 @@ Section rules.
   Qed.
 
 End rules.
-
-Lemma discrete_fun_singleton_included {Σ} {i : gid Σ} {A : cmra} eq (γ : gname)
-  (a b : A) :
-  a ≼ b →
-  ((discrete_fun_singleton i {[γ := map_unfold (cmra_transport eq a)]} : iResUR Σ)
-    ≼ discrete_fun_singleton i {[γ := map_unfold (cmra_transport eq b)]}).
-Proof.
-  intros incl.
-  apply discrete_fun_included_spec => id.
-  simpl.
-  destruct (decide (id = i)) as [->|idNeq].
-  2: { by rewrite !discrete_fun_lookup_singleton_ne. }
-  rewrite !discrete_fun_lookup_singleton.
-  apply singleton_mono.
-  apply: cmra_morphism_monotone.
-  destruct eq.
-  apply incl.
-Qed.
-
-Lemma iRes_singleton_included `{i : inG Σ A} (a b : A) γ :
-  a ≼ b →
-  (own.iRes_singleton γ a) ≼ (own.iRes_singleton γ b).
-Proof. apply discrete_fun_singleton_included. Qed.
 
 Section nextgen_assertion_rules.
   (* Rules about the nextgen modality. *)
@@ -3522,7 +3540,7 @@ Section nextgen_assertion_rules.
     iStopProof.
     f_equiv.
     simpl.
-    apply discrete_fun_singleton_included.
+    apply discrete_fun_singleton_map_included.
     rewrite gen_cmra_trans_apply. simpl.
     rewrite 5!pair_included.
     split_and!; try done. apply ucmra_unit_least.
@@ -3642,7 +3660,7 @@ Section nextgen_assertion_rules.
     rewrite look.
     iDestruct (own_gen_cmra_split_picked_in with "frag_preds'") as "[picked_in frag_preds']".
     iSplit.
-    - iExists all, preds, promises, pia.
+    - iExists rels, preds, promises, pia.
       iSplit.
       { do 6 (iSplit; first done).
         iFrame "prs'". }
@@ -3658,6 +3676,7 @@ Section nextgen_assertion_rules.
         clear -relHolds predHolds.
         rewrite /rel_over_Oc_Ocs_genInG in relHolds.
         rewrite /rel_over_eq in relHolds.
+        rewrite /pred_over_Oc_genInG in predHolds.
         rewrite /Oc_genInG_eq in predHolds.
         rewrite /trans_for_genInG.
         rewrite /Oc_genInG_eq.
