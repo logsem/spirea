@@ -3262,10 +3262,14 @@ Section rules.
       done.
   Qed.
 
-  Lemma own_gen_alloc (a : A) γs :
-    ✓ a → ⊢ |==> ∃ γ, gen_own γ a ∗ token γ γs True_rel (λ _, True%type).
+  Lemma own_gen_alloc `{∀ (i : fin n), genInSelfG Σ Ω (DS !!! i)}
+      (a : A) γs (deps_preds : preds_for n DS) :
+    ✓ a →
+    (* For every dependency we own a [rely_self]. *)
+    (∀ (i : fin n), rely_self (γs !!! i) (hvec_lookup_fmap deps_preds i)) -∗
+    |==> ∃ γ, gen_own γ a ∗ token γ γs True_rel (λ _, True%type).
   Proof.
-    iIntros (Hv).
+    iIntros (Hv) "relys".
     rewrite /gen_own.
     rewrite /token.
     iMod (own_alloc
@@ -3273,20 +3277,28 @@ Section rules.
        gc_tup_elem DS a ⋅
        gc_tup_pick_out DS GTS_tok_both ⋅
        gc_tup_rel_pred
-         (gPV (●ML (True_rel :: [])))
-         (gPV (●ML (True_pred :: [])))
+         (gPV (●ML (True_rel :: []) ⋅ ◯ML (True_rel :: [])))
+         (gPV (●ML (True_pred :: []) ⋅ ◯ML (True_pred :: [])))
        )) as (γ) "[[[?OA] A'] B]".
     { split; first split; simpl; try done.
       - rewrite ucmra_unit_left_id.
         apply gen_pv_valid.
-        apply mono_list_auth_valid.
+        apply mono_list_both_valid.
+        exists []. done.
       - rewrite ucmra_unit_left_id.
         apply gen_pv_valid.
-        apply mono_list_auth_valid. }
+        apply mono_list_both_valid.
+        exists []. done. }
+    iDestruct "B" as "[B1 B2]".
     iExists γ.
-    iModIntro. iFrame "OA".
+   iModIntro. iFrame "OA".
     eset (pia := make_true_pia _ (rew <- [λ n, ivec n _] On_genInG in γs)).
     iExists ((True_rel) :: nil), ((True_pred) :: nil), ((MkPi _ γ pia) :: nil), pia.
+    iFrame "B1".
+    iFrame "A'".
+    rewrite /know_promise.
+    simpl.
+    iSplit; first done.
   Admitted.
   (*   iPureIntro. *)
   (*   apply pred_prefix_list_for'_True. *)
@@ -3388,7 +3400,32 @@ Section rules.
   Lemma token_to_rely γ γs (R : rel_over DS A) P :
     token γ γs R P ⊢ rely γ γs R P.
   Proof.
+    iNamed 1.
   Admitted.
+
+  (* Lemma know_promise_extract_frag γ γs R P pia promises rels *)
+  (*     (preds : list (pred_over A)) : *)
+  (*   know_promise γ γs R P pia promises rels preds ⊢ *)
+  (*   ∃ rels' preds', *)
+  (*   gen_promise_rel_pred_list γ (gPV (◯ML rels')) (gPV (◯ML preds')). *)
+  (* Proof. *)
+  (*   iNamed 1. *)
+  (*   unfold own_promises. *)
+  (*   apply promises_lookup_at_Some in pia_in as elem. *)
+  (*   iSpecialize ("prs" $! _ elem). *)
+  (*   simpl. *)
+  (*   iDestruct "prs" as (eq ????) "-#prs". *)
+  (*   rewrite /gen_promise_rel_pred_list own.own_eq /own.own_def. *)
+  (*   rewrite /own.iRes_singleton. simpl. *)
+  (*   iExists (rew <- rel_over_Oc_Ocs_genInG in Rs). *)
+  (*   iExists (rew <- pred_over_Oc_genInG in Ps). *)
+  (*   iStopProof. *)
+  (*   f_equiv. *)
+  (*   simpl. *)
+  (*   rewrite /own.inG_unfold. *)
+  (*   rewrite /map_unfold. *)
+  (*   simpl. *)
+  (* Qed. *)
 
   Lemma token_rely_combine_pred γ γs R1 P1 R2 P2 :
     token γ γs R1 P1 -∗ rely γ γs R2 P2 -∗ ⌜ rel_stronger R1 R2 ⌝.
