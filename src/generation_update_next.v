@@ -3053,6 +3053,31 @@ Section nextgen_properties.
     iFrame "E".
   Qed.
 
+  Lemma own_promises_merge prsL prsR :
+    promises_wf Ω.(gc_map_wf) prsL →
+    promises_wf Ω.(gc_map_wf) prsR →
+    own_promises prsL -∗
+    own_promises prsR -∗
+    ∃ prsM,
+      ⌜ promises_wf Ω.(gc_map_wf) prsM ⌝ ∗
+      ⌜ promises_is_valid_merge prsM prsL prsR ⌝ ∗
+      own_promises prsM.
+  Proof.
+    iIntros (wfL wfR) "prL prR".
+    iDestruct (own_promises_overlap with "prL prR") as %lap.
+    destruct (merge_promises Ω.(gc_map_wf) prsL prsR) as (prsM & ? & ? & ? & ?);
+      [done|done|done|].
+    iExists prsM.
+    iSplit; first done.
+    iSplit; first done.
+    iIntros (pi elm).
+    edestruct (H0) as [elm2|elm2]; first apply elm.
+    - iDestruct ("prL" $! _ elm2) as (??) "?".
+      iExists _, _. iFrame.
+    - iDestruct ("prR" $! _ elm2) as (??) "?".
+      iExists _, _. iFrame.
+  Qed.
+
   Lemma nextgen_sep_2 P Q :
     (⚡==> P) ∗ (⚡==> Q) ⊢ ⚡==> (P ∗ Q) .
   Proof.
@@ -3060,20 +3085,11 @@ Section nextgen_properties.
     iIntros "[P Q]".
     iDestruct "P" as (? prs1) "(picks1 & pr1 & %wf1 & HP)".
     iDestruct "Q" as (? prs2) "(picks2 & pr2 & %wf2 & HQ)".
-    iDestruct (own_promises_overlap with "pr1 pr2") as %lap.
-    destruct (merge_promises Ω.(gc_map_wf) prs1 prs2) as (prs3 & ? & ? & ? & ?);
-      [done|done|done|].
-    (* Combine the picks. *)
+    iDestruct (own_promises_merge prs1 prs2 with "pr1 pr2") as "(%prs3 & %wf3 & (% & % & %) & prs3)";
+      [done|done| ].
     iExists _, prs3.
     iDestruct (own_picks_sep with "picks1 picks2") as "[$ %sub]".
-    iSplitL "pr1 pr2".
-    { (* (* Maybe the following could be a lemma. *) *)
-      iIntros (pi elm).
-      edestruct (H0) as [elm2|elm2]; first apply elm.
-      - iDestruct ("pr1" $! _ elm2) as (??) "?".
-        iExists _, _. iFrame.
-      - iDestruct ("pr2" $! _ elm2) as (??) "?".
-        iExists _, _. iFrame. }
+    iFrame "prs3".
     iSplit; first done.
     iIntros (fp vv a b).
     iSpecialize ("HP" $! fp vv with "[%] [%]").
@@ -3167,8 +3183,7 @@ Section generational_resources.
 
 End generational_resources.
 
-Definition rely_self `{i : !genInSelfG Σ Ω A}
-    γ (P : (A → A) → Prop) : iProp Σ :=
+Definition rely_self `{i : !genInSelfG Σ Ω A} γ (P : pred_over A) : iProp Σ :=
   ∃ γs R, rely (i := genInSelfG_gen) γ γs R P.
 
 Equations True_preds_for {n} (ts : ivec n cmra) : preds_for n ts :=
@@ -3227,6 +3242,57 @@ Lemma iRes_singleton_included `{i : inG Σ A} (a b : A) γ :
   (own.iRes_singleton γ a) ≼ (own.iRes_singleton γ b).
 Proof. apply discrete_fun_singleton_map_included. Qed.
 
+(* Set Printing All. *)
+Lemma list_rely_self {n : nat} {DS : ivec n cmra} `{nds : ∀ (i : fin n), genInSelfG Σ Ω (DS !!! i)}
+    (γs : ivec n gname) (deps_preds : preds_for n DS) :
+  (∀ (i : fin n), rely_self (γs !!! i) (hvec_lookup_fmap deps_preds i)) -∗
+  ∃ prs,
+    (* a list of well formed promises *)
+    ⌜ promises_wf (Ω.(gc_map_wf)) prs ⌝ ∗
+    own_promises prs ∗
+    (* contains every promise in [γs] with the pred in [deps_preds] *)
+    ⌜ (∀ (i : fin n),
+      ∃ pia,
+        promises_lookup_at prs (genInG_id (@genInSelfG_gen _ _ _ (nds i))) (γs !!! i) = Some pia) ⌝.
+Proof.
+  induction n as [|n' IH].
+  { iIntros "_". iExists [].
+    rewrite -own_promises_empty.
+    iSplit; first done.
+    iSplit; first done.
+    iPureIntro. intros i. inversion i. }
+  iIntros "#relys".
+  dependent elimination γs as [icons γ0 γs'].
+  dependent elimination DS.
+  simpl in deps_preds.
+  dependent elimination deps_preds as [hcons p0 preds'].
+  iDestruct (IH i (λ n, nds (FS n)) γs' preds' with "[]") as "(%prs & %wf2 & own & %prop)".
+  { iIntros (j).
+    iSpecialize ("relys" $! (FS j)).
+    iApply "relys". }
+  iDestruct ("relys" $! 0%fin) as "HHH".
+  rewrite hvec_lookup_fmap_equation_2.
+  iDestruct "HHH" as (??) "H".
+  iNamed "H". iNamed "relyPromise".
+  iDestruct (own_promises_merge with "own prs") as (prsM wfM val) "H";
+    [done|done| ].
+  iExists prsM.
+  iSplit; first done.
+  iSplit; first done.
+  iPureIntro.
+  intros n2.
+  dependent elimination n2; last first.
+  { (* This one is from the IH *)
+    destruct (prop t) as (pia' & look).
+    destruct val as (? & str & ?).
+    destruct (str _ _ _ look) as (pia2 & look2).
+    exists pia2.
+    apply look2. }
+  destruct val as (? & str & str2).
+  destruct (str2 _ _ _ pia_in) as (pia2 & look2).
+  exists pia2. apply look2.
+Qed.
+
 Section rules.
   Context {n : nat} {DS : ivec n cmra} `{!genInG Σ Ω A DS}.
 
@@ -3270,8 +3336,7 @@ Section rules.
     |==> ∃ γ, gen_own γ a ∗ token γ γs True_rel (λ _, True%type).
   Proof.
     iIntros (Hv) "relys".
-    rewrite /gen_own.
-    rewrite /token.
+    rewrite /gen_own /token.
     iMod (own_alloc
       (gc_tup_deps A DS (ivec_to_list γs) ⋅
        gc_tup_elem DS a ⋅
@@ -3291,7 +3356,7 @@ Section rules.
         exists []. done. }
     iDestruct "B" as "[B1 B2]".
     iExists γ.
-   iModIntro. iFrame "OA".
+    iModIntro. iFrame "OA".
     eset (pia := make_true_pia _ (rew <- [λ n, ivec n _] On_genInG in γs)).
     iExists ((True_rel) :: nil), ((True_pred) :: nil), ((MkPi _ γ pia) :: nil), pia.
     iFrame "B1".
