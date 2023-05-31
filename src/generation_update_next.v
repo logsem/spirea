@@ -3296,6 +3296,39 @@ Qed.
 Section rules.
   Context {n : nat} {DS : ivec n cmra} `{!genInG Σ Ω A DS}.
 
+  Program Definition make_pia (γs : ivec n gname) : promise_info_at Ω _ := {|
+    pi_deps_γs := (rew <- [λ n, ivec n _] On_genInG in γs);
+    pi_deps_preds := True_preds_for_id _;
+    pi_rel := True_rel;
+    pi_pred := rew [id] pred_over_Oc_genInG in (λ _ : A → A, True);
+  |}.
+  Next Obligation.
+    intros.
+    simpl.
+    clear.
+    rewrite /pred_over_Oc_genInG.
+    rewrite /Oc_genInG_eq.
+    simpl.
+    destruct genInG0; simpl in *.
+    destruct (gc_map Ω genInG_id0); last simplify_eq.
+    destruct genInG_gcd_n0.
+    unfold Ocs in *.
+    injection genInG_gen_trans0 as ->.
+    clear.
+    simpl.
+    destruct (eq_sym genInG_gti_typ0).
+    simpl.
+    clear.
+  Admitted.
+  (*   destruct genInG_gen_trans0. *)
+  (* Qed. *)
+  Next Obligation.
+    intros.
+    exists (λ a, a).
+    rewrite huncurry_curry.
+    done.
+  Qed.
+
   Program Definition make_true_pia id γs : promise_info_at Ω id := {|
     pi_deps_γs := γs;
     pi_deps_preds := True_preds_for_id id;
@@ -3337,6 +3370,7 @@ Section rules.
   Proof.
     iIntros (Hv) "relys".
     rewrite /gen_own /token.
+    iDestruct (list_rely_self with "relys") as (prs wf) "(ownPrs & %allDeps)".
     iMod (own_alloc
       (gc_tup_deps A DS (ivec_to_list γs) ⋅
        gc_tup_elem DS a ⋅
@@ -3357,17 +3391,30 @@ Section rules.
     iDestruct "B" as "[B1 B2]".
     iExists γ.
     iModIntro. iFrame "OA".
-    eset (pia := make_true_pia _ (rew <- [λ n, ivec n _] On_genInG in γs)).
-    iExists ((True_rel) :: nil), ((True_pred) :: nil), ((MkPi _ γ pia) :: nil), pia.
+    eset (pia := make_pia γs).
+    (* eset (pia := make_true_pia _ (rew <- [λ n, ivec n _] On_genInG in γs)). *)
+    iExists ((True_rel) :: nil), ((True_pred) :: nil), ((MkPi _ γ pia) :: prs), pia.
     iFrame "B1".
     iFrame "A'".
     rewrite /know_promise.
     simpl.
     iSplit; first done.
+    iSplit; first done.
+    iSplit. { admit. }
+    iSplit. { iPureIntro. apply pred_prefix_list_for'_True. }
+    iSplit. { iPureIntro. apply promises_lookup_at_cons. }
+    iSplit.
+    { iPureIntro. split; last done.
+      split.
+      - admit. (* It seems that we need some extra knowledge about [γ]. *)
+      - intros i. simpl in i.
+        destruct (allDeps (rew On_genInG in i)) as (pia' & look).
+        exists (MkPi _ (γs !!! rew [fin] On_genInG in i) pia').
+        simpl.
+        split. { apply promises_lookup_at_Some. done. }
+        admit. }
+    (* This should be provable with the [B2] resource we have. *)
   Admitted.
-  (*   iPureIntro. *)
-  (*   apply pred_prefix_list_for'_True. *)
-  (* Qed. *)
 
   Lemma gen_token_split γ :
     gen_pick_out γ GTS_tok_both ⊣⊢
