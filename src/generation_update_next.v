@@ -744,6 +744,13 @@ Section omega_helpers_genInG.
   Proof.
     rewrite -genInG_gen_trans.
     apply (eq_sym genInG_gti_typ).
+    (* destruct i. simpl. *)
+    (* destruct (Ω.(gc_map) genInG_id0) eqn:eq; simpl. *)
+    (* - assert (Some2 genInG_gti0 = Some2 g) as [= <-]. *)
+    (*   { congruence. } *)
+    (*   done. *)
+    (* - assert (Some2 genInG_gti0 = None2) as [=]. *)
+    (*   rewrite -eq. done. *)
   Defined.
 
   (** Equality for [On] and [genInG]. *)
@@ -3316,7 +3323,7 @@ Section rules.
   Program Definition make_pia (γs : ivec n gname) : promise_info_at Ω _ := {|
     pi_deps_γs := (rew <- [λ n, ivec n _] On_genInG in γs);
     pi_deps_preds := True_preds_for_id _;
-    pi_rel := True_rel;
+    pi_rel := rew [id] rel_over_Oc_Ocs_genInG in True_rel;
     pi_pred := rew [id] pred_over_Oc_genInG in (λ _ : A → A, True);
   |}.
   Next Obligation.
@@ -3325,26 +3332,31 @@ Section rules.
     clear.
     rewrite /pred_over_Oc_genInG.
     rewrite /Oc_genInG_eq.
-    simpl.
     destruct genInG0; simpl in *.
-    destruct (gc_map Ω genInG_id0); last simplify_eq.
-    destruct genInG_gcd_n0.
-    unfold Ocs in *.
-    injection genInG_gen_trans0 as ->.
-    clear.
-    simpl.
+    destruct genInG_gen_trans0.
     destruct (eq_sym genInG_gti_typ0).
     simpl.
-    clear.
-  Admitted.
-  (*   destruct genInG_gen_trans0. *)
-  (* Qed. *)
-  Next Obligation.
-    intros.
-    exists (λ a, a).
-    rewrite huncurry_curry.
     done.
   Qed.
+  Next Obligation.
+    intros.
+    exists (λ a, a). simpl.
+    rewrite /rel_over_Oc_Ocs_genInG.
+    simpl.
+    clear.
+    unfold Ocs in *.
+    destruct genInG0; simpl in *.
+    clear.
+    destruct genInG_gen_trans0. simpl.
+    clear.
+    simpl in *.
+    (* destruct genInG_gcd_n. *)
+    (* destruct genInG_gti_typ. *)
+    (* destruct genInG_gcd_deps. *)
+  Admitted.
+  (*   rewrite huncurry_curry. *)
+  (*   done. *)
+  (* Qed. *)
 
   Program Definition make_true_pia id γs : promise_info_at Ω id := {|
     pi_deps_γs := γs;
@@ -3410,14 +3422,14 @@ Section rules.
     iModIntro. iFrame "OA".
     eset (pia := make_pia γs).
     (* eset (pia := make_true_pia _ (rew <- [λ n, ivec n _] On_genInG in γs)). *)
-    iExists ((True_rel) :: nil), ((True_pred) :: nil), ((MkPi _ γ pia) :: prs), pia.
+    iExists ((_) :: nil), ((_) :: nil), ((MkPi _ γ pia) :: prs), pia.
     iFrame "B1".
     iFrame "A'".
     rewrite /know_promise.
     simpl.
     iSplit; first done.
     iSplit; first done.
-    iSplit. { admit. }
+    iSplit; first done.
     iSplit. { iPureIntro. apply pred_prefix_list_for'_True. }
     iSplit. { iPureIntro. apply promises_lookup_at_cons. }
     iSplit.
