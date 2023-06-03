@@ -3266,7 +3266,6 @@ Lemma iRes_singleton_included `{i : inG Σ A} (a b : A) γ :
   (own.iRes_singleton γ a) ≼ (own.iRes_singleton γ b).
 Proof. apply discrete_fun_singleton_map_included. Qed.
 
-(* Set Printing All. *)
 Lemma list_rely_self {n : nat} {DS : ivec n cmra} `{nds : ∀ (i : fin n), genInSelfG Σ Ω (DS !!! i)}
     (γs : ivec n gname) (deps_preds : preds_for n DS) :
   (∀ (i : fin n), rely_self (γs !!! i) (hvec_lookup_fmap deps_preds i)) -∗
@@ -3275,9 +3274,13 @@ Lemma list_rely_self {n : nat} {DS : ivec n cmra} `{nds : ∀ (i : fin n), genIn
     ⌜ promises_wf (Ω.(gc_map_wf)) prs ⌝ ∗
     own_promises prs ∗
     (* contains every promise in [γs] with the pred in [deps_preds] *)
-    ⌜ (∀ (i : fin n),
+    ⌜ ∀ (idx : fin n),
       ∃ pia,
-        promises_lookup_at prs (genInG_id (@genInSelfG_gen _ _ _ (nds i))) (γs !!! i) = Some pia) ⌝.
+        let i := (genInG_id (@genInSelfG_gen _ _ _ (nds idx))) in
+        promises_lookup_at prs i (γs !!! idx) = Some pia ∧
+        let pred : pred_over (Oc Ω i) :=
+          rew [λ i, i] pred_over_Oc_genInG in hvec_lookup_fmap deps_preds idx in
+        pred_stronger pia.(pi_pred) pred ⌝.
 Proof.
   induction n as [|n' IH].
   { iIntros "_". iExists [].
@@ -3307,20 +3310,34 @@ Proof.
   intros n2.
   dependent elimination n2; last first.
   { (* This one is from the IH *)
-    destruct (prop t) as (pia' & look).
+    destruct (prop t) as (pia' & look & predStr).
     destruct val as (? & str & ?).
-    destruct (str _ _ _ look) as (pia2 & look2).
+    destruct (str _ _ _ look) as (pia2 & look2 & str2).
     exists pia2.
-    apply look2. }
+    split; first apply look2.
+    etrans; last apply predStr.
+    apply str2. }
   destruct val as (? & str & str2).
-  destruct (str2 _ _ _ pia_in) as (pia2 & look2).
-  exists pia2. apply look2.
+  destruct (str2 _ _ _ pia_in) as (pia2 & look2 & ?).
+  exists pia2.
+  split; first apply look2.
+  etrans; first apply H0.
+  rewrite pred_eq.
+  done.
+Qed.
+
+Lemma rew_rel_over_True {n1 n2 A B} {DS1 : ivec n1 cmra} {DS2 : ivec n2 cmra}
+    (eq1 : n2 = n1) (eq2 : A = B) eq3 (ts : trans_for n2 DS2) :
+  (rew [id] (rel_over_eq eq1 eq2 eq3) in (True_rel (DS := DS1))) ts (λ a, a).
+Proof.
+  destruct eq1. destruct eq2. simpl in eq3. destruct eq3.
+  simpl. rewrite huncurry_curry. done.
 Qed.
 
 Section rules.
   Context {n : nat} {DS : ivec n cmra} `{!genInG Σ Ω A DS}.
 
-  Program Definition make_pia (γs : ivec n gname) : promise_info_at Ω _ := {|
+  Program Definition make_true_pia (γs : ivec n gname) : promise_info_at Ω _ := {|
     pi_deps_γs := (rew <- [λ n, ivec n _] On_genInG in γs);
     pi_deps_preds := True_preds_for_id _;
     pi_rel := rew [id] rel_over_Oc_Ocs_genInG in True_rel;
@@ -3328,48 +3345,23 @@ Section rules.
   |}.
   Next Obligation.
     intros.
-    simpl.
     clear.
     rewrite /pred_over_Oc_genInG.
     rewrite /Oc_genInG_eq.
     destruct genInG0; simpl in *.
     destruct genInG_gen_trans0.
     destruct (eq_sym genInG_gti_typ0).
-    simpl.
-    done.
+    simpl. done.
   Qed.
   Next Obligation.
     intros.
-    exists (λ a, a). simpl.
-    rewrite /rel_over_Oc_Ocs_genInG.
-    simpl.
-    clear.
-    unfold Ocs in *.
-    destruct genInG0; simpl in *.
-    clear.
-    destruct genInG_gen_trans0. simpl.
-    clear.
-    simpl in *.
-    (* destruct genInG_gcd_n. *)
-    (* destruct genInG_gti_typ. *)
-    (* destruct genInG_gcd_deps. *)
-  Admitted.
-  (*   rewrite huncurry_curry. *)
-  (*   done. *)
-  (* Qed. *)
-
-  Program Definition make_true_pia id γs : promise_info_at Ω id := {|
-    pi_deps_γs := γs;
-    pi_deps_preds := True_preds_for_id id;
-    pi_rel := True_rel;
-    pi_pred := True_pred;
-  |}.
-  Next Obligation. done. Qed.
-  Next Obligation.
-    intros.
     exists (λ a, a).
-    rewrite huncurry_curry.
-    done.
+    unfold rel_over_Oc_Ocs_genInG.
+    unfold Ocs in *.
+    clear.
+    destruct genInG0; simpl in *.
+    destruct genInG_gen_trans0.
+    apply rew_rel_over_True.
   Qed.
 
   Lemma auth_promise_list_snoc γ rs ps r p :
@@ -3389,6 +3381,16 @@ Section rules.
       apply prefix_app_r.
       done.
   Qed.
+
+  Lemma Oids_genInG {n2 : nat} {A2 : cmra} {DS2 : ivec n2 cmra}
+      id (g2 : genInG Σ Ω A2 DS2) i (wf : omega_wf_at Ω.(gc_map) id) :
+    Oids Ω id !!! i = genInG_id genInSelfG_gen.
+  Proof.
+    rewrite /omega_wf_at in wf.
+    rewrite /Oids.
+    destruct (gc_map Ω id) eqn:eq.
+    - destruct (wf i) as (gcd2 & ? & ?).
+  Abort.
 
   Lemma own_gen_alloc `{∀ (i : fin n), genInSelfG Σ Ω (DS !!! i)}
       (a : A) γs (deps_preds : preds_for n DS) :
@@ -3420,27 +3422,33 @@ Section rules.
     iDestruct "B" as "[B1 B2]".
     iExists γ.
     iModIntro. iFrame "OA".
-    eset (pia := make_pia γs).
-    (* eset (pia := make_true_pia _ (rew <- [λ n, ivec n _] On_genInG in γs)). *)
+    set (pia := make_true_pia γs).
     iExists ((_) :: nil), ((_) :: nil), ((MkPi _ γ pia) :: prs), pia.
     iFrame "B1".
     iFrame "A'".
     rewrite /know_promise.
-    simpl.
     iSplit; first done.
     iSplit; first done.
     iSplit; first done.
     iSplit. { iPureIntro. apply pred_prefix_list_for'_True. }
     iSplit. { iPureIntro. apply promises_lookup_at_cons. }
     iSplit.
-    { iPureIntro. split; last done.
+    { (* Show that the promises are well-formed. *)
+      iPureIntro. split; last done.
       split.
       - admit. (* It seems that we need some extra knowledge about [γ]. *)
       - intros i. simpl in i.
-        destruct (allDeps (rew On_genInG in i)) as (pia' & look).
+        destruct (allDeps (rew On_genInG in i)) as (pia' & look & predStr).
         exists (MkPi _ (γs !!! rew [fin] On_genInG in i) pia').
         simpl.
         split. { apply promises_lookup_at_Some. done. }
+        unfold promise_satisfy_dep. simpl.
+        simpl.
+        split.
+        { clear.
+          generalize On_genInG. generalize dependent (On Ω (genInG_id genInG0)).
+          clear. intros ?? eq. destruct eq. done. }
+        unfold Oids.
         admit. }
     (* This should be provable with the [B2] resource we have. *)
   Admitted.
