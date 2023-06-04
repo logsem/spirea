@@ -3403,6 +3403,21 @@ Section rules.
     - destruct (wf i) as (gcd2 & ? & ?).
   Abort.
 
+  Definition promises_different_gname (prs : list (promise_info Ω)) :=
+    λ γ, ∀ pi, pi ∈ prs → pi.(pi_γ) ≠ γ.
+
+  Lemma promises_different_gname_infinite prs :
+    pred_infinite (promises_different_gname prs).
+  Proof.
+    intros γs.
+    specialize (infinite_is_fresh ((pi_γ <$> prs) ++ γs)) as [no1 no2]%not_elem_of_app .
+    eexists _.
+    split; last done.
+    intros pi elm eq.
+    apply (elem_of_list_fmap_1 pi_γ) in elm.
+    simplify_eq. congruence.
+  Qed.
+
   Lemma own_gen_alloc `{gs : ∀ (i : fin n), genInSelfG Σ Ω (DS !!! i)}
       (a : A) γs (deps_preds : preds_for n DS) :
     ✓ a →
@@ -3416,14 +3431,18 @@ Section rules.
     iIntros (Hv idEqs) "relys".
     rewrite /gen_own /token.
     iDestruct (list_rely_self with "relys") as (prs wf) "(ownPrs & %allDeps)".
-    iMod (own_alloc
+    (* We need to know that the new ghost name makes the new promise different
+     * from all existing promises. We "overapproximate" this by requiring the
+     * new gname to be different from the gname for any existing promise. *)
+    iMod (own_alloc_strong
       (gc_tup_deps A DS (ivec_to_list γs) ⋅
        gc_tup_elem DS a ⋅
        gc_tup_pick_out DS GTS_tok_both ⋅
        gc_tup_rel_pred
          (gPV (●ML (True_rel :: []) ⋅ ◯ML (True_rel :: [])))
          (gPV (●ML (True_pred :: []) ⋅ ◯ML (True_pred :: [])))
-       )) as (γ) "[[[?OA] A'] B]".
+       ) (promises_different_gname prs)) as (γ pHolds) "[[[?OA] A'] B]".
+    { apply promises_different_gname_infinite. }
     { split; first split; simpl; try done.
       - rewrite ucmra_unit_left_id.
         apply gen_pv_valid.
@@ -3450,7 +3469,9 @@ Section rules.
     { (* Show that the promises are well-formed. *)
       iPureIntro. split; last done.
       split.
-      - admit. (* It seems that we need some extra knowledge about [γ]. *)
+      - intros pi2 elem.
+        right. simpl. apply PositiveOrder.neq_sym.
+        apply pHolds. done.
       - intros i. simpl in i.
         destruct (allDeps (rew On_genInG in i)) as (pia' & look & predStr).
         exists (MkPi _ (γs !!! rew [fin] On_genInG in i) pia').
