@@ -1513,7 +1513,6 @@ Section promise_info.
     simpl. intros i.
     destruct wf as [[? deps] wfr].
     intros look.
-    Search lookup Some.
     eassert _. { eapply lookup_lt_Some. done. }
     destruct (decide (length prs' ≤ i)).
     * assert (length prs' - i = 0) as eq by lia.
@@ -2699,21 +2698,27 @@ Section next_gen_definition.
     done.
   Qed.
 
-  Definition own_promises (ps : list (promise_info Ω)) : iProp Σ :=
-    (∀ p, ⌜ p ∈ ps ⌝ -∗
-      ∃ eq Rs (Ps : list (pred_over (Oc Ω p.(pi_id)))),
-        ⌜ Oeq Ω p.(pi_id) = Some2 eq ⌝ ∧
-        ⌜ pred_prefix_list_for' Rs Ps p.(pi_rel) p.(pi_pred) ⌝ ∧
-        uPred_ownM (discrete_fun_singleton p.(pi_id)
-          {[ p.(pi_γ) := map_unfold
-            (cmra_transport eq (
-              ε, ε, ε, Some (to_agree (ivec_to_list p.(pi_deps_γs))),
-              gPV (◯ML Rs), gPV (◯ML Ps)
-            )) ]}
-        )).
+  Definition own_promise_info (pi : promise_info Ω) : iProp Σ :=
+    ∃ eq Rs (Ps : list (pred_over (Oc Ω pi.(pi_id)))),
+      ⌜ Oeq Ω pi.(pi_id) = Some2 eq ⌝ ∧
+      ⌜ pred_prefix_list_for' Rs Ps pi.(pi_rel) pi.(pi_pred) ⌝ ∧
+      uPred_ownM (discrete_fun_singleton pi.(pi_id)
+        {[ pi.(pi_γ) := map_unfold
+          (cmra_transport eq (
+            ε, ε, ε, Some (to_agree (ivec_to_list pi.(pi_deps_γs))),
+            gPV (◯ML Rs), gPV (◯ML Ps)
+          )) ]}
+      ).
 
   #[global]
-  Instance own_promise_persistent ps : Persistent (own_promises ps).
+  Instance own_promise_info_persistent pi : Persistent (own_promise_info pi).
+  Proof. apply _. Qed.
+
+  Definition own_promises (ps : list (promise_info Ω)) : iProp Σ :=
+    [∗ list] p ∈ ps, own_promise_info p.
+
+  #[global]
+  Instance own_promises_persistent ps : Persistent (own_promises ps).
   Proof. apply _. Qed.
 
   Definition nextgen P : iProp Σ :=
@@ -3015,11 +3020,12 @@ Section own_promises_properties.
     iIntros (id γ p1 p2 look1 look2).
     apply promises_lookup_at_Some in look1 as elem1.
     apply promises_lookup_at_Some in look2 as elem2.
-    iSpecialize ("O1" $! _ elem1).
-    iSpecialize ("O2" $! _ elem2).
-    simpl.
+    unfold own_promises.
+    rewrite big_sepL_elem_of; last done.
+    rewrite big_sepL_elem_of; last done.
     iDestruct "O1" as (eq ????) "O1".
     iDestruct "O2" as (eq' ????) "O2".
+    simpl in *.
     assert (eq' = eq) as -> by congruence.
     iCombine "O1 O2" as "O3".
     rewrite discrete_fun_singleton_op.
@@ -3069,11 +3075,7 @@ Section nextgen_properties.
 
   Lemma own_promises_empty :
     ⊢@{iProp Σ} own_promises [].
-  Proof.
-    rewrite /own_promises.
-    iIntros (? elm).
-    inversion elm.
-  Qed.
+  Proof. iApply big_sepL_nil. done. Qed.
 
   Lemma nextgen_emp_2 : emp ⊢@{iProp Σ} ⚡==> emp.
   Proof.
@@ -3086,6 +3088,15 @@ Section nextgen_properties.
     iIntros (full_picks ?) "? ?".
     iModIntro.
     iFrame "E".
+  Qed.
+
+  Lemma big_sepL_forall_elem_of {A} (l : list A) Φ :
+    (∀ x, Persistent (Φ x)) →
+    ([∗ list] x ∈ l, Φ x) ⊣⊢@{iProp Σ} (∀ x, ⌜x ∈ l⌝ → Φ x).
+  Proof.
+    intros ?. rewrite big_sepL_forall. iSplit.
+    - iIntros "H" (? [? elem]%elem_of_list_lookup_1). iApply "H". done.
+    - iIntros "H" (?? ?%elem_of_list_lookup_2). iApply "H". done.
   Qed.
 
   Lemma own_promises_merge prsL prsR :
@@ -3105,6 +3116,8 @@ Section nextgen_properties.
     iExists prsM.
     iSplit; first done.
     iSplit; first done.
+    unfold own_promises.
+    rewrite 3!big_sepL_forall_elem_of.
     iIntros (pi elm).
     edestruct (H0) as [elm2|elm2]; first apply elm.
     - iDestruct ("prL" $! _ elm2) as (??) "?".
@@ -3431,8 +3444,7 @@ Section rules.
   Lemma own_gen_alloc (a : A) γs (deps_preds : preds_for n DS) :
     ✓ a →
     (* For every dependency we own a [rely_self]. *)
-    (∀ (i : fin n),
-      rely_self (γs !!! i) (hvec_lookup_fmap deps_preds i)) -∗
+    (∀ i, rely_self (γs !!! i) (hvec_lookup_fmap deps_preds i)) -∗
     |==> ∃ γ, gen_own γ a ∗ token γ γs True_rel (λ _, True%type).
   Proof.
     iIntros (Hv) "relys".
@@ -3503,6 +3515,9 @@ Section rules.
         destruct Ocs_Oids_distr. simpl.
         rewrite True_preds_for_lookup_fmap.
         done. }
+    unfold own_promises.
+    rewrite big_sepL_cons.
+    iFrame "ownPrs".
     (* This remaining should be provable with the [B2] resource we have. *)
   Admitted.
 
@@ -3767,6 +3782,7 @@ Section nextgen_assertion_rules.
   Proof.
     iIntros (val) "#prs".
     rewrite /own_promises.
+    rewrite big_sepL_forall_elem_of.
     iModIntro.
     iIntros (pi elm).
     iDestruct ("prs" $! pi elm) as (?? Ps ??) "-#H".

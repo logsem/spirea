@@ -324,6 +324,18 @@ Section into_bnextgen.
     done.
   Qed.
 
+  Global Instance into_bnextgen_impl_plain P `{!Plain P, !Persistent P} Q Q' :
+      IntoBnextgen f Q Q' → IntoBnextgen f (P → Q) (P → Q').
+  Proof.
+    rewrite /IntoBnextgen.
+    rewrite -(plain_plainly P).
+    iIntros (H) "I".
+    rewrite 2!impl_wand.
+    iApply bnextgen_wand_plainly.
+    rewrite H.
+    done.
+  Qed.
+
   Lemma bnextgen_wand_plain P `{!Plain P, !Absorbing P} Q :
     (⚡={f}=> (P -∗ Q)) ⊢ P -∗ ⚡={f}=> Q.
   Proof.
