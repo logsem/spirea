@@ -664,7 +664,6 @@ End omega_helpers.
 
 Class genInG {n} (Σ : gFunctors) Ω (A : cmra) (DS : ivec n cmra) := GenInG {
   genInG_id : gid Σ;
-  genInG_inG_deps : ∀ i d, DS !!! i = d → inG Σ (generational_cmraR A DS);
   genInG_gti : gen_cmra_data Σ genInG_id;
   genInG_gen_trans : Some2 genInG_gti = Ω.(gc_map) genInG_id;
   genInG_gti_typ : A = genInG_gti.(gcd_cmra);
@@ -674,17 +673,11 @@ Class genInG {n} (Σ : gFunctors) Ω (A : cmra) (DS : ivec n cmra) := GenInG {
 
 Global Arguments genInG_id {_} {_} {_} {_} {_} _.
 
-Definition gen_cmra_eq {A DA C : cmra} {dn n} {DS : ivec n cmra} {DDS : ivec dn cmra}
-  (eq : A = DA)
-  (eqN : dn = n)
-  (eqDS : DS = eq_rect _ (λ n, ivec n _) DDS _ eqN)
-  (eq2 : generational_cmraR DA DDS = C) : generational_cmraR A DS = C.
+Definition gen_cmra_eq {A DA C : cmra} {dn n} {DS1 : ivec n cmra} {DS2 : ivec dn cmra}
+  (eq : A = DA) (eqN : dn = n)
+  (eqDS : DS1 = eq_rect _ (λ n, ivec n _) DS2 _ eqN)
+  (eq2 : generational_cmraR DA DS2 = C) : generational_cmraR A DS1 = C.
 Proof. rewrite -eq2 -eq. destruct eqN. rewrite eqDS. reflexivity. Defined.
-
-Lemma gen_cmra_eq_refl {DA C : cmra} {dn} {DDS : ivec dn cmra}
-    (eq2 : generational_cmraR DA DDS = C) :
-  gen_cmra_eq eq_refl eq_refl eq_refl eq2 = eq2.
-Proof. destruct eq2. done. Qed.
 
 (* The regular [inG] class can be derived from [genInG]. *)
 Global Instance genInG_inG {n : nat} `{i : !genInG Σ Ω A DS} :
@@ -710,6 +703,29 @@ Instance genInG_genInSelfG {n} `{i : !genInG Σ Ω A DS} : genInSelfG Σ Ω A :=
   genInSelfG_DS := DS;
   genInSelfG_gen := i;
 |}.
+
+(** Equality for [On] and [genInG]. *)
+Lemma On_genInG {A n} {DS : ivec n cmra} `{i : !genInG Σ Ω A DS} :
+  On Ω (genInG_id i) = n.
+Proof.
+  apply (On_omega_lookup (genInG_id i) _
+          (eq_sym genInG_gen_trans) (genInG_gcd_n (genInG := i))).
+Defined.
+
+(* This class ties together a [genInG] instance for one camera with [genInG]
+ * instances for all of its dependencies such that those instances have the
+ * right ids as specified in [Ω]. *)
+Class genInDepsG {n} (Σ : gFunctors) Ω (A : cmra) (DS : ivec n cmra)
+    `{gs : ∀ (i : fin n), genInSelfG Σ Ω (DS !!! i)} := GenDepsInG {
+  genInDepsG_gen :> genInG Σ Ω A DS;
+  genInDepsG_eqs : ∀ i,
+    genInSelfG_id (gs i) = Oids Ω (genInG_id genInDepsG_gen) !!! (rew <- On_genInG in i);
+}.
+
+Lemma gen_cmra_eq_refl {DA C : cmra} {dn} {DDS : ivec dn cmra}
+    (eq2 : generational_cmraR DA DDS = C) :
+  gen_cmra_eq eq_refl eq_refl eq_refl eq2 = eq2.
+Proof. destruct eq2. done. Qed.
 
 Lemma rel_over_eq {n m A1 A2} {DS1 : ivec n cmra} {DS2 : ivec m cmra} (eq : m = n) :
   A1 = A2 →
@@ -754,14 +770,6 @@ Section omega_helpers_genInG.
     (*   done. *)
     (* - assert (Some2 genInG_gti0 = None2) as [=]. *)
     (*   rewrite -eq. done. *)
-  Defined.
-
-  (** Equality for [On] and [genInG]. *)
-  Lemma On_genInG :
-    On Ω (genInG_id i) = n.
-  Proof.
-    apply (
-      On_omega_lookup (genInG_id i) (_) (eq_sym genInG_gen_trans) (genInG_gcd_n (genInG := i))).
   Defined.
 
   Lemma Ocs_inG :
@@ -3346,7 +3354,9 @@ Proof.
 Qed.
 
 Section rules.
-  Context {n : nat} {DS : ivec n cmra} `{g : !genInG Σ Ω A DS}.
+  Context {n : nat} {DS : ivec n cmra}
+    `{gs : ∀ (i : fin n), genInSelfG Σ Ω (DS !!! i)}
+    `{g : !genInDepsG Σ Ω A DS}.
 
   Program Definition make_true_pia (γs : ivec n gname) : promise_info_at Ω _ := {|
     pi_deps_γs := (rew <- [λ n, ivec n _] On_genInG in γs);
@@ -3359,7 +3369,7 @@ Section rules.
     clear.
     rewrite /pred_over_Oc_genInG.
     rewrite /Oc_genInG_eq.
-    destruct g; simpl in *.
+    destruct genInDepsG_gen; simpl in *.
     destruct genInG_gen_trans0.
     destruct (eq_sym genInG_gti_typ0).
     simpl. done.
@@ -3370,7 +3380,7 @@ Section rules.
     unfold rel_over_Oc_Ocs_genInG.
     unfold Ocs in *.
     clear.
-    destruct g; simpl in *.
+    destruct genInDepsG_gen; simpl in *.
     destruct genInG_gen_trans0.
     apply rew_rel_over_True.
   Qed.
@@ -3418,17 +3428,14 @@ Section rules.
     simplify_eq. congruence.
   Qed.
 
-  Lemma own_gen_alloc `{gs : ∀ (i : fin n), genInSelfG Σ Ω (DS !!! i)}
-      (a : A) γs (deps_preds : preds_for n DS) :
+  Lemma own_gen_alloc (a : A) γs (deps_preds : preds_for n DS) :
     ✓ a →
-    (* This constraint needs to be added somewhere "higher-up" *)
-    (∀ i, genInSelfG_id (gs i) = Oids Ω (genInG_id g) !!! (rew <- On_genInG in i)) →
     (* For every dependency we own a [rely_self]. *)
     (∀ (i : fin n),
       rely_self (γs !!! i) (hvec_lookup_fmap deps_preds i)) -∗
     |==> ∃ γ, gen_own γ a ∗ token γ γs True_rel (λ _, True%type).
   Proof.
-    iIntros (Hv idEqs) "relys".
+    iIntros (Hv) "relys".
     rewrite /gen_own /token.
     iDestruct (list_rely_self with "relys") as (prs wf) "(ownPrs & %allDeps)".
     (* We need to know that the new ghost name makes the new promise different
@@ -3480,12 +3487,11 @@ Section rules.
         unfold promise_satisfy_dep. simpl.
         simpl.
         split.
-        { clear.
-          generalize On_genInG. generalize dependent (On Ω (genInG_id g)).
+        { clear. generalize On_genInG. generalize dependent (On Ω (genInG_id genInDepsG_gen)).
           clear. intros ?? eq. destruct eq. done. }
         unfold Oids.
-        specialize (idEqs (rew On_genInG in i)).
-        assert (Oids Ω (genInG_id g) !!! i =
+        specialize (genInDepsG_eqs (rew On_genInG in i)) as idEqs.
+        assert (Oids Ω (genInG_id genInDepsG_gen) !!! i =
           genInG_id (genInSelfG_gen (gs (rew [fin] On_genInG in i)))) as eq.
         { rewrite rew_opp_l in idEqs.
           rewrite -idEqs.
@@ -3519,7 +3525,7 @@ Section rules.
   Qed.
 
   (** Strengthen a promise. *)
-  Lemma token_strengthen_promise `{∀ (i : fin n), genInSelfG Σ Ω (DS !!! i)}
+  Lemma token_strengthen_promise
       γ γs (deps_preds : preds_for n DS)
       (R_1 R_2 : rel_over DS A) (P_1 P_2 : (A → A) → Prop) :
     (* The new relation is stronger. *)
@@ -3557,7 +3563,7 @@ Section rules.
       destruct genInG_gen_trans. simpl.
       destruct genInG_gti_typ.
       intros ??.
-      destruct g.
+      destruct genInDepsG_gen.
       destruct genInG_gcd_n0.
       simpl in *.
       destruct genInG_gcd_deps0.
@@ -3567,7 +3573,7 @@ Section rules.
       rewrite /rel_over_eq /=.
       rewrite /rel_over_Oc_Ocs_genInG.
       rewrite /preds_for_genInG.
-      destruct g. simpl in *.
+      destruct genInDepsG_gen. simpl in *.
       unfold Ocs.
       destruct genInG_gen_trans0.
       destruct genInG_gti_typ0.
@@ -3584,8 +3590,7 @@ Section rules.
     (* iMod (auth_promise_list_snoc γ (zip all ps) with "auth_preds") as "$". *)
   Admitted.
 
-  Lemma token_pick γ γs (R : rel_over DS A) P (ts : trans_for n DS) t
-      `{gs : ∀ i, genInSelfG Σ Ω (DS !!! i)} :
+  Lemma token_pick γ γs (R : rel_over DS A) P (ts : trans_for n DS) t :
     huncurry R ts t →
     (∀ i, picked_out (i := genInSelfG_gen (gs i)) (γs !!! i) (hvec_lookup_fmap ts i)) -∗
     token γ γs R P -∗ |==>
@@ -3678,7 +3683,7 @@ Section rules.
       split.
       { clear -rStr.
         rewrite /rel_over_Oc_Ocs_genInG in rStr.
-        destruct g. simpl in *.
+        destruct genInDepsG_gen. simpl in *.
         unfold Ocs in *.
         destruct genInG_gen_trans0.
         eapply rel_stronger_rew.
@@ -3686,7 +3691,7 @@ Section rules.
       rewrite pred_eq pred_eq2 in pStr.
       clear -pStr.
       rewrite /pred_over_Oc_genInG in pStr.
-      destruct g. simpl in *.
+      destruct genInDepsG_gen. simpl in *.
       rewrite /Oc_genInG_eq in pStr. simpl in *.
       destruct genInG_gen_trans0. simpl in pStr.
       destruct genInG_gti_typ0.
@@ -3702,7 +3707,7 @@ Section rules.
       split.
       { clear -rStr.
         rewrite /rel_over_Oc_Ocs_genInG in rStr.
-        destruct g. simpl in *.
+        destruct genInDepsG_gen. simpl in *.
         unfold Ocs in *.
         destruct genInG_gen_trans0.
         eapply rel_stronger_rew.
@@ -3710,7 +3715,7 @@ Section rules.
       rewrite pred_eq pred_eq2 in pStr.
       rewrite /pred_over_Oc_genInG in pStr.
       clear -pStr.
-      destruct g. simpl in *.
+      destruct genInDepsG_gen. simpl in *.
       rewrite /Oc_genInG_eq in pStr. simpl in *.
       destruct genInG_gen_trans0. simpl in pStr.
       destruct genInG_gti_typ0.
@@ -3951,8 +3956,8 @@ Proof.
 Qed.
 
 Section test.
-  Context `{max_i : !inG Σ max_natR}.
-  Context `{i : !genInG Σ Ω max_natR [max_natR; max_natR] }.
+  Context `{max_i : !genInG Σ Ω max_natR inil}.
+  Context `{i : !genInDepsG Σ Ω max_natR [max_natR; max_natR] }.
 
   Definition a_rely :=
     rely (1%positive) [2%positive; 3%positive] (λ Ta Tb Ts, Ta = Ts ∧ Tb = Ts) (λ _, True).
@@ -3965,8 +3970,9 @@ Section test.
     Definition PS : preds_for _ [A; B] := [P1; P2].
     Compute (preds_hold (DS := [A; B]) PS TS).
 
+    Context `{!genInG Σ Ω A [] }.
     Context `{!genInG Σ Ω B [] }.
-    Context `{!genInG Σ Ω A [A; B] }.
+    Context `{!genInDepsG Σ Ω A [A; B] }.
 
     Lemma foo2 (γ : gname) (γs : ivec 2 gname) : True.
     Proof.
