@@ -303,7 +303,6 @@ Section dependency_relation_extra.
     (* The list of promises increases in strength. *)
     increasing_list rel all.
 
-  (* Includes [P] as well. *)
   Definition pred_prefix_list_for' (rels : list (rel_over DS A)) preds R P :=
     length rels = length preds ∧
     rel_prefix_list_for rel_weaker rels R ∧
@@ -633,7 +632,7 @@ Section omega_helpers.
   Lemma On_omega_lookup {Ω n} id gti
       (eq1 : Ω.(gc_map) id = Some2 gti) (eq2 : gti.(gcd_n) = n) :
     On Ω id = n.
-  Proof. rewrite eq1. rewrite eq2. reflexivity. Qed.
+  Proof. rewrite eq1. rewrite eq2. reflexivity. Defined.
 
   (** This lemma crucially relies on [Ω] being well-formed. *)
   Lemma Ocs_Oids_distr {Ω : gGenCmras Σ}
@@ -708,6 +707,8 @@ Instance genInG_genInSelfG {n} `{i : !genInG Σ Ω A DS} : genInSelfG Σ Ω A :=
 Lemma On_genInG {A n} {DS : ivec n cmra} `{i : !genInG Σ Ω A DS} :
   On Ω (genInG_id i) = n.
 Proof.
+  (* destruct genInG_gen_trans. *)
+  (* apply genInG_gcd_n. *)
   apply (On_omega_lookup (genInG_id i) _
           (eq_sym genInG_gen_trans) (genInG_gcd_n (genInG := i))).
 Defined.
@@ -3366,6 +3367,11 @@ Proof.
   simpl. rewrite huncurry_curry. done.
 Qed.
 
+Lemma rew_lookup_total {A : Set} n m (γs : ivec n A) i (eq : m = n) :
+  rew <- [λ n1 : nat, ivec n1 A] eq in γs !!! i =
+  γs !!! rew [fin] eq in i.
+Proof. destruct eq. done. Qed.
+
 Section rules.
   Context {n : nat} {DS : ivec n cmra}
     `{gs : ∀ (i : fin n), genInSelfG Σ Ω (DS !!! i)}
@@ -3460,7 +3466,7 @@ Section rules.
        gc_tup_rel_pred
          (gPV (●ML (True_rel :: []) ⋅ ◯ML (True_rel :: [])))
          (gPV (●ML (True_pred :: []) ⋅ ◯ML (True_pred :: [])))
-       ) (promises_different_gname prs)) as (γ pHolds) "[[[?OA] A'] B]".
+       ) (promises_different_gname prs)) as (γ pHolds) "[[[OD OA] A'] B]".
     { apply promises_different_gname_infinite. }
     { split; first split; simpl; try done.
       - rewrite ucmra_unit_left_id.
@@ -3487,6 +3493,7 @@ Section rules.
     iSplit.
     { (* Show that the promises are well-formed. *)
       iPureIntro. split; last done.
+      simpl.
       split.
       - intros pi2 elem.
         right. simpl. apply PositiveOrder.neq_sym.
@@ -3497,17 +3504,12 @@ Section rules.
         simpl.
         split. { apply promises_lookup_at_Some. done. }
         unfold promise_satisfy_dep. simpl.
-        simpl.
-        split.
-        { clear. generalize On_genInG. generalize dependent (On Ω (genInG_id genInDepsG_gen)).
-          clear. intros ?? eq. destruct eq. done. }
+        split. { apply rew_lookup_total. }
         unfold Oids.
         specialize (genInDepsG_eqs (rew On_genInG in i)) as idEqs.
         assert (Oids Ω (genInG_id genInDepsG_gen) !!! i =
           genInG_id (genInSelfG_gen (gs (rew [fin] On_genInG in i)))) as eq.
-        { rewrite rew_opp_l in idEqs.
-          rewrite -idEqs.
-          done. }
+        { rewrite rew_opp_l in idEqs. rewrite -idEqs. done. }
         exists eq.
         intros ??. simpl. clear.
         unfold lookup_fmap_Ocs.
@@ -3519,7 +3521,38 @@ Section rules.
     rewrite big_sepL_cons.
     iFrame "ownPrs".
     (* This remaining should be provable with the [B2] resource we have. *)
-  Admitted.
+    unfold own_promise_info.
+    unfold Oeq.
+    simpl.
+    clear.
+    destruct genInDepsG_gen. simpl in *.
+    unfold rel_over_Oc_Ocs_genInG.
+    unfold pred_over_Oc_genInG.
+    unfold Oc_genInG_eq.
+    unfold genInG_inG.
+    unfold On_genInG.
+    unfold Ocs. simpl.
+    destruct (On_omega_lookup genInG_id0 genInG_gti0 (eq_sym genInG_gen_trans0) genInG_gcd_n0).
+    simpl.
+    destruct genInG_gen_trans0.
+    destruct genInG_gti0. simpl in *.
+    assert (genInG_gcd_n0 = eq_refl) as ->.
+    { rewrite (proof_irrel genInG_gcd_n0 eq_refl). done. }
+    simpl in *.
+    iExists gcd_cmra_eq0.
+    iExists (True_rel :: nil).
+    iExists (True_pred :: nil).
+    iSplit; first done.
+    destruct genInG_gcd_deps0.
+    destruct genInG_gti_typ0.
+    iSplit.
+    { iPureIntro.
+      apply pred_prefix_list_for'_True. }
+    iCombine "OD B2" as "O".
+    rewrite own.own_eq /own.own_def /own.iRes_singleton.
+    rewrite !gen_cmra_eq_refl.
+    iFrame "O".
+  Qed.
 
   Lemma gen_token_split γ :
     gen_pick_out γ GTS_tok_both ⊣⊢
