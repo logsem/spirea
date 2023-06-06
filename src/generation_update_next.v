@@ -80,7 +80,7 @@ Section types.
 
   (** A relation over transformations between the cameras in [DS and [A]. *)
   Definition rel_over {n} (DS : ivec n cmra) (A : cmra) :=
-    iimpl id (cmra_to_trans <$> DS) ((A → A) → Prop).
+    iimpl (cmra_to_trans <$> DS) ((A → A) → Prop).
 
   (* An example to demonstrate [rel_over]. This results in the type:
      [(max_nat → max_nat) → (excl () → excl ()) → (nat → nat) → Prop] *)

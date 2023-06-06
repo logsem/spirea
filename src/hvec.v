@@ -87,10 +87,10 @@ Section ivec.
     | icons A As => icons A (iapp As Bs)
     end.
 
-  Fixpoint iimpl {A n} (F : A → Type) (As : ivec n A) (B : Type) : Type :=
+  Fixpoint iimpl {n} (As : ivec n Type) (B : Type) : Type :=
     match As with
     | inil => B
-    | icons A As => F A → iimpl F As B
+    | icons A As => A → iimpl As B
     end.
 
   Fixpoint ivec_to_list {A n} (As : ivec n A) : list A :=
@@ -128,8 +128,8 @@ End ivec.
 #[global] Infix "++" := iapp (at level 60, right associativity) : ivec_scope.
 
 (** A telescope inspired notation for [iimpl]. *)
-Notation "As -h> B" :=
-  (iimpl (λ A, A) As B) (at level 99, B at level 200, right associativity).
+Notation "As -ii> B" :=
+  (iimpl As B) (at level 99, B at level 200, right associativity).
 
 (* We call it [hvec] just to distinguish is from the stdpp's [hlist]. We
  * parameterize [hvec] by a type [A], a length, and a list of [A]. *)
@@ -173,19 +173,19 @@ Section hvec.
     | icons _ _ => λ xs, htails (htail xs)
     end.
 
-  Definition hinit {B} (y : B) : iimpl id inil B := y.
+  Definition hinit {B} (y : B) : iimpl inil B := y.
   Definition hlam {n x} {As : ivec n Type} {B}
-    (f : x → iimpl id As B) : iimpl id (icons x As) B := f.
+    (f : x → iimpl As B) : iimpl (icons x As) B := f.
   Global Arguments hlam _ _ _ _ _ _ / : assert.
 
-  Equations huncurry {n} {As B} (f : iimpl id As B) (xs : hvec n As) : B :=
+  Equations huncurry {n} {As B} (f : iimpl As B) (xs : hvec n As) : B :=
   | f, hnil => f
   | f, hcons xx xs => huncurry (f xx) xs.
   Global Transparent huncurry.
 
   Coercion huncurry : iimpl >-> Funclass.
 
-  Fixpoint hcurry {n} {As B} : (hvec n As → B) → iimpl id As B :=
+  Fixpoint hcurry {n} {As B} : (hvec n As → B) → iimpl As B :=
     match As with
     | inil => λ f, f []%HV
     | icons x xs => λ f, hlam (λ x, hcurry (f ∘ hcons x))
@@ -196,7 +196,7 @@ Section hvec.
   Proof. by induction xs as [|n ? As x xs IH]; simpl; rewrite ?IH. Qed.
 
   Fixpoint hcompose {n} {As : ivec n Type} {B C} (f : B → C) {struct As} :
-      iimpl id As B → iimpl id As C :=
+      iimpl As B → iimpl As C :=
     match As with
     | inil => f
     | icons A As => λ g, hlam (λ x, hcompose f (g x))
