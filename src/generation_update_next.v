@@ -480,23 +480,29 @@ End gen_cmra.
  * [R Σ i] has the proper form. Using this equality is necesarry as we
  * otherwise end up with different equalities of this form that we then do not
  * know to be equal. *)
-Record gen_cmra_data (Σ : gFunctors) (i : gid Σ) := {
+Record gen_cmra_data (Σ : gFunctors) len := {
   gcd_cmra : cmra;
   gcd_n : nat;
   gcd_deps : ivec gcd_n cmra;
-  gcd_deps_ids : ivec gcd_n (gid Σ);
-  gcd_cmra_eq : generational_cmraR gcd_cmra gcd_deps = R Σ i;
+  gcd_deps_ids : ivec gcd_n (fin len);
+  gcd_gid : gid Σ;
+  gcd_cmra_eq : generational_cmraR gcd_cmra gcd_deps = R Σ gcd_gid;
 }.
 
 Arguments gcd_cmra {_} {_}.
 Arguments gcd_n {_} {_}.
 Arguments gcd_deps {_} {_}.
 Arguments gcd_deps_ids {_} {_}.
+Arguments gcd_gid {_} {_}.
 Arguments gcd_cmra_eq {_} {_}.
+
+Definition gen_cmra_data_to_inG {Σ len} (gcd : gen_cmra_data Σ len) :
+    inG Σ (generational_cmraR gcd.(gcd_cmra) gcd.(gcd_deps)).
+Proof. econstructor. apply gcd_cmra_eq. Defined.
 
 (* NOTE: [gen_cmra_data] contains a [cmra] and hence we use [option2] as using
  * [option] would give a universe inconsistency. *)
-Definition gen_cmras_data Σ := ∀ (i : gid Σ), option2 (gen_cmra_data Σ i).
+Definition gen_cmras_data Σ len := ∀ (i : fin len), gen_cmra_data Σ len.
 
 (* Each entry in [gen_cmras_data] contain a list of cameras that should be the
  * cmras of the dependencies. This duplicated information in the sense that the
@@ -505,28 +511,28 @@ Definition gen_cmras_data Σ := ∀ (i : gid Σ), option2 (gen_cmra_data Σ i).
  * *)
 
 (* [map] is well-formed at the index [id]. *)
-Definition omega_wf_at {Σ} (map : gen_cmras_data Σ) id : Prop :=
-  match map id with
-  | None2 => True
-  | Some2 gcd =>
-      ∀ idx, ∃ gcd2,
-        let id2 := gcd.(gcd_deps_ids) !!! idx in
-        map id2 = Some2 gcd2 ∧
-        gcd2.(gcd_cmra) = gcd.(gcd_deps) !!! idx
-  end.
+Definition omega_wf_at {Σ len} (map : gen_cmras_data Σ len) id : Prop :=
+  let gcd := map id in
+  ∀ idx,
+    let id2 := gcd.(gcd_deps_ids) !!! idx in
+    (map id2).(gcd_cmra) = gcd.(gcd_deps) !!! idx.
 
 (** [map] is well-formed at all indices. *)
-Definition omega_wf {Σ} (map : gen_cmras_data Σ) : Prop :=
+Definition omega_wf {Σ len} (map : gen_cmras_data Σ len) : Prop :=
   ∀ id, omega_wf_at map id.
 
 (** [gGenCmras] contains a partial map from the type of cameras into a "set"
 of valid transformation function for that camera. *)
 Class gGenCmras (Σ : gFunctors) := {
-  gc_map : gen_cmras_data Σ;
+  gc_len : nat;
+  gc_map : gen_cmras_data Σ gc_len;
   (* Storing this wf-ness criteria for the whole map may be too strong. If this
   * gives problems we can wiggle this requirement around to somewhere else. *)
   gc_map_wf : omega_wf gc_map;
+  gc_map_gid : ∀ i1 i2, i1 ≠ i2 → (gc_map i1).(gcd_gid) ≠ (gc_map i2).(gcd_gid);
 }.
+
+Definition ggid {Σ} (Ω : gGenCmras Σ) := fin gc_len.
 
 Global Arguments gc_map {_} _.
 
@@ -539,27 +545,39 @@ Global Arguments gc_map {_} _.
  * when things type-check. *)
 
 (** Lookup the camera in [Ω] at the index [i] *)
-Notation Oc Ω i :=
-  (match Ω.(gc_map) i with
-  | Some2 gcd => gcd.(gcd_cmra)
-  | None2 => unit
-  end).
+Notation Oc Ω i := (Ω.(gc_map) i).(gcd_cmra).
+  (* (match Ω.(gc_map) i with *)
+  (* | Some2 gcd => gcd.(gcd_cmra) *)
+  (* | None2 => unit *)
+  (* end). *)
 
 (** Lookup the number of depenencies in [Ω] at the index [i] *)
-Notation On Ω i :=
-  (match Ω.(gc_map) i with
-  | Some2 gcd => gcd.(gcd_n)
-  | None2 => 0
-  end).
+Notation On Ω i := (Ω.(gc_map) i).(gcd_n).
+  (* (match Ω.(gc_map) i with *)
+  (* | Some2 gcd => gcd.(gcd_n) *)
+  (* | None2 => 0 *)
+  (* end). *)
+
+Definition Ogid {Σ} (Ω : gGenCmras Σ) (i : ggid Ω) : gid Σ :=
+  (Ω.(gc_map) i).(gcd_gid).
+
+Instance Ogid_inj {Σ} (Ω : gGenCmras Σ) : Inj eq eq (Ogid Ω).
+Proof.
+  intros j1 j2 eq.
+  destruct (decide (j1 = j2)); first done.
+  exfalso. apply: gc_map_gid; done.
+Qed.
 
 (** Lookup the dependency cameras in [Ω] at the index [i] *)
-Definition Ocs {Σ} (Ω : gGenCmras Σ) i : ivec (On Ω i) cmra := (
-  match (Ω.(gc_map) i) as o
-  return (ivec match o with | Some2 gccd => gcd_n gccd | None2 => 0 end cmra)
-  with
-  | Some2 g => gcd_deps g
-  | None2 => []%IL
-  end).
+Definition Ocs {Σ} (Ω : gGenCmras Σ) (i : ggid Ω) : ivec (On Ω i) cmra :=
+  (Ω.(gc_map) i).(gcd_deps).
+(* ( *)
+(*   match (Ω.(gc_map) i) as o *)
+(*   return (ivec match o with | Some2 gccd => gcd_n gccd | None2 => 0 end cmra) *)
+(*   with *)
+(*   | Some2 g => gcd_deps g *)
+(*   | None2 => []%IL *)
+(*   end). *)
 
 (* (** Lookup the dependency cameras in [Ω] at the index [i] *) *)
 (* Notation Ocs Ω i := ( *)
@@ -584,90 +602,50 @@ Section omega_helpers.
   (*   }. *)
 
   (** Lookup the number of depenencies in [Ω] at the index [i] *)
-  Definition Oids Ω i : ivec (On Ω i) (gid Σ) :=
-    match Ω.(gc_map) i as o return ivec (
-      match o with Some2 gcd12 => gcd12.(gcd_n) | None2 => 0 end
-    ) (gid Σ) with
-    | Some2 gcd => gcd.(gcd_deps_ids)
-    | Nil2 => inil
-    end.
+  Definition Oids Ω i : ivec (On Ω i) (ggid Ω) :=
+    (Ω.(gc_map) i).(gcd_deps_ids).
+
+    (* match Ω.(gc_map) i as o return ivec ( *)
+    (*   match o with Some2 gcd12 => gcd12.(gcd_n) | None2 => 0 end *)
+    (* ) (gid Σ) with *)
+    (* | Some2 gcd => gcd.(gcd_deps_ids) *)
+    (* | Nil2 => inil *)
+    (* end. *)
 
   (** Lookup the dependency cameras in [Ω] at the index [i] *)
   Definition Oeq Ω i :
-      option2 (generational_cmraR (Oc Ω i) (Ocs Ω i) = R Σ i) :=
-    (match Ω.(gc_map) i as o return
-      (option2
-        (generational_cmraR
-           match o with
-           | Some2 gcd => gcd_cmra gcd
-           | None2 => unitR
-           end
-           match o return
-               (ivec match o with
-                     | Some2 gcd12 => gcd_n gcd12
-                     | None2 => 0
-                     end cmra)
-           with
-           | Some2 gcd => gcd_deps gcd
-           | None2 => []
-           end = rFunctor_apply (gFunctors_lookup Σ i) (iPropO Σ)))
-    with
-    | Some2 gcd => Some2 gcd.(gcd_cmra_eq)
-    | None2 => None2
-    end).
+      generational_cmraR (Oc Ω i) (Ocs Ω i) = R Σ (Ogid Ω i) :=
+    (Ω.(gc_map) i).(gcd_cmra_eq).
 
   Lemma generational_cmraR_Oc_Ocs {Ω} {A n} {DS : ivec n cmra}
       id (eq_n : On Ω id = n) :
     Oc Ω id = A →
-    Ocs Ω id = rew <- eq_n in DS →
-    generational_cmraR A DS = generational_cmraR (Oc Ω id) (Ocs Ω id).
+    DS = rew eq_n in Ocs Ω id →
+     generational_cmraR (Oc Ω id) (Ocs Ω id) = generational_cmraR A DS.
   Proof.
-    revert eq_n.
-    rewrite /Ocs.
-    destruct (Ω.(gc_map) id); simpl.
-    - intros <- <- ->. done.
-    - intros <- <- ->. done.
-  Qed.
+    revert eq_n. intros <- -> ->. done.
+  Defined.
 
   Lemma On_omega_lookup {Ω n} id gti
-      (eq1 : Ω.(gc_map) id = Some2 gti) (eq2 : gti.(gcd_n) = n) :
+      (eq1 : Ω.(gc_map) id = gti) (eq2 : gti.(gcd_n) = n) :
     On Ω id = n.
   Proof. rewrite eq1. rewrite eq2. reflexivity. Defined.
 
-  (** This lemma crucially relies on [Ω] being well-formed. *)
+  (** This lemma relies on [Ω] being well-formed. *)
   Lemma Ocs_Oids_distr {Ω : gGenCmras Σ}
       id (idx : fin (On Ω id)) (wf : omega_wf_at Ω.(gc_map) id) :
     Ocs Ω id !!! idx = Oc Ω (Oids Ω id !!! idx).
-  Proof.
-    rewrite /omega_wf_at in wf.
-    rewrite /Ocs /Oids.
-    destruct (gc_map Ω id) eqn:eq.
-    - destruct (wf idx) as (gcd2 & -> & ->).
-      reflexivity.
-    - inversion idx.
-    (* Alternative proof, this might have worse behavior, investigate. *)
-    (* revert idx. *)
-    (* rewrite /omega_wf_at /omega_wf_at /Oids. *)
-    (* rewrite /Ocs. *)
-    (* rewrite /omega_wf_at in wf. *)
-    (* destruct (gc_map Ω id) eqn:eq. *)
-    (* - intros idx. *)
-    (*   destruct (wf idx) as (gcd2 & -> & ->). *)
-    (*   reflexivity. *)
-    (* - intros i. inversion i. *)
-  Defined.
+  Proof. rewrite -(wf idx). done. Defined.
 
 End omega_helpers.
 
 (* We define [genInG] which is our generational replacement for [inG]. *)
 
-Class genInG {n} (Σ : gFunctors) Ω (A : cmra) (DS : ivec n cmra) := GenInG {
-  genInG_id : gid Σ;
-  genInG_gti : gen_cmra_data Σ genInG_id;
-  genInG_gen_trans : Some2 genInG_gti = Ω.(gc_map) genInG_id;
-  genInG_gti_typ : A = genInG_gti.(gcd_cmra);
-  genInG_gcd_n : genInG_gti.(gcd_n) = n;
-  genInG_gcd_deps : DS = eq_rect _ (λ n, ivec n _) genInG_gti.(gcd_deps) _ genInG_gcd_n;
+Class genInG {n} Σ (Ω : gGenCmras Σ) A (DS : ivec n cmra) := GenInG {
+  genInG_id : ggid Ω;
+  genInG_gti_typ : A = Oc Ω genInG_id;
+  genInG_gcd_n : On Ω genInG_id = n;
+  genInG_gcd_deps : DS = rew [λ n, ivec n _] genInG_gcd_n in (Ω.(gc_map) genInG_id).(gcd_deps);
 }.
 
 Global Arguments genInG_id {_} {_} {_} {_} {_} _.
@@ -681,9 +659,9 @@ Proof. rewrite -eq2 -eq. destruct eqN. rewrite eqDS. reflexivity. Defined.
 (* The regular [inG] class can be derived from [genInG]. *)
 Global Instance genInG_inG {n : nat} `{i : !genInG Σ Ω A DS} :
     inG Σ (generational_cmraR A DS) := {|
-  inG_id := genInG_id (n := n) i;
+  inG_id := Ogid Ω (genInG_id (n := n) i);
   inG_prf := gen_cmra_eq genInG_gti_typ genInG_gcd_n
-                         genInG_gcd_deps genInG_gti.(gcd_cmra_eq);
+                         genInG_gcd_deps (Oeq Ω _);
 |}.
 
 (* Knowledge that [A] is a resource, with the information about its dependencies
@@ -706,12 +684,7 @@ Instance genInG_genInSelfG {n} `{i : !genInG Σ Ω A DS} : genInSelfG Σ Ω A :=
 (** Equality for [On] and [genInG]. *)
 Lemma On_genInG {A n} {DS : ivec n cmra} `{i : !genInG Σ Ω A DS} :
   On Ω (genInG_id i) = n.
-Proof.
-  (* destruct genInG_gen_trans. *)
-  (* apply genInG_gcd_n. *)
-  apply (On_omega_lookup (genInG_id i) _
-          (eq_sym genInG_gen_trans) (genInG_gcd_n (genInG := i))).
-Defined.
+Proof. apply (genInG_gcd_n (genInG := i)). Defined.
 
 (* This class ties together a [genInG] instance for one camera with [genInG]
  * instances for all of its dependencies such that those instances have the
@@ -759,89 +732,56 @@ Section omega_helpers_genInG.
 
   (** Equality for [Oc].
    * This equality is used in [build_trans_singleton]. *)
-  Lemma Oc_genInG_eq :
-    Oc Ω (genInG_id i) = A.
-  Proof.
-    rewrite -genInG_gen_trans.
-    apply (eq_sym genInG_gti_typ).
-    (* destruct i. simpl. *)
-    (* destruct (Ω.(gc_map) genInG_id0) eqn:eq; simpl. *)
-    (* - assert (Some2 genInG_gti0 = Some2 g) as [= <-]. *)
-    (*   { congruence. } *)
-    (*   done. *)
-    (* - assert (Some2 genInG_gti0 = None2) as [=]. *)
-    (*   rewrite -eq. done. *)
-  Defined.
+  Lemma Oc_genInG_eq : A = Oc Ω (genInG_id i).
+  Proof. apply genInG_gti_typ. Defined.
 
   Lemma Ocs_inG :
-    rew dependent [fun n _ => ivec n cmra] On_genInG in Ocs Ω (genInG_id i) = DS.
+    rew [λ n, ivec n cmra] On_genInG in Ocs Ω (genInG_id i) = DS.
   Proof.
     rewrite /On_genInG.
-    destruct i.
-    simpl.
-    rewrite genInG_gcd_deps0.
-    destruct (On_omega_lookup genInG_id0 genInG_gti0 _ genInG_gcd_n0).
-    destruct genInG_gti0.
-    simpl in *.
-    clear -genInG_gcd_n0 genInG_gen_trans0.
-    rewrite /Ocs.
-    destruct (gc_map Ω _).
-    2: { congruence. }
-    destruct g. simpl in *.
-    destruct genInG_gcd_n0.
-    simpl.
-    inversion genInG_gen_trans0.
-    apply inj_right_pair in H1.
-    congruence.
+    rewrite -> (genInG_gcd_deps (DS := DS)).
+    done.
   Qed.
 
-  Lemma omega_genInG_cmra_eq   :
-    generational_cmraR (gcd_cmra genInG_gti) (gcd_deps genInG_gti) =
-      generational_cmraR (Oc Ω (genInG_id i)) (Ocs Ω (genInG_id i)).
-  Proof.
-    destruct i. simpl.
-    rewrite /Ocs.
-    destruct (Ω.(gc_map) genInG_id0) eqn:eq; simpl.
-    - assert (Some2 genInG_gti0 = Some2 g) as [= <-].
-      { congruence. }
-      done.
-    - assert (Some2 genInG_gti0 = None2) as [=].
-      rewrite -eq. done.
-  Defined.
+  (* Lemma omega_genInG_cmra_eq : *)
+  (*   generational_cmraR (gcd_cmra genInG_gti) (gcd_deps genInG_gti) = *)
+  (*     generational_cmraR (Oc Ω (genInG_id i)) (Ocs Ω (genInG_id i)). *)
+  (* Proof. *)
+  (*   destruct i. simpl. *)
+  (*   rewrite /Ocs. *)
+  (*   destruct (Ω.(gc_map) genInG_id0) eqn:eq; simpl. *)
+  (*   - assert (Some2 genInG_gti0 = Some2 g) as [= <-]. *)
+  (*     { congruence. } *)
+  (*     done. *)
+  (*   - assert (Some2 genInG_gti0 = None2) as [=]. *)
+  (*     rewrite -eq. done. *)
+  (* Defined. *)
 
-  Lemma omega_genInG_cmra_eq2   :
-    generational_cmraR A DS =
-      generational_cmraR (Oc Ω (genInG_id i)) (Ocs Ω (genInG_id i)).
+  Lemma omega_genInG_cmra_eq :
+    generational_cmraR (Oc Ω (genInG_id i)) (Ocs Ω (genInG_id i)) =
+    generational_cmraR A DS.
   Proof.
-    rewrite -omega_genInG_cmra_eq.
-    destruct i. simpl in *.
-    rewrite -genInG_gti_typ0.
-    destruct genInG_gcd_n0.
-    simpl in *.
-    destruct genInG_gcd_deps0.
-    done.
+    apply (generational_cmraR_Oc_Ocs _ genInG_gcd_n).
+    - apply (eq_sym genInG_gti_typ).
+    - apply (genInG_gcd_deps (DS := DS)).
   Defined.
 
   Lemma rel_over_Oc_Ocs_genInG :
     rel_over DS A = rel_over (Ocs Ω (genInG_id _)) (Oc Ω (genInG_id _)).
   Proof.
     rewrite /Ocs.
-    destruct genInG_gen_trans.
     apply (rel_over_eq genInG_gcd_n genInG_gti_typ genInG_gcd_deps).
   Defined.
 
   Lemma pred_over_Oc_genInG : pred_over A = pred_over (Oc Ω (genInG_id _)).
   Proof.
-    apply (eq_rect _ (λ c, pred_over A = pred_over c) eq_refl _ (eq_sym Oc_genInG_eq)).
+    apply (eq_rect _ (λ c, pred_over A = pred_over c) eq_refl _ Oc_genInG_eq).
   Defined.
   (* Proof. rewrite Oc_genInG_eq. reflexivity. Defined. *)
 
   Lemma trans_for_genInG :
     trans_for n DS = trans_for (On Ω _) (Ocs Ω (genInG_id _)).
   Proof.
-    rewrite /Ocs.
-    destruct genInG_gen_trans.
-    rewrite /trans_for.
     apply (hvec_fmap_eq genInG_gcd_n).
     apply genInG_gcd_deps.
   Defined.
@@ -849,8 +789,6 @@ Section omega_helpers_genInG.
   Lemma preds_for_genInG :
     preds_for n DS = preds_for (On Ω _) (Ocs Ω (genInG_id _)).
   Proof.
-    rewrite /Ocs.
-    destruct genInG_gen_trans.
     apply (hvec_fmap_eq genInG_gcd_n).
     apply genInG_gcd_deps.
   Defined.
@@ -943,27 +881,58 @@ Section transmap.
   Definition transmap_valid transmap :=
     ∀ i γ t, transmap i !! γ = Some t → GenTrans t.
 
-  Equations build_trans_at (m : iResUR Σ) (i : gid Σ)
-      (tts : gmap gname (Oc Ω i → Oc Ω i)) : gmapUR gname (Rpre Σ i) :=
-  | m, i, tts, with Ω.(gc_map) i => {
-    | Some2 gccd =>
-        map_imap (λ γ (a : Rpre Σ i),
-          (* If the map of transmap contains a transformation then we apply the
-           * transformation otherwise we leave the element unchanged. In all
-           * cases we apply something of the form [cmra_map_transport]. *)
-          let inner_trans : gccd.(gcd_cmra) → gccd.(gcd_cmra) :=
-            default (λ a, a) (tts !! γ) in
-          let trans :=
-            cmra_map_transport gccd.(gcd_cmra_eq) (gen_cmra_trans inner_trans)
-          in Some $ map_unfold $ trans $ map_fold a
-        ) (m i)
-    | None2 => m i
-  }.
+  From stdpp Require Import finite.
+
+  Lemma finite_decidable_sig `{Finite A} (P : A → Prop) `{∀ i, Decision (P i)} :
+    {i : A | P i} + {∀ i, ¬ P i}.
+  Proof. destruct (decide (∃ i, P i)) as [?%choice | ?]; naive_solver. Qed.
+
+  Definition Omega_lookup_inverse (j : gid Σ) :
+    {i : ggid Ω | Ogid Ω i = j} + {∀ i, Ogid Ω i ≠ j}.
+  Proof. apply (finite_decidable_sig (λ i, Ogid Ω i = j)). Qed.
+
+  Lemma Omega_lookup_inverse_eq i j (eq : Ogid Ω i = j) :
+    Omega_lookup_inverse j = inleft (exist _ i eq).
+  Proof.
+    destruct (Omega_lookup_inverse j) as [(?& eq')|oo].
+    - f_equiv.
+      simplify_eq.
+      assert (x = i) as ->.
+      { apply Ogid_inj. done. }
+      assert (eq' = eq_refl) as ->.
+      { rewrite (proof_irrel eq' eq_refl). done. }
+      done.
+    - exfalso. apply (oo i). done.
+  Qed.
+
+  Definition build_trans_at (m : iResUR Σ) (i : ggid Ω)
+      (tts : gmap gname (Oc Ω i → Oc Ω i)) : gmapUR gname (Rpre Σ (Ogid Ω i)) :=
+    let gccd := Ω.(gc_map) i in
+    map_imap (λ γ (a : Rpre Σ gccd.(gcd_gid)),
+      (* If the map of transmap contains a transformation then we apply the
+       * transformation otherwise we leave the element unchanged. In all
+       * cases we apply something of the form [cmra_map_transport]. *)
+      let inner_trans : gccd.(gcd_cmra) → gccd.(gcd_cmra) :=
+        default (λ a, a) (tts !! γ) in
+      let trans :=
+        cmra_map_transport gccd.(gcd_cmra_eq) (gen_cmra_trans inner_trans)
+      in Some $ map_unfold $ trans $ map_fold a
+    ) (m gccd.(gcd_gid)).
 
   (** This is a key definition for [TransMap]. It builds a global generational
    * transformation based on the transformations in [transmap]. *)
   Definition build_trans transmap : (iResUR Σ → iResUR Σ) :=
-    λ (m : iResUR Σ), λ (i : gid Σ), build_trans_at m i (transmap i).
+    λ (m : iResUR Σ), λ (j : gid Σ),
+      match Omega_lookup_inverse j with
+      | inleft (exist _ i eq) =>
+        rew [λ a, gmapUR gname (Rpre Σ a)] eq in build_trans_at m i (transmap i)
+      | inright _ => m j
+      end.
+
+  (* (** This is a key definition for [TransMap]. It builds a global generational *)
+  (*  * transformation based on the transformations in [transmap]. *) *)
+  (* Definition build_trans transmap : (iResUR Σ → iResUR Σ) := *)
+  (*   λ (m : iResUR Σ), λ (i : gid Σ), build_trans_at m i (transmap i). *)
 
   Lemma core_Some_pcore {A : cmra} (a : A) : core (Some a) = pcore a.
   Proof. done. Qed.
@@ -979,6 +948,8 @@ Section transmap.
     - rewrite /Proper.
       intros ??? eq i γ.
       specialize (eq i γ).
+  Admitted.
+  (*
       rewrite 2!build_trans_at_equation_1.
       rewrite /build_trans_at_clause_1.
       specialize (transmapGT i).
@@ -1076,43 +1047,52 @@ Section transmap.
         rewrite -cmra_morphism_op.
         done.
   Qed.
+   *)
 
   Lemma build_trans_at_singleton_neq id1 id2 mm pick :
-    id1 ≠ id2 →
+    id1 ≠ (Ogid Ω id2) →
     build_trans_at (discrete_fun_singleton id1 mm) id2 pick ≡ ε.
   Proof.
     intros neq.
-    rewrite build_trans_at_equation_1.
-    rewrite /build_trans_at_clause_1.
-    destruct (gc_map Ω id2).
-    - rewrite discrete_fun_lookup_singleton_ne; last done.
-      rewrite map_imap_empty.
-      done.
-    - rewrite discrete_fun_lookup_singleton_ne; last done.
-      done.
+    unfold build_trans_at.
+    rewrite discrete_fun_lookup_singleton_ne; last done.
+    rewrite map_imap_empty.
+    done.
   Qed.
 
   Lemma build_trans_singleton_alt picks id γ
       (a : generational_cmraR (Oc Ω id) (Ocs Ω id)) eqIn (V : transmap_valid picks) pps :
-    Oeq Ω id = Some2 eqIn →
+    Oeq Ω id = eqIn →
     picks id = pps →
-    build_trans picks (discrete_fun_singleton id {[
+    build_trans picks (discrete_fun_singleton (Ogid Ω id) {[
       γ := map_unfold (cmra_transport eqIn a)
       ]}) ≡
-      discrete_fun_singleton id {[
+      discrete_fun_singleton (Ogid Ω id) {[
         γ := map_unfold (cmra_transport eqIn (gen_cmra_trans
         (default (λ a, a) (picks id !! γ)) a))
       ]}.
   Proof.
     rewrite /build_trans. simpl.
-    intros eqLook picksLook id2.
+    intros eqLook picksLook j2.
     rewrite /own.iRes_singleton.
-    destruct (decide (id2 = id)) as [eq|neq].
+    destruct (decide (Ogid Ω id = j2)) as [eq|neq].
     - intros γ2.
-      rewrite build_trans_at_equation_1.
-      rewrite eq.
-      rewrite picksLook.
-      rewrite /build_trans_at_clause_1.
+      rewrite (Omega_lookup_inverse_eq id _ eq).
+      rewrite picksLook /=.
+      unfold build_trans_at.
+      rewrite <- eq.
+      rewrite 2!discrete_fun_lookup_singleton.
+      destruct eq. simpl.
+      rewrite map_lookup_imap.
+      destruct (decide (γ = γ2)) as [<- | neqγ].
+      2: { rewrite !lookup_singleton_ne; done. }
+      rewrite 2!lookup_singleton.
+      simpl.
+      f_equiv.
+      f_equiv.
+      rewrite -eqLook.
+      unfold Oeq.
+      rewrite -cmra_map_transport_cmra_transport.
       assert (∃ bingo, pps !! γ = bingo ∧ (bingo = None ∨ (∃ t, bingo = Some t ∧ GenTrans t)))
           as (mt & ppsLook & disj).
       { exists (pps !! γ).
@@ -1120,40 +1100,15 @@ Section transmap.
         destruct (pps !! γ) eqn:ppsLook. 2: { left. done. }
         right. eexists _. split; try done.
         eapply V. rewrite picksLook. done. }
-      clear V picksLook picks.
-      rewrite /Oc_genInG_eq.
-      clear id2 eq.
-      rewrite /Oeq in eqLook.
-      unfold Ocs in *.
-      (* NOTE: This destruct only works when the circumstances are exactly
-       * right, the stars align, and the weather is good. *)
-      (* destruct genInG_gen_trans. *)
-      destruct (Ω.(gc_map) id) eqn:omegaLook.
-      2: { congruence. }
-      assert (gcd_cmra_eq g = eqIn) as <- by congruence.
-      rewrite map_lookup_imap.
-      rewrite 2!discrete_fun_lookup_singleton.
-      destruct (decide (γ = γ2)) as [<- | neqγ].
-      2: { rewrite !lookup_singleton_ne; done. }
-      rewrite 2!lookup_singleton.
-      simpl.
-      f_equiv.
-      f_equiv.
       rewrite ppsLook. simpl.
-      rewrite /own.inG_unfold.
       destruct disj as [-> | (t & -> & GT)].
-      + rewrite map_fold_unfold.
-        (* destruct i. simpl in *. *)
-        simpl.
-        rewrite /genInG_inG. simpl.
-        clear.
-        rewrite cmra_map_transport_cmra_transport.
-        done.
-      + rewrite map_fold_unfold.
-        rewrite cmra_map_transport_cmra_transport.
-        done.
+      + simpl. rewrite map_fold_unfold. done.
+      + simpl. rewrite map_fold_unfold. done.
     - simpl.
       rewrite discrete_fun_lookup_singleton_ne; last done.
+      rewrite discrete_fun_lookup_singleton_ne; last done.
+      destruct (Omega_lookup_inverse j2) as [[? eq]|]; last done.
+      destruct eq. simpl.
       apply build_trans_at_singleton_neq.
       done.
   Qed.
@@ -1163,22 +1118,38 @@ Section transmap.
     picks (genInG_id i) = pps →
     build_trans picks (own.iRes_singleton γ (a : generational_cmraR A DS)) ≡
       own.iRes_singleton γ (
-        gen_cmra_trans (cmra_map_transport Oc_genInG_eq (default (λ a, a) (pps !! γ) )) a
+        gen_cmra_trans (cmra_map_transport (eq_sym Oc_genInG_eq) (default (λ a, a) (pps !! γ))) a
       ).
   Proof.
-    rewrite /build_trans. simpl.
-    intros picksLook id.
-    rewrite /own.iRes_singleton.
+    (* rewrite /build_trans. simpl. *)
+    intros picksLook j2.
+    (* rewrite /own.iRes_singleton. *)
+
     (* TODO: Prove this lemma using the lemma above *)
     (* rewrite /own.inG_unfold. *)
     (* fold (@map_unfold Σ (inG_id genInG_inG)). *)
     (* rewrite (build_trans_singleton_alt picks). *)
-    destruct (decide (id = genInG_id i)) as [eq|neq].
+
+    rewrite /build_trans. simpl.
+    rewrite /own.iRes_singleton.
+    destruct (decide (Ogid Ω (genInG_id i) = j2)) as [eq|neq].
     - intros γ2.
-      rewrite build_trans_at_equation_1.
-      rewrite eq.
-      rewrite picksLook.
-      rewrite /build_trans_at_clause_1.
+      rewrite (Omega_lookup_inverse_eq _ _ eq).
+      rewrite picksLook /=.
+      unfold build_trans_at.
+      rewrite <- eq.
+      rewrite 2!discrete_fun_lookup_singleton.
+      destruct eq. simpl.
+      rewrite map_lookup_imap.
+      destruct (decide (γ = γ2)) as [<- | neqγ].
+      2: { rewrite !lookup_singleton_ne; done. }
+      rewrite 2!lookup_singleton.
+      simpl.
+      f_equiv.
+      f_equiv.
+      (* rewrite -eqLook. *)
+      unfold Oeq.
+      rewrite -cmra_map_transport_cmra_transport.
       assert (∃ bingo, pps !! γ = bingo ∧ (bingo = None ∨ (∃ t, bingo = Some t ∧ GenTrans t)))
           as (mt & ppsLook & disj).
       { exists (pps !! γ).
@@ -1186,55 +1157,29 @@ Section transmap.
         destruct (pps !! γ) eqn:ppsLook. 2: { left. done. }
         right. eexists _. split; try done.
         eapply V. rewrite picksLook. done. }
-      clear V picksLook picks.
-      rewrite /Oc_genInG_eq.
-      (* NOTE: This destruct only works when the circumstances are exactly right. *)
-      destruct genInG_gen_trans.
-      (* destruct (Ω.(gc_map) (genInG_id i)) eqn:omegaLook. *)
-      (* 2: { rewrite genInG_gen_trans in omegaLook. congruence. } *)
-      rewrite map_lookup_imap.
-      rewrite 2!discrete_fun_lookup_singleton.
-      destruct (decide (γ = γ2)) as [<- | neqγ].
-      2: { rewrite !lookup_singleton_ne; done. }
-      rewrite 2!lookup_singleton.
-      simpl.
-      f_equiv.
-      f_equiv.
       rewrite ppsLook. simpl.
       rewrite /own.inG_unfold.
+      rewrite cmra_map_transport_cmra_transport.
+      rewrite /Oc_genInG_eq.
+      destruct i. simpl in *. clear -disj.
+      unfold Ocs. unfold genInG_inG. unfold Oeq. unfold Ogid. simpl.
+      destruct (gc_map Ω genInG_id0). simpl in *.
+      destruct genInG_gcd_n0. simpl.
+      destruct genInG_gti_typ0. simpl in *.
+      destruct genInG_gcd_deps0.
+      rewrite gen_cmra_eq_refl.
       destruct disj as [-> | (t & -> & GT)].
-      + rewrite map_fold_unfold.
-        destruct i. simpl in *.
-        simpl.
-        rewrite /genInG_inG. simpl.
-        clear.
-        destruct genInG_gti0. simpl in *.
-        clear.
-        simpl.
-        destruct genInG_gcd_n0. simpl.
-        destruct genInG_gti_typ0. simpl.
-        simpl in genInG_gcd_deps0.
-        destruct genInG_gcd_deps0.
-        rewrite gen_cmra_eq_refl.
+      + simpl. rewrite map_fold_unfold.
         rewrite cmra_map_transport_cmra_transport.
-        f_equiv.
-      + rewrite map_fold_unfold.
-        destruct i. simpl in *.
-        simpl.
-        rewrite /genInG_inG. simpl.
-        clear.
-        destruct genInG_gti0. simpl in *.
-        clear.
-        simpl.
-        destruct genInG_gcd_n0. simpl.
-        destruct genInG_gti_typ0. simpl.
-        simpl in genInG_gcd_deps0.
-        destruct genInG_gcd_deps0.
-        rewrite gen_cmra_eq_refl.
+        done.
+      + simpl. rewrite map_fold_unfold.
         rewrite cmra_map_transport_cmra_transport.
-        f_equiv.
+        done.
     - simpl.
       rewrite discrete_fun_lookup_singleton_ne; last done.
+      rewrite discrete_fun_lookup_singleton_ne; last done.
+      destruct (Omega_lookup_inverse j2) as [[? eq]|]; last done.
+      destruct eq. simpl.
       apply build_trans_at_singleton_neq.
       done.
   Qed.
@@ -1333,7 +1278,7 @@ Record promise_info_at {Σ} (Ω : gGenCmras Σ) id := MkPia {
 
 Record promise_info {Σ} (Ω : gGenCmras Σ) := MkPi {
   (* We need to know the specific ghost location that this promise is about *)
-  pi_id : gid Σ; (* The index of the RA in the global RA *)
+  pi_id : ggid Ω; (* The index of the RA in the global RA *)
   pi_γ : gname; (* Ghost name for the promise *)
   (* With this coercion the inner [promise_info_at] record behaves as if it was
    * included in [promise_info] directly. *)
@@ -1551,7 +1496,7 @@ Section promise_info.
      We must also be able to combine to lists of promises.
   *)
 
-  Lemma path_equal_or_different (id1 id2 : gid Σ) (γ1 γ2 : gname) :
+  Lemma path_equal_or_different {n} (id1 id2 : fin n) (γ1 γ2 : gname) :
     id1 = id2 ∧ γ1 = γ2 ∨ (id1 ≠ id2 ∨ γ1 ≠ γ2).
   Proof.
     destruct (decide (id1 = id2)) as [eq|?]; last naive_solver.
@@ -1763,7 +1708,7 @@ Section promise_info.
         promise_stronger pia1 pia2.
 
   (** For every promise in [prsR] there is a stronger promise in [prs1]. *)
-  Definition promise_list_restrict_stronger prs1 prsR (restrict : list (gid Σ * gname)) : Prop :=
+  Definition promise_list_restrict_stronger prs1 prsR (restrict : list (ggid Ω * gname)) : Prop :=
     ∀ id γ pia2,
       (id, γ) ∈ restrict →
       promises_lookup_at prsR id γ = Some pia2 →
@@ -1787,6 +1732,10 @@ Section promise_info.
     y ∈ (x :: xs) ↔ y ∈ xs.
   Proof. intros elm. rewrite elem_of_cons. naive_solver. Qed.
 
+  Lemma elem_of_cons_ne {A} x y (l : list A) :
+    x ≠ y → x ∈ cons y l → x ∈ l.
+  Proof. intros neq. inversion 1; try congruence. Qed.
+
   Lemma promise_list_restrict_stronger_cons id γ prs3 pia3 prs1 restrict :
     promise_list_overlap_stronger prs3 prs1 →
     promises_lookup_at prs3 id γ = Some pia3 →
@@ -1798,7 +1747,7 @@ Section promise_info.
     - intros _ look2. exists pia3. split; first done.
       eapply lap; done.
     - intros elm. apply res.
-      inversion elm; congruence.
+      eapply elem_of_cons_ne; done.
   Qed.
 
   Definition promises_is_valid_restricted_merge prsM prs1 prsR restrict :=
@@ -1939,31 +1888,31 @@ Section promise_info.
       exists piSat. naive_solver.
   Qed.
 
-  (* Test what it takes to be able to do inversion on the number of
-   * dependencies of [pi] when proving a goal that contains
-   * [promises_has_deps]. *)
-  Lemma promise_has_deps_test_destruct pi prs3' wf :
-    promises_has_deps pi prs3' wf.
-  Proof.
-    rewrite /promises_has_deps.
-    rewrite /promise_satisfy_dep.
-    destruct pi. simpl.
-    destruct pi_at0. simpl in *.
-    rewrite /lookup_fmap_Ocs.
-    rewrite /Ocs_Oids_distr.
-    unfold Ocs in *.
-    unfold Oids in *.
-    unfold omega_wf_at in wf.
-    simpl in *.
-    destruct (Ω.(gc_map) pi_id0).
-    - simpl.
-      destruct g; simpl in *.
-      clear gcd_cmra_eq0.
-      induction (gcd_n0); simpl in *.
-      * inversion idx.
-      * admit.
-    - inversion idx.
-  Abort.
+  (* (* Test what it takes to be able to do inversion on the number of *)
+  (*  * dependencies of [pi] when proving a goal that contains *)
+  (*  * [promises_has_deps]. *) *)
+  (* Lemma promise_has_deps_test_destruct pi prs3' wf : *)
+  (*   promises_has_deps pi prs3' wf. *)
+  (* Proof. *)
+  (*   rewrite /promises_has_deps. *)
+  (*   rewrite /promise_satisfy_dep. *)
+  (*   destruct pi. simpl. *)
+  (*   destruct pi_at0. simpl in *. *)
+  (*   rewrite /lookup_fmap_Ocs. *)
+  (*   rewrite /Ocs_Oids_distr. *)
+  (*   unfold Ocs in *. *)
+  (*   unfold Oids in *. *)
+  (*   unfold omega_wf_at in wf. *)
+  (*   simpl in *. *)
+  (*   destruct (Ω.(gc_map) pi_id0). *)
+  (*   - simpl. *)
+  (*     destruct g; simpl in *. *)
+  (*     clear gcd_cmra_eq0. *)
+  (*     induction (gcd_n0); simpl in *. *)
+  (*     * inversion idx. *)
+  (*     * admit. *)
+  (*   - inversion idx. *)
+  (* Abort. *)
 
   (* This test serves to demonstrate how destructuring [gc_map Ω id] with some
    * thing of the form [owf id] present in the proof fails. The [generalize
@@ -2062,81 +2011,78 @@ Section promise_info.
       (* clear wfEq. *)
       (* After all the unfolding we can finally carry out this destruct. *)
       destruct (gc_map Ω id).
-      + destruct g; simpl in *.
-        clear -prs3 notIn vm wf1 wf2 wf3 IH lap lem satisfyingPromiseInEither.
-        induction (gcd_n0).
-        { (* There are no dependencies. *)
-          exists prs3.
-          split_and!; try done.
-          intros idx. inversion idx. }
-        (* There is some number of dependencies an all the lists related to the
-         * dependencies must be of the [cons] form. *)
-        dependent elimination gcd_deps0 as [icons d_c deps'].
-        dependent elimination gcd_deps_ids0 as [icons d_id deps_ids'].
-        dependent elimination pi_deps_γs0 as [icons d_γ deps_γs'].
-        dependent elimination pi_deps_preds0 as [hcons piaIns_pred deps_preds'].
-        dependent elimination pi_deps_preds1 as [hcons pia_pred prec_deps_preds'].
-        (* piaIns_pred should be stronger than pia_pred *)
-        (* Insert all but the first dependency using the inner induction hypothesis. *)
-        specialize (IHn deps' deps_ids' prec_deps_preds' deps_γs' deps_preds' (λ idx, wf (FS idx))) as (prs3' & ? & sub & hasDeps & vm2).
-        { intros idx.
-          specialize (satisfyingPromiseInEither (FS idx)) as (piSat & ?).
-          exists piSat. done. }
-          (* exists piSat, (λ i, wf (FS i)). *)
-          (* done. } *)
-        { intros idx.
-          specialize (lem (FS idx)) as (j & pi2 & wf0 & ? & ? & ? & (? & rest)).
-          exists j, pi2, (λ i, wf0 (FS i)).
-          rewrite hvec_lookup_fmap_equation_3 in rest.
-          split_and!; naive_solver. }
-        specialize (lem 0%fin) as
-          (j & piD & ? & le & look2 & lookDeps & idEq & _).
-        (* [piD] is the dependency found in [prsL]. *)
-        (* Insert the dependency into [prs3] by using the induction hypothesis. *)
-        specialize (IH j le _ piD.(pi_at) vm2 look2 lap wf1 wf2 H)
-          as (prs3'' & piaD & ? & ? & sub2 & ?).
-        specialize (satisfyingPromiseInEither 0%fin) as (piSat & inEither & ? & (idEq' & stronger')).
-        (* [piaD] is the promise that we insert to satisfy the first dependency. *)
-        (* What is the relationship between [piaD] and the dependency
-         * information stored in [piaIns]? *)
-          (* piaIns is from prsL or prsR, one of these have a promise that satisfy *)
-        exists prs3''.
-        split; first done.
-        split. { intros ??. apply sub2. apply sub. done. }
-        split; last done.
-        (* We need to show that [prs3''] satisfies all the dependency
-         * predicates of [piaIns]. *)
-        intros idx.
-        dependent elimination idx as [FS idx|F0]; last first.
-        * specialize (hasDeps idx) as (pSat & elm & deps & (eq & predStronger)).
-          exists pSat.
-          split. { apply sub2. done. }
-          split; first done.
-          exists eq.
-          rewrite hvec_lookup_fmap_equation_3.
-          clear -predStronger.
-          apply predStronger.
-        * exists (MkPi piD.(pi_id) piD.(pi_γ) piaD).
-          split. { apply promises_lookup_at_Some. done. }
-          split; first done.
-          exists idEq.
-          simpl.
-          rewrite hvec_lookup_fmap_equation_2.
-          rewrite hvec_lookup_fmap_equation_2 in stronger'.
-          destruct piD, piSat. simpl in *. subst.
-          assert (pred_stronger (pi_pred piaD) (pi_pred pi_at1)).
-          { apply promise_stronger_pred_stronger.
-            eapply (promises_is_valid_restricted_merge_stronger); done. }
-          eapply pred_stronger_trans; first apply H3.
-          simpl in *.
-          destruct (wf 0%fin) as (bingo & bongo & bango).
-          (* destruct (wfAt4 0%fin) as (bingo2 & bongo2 & bango2). *)
-          clear -stronger'.
-          apply stronger'.
-      + simpl.
-        eexists _. split; first apply wf3.
+      simpl in *.
+      clear -prs3 notIn vm wf1 wf2 wf3 IH lap lem satisfyingPromiseInEither.
+      induction (gcd_n0).
+      { (* There are no dependencies. *)
+        exists prs3.
         split_and!; try done.
         intros idx. inversion idx. }
+      (* There is some number of dependencies an all the lists related to the
+       * dependencies must be of the [cons] form. *)
+      dependent elimination gcd_deps0 as [icons d_c deps'].
+      dependent elimination gcd_deps_ids0 as [icons d_id deps_ids'].
+      dependent elimination pi_deps_γs0 as [icons d_γ deps_γs'].
+      dependent elimination pi_deps_preds0 as [hcons piaIns_pred deps_preds'].
+      dependent elimination pi_deps_preds1 as [hcons pia_pred prec_deps_preds'].
+      (* piaIns_pred should be stronger than pia_pred *)
+      (* Insert all but the first dependency using the inner induction hypothesis. *)
+      specialize (IHn deps' deps_ids' prec_deps_preds' deps_γs' deps_preds' (λ idx, wf (FS idx))) as (prs3' & ? & sub & hasDeps & vm2).
+      { intros idx.
+        specialize (satisfyingPromiseInEither (FS idx)) as (piSat & ?).
+        exists piSat. done. }
+        (* exists piSat, (λ i, wf (FS i)). *)
+        (* done. } *)
+      { intros idx.
+        specialize (lem (FS idx)) as (j & pi2 & wf0 & ? & ? & ? & (? & rest)).
+        exists j, pi2, (λ i, wf0 (FS i)).
+        rewrite hvec_lookup_fmap_equation_3 in rest.
+        split_and!; naive_solver. }
+      specialize (lem 0%fin) as
+        (j & piD & ? & le & look2 & lookDeps & idEq & _).
+      (* [piD] is the dependency found in [prsL]. *)
+      (* Insert the dependency into [prs3] by using the induction hypothesis. *)
+      specialize (IH j le _ piD.(pi_at) vm2 look2 lap wf1 wf2 H)
+        as (prs3'' & piaD & ? & ? & sub2 & ?).
+      specialize (satisfyingPromiseInEither 0%fin) as (piSat & inEither & ? & (idEq' & stronger')).
+      (* [piaD] is the promise that we insert to satisfy the first dependency. *)
+      (* What is the relationship between [piaD] and the dependency
+       * information stored in [piaIns]? *)
+        (* piaIns is from prsL or prsR, one of these have a promise that satisfy *)
+      exists prs3''.
+      split; first done.
+      split. { intros ??. apply sub2. apply sub. done. }
+      split; last done.
+      (* We need to show that [prs3''] satisfies all the dependency
+       * predicates of [piaIns]. *)
+      intros idx.
+      dependent elimination idx as [FS idx|F0]; last first.
+      * specialize (hasDeps idx) as (pSat & elm & deps & (eq & predStronger)).
+        exists pSat.
+        split. { apply sub2. done. }
+        split; first done.
+        exists eq.
+        rewrite hvec_lookup_fmap_equation_3.
+        clear -predStronger.
+        apply predStronger.
+      * exists (MkPi piD.(pi_id) piD.(pi_γ) piaD).
+        split. { apply promises_lookup_at_Some. done. }
+        split; first done.
+        exists idEq.
+        simpl.
+        rewrite hvec_lookup_fmap_equation_2.
+        rewrite hvec_lookup_fmap_equation_2 in stronger'.
+        destruct piD, piSat. simpl in *. subst.
+        assert (pred_stronger (pi_pred piaD) (pi_pred pi_at1)).
+        { apply promise_stronger_pred_stronger.
+          eapply (promises_is_valid_restricted_merge_stronger); done. }
+        eapply pred_stronger_trans; first apply H3.
+        simpl in *.
+        (* specialize (wf 0%fin). *)
+        (* destruct (wf 0%fin) as (bingo & bongo & bango). *)
+        (* destruct (wfAt4 0%fin) as (bingo2 & bongo2 & bango2). *)
+        clear -stronger'.
+        apply stronger'. }
     (* end of assert *)
     simpl in res.
     destruct res as (prs3' & ? & sub2 & ? & ?).
@@ -2208,7 +2154,7 @@ Section promise_info.
       naive_solver.
   Qed.
 
-  Lemma merge_promises_restriced owf prsL prsR (restrict : list (gid Σ * gname)) :
+  Lemma merge_promises_restriced owf prsL prsR (restrict : list (ggid Ω * gname)) :
     promises_overlap_pred prsL prsR →
     promises_wf owf prsL →
     promises_wf owf prsR →
@@ -2338,7 +2284,7 @@ Section transmap.
 
   (** The vector [trans] contains at every index the transition for the
    * corresponding dependency in [p] from [transmap] *)
-  Definition trans_at_deps transmap (i : gid Σ) (γs : ivec (On Ω i) gname)
+  Definition trans_at_deps transmap (i : ggid Ω) (γs : ivec (On Ω i) gname)
       (ts : hvec (On Ω i) (cmra_to_trans <$> Ocs Ω i)) :=
     ∀ idx,
       let id := Oids Ω i !!! idx in
@@ -2426,8 +2372,8 @@ Section transmap.
       apply (H di).
   Qed.
 
-  Equations transmap_insert_go transmap (id : gid Σ) (γ : gname) (pick : Oc Ω id → Oc Ω id)
-    (id' : gid Σ) : gmap gname (Oc Ω id' → Oc Ω id') :=
+  Equations transmap_insert_go transmap (id : ggid Ω) (γ : gname) (pick : Oc Ω id → Oc Ω id)
+    (id' : ggid Ω) : gmap gname (Oc Ω id' → Oc Ω id') :=
   | transmap, _, γ, pick, id', with decide (id = id') => {
     | left eq_refl => <[ γ := pick ]>(transmap id')
     | right _ => transmap id'
@@ -2643,7 +2589,7 @@ Section transmap.
     ∃ (transmap : TransMap _), transmap_resp_promises transmap promises.
   Proof.
     intros WF.
-    edestruct (transmap_promises_to_maps (λ i : gid Σ, ∅)) as [m [resp a]].
+    edestruct (transmap_promises_to_maps (λ i : ggid Ω, ∅)) as [m [resp a]].
     2: { done. }
     - intros ???. right. done.
     - exists m. apply resp.
@@ -2669,24 +2615,35 @@ Section next_gen_definition.
    * [picks]. We need to know that a picked transformation satisfies the most
    * recent/strongest promise. We thus need the authorative part of the
    * promises. *)
-  Definition res_for_picks picks (m : iResUR Σ) :=
-    ∀ i,
-      dom (picks i) ≡ dom (m i) ∧
-      ∀ γ (a : Rpre Σ i),
-        m i !! γ = Some a →
-        ∃ eq (ts : hvec (On Ω i) (cmra_to_trans <$> Ocs Ω i))
-            (γs : ivec (On Ω i) gname) (t : Oc Ω i → Oc Ω i) Ps R Rs,
-          Oeq Ω i = Some2 eq ∧
-          trans_at_deps picks i γs ts ∧
-          huncurry R ts t ∧
-          picks i !! γ = Some t ∧
-          rel_prefix_list_for rel_weaker Rs R ∧
-          a ≡ map_unfold (cmra_transport eq
-            (ε, GTS_tok_gen_shot t, ε, Some (to_agree (ivec_to_list γs)),
-              gV (●ML□ Rs), gV (●ML□ Ps))).
+  (* Definition res_for_picks picks (m : iResUR Σ) := *)
+  (*   ∀ i, *)
+  (*     dom (picks i) ≡ dom (m i) ∧ *)
+  (*     ∀ γ (a : Rpre Σ i), *)
+  (*       m i !! γ = Some a → *)
+  (*       ∃ eq (ts : hvec (On Ω i) (cmra_to_trans <$> Ocs Ω i)) *)
+  (*           (γs : ivec (On Ω i) gname) (t : Oc Ω i → Oc Ω i) Ps R Rs, *)
+  (*         Oeq Ω i = Some2 eq ∧ *)
+  (*         trans_at_deps picks i γs ts ∧ *)
+  (*         huncurry R ts t ∧ *)
+  (*         picks i !! γ = Some t ∧ *)
+  (*         rel_prefix_list_for rel_weaker Rs R ∧ *)
+  (*         a ≡ map_unfold (cmra_transport eq *)
+  (*           (ε, GTS_tok_gen_shot t, ε, Some (to_agree (ivec_to_list γs)), *)
+  (*             gV (●ML□ Rs), gV (●ML□ Ps))). *)
 
   Definition own_picks picks : iProp Σ :=
-    ∃ m, uPred_ownM m ∗ ⌜ res_for_picks picks m ⌝.
+    ∀ (i : ggid Ω) γ t,
+      ⌜ picks i !! γ = Some t ⌝ -∗
+      ∃ (ts : hvec (On Ω i) (cmra_to_trans <$> Ocs Ω i))
+          (γs : ivec (On Ω i) gname) Ps R Rs,
+        let ing := gen_cmra_data_to_inG (Ω.(gc_map) i) in
+        ⌜ trans_at_deps picks i γs ts ⌝ ∧
+        ⌜ huncurry R ts t ⌝ ∧
+        ⌜ rel_prefix_list_for rel_weaker Rs R ⌝ ∧
+        own γ (
+          (ε, GTS_tok_gen_shot t, ε, Some (to_agree (ivec_to_list γs)),
+           gV (●ML□ Rs), gV (●ML□ Ps)
+          ) : generational_cmraR _ _).
 
   (* This could be generalized to abritrary camera morphisms and upstreamed *)
   Instance cmra_transport_coreid i (a : R Σ i) :
@@ -2700,16 +2657,20 @@ Section next_gen_definition.
   Qed.
 
   Definition own_promise_info (pi : promise_info Ω) : iProp Σ :=
-    ∃ eq Rs (Ps : list (pred_over (Oc Ω pi.(pi_id)))),
-      ⌜ Oeq Ω pi.(pi_id) = Some2 eq ⌝ ∧
+    ∃ Rs (Ps : list (pred_over (Oc Ω pi.(pi_id)))),
       ⌜ pred_prefix_list_for' Rs Ps pi.(pi_rel) pi.(pi_pred) ⌝ ∧
-      uPred_ownM (discrete_fun_singleton pi.(pi_id)
-        {[ pi.(pi_γ) := map_unfold
-          (cmra_transport eq (
+      let ing := gen_cmra_data_to_inG (Ω.(gc_map) pi.(pi_id)) in
+      own pi.(pi_γ) ((
             ε, ε, ε, Some (to_agree (ivec_to_list pi.(pi_deps_γs))),
             gPV (◯ML Rs), gPV (◯ML Ps)
-          )) ]}
-      ).
+          ) : generational_cmraR _ _).
+      (* uPred_ownM (discrete_fun_singleton (Ogid Ω pi.(pi_id)) *)
+      (*   {[ pi.(pi_γ) := map_unfold *)
+      (*     (cmra_transport (Oeq Ω pi.(pi_id)) ( *)
+      (*       ε, ε, ε, Some (to_agree (ivec_to_list pi.(pi_deps_γs))), *)
+      (*       gPV (◯ML Rs), gPV (◯ML Ps) *)
+      (*     )) ]} *)
+      (* ). *)
 
   #[global]
   Instance own_promise_info_persistent pi : Persistent (own_promise_info pi).
@@ -2742,52 +2703,27 @@ Section own_picks_properties.
   Context `{Ω : gGenCmras Σ}.
   Implicit Types (picks : TransMap Ω).
 
-  Lemma tokens_for_picks_agree_overlap picks1 picks2 m1 m2 :
-    res_for_picks picks1 m1 →
-    res_for_picks picks2 m2 →
-    uPred_ownM m1 -∗
-    uPred_ownM m2 -∗
+  Lemma tokens_for_picks_agree_overlap picks1 picks2 :
+    own_picks picks1 -∗
+    own_picks picks2 -∗
     ⌜ ∀ i, map_agree_overlap (picks1 i) (picks2 i) ⌝.
   Proof.
-    iIntros (t1 t2) "m1 m2". iIntros (i).
+    iIntros "m1 m2". iIntros (i).
     iIntros (γ a1 a2 look1 look2).
-    specialize (t1 i) as (domEq1 & m1look).
-    assert (is_Some (m1 i !! γ)) as [? m1Look].
-    { rewrite -elem_of_dom -domEq1 elem_of_dom. done. }
-    edestruct m1look as (gti1 & t1 & ? & ? & ? & ? & ? & ? & ? & ? & picks1Look & ? & eq1);
-      first done.
-    specialize (t2 i) as (domEq2 & m2look).
-    assert (is_Some (m2 i !! γ)) as [? m2Look].
-    { rewrite -elem_of_dom -domEq2 elem_of_dom. done. }
-    edestruct m2look as (gti2 & t2 & ? & ? & ? & ? & ? & ? & ? & ? & picks2Look & ? & eq2);
-      first done.
-    clear m1look m2look.
-    assert (gti1 = gti2) as -> by congruence.
-    iCombine "m1 m2" as "m".
-    iDestruct (ownM_valid with "m") as "#Hv".
-    rewrite discrete_fun_validI.
-    setoid_rewrite gmap_validI.
-    iSpecialize ("Hv" $! i γ).
-    rewrite lookup_op.
-    rewrite m1Look m2Look.
-    rewrite option_validI /=.
-    rewrite eq1 eq2.
+    iDestruct ("m1" $! i γ _ look1) as (????????) "O1".
+    iDestruct ("m2" $! i γ _ look2) as (????????) "O2".
     simplify_eq.
-    rewrite map_unfold_op.
-    clear.
-    iClear "m".
-    rewrite map_unfold_validI.
-    destruct gti2.
-    simpl.
+    iDestruct (own_valid_2 with "O1 O2") as "#Hv".
     rewrite prod_valid_2nd.
     rewrite GTS_tok_gen_shot_agree.
-    done.
+    iApply "Hv".
   Qed.
 
   Lemma cmra_transport_validI {A B : cmra} (eq : A =@{cmra} B) (a : A) :
     ✓ cmra_transport eq a ⊣⊢@{iPropI Σ} ✓ a.
   Proof. destruct eq. done. Qed.
 
+  (*
   Lemma tokens_for_picks_agree_overlap' picks1 picks2 m1 m2 :
     res_for_picks picks1 m1 →
     res_for_picks picks2 m2 →
@@ -2843,96 +2779,105 @@ Section own_picks_properties.
     rewrite eq.
     done.
   Qed.
+   *)
 
-  Lemma m_contains_tokens_for_picks_merge picks1 picks2 (m1 m2 : iResUR Σ) :
-    (∀ i, map_agree_overlap (picks1 i) (picks2 i)) →
-    (∀ i γ a b, (m1 i) !! γ = Some a → (m2 i) !! γ = Some b → a ≡ b) →
-    res_for_picks picks1 m1 →
-    res_for_picks picks2 m2 →
-    res_for_picks (picks1 ∪ picks2) (m1 ⋅ m2).
-  Proof.
-    intros overlap1 overlap2 tok1 tok2.
-    intros i.
-    rewrite /union /transmap_union.
-    rewrite dom_op.
-    specialize (tok1 i) as (domEq1 & tok1).
-    specialize (tok2 i) as (domEq2 & tok2).
-    split.
-    { rewrite -domEq1 -domEq2. rewrite dom_union. done. }
-    intros γ a.
-    rewrite discrete_fun_lookup_op.
-    rewrite lookup_op.
-    case (m1 i !! γ) eqn:look1; rewrite look1;
-      case (m2 i !! γ) eqn:look2; rewrite look2.
-    - specialize (overlap2 i _ _ _ look1 look2) as elemEq.
-      (* Both [picks1] and [picks2] has a pick. *)
-      apply tok1 in look1 as (n1 & c1 & t1 & ps & r & rs & R1 & Rlist1 & ? & R1holds & picksLook1 & prf1 & a1) .
-      apply tok2 in look2 as (n2 & c2 & t2 & ? & ? & R2 & Rlist2 & ? & R2holds & picksLook2 & prf2 & ? & a2).
-      intros [= opEq].
-      eexists n1, c1, t1, ps, r, rs, R1.
-      split; first done.
-      split. { apply trans_at_deps_union_l. done. }
-      split; first done.
-      split. { erewrite lookup_union_Some_l; done. }
-      split; first done.
-      rewrite -opEq.
-      rewrite -elemEq.
-      rewrite a1.
-      rewrite map_unfold_op.
-      f_equiv.
-      rewrite -cmra_transport_op.
-      f_equiv.
-      Set Printing All.
-      rewrite -5!pair_op.
-      apply prod_6_equiv. split_and!; try reflexivity.
-      * rewrite GTS_tok_gen_shot_idemp. done.
-      * rewrite -Some_op agree_idemp. done.
-      * rewrite gen_pv_op. simpl.
-        rewrite -mono_list_auth_dfrac_op.
-        done.
-      * rewrite gen_pv_op. simpl.
-        rewrite -mono_list_auth_dfrac_op.
-        done.
-    - intros [= ->].
-      apply tok1 in look1 as (n & c & t & ? & r & rs & R & Rlist & ? & Rholds & picksLook & rest).
-      eexists n, c, t, _, r, rs, R.
-      split; first done.
-      split. { apply trans_at_deps_union_l; done. }
-      split; first done.
-      split. { erewrite lookup_union_Some_l; try done. }
-      apply rest.
-    - intros [= ->].
-      apply tok2 in look2 as (n & c & t & ? & r & rs & R & Rlist & ? & Rholds & picksLook & rest).
-      eexists n, c, t, _, r, rs, R.
-      split; first done.
-      split. { apply trans_at_deps_union_r; done. }
-      split; first done.
-      split.
-      { erewrite lookup_union_r; try done.
-        apply not_elem_of_dom.
-        rewrite domEq1.
-        rewrite not_elem_of_dom.
-        done. }
-      apply rest.
-    - intros [=].
-  Qed.
+  (* Lemma m_contains_tokens_for_picks_merge picks1 picks2 (m1 m2 : iResUR Σ) : *)
+  (*   (∀ i, map_agree_overlap (picks1 i) (picks2 i)) → *)
+  (*   (∀ i γ a b, (m1 i) !! γ = Some a → (m2 i) !! γ = Some b → a ≡ b) → *)
+  (*   res_for_picks picks1 m1 → *)
+  (*   res_for_picks picks2 m2 → *)
+  (*   res_for_picks (picks1 ∪ picks2) (m1 ⋅ m2). *)
+  (* Proof. *)
+  (*   intros overlap1 overlap2 tok1 tok2. *)
+  (*   intros i. *)
+  (*   rewrite /union /transmap_union. *)
+  (*   rewrite dom_op. *)
+  (*   specialize (tok1 i) as (domEq1 & tok1). *)
+  (*   specialize (tok2 i) as (domEq2 & tok2). *)
+  (*   split. *)
+  (*   { rewrite -domEq1 -domEq2. rewrite dom_union. done. } *)
+  (*   intros γ a. *)
+  (*   rewrite discrete_fun_lookup_op. *)
+  (*   rewrite lookup_op. *)
+  (*   case (m1 i !! γ) eqn:look1; rewrite look1; *)
+  (*     case (m2 i !! γ) eqn:look2; rewrite look2. *)
+  (*   - specialize (overlap2 i _ _ _ look1 look2) as elemEq. *)
+  (*     (* Both [picks1] and [picks2] has a pick. *) *)
+  (*     apply tok1 in look1 as (n1 & c1 & t1 & ps & r & rs & R1 & Rlist1 & ? & R1holds & picksLook1 & prf1 & a1) . *)
+  (*     apply tok2 in look2 as (n2 & c2 & t2 & ? & ? & R2 & Rlist2 & ? & R2holds & picksLook2 & prf2 & ? & a2). *)
+  (*     intros [= opEq]. *)
+  (*     eexists n1, c1, t1, ps, r, rs, R1. *)
+  (*     split; first done. *)
+  (*     split. { apply trans_at_deps_union_l. done. } *)
+  (*     split; first done. *)
+  (*     split. { erewrite lookup_union_Some_l; done. } *)
+  (*     split; first done. *)
+  (*     rewrite -opEq. *)
+  (*     rewrite -elemEq. *)
+  (*     rewrite a1. *)
+  (*     rewrite map_unfold_op. *)
+  (*     f_equiv. *)
+  (*     rewrite -cmra_transport_op. *)
+  (*     f_equiv. *)
+  (*     Set Printing All. *)
+  (*     rewrite -5!pair_op. *)
+  (*     apply prod_6_equiv. split_and!; try reflexivity. *)
+  (*     * rewrite GTS_tok_gen_shot_idemp. done. *)
+  (*     * rewrite -Some_op agree_idemp. done. *)
+  (*     * rewrite gen_pv_op. simpl. *)
+  (*       rewrite -mono_list_auth_dfrac_op. *)
+  (*       done. *)
+  (*     * rewrite gen_pv_op. simpl. *)
+  (*       rewrite -mono_list_auth_dfrac_op. *)
+  (*       done. *)
+  (*   - intros [= ->]. *)
+  (*     apply tok1 in look1 as (n & c & t & ? & r & rs & R & Rlist & ? & Rholds & picksLook & rest). *)
+  (*     eexists n, c, t, _, r, rs, R. *)
+  (*     split; first done. *)
+  (*     split. { apply trans_at_deps_union_l; done. } *)
+  (*     split; first done. *)
+  (*     split. { erewrite lookup_union_Some_l; try done. } *)
+  (*     apply rest. *)
+  (*   - intros [= ->]. *)
+  (*     apply tok2 in look2 as (n & c & t & ? & r & rs & R & Rlist & ? & Rholds & picksLook & rest). *)
+  (*     eexists n, c, t, _, r, rs, R. *)
+  (*     split; first done. *)
+  (*     split. { apply trans_at_deps_union_r; done. } *)
+  (*     split; first done. *)
+  (*     split. *)
+  (*     { erewrite lookup_union_r; try done. *)
+  (*       apply not_elem_of_dom. *)
+  (*       rewrite domEq1. *)
+  (*       rewrite not_elem_of_dom. *)
+  (*       done. } *)
+  (*     apply rest. *)
+  (*   - intros [=]. *)
+  (* Qed. *)
 
   Lemma own_picks_sep picks1 picks2 :
     own_picks picks1 -∗
     own_picks picks2 -∗
     own_picks (picks1 ∪ picks2) ∗ ⌜ picks2 ⊆ picks1 ∪ picks2 ⌝.
   Proof.
-    iDestruct 1 as (m1) "[O1 %R1]".
-    iDestruct 1 as (m2) "[O2 %R2]".
-    iDestruct (tokens_for_picks_agree_overlap with "O1 O2") as %disj;
-      [done|done|].
+    iIntros "O1 O2".
+    (* iDestruct 1 as (m1) "[O1 %R1]". *)
+    (* iDestruct 1 as (m2) "[O2 %R2]". *)
+    iDestruct (tokens_for_picks_agree_overlap with "O1 O2") as %disj.
+      (* [done|done|]. *)
     iSplit; last first. { iPureIntro. apply transmap_union_subseteq_r. done. }
-    iExists (m1 ⋅ m2).
-    iDestruct (tokens_for_picks_agree_overlap' with "O1 O2") as %HI.
-    { done. } { done. }
-    iCombine "O1 O2" as "$".
-    iPureIntro.
-    apply m_contains_tokens_for_picks_merge; try done.
+    iIntros (i γ t [look|[? look]]%lookup_union_Some_raw).
+    - iDestruct ("O1" $! i γ t look) as (????????) "O".
+      repeat iExists _.
+      iSplit. { iPureIntro. apply trans_at_deps_union_l; done. }
+      iSplit; first done.
+      iSplit; first done.
+      iFrame.
+    - iDestruct ("O2" $! i γ t look) as (????????) "O".
+      repeat iExists _.
+      iSplit. { iPureIntro. apply trans_at_deps_union_r; done. }
+      iSplit; first done.
+      iSplit; first done.
+      iFrame.
   Qed.
 
 End own_picks_properties.
@@ -3024,26 +2969,26 @@ Section own_promises_properties.
     unfold own_promises.
     rewrite big_sepL_elem_of; last done.
     rewrite big_sepL_elem_of; last done.
-    iDestruct "O1" as (eq ????) "O1".
-    iDestruct "O2" as (eq' ????) "O2".
+    iDestruct "O1" as (???) "O1".
+    iDestruct "O2" as (???) "O2".
     simpl in *.
-    assert (eq' = eq) as -> by congruence.
-    iCombine "O1 O2" as "O3".
-    rewrite discrete_fun_singleton_op.
-    rewrite singleton_op.
-    iDestruct (ownM_valid with "O3") as "#Hv".
-    iClear "O3".
-    rewrite discrete_fun_validI.
-    setoid_rewrite gmap_validI.
-    iSpecialize ("Hv" $! id γ).
-    simpl.
-    rewrite discrete_fun_lookup_singleton.
-    rewrite lookup_singleton.
-    rewrite option_validI.
-    rewrite map_unfold_op.
-    rewrite map_unfold_validI.
-    rewrite -cmra_transport_op.
-    rewrite cmra_transport_validI.
+    (* assert (eq' = eq) as -> by congruence. *)
+    (* iCombine "O1 O2" as "O3". *)
+    (* rewrite discrete_fun_singleton_op. *)
+    (* rewrite singleton_op. *)
+    iDestruct (own_valid_2 with "O1 O2") as "#Hv".
+    (* iClear "O3". *)
+    (* rewrite discrete_fun_validI. *)
+    (* setoid_rewrite gmap_validI. *)
+    (* iSpecialize ("Hv" $! (Ogid Ω id) γ). *)
+    (* simpl. *)
+    (* rewrite discrete_fun_lookup_singleton. *)
+    (* rewrite lookup_singleton. *)
+    (* rewrite option_validI. *)
+    (* rewrite map_unfold_op. *)
+    (* rewrite map_unfold_validI. *)
+    (* rewrite -cmra_transport_op. *)
+    (* rewrite cmra_transport_validI. *)
     rewrite -5!pair_op.
     iDestruct (prod_valid_4th with "Hv") as %Hv2.
     iDestruct (prod_valid_5th with "Hv") as %Hv.
@@ -3066,13 +3011,13 @@ Section nextgen_properties.
   Context {Σ : gFunctors} {Ω : gGenCmras Σ}.
   Implicit Types (P : iProp Σ) (Q : iProp Σ).
 
-  Lemma res_for_picks_empty :
-    res_for_picks (λ i : gid Σ, ∅) ε.
-  Proof. done. Qed.
+  (* Lemma res_for_picks_empty : *)
+  (*   res_for_picks (λ i : gid Σ, ∅) ε. *)
+  (* Proof. done. Qed. *)
 
   Lemma own_picks_empty :
-    ⊢@{iProp Σ} own_picks (λ i : gid Σ, ∅).
-  Proof. iExists ε. rewrite ownM_unit' left_id. iPureIntro. done. Qed.
+    ⊢@{iProp Σ} own_picks (λ i, ∅).
+  Proof. iIntros (????). done. Qed.
 
   Lemma own_promises_empty :
     ⊢@{iProp Σ} own_promises [].
@@ -3372,7 +3317,48 @@ Lemma rew_lookup_total {A : Set} n m (γs : ivec n A) i (eq : m = n) :
   γs !!! rew [fin] eq in i.
 Proof. destruct eq. done. Qed.
 
+Lemma rew_True_pred {A B : cmra} (t : cmra_to_trans A) (eq : B = A) :
+  (rew [pred_over] eq in True_pred) t.
+Proof. destruct eq. done. Qed.
+
+Lemma pred_prefix_list_for'_True_rew {n} {A B : cmra} {DS : ivec n cmra} {DS2 : ivec n cmra} (eq : A = B) eq2 :
+  pred_prefix_list_for' (@True_rel _ DS2 _ :: nil) (True_pred :: nil)
+    (rew [id] rel_over_eq eq_refl eq eq2 in (@True_rel _ DS _))
+    (rew [id]
+         rew [λ c : cmra, pred_over A = pred_over c] eq in eq_refl in
+     (λ _ : A → A, True)).
+Proof.
+  destruct eq. simpl in eq2. destruct eq2. simpl.
+  apply pred_prefix_list_for'_True.
+Qed.
+
 Section rules.
+  Context {n : nat} {DS : ivec n cmra} `{i : !genInG Σ Ω A DS}.
+
+  Lemma own_gen_cmra_data_to_inG γ (a : generational_cmraR _ _) :
+    own γ (rew omega_genInG_cmra_eq in a)
+    ⊢ @own _ _ (gen_cmra_data_to_inG (Ω.(gc_map) (genInG_id i))) γ a.
+  Proof.
+    simpl.
+    rewrite own.own_eq /own.own_def /own.iRes_singleton.
+    unfold genInG_inG. simpl.
+    unfold Oeq.
+    destruct i.
+    destruct genInG_gcd_n0. simpl in *.
+    generalize dependent (gcd_cmra_eq (gc_map Ω genInG_id0)).
+    intros eq.
+    simpl.
+    unfold omega_genInG_cmra_eq. simpl.
+    destruct genInG_gti_typ0. simpl in *.
+    unfold Ocs in *.
+    destruct genInG_gcd_deps0.
+    rewrite gen_cmra_eq_refl.
+    done.
+  Qed.
+
+End rules.
+
+Section rules_with_deps.
   Context {n : nat} {DS : ivec n cmra}
     `{gs : ∀ (i : fin n), genInSelfG Σ Ω (DS !!! i)}
     `{g : !genInDepsG Σ Ω A DS}.
@@ -3389,18 +3375,15 @@ Section rules.
     rewrite /pred_over_Oc_genInG.
     rewrite /Oc_genInG_eq.
     destruct genInDepsG_gen; simpl in *.
-    destruct genInG_gen_trans0.
-    destruct (eq_sym genInG_gti_typ0).
+    destruct (genInG_gti_typ0).
     simpl. done.
   Qed.
   Next Obligation.
     intros.
     exists (λ a, a).
     unfold rel_over_Oc_Ocs_genInG.
-    unfold Ocs in *.
     clear.
     destruct genInDepsG_gen; simpl in *.
-    destruct genInG_gen_trans0.
     apply rew_rel_over_True.
   Qed.
 
@@ -3429,7 +3412,7 @@ Section rules.
     rewrite /omega_wf_at in wf.
     rewrite /Oids.
     destruct (gc_map Ω id) eqn:eq.
-    - destruct (wf i) as (gcd2 & ? & ?).
+    - specialize (wf i). simpl in *.
   Abort.
 
   Definition promises_different_gname (prs : list (promise_info Ω)) :=
@@ -3514,9 +3497,8 @@ Section rules.
         intros ??. simpl. clear.
         unfold lookup_fmap_Ocs.
         destruct eq. simpl. clear.
-        destruct Ocs_Oids_distr. simpl.
         rewrite True_preds_for_lookup_fmap.
-        done. }
+        apply rew_True_pred. }
     unfold own_promises.
     rewrite big_sepL_cons.
     iFrame "ownPrs".
@@ -3525,6 +3507,7 @@ Section rules.
     unfold Oeq.
     simpl.
     clear.
+    specialize (own_gen_cmra_data_to_inG (i := @genInDepsG_gen _ _ _ _ _ _ g)) as H.
     destruct genInDepsG_gen. simpl in *.
     unfold rel_over_Oc_Ocs_genInG.
     unfold pred_over_Oc_genInG.
@@ -3532,24 +3515,51 @@ Section rules.
     unfold genInG_inG.
     unfold On_genInG.
     unfold Ocs. simpl.
-    destruct (On_omega_lookup genInG_id0 genInG_gti0 (eq_sym genInG_gen_trans0) genInG_gcd_n0).
+    (* destruct (On_omega_lookup genInG_id0 genInG_gti0 (eq_sym genInG_gen_trans0) genInG_gcd_n0). *)
     simpl.
-    destruct genInG_gen_trans0.
-    destruct genInG_gti0. simpl in *.
-    assert (genInG_gcd_n0 = eq_refl) as ->.
-    { rewrite (proof_irrel genInG_gcd_n0 eq_refl). done. }
+    (* destruct genInG_gen_trans0. *)
+    destruct genInG_gcd_n0.
+    (* destruct genInG_gti_typ0. *)
+    (* destruct genInG_gti0. simpl in *. *)
+    (* assert (genInG_gcd_n0 = eq_refl) as ->. *)
+    (* { rewrite (proof_irrel genInG_gcd_n0 eq_refl). done. } *)
     simpl in *.
-    iExists gcd_cmra_eq0.
+    (* iExists gcd_cmra_eq0. *)
     iExists (True_rel :: nil).
     iExists (True_pred :: nil).
-    iSplit; first done.
-    destruct genInG_gcd_deps0.
-    destruct genInG_gti_typ0.
+    (* iSplit. { admit. } *)
+    (* destruct genInG_gcd_deps0 *)
+    (* destruct genInG_gti_typ0. *)
     iSplit.
     { iPureIntro.
-      apply pred_prefix_list_for'_True. }
+      apply pred_prefix_list_for'_True_rew. }
     iCombine "OD B2" as "O".
+    rewrite /eq_rect_r. simpl.
+    Set Printing Implicit.
+    iApply H.
+    rewrite /omega_genInG_cmra_eq. simpl.
+    iStopProof.
+    f_equiv. simpl.
+    rewrite /eq_ind_r /=.
+    unfold Ocs in *.
+    unfold omega_genInG_cmra_eq in *.
+    simpl in *.
+    unfold genInG_inG in *.
+    simpl in *.
+    rewrite eq_sym_involutive.
+    Set Printing All.
+    destruct genInG_gti_typ0.
+    Set Printing All.
+    destruct genInG_gcd_deps0.
+    destruct omega_genInG_cmra_eq.
+    specialize (own_gen_cmra_data_to_inG (i := @genInDepsG_gen _ _ _ _ _ _ g)) as H.
+    simpl in H.
+    unfold genInG_id in H. simpl in H.
+    (* simpl. *)
+    iFrame "O".
     rewrite own.own_eq /own.own_def /own.iRes_singleton.
+    unfold Oeq in *. simpl in *.
+    destruct genInG_gti_typ0.
     rewrite !gen_cmra_eq_refl.
     iFrame "O".
   Qed.
@@ -3782,7 +3792,7 @@ Section rules.
     iDestruct (know_promise_combine with "relyPromise relyPromise2") as "$".
   Qed.
 
-End rules.
+End rules_with_deps.
 
 Section nextgen_assertion_rules.
   (* Rules about the nextgen modality. *)
