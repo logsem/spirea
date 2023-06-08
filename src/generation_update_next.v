@@ -3280,6 +3280,51 @@ Section rules_with_deps.
     done.
   Qed.
 
+  Program Definition make_pia (γs : ivec n gname) deps_preds
+      (R_2 : rel_over DS A) (P_2 : pred_over A)
+      (R_to_P : ∀ ts t, huncurry R_2 ts t → P_2 t)
+      (real : ∀ (ts : trans_for n DS),
+        preds_hold deps_preds ts → ∃ (e : A → A), huncurry R_2 ts e)
+      : promise_info_at Ω _ := {|
+    pi_deps_γs := (rew [λ n, ivec n _] genInG_gcd_n in γs);
+    pi_deps_preds := rew [id] preds_for_genInG in deps_preds;
+    pi_rel := rew [id] rel_over_Oc_Ocs_genInG in R_2;
+    pi_pred := rew [pred_over] Oc_genInG_eq in P_2;
+  |}.
+  Next Obligation.
+    rewrite /rel_over_Oc_Ocs_genInG.
+    intros ??????? holds.
+    rewrite /pred_over_Oc_genInG.
+    rewrite /Oc_genInG_eq.
+    destruct genInDepsG_gen; simpl in *.
+    unfold Ocs in *.
+    destruct (Ω.(gc_map) genInG_id0). simpl in *.
+    destruct (genInG_gcd_n0).
+    destruct (genInG_gti_typ0).
+    unfold eq_rect_r in *. simpl in *.
+    destruct (genInG_gcd_deps0).
+    simpl in *.
+    eapply R_to_P.
+  Qed.
+  Next Obligation.
+    rewrite /rel_over_Oc_Ocs_genInG.
+    intros ???????.
+    destruct genInDepsG_gen. simpl in *.
+    unfold preds_for_genInG in *. simpl in *.
+    unfold Ocs in *.
+    destruct (Ω.(gc_map) genInG_id0). simpl in *.
+    destruct genInG_gcd_n0.
+    destruct genInG_gti_typ0.
+    unfold eq_rect_r in *. simpl in *.
+    destruct genInG_gcd_deps0.
+    simpl in *.
+    apply real.
+  Qed.
+
+  Definition promises_upsert pi1 (prs : list (promise_info Ω)) :=
+    cons pi1
+      (filter (λ pi2, pi1.(pi_id) = pi2.(pi_id) ∧ pi1.(pi_γ) = pi2.(pi_γ)) prs).
+
   (** Strengthen a promise. *)
   Lemma token_strengthen_promise
       γ γs (deps_preds : preds_for n DS)
@@ -3293,59 +3338,28 @@ Section rules_with_deps.
     (∀ ts t, huncurry R_2 ts t → P_2 t) →
     (* Evidence that the promise is realizeable. *)
     (∀ (ts : trans_for n DS),
-      preds_hold deps_preds ts → ∃ (e : A → A), (huncurry R_2) ts e) →
+      preds_hold deps_preds ts → ∃ (e : A → A), huncurry R_2 ts e) →
     (* For every dependency we own a [rely_self]. *)
     (∀ (i : fin n), rely_self (γs !!! i) (hvec_lookup_fmap deps_preds i)) -∗
-    token γ γs R_1 P_1 ==∗ (* Old token. *)
-    token γ γs R_2 P_2. (* Updated token. *)
+    token γ γs R_1 P_1 ==∗
+    token γ γs R_2 P_2.
   Proof.
-    iIntros (relStronger predStronger relToPred evidence) "relyDeps".
+    iIntros (relStronger predStronger relToPred evidence) "relys".
+    iDestruct (list_rely_self with "relys") as (prs wf) "(ownPrs & %allDeps)".
     iNamed 1.
     (* For each dependency we have a rely and that rely will have a list of
      * promises. We need to merge all of these promises and then create an
      * updated promise for the token.*)
     rewrite /token.
-
-    eset (pia2 := {|
-      pi_deps_γs := (rew [λ n, ivec n _] genInG_gcd_n in γs);
-      pi_deps_preds := rew [id] preds_for_genInG in deps_preds;
-      pi_rel := rew [id] rel_over_Oc_Ocs_genInG in R_2;
-      pi_pred := rew [pred_over] Oc_genInG_eq in P_2;
-    |}).
-    Unshelve. 2: {
-      rewrite /rel_over_Oc_Ocs_genInG.
-      rewrite /Oc_genInG_eq.
-      unfold Ocs.
-      destruct genInG_gti_typ.
-      intros ??.
-      destruct genInDepsG_gen. simpl in *.
-      destruct (gc_map Ω genInG_id0). simpl in *.
-      destruct genInG_gcd_n0.
-      unfold eq_rect_r in *. simpl in *.
-      destruct genInG_gcd_deps0.
-      simpl.
-      apply relToPred. }
-    Unshelve. 2: {
-      rewrite /rel_over_eq /=.
-      rewrite /rel_over_Oc_Ocs_genInG.
-      rewrite /preds_for_genInG.
-      destruct genInDepsG_gen. simpl in *.
-      unfold Ocs.
-      destruct genInG_gti_typ0.
-      intros ts holds.
-      destruct (gc_map Ω genInG_id0). simpl in *.
-      destruct genInG_gcd_n0.
-      unfold eq_rect_r in *. simpl in *.
-      destruct genInG_gcd_deps0. simpl in *.
-      destruct (evidence ts holds) as (t & HR2).
-      exists t. apply HR2. }
-    simpl in *.
+    set (pia2 := make_pia γs deps_preds R_2 P_2 relToPred evidence).
     iExists (app rels (R_2 :: nil)).
-    iExists _, _. (* TODO: Build this list of promises. *)
+    iExists (app preds (P_2 :: nil)).
+    iExists (promises_upsert (MkPi _ γ pia2) prs).
     iExists pia2.
     iFrame "token".
-    (* iMod (auth_promise_list_snoc γ (zip all ps) with "auth_preds") as "$". *)
-  Admitted.
+    iMod (auth_promise_list_snoc γ with "auth_preds") as "$".
+    iModIntro.
+  Qed.
 
   Lemma token_pick γ γs (R : rel_over DS A) P (ts : trans_for n DS) t :
     huncurry R ts t →
