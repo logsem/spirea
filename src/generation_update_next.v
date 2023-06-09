@@ -1417,6 +1417,16 @@ Section promise_info.
     left. naive_solver.
   Qed.
 
+  Equations promises_info_update pi id (γ : gname) (pia : promise_info_at _ id) : promise_info Ω :=
+  | pi, id, γ, pia with decide (pi.(pi_id) = id), decide (pi.(pi_γ) = γ) => {
+    | left eq_refl, left eq_refl => MkPi pi.(pi_id) pi.(pi_γ) pia;
+    | _, _ => pi
+    }.
+
+  Definition promises_list_update id γ (pia : promise_info_at _ id)
+      (prs : list (promise_info Ω)) :=
+    (λ pi, promises_info_update pi id γ pia) <$> prs.
+
   Equations promises_lookup_at promises iid (γ : gname) : option (promise_info_at _ iid) :=
   | [], iid, γ => None
   | p :: ps', iid, γ with decide (p.(pi_id) = iid), decide (p.(pi_γ) = γ) => {
@@ -1425,7 +1435,19 @@ Section promise_info.
     | right _, _ => promises_lookup_at ps' iid γ
   }.
 
-  Lemma promises_lookup_at_cons_neq prs id1 id2 γ1 γ2 pia2 :
+  Lemma promises_lookup_at_cons_neq prs pi id2 γ2 :
+    (pi.(pi_id) ≠ id2 ∨ pi.(pi_γ) ≠ γ2) →
+    promises_lookup_at (pi :: prs) id2 γ2 =
+      promises_lookup_at prs id2 γ2.
+  Proof.
+    rewrite promises_lookup_at_equation_2.
+    rewrite promises_lookup_at_clause_2_equation_1 /=.
+    intros [neq|neq];
+      destruct (decide (pi.(pi_id) = id2)) as [<-|?]; try done.
+    destruct (decide (pi.(pi_γ) = γ2)) as [?|?]; done.
+  Qed.
+
+  Lemma promises_lookup_at_cons_neq' prs id1 id2 γ1 γ2 pia2 :
     (id1 ≠ id2 ∨ γ1 ≠ γ2) →
     promises_lookup_at ((MkPi id1 γ1 pia2) :: prs) id2 γ2 =
       promises_lookup_at prs id2 γ2.
@@ -1519,6 +1541,48 @@ Section promise_info.
     intros [eq diff]%promises_lookup_at_cons_None [<-|?]%elem_of_cons.
     - rewrite /promises_different. naive_solver.
     - apply IH; done.
+  Qed.
+
+  Lemma promises_info_update_self pi pia :
+    promises_info_update pi (pi_id pi) (pi_γ pi) pia =
+      MkPi (pi_id pi) (pi_γ pi) pia.
+  Proof.
+    rewrite promises_info_update_equation_1.
+    rewrite promises_info_update_clause_1_equation_1.
+    destruct (decide (pi_id pi = pi_id pi)) as [eq1|]; last done.
+    destruct (decide (pi_γ pi = pi_γ pi)) as [eq2|]; last done.
+    destruct eq2.
+    assert (eq1 = eq_refl) as ->.
+    { rewrite (proof_irrel eq1 eq_refl). done. }
+    rewrite promises_info_update_clause_1_clause_1_equation_1.
+    done.
+  Qed.
+
+  Lemma promises_info_update_ne pi id γ pia :
+    pi_id pi ≠ id ∨ pi_γ pi ≠ γ →
+    promises_info_update pi id γ pia = pi.
+  Proof.
+    intros neq.
+    rewrite promises_info_update_equation_1.
+    rewrite promises_info_update_clause_1_equation_1.
+    destruct (decide (pi_id pi = id)) as [<-|]; last done.
+    destruct (decide (pi_γ pi = γ)) as [eq2|]; naive_solver.
+  Qed.
+
+  Lemma promises_lookup_update prs id γ pia pia' :
+    promises_lookup_at prs id γ = Some pia →
+    promises_lookup_at (promises_list_update id γ pia' prs) id γ = Some pia'.
+  Proof.
+    induction prs as [|pi prs' IH]; first done.
+    intros [(<- & <- & eq)|[neq look]]%promises_lookup_at_cons_Some_inv.
+    - simpl in *.
+      rewrite promises_info_update_self.
+      apply promises_lookup_at_cons.
+    - simpl.
+      rewrite promises_info_update_ne; last done.
+      rewrite promises_lookup_at_cons_neq; last done.
+      apply IH.
+      done.
   Qed.
 
   Lemma promises_wf_elem_of_head owf id γ pia1 pia2 promises :
@@ -3321,10 +3385,6 @@ Section rules_with_deps.
     apply real.
   Qed.
 
-  Definition promises_upsert pi1 (prs : list (promise_info Ω)) :=
-    cons pi1
-      (filter (λ pi2, pi1.(pi_id) = pi2.(pi_id) ∧ pi1.(pi_γ) = pi2.(pi_γ)) prs).
-
   (** Strengthen a promise. *)
   Lemma token_strengthen_promise
       γ γs (deps_preds : preds_for n DS)
@@ -3345,16 +3405,18 @@ Section rules_with_deps.
     token γ γs R_2 P_2.
   Proof.
     iIntros (relStronger predStronger relToPred evidence) "relys".
-    iDestruct (list_rely_self with "relys") as (prs wf) "(ownPrs & %allDeps)".
+    iDestruct (list_rely_self with "relys") as (depPrs wf) "(ownPrs & %allDeps)".
     iNamed 1.
+    iNamed "tokenPromise".
+    iDestruct (own_promises_merge with "prs ownPrs") as (prs2 ??) "O"; [done|done| ].
     (* For each dependency we have a rely and that rely will have a list of
      * promises. We need to merge all of these promises and then create an
      * updated promise for the token.*)
     rewrite /token.
     set (pia2 := make_pia γs deps_preds R_2 P_2 relToPred evidence).
-    iExists (app rels (R_2 :: nil)).
-    iExists (app preds (P_2 :: nil)).
-    iExists (promises_upsert (MkPi _ γ pia2) prs).
+    iExists (rels ++ (R_2 :: nil)).
+    iExists (preds ++ (P_2 :: nil)).
+    iExists (promises_list_update _ γ pia2 prs2).
     iExists pia2.
     iFrame "token".
     iMod (auth_promise_list_snoc γ with "auth_preds") as "$".
