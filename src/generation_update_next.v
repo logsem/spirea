@@ -309,13 +309,31 @@ Section dependency_relation_extra.
     rel_prefix_list_for pred_weaker preds P ∧
     rel_implies_pred R P.
 
-  Lemma pred_prefix_list_for'_True :
-    pred_prefix_list_for' (True_rel :: []) (True_pred :: []) True_rel True_pred.
+  Lemma pred_prefix_list_for'_singl R P :
+    rel_implies_pred R P →
+    pred_prefix_list_for' (R :: []) (P :: []) R P.
   Proof.
     rewrite /pred_prefix_list_for'.
     rewrite /rel_prefix_list_for.
-    split_and!; eauto using increasing_list_singleton.
-    done.
+    intros ?. split_and!; eauto using increasing_list_singleton.
+  Qed.
+
+  Lemma pred_prefix_list_for'_True :
+    pred_prefix_list_for' (True_rel :: []) (True_pred :: []) True_rel True_pred.
+  Proof. apply pred_prefix_list_for'_singl. done. Qed.
+
+  Lemma pred_prefix_list_for'_grow rels preds P_1 R_1 R_2 P_2 :
+    rel_implies_pred R_2 P_2 →
+    rel_weaker R_1 R_2 →
+    pred_weaker P_1 P_2 →
+    pred_prefix_list_for' rels preds R_1 P_1 →
+    pred_prefix_list_for' (rels ++ (R_2 :: nil)) (preds ++ (P_2 :: nil)) R_2 P_2.
+  Proof.
+    rewrite /pred_prefix_list_for'. rewrite /rel_prefix_list_for.
+    rewrite !app_length.
+    intros ??? (-> & [??] & [??] & ?).
+    rewrite !last_snoc.
+    split_and!; try done; eapply increasing_list_snoc; done.
   Qed.
 
   Lemma pred_prefix_list_for_prefix_of {B} (Rel : relation B) `{!PreOrder Rel}
@@ -2934,12 +2952,17 @@ Section generational_resources.
   (* Definition own_auth_promise_list γ all : iProp Σ := *)
   (*   gen_promise_list γ (gPV (●ML all)). *)
 
+  Definition promise_info_for pia γs R P : Prop :=
+    pia.(pi_deps_γs) = rew [λ n, ivec n _] genInG_gcd_n in γs ∧
+    pia.(pi_pred) = rew [id] pred_over_Oc_genInG in P ∧
+    pia.(pi_rel) = rew [id] rel_over_Oc_Ocs_genInG in R.
+
   (** Resources shared between [token], [used_token], and [rely]. *)
   Definition know_promise γ γs R P pia promises rels preds : iProp Σ :=
-    "%γs_eq" ∷ ⌜ pia.(pi_deps_γs) = rew [λ n, ivec n _] genInG_gcd_n in γs ⌝ ∗
-    (* "%pred_eq" ∷ ⌜ pia.(pi_pred) = rew <- [pred_over] Oc_genInG_eq in P ⌝ ∗ *)
-    "%pred_eq" ∷ ⌜ pia.(pi_pred) = rew [id] pred_over_Oc_genInG in P ⌝ ∗
-    "%rel_eq" ∷ ⌜ pia.(pi_rel) = rew [id] rel_over_Oc_Ocs_genInG in R ⌝ ∗
+    "%pia_for" ∷ ⌜  promise_info_for pia γs R P ⌝ ∗
+    (* "%γs_eq" ∷ ⌜ pia.(pi_deps_γs) = rew [λ n, ivec n _] genInG_gcd_n in γs ⌝ ∗ *)
+    (* "%pred_eq" ∷ ⌜ pia.(pi_pred) = rew [id] pred_over_Oc_genInG in P ⌝ ∗ *)
+    (* "%rel_eq" ∷ ⌜ pia.(pi_rel) = rew [id] rel_over_Oc_Ocs_genInG in R ⌝ ∗ *)
     "%pred_prefix" ∷ ⌜ pred_prefix_list_for' rels preds R P ⌝ ∗
     "%pia_in" ∷ ⌜ promises_lookup_at promises _ γ = Some pia ⌝ ∗
     "%prs_wf" ∷ ⌜ promises_wf Ω.(gc_map_wf) promises ⌝ ∗
@@ -3098,7 +3121,7 @@ Proof.
   exists pia2.
   split; first apply look2.
   etrans; first apply H0.
-  rewrite pred_eq.
+  destruct pia_for as (? & -> & ?).
   done.
 Qed.
 
@@ -3242,8 +3265,6 @@ Section rules_with_deps.
     iFrame "A'".
     rewrite /know_promise.
     iSplit; first done.
-    iSplit; first done.
-    iSplit; first done.
     iSplit. { iPureIntro. apply pred_prefix_list_for'_True. }
     iSplit. { iPureIntro. apply promises_lookup_at_cons. }
     iSplit.
@@ -3341,7 +3362,7 @@ Section rules_with_deps.
     pi_deps_γs := (rew [λ n, ivec n _] genInG_gcd_n in γs);
     pi_deps_preds := rew [id] preds_for_genInG in deps_preds;
     pi_rel := rew [id] rel_over_Oc_Ocs_genInG in R_2;
-    pi_pred := rew [pred_over] Oc_genInG_eq in P_2;
+    pi_pred := rew [id] pred_over_Oc_genInG in P_2;
   |}.
   Next Obligation.
     rewrite /rel_over_Oc_Ocs_genInG.
@@ -3396,7 +3417,7 @@ Section rules_with_deps.
     iDestruct (list_rely_self with "relys") as (depPrs wf) "(ownPrs & %allDeps)".
     iNamed 1.
     iNamed "tokenPromise".
-    iDestruct (own_promises_merge with "prs ownPrs") as (prs2 ??) "O"; [done|done| ].
+    iDestruct (own_promises_merge with "prs ownPrs") as (prs2 ? val) "O"; [done|done| ].
     (* For each dependency we have a rely and that rely will have a list of
      * promises. We need to merge all of these promises and then create an
      * updated promise for the token.*)
@@ -3409,6 +3430,15 @@ Section rules_with_deps.
     iFrame "token".
     iMod (auth_promise_list_snoc γ with "auth_preds") as "$".
     iModIntro.
+    unfold know_promise.
+    iSplit; first done.
+    iSplit. { iPureIntro. eapply pred_prefix_list_for'_grow; done. }
+    iSplit.
+    { iPureIntro.
+      destruct val as (_ & str & ?).
+      specialize (str _ _ _ pia_in) as (pia3 & ? & ?).
+      eapply promises_lookup_update.
+      done. }
   Qed.
 
   Lemma token_pick γ γs (R : rel_over DS A) P (ts : trans_for n DS) t :
