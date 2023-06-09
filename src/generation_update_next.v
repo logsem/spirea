@@ -1447,18 +1447,6 @@ Section promise_info.
     destruct (decide (pi.(pi_γ) = γ2)) as [?|?]; done.
   Qed.
 
-  Lemma promises_lookup_at_cons_neq' prs id1 id2 γ1 γ2 pia2 :
-    (id1 ≠ id2 ∨ γ1 ≠ γ2) →
-    promises_lookup_at ((MkPi id1 γ1 pia2) :: prs) id2 γ2 =
-      promises_lookup_at prs id2 γ2.
-  Proof.
-    rewrite promises_lookup_at_equation_2.
-    rewrite promises_lookup_at_clause_2_equation_1 /=.
-    intros [neq|neq];
-      destruct (decide (id1 = id2)) as [->|?]; try done;
-      destruct (decide (γ1 = γ2)) as [->|?]; try done.
-  Qed.
-
   Lemma promises_lookup_at_cons prs id γ pia :
     promises_lookup_at ((MkPi id γ pia) :: prs) id γ = Some pia.
   Proof.
