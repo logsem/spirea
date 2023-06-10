@@ -1591,6 +1591,12 @@ Section promise_info.
       done.
   Qed.
 
+  Lemma promises_list_update_elem_of pi id γ pia prs :
+    pi ∈ promises_list_update id γ pia prs →
+    pi ∈ prs ∨ pi = MkPi id γ pia.
+  Proof.
+  Admitted.
+
   Lemma promises_wf_elem_of_head owf id γ pia1 pia2 promises :
     promises_wf owf ({| pi_id := id; pi_γ := γ; pi_at := pia2 |} :: promises) →
     {| pi_id := id; pi_γ := γ; pi_at := pia1 |}
@@ -2949,8 +2955,8 @@ Section generational_resources.
   Definition own_auth_promise_list γ rels preds : iProp Σ :=
     gen_promise_rel_pred_list γ (gPV (●ML rels)) (gPV (●ML preds)).
 
-  (* Definition own_auth_promise_list γ all : iProp Σ := *)
-  (*   gen_promise_list γ (gPV (●ML all)). *)
+  Definition own_frag_promise_list γ rels preds : iProp Σ :=
+    gen_promise_rel_pred_list γ (gPV (◯ML rels)) (gPV (◯ML preds)).
 
   Definition promise_info_for pia γs R P : Prop :=
     pia.(pi_deps_γs) = rew [λ n, ivec n _] genInG_gcd_n in γs ∧
@@ -3183,9 +3189,25 @@ Section rules_with_deps.
     apply rew_rel_over_True.
   Qed.
 
+  Lemma auth_promise_list_frag γ rs ps :
+    own_auth_promise_list γ rs ps
+    -∗ own_auth_promise_list γ rs ps ∗ own_frag_promise_list γ rs ps.
+  Proof.
+    rewrite -own_op.
+    unfold own_auth_promise_list.
+    unfold own_frag_promise_list.
+    unfold gPV.
+    unfold mk_gen_pv.
+    unfold gen_promise_rel_pred_list.
+    unfold gc_tup_rel_pred.
+    rewrite {1 2}(mono_list_auth_lb_op _ rs).
+    rewrite {1 2}(mono_list_auth_lb_op _ ps).
+    done.
+  Qed.
+
   Lemma auth_promise_list_snoc γ rs ps r p :
     own_auth_promise_list γ rs ps
-    ==∗ own_auth_promise_list γ (app rs (cons r nil)) (app ps (cons p nil)).
+    ==∗ own_auth_promise_list γ (rs ++ (cons r nil)) (ps ++ (cons p nil)).
   Proof.
     rewrite /own_auth_promise_list.
     rewrite /gen_promise_rel_pred_list.
@@ -3394,6 +3416,20 @@ Section rules_with_deps.
     apply real.
   Qed.
 
+  Lemma own_promise_info_own_frag γ γs deps_preds rels preds R P relToPred evidence :
+    pred_prefix_list_for' rels preds R P →
+    own_frag_promise_list γ rels preds -∗
+    own_promise_info (MkPi (genInG_id genInDepsG_gen) γ (make_pia γs deps_preds R P relToPred evidence)).
+  Proof.
+    unfold own_frag_promise_list.
+    unfold own_promise_info.
+    iIntros (prf) "H". simpl.
+    iExists _, _.
+    destruct rel_over_Oc_Ocs_genInG.
+    destruct pred_over_Oc_genInG.
+    iSplit
+  Admitted.
+
   (** Strengthen a promise. *)
   Lemma token_strengthen_promise
       γ γs (deps_preds : preds_for n DS)
@@ -3428,7 +3464,8 @@ Section rules_with_deps.
     iExists (promises_list_update _ γ pia2 prs2).
     iExists pia2.
     iFrame "token".
-    iMod (auth_promise_list_snoc γ with "auth_preds") as "$".
+    iMod (auth_promise_list_snoc γ with "auth_preds") as "a".
+    iDestruct (auth_promise_list_frag with "a") as "[$ frag_preds]".
     iModIntro.
     unfold know_promise.
     iSplit; first done.
@@ -3439,7 +3476,15 @@ Section rules_with_deps.
       specialize (str _ _ _ pia_in) as (pia3 & ? & ?).
       eapply promises_lookup_update.
       done. }
-  Qed.
+    iSplit.
+    { iPureIntro. admit. (* show wf *) }
+    unfold own_promises.
+    rewrite 3!big_sepL_forall_elem_of.
+    iIntros (? [?| ->]%promises_list_update_elem_of).
+    - iApply "O". done.
+    - iApply own_promise_info_own_frag; try done.
+      eapply pred_prefix_list_for'_grow; done.
+  Admitted.
 
   Lemma token_pick γ γs (R : rel_over DS A) P (ts : trans_for n DS) t :
     huncurry R ts t →
