@@ -1595,7 +1595,14 @@ Section promise_info.
     pi ∈ promises_list_update id γ pia prs →
     pi ∈ prs ∨ pi = MkPi id γ pia.
   Proof.
-  Admitted.
+    unfold promises_list_update.
+    intros (pi' & -> & elm)%elem_of_list_fmap_2.
+    rewrite promises_info_update_equation_1.
+    rewrite promises_info_update_clause_1_equation_1.
+    destruct (decide (pi'.(pi_id) = id)); last naive_solver.
+    destruct (decide (pi'.(pi_γ) = γ)); last naive_solver.
+    naive_solver.
+  Qed.
 
   Lemma promises_wf_elem_of_head owf id γ pia1 pia2 promises :
     promises_wf owf ({| pi_id := id; pi_γ := γ; pi_at := pia2 |} :: promises) →
@@ -3418,17 +3425,44 @@ Section rules_with_deps.
 
   Lemma own_promise_info_own_frag γ γs deps_preds rels preds R P relToPred evidence :
     pred_prefix_list_for' rels preds R P →
+    know_deps γ γs -∗
     own_frag_promise_list γ rels preds -∗
     own_promise_info (MkPi (genInG_id genInDepsG_gen) γ (make_pia γs deps_preds R P relToPred evidence)).
   Proof.
     unfold own_frag_promise_list.
     unfold own_promise_info.
-    iIntros (prf) "H". simpl.
-    iExists _, _.
-    destruct rel_over_Oc_Ocs_genInG.
-    destruct pred_over_Oc_genInG.
-    iSplit
-  Admitted.
+    unfold know_deps.
+    iIntros (prf) "D H". simpl.
+    iCombine "D H" as "O".
+    unfold rel_over_Oc_Ocs_genInG.
+    unfold pred_over_Oc_genInG.
+    unfold Ocs in *.
+    destruct genInDepsG_gen. simpl in *.
+    unfold gen_promise_rel_pred_list.
+    rewrite own_gen_cmra_data_to_inG.
+    simpl.
+    unfold genInG_inG.
+    simpl.
+    unfold omega_genInG_cmra_eq.
+    unfold generational_cmraR_transp.
+    unfold Ocs.
+    unfold Oeq.
+    unfold Ogid.
+    simpl.
+    unfold Oown.
+    destruct (Ω.(gc_map) genInG_id0). simpl in *.
+    destruct genInG_gcd_n0.
+    destruct genInG_gti_typ0.
+    unfold eq_ind_r in *. simpl in *.
+    unfold eq_rect_r in *. simpl in *.
+    destruct genInG_gcd_deps0. simpl.
+    iExists rels, preds.
+    iSplit; first done.
+    iStopProof.
+    f_equiv.
+    simpl.
+    done.
+  Qed.
 
   (** Strengthen a promise. *)
   Lemma token_strengthen_promise
@@ -3483,7 +3517,8 @@ Section rules_with_deps.
     iIntros (? [?| ->]%promises_list_update_elem_of).
     - iApply "O". done.
     - iApply own_promise_info_own_frag; try done.
-      eapply pred_prefix_list_for'_grow; done.
+      * eapply pred_prefix_list_for'_grow; done.
+      * admit.
   Admitted.
 
   Lemma token_pick γ γs (R : rel_over DS A) P (ts : trans_for n DS) t :
