@@ -2637,13 +2637,18 @@ Section next_gen_definition.
     done.
   Qed.
 
+  Definition own_promise_info_resource (pi : promise_info Ω)
+    (Rs : list (rel_over (Ocs Ω pi.(pi_id)) _))
+    (Ps : list (pred_over (Oc Ω pi.(pi_id)))) : iProp Σ :=
+    Oown pi.(pi_id) pi.(pi_γ) ((
+      ε, ε, ε, Some (to_agree (ivec_to_list pi.(pi_deps_γs))),
+      gPV (◯ML Rs), gPV (◯ML Ps)
+    ) : generational_cmraR _ _).
+
   Definition own_promise_info (pi : promise_info Ω) : iProp Σ :=
     ∃ Rs (Ps : list (pred_over (Oc Ω pi.(pi_id)))),
       ⌜ pred_prefix_list_for' Rs Ps pi.(pi_rel) pi.(pi_pred) ⌝ ∧
-      Oown pi.(pi_id) pi.(pi_γ) ((
-        ε, ε, ε, Some (to_agree (ivec_to_list pi.(pi_deps_γs))),
-        gPV (◯ML Rs), gPV (◯ML Ps)
-      ) : generational_cmraR _ _).
+      own_promise_info_resource pi Rs Ps.
 
   #[global]
   Instance own_promise_info_persistent pi : Persistent (own_promise_info pi).
@@ -3330,7 +3335,8 @@ Section rules_with_deps.
     iFrame "ownPrs".
     iCombine "OD B2" as "O".
     (* This remaining should be provable with the [B2] resource we have. *)
-    unfold own_promise_info. simpl.
+    unfold own_promise_info.
+    unfold own_promise_info_resource. simpl.
     unfold Oeq.
     simpl.
     clear.
@@ -3431,6 +3437,7 @@ Section rules_with_deps.
   Proof.
     unfold own_frag_promise_list.
     unfold own_promise_info.
+    unfold own_promise_info_resource.
     unfold know_deps.
     iIntros (prf) "D H". simpl.
     iCombine "D H" as "O".
@@ -3563,7 +3570,7 @@ Section rules_with_deps.
     token γ γs R1 P1 -∗ rely γ γs R2 P2 -∗ ⌜ rel_stronger R1 R2 ⌝.
   Proof.
     iNamed 1. iNamed "tokenPromise".
-    iNamed 1. iDestruct "relyPromise" as "(? & ? & ? & %relyPredPrefix & ?)".
+    iNamed 1. iDestruct "relyPromise" as "(? & %relyPredPrefix & ?)".
     iDestruct (own_valid_2 with "auth_preds fragPreds") as "val".
     iDestruct (prod_valid_5th with "val") as "%val".
     iPureIntro.
@@ -3599,7 +3606,9 @@ Section rules_with_deps.
        (rel_stronger R2 R1 ∧ pred_stronger P2 P1)) ⌝.
   Proof.
     iNamed 1.
-    iDestruct 1 as (depsEq2 pred_eq2 rel_eq2 ???) "#prs2".
+    destruct pia_for as (γs_eq & pred_eq & rel_eq).
+    iDestruct 1 as (inf ???) "#prs2".
+    destruct inf as (depsEq2 & pred_eq2 & rel_eq2).
     iDestruct (own_promises_overlap with "prs prs2") as %lap.
     iPureIntro.
     eassert (_ ∨ _) as [str|str]. { eapply lap; done. }
@@ -3717,8 +3726,10 @@ Section nextgen_assertion_rules.
     iExists _, _. iSplit; first done.
     rewrite gen_cmra_trans_apply. simpl.
     iStopProof.
+    unfold own_promise_info_resource.
     unfold Oown.
     f_equiv. simpl.
+    simpl.
     rewrite 5!pair_included.
     split_and!; try done. apply ucmra_unit_least.
   Qed.
@@ -3845,6 +3856,7 @@ Section nextgen_assertion_rules.
   Proof.
     rewrite /rely.
     iNamed 1. iNamed "relyPromise".
+    destruct pia_for as (γs_eq & pred_eq & rel_eq).
     rewrite /nextgen.
     iExists (λ i, ∅), promises.
     iSplitL ""; first iApply own_picks_empty.
@@ -3863,7 +3875,7 @@ Section nextgen_assertion_rules.
     iSplit.
     - iExists rels, preds, promises, pia.
       iSplit.
-      { do 6 (iSplit; first done).
+      { do 4 (iSplit; first done).
         iFrame "prs'". }
       iFrame "frag_preds'".
     - iExists (rew <- [cmra_to_trans] Oc_genInG_eq in t).
