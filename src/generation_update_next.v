@@ -2647,7 +2647,7 @@ Section next_gen_definition.
 
   Definition own_promise_info (pi : promise_info Ω) : iProp Σ :=
     ∃ Rs (Ps : list (pred_over (Oc Ω pi.(pi_id)))),
-      ⌜ pred_prefix_list_for' Rs Ps pi.(pi_rel) pi.(pi_pred) ⌝ ∧
+      ⌜ pred_prefix_list_for' Rs Ps pi.(pi_rel) pi.(pi_pred) ⌝ ∗
       own_promise_info_resource pi Rs Ps.
 
   #[global]
@@ -2977,10 +2977,7 @@ Section generational_resources.
 
   (** Resources shared between [token], [used_token], and [rely]. *)
   Definition know_promise γ γs R P pia promises rels preds : iProp Σ :=
-    "%pia_for" ∷ ⌜  promise_info_for pia γs R P ⌝ ∗
-    (* "%γs_eq" ∷ ⌜ pia.(pi_deps_γs) = rew [λ n, ivec n _] genInG_gcd_n in γs ⌝ ∗ *)
-    (* "%pred_eq" ∷ ⌜ pia.(pi_pred) = rew [id] pred_over_Oc_genInG in P ⌝ ∗ *)
-    (* "%rel_eq" ∷ ⌜ pia.(pi_rel) = rew [id] rel_over_Oc_Ocs_genInG in R ⌝ ∗ *)
+    "%pia_for" ∷ ⌜ promise_info_for pia γs R P ⌝ ∗
     "%pred_prefix" ∷ ⌜ pred_prefix_list_for' rels preds R P ⌝ ∗
     "%pia_in" ∷ ⌜ promises_lookup_at promises _ γ = Some pia ⌝ ∗
     "%prs_wf" ∷ ⌜ promises_wf Ω.(gc_map_wf) promises ⌝ ∗
@@ -3429,45 +3426,48 @@ Section rules_with_deps.
     apply real.
   Qed.
 
-  Lemma own_promise_info_own_frag γ γs deps_preds rels preds R P relToPred evidence :
-    pred_prefix_list_for' rels preds R P →
-    know_deps γ γs -∗
-    own_frag_promise_list γ rels preds -∗
-    own_promise_info (MkPi (genInG_id genInDepsG_gen) γ (make_pia γs deps_preds R P relToPred evidence)).
+  (* Translates between the omega based resource in [own_promise_info] and
+   * [genInG] based ones. *)
+  Lemma own_promise_info_own γ γs R P pia :
+    promise_info_for pia γs R P →
+    own_promise_info (MkPi (genInG_id genInDepsG_gen) γ pia) ⊣⊢
+    (∃ Rs Ps,
+      ⌜ pred_prefix_list_for' Rs Ps R P ⌝ ∗
+      know_deps γ γs ∗
+      own_frag_promise_list γ Rs Ps).
   Proof.
+    intros (depsEq & ? & ?).
+    destruct pia. simpl in *.
     unfold own_frag_promise_list.
     unfold own_promise_info.
     unfold own_promise_info_resource.
     unfold know_deps.
-    iIntros (prf) "D H". simpl.
-    iCombine "D H" as "O".
-    unfold rel_over_Oc_Ocs_genInG.
-    unfold pred_over_Oc_genInG.
-    unfold Ocs in *.
-    destruct genInDepsG_gen. simpl in *.
     unfold gen_promise_rel_pred_list.
-    rewrite own_gen_cmra_data_to_inG.
-    simpl.
+    simpl in *.
+    destruct genInDepsG_gen. simpl in *.
+    unfold rel_over_Oc_Ocs_genInG in *.
+    unfold pred_over_Oc_genInG in *.
+    unfold gen_promise_rel_pred_list.
+    setoid_rewrite own_gen_cmra_data_to_inG.
     unfold genInG_inG.
     simpl.
     unfold omega_genInG_cmra_eq.
     unfold generational_cmraR_transp.
-    unfold Ocs.
+    unfold Ocs in *.
     unfold Oeq.
     unfold Ogid.
-    simpl.
+    simpl in *.
     unfold Oown.
+    setoid_rewrite <- own_op.
+    simpl in *.
     destruct (Ω.(gc_map) genInG_id0). simpl in *.
     destruct genInG_gcd_n0.
     destruct genInG_gti_typ0.
-    unfold eq_ind_r in *. simpl in *.
+    unfold eq_ind_r in *.
     unfold eq_rect_r in *. simpl in *.
     destruct genInG_gcd_deps0. simpl.
-    iExists rels, preds.
-    iSplit; first done.
-    iStopProof.
-    f_equiv.
-    simpl.
+    repeat f_equiv; try done.
+    rewrite depsEq.
     done.
   Qed.
 
@@ -3500,6 +3500,9 @@ Section rules_with_deps.
      * updated promise for the token.*)
     rewrite /token.
     set (pia2 := make_pia γs deps_preds R_2 P_2 relToPred evidence).
+    iDestruct (big_sepL_elem_of with "prs") as "H".
+    { eapply promises_lookup_at_Some. done. }
+    iDestruct (own_promise_info_own with "H") as (???) "(deps & _)"; first done.
     iExists (rels ++ (R_2 :: nil)).
     iExists (preds ++ (P_2 :: nil)).
     iExists (promises_list_update _ γ pia2 prs2).
@@ -3523,9 +3526,10 @@ Section rules_with_deps.
     rewrite 3!big_sepL_forall_elem_of.
     iIntros (? [?| ->]%promises_list_update_elem_of).
     - iApply "O". done.
-    - iApply own_promise_info_own_frag; try done.
-      * eapply pred_prefix_list_for'_grow; done.
-      * admit.
+    - iApply own_promise_info_own; first done.
+      iExists _, _.
+      iFrame "frag_preds deps".
+      iPureIntro. eapply pred_prefix_list_for'_grow; done.
   Admitted.
 
   Lemma token_pick γ γs (R : rel_over DS A) P (ts : trans_for n DS) t :
