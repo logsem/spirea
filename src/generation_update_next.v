@@ -3291,6 +3291,51 @@ Section rules_with_deps.
     simplify_eq. congruence.
   Qed.
 
+  (* Translates between the omega based resource in [own_promise_info] and
+   * [genInG] based ones. *)
+  Lemma own_promise_info_own γ γs R P pia :
+    promise_info_for pia γs R P →
+    own_promise_info (MkPi (genInG_id genInDepsG_gen) γ pia) ⊣⊢
+    (∃ Rs Ps,
+      ⌜ pred_prefix_list_for' Rs Ps R P ⌝ ∗
+      know_deps γ γs ∗
+      own_frag_promise_list γ Rs Ps).
+  Proof.
+    intros (depsEq & ? & ?).
+    destruct pia. simpl in *.
+    unfold own_frag_promise_list.
+    unfold own_promise_info.
+    unfold own_promise_info_resource.
+    unfold know_deps.
+    unfold gen_promise_rel_pred_list.
+    simpl in *.
+    destruct genInDepsG_gen. simpl in *.
+    unfold rel_over_Oc_Ocs_genInG in *.
+    unfold pred_over_Oc_genInG in *.
+    unfold gen_promise_rel_pred_list.
+    setoid_rewrite own_gen_cmra_data_to_inG.
+    unfold genInG_inG.
+    simpl.
+    unfold omega_genInG_cmra_eq.
+    unfold generational_cmraR_transp.
+    unfold Ocs in *.
+    unfold Oeq.
+    unfold Ogid.
+    simpl in *.
+    unfold Oown.
+    setoid_rewrite <- own_op.
+    simpl in *.
+    destruct (Ω.(gc_map) genInG_id0). simpl in *.
+    destruct genInG_gcd_n0.
+    destruct genInG_gti_typ0.
+    unfold eq_ind_r in *.
+    unfold eq_rect_r in *. simpl in *.
+    destruct genInG_gcd_deps0. simpl.
+    repeat f_equiv; try done.
+    rewrite depsEq.
+    done.
+  Qed.
+
   Lemma own_gen_alloc (a : A) γs (deps_preds : preds_for n DS) :
     ✓ a →
     (* For every dependency we own a [rely_self]. *)
@@ -3364,41 +3409,11 @@ Section rules_with_deps.
     unfold own_promises.
     rewrite big_sepL_cons.
     iFrame "ownPrs".
-    iCombine "OD B2" as "O".
-    (* This remaining should be provable with the [B2] resource we have. *)
-    unfold own_promise_info.
-    unfold own_promise_info_resource. simpl.
-    unfold Oeq.
-    simpl.
-    clear.
-    rewrite own_gen_cmra_data_to_inG.
-    destruct genInDepsG_gen. simpl in *.
-    unfold rel_over_Oc_Ocs_genInG.
-    unfold pred_over_Oc_genInG.
-    unfold Oc_genInG_eq.
-    unfold genInG_inG.
-    unfold On_genInG.
-    unfold eq_rect_r in *.
-    unfold Ocs. simpl in *.
-    unfold Ocs in *.
-    simpl in *.
+    iApply own_promise_info_own; first done.
     iExists (True_rel :: nil).
     iExists (True_pred :: nil).
-    iSplit.
-    { iPureIntro.
-      destruct (gc_map Ω genInG_id0). simpl in *.
-      destruct genInG_gcd_n0.
-      apply pred_prefix_list_for'_True_rew. }
-    iApply (own_eq with "O").
-    clear.
-    rewrite /omega_genInG_cmra_eq. simpl.
-    destruct genInG_gti_typ0. simpl.
-    unfold Ocs in *.
-    destruct (gc_map Ω genInG_id0). simpl in *.
-    destruct genInG_gcd_n0.
-    simpl in *.
-    destruct genInG_gcd_deps0.
-    done.
+    iFrame.
+    iPureIntro. apply pred_prefix_list_for'_True.
   Qed.
 
   Lemma gen_token_split γ :
@@ -3416,51 +3431,6 @@ Section rules_with_deps.
     iPureIntro.
     rewrite Some_valid in val.
     apply (to_agree_op_inv_L (A := leibnizO (A → A))) in val.
-    done.
-  Qed.
-
-  (* Translates between the omega based resource in [own_promise_info] and
-   * [genInG] based ones. *)
-  Lemma own_promise_info_own γ γs R P pia :
-    promise_info_for pia γs R P →
-    own_promise_info (MkPi (genInG_id genInDepsG_gen) γ pia) ⊣⊢
-    (∃ Rs Ps,
-      ⌜ pred_prefix_list_for' Rs Ps R P ⌝ ∗
-      know_deps γ γs ∗
-      own_frag_promise_list γ Rs Ps).
-  Proof.
-    intros (depsEq & ? & ?).
-    destruct pia. simpl in *.
-    unfold own_frag_promise_list.
-    unfold own_promise_info.
-    unfold own_promise_info_resource.
-    unfold know_deps.
-    unfold gen_promise_rel_pred_list.
-    simpl in *.
-    destruct genInDepsG_gen. simpl in *.
-    unfold rel_over_Oc_Ocs_genInG in *.
-    unfold pred_over_Oc_genInG in *.
-    unfold gen_promise_rel_pred_list.
-    setoid_rewrite own_gen_cmra_data_to_inG.
-    unfold genInG_inG.
-    simpl.
-    unfold omega_genInG_cmra_eq.
-    unfold generational_cmraR_transp.
-    unfold Ocs in *.
-    unfold Oeq.
-    unfold Ogid.
-    simpl in *.
-    unfold Oown.
-    setoid_rewrite <- own_op.
-    simpl in *.
-    destruct (Ω.(gc_map) genInG_id0). simpl in *.
-    destruct genInG_gcd_n0.
-    destruct genInG_gti_typ0.
-    unfold eq_ind_r in *.
-    unfold eq_rect_r in *. simpl in *.
-    destruct genInG_gcd_deps0. simpl.
-    repeat f_equiv; try done.
-    rewrite depsEq.
     done.
   Qed.
 
