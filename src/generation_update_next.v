@@ -3025,6 +3025,16 @@ Proof.
   - apply IH.
 Qed.
 
+Lemma True_pred_rew_lookup_fmap_rew {n1 n2}
+    (DS : ivec n1 cmra) (DS2 : ivec n2 cmra) i eq1 eq2 :
+  hvec_lookup_fmap
+    (rew [id] (hvec_fmap_eq eq1 DS DS2 eq2) in True_preds_for DS) i = True_pred.
+Proof.
+  destruct eq1. unfold eq_rect_r in eq2. simpl in *.
+  destruct eq2. simpl.
+  rewrite True_preds_for_lookup_fmap. done.
+Qed.
+
 Definition True_preds_for_id `{Ω : gGenCmras Σ}
     id : preds_for (On Ω id) (Ocs Ω id) :=
   True_preds_for (Ocs Ω id).
@@ -3174,28 +3184,52 @@ Section rules_with_deps.
     `{gs : ∀ (i : fin n), genInSelfG Σ Ω (DS !!! i)}
     `{g : !genInDepsG Σ Ω A DS}.
 
-  Program Definition make_true_pia (γs : ivec n gname) : promise_info_at Ω _ := {|
-    pi_deps_γs := (rew -> [λ n, ivec n _] genInG_gcd_n in γs);
-    pi_deps_preds := True_preds_for_id _;
-    pi_rel := rew [id] rel_over_Oc_Ocs_genInG in True_rel;
-    pi_pred := rew [id] pred_over_Oc_genInG in (λ _ : A → A, True);
+  Program Definition make_pia (γs : ivec n gname) deps_preds
+      (R_2 : rel_over DS A) (P_2 : pred_over A)
+      (R_to_P : ∀ ts t, huncurry R_2 ts t → P_2 t)
+      (real : ∀ (ts : trans_for n DS),
+        preds_hold deps_preds ts → ∃ (e : A → A), huncurry R_2 ts e)
+      : promise_info_at Ω _ := {|
+    pi_deps_γs := (rew [λ n, ivec n _] genInG_gcd_n in γs);
+    pi_deps_preds := rew [id] preds_for_genInG in deps_preds;
+    pi_rel := rew [id] rel_over_Oc_Ocs_genInG in R_2;
+    pi_pred := rew [id] pred_over_Oc_genInG in P_2;
   |}.
   Next Obligation.
-    intros.
-    clear.
+    rewrite /rel_over_Oc_Ocs_genInG.
+    intros ??????? holds.
     rewrite /pred_over_Oc_genInG.
     rewrite /Oc_genInG_eq.
     destruct genInDepsG_gen; simpl in *.
+    unfold Ocs in *.
+    destruct (Ω.(gc_map) genInG_id0). simpl in *.
+    destruct (genInG_gcd_n0).
     destruct (genInG_gti_typ0).
-    simpl. done.
+    unfold eq_rect_r in *. simpl in *.
+    destruct (genInG_gcd_deps0).
+    simpl in *.
+    eapply R_to_P.
   Qed.
   Next Obligation.
-    intros.
-    exists (λ a, a).
-    unfold rel_over_Oc_Ocs_genInG.
-    clear.
-    destruct genInDepsG_gen; simpl in *.
-    apply rew_rel_over_True.
+    rewrite /rel_over_Oc_Ocs_genInG.
+    intros ???????.
+    destruct genInDepsG_gen. simpl in *.
+    unfold preds_for_genInG in *. simpl in *.
+    unfold Ocs in *.
+    destruct (Ω.(gc_map) genInG_id0). simpl in *.
+    destruct genInG_gcd_n0.
+    destruct genInG_gti_typ0.
+    unfold eq_rect_r in *. simpl in *.
+    destruct genInG_gcd_deps0.
+    simpl in *.
+    apply real.
+  Qed.
+
+  Program Definition make_true_pia (γs : ivec n gname) : promise_info_at Ω _ :=
+    make_pia γs (True_preds_for DS) True_rel True_pred _ _.
+  Next Obligation. intros. done. Qed.
+  Next Obligation.
+    intros. exists (λ a, a). rewrite huncurry_curry. done.
   Qed.
 
   Lemma auth_promise_list_frag γ rs ps :
@@ -3325,7 +3359,7 @@ Section rules_with_deps.
         intros ??. simpl. clear.
         unfold lookup_fmap_Ocs.
         destruct eq. simpl. clear.
-        rewrite True_preds_for_lookup_fmap.
+        rewrite True_pred_rew_lookup_fmap_rew.
         apply rew_True_pred. }
     unfold own_promises.
     rewrite big_sepL_cons.
@@ -3383,47 +3417,6 @@ Section rules_with_deps.
     rewrite Some_valid in val.
     apply (to_agree_op_inv_L (A := leibnizO (A → A))) in val.
     done.
-  Qed.
-
-  Program Definition make_pia (γs : ivec n gname) deps_preds
-      (R_2 : rel_over DS A) (P_2 : pred_over A)
-      (R_to_P : ∀ ts t, huncurry R_2 ts t → P_2 t)
-      (real : ∀ (ts : trans_for n DS),
-        preds_hold deps_preds ts → ∃ (e : A → A), huncurry R_2 ts e)
-      : promise_info_at Ω _ := {|
-    pi_deps_γs := (rew [λ n, ivec n _] genInG_gcd_n in γs);
-    pi_deps_preds := rew [id] preds_for_genInG in deps_preds;
-    pi_rel := rew [id] rel_over_Oc_Ocs_genInG in R_2;
-    pi_pred := rew [id] pred_over_Oc_genInG in P_2;
-  |}.
-  Next Obligation.
-    rewrite /rel_over_Oc_Ocs_genInG.
-    intros ??????? holds.
-    rewrite /pred_over_Oc_genInG.
-    rewrite /Oc_genInG_eq.
-    destruct genInDepsG_gen; simpl in *.
-    unfold Ocs in *.
-    destruct (Ω.(gc_map) genInG_id0). simpl in *.
-    destruct (genInG_gcd_n0).
-    destruct (genInG_gti_typ0).
-    unfold eq_rect_r in *. simpl in *.
-    destruct (genInG_gcd_deps0).
-    simpl in *.
-    eapply R_to_P.
-  Qed.
-  Next Obligation.
-    rewrite /rel_over_Oc_Ocs_genInG.
-    intros ???????.
-    destruct genInDepsG_gen. simpl in *.
-    unfold preds_for_genInG in *. simpl in *.
-    unfold Ocs in *.
-    destruct (Ω.(gc_map) genInG_id0). simpl in *.
-    destruct genInG_gcd_n0.
-    destruct genInG_gti_typ0.
-    unfold eq_rect_r in *. simpl in *.
-    destruct genInG_gcd_deps0.
-    simpl in *.
-    apply real.
   Qed.
 
   (* Translates between the omega based resource in [own_promise_info] and
