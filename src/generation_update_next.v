@@ -1604,6 +1604,20 @@ Section promise_info.
     naive_solver.
   Qed.
 
+  Lemma promises_list_update_cons_eq wf pi prs pia :
+    promises_wf wf (pi :: prs) →
+    promises_list_update (pi_id pi) (pi_γ pi) pia (pi :: prs) =
+      MkPi (pi_id pi) (pi_γ pi) pia :: prs.
+  Proof. Admitted.
+
+  Lemma promises_list_update_cons_ne id γ pia pi prs :
+    id ≠ pi_id pi ∨ γ ≠ pi_γ pi →
+    promises_list_update id γ pia (pi :: prs) =
+      pi :: (promises_list_update id γ pia prs).
+  Proof.
+    intros ne. simpl. rewrite promises_info_update_ne; naive_solver.
+  Qed.
+
   Lemma promises_wf_elem_of_head owf id γ pia1 pia2 promises :
     promises_wf owf ({| pi_id := id; pi_γ := γ; pi_at := pia2 |} :: promises) →
     {| pi_id := id; pi_γ := γ; pi_at := pia1 |}
@@ -3434,6 +3448,31 @@ Section rules_with_deps.
     done.
   Qed.
 
+  Lemma promises_wf_promises_list_update id γ pia_old pia prs :
+    promises_wf gc_map_wf prs →
+    promises_lookup_at prs id γ = Some pia_old →
+    promises_wf gc_map_wf (promises_list_update id γ pia prs).
+  Proof.
+    intros wf look.
+    induction prs as [|pi prs' IH]; first done.
+    (* destruct pi. *)
+    apply promises_lookup_at_cons_Some_inv in look.
+    destruct look as [(<- & <- & eq3) | (neq & look)]; last first.
+    (* destruct (path_equal_or_different id pi.(pi_id) γ pi.(pi_γ)) *)
+    (*   as [(-> & ->) | neq]; last first. *)
+    { rewrite promises_list_update_cons_ne; last naive_solver.
+      simpl.
+      split; last first. { apply IH. * apply wf. * apply look. }
+      (* this depends on the inserted promise being stronger *)
+      admit. }
+    rewrite (promises_list_update_cons_eq gc_map_wf); try done.
+    simpl.
+    split; last apply wf.
+    split; first apply wf.
+    (* This relies on the tail having sufficiently strong dependencies *)
+    intros ?.
+  Admitted.
+
   (** Strengthen a promise. *)
   Lemma token_strengthen_promise
       γ γs (deps_preds : preds_for n DS)
@@ -3457,7 +3496,7 @@ Section rules_with_deps.
     iDestruct (list_rely_self with "relys") as (depPrs wf) "(ownPrs & %allDeps)".
     iNamed 1.
     iNamed "tokenPromise".
-    iDestruct (own_promises_merge with "prs ownPrs") as (prs2 ? val) "O"; [done|done| ].
+    iDestruct (own_promises_merge with "prs ownPrs") as (prsMerged ? val) "O"; [done|done| ].
     (* For each dependency we have a rely and that rely will have a list of
      * promises. We need to merge all of these promises and then create an
      * updated promise for the token.*)
@@ -3468,23 +3507,22 @@ Section rules_with_deps.
     iDestruct (own_promise_info_own with "H") as (???) "(deps & _)"; first done.
     iExists (rels ++ (R_2 :: nil)).
     iExists (preds ++ (P_2 :: nil)).
-    iExists (promises_list_update _ γ pia2 prs2).
+    iExists (promises_list_update _ γ pia2 prsMerged).
     iExists pia2.
     iFrame "token".
     iMod (auth_promise_list_snoc γ with "auth_preds") as "a".
     iDestruct (auth_promise_list_frag with "a") as "[$ frag_preds]".
     iModIntro.
+    destruct val as (_ & str & ?).
+    specialize (str _ _ _ pia_in) as (pia3 & ? & ?).
     unfold know_promise.
     iSplit; first done.
     iSplit. { iPureIntro. eapply pred_prefix_list_for'_grow; done. }
     iSplit.
-    { iPureIntro.
-      destruct val as (_ & str & ?).
-      specialize (str _ _ _ pia_in) as (pia3 & ? & ?).
-      eapply promises_lookup_update.
-      done. }
+    { iPureIntro. eapply promises_lookup_update. done. }
     iSplit.
-    { iPureIntro. admit. (* show wf *) }
+    { iPureIntro.
+      eapply promises_wf_promises_list_update; try done. }
     unfold own_promises.
     rewrite 3!big_sepL_forall_elem_of.
     iIntros (? [?| ->]%promises_list_update_elem_of).
@@ -3493,7 +3531,7 @@ Section rules_with_deps.
       iExists _, _.
       iFrame "frag_preds deps".
       iPureIntro. eapply pred_prefix_list_for'_grow; done.
-  Admitted.
+  Qed.
 
   Lemma token_pick γ γs (R : rel_over DS A) P (ts : trans_for n DS) t :
     huncurry R ts t →
