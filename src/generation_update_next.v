@@ -1254,9 +1254,12 @@ Section promise_info.
   Implicit Types (prs : list (promise_info Ω)).
   Implicit Types (promises : list (promise_info Ω)).
   Implicit Types (pi : promise_info Ω).
+  Implicit Types (γ : gname).
+
+  Definition path_different {A} (id1 : A) γ1 id2 γ2 := id1 ≠ id2 ∨ γ1 ≠ γ2.
 
   Definition promises_different p1 p2 :=
-    p1.(pi_id) ≠ p2.(pi_id) ∨ p1.(pi_γ) ≠ p2.(pi_γ).
+    path_different p1.(pi_id) p1.(pi_γ) p2.(pi_id) p2.(pi_γ).
 
   (* Lemmas for [promises_different]. *)
   Lemma promises_different_not_eq pi1 pi2 :
@@ -1265,14 +1268,64 @@ Section promise_info.
   Proof.
     intros n.
     destruct pi1, pi2.
-    rewrite /promises_different. simpl.
+    rewrite /promises_different /path_different. simpl.
     destruct (decide (pi_id0 = pi_id1));
       destruct (decide (pi_γ0 = pi_γ1)); naive_solver.
   Qed.
 
   Lemma promises_different_sym p1 p2 :
     promises_different p1 p2 → promises_different p2 p1.
-  Proof. rewrite /promises_different. intros [?|?]; auto using not_eq_sym. Qed.
+  Proof. rewrite /promises_different /path_different. intros [?|?]; auto using not_eq_sym. Qed.
+
+  Equations promises_lookup_at promises iid (γ : gname) : option (promise_info_at _ iid) :=
+  | [], iid, γ => None
+  | p :: ps', iid, γ with decide (p.(pi_id) = iid), decide (p.(pi_γ) = γ) => {
+    | left eq_refl, left eq_refl => Some p.(pi_at);
+    | left eq_refl, right _ => promises_lookup_at ps' p.(pi_id) γ
+    | right _, _ => promises_lookup_at ps' iid γ
+  }.
+
+  Lemma promises_lookup_at_cons_neq prs pi id2 γ2 :
+    (pi.(pi_id) ≠ id2 ∨ pi.(pi_γ) ≠ γ2) →
+    promises_lookup_at (pi :: prs) id2 γ2 =
+      promises_lookup_at prs id2 γ2.
+  Proof.
+    rewrite promises_lookup_at_equation_2.
+    rewrite promises_lookup_at_clause_2_equation_1 /=.
+    intros [neq|neq];
+      destruct (decide (pi.(pi_id) = id2)) as [<-|?]; try done.
+    destruct (decide (pi.(pi_γ) = γ2)) as [?|?]; done.
+  Qed.
+
+  Lemma promises_lookup_at_cons_None prs id γ pi :
+    promises_lookup_at (pi :: prs) id γ = None ↔
+    promises_lookup_at prs id γ = None ∧ (pi.(pi_id) ≠ id ∨ pi.(pi_γ) ≠ γ).
+  Proof.
+    rewrite promises_lookup_at_equation_2.
+    rewrite promises_lookup_at_clause_2_equation_1.
+    destruct pi as [id' γ' ?].
+    destruct (decide (id' = id)) as [->|neq1] eqn:eqI;
+      destruct (decide (γ' = γ)) as [->|neq2] eqn:eqG;
+      rewrite eqI eqG; naive_solver.
+  Qed.
+
+   Lemma promises_lookup_at_None prs id γ :
+    promises_lookup_at prs id γ = None ↔
+    (∀ pi2, pi2 ∈ prs → path_different id γ pi2.(pi_id) pi2.(pi_γ)).
+  Proof.
+    induction prs as [|?? IH].
+    { split; first inversion 2. naive_solver. }
+    rewrite promises_lookup_at_cons_None.
+    split.
+    * simpl.
+      intros [eq diff] ? [<-|?]%elem_of_cons.
+      - rewrite /promises_different /path_different. naive_solver.
+      - apply IH; done.
+    * intros A.
+      split.
+      - apply IH. intros pi ?. apply A. apply elem_of_list_further. done.
+      - destruct (A a) as [?|?]; first apply elem_of_list_here; naive_solver.
+  Qed.
 
   Definition res_trans_transport {id1 id2}
       (eq : id1 = id2) (t : R Σ id1 → R Σ id1) : (R Σ id2 → R Σ id2) :=
@@ -1308,9 +1361,9 @@ Section promise_info.
 
   (** The promise [p] is well-formed wrt. the list [promises] of promises that
    * preceeded it. *)
-  Definition promise_wf pi promises wf : Prop :=
-    (∀ p2, p2 ∈ promises → promises_different pi p2) ∧
-    promises_has_deps pi promises wf.
+  Definition promise_wf pi prs wf : Prop :=
+    promises_lookup_at prs (pi_id pi) (pi_γ pi) = None ∧
+    promises_has_deps pi prs wf.
 
   (* This definition has nice computational behavior when applied to a [cons]. *)
   Fixpoint promises_wf (owf : omega_wf (gc_map Ω)) promises : Prop :=
@@ -1327,8 +1380,9 @@ Section promise_info.
     induction prs as [| ?? IH].
     { intros ???. inversion 1. }
     intros [wf ?] pi1 pi2. inversion 1; inversion 1; subst; try naive_solver.
-    - right. apply wf. done.
-    - right. apply promises_different_sym. apply wf. done.
+    - right. eapply promises_lookup_at_None; first apply wf. done.
+    - right. apply promises_different_sym.
+      eapply promises_lookup_at_None; first apply wf. done.
   Qed.
 
   (* NOTE: Not used, but should be implied by [promises_wf] *)
@@ -1351,10 +1405,10 @@ Section promise_info.
     ∀ (idx : fin (On Ω p.(pi_id))),
       p.(pi_id) ≠ (pi_deps_id p idx) ∨ p.(pi_γ) ≠ p.(pi_deps_γs) !!! idx.
   Proof.
-    intros [uniq hasDeps] idx.
+    intros [look hasDeps] idx.
     destruct (hasDeps idx) as (p2 & elem & idEq & γEq & jhhi).
     rewrite /pi_deps_id idEq γEq.
-    destruct (uniq _ elem) as [?|?]; auto.
+    eapply promises_lookup_at_None; first apply look. done.
   Qed.
 
   Lemma promises_well_formed_lookup owf promises (idx : nat) pi :
@@ -1445,26 +1499,6 @@ Section promise_info.
       (prs : list (promise_info Ω)) :=
     (λ pi, promises_info_update pi id γ pia) <$> prs.
 
-  Equations promises_lookup_at promises iid (γ : gname) : option (promise_info_at _ iid) :=
-  | [], iid, γ => None
-  | p :: ps', iid, γ with decide (p.(pi_id) = iid), decide (p.(pi_γ) = γ) => {
-    | left eq_refl, left eq_refl => Some p.(pi_at);
-    | left eq_refl, right _ => promises_lookup_at ps' p.(pi_id) γ
-    | right _, _ => promises_lookup_at ps' iid γ
-  }.
-
-  Lemma promises_lookup_at_cons_neq prs pi id2 γ2 :
-    (pi.(pi_id) ≠ id2 ∨ pi.(pi_γ) ≠ γ2) →
-    promises_lookup_at (pi :: prs) id2 γ2 =
-      promises_lookup_at prs id2 γ2.
-  Proof.
-    rewrite promises_lookup_at_equation_2.
-    rewrite promises_lookup_at_clause_2_equation_1 /=.
-    intros [neq|neq];
-      destruct (decide (pi.(pi_id) = id2)) as [<-|?]; try done.
-    destruct (decide (pi.(pi_γ) = γ2)) as [?|?]; done.
-  Qed.
-
   Lemma promises_lookup_at_cons prs id γ pia :
     promises_lookup_at ((MkPi id γ pia) :: prs) id γ = Some pia.
   Proof.
@@ -1524,29 +1558,6 @@ Section promise_info.
     destruct eq. destruct eq2.
     rewrite promises_lookup_at_clause_2_clause_1_equation_1.
     intros ?. left. exists eq_refl. naive_solver.
-  Qed.
-
-  Lemma promises_lookup_at_cons_None prs id γ pi :
-    promises_lookup_at (pi :: prs) id γ = None →
-    promises_lookup_at prs id γ = None ∧ (pi.(pi_id) ≠ id ∨ pi.(pi_γ) ≠ γ).
-  Proof.
-    rewrite promises_lookup_at_equation_2.
-    rewrite promises_lookup_at_clause_2_equation_1.
-    destruct pi as [id' γ' ?].
-    destruct (decide (id' = id)) as [->|neq1] eqn:eqI;
-      destruct (decide (γ' = γ)) as [->|neq2] eqn:eqG;
-      rewrite eqI eqG; naive_solver.
-  Qed.
-
-   Lemma promises_lookup_at_None prs pi1 pi2 :
-    promises_lookup_at prs pi1.(pi_id) pi1.(pi_γ) = None →
-    pi2 ∈ prs →
-    promises_different pi1 pi2.
-  Proof.
-    induction prs as [|?? IH]; first inversion 2.
-    intros [eq diff]%promises_lookup_at_cons_None [<-|?]%elem_of_cons.
-    - rewrite /promises_different. naive_solver.
-    - apply IH; done.
   Qed.
 
   Lemma promises_info_update_self pi pia :
@@ -1627,7 +1638,8 @@ Section promise_info.
     intros [(diff & ?) ?].
     intros [eq|?]%elem_of_cons.
     - inversion eq. apply inj_right_pair. done.
-    - destruct (diff _ H1) as [neq|neq]; simpl in neq; congruence.
+    - eapply promises_lookup_at_None in diff; last done.
+      destruct diff as [neq|neq]; simpl in neq; congruence.
   Qed.
 
   Lemma promises_elem_of owf promises id γ pia :
@@ -1677,7 +1689,7 @@ Section promise_info.
     eapply promises_wf_unique in look; [ |done|done].
     destruct look as [[=]|HD].
     - apply inj_right_pair. done.
-    - unfold promises_different in HD. naive_solver.
+    - unfold promises_different, path_different in HD. naive_solver.
   Qed.
 
   (** [pia1] is a better promise than [pia2]. *)
@@ -2081,11 +2093,7 @@ Section promise_info.
     eexists (cons (MkPi id γ piaIns) prs3'), piaIns.
     split_and!.
     + apply promises_lookup_at_cons.
-    + split; last done.
-      split.
-      { intros pi2 in2.
-        subst. eapply promises_lookup_at_None; done. }
-      { done. }
+    + done.
     + intros ??. apply elem_of_list_further. apply sub2. done.
     + apply promise_list_valid_restricted_merge_cons; try done.
       intros pia2 look2. simpl in look2.
@@ -2423,18 +2431,16 @@ Section transmap.
     (* NOTE: This proof might be a bit of a mess. *)
     setoid_rewrite transmap_insert_lookup_ne.
     + apply rest.
-    + apply (uniq _ elem).
+    + eapply promises_lookup_at_None; done.
     + apply elem_of_list_lookup_1 in elem as (? & look).
       specialize (
         promises_well_formed_lookup owf promises _ p2 WF look) as hasDeps2.
       specialize (hasDeps2 idx) as (p3 & look3 & eq & eq2 & ?).
       simpl in *.
       rewrite eq2.
-      destruct p3.
       rewrite eq.
-      specialize (uniq _ look3) as [? | ?].
-      - left. done.
-      - right. done.
+      simpl.
+      eapply promises_lookup_at_None; done.
   Qed.
 
   Lemma transmap_resp_promises_weak owf transmap prsL prsR :
@@ -3396,7 +3402,9 @@ Section rules_with_deps.
       iPureIntro. split; last done.
       simpl.
       split.
-      - intros pi2 elem.
+      - simpl.
+        apply promises_lookup_at_None.
+        intros pi2 elem.
         right. simpl. apply PositiveOrder.neq_sym.
         apply pHolds. done.
       - intros i. simpl in i.
@@ -3463,6 +3471,8 @@ Section rules_with_deps.
     { rewrite promises_list_update_cons_ne; last naive_solver.
       simpl.
       split; last first. { apply IH. * apply wf. * apply look. }
+      split. { destruct wf as [wf1 wf2]. admit. }
+
       (* this depends on the inserted promise being stronger *)
       admit. }
     rewrite (promises_list_update_cons_eq gc_map_wf); try done.
