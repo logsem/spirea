@@ -49,14 +49,22 @@ Class ProtocolConditions `{AbstractState ST, nvmG Σ} (prot : LocationProtocol S
     ∀ s v, BufferFree (prot.(p_pers) s v);
   full_read_split :
     forall s v, prot.(p_full) s v ⊣⊢ prot.(p_read) s v ∗ (prot.(p_read) s v -∗ prot.(p_full) s v);
-  pred_condition :
-    ⊢ ∀ s v s_p v_p, prot.(p_full) s v ∗ prot.(p_pers) s_p v_p -∗
-      ∀ s_c v_c, prot.(p_read) s_c v_c ∗ ⌜ s_p ⊑ s_c ⌝ ∗ ⌜ s_c ⊑ s ⌝ -∗
-                 <PCF> prot.(p_full) (prot.(p_bumper) s_c) v_c ∗ prot.(p_pers) (prot.(p_bumper) s_c) v_c
+  pred_full_post_crash :
+    ⊢ ∀ s_p v_p, prot.(p_pers) s_p v_p -∗
+      (* first case: we crash exactly at [s] *)
+      (∀ s v, prot.(p_full) s v -∗ <PCF> prot.(p_full) (prot.(p_bumper) s) v ∗ prot.(p_pers) (prot.(p_bumper) s) v) ∧
+      (* second case: we crash later than [s_p] (included) but before [s] (excluded) *)
+      (∀ s v s_c v_c,
+         (* we need to extract the objective facts from the full predicate *)
+         ∃ P, (<obj> (prot.(p_full) s v -∗ <obj> P)) ∗
+              (P -∗ prot.(p_read) s_c v_c -∗ ⌜ s_p ⊑ s_c ⌝ -∗ ⌜ s_c ⊑ s ⌝ -∗
+              <PCF> prot.(p_full) (prot.(p_bumper) s_c) v_c ∗ prot.(p_pers) (prot.(p_bumper) s_c) v_c));
+  pred_read_post_crash :
+    ⊢ ∀ s v, prot.(p_read) s v -∗ <PCF> prot.(p_read) (prot.(p_bumper) s) v
 }.
 
 (* I'm not sure about this part *)
-#[global] Hint Mode ProtocolConditions + + + + + + ! : typeclass_instances.
+#[global] Hint Mode ProtocolConditions + + + + + ! ! : typeclass_instances.
 
 Existing Instance full_nobuf.
 Existing Instance read_nobuf.

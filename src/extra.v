@@ -721,3 +721,44 @@ Proof.
     apply prefix_app_singleton in eq as [-> ->].
     right. done.
   Qed.
+
+Lemma big_sepM_singleton_hold `{!BiAffine PROP} `{Countable K} {V1 V2} (m1: gmap K V1) (m2: gmap K V2) (P: K → V1 → V2 → PROP) k0 v01 v02:
+  (∀ k v1 v2, k ≠ k0 → k ∈ dom m1 → emp -∗ P k v1 v2) →
+  dom m1 = dom m2 →
+  m1 !! k0 = Some v01 →
+  m2 !! k0 = Some v02 →
+  P k0 v01 v02 -∗ [∗ map] k ↦ v1; v2 ∈ m1; m2, P k v1 v2.
+Proof.
+  iIntros (singleton). iIntros.
+  rewrite big_sepM2_delete; try eassumption.
+  iSplitL; first (iIntros; done).
+  iApply (big_sepM2_impl (λ _ _ _, emp)%I).
+  - rewrite big_sepM2_forall.
+    iSplit; [iPureIntro | done].
+    intros.
+    rewrite -2!elem_of_dom.
+    set_solver.
+  - iModIntro.
+    iIntros (???) "%Hlookup % ?".
+    iApply singleton; last done.
+    + pose proof (lookup_delete m1 k0).
+      congruence.
+    + apply elem_of_dom_2 in Hlookup.
+      set_solver.
+Qed.
+
+Lemma bi_wand_drop_premise `{!BiAffine PROP} P (Q: PROP):
+  Q -∗ ⌜ P ⌝ -∗ Q.
+Proof.
+  iIntros.
+  done.
+Qed.
+
+Lemma wand_passthrough `{!BiAffine PROP} (R P1 P2 Q1 Q2: PROP):
+  (P1 ∗ R -∗ Q1 ∗ R) -∗ (P2 ∗ R -∗ Q2 ∗ R) -∗ R -∗ P1 -∗ P2 -∗ Q1 ∗ Q2 ∗ R.
+Proof.
+  iIntros "wand1 wand2 ? ? ?".
+  iDestruct ("wand1" with "[$]") as "[? ?]".
+  iDestruct ("wand2" with "[$]") as "[? ?]".
+  iFrame.
+Qed.

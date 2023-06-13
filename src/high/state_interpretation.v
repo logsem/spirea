@@ -161,12 +161,10 @@ Section state_interpretation.
 
       "predsReadHold" ∷
         ([∗ map] ℓ ↦ phys_hist;abs_hist ∈ phys_hists;abs_hists,
-          ∃ pred offset,
+          ∃ pred,
             ⌜predicates_read !! ℓ = Some pred⌝ ∗
-            ⌜ offsets !! ℓ = Some $ offset ⌝ ∗
             (* The predicate holds for each message in the history. *)
             ([∗ map] t ↦ msg; encS ∈ phys_hist; abs_hist,
-               ⌜ offset ≤ t ⌝ -∗
                ⌜ is_Some $ phys_hist !! (S t) ⌝ -∗
                encoded_predicate_holds
                  pred
@@ -207,20 +205,33 @@ Section state_interpretation.
         ⌜ dom predicates_pers = dom bumpers ⌝ ∗
 
       (* The predicate holds after a crash for the bumped state. *)
-      "#predPostCrash" ∷ ([∗ map] ℓ ↦ pred_full; bump ∈ predicates_full; bumpers,
+      "#predFullPostCrash" ∷ ([∗ map] ℓ ↦ pred_full; bump ∈ predicates_full; bumpers,
         ∃ pred_read pred_pers order,
         ⌜ predicates_read !! ℓ = Some pred_read ⌝ ∗
         ⌜ predicates_pers !! ℓ = Some pred_pers ⌝ ∗
         ⌜ orders !! ℓ = Some order ⌝ ∗
-        □ (∀ (e_f e_p e_c e_c': positive) (v_f v_p v_c : val) (hG : nvmDeltaG) TV (P_full P_pers P_read : dPropO Σ),
-          pred_full e_f v_f ≡ Some P_full ∗
-          pred_read e_c v_c ≡ Some P_read ∗
-          pred_pers e_p v_p ≡ Some P_pers ∗
-          ⌜ bump e_c = Some e_c' ⌝ ∗
-          ⌜ order e_p e_c ⌝ ∗ ⌜ order e_c e_f ⌝ ∗
-          P_full (TV, hG) ∗ P_pers (TV, hG) ∗ P_read (TV, hG) -∗
-          ∃ P_full' P_pers', pred_full e_c' v_c ≡ Some P_full' ∗ pred_pers e_c' v_c ≡ Some P_pers' ∗
-                             ((post_crash_flush (P_full' ∗ P_pers': dPropO Σ)) (TV, hG)))) ∗
+        □ (∀ e_p v_p (hG : nvmDeltaG) TV,
+          encoded_predicate_holds pred_pers e_p v_p (TV, hG) -∗
+          (* first case: crash at [e_f] *)
+          (∀ e_f e_f' v_f, encoded_predicate_holds pred_full e_f v_f (TV, hG) -∗ ⌜ bump e_f = Some e_f' ⌝ -∗
+                   ∃ P_full' P_pers', pred_full e_f' v_f ≡ Some P_full' ∗ pred_pers e_f' v_f ≡ Some P_pers' ∗
+                                      (post_crash_flush (P_full' ∗ P_pers': dPropO Σ)) (TV, hG)) ∧
+          (* second case: crash at [e_c ⊏ e_f] *)
+          (∀ e_f e_c e_c' v_f v_c (P_full: dPropO Σ),
+             pred_full e_f v_f ≡ Some P_full -∗
+             ∃ P_obj: dProp Σ, (<obj> (P_full -∗ <obj> P_obj)) (TV, hG) ∗
+                               (P_obj (TV, hG) -∗
+                                ⌜ bump e_c = Some e_c' ⌝ -∗ ⌜ order e_p e_c ∨ e_p = e_c ⌝ -∗ ⌜ order e_c e_f ⌝ -∗
+                                encoded_predicate_holds pred_read e_c v_c (TV, hG) -∗
+                                ∃ P_full' P_pers', pred_full e_c' v_c ≡ Some P_full' ∗ pred_pers e_c' v_c ≡ Some P_pers' ∗
+                                                   (post_crash_flush (P_full' ∗ P_pers': dPropO Σ)) (TV, hG))))) ∗
+
+      "#predReadPostCrash" ∷ ([∗ map] ℓ ↦ pred_read; bump ∈ predicates_read; bumpers,
+        ∀ e e' v TV hG, □ (⌜ bump e = Some e' ⌝ -∗ encoded_predicate_holds pred_read e v (TV, hG) -∗
+                           ∃ (P: dPropO Σ), pred_read e' v ≡ Some P ∗ (post_crash_flush (P: dProp Σ)) (TV, hG))) ∗
+
+      "#predFullReadSplit" ∷ ([∗ map] ℓ ↦ pred_full; pred_read ∈ predicates_full; predicates_read,
+        ∀ e v i, □ (encoded_predicate_holds pred_full e v i -∗ encoded_predicate_holds pred_read e v i)) ∗
 
       (* Bumpers map valid input to valid output. *)
       "%bumperBumpToValid" ∷
