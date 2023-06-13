@@ -1349,10 +1349,21 @@ Section promise_info.
     let pred : pred_over (Oc Ω id) := lookup_fmap_Ocs pi.(pi_deps_preds) idx wf in
     pi.(pi_deps_γs) !!! idx = pSat.(pi_γ) ∧
     ∃ (eq : id = pSat.(pi_id)),
-      (* The predicate in [pSat] is stronger than what is stated in [pi] *)
+      (* The predicate in [pSat] is stronger than what is stated in [pi]. *)
       pred_stronger
         pSat.(pi_pred)
         (rew [λ id, pred_over (Oc Ω id)] eq in pred).
+
+  Lemma promise_satisfy_dep_rel_stronger pi idx wf id γ pSat1 pSat2 :
+    promise_satisfy_dep pi (MkPi id γ pSat1) idx wf →
+    pred_stronger pSat2.(pi_pred) pSat1.(pi_pred) →
+    promise_satisfy_dep pi (MkPi id γ pSat2) idx wf.
+  Proof.
+    intros (? & eq & ?) ?.
+    split; first done.
+    exists eq.
+    etrans; done.
+  Qed.
 
   (** For every dependency in [p] the list [promises] has a sufficient
    * promise. *)
@@ -1604,15 +1615,37 @@ Section promise_info.
 
   Lemma promises_list_update_elem_of pi id γ pia prs :
     pi ∈ promises_list_update id γ pia prs →
-    pi ∈ prs ∨ pi = MkPi id γ pia.
+    pi ∈ prs ∨ (pi = MkPi id γ pia ∧ ∃ pia', MkPi id γ pia' ∈ prs).
   Proof.
     unfold promises_list_update.
     intros (pi' & -> & elm)%elem_of_list_fmap_2.
     rewrite promises_info_update_equation_1.
     rewrite promises_info_update_clause_1_equation_1.
-    destruct (decide (pi'.(pi_id) = id)); last naive_solver.
-    destruct (decide (pi'.(pi_γ) = γ)); last naive_solver.
-    naive_solver.
+    destruct (decide (pi'.(pi_id) = id)) as [<-|]; last naive_solver.
+    destruct (decide (pi'.(pi_γ) = γ)) as [<-|]; last naive_solver.
+    right.
+    split; first naive_solver.
+    exists (pi'.(pi_at)).
+    destruct pi'.
+    apply elm.
+  Qed.
+
+  Lemma promises_list_update_elem_of_2 pi id γ pia prs :
+    pi ∈ prs →
+    (pi ∈ promises_list_update id γ pia prs ∧
+      path_different id γ pi.(pi_id) pi.(pi_γ)) ∨
+    (MkPi id γ pia ∈ promises_list_update id γ pia prs ∧
+      id = pi.(pi_id) ∧ γ = pi.(pi_γ)).
+  Proof.
+  Admitted.
+
+  Lemma promises_list_update_elem_of_path id γ pia pi prs :
+    pi ∈ promises_list_update id γ pia prs →
+    ∃ pia', (MkPi pi.(pi_id) pi.(pi_γ) pia') ∈ prs.
+  Proof.
+    intros [elm | [-> [pia' elm]]]%promises_list_update_elem_of.
+    - exists pi. destruct pi. done.
+    - exists pia'. done.
   Qed.
 
   Lemma promises_list_update_cons_eq wf pi prs pia :
@@ -3456,25 +3489,49 @@ Section rules_with_deps.
     done.
   Qed.
 
+  (* Show that [promise_has_deps] is preserved by [promises_list_update] as
+   * long as  the updated promise has a stronger predicate. *)
+  Lemma promises_has_deps_promises_list_update pi prs id γ pia_old pia :
+    promises_wf gc_map_wf prs →
+    pred_stronger pia.(pi_pred) pia_old.(pi_pred) →
+    promises_lookup_at prs id γ = Some pia_old →
+    promises_has_deps pi prs (gc_map_wf (pi_id pi)) →
+    promises_has_deps pi (promises_list_update id γ pia prs)
+      (gc_map_wf (pi_id pi)).
+  Proof.
+    intros ? rStr look hsd idx.
+    destruct (hsd idx) as (pSat & elm & ?).
+    pose proof elm as elm2.
+    destruct pSat.
+    eapply promises_list_update_elem_of_2 in elm as [(? & ?) | (elm & eq1 & eq2)].
+    - eexists. split; done.
+    - eexists. split; first done.
+      simpl in *. simplify_eq.
+      eapply promises_elem_of in elm2; last done.
+      simplify_eq.
+      eapply promise_satisfy_dep_rel_stronger; try done.
+  Qed.
+
   Lemma promises_wf_promises_list_update id γ pia_old pia prs :
+    pred_stronger pia.(pi_pred) pia_old.(pi_pred) →
     promises_wf gc_map_wf prs →
     promises_lookup_at prs id γ = Some pia_old →
     promises_wf gc_map_wf (promises_list_update id γ pia prs).
   Proof.
-    intros wf look.
+    intros rStr wf look.
     induction prs as [|pi prs' IH]; first done.
-    (* destruct pi. *)
     apply promises_lookup_at_cons_Some_inv in look.
     destruct look as [(<- & <- & eq3) | (neq & look)]; last first.
-    (* destruct (path_equal_or_different id pi.(pi_id) γ pi.(pi_γ)) *)
-    (*   as [(-> & ->) | neq]; last first. *)
     { rewrite promises_list_update_cons_ne; last naive_solver.
       simpl.
       split; last first. { apply IH. * apply wf. * apply look. }
-      split. { destruct wf as [wf1 wf2]. admit. }
-
-      (* this depends on the inserted promise being stronger *)
-      admit. }
+      destruct wf as [[look2 wf1] wf2].
+      split.
+      { rewrite promises_lookup_at_None in look2.
+        apply promises_lookup_at_None.
+        intros ? [pia' elm]%promises_list_update_elem_of_path.
+        apply (look2 _ elm). }
+      eapply promises_has_deps_promises_list_update; try done. }
     rewrite (promises_list_update_cons_eq gc_map_wf); try done.
     simpl.
     split; last apply wf.
@@ -3532,16 +3589,16 @@ Section rules_with_deps.
     { iPureIntro. eapply promises_lookup_update. done. }
     iSplit.
     { iPureIntro.
-      eapply promises_wf_promises_list_update; try done. }
+      eapply promises_wf_promises_list_update; last done; try done. admit. }
     unfold own_promises.
     rewrite 3!big_sepL_forall_elem_of.
-    iIntros (? [?| ->]%promises_list_update_elem_of).
+    iIntros (? [? | [-> ?]]%promises_list_update_elem_of).
     - iApply "O". done.
     - iApply own_promise_info_own; first done.
       iExists _, _.
       iFrame "frag_preds deps".
       iPureIntro. eapply pred_prefix_list_for'_grow; done.
-  Qed.
+  Admitted.
 
   Lemma token_pick γ γs (R : rel_over DS A) P (ts : trans_for n DS) t :
     huncurry R ts t →
