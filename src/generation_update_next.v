@@ -1,4 +1,5 @@
 From Equations Require Import Equations.
+From stdpp Require Import finite.
 
 From iris.algebra Require Import functions gmap agree excl csum max_prefix_list.
 From iris.algebra.lib Require Import mono_list.
@@ -810,8 +811,6 @@ Section transmap.
   Definition transmap_valid transmap :=
     ∀ i γ t, transmap i !! γ = Some t → GenTrans t.
 
-  From stdpp Require Import finite.
-
   Lemma finite_decidable_sig `{Finite A} (P : A → Prop) `{∀ i, Decision (P i)} :
     {i : A | P i} + {∀ i, ¬ P i}.
   Proof. destruct (decide (∃ i, P i)) as [?%choice | ?]; naive_solver. Qed.
@@ -1258,6 +1257,14 @@ Section promise_info.
 
   Definition path_different {A} (id1 : A) γ1 id2 γ2 := id1 ≠ id2 ∨ γ1 ≠ γ2.
 
+  Lemma path_equal_or_different {n} (id1 id2 : fin n) (γ1 γ2 : gname) :
+    id1 = id2 ∧ γ1 = γ2 ∨ (id1 ≠ id2 ∨ γ1 ≠ γ2).
+  Proof.
+    destruct (decide (id1 = id2)) as [eq|?]; last naive_solver.
+    destruct (decide (γ1 = γ2)) as [eq2|?]; last naive_solver.
+    left. naive_solver.
+  Qed.
+
   Definition promises_different p1 p2 :=
     path_different p1.(pi_id) p1.(pi_γ) p2.(pi_id) p2.(pi_γ).
 
@@ -1339,20 +1346,46 @@ Section promise_info.
       (eq : id1 = id2) (gcd : gen_cmra_data Σ id1) : gen_cmra_data Σ id2 :=
     eq_rect _ (λ id, _) gcd _ eq.
 
+  (* Definition promise_satisfy_dep (pi : promise_info Ω) idx γ *)
+  (*     (piaSat : promise_info_at _ (Oids Ω pi.(pi_id) !!! idx)) wf := *)
+  (*   let pred : pred_over (Oc Ω _) := lookup_fmap_Ocs pi.(pi_deps_preds) idx wf in *)
+  (*   pred_stronger piaSat.(pi_pred) pred. *)
+
+  (* Definition promises_has_deps pi promises wf := *)
+  (*   ∀ idx, ∃ piaSat, *)
+  (*     let dep_id := Oids Ω pi.(pi_id) !!! idx in *)
+  (*     promises_lookup_at promises dep_id (pi.(pi_deps_γs) !!! idx) = Some piaSat ∧ *)
+  (*     promise_satisfy_dep pi idx (pi.(pi_deps_γs) !!! idx) piaSat wf. *)
+
+  Definition promise_satisfy_dep_raw
+      (id : ggid Ω) (dep_γ : gname) (pred : pred_over (Oc Ω id)) pSat :=
+    dep_γ = pSat.(pi_γ) ∧
+    ∃ (eq : id = pSat.(pi_id)),
+      (* The predicate in [pSat] is stronger than what is stated in [pi]. *)
+      pred_stronger pSat.(pi_pred) (rew [λ id, pred_over (Oc Ω id)] eq in pred).
+
+  Definition promises_has_deps_raw {n}
+      (ids : fin n → ggid Ω) (deps_γs : ivec n gname)
+      (preds : ∀ idx, pred_over (Oc Ω (ids idx))) promises :=
+    ∀ idx, ∃ pSat, pSat ∈ promises ∧
+      promise_satisfy_dep_raw (ids idx) (deps_γs !!! idx) (preds idx) pSat.
+
+  (** For every dependency in [pi] the list [prs] has a sufficient promise. *)
+  Definition promises_has_deps pi prs wf :=
+    promises_has_deps_raw
+      (λ idx, Oids Ω pi.(pi_id) !!! idx) pi.(pi_deps_γs)
+      (λ idx, lookup_fmap_Ocs pi.(pi_deps_preds) idx wf)
+      prs.
+
   (** The promise [pSat] satisfies the dependency at [idx] of [pi]. Note that
    * the predicate in [pi] may not be the same as the one in [pSat]. When we
    * combine lists of promises some promises might be replaced by stronger
    * ones. Hence we only require that the predicate in [pSat] is stronger than
    * the one in [pi]. *)
   Definition promise_satisfy_dep (pi pSat : promise_info Ω) idx wf :=
-    let id := Oids Ω pi.(pi_id) !!! idx in
-    let pred : pred_over (Oc Ω id) := lookup_fmap_Ocs pi.(pi_deps_preds) idx wf in
-    pi.(pi_deps_γs) !!! idx = pSat.(pi_γ) ∧
-    ∃ (eq : id = pSat.(pi_id)),
-      (* The predicate in [pSat] is stronger than what is stated in [pi]. *)
-      pred_stronger
-        pSat.(pi_pred)
-        (rew [λ id, pred_over (Oc Ω id)] eq in pred).
+    promise_satisfy_dep_raw
+      (Oids Ω pi.(pi_id) !!! idx) (pi.(pi_deps_γs) !!! idx)
+      (lookup_fmap_Ocs pi.(pi_deps_preds) idx wf) pSat.
 
   Lemma promise_satisfy_dep_rel_stronger pi idx wf id γ pSat1 pSat2 :
     promise_satisfy_dep pi (MkPi id γ pSat1) idx wf →
@@ -1364,11 +1397,6 @@ Section promise_info.
     exists eq.
     etrans; done.
   Qed.
-
-  (** For every dependency in [p] the list [promises] has a sufficient
-   * promise. *)
-  Definition promises_has_deps pi promises wf :=
-    ∀ idx, ∃ pSat, pSat ∈ promises ∧ promise_satisfy_dep pi pSat idx wf.
 
   (** The promise [p] is well-formed wrt. the list [promises] of promises that
    * preceeded it. *)
@@ -1491,14 +1519,6 @@ Section promise_info.
 
      We must also be able to combine to lists of promises.
   *)
-
-  Lemma path_equal_or_different {n} (id1 id2 : fin n) (γ1 γ2 : gname) :
-    id1 = id2 ∧ γ1 = γ2 ∨ (id1 ≠ id2 ∨ γ1 ≠ γ2).
-  Proof.
-    destruct (decide (id1 = id2)) as [eq|?]; last naive_solver.
-    destruct (decide (γ1 = γ2)) as [eq2|?]; last naive_solver.
-    left. naive_solver.
-  Qed.
 
   Equations promises_info_update pi id (γ : gname) (pia : promise_info_at _ id) : promise_info Ω :=
   | pi, id, γ, pia with decide (pi.(pi_id) = id), decide (pi.(pi_γ) = γ) => {
@@ -1675,11 +1695,12 @@ Section promise_info.
       destruct diff as [neq|neq]; simpl in neq; congruence.
   Qed.
 
-  Lemma promises_elem_of owf promises id γ pia :
+  Lemma promises_elem_of owf promises pi :
     promises_wf owf promises →
-    MkPi id γ pia ∈ promises →
-    promises_lookup_at promises id γ = Some pia.
+    pi ∈ promises →
+    promises_lookup_at promises pi.(pi_id) pi.(pi_γ) = Some pi.(pi_at).
   Proof.
+    destruct pi as [id γ pia].
     intros wf.
     induction promises as [|[id' γ' ?] ? IH]; first by inversion 1.
     rewrite promises_lookup_at_equation_2.
@@ -1883,8 +1904,10 @@ Section promise_info.
     promise_stronger pia2 (MkPi id γ pia1).
   Proof.
     intros [elm|elm] ? ? look (? & str1 & str2 & ? & ?).
-    - eapply str1; first done. eapply promises_elem_of; done.
-    - eapply str2; first done. eapply promises_elem_of; done.
+    - eapply str1; first done.
+      eapply (promises_elem_of _ _ (MkPi id γ pia1)); try done.
+    - eapply str2; first done.
+      eapply (promises_elem_of _ _ (MkPi id γ pia1)); try done.
   Qed.
 
   (* Get the strongest promise from [prsL] and [prsR]. *)
@@ -2047,7 +2070,7 @@ Section promise_info.
         exists prs3.
         split_and!; try done.
         intros idx. inversion idx. }
-      (* There is some number of dependencies an all the lists related to the
+      (* There is some number of dependencies and all the lists related to the
        * dependencies must be of the [cons] form. *)
       dependent elimination gcd_deps0 as [icons d_c deps'].
       dependent elimination gcd_deps_ids0 as [icons d_id deps_ids'].
@@ -2066,6 +2089,7 @@ Section promise_info.
         specialize (lem (FS idx)) as (j & pi2 & wf0 & ? & ? & ? & (? & rest)).
         exists j, pi2, (λ i, wf0 (FS i)).
         rewrite hvec_lookup_fmap_equation_3 in rest.
+        unfold promise_satisfy_dep_raw.
         split_and!; naive_solver. }
       specialize (lem 0%fin) as
         (j & piD & ? & le & look2 & lookDeps & idEq & _).
@@ -2326,18 +2350,18 @@ Section transmap.
   (** The [transmap] respect the promises in [ps]: There is a pick for every
    * promise and all the relations in the promises are satisfied by the
    * transformations in transmap. *)
-  Definition transmap_resp_promises transmap ps :=
-    Forall (transmap_satisfy_rel transmap) ps.
+  Definition transmap_resp_promises transmap prs :=
+    Forall (transmap_satisfy_rel transmap) prs.
 
   Definition Oc_trans_transport {id1 id2} (eq : id1 = id2)
     (o : Oc Ω id1 → _) : Oc Ω id2 → Oc Ω id2 :=
       eq_rect _ (λ id, Oc Ω id → Oc Ω id) o _ eq.
 
-  Lemma promises_has_deps_resp_promises p idx promises transmap :
-    promises_has_deps p promises (Ω.(gc_map_wf) p.(pi_id)) →
+  Lemma promises_has_deps_resp_promises pi idx promises transmap :
+    promises_has_deps pi promises (Ω.(gc_map_wf) pi.(pi_id)) →
     transmap_resp_promises transmap promises →
-    ∃ t, (pi_deps_pred p idx (Ω.(gc_map_wf) p.(pi_id))) t ∧
-         transmap (pi_deps_id p idx) !! (p.(pi_deps_γs) !!! idx) = Some t.
+    ∃ t, (pi_deps_pred pi idx (Ω.(gc_map_wf) pi.(pi_id))) t ∧
+         transmap (pi_deps_id pi idx) !! (pi.(pi_deps_γs) !!! idx) = Some t.
   Proof.
     intros hasDeps resp.
     rewrite /transmap_resp_promises Forall_forall in resp.
@@ -2487,7 +2511,7 @@ Section transmap.
     rewrite !Forall_forall.
     intros resp [id γ pia2] elm.
     destruct (strong id γ pia2) as (pia1 & look2 & stronger).
-    { apply (promises_elem_of owf); done. }
+    { apply (promises_elem_of owf _ (MkPi id γ pia2)); done. }
     destruct (resp (MkPi id γ pia1)) as (? & ? & ? & ? & ?).
     { apply promises_lookup_at_Some. done. }
     eexists _, _.
@@ -3151,13 +3175,8 @@ Lemma list_rely_self {n : nat} {DS : ivec n cmra} `{nds : ∀ (i : fin n), genIn
     ⌜ promises_wf (Ω.(gc_map_wf)) prs ⌝ ∗
     own_promises prs ∗
     (* contains every promise in [γs] with the pred in [deps_preds] *)
-    ⌜ ∀ (idx : fin n),
-      ∃ pia,
-        let i := (genInG_id (@genInSelfG_gen _ _ _ (nds idx))) in
-        promises_lookup_at prs i (γs !!! idx) = Some pia ∧
-        let pred : pred_over (Oc Ω i) :=
-          rew [λ i, i] pred_over_Oc_genInG in hvec_lookup_fmap deps_preds idx in
-        pred_stronger pia.(pi_pred) pred ⌝.
+    ⌜ promises_has_deps_raw ((λ idx, genInG_id (@genInSelfG_gen _ _ _ (nds idx)))) γs
+      (λ idx, rew [λ i, i] (pred_over_Oc_genInG (i := (@genInSelfG_gen _ _ _ (nds idx)))) in hvec_lookup_fmap deps_preds idx) prs ⌝.
 Proof.
   induction n as [|n' IH].
   { iIntros "_". iExists [].
@@ -3187,17 +3206,27 @@ Proof.
   intros n2.
   dependent elimination n2; last first.
   { (* This one is from the IH *)
-    destruct (prop t) as (pia' & look & predStr).
+    destruct (prop t) as (pia' & elm & sat).
     destruct val as (? & str & ?).
-    destruct (str _ _ _ look) as (pia2 & look2 & str2).
-    exists pia2.
-    split; first apply look2.
+    apply (promises_elem_of _ _ _ wf2) in elm.
+    destruct (str _ _ _ elm) as (pia2 & look2 & str2).
+    eexists (MkPi _ _ pia2).
+    split. { eapply promises_lookup_at_Some. done. }
+    unfold promise_satisfy_dep_raw.
+    destruct sat as (γEq & eq & predStr).
+    split; first apply γEq.
+    exists eq.
     etrans; last apply predStr.
     apply str2. }
+    (* simpl. *)
+    (* etrans; last apply predStr. *)
+    (* apply str2. } *)
   destruct val as (? & str & str2).
   destruct (str2 _ _ _ pia_in) as (pia2 & look2 & ?).
-  exists pia2.
-  split; first apply look2.
+  eexists (MkPi _ _ pia2).
+  split. { eapply promises_lookup_at_Some. done. }
+  split; first done.
+  exists eq_refl.
   etrans; first apply H0.
   destruct pia_for as (? & -> & ?).
   done.
@@ -3281,9 +3310,7 @@ Section rules_with_deps.
   Program Definition make_true_pia (γs : ivec n gname) : promise_info_at Ω _ :=
     make_pia γs (True_preds_for DS) True_rel True_pred _ _.
   Next Obligation. intros. done. Qed.
-  Next Obligation.
-    intros. exists (λ a, a). rewrite huncurry_curry. done.
-  Qed.
+  Next Obligation. intros. exists (λ a, a). rewrite huncurry_curry. done. Qed.
 
   Lemma auth_promise_list_frag γ rs ps :
     own_auth_promise_list γ rs ps
@@ -3440,26 +3467,22 @@ Section rules_with_deps.
         intros pi2 elem.
         right. simpl. apply PositiveOrder.neq_sym.
         apply pHolds. done.
-      - intros i. simpl in i.
-        destruct (allDeps (rew <- genInG_gcd_n in i)) as (pia' & look & predStr).
-        exists (MkPi _ (γs !!! rew <- [fin] genInG_gcd_n in i) pia').
-        simpl.
-        split. { apply promises_lookup_at_Some. done. }
-        unfold promise_satisfy_dep. simpl.
-        split.
-        { rewrite -rew_lookup_total. unfold eq_rect_r.
-          rewrite eq_sym_involutive. done. }
-        unfold Oids.
+      - intros i.
+        destruct (allDeps (rew <- genInG_gcd_n in i)) as (pi' & elm & γEq & eq' & rest).
+        exists pi'.
+        split; first done.
         specialize (genInDepsG_eqs (rew On_genInG in i)) as idEqs.
-        assert (Oids Ω (genInG_id genInDepsG_gen) !!! i =
-          genInG_id (genInSelfG_gen (gs (rew <- [fin] genInG_gcd_n in i)))) as eq.
+        assert (Oids Ω (genInG_id genInDepsG_gen) !!! i = pi_id pi') as eq.
         { rewrite rew_opp_r in idEqs.
           rewrite -idEqs. done. }
+        split.
+        { rewrite -γEq -rew_lookup_total /eq_rect_r eq_sym_involutive //. }
         exists eq.
-        intros ??. simpl. clear.
         unfold lookup_fmap_Ocs.
-        destruct eq. simpl. clear.
+        intros ??.
         rewrite True_pred_rew_lookup_fmap_rew.
+        clear.
+        destruct eq.
         apply rew_True_pred. }
     unfold own_promises.
     rewrite big_sepL_cons.
@@ -3507,9 +3530,9 @@ Section rules_with_deps.
     - eexists. split; done.
     - eexists. split; first done.
       simpl in *. simplify_eq.
-      eapply promises_elem_of in elm2; last done.
+      eapply promises_elem_of in elm2; last done. simpl in elm2.
       simplify_eq.
-      eapply promise_satisfy_dep_rel_stronger; try done.
+      eapply promise_satisfy_dep_rel_stronger; done.
   Qed.
 
   Lemma promises_wf_promises_list_update id γ pia_old pia prs :
