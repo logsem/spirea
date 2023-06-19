@@ -70,16 +70,23 @@ Section ivec.
 
   #[global] Existing Instance ivec_lookup_total.
 
-  (* (* Lookup in a [ivec Type] with [unit] as a fallback. *) *)
-  (* Fixpoint ivec_type_lookup {n} (As : ivec n Type) (i : nat) : Type := *)
-  (*   match As with *)
-  (*   | inil => unit *)
-  (*   | icons t ts => *)
-  (*       match i with *)
-  (*       | 0 => t *)
-  (*       | S i' => ivec_type_lookup ts i' *)
-  (*       end *)
-  (*   end. *)
+  Lemma ivec_lookup_total_cons {A n} (As : ivec n A) a i :
+    (a :: As)%IL !!! FS i = As !!! i.
+  Proof. done. Qed.
+
+  Equations ivec_from_fun {A n} (f : fin n → A) : ivec n A :=
+  @ivec_from_fun A 0 f := inil;
+  @ivec_from_fun A (S n) f := icons (f 0%fin) (ivec_from_fun (λ i, f (FS i))).
+
+  Lemma ivec_from_fun_lookup_total {A n} (f : fin n → A) i :
+    ivec_from_fun f !!! i = f i.
+  Proof.
+    induction n as [|? IH]. { inversion i. }
+    rewrite ivec_from_fun_equation_2.
+    dependent elimination i. { done. }
+    rewrite (ivec_lookup_total_cons _ (f 0%fin) t).
+    apply IH.
+  Qed.
 
   Fixpoint iapp {A n m} (As : ivec n A) (Bs : ivec m A) : ivec (n + m) A :=
     match As with
@@ -109,10 +116,6 @@ Section ivec.
       apply IH in eq2 as ->.
       done.
   Qed.
-
-  Lemma ivec_lookup_total_cons {A n} (As : ivec n A) a i :
-    (a :: As)%IL !!! FS i = As !!! i.
-  Proof. done. Qed.
 
   Lemma ivec_lookup_fmap {A B n} (F : A → B) (As : ivec n A) i :
     F (As !!! i) = (ivec_map F As) !!! i.
