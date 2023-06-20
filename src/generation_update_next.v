@@ -3549,6 +3549,49 @@ Section rules_with_deps.
 
   (* Translates between the omega based resource in [own_promise_info] and
    * [genInG] based ones. *)
+  Lemma own_promise_info_own' γ pia :
+    own_promise_info (MkPi (genInG_id genInDepsG_gen) γ pia) ⊣⊢
+    (∃ Rs Ps,
+      ⌜ pred_prefix_list_for' Rs Ps
+          (rew <- [id] rel_over_Oc_Ocs_genInG in pia.(pi_rel))
+          (rew <- [id] pred_over_Oc_genInG in pia.(pi_pred)) ⌝ ∗
+      know_deps γ (rew <- [λ n, ivec n _] genInG_gcd_n in pia.(pi_deps_γs)) ∗
+      own_frag_promise_list γ Rs Ps).
+  Proof.
+    destruct pia. simpl in *.
+    unfold own_frag_promise_list.
+    unfold own_promise_info.
+    unfold own_promise_info_resource.
+    unfold know_deps.
+    unfold gen_promise_rel_pred_list.
+    simpl in *.
+    destruct genInDepsG_gen. simpl in *.
+    unfold rel_over_Oc_Ocs_genInG in *.
+    unfold pred_over_Oc_genInG in *.
+    unfold gen_promise_rel_pred_list.
+    setoid_rewrite own_gen_cmra_data_to_inG.
+    unfold genInG_inG.
+    simpl.
+    unfold omega_genInG_cmra_eq.
+    unfold generational_cmraR_transp.
+    unfold Ocs in *.
+    unfold Oeq.
+    unfold Ogid.
+    simpl in *.
+    unfold Oown.
+    setoid_rewrite <- own_op.
+    simpl in *.
+    destruct (Ω.(gc_map) genInG_id0). simpl in *.
+    destruct genInG_gcd_n0.
+    destruct genInG_gti_typ0.
+    unfold eq_ind_r in *.
+    unfold eq_rect_r in *. simpl in *.
+    destruct genInG_gcd_deps0. simpl.
+    repeat f_equiv; done.
+  Qed.
+
+  (* Translates between the omega based resource in [own_promise_info] and
+   * [genInG] based ones. *)
   Lemma own_promise_info_own γ γs R P pia :
     promise_info_for pia γs R P →
     own_promise_info (MkPi (genInG_id genInDepsG_gen) γ pia) ⊣⊢
@@ -3748,6 +3791,60 @@ Section rules_with_deps.
       done.
   Qed.
 
+  Lemma own_auth_promise_list_frag γ Rs1 Rs2 Ps1 Ps2 :
+    own_auth_promise_list γ Rs1 Ps1 -∗
+    own_frag_promise_list γ Rs2 Ps2 -∗
+    ⌜ Rs2 `prefix_of` Rs1 ∧ Ps2 `prefix_of` Ps1 ⌝.
+  Proof.
+    iIntros "O1 O2".
+    iDestruct (own_valid_2 with "O1 O2") as "O".
+    unfold gc_tup_rel_pred.
+    rewrite -!pair_op.
+    rewrite 5!prod_validI /= -4!assoc.
+    iDestruct "O" as "(_ & _ & _ & _ & %V1 & %V2)".
+    apply pair_valid in V1, V2. simpl in *.
+    destruct V1 as [V1 _].
+    destruct V2 as [V2 _].
+    apply mono_list_both_valid_L in V1.
+    apply mono_list_both_valid_L in V2.
+    done.
+  Qed.
+
+  Lemma pred_prefix_list_for'_prefix_of {B}
+      (Rs1 Rs2 : list B) e e2:
+    pred_prefix_list_for' Rel Rs1 e →
+    pred_prefix_list_for' Rel Rs2 e2 →
+    (* Rs1 `prefix_of` Rs2 → *)
+    Ps1 `prefix_of` Ps2 →
+    pred_stronger e e2.
+  Proof.
+    intros PP1 PP2 pref.
+    destruct PP1 as [isLast1 _].
+    destruct PP2 as [isLast2 weaker].
+    rewrite last_lookup in isLast1.
+    eapply prefix_lookup in isLast1; last done.
+    apply: increasing_list_last_greatest; done.
+  Qed.
+
+
+  Lemma own_promises_auth_promise_list prs γ rels preds (R : rel_over DS A) P pia :
+    (* promise_info_for pia γs R P → *)
+    pred_prefix_list_for' rels preds R P →
+    promises_lookup_at prs (genInG_id genInDepsG_gen) γ = Some pia →
+    own_promises prs -∗
+    own_auth_promise_list γ rels preds -∗
+    ⌜ pred_stronger (rew [id] pred_over_Oc_genInG in P) pia.(pi_pred) ⌝.
+  Proof.
+    iIntros (??) "prs O2".
+    iDestruct (big_sepL_elem_of with "prs") as "H".
+    { apply promises_lookup_at_Some. done. }
+    iDestruct (own_promise_info_own' with "H") as (???) "(OD & OF)".
+    iDestruct (own_auth_promise_list_frag with "O2 [$]") as "[% %]".
+    iPureIntro.
+    (* unfold pred_stronger. intros ?. *)
+    eapply pred_prefix_list_for_prefix_of in H. last done.
+  Admitted.
+
   (** Strengthen a promise. *)
   Lemma token_strengthen_promise
       γ γs (deps_preds : preds_for n DS)
@@ -3785,11 +3882,11 @@ Section rules_with_deps.
     iExists (promises_list_update _ γ pia2 prsMerged).
     iExists pia2.
     iFrame "token".
+    destruct val as (_ & str & ?).
+    specialize (str _ _ _ pia_in) as (pia3 & ? & ?).
     iMod (auth_promise_list_snoc γ with "auth_preds") as "a".
     iDestruct (auth_promise_list_frag with "a") as "[$ frag_preds]".
     iModIntro.
-    destruct val as (_ & str & ?).
-    specialize (str _ _ _ pia_in) as (pia3 & ? & ?).
     unfold know_promise.
     iSplit; first done.
     iSplit. { iPureIntro. eapply pred_prefix_list_for'_grow; done. }
@@ -3800,7 +3897,16 @@ Section rules_with_deps.
       eapply promises_wf_promises_list_update; last done; try done.
       * unfold promises_has_deps. simpl.
         eapply (promises_has_deps_raw_stronger _ _ depPrs); done.
-      * admit. }
+      * simpl.
+        assert (pia3.(pi_pred) = (rew [id] pred_over_Oc_genInG in P_1)). { admit. }
+        rewrite H4.
+        clear -predStronger.
+        unfold pred_over_Oc_genInG. simpl.
+        eapply pred_stronger_eq.
+        generalize pred_over_Oc_genInG.
+        intros eq. destruct eq.
+        clear.
+        admit. }
     unfold own_promises.
     rewrite 3!big_sepL_forall_elem_of.
     iIntros (? [? | [-> ?]]%promises_list_update_elem_of).
