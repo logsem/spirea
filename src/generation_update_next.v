@@ -1478,7 +1478,7 @@ Section promise_info.
     promises_wf gc_map_wf prs →
     promises_lookup_at prs (pi_id pi) (pi_γ pi) = Some pi.(pi_at) →
     ∃ i, prs !! i = Some pi ∧
-         promises_has_deps pi (drop i prs) (gc_map_wf pi.(pi_id)).
+         promises_has_deps pi (drop (S i) prs) (gc_map_wf pi.(pi_id)).
   Proof.
     induction prs as [|pi2 prs IH]; first done.
     intros [wfPi wf].
@@ -1488,7 +1488,6 @@ Section promise_info.
       simplify_eq.
       split; first done.
       destruct wfPi as [??].
-      apply promises_has_deps_weaken_cons.
       done. }
     apply (IH wf) in look as (i & ?).
     exists (S i). done.
@@ -3725,61 +3724,70 @@ Section rules_with_deps.
       eapply promise_satisfy_dep_rel_stronger; done.
   Qed.
 
-  Lemma promises_has_deps_cons pi1 prs :
+  (* If both [pi1] and [pi2] are in [prs] and if [pi2] is a dependency of [pi1]
+   * then [pi2] is later in the list. *)
+  Lemma promises_deps_later pi1 pi2 prs idx :
     promises_wf gc_map_wf prs →
-    is_Some (promises_lookup_at prs pi1.(pi_id) pi1.(pi_γ)) →
-    promises_has_deps pi1 prs (gc_map_wf pi1.(pi_id)) →
-    promises_has_deps pi1 (tail prs) (gc_map_wf pi1.(pi_id)).
+    pi2 ∈ prs →
+    promises_lookup_at prs (pi_id pi1) (pi_γ pi1) = Some pi1.(pi_at) →
+    pi_deps_γs pi1 !!! idx = pi_γ pi2 →
+    Oids Ω (pi_id pi1) !!! idx = pi_id pi2 →
+    ∃ i j, i < j ∧ prs !! i = Some pi1 ∧ prs !! j = Some pi2.
   Proof.
-    (* This holds since the dependencies of [pi2] are after [pi2] in the list,
-     * and hence they can not be present in the head as [pi2] is either the
-     * head or even further back in the list. *)
-    intros wf (? & look) deps.
-  Abort.
-  (*   intros ?. *)
-  (*   destruct prs as [|prs2 prs]; first done. *)
-  (*   simpl. *)
-  (* Admitted. *)
-  (* (*   specialize (promises_wf_lookup_at _ _ _ look). *) *)
-  (* (*   (* destruct wf as (wfPi & wf). *) *) *)
-  (* (*   (* apply promises_lookup_at_cons_Some_inv in look as [(? & ? & ?)|?]. *) *) *)
-  (* (*   (* -  *) *) *)
-  (* (*   (* - *) *) *)
-  (*   induction prs as [|prs2 prs]; first done. *)
-  (*   simpl. *)
-  (*   destruct wf as (wfPi & wf). *)
-  (*   apply promises_lookup_at_cons_Some_inv in look as [(? & ? & ?)|?]. *)
-  (*   - admit. *)
-  (*   - *)
-  (* Qed. *)
+    intros wf ? look ??.
+    apply promises_wf_lookup_at in look as (i & look & deps); last done.
+    destruct (deps idx) as (piSat & elm & ? & ? & ?).
+    simplify_eq.
+    apply elem_of_list_lookup_1 in elm as (o & elm).
+    rewrite lookup_drop in elm.
+    edestruct (promises_wf_unique _ _ wf pi2 piSat) as [<-|diff]; try done.
+    { eapply elem_of_list_lookup_2.
+      apply elm. }
+    2: { destruct diff as [neq|neq]; congruence. }
+    exists i, (S i + o).
+    split_and!; (lia || done).
+  Qed.
 
-  Lemma promises_has_deps_cons pi1 pi2 prs :
-    promises_wf gc_map_wf (pi2 :: prs) →
-    is_Some (promises_lookup_at (pi2 :: prs) pi1.(pi_id) pi1.(pi_γ)) →
-    promises_has_deps pi1 (pi2 :: prs) (gc_map_wf pi1.(pi_id)) →
-    promises_has_deps pi1 prs (gc_map_wf pi1.(pi_id)).
+  Lemma promises_has_deps_cons id γ pia1 pia2 prs :
+    promises_wf gc_map_wf prs →
+    promises_lookup_at prs id γ = Some pia2 →
+    pia2.(pi_deps_γs) = pia1.(pi_deps_γs) →
+    promises_has_deps (MkPi id γ pia1) prs (gc_map_wf id) →
+    promises_has_deps (MkPi id γ pia1) (tail prs) (gc_map_wf id).
   Proof.
     (* This holds since the dependencies of [pi2] are after [pi2] in the list,
      * and hence they can not be present in the head as [pi2] is either the
      * head or even further back in the list. *)
-    intros [wfPi wf] (? & look) deps.
-    induction (pi2 :: prs); first done.
-    apply promises_lookup_at_cons_Some_inv in look as [(? & ? & ?)|?].
-    - admit.
-    - admit.
-  Admitted.
+    intros wf look ? deps.
+    intros idx.
+    destruct (deps idx) as (piSat & ? & ? & ? & ?).
+    edestruct (promises_deps_later (MkPi id γ pia2)) as (i & j & ? & ? & ?); try done.
+    { simpl in *. congruence. }
+    exists piSat.
+    split.
+    { assert (1 ≤ j) as le by lia.
+      apply Nat.le_exists_sub in le as (j' & eq & _).
+      rewrite (comm (Nat.add)) in eq.
+      simplify_eq.
+      eapply elem_of_list_lookup_2.
+      rewrite lookup_tail.
+      done. }
+    split; first done.
+    eexists _. done.
+  Qed.
 
   (* Updating a promise to a stronger promise while preserving well-formedness. *)
   Lemma promises_wf_promises_list_update id γ pia_old pia prs :
     promises_has_deps (MkPi id γ pia) prs (gc_map_wf id) →
+    pi_deps_γs pia_old = pi_deps_γs pia →
     pred_stronger pia.(pi_pred) pia_old.(pi_pred) →
     promises_wf gc_map_wf prs →
     promises_lookup_at prs id γ = Some pia_old →
     promises_wf gc_map_wf (promises_list_update id γ pia prs).
   Proof.
-    intros hasDeps rStr wf look.
+    intros hasDeps ? rStr wf look.
     induction prs as [|pi prs' IH]; first done.
-    eapply promises_has_deps_cons in hasDeps; [ |done|done].
+    eapply (promises_has_deps_cons _ _ pia) in hasDeps; try done.
     destruct wf as [wfPi wf].
     apply promises_lookup_at_cons_Some_inv in look.
     destruct look as [(<- & <- & eq3) | (neq & look)]; last first.
@@ -3940,6 +3948,7 @@ Section rules_with_deps.
       eapply promises_wf_promises_list_update; last done; try done.
       * unfold promises_has_deps. simpl.
         eapply (promises_has_deps_raw_stronger _ _ depPrs); done.
+      * admit.
       * simpl.
         etrans; last apply str2.
         clear -predStronger.
@@ -3949,7 +3958,7 @@ Section rules_with_deps.
         apply predStronger. }
     iApply own_promises_list_update; try done.
     eapply pred_prefix_list_for'_grow; done.
-  Qed.
+  Admitted.
 
   Lemma token_pick γ γs (R : rel_over DS A) P (ts : trans_for n DS) t :
     huncurry R ts t →
