@@ -603,10 +603,9 @@ Section omega_helpers.
     (Ω.(gc_map) i).(gcd_cmra_eq).
 
   (** This lemma relies on [Ω] being well-formed. *)
-  Lemma Ocs_Oids_distr {Ω : gGenCmras Σ}
+  Definition Ocs_Oids_distr {Ω : gGenCmras Σ}
       id (idx : fin (On Ω id)) (wf : omega_wf_at Ω.(gc_map) id) :
-    Ocs Ω id !!! idx = Oc Ω (Oids Ω id !!! idx).
-  Proof. rewrite -(wf idx). done. Defined.
+    Ocs Ω id !!! idx = Oc Ω (Oids Ω id !!! idx) := eq_sym (wf idx).
 
 End omega_helpers.
 
@@ -3370,6 +3369,78 @@ Lemma rew_lookup_total {A : Set} n m (γs : ivec n A) i (eq : m = n) :
   γs !!! rew [fin] eq in i.
 Proof. destruct eq. done. Qed.
 
+Lemma promises_has_deps_rew {n : nat} {DS : ivec n cmra}
+    `{gs : ∀ (i : fin n), genInSelfG Σ Ω (DS !!! i)}
+    `{g : !genInDepsG Σ Ω A DS}
+    (γs : ivec n gname) (deps_preds : preds_for n DS) prs :
+  promises_has_deps_raw
+    (λ idx : fin n, genInG_id (genInSelfG_gen (gs idx)))
+    γs
+    (λ idx : fin n,
+      rew [pred_over] genInG_gti_typ in hvec_lookup_fmap deps_preds idx)
+    prs →
+  promises_has_deps_raw
+    (λ idx : fin (On Ω (genInG_id genInDepsG_gen)),
+       Oids Ω (genInG_id genInDepsG_gen) !!! idx)
+    (rew [λ n0 : nat, ivec n0 gname] genInG_gcd_n in γs)
+    (λ idx : fin (On Ω (genInG_id genInDepsG_gen)),
+       lookup_fmap_Ocs (rew [id] preds_for_genInG in deps_preds) idx
+         (gc_map_wf (genInG_id genInDepsG_gen)))
+    prs.
+Proof.
+  intros hasDeps i.
+  destruct (hasDeps (rew <- genInG_gcd_n in i)) as (pi & elm & γEq & eq' & str).
+  exists pi.
+  split; first done.
+  specialize (genInDepsG_eqs (rew <- genInG_gcd_n in i)) as idEqs.
+  rewrite rew_opp_r in idEqs.
+  split.
+  { rewrite -γEq -rew_lookup_total /eq_rect_r eq_sym_involutive //. }
+  exists (eq_trans (eq_sym idEqs) eq').
+  intros t holds.
+  specialize (str t holds).
+  rewrite -rew_compose.
+
+  unfold lookup_fmap_Ocs.
+  unfold Ocs_Oids_distr.
+  unfold preds_for_genInG.
+  clear -str.
+  destruct eq'. simpl in *.
+  (* Set Printing All. *)
+  (* generalize (gs !!! ) *)
+  (* rewrite True_pred_rew_lookup_fmap_rew. *)
+  (* unfold pred_over_Oc_genInG in *. *)
+  (* unfold preds_for_genInG. *)
+  (* unfold Ocs_Oids_distr. *)
+  (* generalize (gc_map_wf (genInG_id genInDepsG_gen) i). intros ?. *)
+  (* clear -str. *)
+  (* rewrite True_pred_rew_lookup_fmap_rew. *)
+  destruct g.
+  destruct genInDepsG_gen0. simpl in *.
+  unfold Oids in *.
+  unfold Ocs in *.
+  unfold preds_for_genInG. simpl.
+  unfold Ocs in *.
+  unfold Ocs_Oids_distr.
+  unfold Oids in *.
+  unfold Ocs in *.
+  simpl in *.
+  generalize (gc_map_wf genInG_id0 i).
+  clear -str.
+  (* Set Printing All. *)
+  destruct (gc_map Ω genInG_id0). simpl in *.
+  destruct genInG_gcd_n0.
+  unfold eq_rect_r in *. simpl in *.
+  destruct genInG_gcd_deps0. simpl.
+  generalize dependent (gs i).
+  intros g. destruct g. simpl. intros eq' p eq2.
+  (* destruct eq2. *)
+  destruct genInSelfG_gen0. simpl in *.
+  (* destruct genInG_gcd_n0. *)
+  (* destruct genInG_gti_typ0. simpl in *. *)
+  clear -p.
+Admitted.
+
 Lemma list_rely_self' {n : nat} {DS : ivec n cmra}
     `{gs : ∀ (i : fin n), genInSelfG Σ Ω (DS !!! i)}
     `{g : !genInDepsG Σ Ω A DS}
@@ -3394,71 +3465,8 @@ Proof.
   iExists (prs).
   iFrame (wf) "OP".
   iPureIntro.
-  (* unfold promises_has_deps_raw. simpl. *)
-  intros i. simpl in *.
-  destruct (hasDeps (rew <- genInG_gcd_n in i)) as (pi' & elm & γEq & eq' & str).
-  exists pi'.
-  split; first done.
-  specialize (genInDepsG_eqs (rew On_genInG in i)) as idEqs.
-  assert (Oids Ω (genInG_id genInDepsG_gen) !!! i = pi_id pi') as eq.
-  { rewrite rew_opp_r in idEqs.
-    rewrite -idEqs. done. }
-  split.
-  { rewrite -γEq -rew_lookup_total /eq_rect_r eq_sym_involutive //. }
-  exists eq.
-  unfold lookup_fmap_Ocs.
-  intros t p.
-  specialize (str t p).
-  clear -str.
-  (* Set Printing All. *)
-  (* generalize (gs !!! ) *)
-  (* rewrite True_pred_rew_lookup_fmap_rew. *)
-  unfold pred_over_Oc_genInG in *.
-  unfold preds_for_genInG.
-  unfold Ocs_Oids_distr.
-  generalize (gc_map_wf (genInG_id genInDepsG_gen) i). intros ?.
-  clear -str.
-  (* rewrite True_pred_rew_lookup_fmap_rew. *)
-  destruct eq.
-  simpl in *.
-  destruct g.
-  destruct genInDepsG_gen0. simpl in *.
-  unfold Oids in *.
-  unfold Ocs in *.
-  unfold preds_for_genInG. simpl.
-  unfold Ocs in *.
-  unfold Ocs_Oids_distr.
-  unfold Oids in *.
-  unfold Ocs in *.
-  simpl in *.
-  generalize (gc_map_wf genInG_id0 i).
-  clear -str.
-  (* Set Printing All. *)
-  destruct (gc_map Ω genInG_id0). simpl in *.
-  destruct genInG_gcd_n0.
-  unfold eq_rect_r in *. simpl in *.
-  destruct genInG_gcd_deps0. simpl.
-  generalize dependent (gs i).
-  intros g. destruct g. simpl. intros eq' p eq2.
-  destruct genInSelfG_gen0. simpl in *.
-  clear -p.
-Admitted.
-(*   destruct eq'. *)
-(*   generalize (gc_map_wf genInG_id1 _). *)
-(*   destruct genInG_gti_typ0. *)
-(*   generalize dependent (gcd_deps_ids0 !!! i). *)
-(*   destruct eq'. *)
-(*   Set Printing Implicit. *)
-(*   destruct (@genInSelfG_n Σ Ω (DS !!! i) (gs i)). *)
-(*   simpl in *. *)
-(*   destruct genInG_gti_typ. *)
-(*   intros eq. simpl. *)
-(*   clear -str. *)
-(*   destruct eq. *)
-(*   destruct eq'. *)
-(*   apply str. *)
-(*   apply rew_True_pred. } *)
-(* Qed *)
+  apply promises_has_deps_rew. done.
+Qed.
 
 Lemma rew_rel_over_True {n1 n2 A B} {DS1 : ivec n1 cmra} {DS2 : ivec n2 cmra}
     (eq1 : n1 = n2) (eq2 : A = B) eq3 (ts : trans_for n2 DS2) :
