@@ -1258,8 +1258,9 @@ Section promise_info.
   Definition path_different {A} (id1 : A) γ1 id2 γ2 := id1 ≠ id2 ∨ γ1 ≠ γ2.
 
   Lemma path_equal_or_different {n} (id1 id2 : fin n) (γ1 γ2 : gname) :
-    id1 = id2 ∧ γ1 = γ2 ∨ (id1 ≠ id2 ∨ γ1 ≠ γ2).
+    id1 = id2 ∧ γ1 = γ2 ∨ (path_different id1 γ1 id2 γ2).
   Proof.
+    unfold path_different.
     destruct (decide (id1 = id2)) as [eq|?]; last naive_solver.
     destruct (decide (γ1 = γ2)) as [eq2|?]; last naive_solver.
     left. naive_solver.
@@ -1267,6 +1268,10 @@ Section promise_info.
 
   Definition promises_different p1 p2 :=
     path_different p1.(pi_id) p1.(pi_γ) p2.(pi_id) p2.(pi_γ).
+
+  Lemma path_different_sym {A} (id1 : A) γ1 id2 γ2 :
+    path_different id1 γ1 id2 γ2 ↔ path_different id2 γ2 id1 γ1.
+  Proof. unfold path_different. naive_solver. Qed.
 
   (* Lemmas for [promises_different]. *)
   Lemma promises_different_not_eq pi1 pi2 :
@@ -1569,6 +1574,26 @@ Section promise_info.
     | _, _ => pi
     }.
 
+  Lemma promise_info_update_id pi id γ pia :
+    pi_id (promises_info_update pi id γ pia) = pi.(pi_id).
+  Proof.
+    rewrite promises_info_update_equation_1
+      promises_info_update_clause_1_equation_1.
+    destruct (decide (pi_id pi = id)) as [eq|]; last done.
+    destruct (decide (pi_γ pi = γ)) as [[]|];
+      destruct eq; done.
+  Qed.
+
+  Lemma promise_info_update_γ pi id γ pia :
+    pi_γ (promises_info_update pi id γ pia) = pi.(pi_γ).
+  Proof.
+    rewrite promises_info_update_equation_1
+      promises_info_update_clause_1_equation_1.
+    destruct (decide (pi_id pi = id)) as [eq|]; last done.
+    destruct (decide (pi_γ pi = γ)) as [[]|];
+      destruct eq; done.
+  Qed.
+
   Definition promises_list_update id γ (pia : promise_info_at _ id)
       (prs : list (promise_info Ω)) :=
     (λ pi, promises_info_update pi id γ pia) <$> prs.
@@ -1636,9 +1661,10 @@ Section promise_info.
   Qed.
 
   Lemma promises_info_update_ne pi id γ pia :
-    pi_id pi ≠ id ∨ pi_γ pi ≠ γ →
+    path_different pi.(pi_id) pi.(pi_γ) id γ →
     promises_info_update pi id γ pia = pi.
   Proof.
+    unfold path_different.
     intros neq.
     rewrite promises_info_update_equation_1.
     rewrite promises_info_update_clause_1_equation_1.
@@ -1679,15 +1705,6 @@ Section promise_info.
     apply elm.
   Qed.
 
-  Lemma promises_list_update_elem_of_2 pi id γ pia prs :
-    pi ∈ prs →
-    (pi ∈ promises_list_update id γ pia prs ∧
-      path_different id γ pi.(pi_id) pi.(pi_γ)) ∨
-    (MkPi id γ pia ∈ promises_list_update id γ pia prs ∧
-      id = pi.(pi_id) ∧ γ = pi.(pi_γ)).
-  Proof.
-  Admitted.
-
   Lemma promises_list_update_elem_of_path id γ pia pi prs :
     pi ∈ promises_list_update id γ pia prs →
     ∃ pia', (MkPi pi.(pi_id) pi.(pi_γ) pia') ∈ prs.
@@ -1697,18 +1714,36 @@ Section promise_info.
     - exists pia'. done.
   Qed.
 
+  Lemma promises_list_update_lookup_none prs id γ pia :
+    promises_lookup_at prs id γ = None →
+    promises_list_update id γ pia prs = prs.
+  Proof.
+    induction prs as [|pi prs IH]; first done.
+    intros [look diff]%promises_lookup_at_cons_None.
+    simpl.
+    rewrite promises_info_update_ne; last done.
+    by rewrite IH.
+  Qed.
+
   Lemma promises_list_update_cons_eq wf pi prs pia :
     promises_wf wf (pi :: prs) →
     promises_list_update (pi_id pi) (pi_γ pi) pia (pi :: prs) =
       MkPi (pi_id pi) (pi_γ pi) pia :: prs.
-  Proof. Admitted.
+  Proof.
+    intros [pwf ?]. simpl.
+    rewrite promises_info_update_self.
+    rewrite promises_list_update_lookup_none; first done.
+    apply pwf.
+  Qed.
 
   Lemma promises_list_update_cons_ne id γ pia pi prs :
     id ≠ pi_id pi ∨ γ ≠ pi_γ pi →
     promises_list_update id γ pia (pi :: prs) =
       pi :: (promises_list_update id γ pia prs).
   Proof.
-    intros ne. simpl. rewrite promises_info_update_ne; naive_solver.
+    intros ne. simpl. rewrite promises_info_update_ne; first reflexivity.
+    unfold path_different.
+    naive_solver.
   Qed.
 
   Lemma promises_wf_elem_of_head owf id γ pia1 pia2 promises :
@@ -1746,6 +1781,55 @@ Section promise_info.
     - rewrite promises_lookup_at_clause_2_clause_1_equation_3.
       intros [?|?]%elem_of_cons; first congruence.
       apply IH; [apply wf | done].
+  Qed.
+
+  Lemma promises_lookup_at_update id1 γ1 id2 γ2 pia prs :
+    path_different id1 γ1 id2 γ2 →
+    promises_lookup_at (promises_list_update id1 γ1 pia prs) id2 γ2 =
+      promises_lookup_at prs id2 γ2.
+  Proof.
+    intros diff.
+    induction prs as [|pi prs IH]; first done.
+    simpl.
+    destruct (path_equal_or_different id2 pi.(pi_id) γ2 pi.(pi_γ))
+      as [(-> & ->) | neq].
+    - simpl.
+      rewrite promises_lookup_at_cons_pr.
+      rewrite promises_info_update_ne.
+      2: { apply path_different_sym. done. }
+      apply promises_lookup_at_cons_pr.
+    - rewrite promises_lookup_at_cons_neq.
+      2: {
+        apply path_different_sym.
+        rewrite promise_info_update_id promise_info_update_γ.
+        done. }
+      rewrite promises_lookup_at_cons_neq.
+      { apply IH. }
+      apply path_different_sym. done.
+  Qed.
+
+  Lemma promises_list_update_elem_of_2 wf pi id γ pia prs :
+    promises_wf wf prs →
+    pi ∈ prs →
+    (pi ∈ promises_list_update id γ pia prs ∧
+      path_different id γ pi.(pi_id) pi.(pi_γ)) ∨
+    (MkPi id γ pia ∈ promises_list_update id γ pia prs ∧
+      id = pi.(pi_id) ∧ γ = pi.(pi_γ)).
+  Proof.
+    intros ? elm.
+    destruct (path_equal_or_different id pi.(pi_id) γ pi.(pi_γ))
+      as [(-> & ->) | neq].
+    - right. split_and!; try done.
+      apply promises_lookup_at_Some.
+      eapply promises_elem_of in elm; last done.
+      eapply promises_lookup_update.
+      done.
+    - left. split; last done.
+      destruct pi.
+      apply promises_lookup_at_Some.
+      rewrite promises_lookup_at_update; last done.
+      eapply promises_elem_of in elm; last done.
+      done.
   Qed.
 
   Lemma promise_lookup_lookup owf prs pi i :
@@ -1903,8 +1987,10 @@ Section promise_info.
         exists pia1.
         destruct pi.
         simpl in neq.
-        rewrite promises_lookup_at_cons_neq; last naive_solver.
-        done.
+        rewrite promises_lookup_at_cons_neq; first done.
+        simpl.
+        unfold path_different in neq.
+        naive_solver.
     - intros ???? look.
       destruct (path_equal_or_different id pi.(pi_id) γ pi.(pi_γ))
         as [(-> & ->) | neq].
@@ -1915,8 +2001,10 @@ Section promise_info.
         exists pia1.
         destruct pi.
         simpl in neq.
-        rewrite promises_lookup_at_cons_neq; last naive_solver.
-        done.
+        rewrite promises_lookup_at_cons_neq; first done.
+        simpl.
+        unfold path_different in neq.
+        naive_solver.
   Qed.
 
   Lemma promise_stronger_pred_stronger id (pia1 pia2 : promise_info_at Ω id) :
@@ -3722,6 +3810,7 @@ Section rules_with_deps.
       eapply promises_elem_of in elm2; last done. simpl in elm2.
       simplify_eq.
       eapply promise_satisfy_dep_rel_stronger; done.
+    - done.
   Qed.
 
   (* If both [pi1] and [pi2] are in [prs] and if [pi2] is a dependency of [pi1]
@@ -3864,6 +3953,34 @@ Section rules_with_deps.
     done.
   Qed.
 
+  Lemma know_deps_agree γ γs1 γs2 :
+    know_deps γ γs1 -∗
+    know_deps γ γs2 -∗
+    ⌜ γs1 = γs2 ⌝.
+  Proof.
+    iIntros "A B".
+    iDestruct (own_valid_2 with "A B") as "hv".
+    iDestruct (prod_valid_4th with "hv") as "%val".
+    iPureIntro.
+    rewrite Some_valid in val.
+    rewrite to_agree_op_valid_L in val.
+    apply ivec_to_list_inj.
+    apply val.
+  Qed.
+
+  Lemma own_promises_know_deps prs γ γs pia :
+    promises_lookup_at prs (genInG_id genInDepsG_gen) γ = Some pia →
+    own_promises prs -∗
+    know_deps γ γs -∗
+    ⌜ γs = rew <- [λ n, ivec n _] genInG_gcd_n in pia.(pi_deps_γs) ⌝.
+  Proof.
+    iIntros (?) "prs OD".
+    iDestruct (big_sepL_elem_of with "prs") as "H".
+    { apply promises_lookup_at_Some. done. }
+    iDestruct (own_promise_info_own' with "H") as (???) "(OD' & ?)".
+    iDestruct (know_deps_agree with "OD OD'") as "$".
+  Qed.
+
   Lemma own_promises_list_update owf γ rels preds R_2 P_2 prs γs
       deps_preds relToPred evidence :
     promises_wf owf prs →
@@ -3935,6 +4052,7 @@ Section rules_with_deps.
     specialize (str _ _ _ pia_in) as (pia3 & ? & ?).
     iDestruct (own_promises_auth_promise_list with "O auth_preds") as %str2;
       try done.
+    iDestruct (own_promises_know_deps with "O deps") as %depsEq; first done.
     iMod (auth_promise_list_snoc γ with "auth_preds") as "a".
     iDestruct (auth_promise_list_frag with "a") as "[$ #frag_preds]".
     iModIntro.
@@ -3948,7 +4066,7 @@ Section rules_with_deps.
       eapply promises_wf_promises_list_update; last done; try done.
       * unfold promises_has_deps. simpl.
         eapply (promises_has_deps_raw_stronger _ _ depPrs); done.
-      * admit.
+      * simpl. rewrite depsEq rew_opp_r //.
       * simpl.
         etrans; last apply str2.
         clear -predStronger.
@@ -3958,7 +4076,7 @@ Section rules_with_deps.
         apply predStronger. }
     iApply own_promises_list_update; try done.
     eapply pred_prefix_list_for'_grow; done.
-  Admitted.
+  Qed.
 
   Lemma token_pick γ γs (R : rel_over DS A) P (ts : trans_for n DS) t :
     huncurry R ts t →
@@ -4013,21 +4131,6 @@ Section rules_with_deps.
     destruct relyPredPrefix as [? ?].
     eapply pred_prefix_list_for_prefix_of; try done.
   Admitted.
-
-  Lemma know_deps_agree γ γs1 γs2 :
-    know_deps γ γs1 -∗
-    know_deps γ γs2 -∗
-    ⌜ γs1 = γs2 ⌝.
-  Proof.
-    iIntros "A B".
-    iDestruct (own_valid_2 with "A B") as "hv".
-    iDestruct (prod_valid_4th with "hv") as "%val".
-    iPureIntro.
-    rewrite Some_valid in val.
-    rewrite to_agree_op_valid_L in val.
-    apply ivec_to_list_inj.
-    apply val.
-  Qed.
 
   Lemma know_promise_combine γ γs1 R1 P1 pia1 promises1 all1 preds1
     γs2 R2 P2 pia2 promises2 all2 preds2 :
