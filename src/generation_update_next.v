@@ -427,6 +427,11 @@ Section tuple_helpers.
     ⊣⊢@{iProp Σ} (a1 ≡ a2) ∧ (b1 ≡ b2) ∧ (c1 ≡ c2) ∧ (d1 ≡ d2) ∧ (e1 ≡ e2) ∧ (f1 ≡ f2).
   Proof. rewrite !prod_equivI. simpl. rewrite -4!assoc. done. Qed.
 
+  Lemma pair_op_6 a1 b1 c1 d1 e1 f1 a2 b2 c2 d2 e2 f2 :
+    (a1, b1, c1, d1, e1, f1) ⋅ (a2, b2, c2, d2, e2, f2) =
+    (a1 ⋅ a2, b1 ⋅ b2, c1 ⋅ c2, d1 ⋅ d2, e1 ⋅ e2, f1 ⋅ f2).
+  Proof. done. Qed.
+
 End tuple_helpers.
 
 (* Constructors for each of the elements in the pair. *)
@@ -3184,9 +3189,9 @@ Section generational_resources.
       "auth_preds" ∷ own_auth_promise_list γ rels preds.
 
   Definition used_token (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
-    ∃ (rels : list (rel_over DS A)) preds ps promises pia,
+    ∃ (rels : list (rel_over DS A)) preds promises pia,
       "tokenPromise" ∷ know_promise γ γs R P pia promises rels preds ∗
-      own_frozen_auth_promise_list γ rels ps ∗
+      "frocenAuthPreds" ∷ own_frozen_auth_promise_list γ rels preds ∗
       "usedToken" ∷ gen_pick_out γ GTS_tok_perm.
 
   (** Knowledge that γ is accociated with the predicates R and P. *)
@@ -4349,44 +4354,54 @@ Section nextgen_assertion_rules.
     apply ucmra_unit_least.
   Qed.
 
+  Global Instance left_id_prodR {C B : ucmra} : LeftId (@equiv (prodR C B) _) ε op.
+  Proof. apply ucmra_unit_left_id. Qed.
+
+  Global Instance right_id_prodR {C B : ucmra} : RightId (@equiv (prodR C B) _) ε op.
+  Proof. apply ucmra_unit_right_id. Qed.
+
+  Lemma own_gen_cmra_split γ a b c d e f :
+    own γ (a, b, c, d, e, f) ⊣⊢
+      own γ (a, ε, ε, ε, ε, ε) ∗
+      own γ (ε, b, ε, ε, ε, ε) ∗
+      own γ (ε, ε, c, ε, ε, ε) ∗
+      own γ (ε, ε, ε, d, ε, ε) ∗
+      own γ (ε, ε, ε, ε, e, ε) ∗
+      own γ (ε, ε, ε, ε, ε, f).
+   Proof.
+     rewrite -5!own_op.
+     f_equiv.
+     rewrite pair_op_6. simpl.
+     rewrite !assoc. (* slow *)
+     unfold GTSR in *.
+     unfold gen_pvR in *.
+     rewrite !left_id.
+     rewrite !right_id.
+     done.
+  Qed.
+
   Lemma token_nextgen γ γs (R : rel_over DS A) P :
     used_token γ γs R P ⊢ ⚡==> token γ γs R P.
   Proof.
     iNamed 1. iNamed "tokenPromise".
-
     iExists (λ i, ∅), [].
-    iSplitL "". { iApply own_picks_empty. }
-    iSplitL "". { iApply own_promises_empty. }
+    iSplit. { iApply own_picks_empty. }
+    iSplit. { iApply own_promises_empty. }
     iSplit; first done.
     iIntros (full_picks ? ? ?).
-    (* iEval (rewrite own.own_eq) in "own". *)
-    (* rewrite /own.own_def. *)
-    (* iModIntro. *)
-  Admitted.
-  (*   iDestruct (uPred_own_resp_omega _ _ with "own") as (to) "(%cond & own)". *)
-  (*   { done. } *)
-  (*   simpl in cond. *)
-  (*   destruct cond as (t & -> & cond). *)
-  (*   iExists t. *)
-  (*   iSplit; first done. *)
-  (*   simpl. *)
-  (*   rewrite /gen_picked_in. *)
-  (*   rewrite -own_op. *)
-  (*   rewrite own.own_eq. *)
-  (*   iFrame "own". *)
-  (* Qed. *)
-
-  Lemma own_gen_cmra_split_picked_in γ a b c d e f :
-    own γ (a, b, c, d, e, f) ⊣⊢ own γ (a, ε, ε, ε, ε, ε) ∗ own γ (ε, b, c, d, e, f).
-   Proof.
-     rewrite -own_op.
-     f_equiv.
-     rewrite -!pair_op.
-     rewrite prod_6_equiv.
-     unfold gen_pvR in *.
-     split_and!;
-       rewrite ?ucmra_unit_left_id;
-       rewrite ?ucmra_unit_right_id; done.
+    iDestruct (own_promises_nextgen with "prs") as "prs'"; first done.
+    iDestruct (own_build_trans_next_gen with "usedToken") as "-#usedToken";
+      first done.
+    iDestruct (own_build_trans_next_gen with "frocenAuthPreds") as "-#frocenAuthPreds";
+      first done.
+    iModIntro.
+    iExists rels, preds, promises, pia.
+    iSplit. { iFrame "prs'". done. }
+    iDestruct (own_gen_cmra_split with "usedToken")
+      as "(_ & $ & _ & _ & _ & _)".
+    iDestruct (own_gen_cmra_split with "frocenAuthPreds")
+      as "(_ & _ & _ & _ & A & B)".
+    iCombine "A B" as "$".
   Qed.
 
   (* TODO: Prove this lemma. *)
@@ -4419,13 +4434,15 @@ Section nextgen_assertion_rules.
       as (ts & t & look & ? & relHolds); [done|done| ].
     simpl in *.
     rewrite look.
-    iDestruct (own_gen_cmra_split_picked_in with "frag_preds'") as "[picked_in frag_preds']".
+    iDestruct (own_gen_cmra_split with "frag_preds'")
+      as "(picked_in & frag_preds' & _ & _ & A & B)".
     iSplit.
     - iExists rels, preds, promises, pia.
       iSplit.
       { do 4 (iSplit; first done).
         iFrame "prs'". }
-      iFrame "frag_preds'".
+      simpl.
+      iCombine "A B" as "$".
     - iExists (rew <- [cmra_to_trans] Oc_genInG_eq in t).
       iExists (rew <- [id] trans_for_genInG in ts).
       simpl.
