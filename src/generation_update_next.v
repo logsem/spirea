@@ -3369,6 +3369,18 @@ Lemma rew_lookup_total {A : Set} n m (γs : ivec n A) i (eq : m = n) :
   γs !!! rew [fin] eq in i.
 Proof. destruct eq. done. Qed.
 
+Lemma pred_over_rew_id_cmra {Σ} {Ω : gGenCmras Σ} (id2 : fin gc_len) id1
+  (eq1 : Oc Ω id2 = Oc Ω id1)
+  (t : Oc Ω id1 → Oc Ω id1)
+  (eq2 : id2 = id1)
+  (p : pred_over (Oc Ω id2)) :
+  (rew [pred_over] eq1 in p) t →
+  (rew [λ id : fin gc_len, pred_over (Oc Ω id)] eq2 in p) t.
+Proof.
+  destruct eq2. simpl.
+  (* This holds with UIP. *)
+Admitted.
+
 Lemma promises_has_deps_rew {n : nat} {DS : ivec n cmra}
     `{gs : ∀ (i : fin n), genInSelfG Σ Ω (DS !!! i)}
     `{g : !genInDepsG Σ Ω A DS}
@@ -3400,21 +3412,11 @@ Proof.
   intros t holds.
   specialize (str t holds).
   rewrite -rew_compose.
-
+  clear -str.
   unfold lookup_fmap_Ocs.
   unfold Ocs_Oids_distr.
   unfold preds_for_genInG.
-  clear -str.
   destruct eq'. simpl in *.
-  (* Set Printing All. *)
-  (* generalize (gs !!! ) *)
-  (* rewrite True_pred_rew_lookup_fmap_rew. *)
-  (* unfold pred_over_Oc_genInG in *. *)
-  (* unfold preds_for_genInG. *)
-  (* unfold Ocs_Oids_distr. *)
-  (* generalize (gc_map_wf (genInG_id genInDepsG_gen) i). intros ?. *)
-  (* clear -str. *)
-  (* rewrite True_pred_rew_lookup_fmap_rew. *)
   destruct g.
   destruct genInDepsG_gen0. simpl in *.
   unfold Oids in *.
@@ -3427,19 +3429,22 @@ Proof.
   simpl in *.
   generalize (gc_map_wf genInG_id0 i).
   clear -str.
-  (* Set Printing All. *)
   destruct (gc_map Ω genInG_id0). simpl in *.
   destruct genInG_gcd_n0.
   unfold eq_rect_r in *. simpl in *.
   destruct genInG_gcd_deps0. simpl.
-  generalize dependent (gs i).
-  intros g. destruct g. simpl. intros eq' p eq2.
-  (* destruct eq2. *)
-  destruct genInSelfG_gen0. simpl in *.
-  (* destruct genInG_gcd_n0. *)
-  (* destruct genInG_gti_typ0. simpl in *. *)
-  clear -p.
-Admitted.
+  unfold genInSelfG_id in *.
+  generalize dependent (genInSelfG_gen (gs i)).
+  intros g. destruct g. simpl.
+  intros t str eq2 eq3.
+  revert str.
+  set (p := @hvec_lookup_fmap n cmra pred_over DS deps_preds i).
+  generalize p.
+  clear p.
+  intros p.
+  destruct eq3. simpl.
+  apply pred_over_rew_id_cmra.
+Qed.
 
 Lemma list_rely_self' {n : nat} {DS : ivec n cmra}
     `{gs : ∀ (i : fin n), genInSelfG Σ Ω (DS !!! i)}
