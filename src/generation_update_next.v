@@ -3553,6 +3553,190 @@ Proof.
   etrans; first apply H0. done.
 Qed.
 
+Section nextgen_assertion_rules.
+  (* Rules about the nextgen modality. *)
+  Context {n : nat} {DS : ivec n cmra} `{!genInG Σ Ω A DS}.
+
+  Lemma own_build_trans_next_gen γ (m : generational_cmraR A DS) picks
+      `{!GenTrans (build_trans picks)} :
+    transmap_valid picks →
+    own γ m ⊢ ⚡={build_trans picks}=> own γ (
+      gen_cmra_trans (
+        rew <- [cmra_to_trans] Oc_genInG_eq in (default (λ a, a) (picks _ !! γ))
+      ) m).
+  Proof.
+    iIntros (?) "H".
+    iEval (rewrite own.own_eq) in "H".
+    rewrite /own.own_def.
+    iModIntro.
+    iEval (rewrite own.own_eq).
+    rewrite /own.own_def.
+    simpl.
+    rewrite build_trans_singleton; [ |done|done].
+    simpl.
+    rewrite /gen_cmra_trans. simpl.
+    done.
+  Qed.
+
+  Lemma Oown_build_trans_next_gen i γ (m : generational_cmraR _ _) picks
+      `{!GenTrans (build_trans picks)} :
+    transmap_valid picks →
+    Oown i γ m ⊢ ⚡={build_trans picks}=> Oown i γ (
+      gen_cmra_trans (
+        (default (λ a, a) (picks _ !! γ))
+      ) m).
+  Proof.
+    iIntros (?) "H".
+    unfold Oown.
+    iEval (rewrite own.own_eq) in "H".
+    rewrite /own.own_def.
+    iModIntro.
+    iEval (rewrite own.own_eq).
+    rewrite /own.own_def.
+    simpl.
+    rewrite build_trans_singleton_alt; try done.
+  Qed.
+
+  Lemma own_promise_info_nextgen picks pi `{!GenTrans (build_trans picks)} :
+    transmap_valid picks →
+    own_promise_info pi ⊢ ⚡={build_trans picks}=> own_promise_info pi.
+  Proof.
+    iIntros (val). iDestruct 1 as (???) "O".
+    iDestruct (Oown_build_trans_next_gen with "O") as "O"; first done.
+    iModIntro.
+    iExists _, _. iSplit; first done.
+    rewrite gen_cmra_trans_apply. simpl.
+    iStopProof.
+    unfold own_promise_info_resource.
+    unfold Oown.
+    f_equiv. simpl.
+    simpl.
+    rewrite 5!pair_included.
+    split_and!; try done. apply ucmra_unit_least.
+  Qed.
+
+  (* NOTE: This doesn't really work as an instance since TC search can't find
+   * the [val] we need. This could prop. be fixed by keeping this fact in a TC. *)
+  Global Instance into_bnextgen_own_promise_info picks
+      `{!GenTrans (build_trans picks)} (val : transmap_valid picks) :
+    ∀ pi, IntoBnextgen (build_trans picks) (own_promise_info pi) (own_promise_info pi).
+  Proof.
+    intros pi.
+    rewrite /IntoBnextgen.
+    iApply (own_promise_info_nextgen).
+    done.
+  Qed.
+
+  Lemma own_promises_nextgen picks ps `{!GenTrans (build_trans picks)} :
+    transmap_valid picks →
+    own_promises ps ⊢ ⚡={build_trans picks}=> own_promises ps.
+  Proof.
+    iIntros (val) "#prs".
+    rewrite /own_promises.
+    rewrite big_sepL_forall_elem_of.
+    specialize (into_bnextgen_own_promise_info _ val) as H.
+    iModIntro.
+    done.
+  Qed.
+
+  Lemma own_build_trans_next_gen_picked_in γ (m : generational_cmraR A DS) picks
+      `{!GenTrans (build_trans picks)} :
+    transmap_valid picks →
+    own γ m ⊢ ⚡={build_trans picks}=>
+      gen_picked_in γ (rew <- [cmra_to_trans] Oc_genInG_eq in (default (λ a, a) (picks _ !! γ)))
+    .
+  Proof.
+    iIntros (?) "H".
+    iEval (rewrite own.own_eq) in "H".
+    rewrite /own.own_def.
+    iModIntro.
+    rewrite /gen_picked_in own.own_eq /own.own_def.
+    simpl.
+    rewrite build_trans_singleton; [ |done|done].
+    simpl.
+    rewrite /gen_cmra_trans. simpl.
+    iStopProof.
+    f_equiv.
+    simpl.
+    apply iRes_singleton_included.
+    rewrite !pair_included.
+    split_and!; try apply: ucmra_unit_least. done.
+  Qed.
+
+  (* Lemma build_trans_picks_in : *)
+  (*   ⚡={build_trans full_picks}=> . *)
+
+  Lemma know_deps_nextgen γ γs :
+    know_deps γ γs ⊢ ⚡==> know_deps γ γs.
+  Proof.
+    rewrite /know_deps.
+    iIntros "H".
+    iExists (λ i, ∅), [].
+    iSplitL "". { iApply own_picks_empty. }
+    iSplitL "". { iApply own_promises_empty. }
+    iSplit; first done.
+    iIntros (full_picks ?) "_ %sub".
+    iDestruct (own_build_trans_next_gen with "H") as "H"; first done.
+    iModIntro.
+    iStopProof.
+    f_equiv. simpl.
+    rewrite !pair_included.
+    split_and!; try done.
+    apply ucmra_unit_least.
+  Qed.
+
+  Global Instance left_id_prodR {C B : ucmra} : LeftId (@equiv (prodR C B) _) ε op.
+  Proof. apply ucmra_unit_left_id. Qed.
+
+  Global Instance right_id_prodR {C B : ucmra} : RightId (@equiv (prodR C B) _) ε op.
+  Proof. apply ucmra_unit_right_id. Qed.
+
+  Lemma own_gen_cmra_split γ a b c d e f :
+    own γ (a, b, c, d, e, f) ⊣⊢
+      own γ (a, ε, ε, ε, ε, ε) ∗
+      own γ (ε, b, ε, ε, ε, ε) ∗
+      own γ (ε, ε, c, ε, ε, ε) ∗
+      own γ (ε, ε, ε, d, ε, ε) ∗
+      own γ (ε, ε, ε, ε, e, ε) ∗
+      own γ (ε, ε, ε, ε, ε, f).
+   Proof.
+     rewrite -5!own_op.
+     f_equiv.
+     rewrite pair_op_6. simpl.
+     rewrite !assoc. (* slow *)
+     unfold GTSR in *.
+     unfold gen_pvR in *.
+     rewrite !left_id.
+     rewrite !right_id.
+     done.
+  Qed.
+
+  Lemma token_nextgen γ γs (R : rel_over DS A) P :
+    used_token γ γs R P ⊢ ⚡==> token γ γs R P.
+  Proof.
+    iNamed 1. iNamed "tokenPromise".
+    iExists (λ i, ∅), [].
+    iSplit. { iApply own_picks_empty. }
+    iSplit. { iApply own_promises_empty. }
+    iSplit; first done.
+    iIntros (full_picks ? ? ?).
+    iDestruct (own_promises_nextgen with "prs") as "prs'"; first done.
+    iDestruct (own_build_trans_next_gen with "usedToken") as "-#usedToken";
+      first done.
+    iDestruct (own_build_trans_next_gen with "frocenAuthPreds") as "-#frocenAuthPreds";
+      first done.
+    iModIntro.
+    iExists rels, preds, promises, pia.
+    iSplit. { iFrame "prs'". done. }
+    iDestruct (own_gen_cmra_split with "usedToken")
+      as "(_ & $ & _ & _ & _ & _)".
+    iDestruct (own_gen_cmra_split with "frocenAuthPreds")
+      as "(_ & _ & _ & _ & A & B)".
+    iCombine "A B" as "$".
+  Qed.
+
+End nextgen_assertion_rules.
+
 Section rules_with_deps.
   Context {n : nat} {DS : ivec n cmra}
     `{gs : ∀ (i : fin n), genInSelfG Σ Ω (DS !!! i)}
@@ -4223,190 +4407,8 @@ Section rules_with_deps.
     iDestruct (know_promise_combine with "relyPromise relyPromise2") as "$".
   Qed.
 
-End rules_with_deps.
-
-Section nextgen_assertion_rules.
-  (* Rules about the nextgen modality. *)
-  Context {n : nat} {DS : ivec n cmra} `{!genInG Σ Ω A DS}.
-
-  Lemma Oown_build_trans_next_gen i γ (m : generational_cmraR _ _) picks
-      `{!GenTrans (build_trans picks)} :
-    transmap_valid picks →
-    Oown i γ m ⊢ ⚡={build_trans picks}=> Oown i γ (
-      gen_cmra_trans (
-        (default (λ a, a) (picks _ !! γ))
-      ) m).
-  Proof.
-    iIntros (?) "H".
-    unfold Oown.
-    iEval (rewrite own.own_eq) in "H".
-    rewrite /own.own_def.
-    iModIntro.
-    iEval (rewrite own.own_eq).
-    rewrite /own.own_def.
-    simpl.
-    rewrite build_trans_singleton_alt; try done.
-  Qed.
-
-  Lemma own_build_trans_next_gen γ (m : generational_cmraR A DS) picks
-      `{!GenTrans (build_trans picks)} :
-    transmap_valid picks →
-    own γ m ⊢ ⚡={build_trans picks}=> own γ (
-      gen_cmra_trans (
-        rew <- [cmra_to_trans] Oc_genInG_eq in (default (λ a, a) (picks _ !! γ))
-      ) m).
-  Proof.
-    iIntros (?) "H".
-    iEval (rewrite own.own_eq) in "H".
-    rewrite /own.own_def.
-    iModIntro.
-    iEval (rewrite own.own_eq).
-    rewrite /own.own_def.
-    simpl.
-    rewrite build_trans_singleton; [ |done|done].
-    simpl.
-    rewrite /gen_cmra_trans. simpl.
-    done.
-  Qed.
-
-  Lemma own_promise_info_nextgen picks pi `{!GenTrans (build_trans picks)} :
-    transmap_valid picks →
-    own_promise_info pi ⊢ ⚡={build_trans picks}=> own_promise_info pi.
-  Proof.
-    iIntros (val). iDestruct 1 as (???) "O".
-    iDestruct (Oown_build_trans_next_gen with "O") as "O"; first done.
-    iModIntro.
-    iExists _, _. iSplit; first done.
-    rewrite gen_cmra_trans_apply. simpl.
-    iStopProof.
-    unfold own_promise_info_resource.
-    unfold Oown.
-    f_equiv. simpl.
-    simpl.
-    rewrite 5!pair_included.
-    split_and!; try done. apply ucmra_unit_least.
-  Qed.
-
-  (* NOTE: This doesn't really work as an instance since TC search can't find
-   * the [val] we need. This could prop. be fixed by keeping this fact in a TC. *)
-  Global Instance into_bnextgen_own_promise_info picks
-      `{!GenTrans (build_trans picks)} (val : transmap_valid picks) :
-    ∀ pi, IntoBnextgen (build_trans picks) (own_promise_info pi) (own_promise_info pi).
-  Proof.
-    intros pi.
-    rewrite /IntoBnextgen.
-    iApply (own_promise_info_nextgen).
-    done.
-  Qed.
-
-  Lemma own_promises_nextgen picks ps `{!GenTrans (build_trans picks)} :
-    transmap_valid picks →
-    own_promises ps ⊢ ⚡={build_trans picks}=> own_promises ps.
-  Proof.
-    iIntros (val) "#prs".
-    rewrite /own_promises.
-    rewrite big_sepL_forall_elem_of.
-    specialize (into_bnextgen_own_promise_info _ val) as H.
-    iModIntro.
-    done.
-  Qed.
-
-  Lemma own_build_trans_next_gen_picked_in γ (m : generational_cmraR A DS) picks
-      `{!GenTrans (build_trans picks)} :
-    transmap_valid picks →
-    own γ m ⊢ ⚡={build_trans picks}=>
-      gen_picked_in γ (rew <- [cmra_to_trans] Oc_genInG_eq in (default (λ a, a) (picks _ !! γ)))
-    .
-  Proof.
-    iIntros (?) "H".
-    iEval (rewrite own.own_eq) in "H".
-    rewrite /own.own_def.
-    iModIntro.
-    rewrite /gen_picked_in own.own_eq /own.own_def.
-    simpl.
-    rewrite build_trans_singleton; [ |done|done].
-    simpl.
-    rewrite /gen_cmra_trans. simpl.
-    iStopProof.
-    f_equiv.
-    simpl.
-    apply iRes_singleton_included.
-    rewrite !pair_included.
-    split_and!; try apply: ucmra_unit_least. done.
-  Qed.
-
-  Lemma know_deps_nextgen γ γs :
-    know_deps γ γs ⊢ ⚡==> know_deps γ γs.
-  Proof.
-    rewrite /know_deps.
-    iIntros "H".
-    iExists (λ i, ∅), [].
-    iSplitL "". { iApply own_picks_empty. }
-    iSplitL "". { iApply own_promises_empty. }
-    iSplit; first done.
-    iIntros (full_picks ?) "_ %sub".
-    iDestruct (own_build_trans_next_gen with "H") as "H"; first done.
-    iModIntro.
-    iStopProof.
-    f_equiv. simpl.
-    rewrite !pair_included.
-    split_and!; try done.
-    apply ucmra_unit_least.
-  Qed.
-
-  Global Instance left_id_prodR {C B : ucmra} : LeftId (@equiv (prodR C B) _) ε op.
-  Proof. apply ucmra_unit_left_id. Qed.
-
-  Global Instance right_id_prodR {C B : ucmra} : RightId (@equiv (prodR C B) _) ε op.
-  Proof. apply ucmra_unit_right_id. Qed.
-
-  Lemma own_gen_cmra_split γ a b c d e f :
-    own γ (a, b, c, d, e, f) ⊣⊢
-      own γ (a, ε, ε, ε, ε, ε) ∗
-      own γ (ε, b, ε, ε, ε, ε) ∗
-      own γ (ε, ε, c, ε, ε, ε) ∗
-      own γ (ε, ε, ε, d, ε, ε) ∗
-      own γ (ε, ε, ε, ε, e, ε) ∗
-      own γ (ε, ε, ε, ε, ε, f).
-   Proof.
-     rewrite -5!own_op.
-     f_equiv.
-     rewrite pair_op_6. simpl.
-     rewrite !assoc. (* slow *)
-     unfold GTSR in *.
-     unfold gen_pvR in *.
-     rewrite !left_id.
-     rewrite !right_id.
-     done.
-  Qed.
-
-  Lemma token_nextgen γ γs (R : rel_over DS A) P :
-    used_token γ γs R P ⊢ ⚡==> token γ γs R P.
-  Proof.
-    iNamed 1. iNamed "tokenPromise".
-    iExists (λ i, ∅), [].
-    iSplit. { iApply own_picks_empty. }
-    iSplit. { iApply own_promises_empty. }
-    iSplit; first done.
-    iIntros (full_picks ? ? ?).
-    iDestruct (own_promises_nextgen with "prs") as "prs'"; first done.
-    iDestruct (own_build_trans_next_gen with "usedToken") as "-#usedToken";
-      first done.
-    iDestruct (own_build_trans_next_gen with "frocenAuthPreds") as "-#frocenAuthPreds";
-      first done.
-    iModIntro.
-    iExists rels, preds, promises, pia.
-    iSplit. { iFrame "prs'". done. }
-    iDestruct (own_gen_cmra_split with "usedToken")
-      as "(_ & $ & _ & _ & _ & _)".
-    iDestruct (own_gen_cmra_split with "frocenAuthPreds")
-      as "(_ & _ & _ & _ & A & B)".
-    iCombine "A B" as "$".
-  Qed.
-
   (* TODO: Prove this lemma. *)
-  Lemma rely_nextgen γ γs (R : rel_over DS A) (P : pred_over A)
-      `{gs : ∀ (i : fin n), genInSelfG Σ Ω (DS !!! i)} :
+  Lemma rely_nextgen γ γs (R : rel_over DS A) (P : pred_over A) :
     rely γ γs R P
     ⊢ ⚡==>
       rely γ γs R P ∗
@@ -4459,8 +4461,10 @@ Section nextgen_assertion_rules.
         rewrite /trans_for_genInG.
         rewrite /Oc_genInG_eq.
         rewrite /hvec_fmap_eq.
-        destruct genInG0. simpl in *.
-        unfold Ocs in *.
+        destruct g as [genInG idsEq]. destruct genInG.
+        simpl in *.
+        clear idsEq.
+        unfold Ocs in *. simpl in *.
         destruct (gc_map Ω genInG_id0). simpl in *.
         destruct genInG_gcd_n0. simpl in *.
         destruct genInG_gti_typ0.
@@ -4472,7 +4476,7 @@ Section nextgen_assertion_rules.
       admit.
   Admitted.
 
-End nextgen_assertion_rules.
+End rules_with_deps.
 
 Equations forall_fin_2 (P : fin 2 → Type) : P 0%fin * P 1%fin → ∀ (i : fin 2), P i :=
 | P, p, 0%fin => fst p
