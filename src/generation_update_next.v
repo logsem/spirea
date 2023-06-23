@@ -3197,8 +3197,7 @@ Section generational_resources.
   (** Knowledge that γ is accociated with the predicates R and P. *)
   Definition rely (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
     ∃ (rels : list (rel_over DS A)) (preds : list (pred_over A)) promises pia,
-      "#relyPromise" ∷ know_promise γ γs R P pia promises rels preds
-      ∗ "#fragPreds" ∷ gen_promise_rel_pred_list γ (gPV (◯ML rels)) (gPV (◯ML preds)).
+      "#relyPromise" ∷ know_promise γ γs R P pia promises rels preds.
 
   Definition picked_out γ t : iProp Σ :=
     gen_pick_out γ (GTS_tok_gen_shot t).
@@ -3912,7 +3911,7 @@ Section rules_with_deps.
     (∀ i, rely_self (γs !!! i) (hvec_lookup_fmap deps_preds i)) -∗
     |==> ∃ γ, gen_own γ a ∗ token γ γs True_rel (λ _, True%type).
   Proof.
-    iIntros (Hv) "relys".
+    iIntros (Hv) "#relys".
     rewrite /gen_own /token.
     iDestruct (list_rely_self' with "relys") as (prs wf allDeps) "ownPrs".
     (* We need to know that the new ghost name makes the new promise different
@@ -4294,45 +4293,74 @@ Section rules_with_deps.
     iNamed 1.
   Admitted.
 
-  (* Lemma know_promise_extract_frag γ γs R P pia promises rels *)
-  (*     (preds : list (pred_over A)) : *)
-  (*   know_promise γ γs R P pia promises rels preds ⊢ *)
-  (*   ∃ rels' preds', *)
-  (*   gen_promise_rel_pred_list γ (gPV (◯ML rels')) (gPV (◯ML preds')). *)
-  (* Proof. *)
-  (*   iNamed 1. *)
-  (*   unfold own_promises. *)
-  (*   apply promises_lookup_at_Some in pia_in as elem. *)
-  (*   iSpecialize ("prs" $! _ elem). *)
-  (*   simpl. *)
-  (*   iDestruct "prs" as (eq ????) "-#prs". *)
-  (*   rewrite /gen_promise_rel_pred_list own.own_eq /own.own_def. *)
-  (*   rewrite /own.iRes_singleton. simpl. *)
-  (*   iExists (rew <- rel_over_Oc_Ocs_genInG in Rs). *)
-  (*   iExists (rew <- pred_over_Oc_genInG in Ps). *)
-  (*   iStopProof. *)
-  (*   f_equiv. *)
-  (*   simpl. *)
-  (*   rewrite /own.inG_unfold. *)
-  (*   rewrite /map_unfold. *)
-  (*   simpl. *)
-  (* Qed. *)
+  Lemma know_promise_extract_frag γ γs R P pia promises rels
+      (preds : list (pred_over A)) :
+    know_promise γ γs R P pia promises rels preds ⊢
+    ∃ rels' (preds' : list (pred_over A)),
+      ⌜ pred_prefix_list_for' rels' preds' R P ⌝ ∗
+      gen_promise_rel_pred_list γ (gPV (◯ML rels')) (gPV (◯ML preds')).
+  Proof.
+    iNamed 1.
+    unfold own_promises.
+    apply promises_lookup_at_Some in pia_in as elem.
+    rewrite big_sepL_forall_elem_of.
+    iSpecialize ("prs" $! _ elem).
+    iDestruct "prs" as (???) "-#prs". simpl in *.
+    (* rewrite /gen_promise_rel_pred_list own.own_eq /own.own_def. *)
+    (* rewrite /own.iRes_singleton. simpl. *)
+    iExists (rew <- rel_over_Oc_Ocs_genInG in Rs).
+    iExists (rew <- pred_over_Oc_genInG in Ps).
+    unfold gen_promise_rel_pred_list.
+    unfold own_promise_info_resource.
+    simpl.
+    rewrite own_gen_cmra_data_to_inG.
+    unfold omega_genInG_cmra_eq.
+    unfold rel_over_Oc_Ocs_genInG.
+    unfold gc_tup_rel_pred.
+    unfold Oown.
+    destruct pia_for as (_ & predEq & relEq).
+    unfold rel_over_Oc_Ocs_genInG in *.
+    unfold pred_over_Oc_genInG.
+    destruct pia.
+    destruct g as [gg ?]. destruct gg.
+    unfold promise_info_for in *.
+    simpl in *.
+    clear -H predEq relEq.
+    unfold Ocs in *.
+    destruct (gc_map Ω genInG_id0). simpl in *.
+    destruct genInG_gcd_n0.
+    destruct genInG_gti_typ0.
+    unfold eq_rect_r in *. simpl in *.
+    destruct genInG_gcd_deps0.
+    rewrite generational_cmraR_transp_refl.
+    simpl.
+    simpl in relEq.
+    rewrite -predEq -relEq.
+    iSplit; first done.
+    iStopProof.
+    f_equiv.
+    simpl.
+    rewrite 5!pair_included.
+    split_and!; try done. apply ucmra_unit_least.
+  Qed.
 
   Lemma token_rely_combine_pred γ γs R1 P1 R2 P2 :
     token γ γs R1 P1 -∗ rely γ γs R2 P2 -∗ ⌜ rel_stronger R1 R2 ⌝.
   Proof.
     iNamed 1. iNamed "tokenPromise".
-    iNamed 1. iDestruct "relyPromise" as "(? & %relyPredPrefix & ?)".
+    iNamed 1.
+    iDestruct (know_promise_extract_frag with "relyPromise") as (?? pref) "fragPreds".
     iDestruct (own_valid_2 with "auth_preds fragPreds") as "val".
     iDestruct (prod_valid_5th with "val") as "%val".
     iPureIntro.
     move: val.
     rewrite gen_pv_op. rewrite gen_pv_valid.
     intros prefix%mono_list_both_valid_L.
-    destruct pred_prefix as [? ?].
-    destruct relyPredPrefix as [? ?].
-    eapply pred_prefix_list_for_prefix_of; try done.
-  Admitted.
+    destruct pred_prefix as (? & ? & ? & ?).
+    destruct pref as (? & ? & ? & ?).
+    apply rel_weaker_stronger.
+    apply: pred_prefix_list_for_prefix_of; done.
+  Qed.
 
   Lemma know_promise_combine γ γs1 R1 P1 pia1 promises1 all1 preds1
     γs2 R2 P2 pia2 promises2 all2 preds2 :
@@ -4403,7 +4431,7 @@ Section rules_with_deps.
       (rel_stronger R2 R1 ∧ pred_stronger P2 P1) ⌝.
   Proof.
     iNamed 1.
-    iDestruct 1 as (????) "(relyPromise2 & ?)".
+    iDestruct 1 as (????) "relyPromise2".
     iDestruct (know_promise_combine with "relyPromise relyPromise2") as "$".
   Qed.
 
@@ -4420,7 +4448,9 @@ Section rules_with_deps.
         (∀ i, gen_picked_in (i := genInSelfG_gen (gs i)) (γs !!! i) (hvec_lookup_fmap ts i)).
   Proof.
     rewrite /rely.
-    iNamed 1. iNamed "relyPromise".
+    iNamed 1.
+    iDestruct (know_promise_extract_frag with "relyPromise") as (?? pref1) "fragPreds".
+    iNamed "relyPromise".
     destruct pia_for as (γs_eq & pred_eq & rel_eq).
     rewrite /nextgen.
     iExists (λ i, ∅), promises.
@@ -4428,7 +4458,6 @@ Section rules_with_deps.
     iFrame "prs".
     iSplit; first done.
     iIntros (full_picks val resp _).
-    (* iDestruct (own_build_trans_next_gen with "fragPreds") as "rely_deps'"; first done. *)
     iDestruct (own_build_trans_next_gen with "fragPreds") as "-#frag_preds'"; first done.
     iDestruct (own_promises_nextgen with "prs") as "prs'"; first done.
     iModIntro.
@@ -4440,11 +4469,8 @@ Section rules_with_deps.
       as "(picked_in & frag_preds' & _ & _ & A & B)".
     iSplit.
     - iExists rels, preds, promises, pia.
-      iSplit.
-      { do 4 (iSplit; first done).
-        iFrame "prs'". }
-      simpl.
-      iCombine "A B" as "$".
+      do 4 (iSplit; first done).
+      iFrame "prs'".
     - iExists (rew <- [cmra_to_trans] Oc_genInG_eq in t).
       iExists (rew <- [id] trans_for_genInG in ts).
       simpl.
