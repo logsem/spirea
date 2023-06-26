@@ -1327,7 +1327,6 @@ Section own_properties.
     rewrite /nextgen.
     intros HP.
     iDestruct HP as (picks m picksGT) "(m & % & HP)".
-    clear HP.
     set (fG := (build_trans Ω picks)).
     pose proof (build_trans_generation Ω _ picksGT).
     rewrite <- (bnextgen_plain fG P).
