@@ -2896,7 +2896,7 @@ Section next_gen_definition.
   Proof. apply _. Qed.
 
   Definition nextgen P : iProp Σ :=
-    ∃ picks (prs : list (promise_info Ω)),
+    ∃ (picks : TransMap Ω) (prs : list (promise_info Ω)),
       "%picksValid" ∷ ⌜ transmap_valid picks ⌝ ∗
       "%prsWf" ∷ ⌜ promises_wf Ω.(gc_map_wf) prs ⌝ ∗
       "%overlapResp" ∷ ⌜ transmap_overlap_resp_promises picks prs ⌝ ∗
@@ -3145,15 +3145,36 @@ Section nextgen_properties.
   Lemma transmap_overlap_resp_promises_merge picks1 picks2 prs1 prs2 prs3 :
     transmap_overlap_resp_promises picks1 prs1 →
     transmap_overlap_resp_promises picks2 prs2 →
+    promise_list_stronger prs3 prs1 →
+    promise_list_stronger prs3 prs2 →
     (∀ pi : promise_info Ω, pi ∈ prs3 → pi ∈ prs1 ∨ pi ∈ prs2) →
     transmap_overlap_resp_promises (picks1 ∪ picks2) prs3.
   Proof.
-    intros lap1 lap2 from.
+    intros lap1 lap2 str1 str2 from.
     intros ? pi look.
-    (* destruct (prs1 !! i) eqn:look2. *)
-    (* -  *)
-    (* -  *)
-  Abort.
+    edestruct from as [elem|elem].
+    { eapply elem_of_list_lookup_2. done. }
+    - admit.
+    (* destruct (picks1 pi.(pi_id) !! pi.(pi_γ)) eqn:look1. *)
+    (* - left. *)
+    (*   specialize (lap1 pi.(pi_id) pi). *)
+    (*   intros ?. *)
+    (* destruct (decide (pi ∈ prs1)). *)
+    (* destruct (prs2 !! i) eqn:look2. *)
+    (* - (* in both *) *)
+    (*   admit. *)
+    (* - admit. *)
+    (* - admit. *)
+    (* - (* in neither *) *)
+    (*   exfalso. *)
+    (*   (* apply elem_of_list_lookup_2 in look. *) *)
+    (*   (* apply not_elem_of_list_lookup_2 in look. *) *)
+    (*   edestruct from as [elem|elem]. { eapply elem_of_list_lookup_2. done. } *)
+    (*   * apply elem_of_list_lookup_1 in elem as (? & ?). *)
+    (*     congruence. *)
+    (*   right. *)
+    (*   rewrite lookup_union_r; try done. *)
+  Admitted.
 
   Lemma nextgen_sep_2 P Q :
     (⚡==> P) ∗ (⚡==> Q) ⊢ ⚡==> (P ∗ Q) .
@@ -3161,17 +3182,17 @@ Section nextgen_properties.
     rewrite /nextgen.
     iIntros "[P Q]".
     iNamed "P".
-    (* iDestruct "P" as (? prs1) "(picks1 & pr1 & %wf1 & HP)". *)
-    iDestruct "Q" as (? prs2) "(%picksValid2 & %wf2 & ? & ownPicks2 & ownPrs2 & HQ)".
+    iDestruct "Q" as (? prs2)
+      "(%picksValid2 & %wf2 & %overlapResp2 & ownPicks2 & ownPrs2 & HQ)".
     iDestruct (own_promises_merge prs prs2 with "ownPrs ownPrs2")
         as "(%prs3 & %wf3 & (% & % & %) & prs3)";
-      [try done|done| ].
+      [done|done| ].
     iExists _, prs3.
     iDestruct (own_picks_sep with "ownPicks ownPicks2") as "[$ %sub]".
     iFrame "prs3".
     iSplit. { iPureIntro. apply transmap_valid_merge; done. }
     iSplit; first done.
-    iSplit. { admit. }
+    iSplit. { iPureIntro. eapply transmap_overlap_resp_promises_merge; try done. }
     iIntros (fp vv a b).
     iSpecialize ("contP" $! fp vv with "[%] [%]").
     { eapply transmap_resp_promises_weak; done. }
@@ -4391,11 +4412,7 @@ Section rules_with_deps.
 
   Lemma token_to_rely γ γs (R : rel_over DS A) P :
     token γ γs R P ⊢ rely γ γs R P.
-  Proof.
-    iNamed 1.
-    repeat iExists _.
-    iFrame.
-  Qed.
+  Proof. iNamed 1. repeat iExists _. iFrame. Qed.
 
   Lemma know_promise_extract_frag γ γs R P pia promises rels
       (preds : list (pred_over A)) :
@@ -4716,14 +4733,14 @@ Proof.
 Qed.
 
 Section test.
-  Context `{max_i : !genInG Σ Ω max_natR inil}.
+  Context `{max_i : !genInG Σ Ω max_natR [] }.
   Context `{i : !genInDepsG Σ Ω max_natR [max_natR; max_natR] }.
 
   Definition a_rely :=
     rely (1%positive) [2%positive; 3%positive] (λ Ta Tb Ts, Ta = Ts ∧ Tb = Ts) (λ _, True).
 
   Section test.
-    Variables (A : cmra) (B : cmra) (T1 : A → A) (T2 : B → B)
+    Variables (A B C : cmra) (T1 : A → A) (T2 : B → B)
       (P1 : (A → A) → Prop) (P2 : (B → B) → Prop).
 
     Definition TS : trans_for _ [A; B] := [T1; T2]%HV.
@@ -4732,7 +4749,7 @@ Section test.
 
     Context `{!genInG Σ Ω A [] }.
     Context `{!genInG Σ Ω B [] }.
-    Context `{!genInDepsG Σ Ω A [A; B] }.
+    Context `{!genInDepsG Σ Ω C [A; B] }.
 
     Lemma foo2 (γ : gname) (γs : ivec 2 gname) : True.
     Proof.
