@@ -1214,7 +1214,8 @@ Record promise_info_at {Σ} (Ω : gGenCmras Σ) id := MkPia {
   pi_rel_to_pred : ∀ (ts : trans_for (On Ω id) (Ocs Ω id)) t,
     huncurry pi_rel ts t → pi_pred t;
   pi_witness : ∀ (ts : trans_for (On Ω id) (Ocs Ω id)),
-    preds_hold pi_deps_preds ts → ∃ t, huncurry pi_rel ts t;
+    preds_hold pi_deps_preds ts → (* If we can procure such a [ts] .. *)
+    ∃ t, GenTrans t ∧ huncurry pi_rel ts t; (* .. we can get such a [t]. *)
 }.
 
 Record promise_info {Σ} (Ω : gGenCmras Σ) := MkPi {
@@ -2549,8 +2550,9 @@ Section transmap.
       apply (H di).
   Qed.
 
-  Equations transmap_insert_go transmap (id : ggid Ω) (γ : gname) (pick : Oc Ω id → Oc Ω id)
-    (id' : ggid Ω) : gmap gname (Oc Ω id' → Oc Ω id') :=
+  Equations transmap_insert_go transmap (id : ggid Ω) (γ : gname)
+      (pick : Oc Ω id → Oc Ω id)
+      (id' : ggid Ω) : gmap gname (Oc Ω id' → Oc Ω id') :=
   | transmap, _, γ, pick, id', with decide (id = id') => {
     | left eq_refl => <[ γ := pick ]>(transmap id')
     | right _ => transmap id'
@@ -2602,10 +2604,27 @@ Section transmap.
       * apply not_and_r in Hneq; done.
   Qed.
 
+  Lemma transmap_valid_insert map id γ t :
+    GenTrans t →
+    transmap_valid map →
+    transmap_valid (transmap_insert map id γ t).
+  Proof.
+    intros gt val.
+    intros id' γ' t'.
+    destruct (path_equal_or_different id id' γ γ') as [H|H].
+    - destruct H as [-> ->].
+      rewrite transmap_insert_lookup.
+      intros [= ->].
+      done.
+    - rewrite transmap_insert_lookup_ne; last done.
+      apply (val id' γ').
+  Qed.
+
   Lemma transmap_resp_promises_insert owf p promises transmap t :
     promises_wf owf (p :: promises) →
     transmap_resp_promises transmap promises →
-    transmap_resp_promises (transmap_insert transmap (pi_id p) (pi_γ p) t) promises.
+    transmap_resp_promises
+      (transmap_insert transmap (pi_id p) (pi_γ p) t) promises.
   Proof.
     intros [[uniq hasDeps] WF].
     rewrite /transmap_resp_promises !Forall_forall.
@@ -2708,20 +2727,23 @@ Section transmap.
   (* Grow a transformation map to satisfy a list of promises. This works by
   * traversing the promises and using [promise_info] to extract a
   * transformation. *)
-  Lemma transmap_promises_to_maps transmap promises :
+  Lemma transmap_and_promises_to_full_map transmap promises :
+    transmap_valid transmap →
     transmap_overlap_resp_promises transmap promises →
     promises_wf (Ω.(gc_map_wf)) promises →
-    ∃ (map : TransMap Ω),
-      transmap_resp_promises map promises ∧
-      transmap ⊆ map.
+    ∃ (full_map : TransMap Ω),
+      transmap_valid full_map ∧
+      transmap_resp_promises full_map promises ∧
+      transmap ⊆ full_map.
   Proof.
+    intros val.
     induction promises as [|p promises' IH].
-    - intros _. exists transmap.
-      split; last done.
+    - intros _ _. exists transmap.
+      split_and!; try done.
       apply Forall_nil_2.
     - intros HR [WF WF'].
       specialize (promise_wf_neq_deps _ _ _ WF) as depsDiff.
-      destruct IH as (map & resp & sub).
+      destruct IH as (map & resp & val' & sub).
       {  eapply transmap_overlap_resp_promises_cons. done. } { done. }
       (* We either need to use the transformation in [picks] or extract one
        * from [p]. *)
@@ -2729,6 +2751,7 @@ Section transmap.
       + destruct (HR 0 p) as [sat | ?]; [done | | congruence].
         destruct sat as (ts & t & transIn & hold & pRelHolds).
         exists map. (* We don't insert as map already has transformation. *)
+        split; first done.
         split; last done.
         apply Forall_cons.
         split; try done.
@@ -2738,13 +2761,13 @@ Section transmap.
            apply sub.
            done.
         -- eapply trans_at_deps_subseteq; done.
-      + eassert _ as sat.
-        { eapply transmap_satisfy_wf_cons; done. }
-        destruct sat as (ts & transIn & hold).
-        eassert (∃ t, _) as [t pRelHolds].
+      + edestruct transmap_satisfy_wf_cons as (ts & transIn & hold);
+          [done|done|].
+        eassert (∃ t, _ ∧ _) as (t & gt & pRelHolds).
         { apply p.(pi_witness). apply hold. }
         exists (transmap_insert map p.(pi_id) p.(pi_γ) t).
-        split.
+        split_and!.
+        * apply transmap_valid_insert; done.
         * apply Forall_cons.
           split.
           -- rewrite /transmap_satisfy_rel.
@@ -2764,7 +2787,9 @@ Section transmap.
     ∃ (transmap : TransMap _), transmap_resp_promises transmap promises.
   Proof.
     intros WF.
-    edestruct (transmap_promises_to_maps (λ i : ggid Ω, ∅)) as [m [resp a]].
+    edestruct (transmap_and_promises_to_full_map (λ i : ggid Ω, ∅))
+      as (m & ? & resp & a).
+    { done. }
     2: { done. }
     - intros ???. right. done.
     - exists m. apply resp.
@@ -3762,14 +3787,13 @@ Section nextgen_assertion_rules.
     intros HP.
     iDestruct HP as (picks prs) "H".
     iNamed "H". clear HP.
-    destruct (transmap_promises_to_maps picks prs) as (full_picks & resp & sub);
-      try done.
-    assert (transmap_valid full_picks) as v. { admit. }
-    set (T := build_trans_generation full_picks v).
-    iSpecialize ("contP" $! full_picks v resp sub).
+    destruct (transmap_and_promises_to_full_map picks prs)
+      as (full_picks & val & resp & sub); try done.
+    iSpecialize ("contP" $! full_picks val resp sub).
+    set (T := build_trans_generation full_picks val).
     rewrite -{2}(bnextgen_plain (build_trans full_picks) P).
     done.
-  Admitted.
+  Qed.
 
 End nextgen_assertion_rules.
 
@@ -3781,8 +3805,9 @@ Section rules_with_deps.
   Program Definition make_pia (γs : ivec n gname) deps_preds
       (R_2 : rel_over DS A) (P_2 : pred_over A)
       (R_to_P : ∀ ts t, huncurry R_2 ts t → P_2 t)
-      (real : ∀ (ts : trans_for n DS),
-        preds_hold deps_preds ts → ∃ (e : A → A), huncurry R_2 ts e)
+      (witness : ∀ (ts : trans_for n DS),
+        preds_hold deps_preds ts →
+        ∃ (e : A → A), GenTrans e ∧ huncurry R_2 ts e)
       : promise_info_at Ω _ := {|
     pi_deps_γs := (rew [λ n, ivec n _] genInG_gcd_n in γs);
     pi_deps_preds := rew [id] preds_for_genInG in deps_preds;
@@ -3815,13 +3840,15 @@ Section rules_with_deps.
     unfold eq_rect_r in *. simpl in *.
     destruct genInG_gcd_deps0.
     simpl in *.
-    apply real.
+    apply witness.
   Qed.
 
   Program Definition make_true_pia (γs : ivec n gname) : promise_info_at Ω _ :=
     make_pia γs (True_preds_for DS) True_rel True_pred _ _.
   Next Obligation. intros. done. Qed.
-  Next Obligation. intros. exists (λ a, a). rewrite huncurry_curry. done. Qed.
+  Next Obligation.
+    intros. exists (λ a, a). rewrite huncurry_curry. split; first apply _. done.
+  Qed.
 
   Lemma auth_promise_list_frag γ rs ps :
     own_auth_promise_list γ rs ps
@@ -4294,7 +4321,8 @@ Section rules_with_deps.
     (∀ ts t, huncurry R_2 ts t → P_2 t) →
     (* Evidence that the promise is realizeable. *)
     (∀ (ts : trans_for n DS),
-      preds_hold deps_preds ts → ∃ (e : A → A), huncurry R_2 ts e) →
+      preds_hold deps_preds ts →
+      ∃ (t : A → A), GenTrans t ∧ huncurry R_2 ts t) →
     (* For every dependency we own a [rely_self]. *)
     (∀ (i : fin n), rely_self (γs !!! i) (hvec_lookup_fmap deps_preds i)) -∗
     token γ γs R_1 P_1 ==∗
