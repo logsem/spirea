@@ -434,6 +434,25 @@ Section tuple_helpers.
 
 End tuple_helpers.
 
+Lemma own_gen_cmra_split {Σ}
+    {A B C D E F : ucmra} `{!inG Σ (A *R* B *R* C *R* D *R* E *R* F)}
+    γ a b c d e f :
+  own γ (a, b, c, d, e, f) ⊣⊢
+    own γ (a, ε, ε, ε, ε, ε) ∗
+    own γ (ε, b, ε, ε, ε, ε) ∗
+    own γ (ε, ε, c, ε, ε, ε) ∗
+    own γ (ε, ε, ε, d, ε, ε) ∗
+    own γ (ε, ε, ε, ε, e, ε) ∗
+    own γ (ε, ε, ε, ε, ε, f).
+ Proof.
+   rewrite -5!own_op.
+   f_equiv.
+   (* NOTE: Doing the split before rewriting is, for some reason, much faster
+    * than doing the rewrite without the split. *)
+   repeat split; simpl;
+     rewrite ?ucmra_unit_right_id; rewrite ?ucmra_unit_left_id; reflexivity.
+Qed.
+
 (* Constructors for each of the elements in the pair. *)
 
 Definition gc_tup_pick_in {n A} (DS : ivec n cmra) pick_in : generational_cmraR A DS :=
@@ -2824,6 +2843,21 @@ Section rules.
 
 End rules.
 
+Lemma deps_agree {Σ A n} {DS : ivec n cmra} `{!inG Σ (generational_cmraR A DS)} γ (γs1 γs2 : ivec n gname) :
+  own γ (gc_tup_deps A DS (ivec_to_list γs1)) -∗
+  own γ (gc_tup_deps A DS (ivec_to_list γs2)) -∗
+  ⌜ γs1 = γs2 ⌝.
+Proof.
+  iIntros "A B".
+  iDestruct (own_valid_2 with "A B") as "hv".
+  iDestruct (prod_valid_4th with "hv") as "%val".
+  iPureIntro.
+  rewrite Some_valid in val.
+  rewrite to_agree_op_valid_L in val.
+  apply ivec_to_list_inj.
+  apply val.
+Qed.
+
 Lemma own_eq `{inG Σ A} γ (a b : A) : a = b → own γ a -∗ own γ b.
 Proof. intros ->. done. Qed.
 
@@ -2847,11 +2881,10 @@ Section next_gen_definition.
       ⌜ picks i !! γ = Some t ⌝ -∗
       ∃ (ts : hvec (On Ω i) (cmra_to_trans <$> Ocs Ω i))
           (γs : ivec (On Ω i) gname) Ps R Rs,
-        let ing := gen_cmra_data_to_inG (Ω.(gc_map) i) in
         ⌜ trans_at_deps picks i γs ts ⌝ ∧
         ⌜ huncurry R ts t ⌝ ∧
         ⌜ rel_prefix_list_for rel_weaker Rs R ⌝ ∧
-        own γ (
+        Oown i γ (
           (ε, GTS_tok_gen_shot t, ε, Some (to_agree (ivec_to_list γs)),
            gV (●ML□ Rs), gV (●ML□ Ps)
         ) : generational_cmraR _ _).
@@ -2899,7 +2932,6 @@ Section next_gen_definition.
     ∃ (picks : TransMap Ω) (prs : list (promise_info Ω)),
       "%picksValid" ∷ ⌜ transmap_valid picks ⌝ ∗
       "%prsWf" ∷ ⌜ promises_wf Ω.(gc_map_wf) prs ⌝ ∗
-      "%overlapResp" ∷ ⌜ transmap_overlap_resp_promises picks prs ⌝ ∗
       (* We own resources for everything in [picks] and [promises]. *)
       "ownPicks" ∷ own_picks picks ∗
       "ownPrs" ∷ own_promises prs ∗
@@ -3071,6 +3103,45 @@ Section own_promises_properties.
     eapply pred_prefix_list_for_stronger; done.
   Qed.
 
+  Lemma own_picks_promises_satisfy picks prs :
+    own_picks picks -∗
+    own_promises prs -∗
+    ⌜ transmap_overlap_resp_promises picks prs ⌝.
+  Proof.
+    iIntros "picks prs".
+    iIntros (i pi look).
+    destruct (picks (pi_id pi) !! pi_γ pi) as [t|] eqn:look2; last naive_solver.
+    iLeft.
+    iDestruct ("picks" $! _ _ _ look2) as (??????? prefList) "picks".
+    apply elem_of_list_lookup_2 in look.
+    unfold own_promises.
+    rewrite big_sepL_elem_of; last done.
+    iDestruct "prs" as (?? (?&?&?&?)) "prs".
+    unfold own_promise_info_resource.
+    iExists ts, t.
+    iSplit; first done.
+    unfold Oown.
+    iDestruct (own_gen_cmra_split with "prs") as "(_ & _ & _ & deps1 & RS1 & PS1)".
+    iDestruct (own_gen_cmra_split with "picks") as "(_ & _ & _ & deps2 & RS2 & PS2)".
+    iDestruct (deps_agree with "deps1 deps2") as %<-.
+    iSplit; first done.
+    iDestruct (own_valid_2 with "RS1 RS2") as "V".
+    iDestruct (prod_valid_5th with "V") as %V1.
+    iDestruct (own_valid_2 with "PS1 PS2") as "V2".
+    iDestruct (prod_valid_6th with "V2") as %V2.
+    iPureIntro.
+    simpl in V1.
+    unfold gPV, gV in V1, V2.
+    apply gen_pv_op_valid in V1, V2.
+    rewrite comm in V1.
+    rewrite comm in V2.
+    apply mono_list_both_dfrac_valid_L in V1 as [_ pref1].
+    apply mono_list_both_dfrac_valid_L in V2 as [_ pref2].
+    eapply pred_prefix_list_for_prefix_of in prefList; try done; last apply _.
+    apply prefList.
+    done.
+  Qed.
+
 End own_promises_properties.
 
 (* In this section we prove structural rules of the nextgen modality. *)
@@ -3098,7 +3169,6 @@ Section nextgen_properties.
     iExists (λ i, ∅), [].
     iSplit. { iPureIntro. intros ??. inversion 1. }
     iSplit. { done. }
-    iSplit. { iPureIntro. intros ??. inversion 1. }
     iSplitL "". { iApply own_picks_empty. }
     iSplitL "". { iApply own_promises_empty. }
     iIntros (full_picks ?) "? ?".
@@ -3142,40 +3212,6 @@ Section nextgen_properties.
       iExists _, _. iFrame.
   Qed.
 
-  Lemma transmap_overlap_resp_promises_merge picks1 picks2 prs1 prs2 prs3 :
-    transmap_overlap_resp_promises picks1 prs1 →
-    transmap_overlap_resp_promises picks2 prs2 →
-    promise_list_stronger prs3 prs1 →
-    promise_list_stronger prs3 prs2 →
-    (∀ pi : promise_info Ω, pi ∈ prs3 → pi ∈ prs1 ∨ pi ∈ prs2) →
-    transmap_overlap_resp_promises (picks1 ∪ picks2) prs3.
-  Proof.
-    intros lap1 lap2 str1 str2 from.
-    intros ? pi look.
-    edestruct from as [elem|elem].
-    { eapply elem_of_list_lookup_2. done. }
-    - admit.
-    (* destruct (picks1 pi.(pi_id) !! pi.(pi_γ)) eqn:look1. *)
-    (* - left. *)
-    (*   specialize (lap1 pi.(pi_id) pi). *)
-    (*   intros ?. *)
-    (* destruct (decide (pi ∈ prs1)). *)
-    (* destruct (prs2 !! i) eqn:look2. *)
-    (* - (* in both *) *)
-    (*   admit. *)
-    (* - admit. *)
-    (* - admit. *)
-    (* - (* in neither *) *)
-    (*   exfalso. *)
-    (*   (* apply elem_of_list_lookup_2 in look. *) *)
-    (*   (* apply not_elem_of_list_lookup_2 in look. *) *)
-    (*   edestruct from as [elem|elem]. { eapply elem_of_list_lookup_2. done. } *)
-    (*   * apply elem_of_list_lookup_1 in elem as (? & ?). *)
-    (*     congruence. *)
-    (*   right. *)
-    (*   rewrite lookup_union_r; try done. *)
-  Admitted.
-
   Lemma nextgen_sep_2 P Q :
     (⚡==> P) ∗ (⚡==> Q) ⊢ ⚡==> (P ∗ Q) .
   Proof.
@@ -3183,7 +3219,7 @@ Section nextgen_properties.
     iIntros "[P Q]".
     iNamed "P".
     iDestruct "Q" as (? prs2)
-      "(%picksValid2 & %wf2 & %overlapResp2 & ownPicks2 & ownPrs2 & HQ)".
+      "(%picksValid2 & %wf2 & ownPicks2 & ownPrs2 & HQ)".
     iDestruct (own_promises_merge prs prs2 with "ownPrs ownPrs2")
         as "(%prs3 & %wf3 & (% & % & %) & prs3)";
       [done|done| ].
@@ -3192,7 +3228,6 @@ Section nextgen_properties.
     iFrame "prs3".
     iSplit. { iPureIntro. apply transmap_valid_merge; done. }
     iSplit; first done.
-    iSplit. { iPureIntro. eapply transmap_overlap_resp_promises_merge; try done. }
     iIntros (fp vv a b).
     iSpecialize ("contP" $! fp vv with "[%] [%]").
     { eapply transmap_resp_promises_weak; done. }
@@ -3202,7 +3237,7 @@ Section nextgen_properties.
     { etrans; done. }
     iModIntro.
     iFrame.
-  Admitted.
+  Qed.
 
 End nextgen_properties.
 
@@ -3751,26 +3786,6 @@ Section nextgen_assertion_rules.
   Global Instance right_id_prodR {C B : ucmra} : RightId (@equiv (prodR C B) _) ε op.
   Proof. apply ucmra_unit_right_id. Qed.
 
-  Lemma own_gen_cmra_split γ a b c d e f :
-    own γ (a, b, c, d, e, f) ⊣⊢
-      own γ (a, ε, ε, ε, ε, ε) ∗
-      own γ (ε, b, ε, ε, ε, ε) ∗
-      own γ (ε, ε, c, ε, ε, ε) ∗
-      own γ (ε, ε, ε, d, ε, ε) ∗
-      own γ (ε, ε, ε, ε, e, ε) ∗
-      own γ (ε, ε, ε, ε, ε, f).
-   Proof.
-     rewrite -5!own_op.
-     f_equiv.
-     rewrite pair_op_6. simpl.
-     rewrite !assoc. (* slow *)
-     unfold GTSR in *.
-     unfold gen_pvR in *.
-     rewrite !left_id.
-     rewrite !right_id.
-     done.
-  Qed.
-
   Lemma own_build_trans_next_gen_picked_in γ (m : generational_cmraR A DS) picks
       `{!GenTrans (build_trans picks)} :
     transmap_valid picks →
@@ -3792,7 +3807,6 @@ Section nextgen_assertion_rules.
     iExists (λ i, ∅), [].
     iSplit; first done.
     iSplit; first done.
-    iSplit; first done.
     iSplit. { iApply own_picks_empty. }
     iSplit. { iApply own_promises_empty. }
     iIntros (full_picks ?) "_ %sub".
@@ -3808,9 +3822,10 @@ Section nextgen_assertion_rules.
     intros HP.
     iDestruct HP as (picks prs) "H".
     iNamed "H". clear HP.
+    iDestruct (own_picks_promises_satisfy with "ownPicks ownPrs") as %resp.
     destruct (transmap_and_promises_to_full_map picks prs)
-      as (full_picks & val & resp & sub); try done.
-    iSpecialize ("contP" $! full_picks val resp sub).
+      as (full_picks & val & resp' & sub); try done.
+    iSpecialize ("contP" $! full_picks val resp' sub).
     set (T := build_trans_generation full_picks val).
     rewrite -{2}(bnextgen_plain (build_trans full_picks) P).
     done.
@@ -4234,7 +4249,7 @@ Section rules_with_deps.
   Proof.
     iNamed 1. iNamed "tokenPromise".
     iExists (λ i, ∅), [].
-    do 3 (iSplit; first done).
+    do 2 (iSplit; first done).
     iSplit. { iApply own_picks_empty. }
     iSplit. { iApply own_promises_empty. }
     iIntros (full_picks ? ? ?).
@@ -4277,16 +4292,7 @@ Section rules_with_deps.
     know_deps γ γs1 -∗
     know_deps γ γs2 -∗
     ⌜ γs1 = γs2 ⌝.
-  Proof.
-    iIntros "A B".
-    iDestruct (own_valid_2 with "A B") as "hv".
-    iDestruct (prod_valid_4th with "hv") as "%val".
-    iPureIntro.
-    rewrite Some_valid in val.
-    rewrite to_agree_op_valid_L in val.
-    apply ivec_to_list_inj.
-    apply val.
-  Qed.
+  Proof. apply deps_agree. Qed.
 
   Lemma own_promises_know_deps prs γ γs pia :
     promises_lookup_at prs (genInG_id genInDepsG_gen) γ = Some pia →
@@ -4660,7 +4666,6 @@ Section rules_with_deps.
     iExists (λ i, ∅), promises.
     iSplit; first done.
     iSplit; first done.
-    iSplit. { iPureIntro. apply transmap_overlap_resp_promises_empty. }
     iSplit; first iApply own_picks_empty.
     iFrame "prs".
     iIntros (full_picks val resp _).
