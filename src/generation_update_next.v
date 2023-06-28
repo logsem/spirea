@@ -2623,6 +2623,16 @@ Section transmap.
       * apply not_and_r in Hneq; done.
   Qed.
 
+  Lemma transmap_valid_singleton id γ t `{!GenTrans t} :
+    transmap_valid (transmap_singleton id γ t).
+  Proof.
+    intros id' ??. unfold transmap_singleton.
+    destruct (decide (id = id')) as [eq2|] eqn:eq; last done.
+    destruct eq2.
+    simpl.
+    intros [-> <-]%lookup_singleton_Some. done.
+  Qed.
+
   Lemma transmap_valid_insert map id γ t :
     GenTrans t →
     transmap_valid map →
@@ -3247,9 +3257,6 @@ Section generational_resources.
   Context {n} {A} {DS : ivec n cmra} `{i : !genInG Σ Ω A DS}.
   Implicit Types (R : rel_over DS A) (P : (A → A) → Prop).
 
-  Definition gen_picked_in γ (t : A → A) : iProp Σ :=
-    own γ (gc_tup_pick_in DS t).
-
   Definition gen_pick_out γ r : iProp Σ :=
     own γ (gc_tup_pick_out DS r).
 
@@ -3790,7 +3797,7 @@ Section nextgen_assertion_rules.
       `{!GenTrans (build_trans picks)} :
     transmap_valid picks →
     own γ m ⊢ ⚡={build_trans picks}=>
-      gen_picked_in γ (rew <- [cmra_to_trans] genInG_gti_typ in (default (λ a, a) (picks _ !! γ)))
+      picked_in γ (rew <- [cmra_to_trans] genInG_gti_typ in (default (λ a, a) (picks _ !! γ)))
     .
   Proof.
     iIntros (?) "R".
@@ -4089,7 +4096,7 @@ Section rules_with_deps.
   Proof. rewrite -own_op. done. Qed.
 
   Lemma gen_picked_in_agree γ (f f' : A → A) :
-    gen_picked_in γ f -∗ gen_picked_in γ f' -∗ ⌜ f = f' ⌝.
+    picked_in γ f -∗ picked_in γ f' -∗ ⌜ f = f' ⌝.
   Proof.
     iIntros "A B".
     iDestruct (own_valid_2 with "A B") as "val".
@@ -4404,17 +4411,55 @@ Section rules_with_deps.
     eapply pred_prefix_list_for'_grow; done.
   Qed.
 
+  Lemma gen_pick_out_pick γ t :
+    gen_pick_out γ GTS_tok_gen ==∗ gen_pick_out γ (GTS_tok_gen_shot t).
+  Proof.
+    iApply own_update.
+    repeat (apply prod_update; last done; simpl).
+    apply prod_update; first done; simpl.
+    apply prod_update; first done; simpl.
+    apply option_update.
+    apply cmra_update_exclusive. done.
+  Qed.
+
+  Lemma own_auth_promise_list_freeze γ Rs Ps :
+    own_auth_promise_list γ Rs Ps ==∗
+    own_frozen_auth_promise_list γ Rs Ps.
+  Proof.
+    unfold own_auth_promise_list.
+    unfold own_frozen_auth_promise_list.
+    iApply own_update.
+    apply prod_update; simpl.
+    - apply prod_update; simpl; first done; simpl.
+      apply prod_update; simpl; first done; simpl.
+      rewrite left_id.
+      apply option_update.
+      apply mono_list_auth_persist.
+    - apply prod_update; simpl; first done; simpl.
+      rewrite left_id.
+      apply option_update.
+      apply mono_list_auth_persist.
+  Qed.
+
   (* Picks the transformation for the resource at [γ]. This is only possible if
    * transformations has been picked for all the dependencies. *)
   Lemma token_pick γ γs (R : rel_over DS A) P (ts : trans_for n DS) t :
-    huncurry R ts t →
-    (∀ i, picked_out (g := genInSelfG_gen (gs i))
-            (γs !!! i) (hvec_lookup_fmap ts i)) -∗
+    (* FIXME: These resources _should_ be necessary. *)
+    (* huncurry R ts t → *)
+    (* (∀ i, picked_out (g := genInSelfG_gen (gs i)) *)
+    (*         (γs !!! i) (hvec_lookup_fmap ts i)) -∗ *)
     token γ γs R P ==∗ used_token γ γs R P ∗ picked_out γ t.
   Proof.
-    iIntros (rHolds) "picks".
+    (* iIntros (rHolds) "picks". *)
     iNamed 1.
-  Admitted.
+    unfold used_token. unfold picked_out.
+    iDestruct (gen_token_split with "token") as "[tokenPerm tokenGen]".
+    iFrame "tokenPerm".
+    iMod (gen_pick_out_pick with "tokenGen") as "$".
+    iMod (own_auth_promise_list_freeze with "auth_preds") as "auth_preds".
+    iModIntro.
+    iExists _, _, _, _. iFrame.
+  Qed.
 
   Lemma token_to_rely γ γs (R : rel_over DS A) P :
     token γ γs R P ⊢ rely γ γs R P.
@@ -4625,7 +4670,7 @@ Section rules_with_deps.
     own_resource_for_deps γs -∗
     ⚡={build_trans full_picks}=>
       (∀ i : fin n,
-        gen_picked_in (i := genInSelfG_gen (gs i)) (γs !!! i)
+        picked_in (g := genInSelfG_gen (gs i)) (γs !!! i)
           (hvec_lookup_fmap (rew <- [id] trans_for_genInG in ts) i)).
   Proof.
     unfold own_resource_for_deps.
@@ -4652,9 +4697,9 @@ Section rules_with_deps.
       ∃ (t : A → A) (ts : trans_for n DS),
         ⌜ huncurry R ts t ∧ (* The transformations satisfy the promise *)
           P t ⌝ ∗ (* For convenience we also give this directly *)
-        gen_picked_in γ t ∗
+        picked_in γ t ∗
         (* The transformations for the dependencies are the "right" ones *)
-        (∀ i, gen_picked_in (i := genInSelfG_gen (gs i)) (γs !!! i) (hvec_lookup_fmap ts i)).
+        (∀ i, picked_in (g := genInSelfG_gen (gs i)) (γs !!! i) (hvec_lookup_fmap ts i)).
   Proof.
     rewrite /rely.
     iIntros "DR".
@@ -4712,6 +4757,34 @@ Section rules_with_deps.
         + apply predHolds. }
     iFrame "depsPickedIn".
   Qed.
+
+  Lemma picked_out_nextgen γ t `{!GenTrans t} :
+    picked_out γ t -∗ ⚡==> picked_in γ t.
+  Proof.
+    iIntros "O".
+    unfold nextgen.
+    iExists (transmap_singleton _ γ (rew [cmra_to_trans] genInG_gti_typ in t)).
+    iExists [].
+    iSplit.
+    { iPureIntro.
+      apply transmap_valid_singleton.
+      destruct genInG_gti_typ.
+      done. }
+    iSplit; first done.
+    iSplit.
+    { admit. } (* FIXME: We can't prove this. Must put [own_picks] in [picked_out]. *)
+    iSplit. { iApply own_promises_empty. }
+    iIntros (??? sub).
+    iDestruct (own_build_trans_next_gen with "O") as "O"; first done.
+    iModIntro.
+    specialize (sub (genInG_id genInDepsG_gen)).
+    rewrite map_subseteq_spec in sub.
+    eassert _ as eq. { apply sub. apply transmap_singleton_lookup. }
+    rewrite eq.
+    simpl.
+    rewrite rew_opp_l.
+    done.
+  Admitted.
 
 End rules_with_deps.
 
