@@ -1418,7 +1418,7 @@ Section generational_resources_with_deps.
   (** Ownership over the token and the promises for [γ]. *)
   Definition token (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
     ∃ (rels : list (rel_over DS A)) preds promises pia,
-      "tokenPromise" ∷ know_promise γ γs R P pia promises rels preds ∗
+      "#tokenPromise" ∷ know_promise γ γs R P pia promises rels preds ∗
       "token" ∷ gen_pick_out γ GTS_tok_both ∗
       "auth_preds" ∷ own_auth_promise_list γ rels preds.
   (* ∗ *)
@@ -1437,7 +1437,12 @@ Section generational_resources_with_deps.
       "#relyPromise" ∷ know_promise γ γs R P pia promises rels preds.
 
   Definition picked_out γ t : iProp Σ :=
-    gen_pick_out γ (GTS_tok_gen_shot t).
+    ∃ (picks : TransMap Ω),
+      "%picksValid" ∷ ⌜ transmap_valid picks ⌝ ∗
+      "#shotT" ∷ gen_pick_out γ (GTS_tok_gen_shot t) ∗
+      "%picksLook" ∷
+        ⌜ picks (genInG_id g) !! γ = Some (rew [cmra_to_trans] genInG_gti_typ in t) ⌝ ∗
+      "picks" ∷ own_picks picks.
 
   Definition picked_in γ (t : A → A) : iProp Σ :=
     own γ (gc_tup_pick_in DS t).
@@ -2539,13 +2544,12 @@ Section rules_with_deps.
   (* Picks the transformation for the resource at [γ]. This is only possible if
    * transformations has been picked for all the dependencies. *)
   Lemma token_pick γ γs (R : rel_over DS A) P (ts : trans_for n DS) t :
-    (* FIXME: These resources _should_ be necessary. *)
-    (* huncurry R ts t → *)
-    (* (∀ i, picked_out (g := genInSelfG_gen (gs i)) *)
-    (*         (γs !!! i) (hvec_lookup_fmap ts i)) -∗ *)
+    huncurry R ts t →
+    (∀ i, picked_out (g := genInSelfG_gen (gs i))
+            (γs !!! i) (hvec_lookup_fmap ts i)) -∗
     token γ γs R P ==∗ used_token γ γs R P ∗ picked_out γ t.
   Proof.
-    (* iIntros (rHolds) "picks". *)
+    iIntros (rHolds) "picks".
     iNamed 1.
     unfold used_token. unfold picked_out.
     iDestruct (gen_token_split with "token") as "[tokenPerm tokenGen]".
@@ -2553,12 +2557,14 @@ Section rules_with_deps.
     iMod (gen_pick_out_pick with "tokenGen") as "$".
     iMod (own_auth_promise_list_freeze with "auth_preds") as "auth_preds".
     iModIntro.
-    iExists _, _, _, _. iFrame.
-  Qed.
+    iSplitL "auth_preds".
+    { repeat iExists _. iFrame "#∗". }
+    (* TODO: Combine the picks. *)
+  Admitted.
 
   Lemma token_to_rely γ γs (R : rel_over DS A) P :
     token γ γs R P ⊢ rely γ γs R P.
-  Proof. iNamed 1. repeat iExists _. iFrame. Qed.
+  Proof. iNamed 1. repeat iExists _. iFrame "#". Qed.
 
   Lemma know_promise_extract_frag γ γs R P pia promises rels
       (preds : list (pred_over A)) :
@@ -2856,30 +2862,24 @@ Section rules_with_deps.
   Lemma picked_out_nextgen γ t `{!GenTrans t} :
     picked_out γ t -∗ ⚡==> picked_in γ t.
   Proof.
-    iIntros "O".
+    iNamed 1.
     unfold nextgen.
-    iExists (transmap_singleton _ γ (rew [cmra_to_trans] genInG_gti_typ in t)).
-    iExists [].
-    iSplit.
-    { iPureIntro.
-      apply transmap_valid_singleton.
-      destruct genInG_gti_typ.
-      done. }
+    iExists picks, [].
     iSplit; first done.
-    iSplit.
-    { admit. } (* FIXME: We can't prove this. Must put [own_picks] in [picked_out]. *)
+    iSplit; first done.
+    iFrame "picks".
     iSplit. { iApply own_promises_empty. }
     iIntros (??? sub).
-    iDestruct (own_build_trans_next_gen with "O") as "O"; first done.
+    iDestruct (own_build_trans_next_gen with "shotT") as "O"; first done.
     iModIntro.
     specialize (sub (genInG_id genInDepsG_gen)).
     rewrite map_subseteq_spec in sub.
-    eassert _ as eq. { apply sub. apply transmap_singleton_lookup. }
+    eassert _ as eq. { apply sub. apply picksLook. }
     rewrite eq.
     simpl.
     rewrite rew_opp_l.
     done.
-  Admitted.
+  Qed.
 
 End rules_with_deps.
 
