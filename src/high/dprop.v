@@ -168,7 +168,7 @@ Section definitions.
   Lemma with_gnames_intro (P : _ → dProp Σ) : (∀ nD, P nD) -∗ with_gnames P.
   Proof. iModel. iIntros "H". iApply "H". Qed.
 
-  Lemma with_gnames_intro_independent (P : dProp Σ) : P -∗ with_gnames (λ nD, P).
+  Lemma with_gnames_intro_independent (P : dProp Σ) : P ⊢ with_gnames (λ nD, P).
   Proof. done. Qed.
 
   Global Instance with_gnames_persistent `{∀ nD, Persistent (P nD)} :
@@ -197,10 +197,11 @@ Section definitions.
     AsFractional (with_gnames P) (λ q, with_gnames (λ nD, Q nD q)) q.
   Proof.
     intros f.
-    split; last apply _.
-    iModel. simpl.
-    rewrite 1!(@as_fractional _ (P gnames) (Q gnames)).
-    auto.
+    split.
+    - iModel. simpl.
+      rewrite 1!(@as_fractional _ (P gnames) (Q gnames)).
+      auto.
+    - apply with_gnames_fractional. intros ?. apply f.
   Qed.
 
 End definitions.

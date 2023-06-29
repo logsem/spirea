@@ -269,7 +269,7 @@ Section post_fence_sync.
       * iDestruct "impl" as "[_ impl]". iApply "impl". done.
   Qed.
 
-  Lemma post_fence_sync_sep P Q : <fence_sync> P ∗ <fence_sync> Q -∗ <fence_sync> (P ∗ Q) .
+  Lemma post_fence_sync_sep P Q : <fence_sync> P ∗ <fence_sync> Q ⊢ <fence_sync> (P ∗ Q) .
   Proof.
     iStartProof (iProp _). iIntros ([[??]?]).
     cbn.

@@ -193,7 +193,9 @@ Section wp_at_rules.
       rewrite /map_map_Forall.
       apply map_Forall_insert_2; last done.
       rewrite /initial_history.
-      apply map_Forall_singleton.
+      simpl.
+      rewrite drop_prefix_zero.
+      rewrite map_Forall_singleton.
       done. }
     iSplitL "atLocsHistories ownHist".
     { rewrite restrict_insert_union big_sepM_insert.
@@ -660,7 +662,6 @@ Section wp_at_rules.
     rewrite big_sepM2_alt.
     rewrite big_sepL2_alt.
     iIntros "(%domEq & M)".
-    apply dom_eq_alt_L in domEq.
     assert (length ss = length ms) as lenEq.
     { eapply map_sequence_dom_length; done. }
     iFrame (lenEq).
@@ -669,7 +670,7 @@ Section wp_at_rules.
     iFrame "L".
     iIntros "[_ L]".
     iDestruct ("Lreins" with "L") as "$".
-    iPureIntro. apply dom_eq_alt_L. done.
+    iPureIntro. done.
   Qed.
 
   (* Lemma bingo {A B} (m1 : gmap nat A) (m2 : gmap nat B) tLo tHi ss ms *)

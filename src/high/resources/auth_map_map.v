@@ -229,7 +229,7 @@ Section auth_map_map.
     rewrite /auth_map_map_frag.
     rewrite /auth_map_map_frag_singleton.
     rewrite /auth_map_map_frag.
-    f_equiv.
+    iApply own_mono.
     simpl.
     apply auth_frag_mono.
     rewrite /fmap_fmap_to_agree.
@@ -250,7 +250,7 @@ Section auth_map_map.
     rewrite /auth_map_map_frag.
     rewrite /auth_map_map_frag_singleton.
     rewrite /auth_map_map_frag.
-    f_equiv.
+    iApply own_mono.
     simpl.
     apply auth_frag_mono.
     rewrite /fmap_fmap_to_agree.

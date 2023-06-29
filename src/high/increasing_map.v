@@ -247,7 +247,7 @@ Section increasing_list.
     intros incr pref.
     apply: increasing_list_last_greatest; first done.
     { apply last_snoc. }
-    eapply prefix_lookup; last done.
+    eapply prefix_lookup_Some; last done.
     apply lookup_app_Some.
     right.
     split; first done.

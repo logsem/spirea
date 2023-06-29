@@ -31,10 +31,12 @@
 
 ## Development
 
+The `main` branch is currently developed using Coq version 8.17.1.
+
 ### Clone
 
-The project uses submodules. So to clone it and the associated submodules use
-the following command:
+The project uses submodules. To clone it and the associated submodules use the
+following command:
 
 ```
 git submodule update --init --recursive

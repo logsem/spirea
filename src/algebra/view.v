@@ -109,7 +109,7 @@ Proof.
     apply max_nat_included.
     done.
   - rewrite look.
-    replace (None) with (ε : option _); last done.
+    replace (None) with (ε : option max_nat); last done.
     apply ucmra_unit_least.
 Qed.
 
@@ -211,7 +211,7 @@ Proof.
     destruct (V !! ℓ') as [[m]|] eqn:eq; simpl.
     * rewrite eq. simpl in *. apply Some_included_2. apply max_nat_included. done.
     * rewrite eq.
-      replace (None) with (ε : option _); last done.
+      replace (None) with (ε : option max_nat); last done.
       apply ucmra_unit_least.
   - rewrite lookup_insert_ne; last done.
     by apply lookup_included.

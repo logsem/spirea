@@ -187,6 +187,7 @@ Section definitions.
   Global Instance pre_node_prot_inv_contractive :
     Contractive pre_node_prot_inv.
   Proof.
+    rewrite /pre_node_prot_inv.
     intros ??????.
     rewrite /pre_node_prot_inv.
     simpl.
@@ -201,7 +202,9 @@ Section definitions.
     f_equiv.
     - rewrite /toNext_prot.
       apply mapsto_at_contractive.
-      destruct n; first done.
+      destruct n. { apply dist_later_0. }
+      apply dist_later_S in H2.
+      apply dist_later_S.
       rewrite H2.
       done.
     - rewrite /flush_lb.

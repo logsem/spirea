@@ -161,7 +161,7 @@ Section location_sets.
   Lemma location_sets_lookup γ locs ℓ :
     ℓ ∈ locs → own γ (◯ locs) -∗ own γ (◯ {[ ℓ ]}).
   Proof.
-    iIntros (elm). f_equiv. simpl.
+    iIntros (elm). iApply own_mono. simpl.
     eexists (◯ locs).
     rewrite -auth_frag_op.
     f_equiv.

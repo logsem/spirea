@@ -89,7 +89,7 @@ Section mapsto_na_flushed.
     assert (s = s') as <-.
     { apply (anti_symm (⊑@{ST})); first done.
       apply: increasing_list_last_greatest; try done.
-      eapply prefix_lookup; last done.
+      eapply prefix_lookup_Some; last done.
       apply lookup_app_Some.
       right.
       split; first done.

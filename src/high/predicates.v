@@ -99,12 +99,13 @@ Section predicates.
   Proof.
     rewrite /pred_to_ra.
     rewrite /unwrapped_pred_to_ra.
-    intros ????.
+    intros ??? dl.
     apply (@to_agree_ne (positive -d> val -d> laterO (optionO (index -d> (iPropO Σ))))).
     intros ??.
-    destruct n; first done.
+    destruct n. { apply: contractive_0. }
     apply (contractive_S Next).
-    apply (H x0 x1).
+    apply dist_later_S in dl.
+    apply (dl x0 x1).
   Qed.
 
   Local Instance pred_to_ra_contractive :
@@ -157,7 +158,7 @@ Section predicates.
     encode_predicate ϕ e v = Some P →
     P i -∗
     ϕ s v i.
-  Proof. rewrite /encode_predicate. iIntros (-> [= <-]). done. Qed.
+  Proof. rewrite /encode_predicate. iIntros (-> [= <-]). iIntros "$". Qed.
 
   Lemma know_predicates_alloc preds :
     ⊢ |==> ∃ γ,
@@ -245,7 +246,7 @@ Section predicates.
     own γ (◯ (pred_to_ra <$> predicates) : predicatesR) -∗
     own γ (◯ {[ ℓ := pred_to_ra pred ]}).
   Proof.
-    intros look. f_equiv. simpl.
+    intros look. iApply own_mono. simpl.
     apply auth_frag_mono.
     rewrite singleton_included_l.
     eexists _.

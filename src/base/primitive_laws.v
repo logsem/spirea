@@ -409,7 +409,7 @@ Section persisted.
 
   (* [persisted] is anti-monotone. *)
   Global Instance persisted_anti_mono : Proper ((⊑@{view}) ==> flip (⊢)) (persisted).
-  Proof. intros ??. apply persisted_weak. Qed.
+  Proof. intros ???. iApply persisted_weak. done. Qed.
 
   Lemma persisted_loc_weak ℓ t1 t2 :
     t2 ≤ t1 → persisted_loc ℓ t1 -∗ persisted_loc ℓ t2.
@@ -424,7 +424,7 @@ Section persisted.
   Proof.
     intros look.
     rewrite /persisted_loc /persisted.
-    f_equiv.
+    iApply own_mono.
     apply auth_frag_mono.
     apply singleton_included_l.
     eexists (MaxNat t).
@@ -595,10 +595,10 @@ Section lifting.
     rewrite big_opM_union; last first.
     { apply map_disjoint_spec=> l' v1 v2 /lookup_singleton_Some [-> _].
       intros (j&w&?&Hjl&_)%heap_array_lookup.
-      rewrite loc_add_assoc -{1}[l']loc_add_0 in Hjl. simplify_eq; lia. }
-    rewrite loc_add_0 -fmap_S_seq big_sepL_fmap.
+      rewrite Loc.add_assoc -{1}[l']Loc.add_0 in Hjl. simplify_eq; lia. }
+    rewrite Loc.add_0 -fmap_S_seq big_sepL_fmap.
     setoid_rewrite Nat2Z.inj_succ. setoid_rewrite <-Z.add_1_l.
-    setoid_rewrite <-loc_add_assoc.
+    setoid_rewrite <-Loc.add_assoc.
     rewrite big_opM_singleton; iDestruct "Hvs" as "[$ Hvs]". by iApply "IH".
   Qed.
 
@@ -680,9 +680,9 @@ Section lifting.
     iIntros (Φ) "#Hval HΦ".
     iApply wp_allocN; [lia|auto|]; first iFrame.
     iNext.
-    iIntros (ℓ CV) "/= (? & ? & % & ?)". rewrite !right_id. rewrite loc_add_0.
+    iIntros (ℓ CV) "/= (? & ? & % & ?)". rewrite !right_id. rewrite Loc.add_0.
     iApply "HΦ"; iFrame.
-    iPureIntro. rewrite -(loc_add_0 ℓ). auto with lia.
+    iPureIntro. rewrite -(Loc.add_0 ℓ). auto with lia.
   Qed.
 
   (* Non-atomic load. *)

@@ -26,7 +26,7 @@ Section program.
     let: "a" := !_NA #ℓa in
     let: "b" := !_NA #ℓb in
     if: "a" < "b"
-    then #() #() (* Get stuck. *)
+    then #() #() (* Get stuck if a=1 and b=0. *)
     else #().
 
 End program.

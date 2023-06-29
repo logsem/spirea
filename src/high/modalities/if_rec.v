@@ -29,7 +29,7 @@ Section if_rec.
     iIntros (CV);
     iIntros "%look #crashed #pers".
 
-  Lemma if_rec_intro ℓ P : P -∗ if_rec ℓ P.
+  Lemma if_rec_intro ℓ P : P ⊢ if_rec ℓ P.
   Proof.
     iIntros "P".
     ifRecIntro.
@@ -50,7 +50,7 @@ Section if_rec.
   Qed.
 
   Lemma if_rec_sep ℓ (P Q : dProp Σ) :
-    if_rec ℓ P ∗ if_rec ℓ Q -∗ if_rec ℓ (P ∗ Q)%I.
+    if_rec ℓ P ∗ if_rec ℓ Q ⊢ if_rec ℓ (P ∗ Q)%I.
   Proof.
     iIntros "[P Q]". ifRecIntro.
     iDestruct ("P" $! CV with "[//] crashed [$]") as "$".
@@ -58,7 +58,7 @@ Section if_rec.
   Qed.
 
   Lemma if_rec_mono ℓ (P Q : dProp Σ) :
-    (P -∗ Q) → if_rec ℓ P -∗ if_rec ℓ Q.
+    (P ⊢ Q) → if_rec ℓ P ⊢ if_rec ℓ Q.
   Proof.
     rewrite /if_rec.
     intros pToQ.
@@ -156,7 +156,7 @@ Section if_rec.
   Qed.
 
   Lemma or_lost_if_rec_with_names_embed ℓ P TV nD :
-    or_lost_post_crash_no_t ℓ (P nD) -∗
+    or_lost_post_crash_no_t ℓ (P nD) ⊢
     (if_rec ℓ (with_gnames (λ nD', ⎡ P nD' ⎤))) (TV, nD).
   Proof.
     iIntros "H". iApply or_lost_if_rec_at.
@@ -164,7 +164,7 @@ Section if_rec.
   Qed.
 
   Lemma if_rec_or_lost_with_t ℓ P :
-    or_lost_with_t ℓ P -∗ if_rec ℓ (∃ t, P t).
+    or_lost_with_t ℓ P ⊢ if_rec ℓ (∃ t, P t).
   Proof.
     iIntros "(%CV' & #crashed' & disj)".
     ifRecIntro. destruct look as [??].

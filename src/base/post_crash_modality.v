@@ -152,7 +152,7 @@ Section post_crash_prop.
   (* Qed. *)
 
   Lemma post_crash_sep P Q :
-    post_crash P ∗ post_crash Q -∗ <PC> hG, P hG ∗ Q hG.
+    post_crash P ∗ post_crash Q ⊢ <PC> hG, P hG ∗ Q hG.
   Proof.
     iIntros "(HP & HQ)".
     iIntrosPostCrash.
@@ -197,8 +197,8 @@ Section post_crash_prop.
   Proof.
     intros ?? eq.
     apply (anti_symm _).
-    - apply post_crash_mono. intros. rewrite -eq. done.
-    - apply post_crash_mono. intros. rewrite -eq. done.
+    - iApply post_crash_mono. intros. rewrite -eq. iIntros "$".
+    - iApply post_crash_mono. intros. rewrite -eq. iIntros "$".
   Qed.
 
   (* Lemma post_crash_exists {A} P Q : *)
@@ -239,7 +239,7 @@ Section post_crash_prop.
   (* Qed. *)
 
   Lemma post_crash_named P name:
-    named name (post_crash (λ hG, P hG)) -∗
+    named name (post_crash (λ hG, P hG)) ⊢
     post_crash (λ hG, named name (P hG)).
   Proof. rewrite //=. Qed.
 
@@ -267,7 +267,7 @@ Section post_crash_prop.
     setoid_rewrite view_le_singleton.
     setoid_rewrite bi.pure_exist.
     setoid_rewrite bi.sep_exist_r.
-    done.
+    naive_solver.
   Qed.
 
   Lemma post_crash_persisted_persisted V :
@@ -359,7 +359,7 @@ End post_crash_prop.
 
 Class IntoCrash {Σ} `{nvmBaseFixedG Σ, nvmBaseDeltaG}
       (P : iProp Σ) (Q : nvmBaseDeltaG → iProp Σ) :=
-  into_crash : P -∗ post_crash (Σ := Σ) (λ hG', Q hG').
+  into_crash : P ⊢ post_crash (Σ := Σ) (λ hG', Q hG').
 
 Section IntoCrash.
   Context `{hG : !nvmBaseFixedG Σ, hDG : nvmBaseDeltaG}.
@@ -435,7 +435,7 @@ Section IntoCrash.
     iIntros (HD Hwand1 Hwand2) "HP".
     iApply post_crash_mono; last first.
     { iApply HD. iApply Hwand1. eauto. }
-    intros. simpl. by rewrite Hwand2.
+    intros. simpl. rewrite Hwand2. naive_solver.
   Qed.
 
 (*   Global Instance big_sepL_into_crash: *)
@@ -512,7 +512,7 @@ Section IntoCrash.
 
 End IntoCrash.
 
-Lemma modus_ponens {Σ} (P Q : iProp Σ)  : P -∗ (P -∗ Q) -∗ Q.
+Lemma modus_ponens {Σ} (P Q : iProp Σ) : P ⊢ (P -∗ Q) -∗ Q.
 Proof. iIntros "HP Hwand". by iApply "Hwand". Qed.
 
 Ltac crash_env Γ :=

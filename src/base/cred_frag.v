@@ -92,7 +92,7 @@ Definition cred_interp ns : iProp Σ :=
   cred_auth ns ∗ cred_frag 0.
 
 Lemma cred_frag_split ns1 ns2 :
-  cred_frag (ns1 + ns2) -∗ cred_frag ns1 ∗ cred_frag ns2.
+  cred_frag (ns1 + ns2) ⊢ cred_frag ns1 ∗ cred_frag ns2.
 Proof.
   iIntros "H".
   rewrite /cred_frag auth_frag_op.
@@ -101,7 +101,7 @@ Proof.
 Qed.
 
 Lemma cred_frag_join ns1 ns2 :
-  cred_frag ns1 ∗ cred_frag ns2 -∗ cred_frag (ns1 + ns2).
+  cred_frag ns1 ∗ cred_frag ns2 ⊢ cred_frag (ns1 + ns2).
 Proof.
   iIntros "(H1&H2)".
   iCombine "H1 H2" as "H".

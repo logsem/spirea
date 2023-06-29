@@ -400,11 +400,11 @@ Section big_sepM.
 
   Lemma big_sepM_thread_resource_1 Φ m R :
     R -∗ ([∗ map] k↦x ∈ m, R -∗ R ∗ Φ k x) -∗ R ∗ ([∗ map] k↦x ∈ m, Φ k x).
-  Proof. apply wand_intro_r. rewrite big_sepM_thread_resource. done. Qed.
+  Proof. iIntros "??". iApply big_sepM_thread_resource. iFrame. Qed.
 
   Lemma big_sepM_thread_resource_2 Φ m R :
     R -∗ ([∗ map] k↦x ∈ m, Φ k x) -∗ R ∗ ([∗ map] k↦x ∈ m, R -∗ R ∗ Φ k x).
-  Proof. apply wand_intro_r. rewrite big_sepM_thread_resource. done. Qed.
+  Proof. iIntros "??". iApply big_sepM_thread_resource. iFrame. Qed.
 
 End big_sepM.
 
@@ -462,8 +462,7 @@ Section big_sepM2.
     rewrite big_sepM2_alt.
     apply pure_elim_l => Hl.
     assert (m1 = ∅ ∧ m2 = ∅) as [-> ->].
-    { apply dom_eq_alt_L in Hl.
-      destruct disj as [-> | ->].
+    { destruct disj as [-> | ->].
       * split.
         + set_solver.
         + apply dom_empty_iff_L. rewrite dom_empty_L in Hl. done.
@@ -476,7 +475,7 @@ Section big_sepM2.
 
   (* Lemma big_sepM_bupd m1 m2 Φ : *)
   Lemma big_sepM2_bupd `{BiBUpd PROP} m1 m2 Φ :
-    ([∗ map] k ↦ x1;x2 ∈ m1;m2, |==> Φ k x1 x2) -∗
+    ([∗ map] k ↦ x1;x2 ∈ m1;m2, |==> Φ k x1 x2) ⊢
     |==> ([∗ map] k ↦ x1;x2 ∈ m1;m2, Φ k x1 x2).
   Proof.
     rewrite 2!big_sepM2_alt big_sepM_bupd. apply pure_elim_l => ?.
@@ -542,10 +541,10 @@ Section big_sepM2.
     iIntros (sub1 domEq).
     rewrite !big_sepM2_alt.
     iIntros "R [%impl sep] #impl".
-    apply dom_eq_alt_L in impl.
+    (* apply dom_eq_alt_L in impl. *)
     rewrite persistent_and_sep.
     rewrite comm. rewrite -assoc.
-    iSplit. { iPureIntro. apply dom_eq_alt_L. congruence. }
+    iSplit. { iPureIntro. done. }
     iDestruct (big_sepM_impl_dom_subseteq_with_resource with "R sep []")
       as "(A & $ & C)".
     { rewrite 2!dom_map_zip_with. rewrite -domEq -impl. set_solver. }
@@ -570,12 +569,10 @@ Section big_sepM2.
     iIntros (sub1 domEq).
     rewrite !big_sepM2_alt.
     iIntros "[%impl sep] #impl".
-    assert (dom m1 = dom m2) as domEq2.
-    { rewrite set_eq. setoid_rewrite elem_of_dom. done. }
-    iSplit. { iPureIntro. intros k. rewrite -!elem_of_dom domEq. done. }
+    iSplit; first done.
     iDestruct (big_sepM_impl_dom_subseteq with "sep []") as "[$ H]".
     { etrans; first apply dom_map_zip_with_fst.
-      rewrite dom_map_zip_with. rewrite -domEq2. set_solver. }
+      rewrite dom_map_zip_with. rewrite domEq. set_solver. }
     { iModIntro.
       iIntros (? [??] [??]).
       iIntros ([??]%map_lookup_zip_Some).
@@ -586,14 +583,14 @@ Section big_sepM2.
   Lemma big_sepM2_impl_subseteq `{!BiAffine PROP} (m1 n1 : gmap K A) (m2 n2 : gmap K B) Φ :
     n1 ⊆ m1 →
     n2 ⊆ m2 →
-    dom n1 ≡ dom n2 →
+    dom n1 = dom n2 →
     ([∗ map] k↦y1;y2 ∈ m1;m2, Φ k y1 y2) -∗
     [∗ map] k↦y1;y2 ∈ n1;n2, Φ k y1 y2.
   Proof.
     rewrite 2!big_sepM2_alt.
     iIntros (sub sub' eq) "[%impl map]".
     iSplit.
-    - setoid_rewrite <- elem_of_dom. rewrite -set_equiv. done.
+    - done.
     - iDestruct (big_sepM_impl_dom_subseteq with "map []") as "[$ temp]".
       { rewrite 2!dom_map_zip_with.
         apply subseteq_dom in sub.

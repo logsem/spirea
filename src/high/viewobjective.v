@@ -26,7 +26,7 @@ Notation "'<vobj>' P" := (monPred_view_objectively P) (at level 20, right associ
 (* Expresses that a proposition holds independently of the thread view but may
    still depend on the ghost names. *)
 Class ViewObjective {Σ} (P : dProp Σ) :=
-  view_objective_at TV1 TV2 gnames : P (TV1, gnames) -∗ P (TV2, gnames).
+  view_objective_at TV1 TV2 gnames : P (TV1, gnames) ⊢ P (TV2, gnames).
 Global Arguments ViewObjective {_} _%I.
 Global Arguments view_objective_at {_} _%I {_}.
 Global Hint Mode ViewObjective + ! : typeclass_instances.

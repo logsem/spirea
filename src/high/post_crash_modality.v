@@ -201,7 +201,7 @@ Notation "'<PC>' P" := (post_crash P)
 Ltac iIntrosPostCrash := iIntros (hG' hh bb na_views).
 
 Class IntoCrash {Σ} `{nvmG Σ} (P : dProp Σ) (Q : dProp Σ) :=
-  into_crash : P -∗ post_crash (Σ := Σ) Q.
+  into_crash : P ⊢ post_crash (Σ := Σ) Q.
 
 Arguments IntoCrash {_} {_} _%I _%I.
 
@@ -243,7 +243,7 @@ Section post_crash_prop.
   (** ** Structural rules *)
 
   Lemma post_crash_mono P Q :
-    (P -∗ Q) → post_crash P -∗ post_crash Q.
+    (P ⊢ Q) → post_crash P ⊢ post_crash Q.
   Proof.
     iStartProof (iProp _). iIntros (Hmono TV') "HP".
     iIntrosPostCrash.
@@ -275,7 +275,7 @@ Section post_crash_prop.
   Qed.
 
   Lemma post_crash_sep P Q :
-    post_crash P ∗ post_crash Q -∗ <PC> (P ∗ Q).
+    post_crash P ∗ post_crash Q ⊢ <PC> (P ∗ Q).
   Proof.
     iModel.
     iIntros "(HP & HQ)".
@@ -336,7 +336,7 @@ Section post_crash_prop.
     iFrame "%".
   Qed.
 
-  Lemma post_crash_nodep (P : dProp Σ) `{!Objective P} : P -∗ <PC> P.
+  Lemma post_crash_nodep (P : dProp Σ) `{!Objective P} : P ⊢ <PC> P.
   Proof.
     iStartProof (iProp _). iIntros ([TV' ?]) "P".
     iIntrosPostCrash.
@@ -346,7 +346,7 @@ Section post_crash_prop.
   Qed.
 
   Lemma post_crash_named P name :
-    named name (post_crash P) -∗
+    named name (post_crash P) ⊢
     post_crash (named name P).
   Proof. rewrite //=. Qed.
 
@@ -381,7 +381,7 @@ Section post_crash_interact.
   Lemma post_crash_know_full_history_loc ℓ q (bumper : ST → ST)
         (abs_hist : gmap time ST) :
     know_bumper ℓ bumper ∗
-    know_full_history_loc_d ℓ q abs_hist -∗
+    know_full_history_loc_d ℓ q abs_hist ⊢
     <PC> if_rec ℓ (∃ t' (s : ST) v,
         ⌜ abs_hist !! t' = Some s ⌝ ∗
         know_bumper ℓ bumper ∗
@@ -447,7 +447,7 @@ Section post_crash_interact.
   Qed.
 
   Lemma post_crash_preorder ℓ :
-    know_preorder_loc_d ℓ (abs_state_relation (ST := ST)) -∗
+    know_preorder_loc_d ℓ (abs_state_relation (ST := ST)) ⊢
     post_crash (if_rec ℓ (know_preorder_loc_d ℓ (abs_state_relation (ST := ST) )))%I.
   Proof.
     iStartProof (iProp _). iIntros (TV') "HP".
@@ -507,7 +507,7 @@ Section post_crash_interact.
   Qed.
 
   Lemma post_crash_know_pred `{Countable ST} ℓ (ϕ : ST → val → dProp Σ) :
-    know_pred_d ℓ ϕ -∗ <PC> if_rec ℓ (know_pred_d ℓ ϕ).
+    know_pred_d ℓ ϕ ⊢ <PC> if_rec ℓ (know_pred_d ℓ ϕ).
   Proof.
     iModel.
     iIntros "HP".
@@ -522,7 +522,7 @@ Section post_crash_interact.
   Qed.
 
   Lemma post_crash_at_loc ℓ :
-    is_at_loc ℓ -∗ <PC> if_rec ℓ (is_at_loc ℓ).
+    is_at_loc ℓ ⊢ <PC> if_rec ℓ (is_at_loc ℓ).
   Proof.
     iModel. iIntros "HP".
     iIntrosPostCrash.
@@ -535,7 +535,7 @@ Section post_crash_interact.
   Qed.
 
   Lemma post_crash_na_loc ℓ :
-    is_na_loc ℓ -∗ <PC> if_rec ℓ (is_na_loc ℓ).
+    is_na_loc ℓ ⊢ <PC> if_rec ℓ (is_na_loc ℓ).
   Proof.
     iModel. iIntros "HP".
     iIntrosPostCrash.
@@ -564,7 +564,7 @@ Section post_crash_interact.
   (* Qed. *)
 
   Lemma post_crash_offset ℓ tO :
-    offset_loc ℓ tO -∗
+    offset_loc ℓ tO ⊢
     <PC> if_rec ℓ (∃ tC CV, ⌜ CV !! ℓ = Some (MaxNat tC) ⌝ ∗
                                crashed_at_d CV ∗
                                offset_loc ℓ (tO + tC)).
@@ -607,7 +607,7 @@ Section post_crash_interact.
   *)
 
   Lemma post_crash_know_na_view ℓ q SV :
-    know_na_view ℓ q SV -∗ <PC> if_rec ℓ (know_na_view ℓ q ∅).
+    know_na_view ℓ q SV ⊢ <PC> if_rec ℓ (know_na_view ℓ q ∅).
   Proof.
     iModel. iIntros "HP".
     iIntrosPostCrash.
@@ -630,7 +630,7 @@ Section post_crash_interact.
   Qed.
 
   Lemma post_crash_know_bumper `{AbstractState ST} ℓ (bumper : ST → ST) :
-    know_bumper ℓ bumper -∗ <PC> if_rec ℓ (know_bumper ℓ bumper).
+    know_bumper ℓ bumper ⊢ <PC> if_rec ℓ (know_bumper ℓ bumper).
   Proof.
     iModel. iIntros "HP".
     iIntrosPostCrash.
@@ -819,7 +819,7 @@ Section post_crash_derived.
   Context `{AbstractState ST}.
 
   Lemma post_crash_persisted_d PV :
-    persisted_d PV -∗
+    persisted_d PV ⊢
     <PC> (persisted_d (view_to_zero PV) ∗ ∃ CV, ⌜ PV ⊑ CV ⌝ ∗ crashed_at_d CV).
   Proof.
     iModel.
@@ -846,7 +846,7 @@ Section post_crash_derived.
     IntoCrash _ _ := post_crash_persisted_d PV.
 
   Lemma post_crash_persisted_loc_d ℓ t :
-    persisted_loc_d ℓ t -∗
+    persisted_loc_d ℓ t ⊢
     <PC> (
       persisted_loc_d ℓ 0 ∗
       ∃ CV t', ⌜ CV !! ℓ = Some (MaxNat t') ∧ t ≤ t' ⌝ ∗ crashed_at_d CV)%I.
@@ -927,7 +927,7 @@ Qed.
 
 Class IntoCrashFlush {Σ} `{nvmG Σ}
       (P : dProp Σ) (Q : dProp Σ) :=
-  into_crash_flushed : P -∗ post_crash_flush (Σ := Σ) Q.
+  into_crash_flushed : P ⊢ post_crash_flush (Σ := Σ) Q.
 
 Arguments IntoCrashFlush {_} {_} _%I _%I.
 
@@ -948,8 +948,7 @@ Section post_crash_persisted.
   Context `{hG: !nvmG Σ}.
 
   Lemma post_crash_flush_post_crash P :
-    post_crash P -∗
-    post_crash_flush P.
+    post_crash P ⊢ post_crash_flush P.
   Proof.
     iStartProof (iProp _).
     iIntros (TV) "P".
@@ -968,12 +967,12 @@ Section post_crash_persisted.
   Qed.
 
   Lemma post_crash_flush_named `{nvmG Σ, nvmDeltaG} P name :
-    named name (post_crash_flush P) -∗
+    named name (post_crash_flush P) ⊢
     post_crash_flush (named name P).
   Proof. rewrite //=. Qed.
 
   Lemma post_crash_flush_sep `{nvmG Σ} P Q :
-    post_crash_flush P ∗ post_crash_flush Q -∗ <PCF> P ∗ Q.
+    post_crash_flush P ∗ post_crash_flush Q ⊢ <PCF> P ∗ Q.
   Proof.
     iModel.
     iIntros "(HP & HQ)".
@@ -1040,7 +1039,7 @@ Section post_crash_persisted.
   Proof. Abort.
 
   Lemma post_crash_flush_mono P Q :
-    (P -∗ Q) → post_crash_flush P -∗ post_crash_flush Q.
+    (P ⊢ Q) → post_crash_flush P ⊢ post_crash_flush Q.
   Proof.
     intros mono.
     iModel.
@@ -1099,11 +1098,11 @@ Section post_crash_persisted.
   Qed.
 
   Lemma post_crash_flush_nodep P `{!Objective P} :
-    P -∗ <PCF> P.
+    P ⊢ <PCF> P.
   Proof. rewrite -post_crash_flush_post_crash. apply: post_crash_nodep. Qed.
 
   Lemma post_crash_have_FV_strong ℓ t :
-    have_FV_strong ℓ t -∗
+    have_FV_strong ℓ t ⊢
     <PCF>
       persisted_d {[ ℓ := MaxNat 0 ]} ∗
       ∃ CV t', ⌜CV !! ℓ = Some (MaxNat t') ∧ t ≤ t'⌝ ∗ crashed_at_d CV.
@@ -1307,7 +1306,8 @@ Section intuit_to_spatial.
     iIntros "#[$ ?]". iApply "IH". done.
   Qed.
 
-  Lemma big_opL_env_and_sep `{BiAffine PROP} (l : env PROP) : env_and_persistently l -∗ [∗] l.
+  Lemma big_opL_env_and_sep `{BiAffine PROP} (l : env PROP) :
+    env_and_persistently l ⊢ [∗] l.
   Proof.
     iInduction (l) as [|??] "IH"; simpl; first done.
     iIntros "[#$ ?]". iApply "IH". done.

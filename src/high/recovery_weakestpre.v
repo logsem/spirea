@@ -1247,7 +1247,7 @@ Section wpr.
       { apply restrict_subseteq. }
       { apply restrict_subseteq. }
       { rewrite /newOrders /newBumpers.
-        rewrite 2!restrict_dom.
+        rewrite 2!restrict_dom_L.
         rewrite -domOrdersEqBumpers.
         done. } }
     iSplitR "". {
@@ -1255,7 +1255,7 @@ Section wpr.
       { apply restrict_subseteq. }
       { apply restrict_subseteq. }
       { rewrite /newOrders /newBumpers.
-        rewrite 2!restrict_dom.
+        rewrite 2!restrict_dom_L.
         rewrite -domPredsEqBumpers.
         set_solver. } }
     (* bumperBumpToValid *)

@@ -63,24 +63,6 @@ Section points_to_at.
       "#pers" ∷ (persisted_loc_d ℓ (tLo - offset) ∨ ⌜ tLo - offset = 0 ⌝)
     )%I.
 
-  (* Could maybe be upstreamed. *)
-  Global Instance monPred_embed_fractional (P : _ → iProp Σ) :
-    Fractional P → Fractional (λ q, ⎡ P q ⎤ : dProp Σ)%I.
-  Proof.
-    intros f p q.
-    iModel.
-    rewrite f.
-    auto.
-  Qed.
-
-  Global Instance monPred_embed_as_fractional (P : iProp Σ) Q q :
-    AsFractional P Q q →
-    AsFractional (⎡ P ⎤) (λ q, ⎡ Q q ⎤ : dProp Σ)%I q.
-  Proof.
-    split; last apply _.
-    by rewrite 1!(@as_fractional _ P Q).
-  Qed.
-
   Global Instance fractional ℓ (abs_hist : gmap nat ST) :
     Fractional (λ q, know_full_history_loc_d ℓ q abs_hist).
   Proof. apply _. Qed.
@@ -278,15 +260,15 @@ Section mapsto_at_lemmas.
   Proof. apply _. Qed.
 
   Lemma persist_lb_to_flush_lb ℓ prot s :
-    persist_lb ℓ prot s -∗ flush_lb ℓ prot s.
+    persist_lb ℓ prot s ⊢ flush_lb ℓ prot s.
   Proof. iNamed 1. iExistsN. iFrame "∗#". Qed.
 
   Lemma flush_lb_to_store_lb ℓ prot s :
-    flush_lb ℓ prot s -∗ store_lb ℓ prot s.
+    flush_lb ℓ prot s ⊢ store_lb ℓ prot s.
   Proof. iNamed 1. iExistsN. iFrame "∗#". Qed.
 
   Lemma persist_lb_to_store_lb ℓ prot s :
-    persist_lb ℓ prot s -∗ store_lb ℓ prot s.
+    persist_lb ℓ prot s ⊢ store_lb ℓ prot s.
   Proof. iNamed 1. iExistsN. iFrame "∗#". Qed.
 
   (* Lemma flush_lb_at_zero ℓ (s s' : ST) : *)
@@ -493,7 +475,7 @@ Section mapsto_at_lemmas.
   (* (* Instances. *) *)
 
   Lemma flush_lb_no_buffer ℓ prot (s : ST) :
-    flush_lb ℓ prot s -∗ <nobuf> flush_lb ℓ prot s.
+    flush_lb ℓ prot s ⊢ <nobuf> flush_lb ℓ prot s.
   Proof. iNamed 1. iModIntro. iExists _, _. iFrame "#∗". Qed.
 
   Global Instance buffer_free_flush_lb ℓ prot (s : ST) :
@@ -502,7 +484,7 @@ Section mapsto_at_lemmas.
 
   (* TODO: Prove this in the same way as [flush_lb_no_buffer]. We need more noflush instances. *)
   Lemma no_flush_store_lb ℓ prot (s : ST) :
-    store_lb ℓ prot s -∗ <noflush> store_lb ℓ prot s.
+    store_lb ℓ prot s ⊢ <noflush> store_lb ℓ prot s.
   Proof. iNamed 1. iModIntro. iExists _, _. iFrame "#∗". Qed.
   (*   iNamed 1. *)
   (*   iNamed "lbBase". *)
@@ -517,7 +499,7 @@ Section mapsto_at_lemmas.
   Proof. rewrite /IntoNoFlush. eauto using no_flush_store_lb. Qed.
 
   Lemma no_buffer_store_lb ℓ prot (s : ST) :
-    store_lb ℓ prot s -∗ <nobuf> store_lb ℓ prot s.
+    store_lb ℓ prot s ⊢ <nobuf> store_lb ℓ prot s.
   Proof. iNamed 1. iModIntro. iExists _, _. iFrame "#∗". Qed.
 
   Global Instance into_no_buffer_store_lb ℓ prot (s : ST) :
@@ -529,7 +511,7 @@ Section mapsto_at_lemmas.
   Proof. apply _. Qed.
 
   Lemma post_crash_persist_lb (ℓ : loc) prot (s : ST) :
-    persist_lb ℓ prot s -∗
+    persist_lb ℓ prot s ⊢
     <PC>
       persist_lb ℓ prot (prot.(p_bumper) s) ∗
       ∃ s', ⌜ s ⊑ s' ⌝ ∗ crashed_in prot ℓ s'.
@@ -627,7 +609,7 @@ Section mapsto_at_lemmas.
   (* Proof. *)
 
   Lemma post_crash_mapsto_na ℓ prot `{!ProtocolConditions prot} q (ss : list ST) :
-    ℓ ↦_{prot}^{q} ss -∗
+    ℓ ↦_{prot}^{q} ss ⊢
     <PC>
       if_rec ℓ (∃ ss' s,
         ⌜ (ss' ++ [s]) `prefix_of` ss ⌝ ∗
@@ -714,7 +696,7 @@ Section mapsto_at_lemmas.
     iExists s.
     iSplitPure.
     { eapply elem_of_list_lookup_2.
-      eapply prefix_lookup; last done.
+      eapply prefix_lookup_Some; last done.
       erewrite <- last_lookup.
       apply last_snoc. }
     iDestruct (crashed_in_persist_lb with "[$]") as "#per".
@@ -726,7 +708,7 @@ Section mapsto_at_lemmas.
     (into_crash_into_crash_flushed _ _ (post_crash_mapsto_na ℓ prot q ss)).
 
   Lemma post_crash_flush_flush_lb (ℓ : loc) prot (s : ST) :
-    flush_lb ℓ prot s -∗
+    flush_lb ℓ prot s ⊢
     <PCF> persist_lb ℓ prot (p_bumper prot s) ∗
               ∃ s__pc, ⌜ s ⊑ s__pc ⌝ ∗ crashed_in prot ℓ s__pc.
   Proof.
@@ -781,7 +763,7 @@ Section mapsto_at_lemmas.
   Proof. done. Qed.
 
   Lemma mapsto_at_store_lb ℓ prot ss s :
-    ℓ ↦_AT^{prot} (ss ++ [s]) -∗ store_lb ℓ prot s.
+    ℓ ↦_AT^{prot} (ss ++ [s]) ⊢ store_lb ℓ prot s.
   Proof.
     iNamed 1.
     iExists tS, offset.
@@ -795,13 +777,13 @@ Section mapsto_at_lemmas.
   Qed.
 
   Lemma mapsto_at_increasing ℓ prot ss :
-    ℓ ↦_AT^{prot} ss -∗ ⌜ increasing_list (⊑) ss ⌝.
+    ℓ ↦_AT^{prot} ss ⊢ ⌜ increasing_list (⊑) ss ⌝.
   Proof.
     iNamed 1. iPureIntro. eapply increasing_map_to_increasing_list; done.
   Qed.
 
   Lemma post_crash_mapsto_at_singleton ℓ prot (ss : list ST) :
-    ℓ ↦_AT^{prot} ss -∗
+    ℓ ↦_AT^{prot} ss ⊢
     <PC>
       if_rec ℓ (∃ sC,
         crashed_in prot ℓ sC ∗
@@ -874,7 +856,7 @@ Section mapsto_at_lemmas.
    * lemma above. We have, however, not had a need for it yet and thus the
    * proof is aborted (for now). *)
   Lemma post_crash_mapsto_at ℓ prot (ss : list ST) :
-    ℓ ↦_AT^{prot} ss -∗
+    ℓ ↦_AT^{prot} ss ⊢
     <PC> if_rec ℓ (∃ sC,
         crashed_in prot ℓ sC ∗
         (* At least one of our states are still there. *)
@@ -924,7 +906,6 @@ Section mapsto_at_lemmas.
         replace (offset + tC - (offset + tC)) with 0 by lia.
         iFrame "persisted".
         iDestruct (have_FV_0) as "$".
-        rewrite /lb_base.
         iFrameF "locationProtocol".
         iFrameF "frag".
         iFrameF "offset".

@@ -24,7 +24,7 @@ Section lift_d_lemmas.
   Qed.
 
   Lemma lift_wand (P Q : _ → iProp Σ) :
-    (lift_d (λ nD, Q nD -∗ P nD)) -∗
+    (lift_d (λ nD, Q nD -∗ P nD)) ⊢
     (lift_d Q -∗ lift_d P).
   Proof.
     iModel. simpl.
@@ -37,7 +37,7 @@ Section lift_d_lemmas.
   Qed.
 
   Lemma lift_wand_pure (Q : _ → iProp Σ) P :
-    lift_d (λ nD, Q nD -∗ ⌜ P ⌝) -∗
+    lift_d (λ nD, Q nD -∗ ⌜ P ⌝) ⊢
     lift_d Q -∗ ⌜ P ⌝.
   Proof.
     iModel. simpl.
@@ -50,7 +50,7 @@ Section lift_d_lemmas.
   Qed.
 
   Lemma lift_intros (P : _ → iProp Σ) :
-    ⎡ ∀ nD, P nD ⎤ -∗ lift_d P.
+    ⎡ ∀ nD, P nD ⎤ ⊢ lift_d P.
   Proof.
     iModel. simpl.
     monPred_simpl.
@@ -96,7 +96,10 @@ Definition persisted_loc_d `{nvmBaseFixedG Σ} ℓ t : dProp Σ :=
 
 Lemma crashed_at_d_agree `{nvmBaseFixedG Σ} CV CV' :
   crashed_at_d CV -∗ crashed_at_d CV' -∗ ⌜CV = CV'⌝.
-Proof. lift_d_extract. iApply crashed_at_agree. Qed.
+Proof.
+  lift_d_extract.
+  iApply crashed_at_agree.
+Qed.
 
 Section lemmas.
   Context `{nvmBaseFixedG Σ}.
