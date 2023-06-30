@@ -183,3 +183,23 @@ Section dependency_relation_extra.
 
 End dependency_relation_extra.
 
+Definition path_different {A} (id1 : A) (γ1 : gname) id2 γ2 :=
+  id1 ≠ id2 ∨ γ1 ≠ γ2.
+
+Section path_different.
+  Implicit Types (γ : gname).
+
+  Lemma path_equal_or_different {n} (id1 id2 : fin n) (γ1 γ2 : gname) :
+    id1 = id2 ∧ γ1 = γ2 ∨ (path_different id1 γ1 id2 γ2).
+  Proof.
+    unfold path_different.
+    destruct (decide (id1 = id2)) as [eq|?]; last naive_solver.
+    destruct (decide (γ1 = γ2)) as [eq2|?]; last naive_solver.
+    left. naive_solver.
+  Qed.
+
+  Lemma path_different_sym {A} (id1 : A) γ1 id2 γ2 :
+    path_different id1 γ1 id2 γ2 ↔ path_different id2 γ2 id1 γ1.
+  Proof. unfold path_different. naive_solver. Qed.
+
+End path_different.

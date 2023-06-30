@@ -134,7 +134,7 @@ Section transmap.
     done.
   Qed.
 
-  Lemma transmap_valid_merge (picks1 picks2 : TransMap Ω) :
+  Lemma transmap_valid_union (picks1 picks2 : TransMap Ω) :
     transmap_valid picks1 →
     transmap_valid picks2 →
     transmap_valid (picks1 ∪ picks2).
@@ -147,3 +147,91 @@ Section transmap.
   Qed.
 
 End transmap.
+
+Equations transmap_insert_go `{Ω : gGenCmras Σ} (transmap : TransMap Ω)
+    (id : ggid Ω) (γ : gname)
+    (pick : Oc Ω id → Oc Ω id)
+    (id' : ggid Ω) : gmap gname (Oc Ω id' → Oc Ω id') :=
+| transmap, _, γ, pick, id', with decide (id = id') => {
+  | left eq_refl => <[ γ := pick ]>(transmap id')
+  | right _ => transmap id'
+}.
+
+Definition transmap_insert `{Ω : gGenCmras Σ} transmap id γ pick : TransMap Ω :=
+  transmap_insert_go transmap id γ pick.
+
+Section transmap_insert.
+  Context `{Σ : gFunctors, Ω : gGenCmras Σ}.
+
+  Implicit Types (transmap : TransMap Ω).
+
+  Lemma transmap_insert_lookup transmap id γ t  :
+    (transmap_insert transmap id γ t) id !! γ = Some t.
+  Proof.
+    rewrite /transmap_insert.
+    rewrite transmap_insert_go_equation_1.
+    destruct (decide (id = id)) as [eq | neq]; last congruence.
+    assert (eq = eq_refl) as ->.
+    { rewrite (proof_irrel eq eq_refl). done. }
+    simpl.
+    rewrite lookup_insert. done.
+  Qed.
+
+  Lemma transmap_insert_lookup_ne transmap id1 γ1 t id2 γ2 :
+    id1 ≠ id2 ∨ γ1 ≠ γ2 →
+    (transmap_insert transmap id1 γ1 t) id2 !! γ2 = transmap id2 !! γ2.
+  Proof.
+    intros neq.
+    rewrite /transmap_insert.
+    rewrite transmap_insert_go_equation_1.
+    destruct (decide (id1 = id2)) as [eq | neq2]; last done.
+    destruct neq as [neq | neq]; first congruence.
+    subst. simpl.
+    rewrite lookup_insert_ne; done.
+  Qed.
+
+  Lemma transmap_insert_subseteq_r i γ t transmap1 transmap2 :
+    transmap1 i !! γ = None →
+    transmap1 ⊆ transmap2 →
+    transmap1 ⊆ transmap_insert transmap2 i γ t.
+  Proof.
+    intros look sub.
+    intros i'.
+    apply map_subseteq_spec => γ' t' look'.
+    destruct (decide (i = i' ∧ γ = γ')) as [[-> ->]|Hneq].
+    - congruence.
+    - rewrite transmap_insert_lookup_ne.
+      * specialize (sub i').
+        rewrite map_subseteq_spec in sub.
+        apply sub.
+        done.
+      * apply not_and_r in Hneq; done.
+  Qed.
+
+  Lemma transmap_valid_singleton id γ t `{!GenTrans t} :
+    transmap_valid (transmap_singleton id γ t).
+  Proof.
+    intros id' ??. unfold transmap_singleton.
+    destruct (decide (id = id')) as [eq2|] eqn:eq; last done.
+    destruct eq2.
+    simpl.
+    intros [-> <-]%lookup_singleton_Some. done.
+  Qed.
+
+  Lemma transmap_valid_insert map id γ t :
+    GenTrans t →
+    transmap_valid map →
+    transmap_valid (transmap_insert map id γ t).
+  Proof.
+    intros gt val.
+    intros id' γ' t'.
+    destruct (path_equal_or_different id id' γ γ') as [H|H].
+    - destruct H as [-> ->].
+      rewrite transmap_insert_lookup.
+      intros [= ->].
+      done.
+    - rewrite transmap_insert_lookup_ne; last done.
+      apply (val id' γ').
+  Qed.
+
+End transmap_insert.

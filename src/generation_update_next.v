@@ -664,86 +664,6 @@ Section transmap.
       apply (H di).
   Qed.
 
-  Equations transmap_insert_go transmap (id : ggid Ω) (γ : gname)
-      (pick : Oc Ω id → Oc Ω id)
-      (id' : ggid Ω) : gmap gname (Oc Ω id' → Oc Ω id') :=
-  | transmap, _, γ, pick, id', with decide (id = id') => {
-    | left eq_refl => <[ γ := pick ]>(transmap id')
-    | right _ => transmap id'
-  }.
-
-  Definition transmap_insert transmap id γ pick : TransMap Ω :=
-    transmap_insert_go transmap id γ pick.
-
-  Lemma transmap_insert_lookup transmap id γ t  :
-    (transmap_insert transmap id γ t) id !! γ = Some t.
-  Proof.
-    rewrite /transmap_insert.
-    rewrite transmap_insert_go_equation_1.
-    destruct (decide (id = id)) as [eq | neq]; last congruence.
-    assert (eq = eq_refl) as ->.
-    { rewrite (proof_irrel eq eq_refl). done. }
-    simpl.
-    rewrite lookup_insert. done.
-  Qed.
-
-  Lemma transmap_insert_lookup_ne transmap id1 γ1 t id2 γ2 :
-    id1 ≠ id2 ∨ γ1 ≠ γ2 →
-    (transmap_insert transmap id1 γ1 t) id2 !! γ2 = transmap id2 !! γ2.
-  Proof.
-    intros neq.
-    rewrite /transmap_insert.
-    rewrite transmap_insert_go_equation_1.
-    destruct (decide (id1 = id2)) as [eq | neq2]; last done.
-    destruct neq as [neq | neq]; first congruence.
-    subst. simpl.
-    rewrite lookup_insert_ne; done.
-  Qed.
-
-  Lemma transmap_insert_subseteq_r i γ t transmap1 transmap2 :
-    transmap1 i !! γ = None →
-    transmap1 ⊆ transmap2 →
-    transmap1 ⊆ transmap_insert transmap2 i γ t.
-  Proof.
-    intros look sub.
-    intros i'.
-    apply map_subseteq_spec => γ' t' look'.
-    destruct (decide (i = i' ∧ γ = γ')) as [[-> ->]|Hneq].
-    - congruence.
-    - rewrite transmap_insert_lookup_ne.
-      * specialize (sub i').
-        rewrite map_subseteq_spec in sub.
-        apply sub.
-        done.
-      * apply not_and_r in Hneq; done.
-  Qed.
-
-  Lemma transmap_valid_singleton id γ t `{!GenTrans t} :
-    transmap_valid (transmap_singleton id γ t).
-  Proof.
-    intros id' ??. unfold transmap_singleton.
-    destruct (decide (id = id')) as [eq2|] eqn:eq; last done.
-    destruct eq2.
-    simpl.
-    intros [-> <-]%lookup_singleton_Some. done.
-  Qed.
-
-  Lemma transmap_valid_insert map id γ t :
-    GenTrans t →
-    transmap_valid map →
-    transmap_valid (transmap_insert map id γ t).
-  Proof.
-    intros gt val.
-    intros id' γ' t'.
-    destruct (path_equal_or_different id id' γ γ') as [H|H].
-    - destruct H as [-> ->].
-      rewrite transmap_insert_lookup.
-      intros [= ->].
-      done.
-    - rewrite transmap_insert_lookup_ne; last done.
-      apply (val id' γ').
-  Qed.
-
   Lemma transmap_resp_promises_insert owf p promises transmap t :
     promises_wf owf (p :: promises) →
     transmap_resp_promises transmap promises →
@@ -1075,30 +995,37 @@ Section own_picks_properties.
     ✓ cmra_transport eq a ⊣⊢@{iPropI Σ} ✓ a.
   Proof. destruct eq. done. Qed.
 
+  Lemma transmap_lookup_union_Some transmap1 transmap2 γ i t :
+    (transmap1 ∪ transmap2) i !! γ = Some t →
+    transmap1 i !! γ = Some t ∨ transmap2 i !! γ = Some t.
+  Proof.
+    intros [look|[? look]]%lookup_union_Some_raw; naive_solver.
+  Qed.
+
+  (* NOTE: The other direction does not work. *)
   Lemma own_picks_sep picks1 picks2 :
+    own_picks picks1 ∗ own_picks picks2 ⊢ own_picks (picks1 ∪ picks2).
+  Proof.
+    iIntros "[O1 O2]".
+    iDestruct (tokens_for_picks_agree_overlap with "O1 O2") as %disj.
+    iIntros (??? [look|look]%transmap_lookup_union_Some ).
+    * iDestruct ("O1" $! _ _ _ look) as (????????) "H".
+      repeat iExists _. iFrame "∗%".
+      iPureIntro. apply trans_at_deps_union_l. done.
+    * iDestruct ("O2" $! _ _ _ look) as (????????) "H".
+      repeat iExists _. iFrame "∗%".
+      iPureIntro. apply trans_at_deps_union_r; done.
+  Qed.
+
+  Lemma own_picks_sep' picks1 picks2 :
     own_picks picks1 -∗
     own_picks picks2 -∗
     own_picks (picks1 ∪ picks2) ∗ ⌜ picks2 ⊆ picks1 ∪ picks2 ⌝.
   Proof.
     iIntros "O1 O2".
-    (* iDestruct 1 as (m1) "[O1 %R1]". *)
-    (* iDestruct 1 as (m2) "[O2 %R2]". *)
     iDestruct (tokens_for_picks_agree_overlap with "O1 O2") as %disj.
-      (* [done|done|]. *)
-    iSplit; last first. { iPureIntro. apply transmap_union_subseteq_r. done. }
-    iIntros (i γ t [look|[? look]]%lookup_union_Some_raw).
-    - iDestruct ("O1" $! i γ t look) as (????????) "O".
-      repeat iExists _.
-      iSplit. { iPureIntro. apply trans_at_deps_union_l; done. }
-      iSplit; first done.
-      iSplit; first done.
-      iFrame.
-    - iDestruct ("O2" $! i γ t look) as (????????) "O".
-      repeat iExists _.
-      iSplit. { iPureIntro. apply trans_at_deps_union_r; done. }
-      iSplit; first done.
-      iSplit; first done.
-      iFrame.
+    rewrite -own_picks_sep. iFrame.
+    iPureIntro. apply transmap_union_subseteq_r. done.
   Qed.
 
 End own_picks_properties.
@@ -1329,9 +1256,9 @@ Section nextgen_properties.
         as "(%prs3 & %wf3 & (% & % & %) & prs3)";
       [done|done| ].
     iExists _, prs3.
-    iDestruct (own_picks_sep with "ownPicks ownPicks2") as "[$ %sub]".
+    iDestruct (own_picks_sep' with "ownPicks ownPicks2") as "[$ %sub]".
     iFrame "prs3".
-    iSplit. { iPureIntro. apply transmap_valid_merge; done. }
+    iSplit. { iPureIntro. apply transmap_valid_union; done. }
     iSplit; first done.
     iIntros (fp vv a b).
     iSpecialize ("contP" $! fp vv with "[%] [%]").
@@ -2541,9 +2468,103 @@ Section rules_with_deps.
       apply mono_list_auth_persist.
   Qed.
 
+  Lemma list_picked_out
+      (γs : ivec n gname) (ts : trans_for n DS) :
+    (∀ idx, picked_out (g := genInSelfG_gen (gs idx))
+              (γs !!! idx) (hvec_lookup_fmap ts idx)) -∗
+    ∃ trans,
+      ⌜ transmap_valid trans ⌝ ∗
+      (* contains every promise in [γs] with the pred in [deps_preds] *)
+      (* ⌜ promises_has_deps_raw *)
+      (*   (λ idx, genInG_id (@genInSelfG_gen _ _ _ (gs idx))) γs *)
+      (*   (λ idx, rew (genInG_gti_typ (genInG := genInSelfG_gen (gs idx))) *)
+      (*           in hvec_lookup_fmap deps_preds idx) prs ⌝ ∗ *)
+      own_picks trans.
+  Proof.
+  Admitted.
+
+  Lemma transmap_lookup_union_Some_l m1 m2 i γ x :
+    m1 i !! γ = Some x → (m1 ∪ m2) i !! γ = Some x.
+  Proof.
+    intros look. eapply lookup_union_Some_l in look. apply look.
+  Qed.
+
+  Lemma own_picks_insert γ (t : A → A) trans (* γs ts Rs R Ps *) :
+    trans (genInG_id genInDepsG_gen) !! γ = None →
+    (* ⌜trans_at_deps *)
+    (*    (transmap_singleton (genInG_id genInDepsG_gen) γ *)
+    (*       (rew [cmra_to_trans] genInG_gti_typ in t) ∪ trans) *)
+    (*    (genInG_id genInDepsG_gen) γs ts⌝ *)
+    (* ∧ ⌜huncurry R ts (rew [cmra_to_trans] genInG_gti_typ in t)⌝ *)
+    (* ∧ ⌜rel_prefix_list_for rel_weaker Rs R⌝ *)
+    (* ∧ Oown (genInG_id genInDepsG_gen) γ *)
+    (*         (ε, GTS_tok_gen_shot t, ε, Some (to_agree (ivec_to_list γs)), *)
+    (*          gV (●ML□ Rs), gV (●ML□ Ps)) *)
+    (* -∗ *)
+    own_picks trans -∗
+    own_picks
+      (transmap_singleton (genInG_id genInDepsG_gen) γ (rew [cmra_to_trans] genInG_gti_typ in t) ∪ trans).
+  Proof.
+    iIntros (no) "O".
+    iIntros (??? [look|look]%transmap_lookup_union_Some).
+    2: {
+      iDestruct ("O" $! _ _ _ look) as (????????) "H".
+      repeat iExists _. iFrame "∗%".
+      iPureIntro. apply trans_at_deps_union_r; last done.
+      intros ??????.
+      apply gen_f_singleton_lookup_Some in H2 as (-> & -> & ?).
+      congruence. }
+    apply gen_f_singleton_lookup_Some in look as (-> & <- & tEq).
+    iExists _, _, _, _, _.
+    iSplit.
+    { iPureIntro. admit. }
+    admit.
+  Admitted.
+
+  Lemma gentrans_rew {B : cmra} t (eq : A = B) :
+    GenTrans t →
+    GenTrans (rew [cmra_to_trans] eq in t).
+  Proof. destruct eq. done. Qed.
+
+  Lemma GTS_tok_gen_rew_contradiction c :
+    ✓ (GTS_tok_gen_shot c
+       ⋅ (rew [cmra_car] omega_genInG_cmra_eq in
+          gc_tup_pick_out DS GTS_tok_gen).1.1.1.1.2) → False.
+  Proof.
+    unfold omega_genInG_cmra_eq. simpl.
+    destruct g. destruct genInDepsG_gen0. simpl in *.
+    unfold Ocs in *. unfold Oids in *.
+    destruct (gc_map Ω genInG_id0). simpl in *.
+    destruct genInG_gcd_n0.
+    destruct genInG_gti_typ0.
+    unfold eq_rect_r in *. simpl in *.
+    destruct genInG_gcd_deps0. simpl in *.
+    intros [? V].
+    apply V.
+  Qed.
+
+  Lemma own_picks_gen_pick_out trans γ :
+    own_picks trans -∗
+    gen_pick_out γ GTS_tok_gen -∗
+    ⌜ trans (genInG_id genInDepsG_gen) !! γ = None ⌝.
+  Proof.
+    iIntros "O1 O2".
+    destruct (trans (genInG_id genInDepsG_gen) !! γ) eqn:look;
+      last naive_solver.
+    iDestruct ("O1" $! _ _ _ look) as (????????) "O1".
+    unfold gen_pick_out.
+    rewrite own_gen_cmra_data_to_inG.
+    iDestruct (own_valid_2 with "O1 O2") as "#Hv".
+    iCombine "O1 O2" as "O".
+    iDestruct (prod_valid_2nd with "Hv") as %HV.
+    apply GTS_tok_gen_rew_contradiction in HV.
+    done.
+  Qed.
+
   (* Picks the transformation for the resource at [γ]. This is only possible if
    * transformations has been picked for all the dependencies. *)
-  Lemma token_pick γ γs (R : rel_over DS A) P (ts : trans_for n DS) t :
+  Lemma token_pick γ γs (R : rel_over DS A) P (ts : trans_for n DS) t
+      `{!GenTrans t} :
     huncurry R ts t →
     (∀ i, picked_out (g := genInSelfG_gen (gs i))
             (γs !!! i) (hvec_lookup_fmap ts i)) -∗
@@ -2553,14 +2574,29 @@ Section rules_with_deps.
     iNamed 1.
     unfold used_token. unfold picked_out.
     iDestruct (gen_token_split with "token") as "[tokenPerm tokenGen]".
+    iDestruct (list_picked_out with "picks") as (trans val) "picks".
+    iDestruct (own_picks_gen_pick_out with "picks tokenGen") as %Hv.
     iFrame "tokenPerm".
     iMod (gen_pick_out_pick with "tokenGen") as "$".
-    iMod (own_auth_promise_list_freeze with "auth_preds") as "auth_preds".
+    iMod (own_auth_promise_list_freeze with "auth_preds") as "[auth_preds #fr]".
     iModIntro.
     iSplitL "auth_preds".
-    { repeat iExists _. iFrame "#∗". }
-    (* TODO: Combine the picks. *)
-  Admitted.
+    { repeat iExists _. iCombine "auth_preds fr" as "$". iFrame "#". }
+    set (id := genInG_id genInDepsG_gen).
+    iExists (
+      transmap_singleton id γ (rew [cmra_to_trans] genInG_gti_typ in t) ∪ trans
+    ).
+    iDestruct (own_picks_insert with "picks") as "picks"; first done.
+    iSplit.
+    { iPureIntro. apply transmap_valid_union; last done.
+      apply transmap_valid_singleton.
+      apply gentrans_rew. done. }
+    iSplit.
+    { iPureIntro.
+      apply transmap_lookup_union_Some_l.
+      apply transmap_singleton_lookup. }
+    iApply "H".
+  Qed.
 
   Lemma token_to_rely γ γs (R : rel_over DS A) P :
     token γ γs R P ⊢ rely γ γs R P.
