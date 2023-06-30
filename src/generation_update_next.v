@@ -963,7 +963,7 @@ Proof.
   apply val.
 Qed.
 
-Lemma own_eq `{inG Σ A} γ (a b : A) : a = b → own γ a -∗ own γ b.
+Lemma own_eq `{inG Σ A} γ (a b : A) : a = b → own γ a ⊢ own γ b.
 Proof. intros ->. done. Qed.
 
 Section next_gen_definition.
@@ -1995,7 +1995,7 @@ Section rules_with_deps.
 
   Lemma auth_promise_list_frag γ rs ps :
     own_auth_promise_list γ rs ps
-    -∗ own_auth_promise_list γ rs ps ∗ own_frag_promise_list γ rs ps.
+    ⊢ own_auth_promise_list γ rs ps ∗ own_frag_promise_list γ rs ps.
   Proof.
     rewrite -own_op.
     unfold own_auth_promise_list.
@@ -2011,7 +2011,7 @@ Section rules_with_deps.
 
   Lemma auth_promise_list_snoc γ rs ps r p :
     own_auth_promise_list γ rs ps
-    ==∗ own_auth_promise_list γ (rs ++ (cons r nil)) (ps ++ (cons p nil)).
+    ⊢ |==> own_auth_promise_list γ (rs ++ (cons r nil)) (ps ++ (cons p nil)).
   Proof.
     rewrite /own_auth_promise_list.
     rewrite /gen_promise_rel_pred_list.

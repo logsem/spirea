@@ -177,7 +177,7 @@ Section dependency_relation_extra.
     destruct PP1 as [isLast1 _].
     destruct PP2 as [isLast2 weaker].
     rewrite last_lookup in isLast1.
-    eapply prefix_lookup in isLast1; last done.
+    eapply prefix_lookup_Some in isLast1; last done.
     apply: increasing_list_last_greatest; done.
   Qed.
 
