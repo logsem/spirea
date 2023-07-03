@@ -1328,9 +1328,9 @@ Definition own_resource_for_deps {n : nat} {DS : ivec n cmra}
 
 (** Resources shared between [token], [used_token], and [rely]. *)
 Definition know_promise {n : nat} {DS : ivec n cmra} `{g : !genInG Σ Ω A DS}
-  γ γs R P pia promises rels preds : iProp Σ :=
+  γ γs R P pia promises : iProp Σ :=
   "%pia_for" ∷ ⌜ promise_info_for pia γs R P ⌝ ∗
-  "%pred_prefix" ∷ ⌜ pred_prefix_list_for' rels preds R P ⌝ ∗
+  (* "%pred_prefix" ∷ ⌜ pred_prefix_list_for' rels preds R P ⌝ ∗ *)
   "%pia_in" ∷ ⌜ promises_lookup_at promises _ γ = Some pia ⌝ ∗
   "%prs_wf" ∷ ⌜ promises_wf Ω.(gc_map_wf) promises ⌝ ∗
   "#prs" ∷ own_promises promises.
@@ -1344,23 +1344,25 @@ Section generational_resources_with_deps.
   (** Ownership over the token and the promises for [γ]. *)
   Definition token (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
     ∃ (rels : list (rel_over DS A)) preds promises pia,
-      "#tokenPromise" ∷ know_promise γ γs R P pia promises rels preds ∗
+      "#tokenPromise" ∷ know_promise γ γs R P pia promises ∗
       "token" ∷ gen_pick_out γ GTS_tok_both ∗
+      "%pred_prefix" ∷ ⌜ pred_prefix_list_for' rels preds R P ⌝ ∗
       "auth_preds" ∷ own_auth_promise_list γ rels preds.
   (* ∗ *)
   (*     "ownDeps" ∷ own_resource_for_deps γs. *)
 
   Definition used_token (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
     ∃ (rels : list (rel_over DS A)) preds promises pia,
-      "tokenPromise" ∷ know_promise γ γs R P pia promises rels preds ∗
+      "tokenPromise" ∷ know_promise γ γs R P pia promises ∗
+      "%pred_prefix" ∷ ⌜ pred_prefix_list_for' rels preds R P ⌝ ∗
       "frocenAuthPreds" ∷ own_frozen_auth_promise_list γ rels preds ∗
       "usedToken" ∷ gen_pick_out γ GTS_tok_perm.
   (* ∗ "ownDeps" ∷ own_resource_for_deps γs. *)
 
   (** Knowledge that γ is accociated with the predicates R and P. *)
   Definition rely (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
-    ∃ (rels : list (rel_over DS A)) (preds : list (pred_over A)) promises pia,
-      "#relyPromise" ∷ know_promise γ γs R P pia promises rels preds.
+    ∃ promises pia,
+      "#relyPromise" ∷ know_promise γ γs R P pia promises.
 
   Definition picked_out γ t : iProp Σ :=
     ∃ (picks : TransMap Ω),
@@ -1376,10 +1378,7 @@ Section generational_resources_with_deps.
 End generational_resources_with_deps.
 
 Definition rely_self `{g : !genInSelfG Σ Ω A} γ (P : pred_over A) : iProp Σ :=
-  ∃ γs R (rels : list (rel_over genInSelfG_DS A)) (preds : list (pred_over A)) prs pia,
-    let g := genInSelfG_gen g in
-    "#relyPromise" ∷ know_promise  γ γs R P pia prs rels preds ∗
-    "#fragPreds" ∷ gen_promise_rel_pred_list γ (gPV (◯ML rels)) (gPV (◯ML preds)).
+  ∃ γs R, let g := genInSelfG_gen g in rely γ γs R P.
 
 Equations True_preds_for {n} (ts : ivec n cmra) : preds_for n ts :=
 | inil => hnil;
@@ -2088,8 +2087,8 @@ Section rules_with_deps.
     iFrame "B1".
     iFrame "A'".
     rewrite /know_promise.
+    iSplit. 2: { iPureIntro. apply pred_prefix_list_for'_True. }
     iSplit; first done.
-    iSplit. { iPureIntro. apply pred_prefix_list_for'_True. }
     iSplit. { iPureIntro. apply promises_lookup_at_cons. }
     iSplit.
     { (* Show that the promises are well-formed. *)
@@ -2296,11 +2295,11 @@ Section rules_with_deps.
     iModIntro.
     iExists rels, preds, promises, pia.
     iSplit. { iFrame "prs'". done. }
-    iDestruct (own_gen_cmra_split with "usedToken")
+    iDestruct (own_gen_cmra_split_alt with "usedToken")
       as "(_ & $ & _ & _ & _ & _)".
-    iDestruct (own_gen_cmra_split with "frocenAuthPreds")
+    iDestruct (own_gen_cmra_split_alt with "frocenAuthPreds")
       as "(_ & _ & _ & _ & A & B)".
-    iCombine "A B" as "$".
+    iCombine "A B" as "$". done.
   Qed.
 
   Lemma own_promises_auth_promise_list prs γ rels preds (R : rel_over DS A) P pia :
@@ -2418,8 +2417,8 @@ Section rules_with_deps.
     iDestruct (auth_promise_list_frag with "a") as "[$ #frag_preds]".
     iModIntro.
     unfold know_promise.
+    iSplit. 2: { iPureIntro. eapply pred_prefix_list_for'_grow; done. }
     iSplit; first done.
-    iSplit. { iPureIntro. eapply pred_prefix_list_for'_grow; done. }
     iSplit.
     { iPureIntro. eapply promises_lookup_update. done. }
     iSplit.
@@ -2603,9 +2602,8 @@ Section rules_with_deps.
     token γ γs R P ⊢ rely γ γs R P.
   Proof. iNamed 1. repeat iExists _. iFrame "#". Qed.
 
-  Lemma know_promise_extract_frag γ γs R P pia promises rels
-      (preds : list (pred_over A)) :
-    know_promise γ γs R P pia promises rels preds ⊢
+  Lemma know_promise_extract_frag γ γs R P pia promises :
+    know_promise γ γs R P pia promises ⊢
     ∃ rels' (preds' : list (pred_over A)),
       ⌜ pred_prefix_list_for' rels' preds' R P ⌝ ∗
       gen_promise_rel_pred_list γ (gPV (◯ML rels')) (gPV (◯ML preds')).
@@ -2672,17 +2670,17 @@ Section rules_with_deps.
     apply: pred_prefix_list_for_prefix_of; done.
   Qed.
 
-  Lemma know_promise_combine γ γs1 R1 P1 pia1 promises1 all1 preds1
-    γs2 R2 P2 pia2 promises2 all2 preds2 :
-    know_promise γ γs1 R1 P1 pia1 promises1 all1 preds1 -∗
-    know_promise γ γs2 R2 P2 pia2 promises2 all2 preds2 -∗
+  Lemma know_promise_combine γ γs1 R1 P1 pia1 promises1
+      γs2 R2 P2 pia2 promises2 :
+    know_promise γ γs1 R1 P1 pia1 promises1 -∗
+    know_promise γ γs2 R2 P2 pia2 promises2 -∗
     ⌜ γs1 = γs2 ∧
       ((rel_stronger R1 R2 ∧ pred_stronger P1 P2) ∨
        (rel_stronger R2 R1 ∧ pred_stronger P2 P1)) ⌝.
   Proof.
     iNamed 1.
     destruct pia_for as (γs_eq & pred_eq & rel_eq).
-    iDestruct 1 as (inf ???) "#prs2".
+    iDestruct 1 as (inf ??) "#prs2".
     destruct inf as (depsEq2 & pred_eq2 & rel_eq2).
     iDestruct (own_promises_overlap with "prs prs2") as %lap.
     iPureIntro.
