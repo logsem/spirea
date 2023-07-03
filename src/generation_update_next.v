@@ -1122,9 +1122,9 @@ Section own_promises_properties.
     simpl in *.
     iDestruct (own_valid_2 with "O1 O2") as "#Hv".
     rewrite -5!pair_op.
-    iDestruct (prod_valid_4th with "Hv") as %Hv2.
-    iDestruct (prod_valid_5th with "Hv") as %Hv.
-    iDestruct (prod_valid_6th with "Hv") as %Hv3.
+    rewrite 1!prod_validI /=. iDestruct "Hv" as "(Hv & %Hv3)".
+    rewrite 1!prod_validI /=. iDestruct "Hv" as "(Hv & %Hv)".
+    rewrite 1!prod_validI /=. iDestruct "Hv" as "(Hv & %Hv2)".
     iPureIntro.
     rewrite -Some_op Some_valid to_agree_op_valid_L in Hv2.
     apply ivec_to_list_inj in Hv2.
@@ -1153,8 +1153,8 @@ Section own_promises_properties.
     iExists ts, t.
     iSplit; first done.
     unfold Oown.
-    iDestruct (own_gen_cmra_split with "prs") as "(_ & _ & _ & deps1 & RS1 & PS1)".
-    iDestruct (own_gen_cmra_split with "picks") as "(_ & _ & _ & deps2 & RS2 & PS2)".
+    iDestruct (own_gen_cmra_split_alt with "prs") as "(_ & _ & _ & deps1 & RS1 & PS1)".
+    iDestruct (own_gen_cmra_split_alt with "picks") as "(_ & _ & _ & deps2 & RS2 & PS2)".
     iDestruct (deps_agree with "deps1 deps2") as %<-.
     iSplit; first done.
     iDestruct (own_valid_2 with "RS1 RS2") as "V".
@@ -1162,7 +1162,6 @@ Section own_promises_properties.
     iDestruct (own_valid_2 with "PS1 PS2") as "V2".
     iDestruct (prod_valid_6th with "V2") as %V2.
     iPureIntro.
-    simpl in V1.
     unfold gPV, gV in V1, V2.
     apply gen_pv_op_valid in V1, V2.
     rewrite comm in V1.
@@ -1846,7 +1845,9 @@ Section nextgen_assertion_rules.
     iIntros (full_picks ?) "_ %sub".
     iDestruct (own_build_trans_next_gen with "H") as "H"; first done.
     iModIntro.
-    iDestruct (own_gen_cmra_split with "H") as "(_ & _ & _ & $ & _)".
+    simpl.
+    rewrite gen_cmra_trans_apply. simpl.
+    iDestruct (own_gen_cmra_split_alt with "H") as "(_ & _ & _ & $ & _)".
   Qed.
 
   Lemma nextgen_plain_soundness P `{!Plain P} :
@@ -2595,7 +2596,7 @@ Section rules_with_deps.
     { iPureIntro.
       apply transmap_lookup_union_Some_l.
       apply transmap_singleton_lookup. }
-    iApply "H".
+    iApply "picks".
   Qed.
 
   Lemma token_to_rely γ γs (R : rel_over DS A) P :

@@ -116,6 +116,19 @@ Lemma own_gen_cmra_split {Σ}
      rewrite ?ucmra_unit_right_id; rewrite ?ucmra_unit_left_id; reflexivity.
 Qed.
 
+(* The lemma above somehow causes [Qed]s to be very slow, this variant seems
+ * slightly better. *)
+Lemma own_gen_cmra_split_alt {Σ} {n} (A : cmra) (DS : ivec n cmra)
+    `{!inG Σ (generational_cmraR A DS)} γ a b c d e f :
+  own γ (a, b, c, d, e, f) ⊢
+    own γ (a, ε, ε, ε, ε, ε) ∗
+    own γ (ε, b, ε, ε, ε, ε) ∗
+    own γ (ε, ε, c, ε, ε, ε) ∗
+    own γ (ε, ε, ε, d, ε, ε) ∗
+    own γ (ε, ε, ε, ε, e, ε) ∗
+    own γ (ε, ε, ε, ε, ε, f).
+Proof. rewrite own_gen_cmra_split. done. Qed.
+
 (* Constructors for each of the elements in the pair. *)
 
 Definition gc_tup_pick_in {n A} (DS : ivec n cmra) pick_in : generational_cmraR A DS :=
