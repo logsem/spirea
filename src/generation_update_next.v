@@ -315,48 +315,39 @@ We need
   Lemma build_trans_generation transmap :
     transmap_valid transmap → GenTrans (build_trans transmap).
   Proof.
-    simpl in transmap.
-    intros transmapGT.
+    intros val.
     rewrite /build_trans.
     split.
     - rewrite /Proper.
       intros ??? eq i γ.
-      specialize (eq i γ).
-  Admitted.
-  (*
-      rewrite 2!build_trans_at_equation_1.
-      rewrite /build_trans_at_clause_1.
-      specialize (transmapGT i).
-      generalize dependent (transmap i). intros t transmapGT.
-      destruct (Ω.(gc_map) i); last apply eq.
+      destruct (Omega_lookup_inverse i) as [[j []]|]; last apply eq.
+      specialize (eq (Ω.(gc_map) j).(gcd_gid) γ).
+      unfold build_trans_at.
+      simpl.
       rewrite 2!map_lookup_imap.
-      destruct (y i !! γ) as [b|] eqn:look1;
+      destruct (y (Ω.(gc_map) j).(gcd_gid) !! γ) as [b|] eqn:look1;
         rewrite look1; rewrite look1 in eq; simpl.
       2: { apply dist_None in eq. rewrite eq. done. }
       apply dist_Some_inv_r' in eq as (a & look2 & eq).
       apply symmetry in eq.
       rewrite look2.
-      destruct (t !! γ) eqn:look; simpl.
+      destruct (transmap j !! γ) eqn:look; simpl.
       2: { solve_proper. }
-      apply transmapGT in look as [gt ?].
+      apply val in look as [gt ?].
       solve_proper.
     - intros ?? Hval.
       intros i γ.
-      rewrite !build_trans_at_equation_1.
-      rewrite /build_trans_at_clause_1.
-      specialize (transmapGT i).
-      generalize dependent (transmap i). intros t transmapGT.
-      destruct (Ω.(gc_map) i); last apply Hval.
+      destruct (Omega_lookup_inverse i) as [[j []]|]; last apply Hval.
+      simpl.
       rewrite !map_lookup_imap.
-      specialize (Hval i γ).
-      destruct (a i !! γ) eqn:eq; rewrite eq /=; last done.
+      specialize (Hval (Ω.(gc_map) j).(gcd_gid) γ).
+      destruct (a (Ω.(gc_map) j).(gcd_gid) !! γ) eqn:eq; rewrite eq /=; last done.
       rewrite eq in Hval.
       apply Some_validN.
       apply: cmra_morphism_validN.
-      (* rewrite /cmra_map_transport. *)
-      destruct (t !! γ) as [pick|] eqn:eq2.
+      destruct (transmap j !! γ) as [pick|] eqn:eq2.
       * simpl.
-        specialize (transmapGT γ pick eq2) as GT.
+        specialize (val j γ pick eq2) as GT.
         apply: cmra_map_transport_validN.
         apply: cmra_morphism_validN.
         apply Hval.
@@ -370,20 +361,18 @@ We need
       f_equiv.
       intros i γ.
       rewrite lookup_core.
-      rewrite !build_trans_at_equation_1.
-      rewrite /build_trans_at_clause_1.
-      specialize (transmapGT i).
-      generalize dependent (transmap i). intros t transmapGT.
-      (* generalize dependent t. intros t. *)
-      destruct (Ω.(gc_map) i). 2: { rewrite lookup_core. reflexivity. }
+      destruct (Omega_lookup_inverse i) as [[j eq']|].
+      2: { rewrite lookup_core. reflexivity. }
+      destruct eq'. simpl.
       rewrite 2!map_lookup_imap.
       rewrite lookup_core.
-      destruct (m i !! γ) as [a|] eqn:look; rewrite look; simpl; last done.
+      destruct (m (Ω.(gc_map) j).(gcd_gid) !! γ) as [a|] eqn:look;
+        rewrite look; simpl; last done.
       simpl.
       rewrite 2!core_Some_pcore.
       rewrite -cmra_morphism_pcore.
-      destruct (t !! γ) as [pick|] eqn:pickLook; simpl.
-      * specialize (transmapGT γ pick pickLook) as ?.
+      destruct (transmap j !! γ) as [pick|] eqn:pickLook; simpl.
+      * specialize (val j γ pick pickLook) as ?.
         rewrite -cmra_map_transport_pcore.
         rewrite -cmra_morphism_pcore.
         destruct (pcore a); done.
@@ -393,24 +382,22 @@ We need
     - intros m1 m2.
       intros i γ.
       rewrite !discrete_fun_lookup_op.
-      rewrite !build_trans_at_equation_1.
-      rewrite /build_trans_at_clause_1.
-      simpl.
+      destruct (Omega_lookup_inverse i) as [[j eq']|]; last reflexivity.
+      destruct eq'. simpl.
+      unfold build_trans_at.
       rewrite !discrete_fun_lookup_op.
-      specialize (transmapGT i).
-      generalize dependent (transmap i). intros t transmapGT.
-      destruct (Ω.(gc_map) i); last reflexivity.
       rewrite !map_lookup_imap.
       rewrite 2!lookup_op.
       rewrite !map_lookup_imap.
-      destruct (m1 i !! γ) eqn:eq1; destruct (m2 i !! γ) eqn:eq2;
+      destruct (m1 (Ω.(gc_map) j).(gcd_gid) !! γ) eqn:eq1;
+        destruct (m2 (Ω.(gc_map) j).(gcd_gid) !! γ) eqn:eq2;
         rewrite eq1 eq2; simpl; try done.
       rewrite -Some_op.
       f_equiv.
       rewrite map_unfold_op.
       f_equiv.
-      destruct (t !! γ) as [pick|] eqn:pickLook.
-      * specialize (transmapGT γ pick pickLook) as ?.
+      destruct (transmap j !! γ) as [pick|] eqn:pickLook.
+      * specialize (val j γ pick pickLook) as ?.
         rewrite -cmra_map_transport_op.
         f_equiv.
         rewrite -cmra_morphism_op.
@@ -421,7 +408,6 @@ We need
         rewrite -cmra_morphism_op.
         done.
   Qed.
-   *)
 
   Lemma build_trans_at_singleton_neq id1 id2 mm pick :
     id1 ≠ (Ogid Ω id2) →
