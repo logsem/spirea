@@ -1010,13 +1010,6 @@ Section own_picks_properties.
     ✓ cmra_transport eq a ⊣⊢@{iPropI Σ} ✓ a.
   Proof. destruct eq. done. Qed.
 
-  Lemma transmap_lookup_union_Some transmap1 transmap2 γ i t :
-    (transmap1 ∪ transmap2) i !! γ = Some t →
-    transmap1 i !! γ = Some t ∨ transmap2 i !! γ = Some t.
-  Proof.
-    intros [look|[? look]]%lookup_union_Some_raw; naive_solver.
-  Qed.
-
   (* NOTE: The other direction does not work. *)
   Lemma own_picks_sep picks1 picks2 :
     own_picks picks1 ∗ own_picks picks2 ⊢ own_picks (picks1 ∪ picks2).
@@ -1541,6 +1534,24 @@ Proof.
   done.
 Qed.
 
+Lemma transmap_lookup_rew `{Ω : gGenCmras Σ} D (G : genInSelfG Σ Ω D)
+  dId (γ : gname) x
+  (idEq : genInG_id (genInSelfG_gen G) = dId)
+  (cmraEq : Oc Ω dId = D)
+  (trans : ∀ i : fin gc_len, gmap gname (Oc Ω i → Oc Ω i)) :
+  trans (genInG_id (genInSelfG_gen G)) !! γ =
+               Some (rew [cmra_to_trans] genInG_gti_typ in x) →
+  trans dId !! γ = Some (rew [cmra_to_trans] eq_sym cmraEq in x).
+Proof.
+  intros ?.
+  destruct idEq.
+  rewrite H.
+  destruct G. destruct genInSelfG_gen0. simpl in *.
+  destruct cmraEq.
+  simpl.
+  (* provable with UIP *)
+Admitted.
+
 Lemma list_picked_out {n : nat} {DS : ivec n cmra}
   `{gs : ∀ (i : fin n), genInSelfG Σ Ω (DS !!! i)}
     `{g : !genInDepsG Σ Ω A DS}
@@ -1567,26 +1578,58 @@ Proof.
   unfold Ocs in *.
   unfold Oids in *.
   generalize dependent (gc_map_wf genInG_id0). intros ?.
-  (* destruct (gc_map Ω genInG_id0). simpl in *. *)
-  (* destruct genInG_gcd_n0. *)
+  unfold omega_wf_at in *.
+  destruct (gc_map Ω genInG_id0). simpl in *.
+  destruct genInG_gcd_n0.
+  destruct genInG_gti_typ0.
+  unfold eq_rect_r in *. simpl in *.
+  destruct genInG_gcd_deps0.
+  clear gcd_cmra_eq.
   induction n as [|n' IH].
   { iIntros "_". iExists (λ _, ∅).
     rewrite -own_picks_empty.
     iPureIntro. split_and!; try done.
     intros i.
-    (* destruct g. destruct genInDepsG_gen0. *)
     simpl in i.
     exfalso.
-    rewrite -genInG_gcd_n0 in i.
     inversion i. }
   iIntros "#outs".
   dependent elimination γs as [icons γ0 γs']. simpl in *.
-  dependent elimination DS.
-Admitted.
+  dependent elimination DS as [icons D DS'].
+  dependent elimination gcd_deps_ids as [icons dId deps_ids'].
+  unfold trans_for in ts.
+  dependent elimination ts. (* as [icons t ts']. *)
+  specialize (IH DS' (λ n, gs (FS n)) deps_ids' (λ n, genInDepsG_eqs0 (FS n))).
+  specialize (IH γs' h (λ n, o (FS n))).
+  iAssert (
+    (∀ idx : fin n0, picked_out (γs' !!! idx) (hvec_lookup_fmap h idx))%I
+  ) as "outs'".
+  { iIntros (i). iSpecialize ("outs" $! (FS i)). iApply "outs". }
+  iPoseProof (IH with "outs'") as (trans val transLook) "OP".
+  iSpecialize ("outs" $! 0%fin).
+  rewrite hvec_lookup_fmap_equation_2.
+  iDestruct ("outs") as (trans2 val2) "(? & %transLook2 & OP2)".
+  iDestruct (tokens_for_picks_agree_overlap with "OP OP2") as "%lap".
+  iExists (trans2 ∪ trans).
+  iSplit. { iPureIntro. apply transmap_valid_union; done. }
+  iSplit.
+  { iPureIntro.
+    intros idx.
+    dependent elimination idx.
+    - specialize (genInDepsG_eqs0 0%fin).
+      apply transmap_lookup_union_Some_l.
+      rewrite hvec_lookup_fmap_equation_2.
+      eapply transmap_lookup_rew; done.
+    - specialize (transLook t).
+      apply lookup_union_r_overlap.
+      { symmetry. apply (lap (deps_ids' !!! t)). }
+      apply transLook. }
+  iApply own_picks_sep. iFrame "OP2 OP".
+Qed.
 
 Lemma rew_lookup_total {A : Set} n m (γs : ivec n A) i (eq : m = n) :
-rew <- [λ n1 : nat, ivec n1 A] eq in γs !!! i =
-γs !!! rew [fin] eq in i.
+  rew <- [λ n1 : nat, ivec n1 A] eq in γs !!! i =
+  γs !!! rew [fin] eq in i.
 Proof. destruct eq. done. Qed.
 
 Lemma pred_over_rew_id_cmra {Σ} {Ω : gGenCmras Σ} (id2 : fin gc_len) id1
@@ -2602,12 +2645,6 @@ Section rules_with_deps.
     rewrite 1!prod_validI /=. iDestruct "Hv" as "(Hv & %Hv)".
     apply GTS_tok_gen_rew_contradiction in Hv.
     done.
-  Qed.
-
-  Lemma transmap_lookup_union_Some_l m1 m2 i γ x :
-    m1 i !! γ = Some x → (m1 ∪ m2) i !! γ = Some x.
-  Proof.
-    intros look. eapply lookup_union_Some_l in look. apply look.
   Qed.
 
   Lemma own_picks_insert γ (t : A → A) trans (* γs ts Rs R Ps *) :

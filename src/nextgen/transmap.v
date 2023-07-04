@@ -4,6 +4,14 @@ From self.nextgen Require Import types omega.
 Definition map_agree_overlap `{FinMap K M} {A} (m1 m2 : M A) :=
   ∀ (k : K) (i j : A), m1 !! k = Some i → m2 !! k = Some j → i = j.
 
+#[global]
+Instance map_agree_overlap_sym `{FinMap K M} {A} :
+  Symmetric (map_agree_overlap : relation (M A)).
+Proof.
+  unfold map_agree_overlap. intros ?? Ha.
+  symmetry. eapply Ha; done.
+Qed.
+
 Lemma lookup_union_r_overlap `{FinMap K M} {B} (m1 m2 : M B) γ t :
   map_agree_overlap m1 m2 →
   m2 !! γ = Some t →
@@ -69,6 +77,19 @@ Section transmap.
     (∀ i, map_agree_overlap (transmap1 i) (transmap2 i)) →
     transmap2 ⊆ transmap1 ∪ transmap2.
   Proof. intros ? i. apply map_union_subseteq_l_overlap. done. Qed.
+
+  Lemma transmap_lookup_union_Some_l (m1 m2 : TransMap Ω) i γ t :
+    m1 i !! γ = Some t → (m1 ∪ m2) i !! γ = Some t.
+  Proof.
+    intros look. eapply lookup_union_Some_l in look. apply look.
+  Qed.
+
+  Lemma transmap_lookup_union_Some transmap1 transmap2 γ i t :
+    (transmap1 ∪ transmap2) i !! γ = Some t →
+    transmap1 i !! γ = Some t ∨ transmap2 i !! γ = Some t.
+  Proof.
+    intros [look|[? look]]%lookup_union_Some_raw; naive_solver.
+  Qed.
 
   (** Every pick in [transmap] is a valid generational transformation and satisfies
   the conditions for that cmra in [Ω]. *)
