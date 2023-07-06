@@ -886,17 +886,14 @@ Qed.
 Lemma own_eq `{inG Σ A} γ (a b : A) : a = b → own γ a ⊢ own γ b.
 Proof. intros ->. done. Qed.
 
-Section next_gen_definition.
+Section own_picks.
   Context `{Ω : gGenCmras Σ}.
 
   Implicit Types (picks : TransMap Ω).
 
-  (* Every generational ghost location consists of a camera and a list of
-   * cameras for the dependencies. *)
-
-  (* If a transformation has been picked for one ghost name, then all the
-   * dependencies must also have been picked. *)
-
+  (* NOTE: If a transformation has been picked for one ghost name, then all the
+   * dependencies must also have been picked. This is ensured by this
+   * definition through [trans_at_deps]. *)
   Definition own_pick picks i γ t : iProp Σ :=
     ∃ (ts : hvec (On Ω i) (cmra_to_trans <$> Ocs Ω i))
         (γs : ivec (On Ω i) gname) Ps R Rs,
@@ -918,63 +915,6 @@ Section next_gen_definition.
   #[global]
   Instance own_picks_persistent picks : Persistent (own_picks picks).
   Proof. apply _. Qed.
-
-  (* This could be generalized to abritrary camera morphisms and upstreamed *)
-  Instance cmra_transport_coreid i (a : R Σ i) :
-    CoreId a → CoreId (map_unfold (Σ := Σ) a).
-  Proof.
-    intros ?. rewrite /map_unfold.
-    rewrite /CoreId.
-    rewrite -cmra_morphism_pcore.
-    rewrite core_id.
-    done.
-  Qed.
-
-  Definition own_promise_info_resource (pi : promise_info Ω)
-    (Rs : list (rel_over (Ocs Ω pi.(pi_id)) _))
-    (Ps : list (pred_over (Oc Ω pi.(pi_id)))) : iProp Σ :=
-    Oown pi.(pi_id) pi.(pi_γ) ((
-      ε, ε, ε, Some (to_agree (ivec_to_list pi.(pi_deps_γs))),
-      gPV (◯ML Rs), gPV (◯ML Ps)
-    ) : generational_cmraR _ _).
-
-  Definition own_promise_info (pi : promise_info Ω) : iProp Σ :=
-    ∃ Rs (Ps : list (pred_over (Oc Ω pi.(pi_id)))),
-      ⌜ pred_prefix_list_for' Rs Ps pi.(pi_rel) pi.(pi_pred) ⌝ ∗
-      own_promise_info_resource pi Rs Ps.
-
-  #[global]
-  Instance own_promise_info_persistent pi : Persistent (own_promise_info pi).
-  Proof. apply _. Qed.
-
-  Definition own_promises (ps : list (promise_info Ω)) : iProp Σ :=
-    [∗ list] p ∈ ps, own_promise_info p.
-
-  #[global]
-  Instance own_promises_persistent ps : Persistent (own_promises ps).
-  Proof. apply _. Qed.
-
-  Definition nextgen P : iProp Σ :=
-    ∃ (picks : TransMap Ω) (prs : list (promise_info Ω)),
-      "%picksValid" ∷ ⌜ transmap_valid picks ⌝ ∗
-      "%prsWf" ∷ ⌜ promises_wf Ω.(gc_map_wf) prs ⌝ ∗
-      (* We own resources for everything in [picks] and [promises]. *)
-      "ownPicks" ∷ own_picks picks ∗
-      "ownPrs" ∷ own_promises prs ∗
-      "contP" ∷ ∀ full_picks (val : transmap_valid full_picks),
-        ⌜ transmap_resp_promises full_picks prs ⌝ -∗
-        ⌜ picks ⊆ full_picks ⌝ -∗
-        let _ := build_trans_generation full_picks val in
-        ⚡={build_trans full_picks}=> P.
-
-End next_gen_definition.
-
-Notation "⚡==> P" := (nextgen P)
-  (at level 99, P at level 200, format "⚡==>  P") : bi_scope.
-
-Section own_picks_properties.
-  Context `{Ω : gGenCmras Σ}.
-  Implicit Types (picks : TransMap Ω).
 
   Lemma tokens_for_picks_agree_overlap picks1 picks2 :
     own_picks picks1 -∗
@@ -1022,7 +962,68 @@ Section own_picks_properties.
     iPureIntro. apply transmap_union_subseteq_r. done.
   Qed.
 
-End own_picks_properties.
+End own_picks.
+
+Section next_gen_definition.
+  Context `{Ω : gGenCmras Σ}.
+
+  Implicit Types (picks : TransMap Ω).
+
+  (* Every generational ghost location consists of a camera and a list of
+   * cameras for the dependencies. *)
+
+  (* This could be generalized to abitrary camera morphisms and upstreamed *)
+  Instance cmra_transport_coreid i (a : R Σ i) :
+    CoreId a → CoreId (map_unfold (Σ := Σ) a).
+  Proof.
+    intros ?. rewrite /map_unfold.
+    rewrite /CoreId.
+    rewrite -cmra_morphism_pcore.
+    rewrite core_id.
+    done.
+  Qed.
+
+  Definition own_promise_info_resource (pi : promise_info Ω)
+    (Rs : list (rel_over (Ocs Ω pi.(pi_id)) _))
+    (Ps : list (pred_over (Oc Ω pi.(pi_id)))) : iProp Σ :=
+    Oown pi.(pi_id) pi.(pi_γ) ((
+      ε, ε, ε, Some (to_agree (ivec_to_list pi.(pi_deps_γs))),
+      gPV (◯ML Rs), gPV (◯ML Ps)
+    ) : generational_cmraR _ _).
+
+  Definition own_promise_info (pi : promise_info Ω) : iProp Σ :=
+    ∃ Rs (Ps : list (pred_over (Oc Ω pi.(pi_id)))),
+      ⌜ pred_prefix_list_for' Rs Ps pi.(pi_rel) pi.(pi_pred) ⌝ ∗
+      own_promise_info_resource pi Rs Ps.
+
+  #[global]
+  Instance own_promise_info_persistent pi : Persistent (own_promise_info pi).
+  Proof. apply _. Qed.
+
+  Definition own_promises (ps : list (promise_info Ω)) : iProp Σ :=
+    [∗ list] p ∈ ps, own_promise_info p.
+
+  #[global]
+  Instance own_promises_persistent ps : Persistent (own_promises ps).
+  Proof. apply _. Qed.
+
+  Definition nextgen P : iProp Σ :=
+    ∃ (picks : TransMap Ω) (prs : list (promise_info Ω)),
+      "%picksValid" ∷ ⌜ transmap_valid picks ⌝ ∗
+      "%prsWf" ∷ ⌜ promises_wf Ω.(gc_map_wf) prs ⌝ ∗
+      (* We own resources for everything in [picks] and [promises]. *)
+      "#ownPicks" ∷ own_picks picks ∗
+      "#ownPrs" ∷ own_promises prs ∗
+      "contP" ∷ ∀ full_picks (val : transmap_valid full_picks),
+        ⌜ transmap_resp_promises full_picks prs ⌝ -∗
+        ⌜ picks ⊆ full_picks ⌝ -∗
+        let _ := build_trans_generation full_picks val in
+        ⚡={build_trans full_picks}=> P.
+
+End next_gen_definition.
+
+Notation "⚡==> P" := (nextgen P)
+  (at level 99, P at level 200, format "⚡==>  P") : bi_scope.
 
 Section own_promises_properties.
   Context `{Ω : gGenCmras Σ}.
@@ -1169,9 +1170,16 @@ Section own_promises_properties.
 
 End own_promises_properties.
 
-(* In this section we prove structural rules of the nextgen modality. *)
+(* In the following section we prove structural rules of the nextgen modality.
+ * and add the modality instances for the proof mode. *)
 
-Section nextgen_properties.
+Class IntoNextgen `{Ω : gGenCmras Σ} (P : iProp Σ) (Q : iProp Σ) :=
+  into_nextgen : P ⊢ ⚡==> Q.
+Global Arguments IntoNextgen  {_ _} _%I _%I.
+Global Arguments into_nextgen {_ _} _%I _%I.
+Global Hint Mode IntoNextgen + + + - : typeclass_instances.
+
+Section nextgen_structural_properties.
   Context {Σ : gFunctors} {Ω : gGenCmras Σ}.
   Implicit Types (P : iProp Σ) (Q : iProp Σ).
 
@@ -1264,7 +1272,135 @@ Section nextgen_properties.
     iFrame.
   Qed.
 
-End nextgen_properties.
+  Lemma and_extract_l `{!Persistent P} Q R :
+    (P ∗ Q) ∧ R ⊢ P ∗ (Q ∧ R).
+  Proof.
+    rewrite 1!sep_and. rewrite -and_assoc. rewrite -persistent_and_sep_1. done.
+  Qed.
+
+  Lemma and_extract_r `{!Persistent P} Q R :
+    Q ∧ (P ∗ R) ⊢ P ∗ (Q ∧ R).
+  Proof. rewrite comm. rewrite (comm _ Q). apply and_extract_l. Qed.
+
+  Lemma nextgen_and_1 P Q :
+    (⚡==> P) ∧ (⚡==> Q) ⊢ ⚡==> (P ∧ Q).
+  Proof.
+    unfold nextgen.
+    iIntros "PQ".
+    rewrite and_exist_r. iDestruct "PQ" as (picks1) "PQ".
+    rewrite and_exist_r. iDestruct "PQ" as (prs1) "PQ".
+    rewrite and_exist_l. iDestruct "PQ" as (picks2) "PQ".
+    rewrite and_exist_l. iDestruct "PQ" as (prs2) "PQ".
+    rewrite 4!and_extract_l.
+    iDestruct "PQ" as "(%picksValid1 & %prsWf1 & #ownPicks1 & #ownPrs1 & PQ)".
+    rewrite 4!and_extract_r.
+    iDestruct "PQ" as "(%picksValid2 & %prsWf2 & #ownPicks2 & #ownPrs2 & contPQ)".
+    iDestruct (own_promises_merge prs1 prs2 with "ownPrs1 ownPrs2")
+        as "(%prs3 & %wf3 & (% & % & %) & prs3)";
+      [done|done| ].
+    iExists _, prs3.
+    iDestruct (own_picks_sep' with "ownPicks1 ownPicks2") as "[$ %sub]".
+    iFrame "prs3".
+    iSplit. { iPureIntro. apply transmap_valid_union; done. }
+    iSplit; first done.
+    iIntros (fp vv a b).
+    rewrite -bnextgen_and.
+    iSplit.
+    - iDestruct "contPQ" as "[contP _]".
+      iSpecialize ("contP" $! fp vv with "[%] [%]").
+      { eapply transmap_resp_promises_weak; done. }
+      { etrans; last done. apply transmap_union_subseteq_l. }
+      iApply "contP".
+    - iDestruct "contPQ" as "[_ contQ]".
+      iSpecialize ("contQ" $! fp vv with "[%] [%]").
+      { eapply transmap_resp_promises_weak; done. }
+      { etrans; done. }
+      iApply "contQ".
+  Qed.
+
+  Lemma nextgen_intuitionistically_1 P :
+    (⚡==> (<pers> P)) ⊢ <pers> (⚡==> P).
+  Proof.
+    unfold nextgen.
+    iIntros "#P". iNamed "P".
+    iExists picks, prs.
+    iFrame "%#".
+    iIntros (?? resp sub).
+    iSpecialize ("contP" $! _ _ resp sub).
+    iApply bnextgen_intuitionistically_1.
+    iModIntro. iApply "contP".
+  Qed.
+
+  Lemma nextgen_intuitionistically_2 P :
+    <pers> (⚡==> P) ⊢ ⚡==> (<pers> P).
+  Proof.
+    unfold nextgen.
+    iIntros "#P". iNamed "P".
+    iExists picks, prs.
+    iFrame "%#".
+    iIntros (?? resp sub).
+    iSpecialize ("contP" $! _ _ resp sub).
+    iApply bnextgen_intuitionistically_2.
+    iModIntro. iApply "contP".
+  Qed.
+
+  Lemma nextgen_mono P Q :
+    (P ⊢ Q) → (⚡==> P) ⊢ ⚡==> Q.
+  Proof.
+    intros Hi.
+    unfold nextgen.
+    iIntros "P". iNamed "P".
+    iExists picks, prs.
+    iFrame "%#".
+    iIntros (?? resp sub).
+    iSpecialize ("contP" $! _ _ resp sub).
+    iApply bnextgen_mono'.
+    - apply Hi.
+    - iApply "contP".
+  Qed.
+
+  Lemma nextgen_intuitionistically P :
+    (⚡==> (<pers> P)) ⊣⊢ <pers> (⚡==> P).
+  Proof.
+    iSplit.
+    - iApply nextgen_intuitionistically_1.
+    - iApply nextgen_intuitionistically_2.
+  Qed.
+
+  #[global]
+  Instance nextgen_ne : NonExpansive nextgen.
+  Proof. solve_proper. Qed.
+
+  Global Instance nextgen_mono' :
+    Proper ((⊢) ==> (⊢)) nextgen.
+  Proof. intros P Q. apply nextgen_mono. Qed.
+
+  Global Instance nextgen_proper :
+    Proper ((≡) ==> (≡)) nextgen := ne_proper _.
+
+  Lemma modality_bnextgen_mixin :
+    modality_mixin (@nextgen _ _)
+      (MIEnvTransform IntoNextgen) (MIEnvTransform IntoNextgen).
+  Proof.
+    split; simpl; split_and?.
+    - intros ?? Hi.
+      rewrite Hi.
+      rewrite 2!intuitionistically_into_persistently.
+      apply nextgen_intuitionistically_2.
+    - intros. rewrite nextgen_and_1. done.
+    - done.
+    - apply nextgen_emp_2.
+    - apply nextgen_mono.
+    - apply nextgen_sep_2.
+  Qed.
+  Definition modality_bnextgen :=
+    Modality _ modality_bnextgen_mixin.
+
+  Global Instance from_modal_bnextgen P :
+    FromModal True modality_bnextgen (⚡==> P) (⚡==> P) P | 1.
+  Proof. by rewrite /FromModal. Qed.
+
+End nextgen_structural_properties.
 
 (* Ownership over generational ghost state. *)
 
@@ -2957,7 +3093,7 @@ Section rules_with_deps.
     rewrite /rely.
     iIntros "DR".
     iNamed 1.
-    iDestruct (know_promise_extract_frag with "relyPromise") as (?? pref1) "fragPreds".
+    iDestruct (know_promise_extract_frag with "relyPromise") as (?? pref1) "[? fragPreds]".
     iNamed "relyPromise".
     destruct pia_for as (γs_eq & pred_eq & rel_eq).
     rewrite /nextgen.
@@ -3035,58 +3171,12 @@ Section rules_with_deps.
 
 End rules_with_deps.
 
-Equations forall_fin_2 (P : fin 2 → Type) : P 0%fin * P 1%fin → ∀ (i : fin 2), P i :=
-| P, p, 0%fin => fst p
-| P, p, 1%fin => snd p.
-
-(* This is a hacky way to find all the [genInSelfG] instances when there are
-exactly two dependencies. It would be nicer with a solution that could iterate
-over all the dependencies during type class resolution (maybe inspired by
-[TCForall] for lists). *)
-Global Instance genInG_forall_2 {Σ n m} {DS1 : ivec n cmra} {DS2 : ivec m cmra}
-  `{!genInG Σ Ω A DS1} `{!genInG Σ Ω B DS2} :
-  ∀ (i : fin 2), genInSelfG Σ Ω ([A; B]%IL !!! i).
-Proof.
-  intros i.
-  dependent elimination i.
-  dependent elimination t.
-  dependent elimination t.
-  (* apply forall_fin_2. *)
-  (* split. *)
-  (* - apply (GenInG2 _ _ _ n DS1 _). *)
-  (* - apply (GenInG2 _ _ _ m DS2 _). *)
-Qed.
-
 Section test.
-  Context `{max_i : !genInG Σ Ω max_natR [] }.
-  Context `{i : !genInDepsG Σ Ω max_natR [max_natR; max_natR] }.
+  Context `{Ω : gGenCmras Σ}.
 
-  Definition a_rely :=
-    rely (1%positive) [2%positive; 3%positive] (λ Ta Tb Ts, Ta = Ts ∧ Tb = Ts) (λ _, True).
-
-  Section test.
-    Variables (A B C : cmra) (T1 : A → A) (T2 : B → B)
-      (P1 : (A → A) → Prop) (P2 : (B → B) → Prop).
-
-    Definition TS : trans_for _ [A; B] := [T1; T2]%HV.
-    Definition PS : preds_for _ [A; B] := [P1; P2].
-    Compute (preds_hold (DS := [A; B]) PS TS).
-
-    Context `{!genInG Σ Ω A [] }.
-    Context `{!genInG Σ Ω B [] }.
-    Context `{!genInDepsG Σ Ω C [A; B] }.
-
-    Lemma foo2 (γ : gname) (γs : ivec 2 gname) : True.
-    Proof.
-      pose proof (token_strengthen_promise γ γs PS) as st.
-      rewrite /rel_over in st.
-      rewrite /cmra_to_trans in st.
-      simpl in st.
-    Abort.
-
-  End test.
-
-  Definition a_rel (Ta : max_natR → max_natR) Tb Ts :=
-    Ta = Ts ∧ Tb = Ts.
+  Lemma test :
+    ⊢ ⚡==> ⌜ (2 + 2 = 4)%nat ⌝.
+  Proof. iModIntro. done. Qed.
 
 End test.
+
