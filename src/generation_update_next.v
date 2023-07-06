@@ -170,7 +170,7 @@ Class genInSelfG (Σ : gFunctors) Ω (A : cmra) := GenInG2 {
 Arguments genInSelfG_gen {_ _ _} _.
 Definition genInSelfG_id `(g : genInSelfG Σ Ω) := genInG_id (genInSelfG_gen g).
 
-Instance genInG_genInSelfG {n} `{i : !genInG Σ Ω A DS} : genInSelfG Σ Ω A := {|
+Instance genInG_genInSelfG {Σ Ω} {n A DS} (i : genInG Σ Ω A DS) : genInSelfG Σ Ω A := {|
   genInSelfG_n := n;
   genInSelfG_DS := DS;
   genInSelfG_gen := i;

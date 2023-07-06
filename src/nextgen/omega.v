@@ -28,7 +28,7 @@ Definition gen_cmra_data_to_inG {Σ len} (gcd : gen_cmra_data Σ len) :
     inG Σ (generational_cmraR gcd.(gcd_cmra) gcd.(gcd_deps)).
 Proof. econstructor. apply gcd_cmra_eq. Defined.
 
-Definition gen_cmras_data Σ len := ∀ (i : fin len), gen_cmra_data Σ len.
+Definition gen_cmras_data Σ len := fin len → gen_cmra_data Σ len.
 
 (* Each entry in [gen_cmras_data] contain a list of cameras that should be the
  * cmras of the dependencies. This duplicated information in the sense that the
