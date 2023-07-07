@@ -25,23 +25,23 @@ Instance fmap_pair_ne {A B C : ofe} (f : B → C) `{NonExpansive f} :
   NonExpansive (@fmap_pair A _ _ f).
 Proof. solve_proper. Qed.
 
-Definition gen_trans_auth {A : ucmra} (t : A → A) (a : auth A) : auth A :=
+Definition fmap_auth {A : ucmra} (t : A → A) (a : auth A) : auth A :=
   View
     (fmap_pair dfrac (agree_map t) <$> a.(view_auth_proj))
     (t a.(view_frag_proj)).
 
-Section gen_trans.
+Section fmap_auth.
   Context {A : ucmra}.
   Implicit Types (t : A → A).
 
   #[global]
-  Instance gen_trans_auth_ne `{NonExpansive t} : NonExpansive (gen_trans_auth t).
-  Proof. unfold gen_trans_auth. solve_proper. Qed.
+  Instance fmap_auth_ne `{NonExpansive t} : NonExpansive (fmap_auth t).
+  Proof. unfold fmap_auth. solve_proper. Qed.
 
   #[global]
-  Instance gen_trans_auth_gentrans `{!CmraMorphism t} : CmraMorphism (gen_trans_auth t).
+  Instance fmap_auth_gentrans `{!CmraMorphism t} : CmraMorphism (fmap_auth t).
   Proof.
-    unfold gen_trans_auth.
+    unfold fmap_auth.
     split.
     - apply _.
     - rewrite view.view_validN_eq /= /auth_view_rel_raw.
@@ -78,4 +78,28 @@ Section gen_trans.
       solve_proper.
   Qed.
 
-End gen_trans.
+End fmap_auth.
+
+#[global]
+Instance core_cmra_morphism `{CmraTotal A} : @CmraMorphism A _ core.
+Proof.
+  split.
+  - apply _.
+  - apply cmra_core_validN.
+  - intros a.
+    rewrite !cmra_pcore_core.
+    done.
+  - intros ??.
+Abort.
+
+#[global]
+Instance pcore_cmra_morphism {A : cmra} : @CmraMorphism A _ pcore.
+Proof.
+  split.
+  - apply _.
+  - intros n a Hv. destruct (pcore a) as [a'|] eqn:eq; last done.
+    apply Some_validN.
+    eapply cmra_pcore_validN; done.
+  - intros a.
+    destruct (pcore a) as [a'|] eqn:eq; simpl.
+Abort.
