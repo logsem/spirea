@@ -3,7 +3,7 @@ From iris.proofmode Require Import classes tactics.
 From iris.base_logic.lib Require Export iprop own invariants.
 From iris.prelude Require Import options.
 
-From self Require Import extra basic_nextgen_modality gen_trans gen_single_shot.
+From self Require Import extra basic_nextgen_modality cmra_morphism_extra gen_single_shot.
 Import uPred.
 
 Definition generational_cmra A : Type :=
@@ -50,7 +50,7 @@ Proof.
   done.
 Qed.
 
-Definition gen_generation_first {A : cmra} (f : A → A) :
+Definition gen_cmra_morphism_first {A : cmra} (f : A → A) :
   prodR (optionR (agreeR (leibnizO (A → A)))) (GTSR (A → A)) →
   prodR (optionR (agreeR (leibnizO (A → A)))) (GTSR (A → A))
   := prod_map
@@ -61,31 +61,26 @@ Definition gen_generation_first {A : cmra} (f : A → A) :
 over a generational camera. *)
 Definition gen_generation {A : cmra}
     (f : A → A) : generational_cmraR A → generational_cmraR A :=
-  prod_map (gen_generation_first f) (fmap f : optionR A → optionR A).
+  prod_map (gen_cmra_morphism_first f) (fmap f : optionR A → optionR A).
 
-Global Instance gen_trans_const {A : ofe} (a : A) :
-  GenTrans (const (Some (to_agree a))).
+Global Instance gen_trans_const_Some {A : ofe} (a : A) :
+  CmraMorphism (A := optionR (agreeR A)) (const (Some (to_agree a))).
 Proof.
-  split; first apply _.
-  - done.
-  - intros. simpl. rewrite (core_id). done.
-  - intros ??. simpl.
-    rewrite -Some_op.
-    rewrite agree_idemp.
-    done.
+  apply cmra_morphism_const; [apply _| |done].
+  rewrite -Some_op. rewrite agree_idemp. done.
 Qed.
 
-Global Instance gen_generation_gen_trans {A : cmra} (f : A → A)
+Global Instance gen_cmra_morphism_gen_trans {A : cmra} (f : A → A)
   `{!Proper (equiv ==> equiv) f} :
-  GenTrans f → GenTrans (gen_generation f).
+  CmraMorphism f → CmraMorphism (gen_generation f).
 Proof. apply _. Qed.
 
-Global Instance gen_generation_proper {A : cmra} (f : A → A) :
+Global Instance gen_cmra_morphism_proper {A : cmra} (f : A → A) :
   Proper ((≡) ==> (≡)) f →
   Proper ((≡) ==> (≡)) (gen_generation f).
 Proof.
   intros ? [[??]?] [[??]?] [[??]?]. simpl in *.
-  rewrite /gen_generation /gen_generation_first.
+  rewrite /gen_generation /gen_cmra_morphism_first.
   solve_proper.
 Qed.
 
@@ -149,7 +144,7 @@ Record valid_gen_trans (A : cmra) := {
   gt_inhabited : A → A;
   (* The witness satisfied the conditions. *)
   gt_inhabited_condition : gt_condition (gt_inhabited);
-  gt_inhabited_gen_trans : GenTrans (gt_inhabited);
+  gt_inhabited_gen_trans : CmraMorphism (gt_inhabited);
 }.
 
 Arguments gt_condition {_} _.
@@ -249,7 +244,7 @@ Definition Picks Σ : Type := ∀ i, gmap gname (R Σ i → R Σ i).
 the conditions for that cmra in [Ω]. *)
 Definition picks_valid {Σ} (Ω : gTransforms) (picks : Picks Σ) :=
   ∀ i γ t, picks i !! γ = Some t →
-    GenTrans t ∧
+    CmraMorphism t ∧
     ∃ gti, Ω.(g_valid_gt) i = Some2 gti ∧ gti.(gti_valid).(gt_condition) t.
 
 (* The functor [fG] respects the conditions in [Ω] and the entries in
@@ -278,11 +273,11 @@ Definition nextgen {Σ : gFunctors} {Ω : gTransforms} P : iProp Σ :=
   ∃ (picks : Picks Σ) (m : iResUR Σ),
     ⌜ picks_valid Ω picks ⌝ ∗
     uPred_ownM m ∗ ⌜ m_contains_tokens_for_picks Ω picks m ⌝ ∗
-    ∀ (fG : iResUR Σ → _) (_ : GenTrans fG) (_ : fG_resp fG Ω picks ),
+    ∀ (fG : iResUR Σ → _) (_ : CmraMorphism fG) (_ : fG_resp fG Ω picks ),
       ⚡={fG}=> P.
 
 (* Definition nextgen_alt {Σ : gFunctors} {Ω : gTransforms} P : iProp Σ := *)
-(*   ∀ (fG : iResUR Σ → _) (_ : GenTrans fG), *)
+(*   ∀ (fG : iResUR Σ → _) (_ : CmraMorphism fG), *)
 (*     ⌜ fG_resp fG Ω picks ⌝ -∗ *)
 (*     uPred_ownM m -∗ *)
 (*     ⚡={fG}=> P. *)
@@ -296,7 +291,7 @@ Global Arguments IntoNextgen  {_} {_} _%I _%I.
 Global Arguments into_nextgen {_} {_} _%I _%I.
 Global Hint Mode IntoNextgen + + ! - : typeclass_instances.
 
-Lemma uPred_own_resp `{i : !genInG Σ Ω A tr} fG `{!GenTrans fG} picks
+Lemma uPred_own_resp `{i : !genInG Σ Ω A tr} fG `{!CmraMorphism fG} picks
   (f : generational_cmraR A → _) γ a `{!Proper ((≡) ==> (≡)) f} :
   fG_resp (Σ := Σ) fG Ω picks →
   picks (inG_id _) !! γ = Some (cmra_map_transport inG_prf f) →
@@ -353,7 +348,7 @@ Lemma gt_conditions_transport {A B} (eq : generational_cmraR A = B) tr t :
   gt_condition (lift tr) (cmra_map_transport (eq_sym eq) t).
 Proof. destruct eq. done. Qed.
 
-Lemma uPred_own_resp_omega `{i : !genInG Σ Ω A tr} fG `{!GenTrans fG} picks γ
+Lemma uPred_own_resp_omega `{i : !genInG Σ Ω A tr} fG `{!CmraMorphism fG} picks γ
     (a : generational_cmraR A) :
   fG_resp (Σ := Σ) fG Ω picks →
   uPred_ownM (fG (own.iRes_singleton γ a))
@@ -530,7 +525,7 @@ End pick_singleton_lemmas.
 
 Global Instance gen_trans_cmra_map_transport {A B : cmra} (eq : A = B)
     (f : A → A) :
-  GenTrans f → GenTrans (cmra_map_transport eq f).
+  CmraMorphism f → CmraMorphism (cmra_map_transport eq f).
 Proof. destruct eq. done. Qed.
 
 Lemma gt_condition_transport {A B} (transA : valid_gen_trans A)
@@ -542,7 +537,7 @@ Lemma gt_condition_transport {A B} (transA : valid_gen_trans A)
 Proof. destruct eq. simpl. done. Qed.
 
 Lemma picks_valid_singleton `{i : !genInG Σ Ω A gens} f γ :
-  GenTrans f →
+  CmraMorphism f →
   gt_condition gens f →
   picks_valid Ω
     (pick_singleton (genInG_id i) γ
@@ -601,7 +596,7 @@ Section picks_lemmas.
   Proof. done. Qed.
 
   Lemma build_trans_generation Ω picks :
-    picks_valid Ω picks → GenTrans (build_trans Ω picks).
+    picks_valid Ω picks → CmraMorphism (build_trans Ω picks).
   Proof.
     (* NOTE: this proof is _very_ brute-forcey. One could try and shorten it. *)
     intros picksGT.
@@ -615,7 +610,7 @@ Section picks_lemmas.
       destruct (picks i !! γ) eqn:look.
       * apply picksGT in look as [gt ?]. solve_proper.
       * solve_proper.
-    - intros ?? Hval.
+    - intros ? a Hval.
       intros i γ.
       rewrite !map_lookup_imap. simpl.
       specialize (Hval i γ).
@@ -626,13 +621,13 @@ Section picks_lemmas.
         apply: cmra_morphism_validN.
         apply Some_validN.
         specialize (picksGT i γ pick eq2) as [??].
-        apply generation_valid.
+        apply: cmra_morphism_validN.
         apply: cmra_morphism_validN.
         apply Hval.
       * destruct (g_valid_gt Ω i); last done.
         apply Some_validN.
         apply: cmra_morphism_validN.
-        apply generation_valid.
+        apply: cmra_morphism_validN.
         apply: cmra_morphism_validN.
         apply Hval.
     - move=> m /=.
@@ -650,13 +645,13 @@ Section picks_lemmas.
       * rewrite core_Some_pcore.
         rewrite -cmra_morphism_pcore.
         specialize (picksGT i γ pick pickLook) as [??].
-        rewrite -generation_pcore.
+        rewrite -cmra_morphism_pcore.
         rewrite -(cmra_morphism_pcore map_fold).
         destruct (pcore a); done.
       * destruct (g_valid_gt Ω i).
         + rewrite core_Some_pcore.
           rewrite -cmra_morphism_pcore.
-          rewrite -generation_pcore.
+          rewrite -cmra_morphism_pcore.
           rewrite -cmra_morphism_pcore.
           destruct (pcore a); done.
         + destruct (pcore a); done.
@@ -672,7 +667,7 @@ Section picks_lemmas.
           rewrite eq1 eq2; simpl; try done.
         rewrite -Some_op.
         rewrite -cmra_morphism_op.
-        rewrite -generation_op.
+        rewrite -cmra_morphism_op.
         rewrite -cmra_morphism_op.
         done.
       * destruct (g_valid_gt Ω i);
@@ -681,7 +676,7 @@ Section picks_lemmas.
             rewrite eq1 eq2; simpl; try done.
         rewrite -Some_op.
         rewrite -cmra_morphism_op.
-        rewrite -generation_op.
+        rewrite -cmra_morphism_op.
         rewrite -cmra_morphism_op.
         done.
   Qed.
@@ -958,7 +953,7 @@ Section own_properties.
   Implicit Types a : A.
 
   Definition gen_picked_out γ t : iProp Σ :=
-    ⌜ GenTrans t ∧ transA.(gt_condition) t ⌝ ∧ own_shot γ t.
+    ⌜ CmraMorphism t ∧ transA.(gt_condition) t ⌝ ∧ own_shot γ t.
 
   (* Allocating new ghost state results in both generational ownership over the
   allocated element and owneship ovevr the token. *)
@@ -973,7 +968,7 @@ Section own_properties.
     iApply "H".
   Qed.
 
-  Lemma gen_token_pick_next γ t `{!GenTrans t} :
+  Lemma gen_token_pick_next γ t `{!CmraMorphism t} :
     transA.(gt_condition) t →
     gen_token γ ⊢ |==> gen_token_used γ ∗ gen_picked_out γ t.
   Proof.
@@ -1008,7 +1003,7 @@ Section own_properties.
       first done.
     destruct cond as (t & -> & cond).
     rewrite /gen_token.
-    rewrite /gen_generation /gen_generation_first.
+    rewrite /gen_generation /gen_cmra_morphism_first.
     iApply own_mono; last first.
     { rewrite own.own_eq. iApply "tok". }
     eexists (Some (to_agree t), (None, None), None).
@@ -1330,7 +1325,7 @@ Section own_properties.
     set (fG := (build_trans Ω picks)).
     pose proof (build_trans_generation Ω _ picksGT).
     rewrite <- (bnextgen_plain fG P).
-    iApply ("HP" $!  _ with "[%]").
+    iApply ("HP" $! _ _ with "[%]").
     apply build_trans_resp; done.
   Qed.
 
@@ -1383,7 +1378,7 @@ Section own_properties.
   Global Instance into_nextgen_gen_own γ m : IntoNextgen (gen_own γ m) _ :=
     own_generational_update γ m.
 
-  Lemma own_generational_update_tok γ a t `{!GenTrans t} :
+  Lemma own_generational_update_tok γ a t `{!CmraMorphism t} :
     gen_token_used γ -∗ gen_picked_out γ t -∗ gen_own γ a -∗
     ⚡==> gen_token γ ∗ gen_own γ (t a) ∗ gen_picked_in γ t.
   Proof.

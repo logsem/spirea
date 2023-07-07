@@ -2,7 +2,7 @@ From iris.algebra Require Import functions gmap agree excl csum max_prefix_list.
 From iris.algebra.lib Require Import mono_list.
 From iris.proofmode Require Import classes tactics.
 
-From self Require Import hvec extra gen_trans gen_single_shot gen_pv.
+From self Require Import hvec extra cmra_morphism_extra gen_single_shot gen_pv.
 From self.nextgen Require Import types.
 
 Import EqNotations. (* Get the [rew] notation. *)
@@ -150,7 +150,7 @@ Definition gc_tup_rel_pred {n A} {DS : ivec n cmra} l1 l2 : generational_cmraR A
  (ε, ε, ε, ε, l1, l2).
 
 Global Instance gen_trans_const {A : ofe} (a : A) :
-  GenTrans (const (Some (to_agree a))).
+  CmraMorphism (A := optionR (agreeR A)) (const (Some (to_agree a))).
 Proof.
   split; first apply _.
   - done.
@@ -165,7 +165,7 @@ Section gen_cmra.
   Context {n} {A : cmra} {DS : ivec n cmra}.
   Global Instance gen_generation_gen_trans (f : A → A)
     `{!Proper (equiv ==> equiv) f} :
-    GenTrans f → GenTrans (gen_cmra_trans (DS := DS) f).
+    CmraMorphism f → CmraMorphism (gen_cmra_trans (DS := DS) f).
   Proof. apply _. Qed.
 
   Global Instance gen_generation_proper (f : A → A) :

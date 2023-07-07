@@ -1,6 +1,6 @@
 From iris.algebra Require Import csum excl.
 
-From self Require Import gen_trans.
+From self Require Import cmra_morphism_extra.
 
 (******************************************************************************)
 (* Generational single-shot stream.
@@ -35,7 +35,7 @@ Definition GTS_floor {A} (a : GTS A) : GTS A :=
   | (ExclBot', _) => (ExclBot', Some $ Cinl $ ExclBot)
   end.
 
-Global Instance GTS_floor_generation A : GenTrans (GTS_floor (A := A) : GTSR A → GTSR A).
+Global Instance GTS_floor_generation A : CmraMorphism (GTS_floor (A := A) : GTSR A → GTSR A).
 Proof.
   split.
   - intros n [??] [??]. simpl.

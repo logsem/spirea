@@ -10,7 +10,7 @@ for [a_p] but not for [a_v]. *)
 
 From iris.algebra Require Import cmra.
 
-From self Require Import gen_trans.
+From self Require Import cmra_morphism_extra.
 
 Definition gen_pv (A : cmra) : Type := option A * option A.
 Definition gen_pvR (A : cmra) : cmra := prodR (optionR A) (optionR A).
@@ -20,7 +20,7 @@ Definition gen_pv_trans {A : cmra} (p : gen_pv A) : gen_pv A :=
   match p with (a_p, a_v) => (a_p, a_p) end.
 
 #[global]
-Instance gen_pv_trans_gentrans A : GenTrans (gen_pv_trans (A := A)).
+Instance gen_pv_trans_gentrans A : CmraMorphism (gen_pv_trans (A := A)).
 Proof.
   split.
   - intros n [??] [??]. simpl.

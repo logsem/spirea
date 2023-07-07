@@ -1,4 +1,4 @@
-From self Require Import gen_trans.
+From self Require Import cmra_morphism_extra.
 From self.nextgen Require Import types omega.
 
 Definition map_agree_overlap `{FinMap K M} {A} (m1 m2 : M A) :=
@@ -94,7 +94,7 @@ Section transmap.
   (** Every pick in [transmap] is a valid generational transformation and satisfies
   the conditions for that cmra in [Ω]. *)
   Definition transmap_valid transmap :=
-    ∀ i γ t, transmap i !! γ = Some t → GenTrans t.
+    ∀ i γ t, transmap i !! γ = Some t → CmraMorphism t.
 
   (** A map of picks that for the resource at [idx] and the ghost name [γ] picks
   the generational transformation [t]. *)
@@ -229,7 +229,7 @@ Section transmap_insert.
       * apply not_and_r in Hneq; done.
   Qed.
 
-  Lemma transmap_valid_singleton id γ t `{!GenTrans t} :
+  Lemma transmap_valid_singleton id γ t `{!CmraMorphism t} :
     transmap_valid (transmap_singleton id γ t).
   Proof.
     intros id' ??. unfold transmap_singleton.
@@ -240,7 +240,7 @@ Section transmap_insert.
   Qed.
 
   Lemma transmap_valid_insert map id γ t :
-    GenTrans t →
+    CmraMorphism t →
     transmap_valid map →
     transmap_valid (transmap_insert map id γ t).
   Proof.

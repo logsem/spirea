@@ -1,7 +1,7 @@
 From Equations Require Import Equations.
 From iris.base_logic.lib Require Export own.
 
-From self Require Import hvec gen_trans.
+From self Require Import hvec cmra_morphism_extra.
 From self.nextgen Require Import types generational_cmra omega.
 
 Import EqNotations. (* Get the [rew] notation. *)
@@ -72,7 +72,7 @@ Record promise_info_at {Σ} (Ω : gGenCmras Σ) id := MkPia {
     huncurry pi_rel ts t → pi_pred t;
   pi_witness : ∀ (ts : trans_for (On Ω id) (Ocs Ω id)),
     preds_hold pi_deps_preds ts → (* If we can procure such a [ts] .. *)
-    ∃ t, GenTrans t ∧ huncurry pi_rel ts t; (* .. we can get such a [t]. *)
+    ∃ t, CmraMorphism t ∧ huncurry pi_rel ts t; (* .. we can get such a [t]. *)
 }.
 
 Record promise_info {Σ} (Ω : gGenCmras Σ) := MkPi {

@@ -3,7 +3,7 @@ From iris.proofmode Require Import classes tactics.
 From iris.base_logic.lib Require Export iprop own invariants.
 From iris.prelude Require Import options.
 
-From self Require Import extra gen_trans.
+From self Require Import extra cmra_morphism_extra.
 Import uPred.
 
 (** When working in the model, it is convenient to be able to treat [uPred] as
@@ -13,14 +13,16 @@ Local Coercion uPred_holds : uPred >-> Funclass.
 
 (* The _basic_ next-gen modality. *)
 Local Program Definition uPred_bnextgen_def {M : ucmra}
-  (f : M → M) `{!GenTrans f} (P : uPred M) : uPred M :=
+  (f : M → M) `{!CmraMorphism f} (P : uPred M) : uPred M :=
   {| uPred_holds n x := P n (f x) |}.
-Next Obligation. naive_solver eauto using uPred_mono, generation_monoN. Qed.
+Next Obligation.
+  naive_solver eauto using uPred_mono, cmra_morphism_monotoneN.
+Qed.
 
 Local Definition uPred_bnextgen_aux : seal (@uPred_bnextgen_def).
 Proof. by eexists. Qed.
 
-Definition uPred_bnextgen {M : ucmra} f `{g : !GenTrans f} := uPred_bnextgen_aux.(unseal) M f g.
+Definition uPred_bnextgen {M : ucmra} f `{g : !CmraMorphism f} := uPred_bnextgen_aux.(unseal) M f g.
 
 Local Definition uPred_bnextgen_unseal :
   @uPred_bnextgen = @uPred_bnextgen_def := uPred_bnextgen_aux.(seal_eq).
@@ -28,14 +30,14 @@ Local Definition uPred_bnextgen_unseal :
 Notation "⚡={ f }=> P" := (uPred_bnextgen f P)
   (at level 99, f at level 50, P at level 200, format "⚡={ f }=>  P") : bi_scope.
 
-Class IntoBnextgen `{M : ucmra} f `{!GenTrans f} (P : uPred M) (Q : uPred M) :=
+Class IntoBnextgen `{M : ucmra} f `{!CmraMorphism f} (P : uPred M) (Q : uPred M) :=
   into_bnextgen : P ⊢ ⚡={ f }=> Q.
 Global Arguments IntoBnextgen  {_} _%I {_} _%I _%I.
 Global Arguments into_bnextgen {_} _%I _%I {_}.
 Global Hint Mode IntoBnextgen + + + ! - : typeclass_instances.
 
 Section bnextgen_rules.
-  Context {M : ucmra} (f : M → M) `{!GenTrans f}.
+  Context {M : ucmra} (f : M → M) `{!CmraMorphism f}.
 
   Notation "P ⊢ Q" := (@uPred_entails M P%I Q%I) : stdpp_scope.
   Notation "⊢ Q" := (bi_entails (PROP:=uPredI M) True Q).
@@ -50,7 +52,7 @@ Section bnextgen_rules.
     unseal. intros ? P Q Heq.
     split.
     intros ????. simpl.
-    split; intros ?; apply Heq; eauto using Heq, generation_valid.
+    split; intros ?; apply Heq; eauto using Heq, cmra_morphism_validN.
   Qed.
 
   Lemma bnextgen_ownM (a : M) :
@@ -58,7 +60,7 @@ Section bnextgen_rules.
   Proof.
     unseal. split. simpl.
     intros n x Hv ?.
-    apply generation_monoN; done.
+    apply cmra_morphism_monotoneN; done.
   Qed.
 
   Lemma bnextgen_and P Q :
@@ -76,7 +78,7 @@ Section bnextgen_rules.
     intros ? ? ?.
     intros (a & b & eq & Hp & Hq).
     exists (f a), (f b).
-    rewrite -(generation_op _ a b).
+    rewrite -(cmra_morphism_op _ a b).
     rewrite eq. done.
   Qed.
 
@@ -122,10 +124,10 @@ Section bnextgen_rules.
       eapply uPred_mono.
       - apply Hi.
         + eapply cmra_validN_le; last done.
-          apply generation_valid.
+          apply: cmra_morphism_validN.
           done.
         + done.
-      - apply: generation_monoN. eexists _. done.
+      - apply: cmra_morphism_monotoneN. eexists _. done.
       - done.
     * intros Hi n' x' le val Hp.
       specialize (Hi n' ε le).
@@ -145,7 +147,7 @@ Section bnextgen_rules.
     unseal. split. simpl.
     intros ???.
     apply Hi.
-    apply generation_valid.
+    apply: cmra_morphism_validN.
     done.
   Qed.
 
@@ -156,7 +158,7 @@ Section bnextgen_rules.
     (⚡={f}=> (<pers> P)) ⊣⊢ <pers> (⚡={f}=> P).
   Proof.
     unseal. split. simpl. intros ???.
-    pose proof (generation_pcore x) as eq.
+    pose proof (cmra_morphism_pcore f x) as eq.
     rewrite 2!cmra_pcore_core in eq.
     apply Some_equiv_inj in eq.
     rewrite eq.
@@ -247,7 +249,7 @@ Section bnextgen_rules.
 
 End bnextgen_rules.
 
-Lemma bnextgen_plain_soundness {M : ucmra} f `{!GenTrans f} (P : uPred M) `{!Plain P} :
+Lemma bnextgen_plain_soundness {M : ucmra} f `{!CmraMorphism f} (P : uPred M) `{!Plain P} :
   (⊢ ⚡={f}=> P) → ⊢ P.
 Proof.
   eapply bi_emp_valid_mono. etrans; last exact: bnextgen_plainly.
@@ -255,7 +257,7 @@ Proof.
 Qed.
 
 Section into_bnextgen.
-  Context {M : ucmra} (f : M → M) `{!GenTrans f}.
+  Context {M : ucmra} (f : M → M) `{!CmraMorphism f}.
 
   Global Instance into_bnextgen_ownM a :
     IntoBnextgen f (uPred_ownM a) (uPred_ownM (f a)) := bnextgen_ownM f a.
@@ -359,10 +361,8 @@ Section into_bnextgen.
     □ (⚡={f}=> P) ⊢ ⚡={f}=> (□ P).
   Proof.
     rewrite /bi_intuitionistically /bi_affinely.
-    iIntros "H".
-    rewrite -bnextgen_intuitionistically.
-    rewrite {1}bnextgen_emp_2.
-    iModIntro.
+    rewrite 2!left_id.
+    rewrite bnextgen_intuitionistically.
     done.
   Qed.
 
@@ -391,9 +391,9 @@ End into_bnextgen.
 
 Section bnextgen_inv.
   Context `{!invGS Σ}.
-  (* Context (f : M → M) `{!GenTrans f}. *)
+  (* Context (f : M → M) `{!CmraMorphism f}. *)
 
-  Lemma bnextgen_inv N P f `{!GenTrans f} :
+  Lemma bnextgen_inv N P f `{!CmraMorphism f} :
     inv N P -∗ ⚡={f}=> (inv N (⚡={f}=> P)).
   Proof.
     rewrite invariants.inv_unseal.

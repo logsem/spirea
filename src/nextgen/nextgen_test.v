@@ -9,7 +9,7 @@ From iris.prelude Require Import options.
 
 From iris_named_props Require Import named_props.
 
-From self Require Import hvec extra basic_nextgen_modality gen_trans
+From self Require Import hvec extra basic_nextgen_modality cmra_morphism_extra
   gen_single_shot gen_pv.
 From self Require Import generation_update_next.
 From self.nextgen Require Import types omega generational_cmra transmap promise.
@@ -38,13 +38,13 @@ Defined.
 Lemma genInG_forall_2_lookup_1 {Σ n m} {A B} {DS1 : ivec n cmra} {DS2 : ivec m cmra}
   `{g1 : !genInG Σ Ω A DS1} `{g2 : !genInG Σ Ω B DS2} :
   genInG_forall_2 g1 g2 0%fin =
-    (@genInG_genInSelfG n Σ Ω A DS1 g1).
+    (genInG_genInSelfG g1).
 Proof. done. Qed.
 
 Lemma genInG_forall_2_lookup_2 {Σ n m} {A B} {DS1 : ivec n cmra} {DS2 : ivec m cmra}
   `{g1 : !genInG Σ Ω A DS1} `{g2 : !genInG Σ Ω B DS2} :
   genInG_forall_2 g1 g2 1%fin =
-    (@genInG_genInSelfG m Σ Ω B DS2 g2).
+    (genInG_genInSelfG g2).
 Proof. done. Qed.
 
 Section test.

@@ -3,7 +3,7 @@ per-generation fraction and one cross-generation fraction. *)
 
 From iris.algebra Require Import dfrac auth.
 
-From self Require Import gen_trans.
+From self Require Import cmra_morphism_extra.
 
 Definition gen_auth (A : ucmra) : Type := option dfrac * auth A.
 Definition gen_authR (A : ucmra) : cmra := prodR (optionR dfracR) (authR A).
@@ -35,7 +35,7 @@ Definition gen_auth_floor {A : ucmra} (a : gen_auth A) : gen_auth A :=
   | (mdq, View a b) => (mdq, View (set_dfrac_auth mdq a) b)
   end.
 
-Global Instance gen_auth_floor_gentrans A : GenTrans (gen_auth_floor (A := A)).
+Global Instance gen_auth_floor_gentrans A : CmraMorphism (gen_auth_floor (A := A)).
 Proof.
   split.
   - intros n [? [??]] [? [??]]. simpl.

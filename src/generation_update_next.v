@@ -9,7 +9,7 @@ From iris.prelude Require Import options.
 
 From iris_named_props Require Import named_props.
 
-From self Require Import hvec extra basic_nextgen_modality gen_trans
+From self Require Import hvec extra basic_nextgen_modality cmra_morphism_extra
   gen_single_shot gen_pv.
 From self.high Require Import increasing_map.
 From self.nextgen Require Import types omega generational_cmra transmap promise.
@@ -115,21 +115,21 @@ Section cmra_map_transport.
     (Proper ((≡) ==> (≡)) (cmra_map_transport eq f)).
   Proof. naive_solver. Qed.
 
-  Lemma cmra_map_transport_op f `{!GenTrans f} x y :
+  Lemma cmra_map_transport_op f `{!CmraMorphism f} x y :
     cmra_map_transport eq f (x ⋅ y) ≡
       cmra_map_transport eq f x ⋅ cmra_map_transport eq f y.
-  Proof. destruct eq. simpl. apply: generation_op. Qed.
+  Proof. destruct eq. simpl. apply: cmra_morphism_op. Qed.
 
   (* Lemma cmra_map_transport_core x : T (core x) = core (T x). *)
   (* Proof. by destruct H. Qed. *)
 
-  Lemma cmra_map_transport_validN n f `{!GenTrans f} a :
+  Lemma cmra_map_transport_validN n f `{!CmraMorphism f} a :
     ✓{n} a → ✓{n} cmra_map_transport eq f a.
-  Proof. destruct eq. apply generation_valid. Qed.
+  Proof. destruct eq. apply: cmra_morphism_validN. Qed.
 
-  Lemma cmra_map_transport_pcore f `{!GenTrans f} x :
+  Lemma cmra_map_transport_pcore f `{!CmraMorphism f} x :
     cmra_map_transport eq f <$> pcore x ≡ pcore (cmra_map_transport eq f x).
-  Proof. destruct eq. simpl. apply generation_pcore. Qed.
+  Proof. destruct eq. simpl. apply: cmra_morphism_pcore. Qed.
 
 End cmra_map_transport.
 
@@ -313,7 +313,7 @@ We need
 
   #[global]
   Lemma build_trans_generation transmap :
-    transmap_valid transmap → GenTrans (build_trans transmap).
+    transmap_valid transmap → CmraMorphism (build_trans transmap).
   Proof.
     intros val.
     rewrite /build_trans.
@@ -335,7 +335,7 @@ We need
       2: { solve_proper. }
       apply val in look as [gt ?].
       solve_proper.
-    - intros ?? Hval.
+    - intros ? a Hval.
       intros i γ.
       destruct (Omega_lookup_inverse i) as [[j []]|]; last apply Hval.
       simpl.
@@ -453,7 +453,7 @@ We need
       rewrite -eqLook.
       unfold Oeq.
       rewrite -cmra_map_transport_cmra_transport.
-      assert (∃ bingo, pps !! γ = bingo ∧ (bingo = None ∨ (∃ t, bingo = Some t ∧ GenTrans t)))
+      assert (∃ bingo, pps !! γ = bingo ∧ (bingo = None ∨ (∃ t, bingo = Some t ∧ CmraMorphism t)))
           as (mt & ppsLook & disj).
       { exists (pps !! γ).
         split; first done.
@@ -510,7 +510,7 @@ We need
       (* rewrite -eqLook. *)
       unfold Oeq.
       rewrite -cmra_map_transport_cmra_transport.
-      assert (∃ bingo, pps !! γ = bingo ∧ (bingo = None ∨ (∃ t, bingo = Some t ∧ GenTrans t)))
+      assert (∃ bingo, pps !! γ = bingo ∧ (bingo = None ∨ (∃ t, bingo = Some t ∧ CmraMorphism t)))
           as (mt & ppsLook & disj).
       { exists (pps !! γ).
         split; first done.
@@ -1938,7 +1938,7 @@ Section nextgen_assertion_rules.
   Context {n : nat} {DS : ivec n cmra} `{!genInG Σ Ω A DS}.
 
   Lemma own_build_trans_next_gen γ (m : generational_cmraR A DS) picks
-      `{!GenTrans (build_trans picks)} :
+      `{!CmraMorphism (build_trans picks)} :
     transmap_valid picks →
     own γ m ⊢ ⚡={build_trans picks}=> own γ (
       gen_cmra_trans (
@@ -1959,7 +1959,7 @@ Section nextgen_assertion_rules.
   Qed.
 
   Lemma Oown_build_trans_next_gen i γ (m : generational_cmraR _ _) picks
-      `{!GenTrans (build_trans picks)} :
+      `{!CmraMorphism (build_trans picks)} :
     transmap_valid picks →
     Oown i γ m ⊢ ⚡={build_trans picks}=> Oown i γ (
       gen_cmra_trans (
@@ -1977,7 +1977,7 @@ Section nextgen_assertion_rules.
     rewrite build_trans_singleton_alt; try done.
   Qed.
 
-  Lemma own_promise_info_nextgen picks pi `{!GenTrans (build_trans picks)} :
+  Lemma own_promise_info_nextgen picks pi `{!CmraMorphism (build_trans picks)} :
     transmap_valid picks →
     own_promise_info pi ⊢ ⚡={build_trans picks}=> own_promise_info pi.
   Proof.
@@ -1998,7 +1998,7 @@ Section nextgen_assertion_rules.
   (* NOTE: This doesn't really work as an instance since TC search can't find
    * the [val] we need. This could prop. be fixed by keeping this fact in a TC. *)
   Global Instance into_bnextgen_own_promise_info picks
-      `{!GenTrans (build_trans picks)} (val : transmap_valid picks) :
+      `{!CmraMorphism (build_trans picks)} (val : transmap_valid picks) :
     ∀ pi, IntoBnextgen (build_trans picks) (own_promise_info pi) (own_promise_info pi).
   Proof.
     intros pi.
@@ -2007,7 +2007,7 @@ Section nextgen_assertion_rules.
     done.
   Qed.
 
-  Lemma own_promises_nextgen picks ps `{!GenTrans (build_trans picks)} :
+  Lemma own_promises_nextgen picks ps `{!CmraMorphism (build_trans picks)} :
     transmap_valid picks →
     own_promises ps ⊢ ⚡={build_trans picks}=> own_promises ps.
   Proof.
@@ -2026,7 +2026,7 @@ Section nextgen_assertion_rules.
   Proof. apply ucmra_unit_right_id. Qed.
 
   Lemma own_build_trans_next_gen_picked_in γ (m : generational_cmraR A DS) picks
-      `{!GenTrans (build_trans picks)} :
+      `{!CmraMorphism (build_trans picks)} :
     transmap_valid picks →
     own γ m ⊢ ⚡={build_trans picks}=>
       picked_in γ (rew <- [cmra_to_trans] genInG_gti_typ in (default (λ a, a) (picks _ !! γ)))
@@ -2084,7 +2084,7 @@ Section rules_with_deps.
       (R_to_P : ∀ ts t, huncurry R_2 ts t → P_2 t)
       (witness : ∀ (ts : trans_for n DS),
         preds_hold deps_preds ts →
-        ∃ (e : A → A), GenTrans e ∧ huncurry R_2 ts e)
+        ∃ (e : A → A), CmraMorphism e ∧ huncurry R_2 ts e)
       : promise_info_at Ω _ := {|
     pi_deps_γs := (rew [λ n, ivec n _] genInG_gcd_n in γs);
     pi_deps_preds := rew [id] preds_for_genInG in deps_preds;
@@ -2590,7 +2590,7 @@ Section rules_with_deps.
     (* Evidence that the promise is realizeable. *)
     (∀ (ts : trans_for n DS),
       preds_hold deps_preds ts →
-      ∃ (t : A → A), GenTrans t ∧ huncurry R_2 ts t) →
+      ∃ (t : A → A), CmraMorphism t ∧ huncurry R_2 ts t) →
     (* For every dependency we own a [rely_self]. *)
     (∀ (i : fin n), rely_self (γs !!! i) (hvec_lookup_fmap deps_preds i)) -∗
     token γ γs R_1 P_1 ==∗
@@ -2676,8 +2676,8 @@ Section rules_with_deps.
   Qed.
 
   Lemma gentrans_rew {B : cmra} t (eq : A = B) :
-    GenTrans t →
-    GenTrans (rew [cmra_to_trans] eq in t).
+    CmraMorphism t →
+    CmraMorphism (rew [cmra_to_trans] eq in t).
   Proof. destruct eq. done. Qed.
 
   Lemma GTS_tok_gen_rew_contradiction c :
@@ -2831,7 +2831,7 @@ Section rules_with_deps.
   (* Picks the transformation for the resource at [γ]. This is only possible if
    * transformations has been picked for all the dependencies. *)
   Lemma token_pick γ γs (R : rel_over DS A) P (ts : trans_for n DS) t
-      `{!GenTrans t} :
+      `{!CmraMorphism t} :
     huncurry R ts t →
     (∀ i, picked_out (g := genInSelfG_gen (gs i))
             (γs !!! i) (hvec_lookup_fmap ts i)) -∗
@@ -3052,7 +3052,7 @@ Section rules_with_deps.
         (cmra_to_trans <$> Ocs Ω (genInG_id genInDepsG_gen)))
       (full_picks : ∀ i : fin gc_len, gmap gname (Oc Ω i → Oc Ω i))
     (hv : transmap_valid full_picks)
-    (_ : GenTrans (build_trans full_picks)) :
+    (_ : CmraMorphism (build_trans full_picks)) :
     trans_at_deps full_picks
       (genInG_id genInDepsG_gen)
       (rew [λ n : nat, ivec n gname] genInG_gcd_n in γs) ts →
@@ -3147,7 +3147,7 @@ Section rules_with_deps.
     iFrame "depsPickedIn".
   Qed.
 
-  Lemma picked_out_nextgen γ t `{!GenTrans t} :
+  Lemma picked_out_nextgen γ t `{!CmraMorphism t} :
     picked_out γ t -∗ ⚡==> picked_in γ t.
   Proof.
     iNamed 1.
