@@ -1,8 +1,12 @@
+From iris.base_logic.lib Require Export iprop own invariants.
+From iris.prelude Require Import options.
+From iris.algebra Require Import csum excl auth dfrac.
+
 (*
   What is the correct definition of a morphism between cameras?
 
-  With `f <$> pcore x ≡ pcore (f x)` the projections `fst` and `snd` fail to be
-  morphisms because
+  The definition in Iris requires `f <$> pcore x ≡ pcore (f x)`. With this the
+  projections `fst` and `snd` fail to be morphisms:
 
   ```
   snd <$> pcore (Excl (), DfracDiscarded) ≡ pcore (snd (Excl (), DfracDiscarded))
@@ -13,12 +17,24 @@
   ```
   None ≡ DfracDiscarded
   ```
+ *)
 
+(* The projection [snd] is not a [CmraMorphism]. *)
+Lemma snd_not_cmra_morphism :
+  ¬ (∀ (A B : cmra), CmraMorphism (@snd A B)).
+Proof.
+  intros ?.
+  specialize (cmra_morphism_pcore snd (Excl (), DfracDiscarded)).
+  simpl.
+  naive_solver.
+Qed.
+
+(*
   With `pcore a = Some pa → Some (f pa) ≡ pcore (f a)` the projections are
-  morphisms but then `fmap f : option A` where `f : A → A` is a morphisms is not
+  morphisms but then `fmap f : option A → option B` where `f : A → B` is a morphisms is not
   a morphism. Taking `a = Some (Excl (), DfracDiscarded)` and `pa = None`:
 
-  ```
+
   pcore (Some (Excl (), DfracDiscarded)) = Some None →
     Some (fmap snd None) ≡ pcore (fmap snd (Some (Excl (), DfracDiscarded))
   ```
@@ -26,13 +42,12 @@
   implies
 
   ```
-  Some None ≡ Some DfracDiscarded
+  Some None ≡ Some (Some DfracDiscarded)
   ```
  *)
 
-From iris.base_logic.lib Require Export iprop own invariants.
-From iris.prelude Require Import options.
-From iris.algebra Require Import csum excl auth dfrac.
+Definition test {M : cmra} (a : M) (f : M → M) : Prop :=
+  default True (pa ← pcore a; mret (Some (f pa) ≡ pcore (f a))).
 
 (* The properties that a generational transformation (GT), i.e., the function
 that transforms the ghost state into a new generation, needs to satisfy. Note
@@ -42,7 +57,8 @@ Class CmraMorphismAlt {M M2 : cmra} (f : M → M2) := {
     cmra_morphism_alt_ne :> NonExpansive f;
     cmra_morphism_alt_valid : ∀ n (a : M), ✓{n} a → ✓{n} (f a);
     cmra_morphism_alt_pcore : ∀ (a : M) pa,
-      pcore a = Some pa → Some (f pa) ≡ pcore (f a); (* CHANGED: is [f <$> pcore x ≡ pcore (f x)] in Iris *)
+      pcore a = Some pa →
+      Some (f pa) ≡ pcore (f a); (* CHANGED: is [f <$> pcore x ≡ pcore (f x)] in Iris *)
     cmra_morphism_alt_op : ∀ (a b : M), f (a ⋅ b) ≡ f a ⋅ f b
   }.
 
@@ -51,15 +67,6 @@ Global Instance gen_trans_proper {A : cmra} (f : A → A) :
 Proof. intros ?. apply: ne_proper. Qed.
 
 Global Arguments cmra_morphism_alt_op {_ _} _ {_} _ _.
-
-(* The projection [snd] is not a [CmraMorphism]. *)
-Lemma snd_not_cmra_morphism :
-  ¬ (∀ (A B : cmra), CmraMorphism (@snd A B)).
-Proof.
-  intros ?.
-  specialize (cmra_morphism_pcore snd (Excl (), DfracDiscarded)).
-  naive_solver.
-Qed.
 
 (* The projection [snd] _is_ a [CmraMorphismAlt]. *)
 Global Instance gen_trans_snd {A B : cmra} : CmraMorphismAlt (@snd A B).
@@ -85,6 +92,9 @@ Proof.
       (prodR (exclR unitO) dfracR) _ snd _
       (Some (Excl (), DfracDiscarded)) None eq_refl
   ).
+  (* simpl in Ha. *)
+  (* unfold pcore, cmra_pcore in Ha. simpl in Ha. *)
+  (* unfold option_pcore_instance in Ha. simpl in Ha. *)
   simplify_eq.
 Qed.
 
@@ -113,4 +123,3 @@ Lemma oops : False.
 Proof.
   apply fmap_option_pcore. intros ????. apply cmra_morphism_alt_pcore.
 Qed.
-
