@@ -16,17 +16,15 @@ From self.high.modalities Require Import fence.
 
 Section program.
 
-  Definition incr_both (ℓa ℓb : loc) : expr :=
-    #ℓa <-_NA #1 ;;
-    Flush #ℓa ;;
+  Definition incr_both (ℓx ℓy : loc) : expr :=
+    #ℓx <-_NA #37 ;;
+    Flush #ℓx ;;
     Fence ;;
-    #ℓb <-_NA #1.
+    #ℓy <-_NA #1.
 
-  Definition recover (ℓa ℓb : loc) : expr :=
-    let: "a" := !_NA #ℓa in
-    let: "b" := !_NA #ℓb in
-    if: "a" < "b"
-    then #() #() (* Get stuck if a=1 and b=0. *)
+  Definition recover (ℓx ℓy : loc) : expr :=
+    if: (!_NA #ℓy) = #1
+    then assert: (!_NA #ℓx = #37)
     else #().
 
 End program.
@@ -35,58 +33,56 @@ End program.
 Section specification.
   Context `{nvmG Σ}.
 
-  (* After a crash the following is possible: [a = 0, b = 0], [a = 1, b = 0],
-  and [a = 1, b = 1]. The case that is _not_ possible is: [a = 0, b = 1]. *)
+  (* After a crash the following is possible: [a = 0, b = 0], [a = 37, b = 0],
+  and [a = 37, b = 1]. The case that is _not_ possible is: [a = 0, b = 1]. *)
 
   (* Predicate used for the location [a]. *)
-  Definition ϕa : LocationProtocol nat :=
-    {| p_inv := λ (n : nat) v, ⌜v = #n⌝%I;
+  Definition ϕx : LocationProtocol bool :=
+    {| p_inv := λ (σ : bool) v, ⌜σ = false ∧ v = #0 ∨ (σ = true ∧ v = #37)⌝%I;
        p_bumper n := n |}.
 
-  Global Instance ϕa_conditions : ProtocolConditions ϕa.
+  Global Instance ϕx_conditions : ProtocolConditions ϕx.
   Proof. split; try apply _. iIntros. by iApply post_crash_flush_pure. Qed.
 
   (* Predicate used for the location [b]. *)
-  Definition ϕb ℓa : LocationProtocol nat :=
-    {| p_inv := λ (n : nat) v, (⌜v = #n⌝ ∗ ∃ m, ⌜ n ≤ m ⌝ ∗ flush_lb ℓa ϕa m)%I;
+  Definition ϕy ℓx : LocationProtocol bool :=
+    {| p_inv := λ (σ : bool) v,
+        (⌜ σ = false ∧ v = #0 ⌝ ∨ ⌜ σ = true ∧ v = #1 ⌝ ∗ flush_lb ℓx ϕx true)%I;
        p_bumper n := n |}.
 
-  Global Instance ϕb_conditions ℓa : ProtocolConditions (ϕb ℓa).
-    split; try apply _.
-    iIntros (??) "[% lb]".
-    iDestruct "lb" as (m ?) "lb".
-    iModIntro.
-    iDestruct "lb" as "[H ?]".
-    iSplitPure; first done.
-    iExists _.
-    iDestruct (persist_lb_to_flush_lb with "H") as "$".
-    iPureIntro. etrans; done.
+  Global Instance ϕy_conditions ℓx : ProtocolConditions (ϕy ℓx).
+  Proof.
+    split; [apply _| apply _| ].
+    iIntros (??) "I !>".
+    iDestruct "I" as "[(-> & ->)|(%eq & lb & _)]".
+    - iLeft. done.
+    - iRight. iDestruct (persist_lb_to_flush_lb with "lb") as "$". done.
   Qed.
 
-  Definition crash_condition ℓa ℓb : dProp Σ :=
-    ("pts" ∷ ∃ (na nb : nat),
-      "aPer" ∷ persist_lb ℓa ϕa na ∗
-      "bPer" ∷ persist_lb ℓb (ϕb ℓa) nb ∗
-      "aPts" ∷ ℓa ↦_{ϕa} [na] ∗
-      "bPts" ∷ ℓb ↦_{ϕb ℓa} [nb])%I.
+  Definition crash_condition ℓx ℓy : dProp Σ :=
+    ("pts" ∷ ∃ (na nb : bool),
+      "aPer" ∷ persist_lb ℓx ϕx na ∗
+      "bPer" ∷ persist_lb ℓy (ϕy ℓx) nb ∗
+      "aPts" ∷ ℓx ↦_{ϕx} [na] ∗
+      "yPts" ∷ ℓy ↦_{ϕy ℓx} [nb])%I.
 
-  Lemma prove_crash_condition ℓa ℓb na nb (ssA ssB : list nat) :
+  Lemma prove_crash_condition ℓx ℓy na nb (ssA ssB : list bool) :
     (* We need to know that both lists are strictly increasing list. *)
-    ((∃ n, ssA = [n]) ∨ ssA = [0; 1]) →
-    ((∃ m, ssB = [m]) ∨ ssB = [0; 1]) →
-    persist_lb ℓa ϕa na -∗
-    persist_lb ℓb (ϕb ℓa) nb -∗
-    ℓa ↦_{ϕa} ssA -∗
-    ℓb ↦_{ϕb ℓa} ssB -∗
-    <PC> crash_condition ℓa ℓb.
+    ((∃ n, ssA = [n]) ∨ ssA = [false; true]) →
+    ((∃ m, ssB = [m]) ∨ ssB = [false; true]) →
+    persist_lb ℓx ϕx na -∗
+    persist_lb ℓy (ϕy ℓx) nb -∗
+    ℓx ↦_{ϕx} ssA -∗
+    ℓy ↦_{ϕy ℓx} ssB -∗
+    <PC> crash_condition ℓx ℓy.
   Proof.
-    iIntros (ssAEq ssBEq) "perA perB aPts bPts".
+    iIntros (ssAEq ssBEq) "perA perB aPts yPts".
     iModIntro.
     iDestruct "perA" as "[perA (% & ? & #recA)]".
     iDestruct "perB" as "[perB (% & ? & #recB)]".
     iDestruct (crashed_in_if_rec with "recA aPts") as (?? prefA) "[recA' ptsA]".
     iDestruct (crashed_in_agree with "recA recA'") as %<-.
-    iDestruct (crashed_in_if_rec with "recB bPts") as (?? prefB) "[recB' ptsB]".
+    iDestruct (crashed_in_if_rec with "recB yPts") as (?? prefB) "[recB' ptsB]".
     iDestruct (crashed_in_agree with "recB recB'") as %<-.
     iExistsN.
     iDestruct (crashed_in_persist_lb with "recA'") as "$".
@@ -118,29 +114,29 @@ Section specification.
 
   Ltac solve_cc :=
     try iModIntro (|={_}=> _)%I;
-    iApply (prove_crash_condition with "aPer bPer aPts bPts");
+    iApply (prove_crash_condition with "aPer bPer aPts yPts");
       naive_solver.
 
-  Lemma wp_incr_both ℓa ℓb s E :
-    ⊢ persist_lb ℓa ϕa 0 -∗
-      persist_lb ℓb (ϕb ℓa) 0 -∗
-      ℓa ↦_{ϕa} [0] -∗
-      ℓb ↦_{ϕb ℓa} [0] -∗
-      WPC (incr_both ℓa ℓb) @ s; E
-        {{ λ _, ℓa ↦_{ϕa} [0; 1] ∗ ℓb ↦_{ϕb ℓa} [0; 1] }}
-        {{ <PC> crash_condition ℓa ℓb }}.
+  Lemma wp_incr_both ℓx ℓy s E :
+    ⊢ persist_lb ℓx ϕx false -∗
+      persist_lb ℓy (ϕy ℓx) false -∗
+      ℓx ↦_{ϕx} [false] -∗
+      ℓy ↦_{ϕy ℓx} [false] -∗
+      WPC (incr_both ℓx ℓy) @ s; E
+        {{ λ _, ℓx ↦_{ϕx} [false; true] ∗ ℓy ↦_{ϕy ℓx} [false; true] }}
+        {{ <PC> crash_condition ℓx ℓy }}.
   Proof.
-    iIntros "#aPer #bPer aPts bPts".
+    iIntros "#aPer #bPer aPts yPts".
     rewrite /incr_both.
 
     (* The first store *)
     wpc_bind (_ <-_NA _)%E.
     iApply wpc_atomic_no_mask.
     iSplit; first solve_cc.
-    iApply (@wp_store_na with "[$aPts]").
+    iApply (wp_store_na _ _ _ _ _ true with "[$aPts]").
     { reflexivity. }
-    { suff leq : (0 ≤ 1); first apply leq. lia. }
     { done. }
+    { naive_solver. }
     simpl.
     iNext. iIntros "aPts".
     iSplit; first solve_cc.
@@ -151,7 +147,7 @@ Section specification.
     wpc_bind (Flush _)%E.
     iApply wpc_atomic_no_mask.
     iSplit; first solve_cc.
-    iApply (wp_flush_na _ _ _ _ [0] with "[$aPts]").
+    iApply (wp_flush_na _ _ _ _ [false] with "[$aPts]").
     iNext.
     iIntros "(aPts & #pLowerBound & _)".
     iSplit; first solve_cc.
@@ -170,87 +166,75 @@ Section specification.
     (* The last store *)
     iApply wpc_atomic_no_mask.
     iSplit; first solve_cc.
-    iApply (wp_store_na with "[$bPts]").
+    iApply (wp_store_na _ _ _ _ _ true with "[$yPts]").
     { reflexivity. }
-    { suff leq : (0 ≤ 1); first apply leq. lia. }
-    { iFrame "#". iPureGoal; first done. naive_solver. }
-    iNext. iIntros "bPts".
+    { done. }
+    { iRight. iFrame "#". done. }
+    iNext. iIntros "yPts".
     iSplit; first solve_cc.
     iModIntro.
-    iFrame "aPts bPts".
+    iFrame "aPts yPts".
   Qed.
 
-  Lemma wpc_recover ℓa ℓb s E :
-    crash_condition ℓa ℓb -∗
-    WPC recover ℓa ℓb @ s; E
+  Lemma wpc_recover ℓx ℓy s E :
+    crash_condition ℓx ℓy -∗
+    WPC recover ℓx ℓy @ s; E
       {{ _, True }}
-      {{ <PC> crash_condition ℓa ℓb }}.
+      {{ <PC> crash_condition ℓx ℓy }}.
   Proof.
     iNamed 1.
     rewrite /recover.
     (* iDestruct (mapsto_na_last with "aPts") as %[sA saEq]. *)
-    (* iDestruct (mapsto_na_last with "bPts") as %[sB sbEq]. *)
+    (* iDestruct (mapsto_na_last with "yPts") as %[sB sbEq]. *)
 
-    (* Load [ℓa]. *)
+    (* Load [ℓy]. *)
     wpc_bind (!_NA _)%E.
     iApply wpc_atomic_no_mask.
 
     iSplit; first solve_cc.
 
-    iApply (wp_load_na _ _ _ _ (λ v, ⌜v = #na⌝)%I with "[$aPts]"); first done.
-    { iModIntro. naive_solver. }
+    iApply (wp_load_na _ _ _ _ ((ϕy ℓx).(p_inv) nb)%I
+              with "[$yPts]"); first done.
+    { iIntros "!>" (?) "#I". iFrame "I". }
+    iIntros "!>" (?) "(yPts & I)".
+    iSplit; first solve_cc.
+    iModIntro.
+    wpc_pures; first solve_cc.
+
+    (* We now case on the disjunction in the invariant for [y]. *)
+    iDestruct "I" as "[(-> & ->)|([-> ->] & lb)]".
+    { rewrite bool_decide_eq_false_2; last done.
+      wpc_pures; first solve_cc.
+      iModIntro. done. }
+    unfold assert.
+    wpc_pures; first solve_cc.
+    iDestruct (mapsto_na_flush_lb_incl [] with "lb aPts") as %incl.
+    replace na with true.
+
+    (* Load [ℓx]. *)
+    wpc_bind (!_NA _)%E.
+    iApply wpc_atomic_no_mask. iSplit; first solve_cc.
+    iApply (wp_load_na _ _ _ _ (λ v, ⌜v = #37⌝)%I with "[$aPts]"); first done.
+    { iIntros "!>" (?) "[(% & %)|(% & %)]"; naive_solver. }
     iIntros "!>" (?) "[aPts ->]".
     iSplit; first solve_cc.
 
     iModIntro.
     wpc_pures; first solve_cc.
-
-    (* Load [ℓb]. *)
-    wpc_bind (!_NA _)%E.
-    iApply wpc_atomic_no_mask.
-    iSplit; first solve_cc.
-    iApply (wp_load_na _ _ _ _ (λ v, ∃ nb', ⌜ nb ⊑ nb' ⌝ ∗ ⌜v = #nb⌝ ∗ flush_lb ℓa _ nb')%I
-              with "[$bPts]"); first done.
-    { iModIntro. iIntros (?) "(-> & (%sB' & % & #?))".
-      iSplit. { iExists _. iFrame "#". naive_solver. }
-      rewrite /ϕb. iFrame "#". naive_solver. }
-    iIntros "!>" (?) "(bPts & (%sB' & %incl2 & -> & lub))".
-    iSplit; first solve_cc.
-
     iModIntro.
-    wpc_pures; first solve_cc.
-
-    iDestruct (mapsto_na_flush_lb_incl [] with "lub aPts") as %incl.
-    rewrite bool_decide_eq_false_2.
-    2: { rewrite subseteq_nat_le in incl. rewrite subseteq_nat_le in incl2. lia. }
-
-    wpc_pures; first solve_cc.
-
-    by iModIntro.
+    done.
   Qed.
 
-  (* FIXME: Hoare triples don't work as Perennial's Hoare triples are tied to iProp. *)
-  (* Lemma wpc_incr' (ℓa ℓb : loc) : *)
-  (*   {{{ (True : dProp Σ) }}} *)
-  (*     incr_both ℓa ℓb @ 10; ⊤ *)
-  (*   {{{ RET #(); (True : dProp Σ) }}}. *)
-
-  (* Lemma wpc_incr (ℓa ℓb : loc) : *)
-  (*   {{{ (True : dProp Σ) }}} *)
-  (*     incr_both ℓa ℓb @ 10; ⊤ *)
-  (*   {{{ RET #(); (True : dProp Σ) }}} *)
-  (*   {{{ (True : dProp Σ) }}}. *)
-
-  Lemma incr_safe s E ℓa ℓb :
-    ⊢ persist_lb ℓa ϕa 0 -∗
-      persist_lb ℓb (ϕb ℓa) 0 -∗
-      ℓa ↦_{ϕa} [0] -∗
-      ℓb ↦_{ϕb ℓa} [0] -∗
-      wpr s E (incr_both ℓa ℓb) (recover ℓa ℓb)
-        (λ _, ℓa ↦_{ϕa} [0; 1] ∗ ℓb ↦_{ϕb ℓa} [0; 1]) (λ _, True%I).
+  Lemma incr_safe s E ℓx ℓy :
+    ⊢ persist_lb ℓx ϕx false -∗
+      persist_lb ℓy (ϕy ℓx) false -∗
+      ℓx ↦_{ϕx} [false] -∗
+      ℓy ↦_{ϕy ℓx} [false] -∗
+      wpr s E (incr_both ℓx ℓy) (recover ℓx ℓy)
+        (λ _, ℓx ↦_{ϕx} [false; true] ∗ ℓy ↦_{ϕy ℓx} [false; true]) (λ _, True%I).
   Proof.
     iIntros "a b c d".
-    iApply (idempotence_wpr _ _ _ _ _ _ (<PC> crash_condition ℓa ℓb)%I
+    iApply (idempotence_wpr _ _ _ _ _ _ (<PC> crash_condition ℓx ℓy)%I
               with "[a b c d] []").
     { iApply (wp_incr_both _ _ s E with "a b c d"). }
     iModIntro. iModIntro.
@@ -263,33 +247,33 @@ End specification.
 
 (* We now create a closed proof. *)
 
-Definition init_heap ℓa ℓb : gmap loc val := {[ ℓa := #0; ℓb := #0 ]}.
+Definition init_heap ℓx ℓy : gmap loc val := {[ ℓx := #0; ℓy := #0 ]}.
 
-Lemma incr_safe_proof ℓa ℓb :
-  ℓa ≠ ℓb →
+Lemma incr_safe_proof ℓx ℓy :
+  ℓx ≠ ℓy →
   recv_adequate NotStuck
-                (incr_both ℓa ℓb `at` ⊥)
-                (recover ℓa ℓb `at` ⊥)
-                (initial_heap (init_heap ℓa ℓb),
-                  const (MaxNat 0) <$> (init_heap ℓa ℓb))
+                (incr_both ℓx ℓy `at` ⊥)
+                (recover ℓx ℓy `at` ⊥)
+                (initial_heap (init_heap ℓx ℓy),
+                  const (MaxNat 0) <$> (init_heap ℓx ℓy))
                 (λ v _, True) (λ v _, True).
 Proof.
   intros neq.
   eapply (high_recv_adequacy_2 nvmΣ _ _ _ (λ _, True) (λ _, True) 0
-                               (init_heap ℓa ℓb)
-                               ({[ ℓa; ℓb ]})
+                               (init_heap ℓx ℓy)
+                               ({[ ℓx; ℓy ]})
                                ∅).
   { set_solver. }
   { set_solver. }
   iIntros (nD).
-  set (ℓa_lif := {| loc_state := nat; loc_init := 0; loc_prot := ϕa |}).
-  set (ℓb_lif := {| loc_state := nat; loc_init := 0; loc_prot := (ϕb ℓa) |}).
-  set (lif := {[ℓa := ℓa_lif; ℓb := ℓb_lif ]} : gmap loc loc_info).
+  set (ℓx_lif := {| loc_state := bool; loc_init := false; loc_prot := ϕx |}).
+  set (ℓy_lif := {| loc_state := bool; loc_init := false; loc_prot := ϕy ℓx |}).
+  set (lif := {[ℓx := ℓx_lif; ℓy := ℓy_lif ]} : gmap loc loc_info).
   exists lif.
   rewrite /lif.
   split; first set_solver.
   iIntros "M _ _".
-  setoid_rewrite (restrict_id {[ℓa; ℓb]}); last set_solver.
+  setoid_rewrite (restrict_id {[ℓx; ℓy]}); last set_solver.
   rewrite /init_heap.
   rewrite big_sepM_insert. 2: { apply lookup_singleton_ne. done. }
   iDestruct "M" as "[(% & %look & #pa & ptsA) M]".
@@ -306,10 +290,7 @@ Proof.
   rewrite big_sepM2_singleton.
 
   iSplit.
-  { simpl.
-    iSplitPure; first done. iSplitPure; first done.
-    iExists 0. iSplitPure; first done.
-    iApply persist_lb_to_flush_lb. iApply "pa". }
+  { simpl. iSplitPure; naive_solver. }
 
   iApply (wpr_mono with "[ptsA ptsB]").
   { iApply (incr_safe with "pa pb ptsA ptsB"). }
@@ -318,4 +299,5 @@ Proof.
   - iModIntro. done.
 Qed.
 
+(* Uncomment the next line to see that the proof is truly closed. *)
 (* Print Assumptions incr_safe_proof. *)
