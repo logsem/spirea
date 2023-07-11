@@ -1,5 +1,5 @@
 SRC_DIRS := 'src' 'external'
-ALL_VFILES := $(shell find $(SRC_DIRS) -name "*.v")
+ALL_VFILES := $(shell find $(SRC_DIRS)  -not -path "external/perennial/external/coqutil/etc/coq-scripts/*" -name "*.v")
 VFILES := $(shell find 'src' -name "*.v")
 
 # extract any global arguments for Coq from _CoqProject
