@@ -12,7 +12,7 @@ Definition pcore_good (A : cmra) :=
         ∀ a', ✓ (a ⋅ a') → a ⋅ a' ≢ a
     | Some pa =>
         (* [a] has a core and it is the greatest local units. *)
-        ∀ a', ✓ (a ⋅ a') → (a ⋅ a' ≡ a) → a' ≡ pa ∨ a' ≼ pa
+        ∀ a', ✓ (a ⋅ a') → (a ⋅ a' ≡ a) → (* a' ≡ pa ∨ *) a' ≼ pa
     end.
 
     (* (* [a] has no core and no local units. *) *)
@@ -33,9 +33,10 @@ Proof.
     specialize (Hi a).
     destruct (pcore a) as [|pa] eqn:eq'.
     2: { rewrite cmra_pcore_core in eq'. inversion eq'. }
-    admit.
-  - admit.
-Admitted.
+    unfold core. rewrite eq'. simpl. intros ?.
+    apply Hi; done.
+  - intros Hg ?. rewrite cmra_pcore_core. apply Hg.
+Qed.
 
 Lemma qp_add_neq q p : (q + p ≠ q)%Qp.
 Proof.
@@ -48,9 +49,10 @@ Proof.
   - intros [?| |?] ?; try done.
     rewrite dfrac_op_own.
     intros [= ?%qp_add_neq ]. done.
-  - intros [?| |?]; try done. intros ?. left. done.
+  - intros [?| |?]; try done. intros ??. exists DfracDiscarded. done.
   - intros [?| |?] ?; try naive_solver.
     + inversion 1. apply qp_add_neq in H2. done.
+    + intros ?. exists DfracDiscarded. done.
     + inversion 1. apply qp_add_neq in H2. done.
 Qed.
 
@@ -72,7 +74,7 @@ Proof.
     2: { specialize (Hi a' Hval). done. }
     unfold core. simpl.
     rewrite eq'.
-    specialize (Hi _ Hval eqA) as [->|incl]; first done.
+    specialize (Hi _ Hval eqA) as incl.
     apply Some_included_2.
     apply incl.
   - replace None with (ε : option A) by done.
@@ -84,7 +86,7 @@ Lemma agree_pcore_good {A} : pcore_good (agreeR A).
 Proof.
   intros a. simpl.
   intros a' val eq1.
-  right. apply agree_included. rewrite -{1}eq1 comm. done.
+  apply agree_included. rewrite -{1}eq1 comm. done.
 Qed.
 
 Lemma prod_pcore_good {A B} :
@@ -102,8 +104,10 @@ Proof.
   2: { simpl. intros [a2 b2] [??] [??]. simpl in *. eapply Hb; done. }
   simpl.
   intros [a2 b2] [??] [??]. simpl in *.
-  edestruct Ha as [?|?].
-Admitted.
+  apply prod_included. split.
+  - apply Ha; try done.
+  - apply Hb; try done.
+Qed.
 
 Lemma prod_core_good {A B} `{CmraTotal A, CmraTotal B} :
   core_good A → core_good B → core_good (prodR A B).
