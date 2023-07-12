@@ -15,6 +15,11 @@ Proof.
   - done.
 Qed.
 
+#[global]
+Instance cmra_morphism_const_agree {A B : ofe} (b : B) :
+  CmraMorphism (A := agree A) (const (to_agree b)).
+Proof. apply cmra_morphism_const; [apply _|apply agree_idemp|done]. Qed.
+
 (* A [CmraMorphism] over [auth]. *)
 
 Definition fmap_pair A {B C} (f : B → C) (p : A * B) : (A * C) :=

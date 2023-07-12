@@ -9,7 +9,8 @@ From iris.prelude Require Import options.
 
 From iris_named_props Require Import named_props.
 
-From self Require Import hvec extra basic_nextgen_modality cmra_morphism_extra
+From self Require Export hvec.
+From self Require Import extra basic_nextgen_modality cmra_morphism_extra
   gen_single_shot gen_pv.
 From self.high Require Import increasing_map.
 From self.nextgen Require Import types omega generational_cmra transmap promise.
@@ -1400,6 +1401,13 @@ Section nextgen_structural_properties.
     FromModal True modality_bnextgen (⚡==> P) (⚡==> P) P | 1.
   Proof. by rewrite /FromModal. Qed.
 
+  (* Some [IntoNextgen] instances *)
+
+  #[global]
+  Instance into_nextgen_nextgen P :
+    IntoNextgen (⚡==> P) P.
+  Proof. done. Qed.
+
 End nextgen_structural_properties.
 
 (* Ownership over generational ghost state. *)
@@ -1958,6 +1966,21 @@ Section nextgen_assertion_rules.
     done.
   Qed.
 
+  Lemma own_next_gen γ (m : generational_cmraR A DS) :
+    own γ m ⊢ ⚡==> ∃ t, own γ (gen_cmra_trans t m).
+  Proof.
+    iIntros "O".
+    unfold nextgen.
+    iExists (λ i, ∅), [].
+    iSplit; first done.
+    iSplit; first done.
+    iSplit. { iApply own_picks_empty. }
+    iSplit. { iApply own_promises_empty. }
+    iIntros (full_picks ?) "_ %sub".
+    iDestruct (own_build_trans_next_gen with "O") as "O"; first done.
+    iModIntro. iExists _. iApply "O".
+  Qed.
+
   Lemma Oown_build_trans_next_gen i γ (m : generational_cmraR _ _) picks
       `{!CmraMorphism (build_trans picks)} :
     transmap_valid picks →
@@ -2043,15 +2066,9 @@ Section nextgen_assertion_rules.
   Proof.
     rewrite /know_deps.
     iIntros "H".
-    iExists (λ i, ∅), [].
-    iSplit; first done.
-    iSplit; first done.
-    iSplit. { iApply own_picks_empty. }
-    iSplit. { iApply own_promises_empty. }
-    iIntros (full_picks ?) "_ %sub".
-    iDestruct (own_build_trans_next_gen with "H") as "H"; first done.
+    iDestruct (own_next_gen with "H") as "H".
     iModIntro.
-    simpl.
+    iDestruct "H" as (t) "H".
     rewrite gen_cmra_trans_apply. simpl.
     iDestruct (own_gen_cmra_split_alt with "H") as "(_ & _ & _ & $ & _)".
   Qed.
@@ -3077,6 +3094,20 @@ Section rules_with_deps.
   Lemma transmap_overlap_resp_promises_empty prs :
     transmap_overlap_resp_promises (λ i : fin gc_len, ∅) prs.
   Proof. intros ???. right. done. Qed.
+
+  Lemma gen_own_nextgen γ a :
+    gen_own γ a ⊢ ⚡==> ∃ t, picked_in γ t ∗ gen_own γ (t a).
+  Proof.
+    iIntros "O".
+    iDestruct (own_next_gen with "O") as "O".
+    iModIntro.
+    iDestruct "O" as (t) "O".
+    iExists t.
+    iDestruct (own_gen_cmra_split_alt with "O") as "($ & _ & $ & _ & _)".
+  Qed.
+
+  #[global]
+  Instance into_nextgen_gen_own γ a : IntoNextgen _ _ := gen_own_nextgen γ a.
 
   Lemma rely_nextgen γ γs (R : rel_over DS A) (P : pred_over A) :
     own_resource_for_deps γs -∗ (* TODO: We could hide this inside [rely] or extract it from [own_promises]. *)
