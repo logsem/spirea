@@ -192,6 +192,11 @@ Class genInDepsG {n} (Σ : gFunctors) Ω (A : cmra) (DS : ivec n cmra)
     genInSelfG_id (gs i) = Oids Ω (genInG_id genInDepsG_gen) !!! (rew genInG_gcd_n in i);
 }.
 
+Global Arguments genInDepsG_gen {_ _ _ _ _ _} _.
+
+Definition genInDepsG_id `(g : genInDepsG Σ Ω A DS) :=
+  genInG_id (genInDepsG_gen g).
+
 Lemma rel_over_eq {n m A1 A2} {DS1 : ivec n cmra} {DS2 : ivec m cmra} (eq : n = m) :
   A1 = A2 →
   DS1 = rew <- eq in DS2 →
@@ -1408,6 +1413,20 @@ Section nextgen_structural_properties.
     IntoNextgen (⚡==> P) P.
   Proof. done. Qed.
 
+  Lemma nextgen_forall {A} Ψ :
+    (⚡==> (∀ a : A, Ψ a)) ⊣⊢ (∀ a : A, ⚡==> Ψ a).
+  Proof.
+    unfold nextgen.
+    setoid_rewrite bnextgen_forall.
+    iSplit.
+    - iNamed 1. iIntros (a).
+      iExists picks, prs. iFrame "%#".
+      iIntros (????).
+      iSpecialize ("contP" $! full_picks val H H0 a).
+      done.
+    - iIntros "H".
+  Abort.
+
 End nextgen_structural_properties.
 
 (* Ownership over generational ghost state. *)
@@ -1442,7 +1461,8 @@ Section generational_resources.
     gen_promise_rel_pred_list γ
       (gP (●ML rels) ⋅ gV (●ML□ rels)) (gP (●ML preds) ⋅ gV (●ML□ preds)).
 
-  Definition own_unit γ : iProp Σ := own γ (ε : generational_cmraR A DS).
+  Definition own_unit γ : iProp Σ :=
+    own γ (ε : generational_cmraR A DS).
 
   Definition own_auth_promise_list γ rels preds : iProp Σ :=
     gen_promise_rel_pred_list γ (gPV (●ML rels)) (gPV (●ML preds)).
@@ -1473,34 +1493,8 @@ Definition know_promise {n : nat} {DS : ivec n cmra} `{g : !genInG Σ Ω A DS}
   "%prs_wf" ∷ ⌜ promises_wf Ω.(gc_map_wf) promises ⌝ ∗
   "#prs" ∷ own_promises promises.
 
-Section generational_resources_with_deps.
-  Context {n : nat} {DS : ivec n cmra}
-    `{g : !genInG Σ Ω A DS}.
-    (* `{gs : ∀ (i : fin n), genInSelfG Σ Ω (DS !!! i)} *)
-    (* `{g : !genInDepsG Σ Ω A DS}. *)
-
-  (** Ownership over the token and the promises for [γ]. *)
-  Definition token (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
-    ∃ (rels : list (rel_over DS A)) preds promises pia,
-      "#tokenPromise" ∷ know_promise γ γs R P pia promises ∗
-      "token" ∷ gen_pick_out γ GTS_tok_both ∗
-      "%pred_prefix" ∷ ⌜ pred_prefix_list_for' rels preds R P ⌝ ∗
-      "auth_preds" ∷ own_auth_promise_list γ rels preds.
-  (* ∗ *)
-  (*     "ownDeps" ∷ own_resource_for_deps γs. *)
-
-  Definition used_token (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
-    ∃ (rels : list (rel_over DS A)) preds promises pia,
-      "tokenPromise" ∷ know_promise γ γs R P pia promises ∗
-      "%pred_prefix" ∷ ⌜ pred_prefix_list_for' rels preds R P ⌝ ∗
-      "frocenAuthPreds" ∷ own_frozen_auth_promise_list γ rels preds ∗
-      "usedToken" ∷ gen_pick_out γ GTS_tok_perm.
-  (* ∗ "ownDeps" ∷ own_resource_for_deps γs. *)
-
-  (** Knowledge that γ is accociated with the predicates R and P. *)
-  Definition rely (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
-    ∃ promises pia,
-      "#relyPromise" ∷ know_promise γ γs R P pia promises.
+Section generational_resources.
+  Context {n : nat} {DS : ivec n cmra} `{g : !genInG Σ Ω A DS}.
 
   Definition picked_out γ t : iProp Σ :=
     ∃ (picks : TransMap Ω),
@@ -1513,10 +1507,44 @@ Section generational_resources_with_deps.
   Definition picked_in γ (t : A → A) : iProp Σ :=
     own γ (gc_tup_pick_in DS t).
 
+End generational_resources.
+
+Section generational_resources_with_deps.
+  Context {n : nat} {DS : ivec n cmra}
+    (* `{g : !genInG Σ Ω A DS}. *)
+    `{gs : ∀ (i : fin n), genInSelfG Σ Ω (DS !!! i)}
+    `{g : !genInDepsG Σ Ω A DS}.
+
+  (** Ownership over the token and the promises for [γ]. *)
+  Definition token (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
+    ∃ (rels : list (rel_over DS A)) preds promises pia,
+      "#tokenPromise" ∷ know_promise γ γs R P pia promises ∗
+      "token" ∷ gen_pick_out γ GTS_tok_both ∗
+      "%pred_prefix" ∷ ⌜ pred_prefix_list_for' rels preds R P ⌝ ∗
+      "auth_preds" ∷ own_auth_promise_list γ rels preds ∗
+      (* We could extract this resource from [know_promise], but keeping it
+       * here might be easier *)
+      "#ownDeps" ∷ own_resource_for_deps γs.
+
+  Definition used_token (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
+    ∃ (rels : list (rel_over DS A)) preds promises pia,
+      "tokenPromise" ∷ know_promise γ γs R P pia promises ∗
+      "%pred_prefix" ∷ ⌜ pred_prefix_list_for' rels preds R P ⌝ ∗
+      "frocenAuthPreds" ∷ own_frozen_auth_promise_list γ rels preds ∗
+      "usedToken" ∷ gen_pick_out γ GTS_tok_perm ∗
+      "#ownDeps" ∷ own_resource_for_deps γs.
+
+  (** Knowledge that γ is accociated with the predicates R and P. *)
+  Definition rely (γ : gname) (γs : ivec n gname) R P : iProp Σ :=
+    ∃ promises pia,
+      "#relyPromise" ∷ know_promise γ γs R P pia promises ∗
+      "#ownDeps" ∷ own_resource_for_deps γs.
+
 End generational_resources_with_deps.
 
 Definition rely_self `{g : !genInSelfG Σ Ω A} γ (P : pred_over A) : iProp Σ :=
-  ∃ γs R, let g := genInSelfG_gen g in rely γ γs R P.
+  ∃ γs R promises pia,
+    "#relyPromise" ∷ know_promise (g := genInSelfG_gen g) γ γs R P pia promises.
 
 Equations True_preds_for {n} (ts : ivec n cmra) : preds_for n ts :=
 | inil => hnil;
@@ -1690,12 +1718,13 @@ Lemma list_picked_out {n : nat} {DS : ivec n cmra}
             (γs !!! idx) (hvec_lookup_fmap ts idx)) -∗
   ∃ trans,
     ⌜ transmap_valid trans ⌝ ∗
-    ⌜ trans_at_deps trans (genInG_id genInDepsG_gen)
+    ⌜ trans_at_deps trans (genInDepsG_id g)
       (rew [λ n, ivec n _] genInG_gcd_n in γs)
       (rew [λ a, a] trans_for_genInG in ts) ⌝ ∗
     own_picks trans.
 Proof.
   destruct g. destruct genInDepsG_gen0. simpl in *.
+  unfold genInDepsG_id in *.
   unfold genInG_inG in *.
   (* Set Printing All. *)
   unfold Oids in *. unfold Oeq in *. unfold Ogid in *. simpl. unfold Ocs in *.
@@ -1785,12 +1814,12 @@ Lemma promises_has_deps_rew {n : nat} {DS : ivec n cmra}
       rew [pred_over] genInG_gti_typ in hvec_lookup_fmap deps_preds idx)
     prs →
   promises_has_deps_raw
-    (λ idx : fin (On Ω (genInG_id genInDepsG_gen)),
-       Oids Ω (genInG_id genInDepsG_gen) !!! idx)
+    (λ idx : fin (On Ω (genInDepsG_id g)),
+       Oids Ω (genInDepsG_id g) !!! idx)
     (rew [λ n0 : nat, ivec n0 gname] genInG_gcd_n in γs)
-    (λ idx : fin (On Ω (genInG_id genInDepsG_gen)),
+    (λ idx : fin (On Ω (genInDepsG_id g)),
        lookup_fmap_Ocs (rew [id] preds_for_genInG in deps_preds) idx
-         (gc_map_wf (genInG_id genInDepsG_gen)))
+         (gc_map_wf (genInDepsG_id g)))
     prs.
 Proof.
   intros hasDeps i.
@@ -1819,6 +1848,7 @@ Proof.
   unfold Ocs_Oids_distr.
   unfold Oids in *.
   unfold Ocs in *.
+  unfold genInDepsG_id in *.
   simpl in *.
   generalize (gc_map_wf genInG_id0 i).
   clear -str.
@@ -1849,12 +1879,12 @@ Lemma list_rely_self' {n : nat} {DS : ivec n cmra}
     ⌜ promises_wf Ω.(gc_map_wf) prs ⌝ ∗
     (* contains every promise in [γs] with the pred in [deps_preds] *)
     ⌜ promises_has_deps_raw
-        (λ idx : fin (On Ω (genInG_id genInDepsG_gen)),
-          Oids Ω (genInG_id genInDepsG_gen) !!! idx)
+        (λ idx : fin (On Ω (genInDepsG_id g)),
+          Oids Ω (genInDepsG_id g) !!! idx)
         (rew [λ n, ivec n gname] genInG_gcd_n in γs)
-        (λ idx : fin (On Ω (genInG_id genInDepsG_gen)),
+        (λ idx : fin (On Ω (genInDepsG_id g)),
           lookup_fmap_Ocs (rew [id] preds_for_genInG in deps_preds) idx
-            (gc_map_wf (genInG_id genInDepsG_gen)))
+            (gc_map_wf (genInDepsG_id g)))
         prs ⌝ ∗
     own_promises prs.
 Proof.
@@ -1943,7 +1973,7 @@ Qed.
 
 Section nextgen_assertion_rules.
   (* Rules about the nextgen modality. *)
-  Context {n : nat} {DS : ivec n cmra} `{!genInG Σ Ω A DS}.
+  Context {n : nat} {DS : ivec n cmra} `{g : !genInG Σ Ω A DS}.
 
   Lemma own_build_trans_next_gen γ (m : generational_cmraR A DS) picks
       `{!CmraMorphism (build_trans picks)} :
@@ -2089,6 +2119,59 @@ Section nextgen_assertion_rules.
     done.
   Qed.
 
+  Lemma know_promise_extract_frag γ γs R P pia promises :
+    know_promise γ γs R P pia promises ⊢
+    ∃ rels' (preds' : list (pred_over A)),
+      ⌜ pred_prefix_list_for' rels' preds' R P ⌝ ∗
+      know_deps γ γs ∗
+      gen_promise_rel_pred_list γ (gPV (◯ML rels')) (gPV (◯ML preds')).
+  Proof.
+    iNamed 1.
+    unfold own_promises.
+    apply promises_lookup_at_Some in pia_in as elem.
+    rewrite big_sepL_forall_elem_of.
+    iSpecialize ("prs" $! _ elem).
+    iDestruct "prs" as (???) "-#prs". simpl in *.
+    (* rewrite /gen_promise_rel_pred_list own.own_eq /own.own_def. *)
+    (* rewrite /own.iRes_singleton. simpl. *)
+    iExists (rew <- rel_over_Oc_Ocs_genInG in Rs).
+    iExists (rew <- pred_over_Oc_genInG in Ps).
+    unfold gen_promise_rel_pred_list.
+    unfold own_promise_info_resource.
+    simpl.
+    unfold know_deps.
+    rewrite -own_op.
+    rewrite 1!own_gen_cmra_data_to_inG.
+    unfold omega_genInG_cmra_eq.
+    unfold rel_over_Oc_Ocs_genInG.
+    unfold gc_tup_rel_pred.
+    unfold Oown.
+    destruct pia_for as (-> & predEq & relEq).
+    unfold rel_over_Oc_Ocs_genInG in *.
+    unfold pred_over_Oc_genInG.
+    destruct pia.
+    destruct g.
+    unfold promise_info_for in *.
+    simpl in *.
+    clear -H predEq relEq.
+    unfold Ocs in *.
+    destruct (gc_map Ω genInG_id0). simpl in *.
+    destruct genInG_gcd_n0.
+    destruct genInG_gti_typ0.
+    unfold eq_rect_r in *. simpl in *.
+    destruct genInG_gcd_deps0.
+    rewrite generational_cmraR_transp_refl.
+    simpl.
+    simpl in relEq.
+    rewrite -predEq -relEq.
+    iSplit; first done.
+    iStopProof.
+    f_equiv.
+    simpl.
+    rewrite 5!pair_included.
+    split_and!; try done.
+  Qed.
+
 End nextgen_assertion_rules.
 
 Section rules_with_deps.
@@ -2206,7 +2289,7 @@ Section rules_with_deps.
   (* Translates between the omega based resource in [own_promise_info] and
    * [genInG] based ones. *)
   Lemma own_promise_info_own' γ pia :
-    own_promise_info (MkPi (genInG_id genInDepsG_gen) γ pia) ⊣⊢
+    own_promise_info (MkPi (genInDepsG_id g) γ pia) ⊣⊢
     (∃ Rs Ps,
       ⌜ pred_prefix_list_for' Rs Ps
           (rew <- [id] rel_over_Oc_Ocs_genInG in pia.(pi_rel))
@@ -2220,6 +2303,7 @@ Section rules_with_deps.
     unfold own_promise_info_resource.
     unfold know_deps.
     unfold gen_promise_rel_pred_list.
+    unfold genInDepsG_id in *.
     simpl in *.
     destruct genInDepsG_gen. simpl in *.
     unfold rel_over_Oc_Ocs_genInG in *.
@@ -2250,14 +2334,16 @@ Section rules_with_deps.
    * [genInG] based ones. *)
   Lemma own_promise_info_own γ γs R P pia :
     promise_info_for pia γs R P →
-    own_promise_info (MkPi (genInG_id genInDepsG_gen) γ pia) ⊣⊢
+    own_promise_info (MkPi (genInDepsG_id g) γ pia) ⊣⊢
     (∃ Rs Ps,
       ⌜ pred_prefix_list_for' Rs Ps R P ⌝ ∗
       know_deps γ γs ∗
       own_frag_promise_list γ Rs Ps).
   Proof.
+    unfold genInDepsG_id in *. simpl.
     rewrite own_promise_info_own'.
-    intros (-> & -> & ->).
+    intros (eq1 & eq2 & eq3).
+    rewrite eq1 eq2 eq3.
     rewrite 3!rew_opp_l.
     done.
   Qed.
@@ -2311,7 +2397,19 @@ Section rules_with_deps.
     iFrame "B1".
     iFrame "A'".
     rewrite /know_promise.
-    iSplit. 2: { iPureIntro. apply pred_prefix_list_for'_True. }
+    iSplit. 2: {
+      iSplit.
+      - iPureIntro. apply pred_prefix_list_for'_True.
+      - unfold own_resource_for_deps.
+        iIntros (idx).
+        iDestruct ("relys" $! idx) as (γs2 ???) "D".
+        iDestruct (know_promise_extract_frag with "D") as (???) "(-#DD & _)".
+        unfold own_unit. unfold know_deps.
+        iClear "relys ownPrs D OD B2".
+        iStopProof.
+        f_equiv. simpl.
+        exists (gc_tup_deps (DS !!! idx) genInSelfG_DS (ivec_to_list γs2)).
+        done. }
     iSplit; first done.
     iSplit. { iPureIntro. apply promises_lookup_at_cons. }
     iSplit.
@@ -2502,6 +2600,112 @@ Section rules_with_deps.
     apply: pred_prefix_list_for_prefix_of; done.
   Qed.
 
+  Lemma big_helper_lemma (i : fin n) γs iid
+    (* wf *)
+    (genInG_gti_typ : DS !!! i = Oc Ω iid)
+    (ts : hvec (On Ω (genInDepsG_id g))
+      (cmra_to_trans <$> Ocs Ω (genInDepsG_id g)))
+    (full_picks : ∀ i : fin gc_len, gmap gname (Oc Ω i → Oc Ω i))
+    (transAt : full_picks
+                (Oids Ω (genInDepsG_id g) !!! rew [fin] genInG_gcd_n in i)
+              !! (rew [λ n : nat, ivec n gname] genInG_gcd_n in γs
+                  !!! rew [fin] genInG_gcd_n in i) =
+              Some
+                (lookup_fmap_Ocs ts (rew [fin] genInG_gcd_n in i)
+                   (gc_map_wf (genInDepsG_id g))))
+    (idEq : iid =
+         Oids Ω (genInDepsG_id g) !!! rew [fin] genInG_gcd_n in i) :
+      (rew <- [cmra_to_trans] genInG_gti_typ in
+        default (λ a : Oc Ω (iid), a)
+          (full_picks (iid) !! (γs !!! i))) =
+      (hvec_lookup_fmap (rew <- [id] trans_for_genInG in ts) i).
+  Proof.
+    unfold genInDepsG_id in *.
+    unfold lookup_fmap_Ocs in *.
+    unfold Ocs_Oids_distr in *.
+    unfold Ocs in *.
+    destruct (eq_sym idEq). clear idEq.
+    rewrite (ivec_lookup_rew_rew (A := gname) _ γs) in transAt.
+    rewrite transAt.
+    simpl in *.
+    clear.
+    unfold trans_for_genInG.
+    destruct g. destruct genInDepsG_gen0. simpl in *.
+    generalize dependent (gc_map_wf genInG_id0 (rew [fin] genInG_gcd_n0 in i)).
+    intros wfa.
+    unfold Oids in *.
+    unfold Ocs in *.
+    destruct (gc_map Ω genInG_id0). simpl in *.
+    destruct genInG_gcd_n0. simpl in *.
+    unfold eq_rect_r in *. simpl in *.
+    destruct genInG_gcd_deps0. simpl in *.
+    clear.
+    generalize dependent (eq_sym wfa).
+    generalize dependent (eq_sym genInG_gti_typ).
+    set (ll := hvec_lookup_fmap ts i).
+    generalize dependent ll.
+    clear -genInG_gti_typ.
+    set (C := Oc Ω (gcd_deps_ids !!! i)). rewrite -/C. generalize dependent C.
+    destruct genInG_gti_typ.
+    intros ????.
+    destruct e.
+    simpl.
+    (* Provable with UIP *)
+  Admitted.
+
+  Lemma own_resource_for_deps_pick_in
+      (γs : ivec n gname)
+      (ts : hvec (On Ω (genInDepsG_id g))
+        (cmra_to_trans <$> Ocs Ω (genInDepsG_id g)))
+      (full_picks : ∀ i : fin gc_len, gmap gname (Oc Ω i → Oc Ω i))
+    (hv : transmap_valid full_picks)
+    (_ : CmraMorphism (build_trans full_picks)) :
+    trans_at_deps full_picks
+      (genInDepsG_id g)
+      (rew [λ n : nat, ivec n gname] genInG_gcd_n in γs) ts →
+    own_resource_for_deps γs -∗
+    ⚡={build_trans full_picks}=>
+      (∀ i : fin n,
+        picked_in (g := genInSelfG_gen (gs i)) (γs !!! i)
+          (hvec_lookup_fmap (rew <- [id] trans_for_genInG in ts) i)).
+  Proof.
+    unfold own_resource_for_deps.
+    iIntros (transAt) "OR".
+    rewrite bnextgen_forall.
+    iIntros (i).
+    specialize (transAt (rew genInG_gcd_n in i)). simpl in *.
+    iSpecialize ("OR" $! i).
+    iDestruct (own_build_trans_next_gen_picked_in with "OR") as "OR"; first done.
+    iModIntro.
+    pose proof (genInDepsG_eqs i).
+    erewrite big_helper_lemma; done.
+  Qed.
+
+  Lemma own_resource_for_deps_nextgen γs full_picks
+      (hv : transmap_valid full_picks) `{!CmraMorphism (build_trans full_picks)} :
+    own_resource_for_deps γs ⊢
+    ⚡={build_trans full_picks}=> own_resource_for_deps γs.
+  Proof.
+    iIntros "O".
+    (* iExists (λ i, ∅), []. *)
+    (* do 2 (iSplit; first done). *)
+    (* iSplit. { iApply own_picks_empty. } *)
+    (* iSplit. { iApply own_promises_empty. } *)
+    (* iIntros (full_picks ? ? ?). *)
+    rewrite bnextgen_forall.
+    iIntros (idx).
+    iSpecialize ("O" $! idx).
+    iDestruct (own_build_trans_next_gen with "O") as "O"; first done.
+    iModIntro.
+    iApply own_mono; last done.
+    simpl.
+    eexists (gen_cmra_trans
+      (rew <- [cmra_to_trans] genInG_gti_typ in
+       default (λ a : Oc Ω (genInG_id (genInSelfG_gen (gs idx))), a)
+         (full_picks (genInG_id (genInSelfG_gen (gs idx))) !! (γs !!! idx))) ε).
+         done.
+  Qed.
+
   Lemma token_nextgen γ γs (R : rel_over DS A) P :
     used_token γ γs R P ⊢ ⚡==> token γ γs R P.
   Proof.
@@ -2511,6 +2715,8 @@ Section rules_with_deps.
     iSplit. { iApply own_picks_empty. }
     iSplit. { iApply own_promises_empty. }
     iIntros (full_picks ? ? ?).
+    iDestruct (own_resource_for_deps_nextgen with "ownDeps") as "ownDeps'";
+      first done.
     iDestruct (own_promises_nextgen with "prs") as "prs'"; first done.
     iDestruct (own_build_trans_next_gen with "usedToken") as "-#usedToken";
       first done.
@@ -2523,12 +2729,14 @@ Section rules_with_deps.
       as "(_ & $ & _ & _ & _ & _)".
     iDestruct (own_gen_cmra_split_alt with "frocenAuthPreds")
       as "(_ & _ & _ & _ & A & B)".
-    iCombine "A B" as "$". done.
+    iCombine "A B" as "$".
+    iFrame "ownDeps'".
+    done.
   Qed.
 
   Lemma own_promises_auth_promise_list prs γ rels preds (R : rel_over DS A) P pia :
     pred_prefix_list_for' rels preds R P →
-    promises_lookup_at prs (genInG_id genInDepsG_gen) γ = Some pia →
+    promises_lookup_at prs (genInDepsG_id g) γ = Some pia →
     own_promises prs -∗
     own_auth_promise_list γ rels preds -∗
     ⌜ pred_stronger (rew [pred_over] genInG_gti_typ in P) pia.(pi_pred) ⌝.
@@ -2553,7 +2761,7 @@ Section rules_with_deps.
   Proof. apply deps_agree. Qed.
 
   Lemma own_promises_know_deps prs γ γs pia :
-    promises_lookup_at prs (genInG_id genInDepsG_gen) γ = Some pia →
+    promises_lookup_at prs (genInDepsG_id g) γ = Some pia →
     own_promises prs -∗
     know_deps γ γs -∗
     ⌜ γs = rew <- [λ n, ivec n _] genInG_gcd_n in pia.(pi_deps_γs) ⌝.
@@ -2573,7 +2781,7 @@ Section rules_with_deps.
     own_frag_promise_list γ (rels ++ (cons R_2 nil)) (preds ++ (cons P_2 nil)) -∗
     own_promises prs -∗
     own_promises (
-      promises_list_update (genInG_id genInDepsG_gen) γ
+      promises_list_update (genInDepsG_id g) γ
       (make_pia γs deps_preds R_2 P_2 relToPred evidence) prs).
   Proof.
     iIntros (wf ?) "OD OF OP".
@@ -2641,7 +2849,9 @@ Section rules_with_deps.
     iDestruct (auth_promise_list_frag with "a") as "[$ #frag_preds]".
     iModIntro.
     unfold know_promise.
-    iSplit. 2: { iPureIntro. eapply pred_prefix_list_for'_grow; done. }
+    iSplit. 2: {
+      iFrame "ownDeps".
+      iPureIntro. eapply pred_prefix_list_for'_grow; done. }
     iSplit; first done.
     iSplit.
     { iPureIntro. eapply promises_lookup_update. done. }
@@ -2714,66 +2924,13 @@ Section rules_with_deps.
     apply V.
   Qed.
 
-  Lemma know_promise_extract_frag γ γs R P pia promises :
-    know_promise γ γs R P pia promises ⊢
-    ∃ rels' (preds' : list (pred_over A)),
-      ⌜ pred_prefix_list_for' rels' preds' R P ⌝ ∗
-      know_deps γ γs ∗
-      gen_promise_rel_pred_list γ (gPV (◯ML rels')) (gPV (◯ML preds')).
-  Proof.
-    iNamed 1.
-    unfold own_promises.
-    apply promises_lookup_at_Some in pia_in as elem.
-    rewrite big_sepL_forall_elem_of.
-    iSpecialize ("prs" $! _ elem).
-    iDestruct "prs" as (???) "-#prs". simpl in *.
-    (* rewrite /gen_promise_rel_pred_list own.own_eq /own.own_def. *)
-    (* rewrite /own.iRes_singleton. simpl. *)
-    iExists (rew <- rel_over_Oc_Ocs_genInG in Rs).
-    iExists (rew <- pred_over_Oc_genInG in Ps).
-    unfold gen_promise_rel_pred_list.
-    unfold own_promise_info_resource.
-    simpl.
-    unfold know_deps.
-    rewrite -own_op.
-    rewrite 1!own_gen_cmra_data_to_inG.
-    unfold omega_genInG_cmra_eq.
-    unfold rel_over_Oc_Ocs_genInG.
-    unfold gc_tup_rel_pred.
-    unfold Oown.
-    destruct pia_for as (-> & predEq & relEq).
-    unfold rel_over_Oc_Ocs_genInG in *.
-    unfold pred_over_Oc_genInG.
-    destruct pia.
-    destruct g as [gg ?]. destruct gg.
-    unfold promise_info_for in *.
-    simpl in *.
-    clear -H predEq relEq.
-    unfold Ocs in *.
-    destruct (gc_map Ω genInG_id0). simpl in *.
-    destruct genInG_gcd_n0.
-    destruct genInG_gti_typ0.
-    unfold eq_rect_r in *. simpl in *.
-    destruct genInG_gcd_deps0.
-    rewrite generational_cmraR_transp_refl.
-    simpl.
-    simpl in relEq.
-    rewrite -predEq -relEq.
-    iSplit; first done.
-    iStopProof.
-    f_equiv.
-    simpl.
-    rewrite 5!pair_included.
-    split_and!; try done.
-  Qed.
-
   Lemma own_picks_gen_pick_out trans γ :
     own_picks trans -∗
     gen_pick_out γ GTS_tok_gen -∗
-    ⌜ trans (genInG_id genInDepsG_gen) !! γ = None ⌝.
+    ⌜ trans (genInDepsG_id g) !! γ = None ⌝.
   Proof.
     iIntros "O1 O2".
-    destruct (trans (genInG_id genInDepsG_gen) !! γ) eqn:look;
+    destruct (trans (genInDepsG_id g) !! γ) eqn:look;
       last naive_solver.
     iDestruct ("O1" $! _ _ _ look) as (????????) "O1".
     unfold gen_pick_out.
@@ -2787,14 +2944,14 @@ Section rules_with_deps.
   Qed.
 
   Lemma own_picks_insert γ (t : A → A) trans (* γs ts Rs R Ps *) :
-    trans (genInG_id genInDepsG_gen) !! γ = None →
+    trans (genInDepsG_id g) !! γ = None →
     own_pick
-      (transmap_singleton (genInG_id genInDepsG_gen) γ
+      (transmap_singleton (genInDepsG_id g) γ
          (rew [cmra_to_trans] genInG_gti_typ in t) ∪ trans)
-      (genInG_id genInDepsG_gen) γ (rew [cmra_to_trans] genInG_gti_typ in t) -∗
+      (genInDepsG_id g) γ (rew [cmra_to_trans] genInG_gti_typ in t) -∗
     own_picks trans -∗
     own_picks
-      (transmap_singleton (genInG_id genInDepsG_gen) γ (rew [cmra_to_trans] genInG_gti_typ in t) ∪ trans).
+      (transmap_singleton (genInDepsG_id g) γ (rew [cmra_to_trans] genInG_gti_typ in t) ∪ trans).
   Proof.
     iIntros (no) "OP O".
     iIntros (??? [look|look]%transmap_lookup_union_Some).
@@ -2867,7 +3024,7 @@ Section rules_with_deps.
     iModIntro.
     iSplitL "auth_preds".
     { repeat iExists _. iCombine "auth_preds fr" as "$". iFrame "#". done. }
-    set (id := genInG_id genInDepsG_gen).
+    set (id := genInDepsG_id g).
     iExists (
       transmap_singleton id γ (rew [cmra_to_trans] genInG_gti_typ in t) ∪ trans
     ).
@@ -2903,6 +3060,7 @@ Section rules_with_deps.
     iCombine "tokShot fr deps" as "O".
     iApply (own_mono with "O").
     clear.
+    unfold genInDepsG_id in *.
     unfold omega_genInG_cmra_eq.
     destruct g. destruct genInDepsG_gen0. simpl in*. clear.
     unfold Ocs in *.
@@ -2925,7 +3083,8 @@ Section rules_with_deps.
     token γ γs R1 P1 -∗ rely γ γs R2 P2 -∗ ⌜ rel_stronger R1 R2 ⌝.
   Proof.
     iNamed 1. iNamed "tokenPromise".
-    iNamed 1.
+    iDestruct 1 as (??) "(relyPromise & _)".
+    (* iNamed 1. *)
     iDestruct (know_promise_extract_frag with "relyPromise")
       as (?? pref) "[_ fragPreds]".
     iDestruct (own_valid_2 with "auth_preds fragPreds") as "val".
@@ -3007,88 +3166,8 @@ Section rules_with_deps.
       (rel_stronger R2 R1 ∧ pred_stronger P2 P1) ⌝.
   Proof.
     iNamed 1.
-    iDestruct 1 as (??) "relyPromise2".
+    iDestruct 1 as (??) "(relyPromise2 & _)".
     iDestruct (know_promise_combine with "relyPromise relyPromise2") as "$".
-  Qed.
-
-  Lemma big_helper_lemma (i : fin n) γs iid
-    (* wf *)
-    (genInG_gti_typ : DS !!! i = Oc Ω iid)
-    (ts : hvec (On Ω (genInG_id genInDepsG_gen))
-      (cmra_to_trans <$> Ocs Ω (genInG_id genInDepsG_gen)))
-    (full_picks : ∀ i : fin gc_len, gmap gname (Oc Ω i → Oc Ω i))
-    (transAt : full_picks
-                (Oids Ω (genInG_id genInDepsG_gen) !!! rew [fin] genInG_gcd_n in i)
-              !! (rew [λ n : nat, ivec n gname] genInG_gcd_n in γs
-                  !!! rew [fin] genInG_gcd_n in i) =
-              Some
-                (lookup_fmap_Ocs ts (rew [fin] genInG_gcd_n in i)
-                   (gc_map_wf (genInG_id genInDepsG_gen))))
-    (idEq : iid =
-         Oids Ω (genInG_id genInDepsG_gen) !!! rew [fin] genInG_gcd_n in i) :
-      (rew <- [cmra_to_trans] genInG_gti_typ in
-        default (λ a : Oc Ω (iid), a)
-          (full_picks (iid) !! (γs !!! i))) =
-      (hvec_lookup_fmap (rew <- [id] trans_for_genInG in ts) i).
-  Proof.
-    unfold lookup_fmap_Ocs in *.
-    unfold Ocs_Oids_distr in *.
-    unfold Ocs in *.
-    destruct (eq_sym idEq). clear idEq.
-    rewrite (ivec_lookup_rew_rew (A := gname) _ γs) in transAt.
-    rewrite transAt.
-    simpl in *.
-    clear.
-    unfold trans_for_genInG.
-    destruct g. destruct genInDepsG_gen0. simpl in *.
-    generalize dependent (gc_map_wf genInG_id0 (rew [fin] genInG_gcd_n0 in i)).
-    intros wfa.
-    unfold Oids in *.
-    unfold Ocs in *.
-    destruct (gc_map Ω genInG_id0). simpl in *.
-    destruct genInG_gcd_n0. simpl in *.
-    unfold eq_rect_r in *. simpl in *.
-    destruct genInG_gcd_deps0. simpl in *.
-    clear.
-    generalize dependent (eq_sym wfa).
-    generalize dependent (eq_sym genInG_gti_typ).
-    set (ll := hvec_lookup_fmap ts i).
-    generalize dependent ll.
-    clear -genInG_gti_typ.
-    set (C := Oc Ω (gcd_deps_ids !!! i)). rewrite -/C. generalize dependent C.
-    destruct genInG_gti_typ.
-    intros ????.
-    destruct e.
-    simpl.
-    (* Provable with UIP *)
-  Admitted.
-
-  Lemma own_resource_for_deps_pick_in
-      (γs : ivec n gname)
-      (ts : hvec (On Ω (genInG_id genInDepsG_gen))
-        (cmra_to_trans <$> Ocs Ω (genInG_id genInDepsG_gen)))
-      (full_picks : ∀ i : fin gc_len, gmap gname (Oc Ω i → Oc Ω i))
-    (hv : transmap_valid full_picks)
-    (_ : CmraMorphism (build_trans full_picks)) :
-    trans_at_deps full_picks
-      (genInG_id genInDepsG_gen)
-      (rew [λ n : nat, ivec n gname] genInG_gcd_n in γs) ts →
-    own_resource_for_deps γs -∗
-    ⚡={build_trans full_picks}=>
-      (∀ i : fin n,
-        picked_in (g := genInSelfG_gen (gs i)) (γs !!! i)
-          (hvec_lookup_fmap (rew <- [id] trans_for_genInG in ts) i)).
-  Proof.
-    unfold own_resource_for_deps.
-    iIntros (transAt) "OR".
-    rewrite bnextgen_forall.
-    iIntros (i).
-    specialize (transAt (rew genInG_gcd_n in i)). simpl in *.
-    iSpecialize ("OR" $! i).
-    iDestruct (own_build_trans_next_gen_picked_in with "OR") as "OR"; first done.
-    iModIntro.
-    pose proof (genInDepsG_eqs i).
-    erewrite big_helper_lemma; done.
   Qed.
 
   Lemma transmap_overlap_resp_promises_empty prs :
@@ -3110,7 +3189,7 @@ Section rules_with_deps.
   Instance into_nextgen_gen_own γ a : IntoNextgen _ _ := gen_own_nextgen γ a.
 
   Lemma rely_nextgen γ γs (R : rel_over DS A) (P : pred_over A) :
-    own_resource_for_deps γs -∗ (* TODO: We could hide this inside [rely] or extract it from [own_promises]. *)
+    (* own_resource_for_deps γs -∗ (* TODO: We could hide this inside [rely] or extract it from [own_promises]. *) *)
     rely γ γs R P -∗
     ⚡==>
       rely γ γs R P ∗
@@ -3122,7 +3201,7 @@ Section rules_with_deps.
         (∀ i, picked_in (g := genInSelfG_gen (gs i)) (γs !!! i) (hvec_lookup_fmap ts i)).
   Proof.
     rewrite /rely.
-    iIntros "DR".
+    (* iIntros "DR". *)
     iNamed 1.
     iDestruct (know_promise_extract_frag with "relyPromise") as (?? pref1) "[? fragPreds]".
     iNamed "relyPromise".
@@ -3139,14 +3218,18 @@ Section rules_with_deps.
     edestruct (transmap_resp_promises_lookup_at)
       as (ts & t & look & ? & relHolds); [done|done| ].
     simpl in *.
-    iDestruct (own_resource_for_deps_pick_in with "DR") as "depsPickedIn"; first done.
+    iDestruct (own_resource_for_deps_pick_in with "ownDeps") as "depsPickedIn";
+      first done.
     { rewrite γs_eq in H. apply H. }
+    iDestruct (own_resource_for_deps_nextgen with "ownDeps") as "ownDeps'";
+      first done.
     iModIntro.
     rewrite look.
     iDestruct (own_gen_cmra_split with "frag_preds'")
       as "(picked_in & frag_preds' & _ & _ & A & B)".
     iSplit.
     - iExists promises, pia.
+      iFrame "ownDeps'".
       do 3 (iSplit; first done).
       iFrame "prs'".
     - iExists (rew <- [cmra_to_trans] genInG_gti_typ in t).
@@ -3191,7 +3274,7 @@ Section rules_with_deps.
     iIntros (??? sub).
     iDestruct (own_build_trans_next_gen with "shotT") as "O"; first done.
     iModIntro.
-    specialize (sub (genInG_id genInDepsG_gen)).
+    specialize (sub (genInDepsG_id g)).
     rewrite map_subseteq_spec in sub.
     eassert _ as eq. { apply sub. apply picksLook. }
     rewrite eq.
