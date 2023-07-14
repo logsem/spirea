@@ -907,9 +907,9 @@ Section own_picks.
       ⌜ huncurry R ts t ⌝ ∧
       ⌜ rel_prefix_list_for rel_weaker Rs R ⌝ ∧
       Oown i γ (
-        (ε, GTS_tok_gen_shot t, ε, Some (to_agree (ivec_to_list γs)),
-         gV (●ML□ Rs), gV (●ML□ Ps)
-      ) : generational_cmraR _ _).
+        MkGen ε (GTS_tok_gen_shot t) ε (Some (to_agree (ivec_to_list γs)))
+        (gV (●ML□ Rs)) (gV (●ML□ Ps))
+      ).
 
   (* The resource contains the agreement resources for all the picks in
    * [picks]. We need to know that a picked transformation satisfies the most
@@ -990,12 +990,12 @@ Section next_gen_definition.
   Qed.
 
   Definition own_promise_info_resource (pi : promise_info Ω)
-    (Rs : list (rel_over (Ocs Ω pi.(pi_id)) _))
-    (Ps : list (pred_over (Oc Ω pi.(pi_id)))) : iProp Σ :=
-    Oown pi.(pi_id) pi.(pi_γ) ((
-      ε, ε, ε, Some (to_agree (ivec_to_list pi.(pi_deps_γs))),
-      gPV (◯ML Rs), gPV (◯ML Ps)
-    ) : generational_cmraR _ _).
+      (Rs : list (rel_over (Ocs Ω pi.(pi_id)) _))
+      (Ps : list (pred_over (Oc Ω pi.(pi_id)))) : iProp Σ :=
+    Oown pi.(pi_id) pi.(pi_γ) (MkGen
+      ε ε ε (Some (to_agree (ivec_to_list pi.(pi_deps_γs))))
+      (gPV (◯ML Rs)) (gPV (◯ML Ps))
+    ).
 
   Definition own_promise_info (pi : promise_info Ω) : iProp Σ :=
     ∃ Rs (Ps : list (pred_over (Oc Ω pi.(pi_id)))),
@@ -1122,16 +1122,15 @@ Section own_promises_properties.
     iDestruct "O2" as (???) "O2".
     simpl in *.
     iDestruct (own_valid_2 with "O1 O2") as "#Hv".
-    rewrite -5!pair_op.
-    rewrite 1!prod_validI /=. iDestruct "Hv" as "(Hv & %Hv3)".
-    rewrite 1!prod_validI /=. iDestruct "Hv" as "(Hv & %Hv)".
-    rewrite 1!prod_validI /=. iDestruct "Hv" as "(Hv & %Hv2)".
+    rewrite gen_cmra_op_eq.
+    rewrite gen_cmra_validI.
+    iDestruct "Hv" as "(_ & _ & _ & %Hv1 & %Hv2 & %Hv3)".
     iPureIntro.
-    rewrite -Some_op Some_valid to_agree_op_valid_L in Hv2.
-    apply ivec_to_list_inj in Hv2.
-    rewrite gen_pv_op gen_pv_valid auth_frag_op_valid in Hv.
+    rewrite -Some_op Some_valid to_agree_op_valid_L in Hv1.
+    apply ivec_to_list_inj in Hv1.
+    rewrite gen_pv_op gen_pv_valid auth_frag_op_valid in Hv2.
     rewrite gen_pv_op gen_pv_valid auth_frag_op_valid in Hv3.
-    apply to_max_prefix_list_op_valid_L in Hv.
+    apply to_max_prefix_list_op_valid_L in Hv2.
     apply to_max_prefix_list_op_valid_L in Hv3.
     eapply pred_prefix_list_for_stronger; done.
   Qed.
@@ -1459,7 +1458,9 @@ Section generational_resources.
 
   Definition own_frozen_auth_promise_list γ rels preds : iProp Σ :=
     gen_promise_rel_pred_list γ
-      (gP (●ML rels) ⋅ gV (●ML□ rels)) (gP (●ML preds) ⋅ gV (●ML□ preds)).
+      (gP (●ML rels)) (gP (●ML preds)) ∗
+    gen_promise_rel_pred_list γ
+      (gV (●ML□ rels)) (gV (●ML□ preds)).
 
   Definition own_unit γ : iProp Σ :=
     own γ (ε : generational_cmraR A DS).
@@ -2044,8 +2045,7 @@ Section nextgen_assertion_rules.
     unfold Oown.
     f_equiv. simpl.
     simpl.
-    rewrite 5!pair_included.
-    split_and!; try done. apply ucmra_unit_least.
+    apply get_gen_mono; try done. apply ucmra_unit_least.
   Qed.
 
   (* NOTE: This doesn't really work as an instance since TC search can't find
@@ -2071,12 +2071,6 @@ Section nextgen_assertion_rules.
     iModIntro.
     done.
   Qed.
-
-  Global Instance left_id_prodR {C B : ucmra} : LeftId (@equiv (prodR C B) _) ε op.
-  Proof. apply ucmra_unit_left_id. Qed.
-
-  Global Instance right_id_prodR {C B : ucmra} : RightId (@equiv (prodR C B) _) ε op.
-  Proof. apply ucmra_unit_right_id. Qed.
 
   Lemma own_build_trans_next_gen_picked_in γ (m : generational_cmraR A DS) picks
       `{!CmraMorphism (build_trans picks)} :
@@ -2164,12 +2158,7 @@ Section nextgen_assertion_rules.
     simpl.
     simpl in relEq.
     rewrite -predEq -relEq.
-    iSplit; first done.
-    iStopProof.
-    f_equiv.
-    simpl.
-    rewrite 5!pair_included.
-    split_and!; try done.
+    iSplit; done.
   Qed.
 
 End nextgen_assertion_rules.
@@ -2250,7 +2239,7 @@ Section rules_with_deps.
     rewrite /own_auth_promise_list.
     rewrite /gen_promise_rel_pred_list.
     apply own_update.
-    apply prod_update; first apply prod_update; simpl; try done.
+    apply gen_cmra_update; try reflexivity.
     - apply gen_pv_update.
       apply mono_list_update.
       apply prefix_app_r.
@@ -2376,20 +2365,23 @@ Section rules_with_deps.
        gc_tup_elem DS a ⋅
        gc_tup_pick_out DS GTS_tok_both ⋅
        gc_tup_rel_pred
-         (gPV (●ML (True_rel :: []) ⋅ ◯ML (True_rel :: [])))
-         (gPV (●ML (True_pred :: []) ⋅ ◯ML (True_pred :: [])))
-       ) (promises_different_gname prs)) as (γ pHolds) "[[[OD OA] A'] B]".
+         (gPV (●ML (True_rel :: [])))
+         (gPV (●ML (True_pred :: []))) ⋅
+       gc_tup_rel_pred
+         (gPV (◯ML (True_rel :: []))) (gPV (◯ML (True_pred :: [])))
+       ) (promises_different_gname prs)) as (γ pHolds) "[[[[OD OA] A'] B1] B2]".
     { apply promises_different_gname_infinite. }
-    { split; first split; simpl; try done.
+    { split_and!; simpl; try done.
       - rewrite ucmra_unit_left_id.
+        rewrite gen_pv_op.
         apply gen_pv_valid.
         apply mono_list_both_valid.
         exists []. done.
       - rewrite ucmra_unit_left_id.
+        rewrite gen_pv_op.
         apply gen_pv_valid.
         apply mono_list_both_valid.
         exists []. done. }
-    iDestruct "B" as "[B1 B2]".
     iExists γ.
     iModIntro. iFrame "OA".
     set (pia := make_true_pia γs).
@@ -2577,8 +2569,8 @@ Section rules_with_deps.
     iIntros "O1 O2".
     iDestruct (own_valid_2 with "O1 O2") as "O".
     unfold gc_tup_rel_pred.
-    rewrite -!pair_op.
-    rewrite 5!prod_validI /= -4!assoc.
+    rewrite gen_cmra_op_eq.
+    rewrite gen_cmra_validI.
     iDestruct "O" as "(_ & _ & _ & _ & %V1 & %V2)".
     apply pair_valid in V1, V2. simpl in *.
     destruct V1 as [V1 _].
@@ -2720,17 +2712,19 @@ Section rules_with_deps.
     iDestruct (own_promises_nextgen with "prs") as "prs'"; first done.
     iDestruct (own_build_trans_next_gen with "usedToken") as "-#usedToken";
       first done.
-    iDestruct (own_build_trans_next_gen with "frocenAuthPreds") as "-#frocenAuthPreds";
-      first done.
+    iDestruct "frocenAuthPreds" as "[auth1 auth2]".
+    iCombine "auth1 auth2" as "auth".
+    iDestruct (own_build_trans_next_gen with "auth") as "-#auth"; first done.
     iModIntro.
     iExists rels, preds, promises, pia.
     iSplit. { iFrame "prs'". done. }
     iDestruct (own_gen_cmra_split_alt with "usedToken")
       as "(_ & $ & _ & _ & _ & _)".
-    iDestruct (own_gen_cmra_split_alt with "frocenAuthPreds")
+    iDestruct (own_gen_cmra_split_alt with "auth")
       as "(_ & _ & _ & _ & A & B)".
-    iCombine "A B" as "$".
     iFrame "ownDeps'".
+    unfold gen_cmra_trans. simpl.
+    iCombine "A B" as "$".
     done.
   Qed.
 
@@ -2876,8 +2870,7 @@ Section rules_with_deps.
     gen_pick_out γ GTS_tok_gen ==∗ gen_pick_out γ (GTS_tok_gen_shot t).
   Proof.
     iApply own_update.
-    repeat (apply prod_update; last done; simpl).
-    apply prod_update; first done; simpl.
+    apply gen_cmra_update; try reflexivity.
     apply prod_update; first done; simpl.
     apply option_update.
     apply cmra_update_exclusive. done.
@@ -2889,10 +2882,11 @@ Section rules_with_deps.
   Proof.
     unfold own_auth_promise_list.
     unfold own_frozen_auth_promise_list.
+    unfold gen_promise_rel_pred_list.
+    rewrite -own_op.
     iApply own_update.
-    apply prod_update; simpl.
+    apply gen_cmra_update; try reflexivity.
     - apply prod_update; simpl; first done; simpl.
-      apply prod_update; simpl; first done; simpl.
       rewrite left_id.
       apply option_update.
       apply mono_list_auth_persist.
@@ -2909,8 +2903,8 @@ Section rules_with_deps.
 
   Lemma GTS_tok_gen_rew_contradiction c :
     ✓ (GTS_tok_gen_shot c
-       ⋅ (rew [cmra_car] omega_genInG_cmra_eq in
-          gc_tup_pick_out DS GTS_tok_gen).1.1.1.1.2) → False.
+       ⋅ gc_single_shot (rew [cmra_car] omega_genInG_cmra_eq in
+          gc_tup_pick_out DS GTS_tok_gen)) → False.
   Proof.
     unfold omega_genInG_cmra_eq. simpl.
     destruct g. destruct genInDepsG_gen0. simpl in *.
@@ -2937,8 +2931,8 @@ Section rules_with_deps.
     rewrite own_gen_cmra_data_to_inG.
     iDestruct (own_valid_2 with "O1 O2") as "#Hv".
     iCombine "O1 O2" as "O".
-    do 4 (rewrite 1!prod_validI /=; iDestruct "Hv" as "(Hv & _)").
-    rewrite 1!prod_validI /=. iDestruct "Hv" as "(Hv & %Hv)".
+    rewrite gen_cmra_validI. simpl.
+    iDestruct "Hv" as "(_ & %Hv & _)".
     apply GTS_tok_gen_rew_contradiction in Hv.
     done.
   Qed.
@@ -3023,7 +3017,7 @@ Section rules_with_deps.
     iMod (own_auth_promise_list_freeze with "auth_preds") as "[auth_preds #fr]".
     iModIntro.
     iSplitL "auth_preds".
-    { repeat iExists _. iCombine "auth_preds fr" as "$". iFrame "#". done. }
+    { repeat iExists _. iFrame "auth_preds fr". iFrame "#". done. }
     set (id := genInDepsG_id g).
     iExists (
       transmap_singleton id γ (rew [cmra_to_trans] genInG_gti_typ in t) ∪ trans
@@ -3055,9 +3049,10 @@ Section rules_with_deps.
     iDestruct (know_promise_extract_frag with "tokenPromise")
       as (???) "(deps & ?)".
     unfold know_deps.
-    rewrite 3!own_gen_cmra_data_to_inG.
+    unfold gen_promise_rel_pred_list.
+    rewrite !own_gen_cmra_data_to_inG.
     unfold Oown.
-    iCombine "tokShot fr deps" as "O".
+    iCombine "deps fr tokShot " as "O".
     iApply (own_mono with "O").
     clear.
     unfold genInDepsG_id in *.
@@ -3189,7 +3184,6 @@ Section rules_with_deps.
   Instance into_nextgen_gen_own γ a : IntoNextgen _ _ := gen_own_nextgen γ a.
 
   Lemma rely_nextgen γ γs (R : rel_over DS A) (P : pred_over A) :
-    (* own_resource_for_deps γs -∗ (* TODO: We could hide this inside [rely] or extract it from [own_promises]. *) *)
     rely γ γs R P -∗
     ⚡==>
       rely γ γs R P ∗

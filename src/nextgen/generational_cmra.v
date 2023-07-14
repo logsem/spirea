@@ -8,6 +8,7 @@ From self.nextgen Require Import types.
 Import EqNotations. (* Get the [rew] notation. *)
 
 Local Infix "*R*" := prodR (at level 50, left associativity).
+Local Infix "*UR*" := prodUR (at level 50, left associativity).
 
 Section dependency_relation_cmra.
   Context {n : nat}.
@@ -19,176 +20,386 @@ Section dependency_relation_cmra.
 
 End dependency_relation_cmra.
 
-Definition generational_cmraR {n} (A : cmra) (DS : ivec n cmra) : cmra :=
+Definition mono_list (A : ofe) : Type := auth (max_prefix_listUR A).
+
+Record generational_cmra {n} (A : cmra) (DS : ivec n cmra) : Type := MkGen {
   (* Agreement on transformation into generation *)
-  optionR (agreeR (leibnizO (A → A))) *R*
+  gc_in : optionR (agreeR (leibnizO (A → A)));
   (* Facilitates choice of transformation out of generation *)
-  GTSR (A → A) *R*
+  gc_single_shot : GTSR (A → A);
   (* Ownership over A *)
-  optionR A *R*
+  gc_elem : option A;
   (* Gname of dependencies - we don't need to store their [gid] as that is static. *)
-  optionR (agreeR (leibnizO (list gname))) *R*
+  gc_deps : option (agree (leibnizO (list gname)));
   (* List of promised relations. *)
-  gen_pvR (mono_listR (rel_overO DS A)) *R*
+  gc_promises_rel : gen_pv (mono_list (rel_overO DS A));
   (* List of promised predicates. *)
-  gen_pvR (mono_listR (pred_overO A)).
+  gc_promises_pred : gen_pv (mono_list (pred_overO A));
+}.
+
+Arguments MkGen {_ _ _} _.
+Arguments gc_in {_ _ _}.
+Arguments gc_single_shot {_ _ _}.
+Arguments gc_elem {_ _ _}.
+Arguments gc_deps {_ _ _}.
+Arguments gc_promises_rel {_ _ _}.
+Arguments gc_promises_pred {_ _ _}.
+
+Local Instance gen_cmra_dist {n} {A : cmra} (DS : ivec n cmra) : Dist (generational_cmra A DS) :=
+  λ n a b,
+    gc_in a ≡{n}≡ gc_in b ∧
+    gc_single_shot a ≡{n}≡ gc_single_shot b ∧
+    gc_elem a ≡{n}≡ gc_elem b ∧
+    gc_deps a ≡{n}≡ gc_deps b ∧
+    gc_promises_rel a ≡{n}≡ gc_promises_rel b ∧
+    gc_promises_pred a ≡{n}≡ gc_promises_pred b.
+
+Section cmra.
+  Context {n : nat} (A : cmra) (DS : ivec n cmra).
+
+  #[global]
+  Instance gen_cmra_equiv : Equiv (generational_cmra A DS) :=
+    λ a b,
+      gc_in a ≡ gc_in b ∧
+      gc_single_shot a ≡ gc_single_shot b ∧
+      gc_elem a ≡ gc_elem b ∧
+      gc_deps a ≡ gc_deps b ∧
+      gc_promises_rel a ≡ gc_promises_rel b ∧
+      gc_promises_pred a ≡ gc_promises_pred b.
+
+  #[global]
+  Instance mk_gen_proper :
+    Proper (equiv ==> equiv ==> equiv ==> equiv ==> equiv ==> equiv ==> equiv) MkGen.
+  Proof. Admitted. (* solve_proper. Qed. *)
+
+  Definition generational_cmra_ofe_mixin : OfeMixin (generational_cmra A DS).
+  Proof.
+  Admitted.
+  (*   split. *)
+  (*   - intros mx my; split; [by destruct 1; constructor; apply equiv_dist|]. *)
+  (*     intros Hxy; destruct (Hxy 0); constructor; apply equiv_dist. *)
+  (*     by intros n; feed inversion (Hxy n). *)
+  (*   - apply _. *)
+  (*   - destruct 1; constructor; eauto using dist_le with si_solver. *)
+  (* Qed. *)
+  Canonical Structure generational_cmraO := Ofe (generational_cmra A DS) generational_cmra_ofe_mixin.
+
+  Local Instance gen_cmra_valid_instance : Valid (generational_cmra A DS) := λ ma,
+    ✓ (gc_in ma) ∧
+    ✓ (gc_single_shot ma) ∧
+    ✓ (gc_elem ma) ∧
+    ✓ (gc_deps ma) ∧
+    ✓ (gc_promises_rel ma) ∧
+    ✓ (gc_promises_pred ma).
+
+  Local Instance gen_cmra_validN_instance : ValidN (generational_cmra A DS) := λ n ma,
+    ✓{n} (gc_in ma) ∧
+    ✓{n} (gc_single_shot ma) ∧
+    ✓{n} (gc_elem ma) ∧
+    ✓{n} (gc_deps ma) ∧
+    ✓{n} (gc_promises_rel ma) ∧
+    ✓{n} (gc_promises_pred ma).
+
+  Local Instance gen_cmra_pcore_instance : PCore (generational_cmra A DS) := λ ma,
+    Some (MkGen
+      (core (gc_in ma))
+      (core (gc_single_shot ma))
+      (core (gc_elem ma))
+      (core (gc_deps ma))
+      (core (gc_promises_rel ma))
+      (core (gc_promises_pred ma))).
+  Local Arguments gen_cmra_pcore_instance !_ /.
+  Local Instance gen_cmra_op_instance : Op (generational_cmra A DS) :=
+    λ a b, MkGen
+      (gc_in a ⋅ gc_in b)
+      (gc_single_shot a ⋅ gc_single_shot b)
+      (gc_elem a ⋅ gc_elem b)
+      (gc_deps a ⋅ gc_deps b)
+      (gc_promises_rel a ⋅ gc_promises_rel b)
+      (gc_promises_pred a ⋅ gc_promises_pred b).
+
+  Lemma gen_cmra_op_eq a a' b b' c c' d d' e e' f f' :
+   MkGen a b c d e f ⋅ MkGen a' b' c' d' e' f' ≡
+     MkGen (a ⋅ a') (b ⋅ b') (c ⋅ c') (d ⋅ d') (e ⋅ e') (f ⋅ f').
+  Proof. done. Qed.
+
+  Lemma generational_cmra_cmra_mixin : CmraMixin (generational_cmra A DS).
+  Proof.
+    split.
+    - eauto.
+  Admitted.
+    (* - intros [?] [?] [?]. simpl. solve_proper. simpl. *)
+  Canonical Structure generational_cmraR :=
+    Cmra (generational_cmra A DS) generational_cmra_cmra_mixin.
+
+  (* Global Instance generational_cmra_cmra_discrete : CmraDiscrete A → CmraDiscrete (generational_cmraR A DS). *)
+  (* Proof. split; [apply _|]. by intros [a|]; [apply (cmra_discrete_valid a)|]. Qed. *)
+
+  Local Instance generational_cmra_unit_instance : Unit (generational_cmra A DS) :=
+    MkGen ε ε ε ε ε ε.
+    (* MkGen ε. *)
+  Lemma generational_cmra_ucmra_mixin : UcmraMixin (generational_cmraR).
+  Proof.
+    split; [done| |done]. intros [b].
+    unfold ε, generational_cmra_unit_instance. simpl.
+    simpl.
+    rewrite gen_cmra_op_eq.
+    rewrite !left_id.
+    rewrite (left_id (A := prodUR _ _) _ _ gc_single_shot0).
+    done.
+  Qed.
+  Canonical Structure generational_cmraUR := Ucmra (generational_cmra A DS) generational_cmra_ucmra_mixin.
+
+  Lemma get_gen_mono a a' b b' c c' d d' e e' f f' :
+    a ≼ a' → b ≼ b' → c ≼ c' → d ≼ d' → e ≼ e' → f ≼ f' →
+    MkGen a b c d e f ≼ MkGen a' b' c' d' e' f'.
+  Proof. Admitted. (* intros [c?]. exists (MkGen c). done. Qed. *)
+
+  #[global]
+  Instance gen_cmra_coreid a b c d e f :
+    CoreId a → CoreId b → CoreId c → CoreId d → CoreId e → CoreId f →
+    CoreId (MkGen (A := A) (DS := DS) a b c d e f).
+  Proof. constructor. simpl. rewrite 6!core_id_core. done. Qed.
+
+  Lemma gen_cmra_update a a' b b' c c' d d' e e' f f' :
+    a ~~> a' → b ~~> b' → c ~~> c' → d ~~> d' → e ~~> e' → f ~~> f' →
+    MkGen a b c d e f ~~> MkGen a' b' c' d' e' f'.
+  Proof.
+    intros Hf1 Hf2 Hf3 Hf4 Hf5 Hf6.
+    intros n' mf.
+    specialize (Hf1 n' (gc_in <$> mf)).
+    specialize (Hf2 n' (gc_single_shot <$> mf)).
+    specialize (Hf3 n' (gc_elem <$> mf)).
+    specialize (Hf4 n' (gc_deps <$> mf)).
+    specialize (Hf5 n' (gc_promises_rel <$> mf)).
+    specialize (Hf6 n' (gc_promises_pred <$> mf)).
+    intros (? & ? & ? & ? & ? & ?); simpl in *.
+    destruct mf as [[??????]|]; simpl in *; split_and!; naive_solver.
+  Qed.
+
+End cmra.
 
 Local Infix "*M*" := prod_map (at level 50, left associativity).
 
-(* The generational transformation function for the encoding of each ownership
-over a generational camera. *)
-Definition gen_cmra_trans {n} {A : cmra} {DS : ivec n cmra}
-    (f : A → A) : generational_cmraR A DS → generational_cmraR A DS :=
-  (const (Some (to_agree f)) : _ → optionR (agreeR (leibnizO (A → A)))) *M*
-  (GTS_floor : (GTSR (A → A)) → (GTSR (A → A))) *M*
-  (fmap f : optionR A → optionR A) *M*
-  id *M*
-  gen_pv_trans *M*
-  gen_pv_trans.
+Lemma gen_cmra_unit_least {n} (A : cmra) (DS : ivec n cmra) (a : generational_cmra A DS) :
+  ε ≼ a.
+Proof. apply: ucmra_unit_least. Qed.
 
+(* (* The generational transformation function for the encoding of each ownership *)
+(* over a generational camera. *) *)
+(* Definition underlying_trans {n} {A : cmra} {DS : ivec n cmra} *)
+(*     (t : A → A) : underlyingR A DS → underlyingR A DS := *)
+(*   (const (Some (to_agree t)) : _ → optionR (agreeR (leibnizO (A → A)))) *M* *)
+(*   (GTS_floor : (GTSR (A → A)) → (GTSR (A → A))) *M* *)
+(*   (fmap t : optionR A → optionR A) *M* *)
+(*   id *M* *)
+(*   gen_pv_trans *M* *)
+(*   gen_pv_trans. *)
+
+(* The generational transformation function for the encoding of each ownership
+ * over a generational camera. *)
+Definition gen_cmra_trans {n} {A : cmra} {DS : ivec n cmra} (t : A → A) :
+    generational_cmra A DS → generational_cmra A DS :=
+  λ a, MkGen
+    (Some (to_agree t))
+    (GTS_floor (gc_single_shot a))
+    (fmap t (gc_elem a))
+    (gc_deps a)
+    (gen_pv_trans (gc_promises_rel a))
+    (gen_pv_trans (gc_promises_pred a)).
+
+(* Constructors for each of the elements in the pair. *)
+
+(* Global Instance gen_trans_const {A : ofe} (a : A) : *)
+(*   CmraMorphism (A := optionR (agreeR A)) (const (Some (to_agree a))). *)
+(* Proof. *)
+(*   split; first apply _. *)
+(*   - done. *)
+(*   - intros. simpl. rewrite (core_id). done. *)
+(*   - intros ??. simpl. *)
+(*     rewrite -Some_op. *)
+(*     rewrite agree_idemp. *)
+(*     done. *)
+(* Qed. *)
+
+Section contstructors.
+  Context {n : nat}.
+  Implicit Types (A : cmra) (DS : ivec n cmra).
+
+  Definition gc_tup_pick_in {A} (DS : ivec n cmra) pick_in : generational_cmraR A DS :=
+   MkGen (Some (to_agree (pick_in))) ε ε ε ε ε.
+
+  Definition gc_tup_pick_out {A} (DS : ivec n cmra) pick_out : generational_cmraR A DS :=
+   MkGen ε pick_out ε ε ε ε.
+
+  Definition gc_tup_elem {A} (DS : ivec n cmra) a : generational_cmraR A DS :=
+   MkGen ε ε (Some a) ε ε ε.
+
+  Definition gc_tup_deps A (DS : ivec n cmra) deps : generational_cmraR A DS :=
+   MkGen ε ε ε (Some (to_agree deps)) ε ε.
+
+  Definition gc_tup_promise_list {A} {DS : ivec n cmra} l : generational_cmraR A DS :=
+   MkGen ε ε ε ε l ε.
+
+  Definition gc_tup_rel_pred {A} {DS : ivec n cmra} l1 l2 : generational_cmraR A DS :=
+   MkGen ε ε ε ε l1 l2.
+End contstructors.
+
+Section upred.
+  Context {M : ucmra}.
+  Context {n : nat} (A : cmra) (DS : ivec n cmra).
+
+  (* Force implicit argument M *)
+  Notation "P ⊢ Q" := (bi_entails (PROP:=uPredI M) P Q).
+  Notation "P ⊣⊢ Q" := (equiv (A:=uPredI M) P%I Q%I).
+  Notation "⊢ Q" := (bi_entails (PROP:=uPredI M) True Q).
+
+  Lemma gen_cmra_validI a b c d e f :
+    ✓ (MkGen (A := A) (DS := DS) a b c d e f)
+    ⊣⊢@{uPred M} ✓ a ∧ ✓ b ∧ ✓ c ∧ ✓ d ∧ ✓ e ∧ ✓ f.
+  Proof.
+    uPred.unseal. done.
+  Qed.
+
+End upred.
+
+Section lemmas.
+  Context {n : nat} (A : cmra) (DS : ivec n cmra).
+(*
 Section tuple_helpers.
   (* Working with the 6-tuple is sometimes annoying. These lemmas help. *)
   Context {A B C D E F : cmra}.
   Implicit Types (a : A) (b : B) (c : C) (d : D) (e : E) (f : F).
+ *)
 
   Lemma prod_valid_1st {Σ} a1 b1 c1 d1 e1 f1 a2 b2 c2 d2 e2 f2 :
-    ✓ ((a1, b1, c1, d1, e1, f1) ⋅ (a2, b2, c2, d2, e2, f2)) ⊢@{iProp Σ} ✓ (a1 ⋅ a2).
-  Proof. rewrite 5!prod_validI /= -4!assoc. iIntros "(? & ? & ? & ? & ? & ?)". done. Qed.
+    ✓ (MkGen (A := A) (DS := DS) a1 b1 c1 d1 e1 f1 ⋅ MkGen a2 b2 c2 d2 e2 f2) ⊢@{iProp Σ} ✓ (a1 ⋅ a2).
+  Proof. rewrite gen_cmra_op_eq gen_cmra_validI. iIntros "(? & ? & ? & ? & ? & ?)". done. Qed.
 
   Lemma prod_valid_2nd {Σ} a1 b1 c1 d1 e1 f1 a2 b2 c2 d2 e2 f2 :
-    ✓ ((a1, b1, c1, d1, e1, f1) ⋅ (a2, b2, c2, d2, e2, f2)) ⊢@{iProp Σ} ✓ (b1 ⋅ b2).
-  Proof. rewrite 5!prod_validI /= -4!assoc. iIntros "(? & ? & ? & ? & ? & ?)". done. Qed.
+    ✓ (MkGen (A := A) (DS := DS) a1 b1 c1 d1 e1 f1 ⋅ MkGen a2 b2 c2 d2 e2 f2) ⊢@{iProp Σ} ✓ (b1 ⋅ b2).
+  Proof. rewrite gen_cmra_op_eq gen_cmra_validI. iIntros "(? & ? & ? & ? & ? & ?)". done. Qed.
 
-  Lemma prod_valid_3th {Σ} a1 b1 c1 d1 e1 f1 a2 b2 c2 d2 e2 f2 :
-    ✓ ((a1, b1, c1, d1, e1, f1) ⋅ (a2, b2, c2, d2, e2, f2)) ⊢@{iProp Σ} ✓ (c1 ⋅ c2).
-  Proof. rewrite 5!prod_validI /= -4!assoc. iIntros "(? & ? & ? & ? & ? & ?)". done. Qed.
+  Lemma prod_valid_3rd {Σ} a1 b1 c1 d1 e1 f1 a2 b2 c2 d2 e2 f2 :
+    ✓ (MkGen (A := A) (DS := DS) a1 b1 c1 d1 e1 f1 ⋅ MkGen a2 b2 c2 d2 e2 f2) ⊢@{iProp Σ} ✓ (c1 ⋅ c2).
+  Proof. rewrite gen_cmra_op_eq gen_cmra_validI. iIntros "(? & ? & ? & ? & ? & ?)". done. Qed.
 
   Lemma prod_valid_4th {Σ} a1 b1 c1 d1 e1 f1 a2 b2 c2 d2 e2 f2 :
-    ✓ ((a1, b1, c1, d1, e1, f1) ⋅ (a2, b2, c2, d2, e2, f2)) ⊢@{iProp Σ} ✓ (d1 ⋅ d2).
-  Proof. rewrite 5!prod_validI /= -4!assoc. iIntros "(? & ? & ? & ? & ? & ?)". done. Qed.
+    ✓ (MkGen (A := A) (DS := DS) a1 b1 c1 d1 e1 f1 ⋅ MkGen a2 b2 c2 d2 e2 f2) ⊢@{iProp Σ} ✓ (d1 ⋅ d2).
+  Proof. rewrite gen_cmra_op_eq gen_cmra_validI. iIntros "(? & ? & ? & ? & ? & ?)". done. Qed.
 
   Lemma prod_valid_5th {Σ} a1 b1 c1 d1 e1 f1 a2 b2 c2 d2 e2 f2 :
-    ✓ ((a1, b1, c1, d1, e1, f1) ⋅ (a2, b2, c2, d2, e2, f2)) ⊢@{iProp Σ} ✓ (e1 ⋅ e2).
-  Proof. rewrite 5!prod_validI /= -4!assoc. iIntros "(? & ? & ? & ? & ? & ?)". done. Qed.
+    ✓ (MkGen (A := A) (DS := DS) a1 b1 c1 d1 e1 f1 ⋅ MkGen a2 b2 c2 d2 e2 f2) ⊢@{iProp Σ} ✓ (e1 ⋅ e2).
+  Proof. rewrite gen_cmra_op_eq gen_cmra_validI. iIntros "(? & ? & ? & ? & ? & ?)". done. Qed.
 
   Lemma prod_valid_6th {Σ} a1 b1 c1 d1 e1 f1 a2 b2 c2 d2 e2 f2 :
-    ✓ ((a1, b1, c1, d1, e1, f1) ⋅ (a2, b2, c2, d2, e2, f2))
-    ⊢@{iProp Σ} ✓ (f1 ⋅ f2).
-  Proof. rewrite 5!prod_validI /= -4!assoc. iIntros "(? & ? & ? & ? & ? & ?)". done. Qed.
+    ✓ (MkGen (A := A) (DS := DS) a1 b1 c1 d1 e1 f1 ⋅ MkGen a2 b2 c2 d2 e2 f2) ⊢@{iProp Σ} ✓ (f1 ⋅ f2).
+  Proof. rewrite gen_cmra_op_eq gen_cmra_validI. iIntros "(? & ? & ? & ? & ? & ?)". done. Qed.
 
   Lemma prod_6_equiv a1 b1 c1 d1 e1 f1 a2 b2 c2 d2 e2 f2 :
-    (a1, b1, c1, d1, e1, f1) ≡ (a2, b2, c2, d2, e2, f2)
+    MkGen (A := A) (DS := DS) a1 b1 c1 d1 e1 f1 ≡ MkGen a2 b2 c2 d2 e2 f2
     ↔ (a1 ≡ a2) ∧ (b1 ≡ b2) ∧ (c1 ≡ c2) ∧ (d1 ≡ d2) ∧ (e1 ≡ e2) ∧ (f1 ≡ f2).
-  Proof.
-    split.
-    - intros (((((? & ?) & ?) & ?) & ?) & ?). done.
-    - intros (? & ? & ? & ? & ? & ?). done.
-  Qed.
-
-  Lemma prod_6_equivI {Σ} a1 b1 c1 d1 e1 f1 a2 b2 c2 d2 e2 f2 :
-    (a1, b1, c1, d1, e1, f1) ≡ (a2, b2, c2, d2, e2, f2)
-    ⊣⊢@{iProp Σ} (a1 ≡ a2) ∧ (b1 ≡ b2) ∧ (c1 ≡ c2) ∧ (d1 ≡ d2) ∧ (e1 ≡ e2) ∧ (f1 ≡ f2).
-  Proof. rewrite !prod_equivI. simpl. rewrite -4!assoc. done. Qed.
-
-  Lemma pair_op_6 a1 b1 c1 d1 e1 f1 a2 b2 c2 d2 e2 f2 :
-    (a1, b1, c1, d1, e1, f1) ⋅ (a2, b2, c2, d2, e2, f2) =
-    (a1 ⋅ a2, b1 ⋅ b2, c1 ⋅ c2, d1 ⋅ d2, e1 ⋅ e2, f1 ⋅ f2).
   Proof. done. Qed.
 
-End tuple_helpers.
+  (* Lemma prod_6_equivI {Σ} a1 b1 c1 d1 e1 f1 a2 b2 c2 d2 e2 f2 : *)
+  (*   (a1, b1, c1, d1, e1, f1) ≡ (a2, b2, c2, d2, e2, f2) *)
+  (*   ⊣⊢@{iProp Σ} (a1 ≡ a2) ∧ (b1 ≡ b2) ∧ (c1 ≡ c2) ∧ (d1 ≡ d2) ∧ (e1 ≡ e2) ∧ (f1 ≡ f2). *)
+  (* Proof. rewrite !prod_equivI. simpl. rewrite -4!assoc. done. Qed. *)
 
-Lemma own_gen_cmra_split {Σ}
-    {A B C D E F : ucmra} `{!inG Σ (A *R* B *R* C *R* D *R* E *R* F)}
-    γ a b c d e f :
-  own γ (a, b, c, d, e, f) ⊣⊢
-    own γ (a, ε, ε, ε, ε, ε) ∗
-    own γ (ε, b, ε, ε, ε, ε) ∗
-    own γ (ε, ε, c, ε, ε, ε) ∗
-    own γ (ε, ε, ε, d, ε, ε) ∗
-    own γ (ε, ε, ε, ε, e, ε) ∗
-    own γ (ε, ε, ε, ε, ε, f).
- Proof.
-   rewrite -5!own_op.
-   f_equiv.
-   (* NOTE: Doing the split before rewriting is, for some reason, much faster
-    * than doing the rewrite without the split. *)
-   repeat split; simpl;
-     rewrite ?ucmra_unit_right_id; rewrite ?ucmra_unit_left_id; reflexivity.
-Qed.
+  (* Lemma pair_op_6 a1 b1 c1 d1 e1 f1 a2 b2 c2 d2 e2 f2 : *)
+  (*   (a1, b1, c1, d1, e1, f1) ⋅ (a2, b2, c2, d2, e2, f2) = *)
+  (*   (a1 ⋅ a2, b1 ⋅ b2, c1 ⋅ c2, d1 ⋅ d2, e1 ⋅ e2, f1 ⋅ f2). *)
+  (* Proof. done. Qed. *)
 
-(* The lemma above somehow causes [Qed]s to be very slow, this variant seems
- * slightly better. *)
-Lemma own_gen_cmra_split_alt {Σ} {n} (A : cmra) (DS : ivec n cmra)
-    `{!inG Σ (generational_cmraR A DS)} γ a b c d e f :
-  own γ (a, b, c, d, e, f) ⊢
-    own γ (a, ε, ε, ε, ε, ε) ∗
-    own γ (ε, b, ε, ε, ε, ε) ∗
-    own γ (ε, ε, c, ε, ε, ε) ∗
-    own γ (ε, ε, ε, d, ε, ε) ∗
-    own γ (ε, ε, ε, ε, e, ε) ∗
-    own γ (ε, ε, ε, ε, ε, f).
-Proof. rewrite own_gen_cmra_split. done. Qed.
+  Lemma own_gen_cmra_split {Σ} `{!inG Σ (generational_cmraR A DS)}
+      γ a b c d e f :
+    own γ (MkGen a b c d e f) ⊣⊢
+      own γ (MkGen a ε ε ε ε ε) ∗
+      own γ (MkGen ε b ε ε ε ε) ∗
+      own γ (MkGen ε ε c ε ε ε) ∗
+      own γ (MkGen ε ε ε d ε ε) ∗
+      own γ (MkGen ε ε ε ε e ε) ∗
+      own γ (MkGen ε ε ε ε ε f).
+   Proof.
+     rewrite -5!own_op.
+     f_equiv.
+     rewrite gen_cmra_op_eq. simpl.
+     (* NOTE: Doing the split before rewriting is, for some reason, slightly faster
+      * than doing the rewrite without the split. *)
+     repeat split; simpl;
+       rewrite ?ucmra_unit_right_id; rewrite ?ucmra_unit_left_id; reflexivity.
+  Qed.
 
-(* Constructors for each of the elements in the pair. *)
+  (* The lemma above somehow causes [Qed]s to be very slow, this variant seems
+   * slightly better. *)
+  Lemma own_gen_cmra_split_alt {Σ}
+      `{!inG Σ (generational_cmraR A DS)} γ a b c d e f :
+      own γ (MkGen a b c d e f) ⊣⊢
+        own γ (MkGen a ε ε ε ε ε) ∗
+        own γ (MkGen ε b ε ε ε ε) ∗
+        own γ (MkGen ε ε c ε ε ε) ∗
+        own γ (MkGen ε ε ε d ε ε) ∗
+        own γ (MkGen ε ε ε ε e ε) ∗
+        own γ (MkGen ε ε ε ε ε f).
+  Proof.
+    rewrite -5!own_op.
+    rewrite 1!gen_cmra_op_eq. simpl.
+    f_equiv.
+    repeat split; simpl;
+      rewrite ?ucmra_unit_right_id; rewrite ?ucmra_unit_left_id; reflexivity.
+  Qed.
 
-Definition gc_tup_pick_in {n A} (DS : ivec n cmra) pick_in : generational_cmraR A DS :=
- (Some (to_agree (pick_in)), ε, ε, ε, ε, ε).
-
-Definition gc_tup_pick_out {A n} (DS : ivec n cmra) pick_out : generational_cmraR A DS :=
- (ε, pick_out, ε, ε, ε, ε).
-
-Definition gc_tup_elem {A n} (DS : ivec n cmra) a : generational_cmraR A DS :=
- (ε, ε, Some a, ε, ε, ε).
-
-Definition gc_tup_deps {n} A (DS : ivec n cmra) deps : generational_cmraR A DS :=
- (ε, ε, ε, Some (to_agree deps), ε, ε).
-
-Definition gc_tup_promise_list {n A} {DS : ivec n cmra} l : generational_cmraR A DS :=
- (ε, ε, ε, ε, l, ε).
-
-Definition gc_tup_rel_pred {n A} {DS : ivec n cmra} l1 l2 : generational_cmraR A DS :=
- (ε, ε, ε, ε, l1, l2).
-
-Global Instance gen_trans_const {A : ofe} (a : A) :
-  CmraMorphism (A := optionR (agreeR A)) (const (Some (to_agree a))).
-Proof.
-  split; first apply _.
-  - done.
-  - intros. simpl. rewrite (core_id). done.
-  - intros ??. simpl.
-    rewrite -Some_op.
-    rewrite agree_idemp.
-    done.
-Qed.
-
-Section gen_cmra.
-  Context {n} {A : cmra} {DS : ivec n cmra}.
   Global Instance gen_generation_gen_trans (f : A → A)
     `{!Proper (equiv ==> equiv) f} :
     CmraMorphism f → CmraMorphism (gen_cmra_trans (DS := DS) f).
-  Proof. apply _. Qed.
+  Proof. Admitted. (* apply _. Qed. *)
+
+  (* Global Instance gen_generation_proper (f : A → A) : *)
+  (*   Proper ((≡) ==> (≡)) f → *)
+  (*   Proper ((≡) ==> (≡)) (underlying_trans (DS := DS) f). *)
+  (* Proof. *)
+  (*   intros ? [[??]?] [[??]?] [[??]?]. simpl in *. *)
+  (*   rewrite /underlying_trans. *)
+  (*   simpl in *. *)
+  (*   solve_proper. *)
+  (* Qed. *)
 
   Global Instance gen_generation_proper (f : A → A) :
     Proper ((≡) ==> (≡)) f →
     Proper ((≡) ==> (≡)) (gen_cmra_trans (DS := DS) f).
   Proof.
-    intros ? [[??]?] [[??]?] [[??]?]. simpl in *.
-    rewrite /gen_cmra_trans.
-    solve_proper.
-  Qed.
+  Admitted.
+  (*   intros ? [[[??]?]] [[[??]?]] [[[??]?]]. simpl in *. *)
+  (*   rewrite /gen_cmra_trans. *)
+  (*   simpl. *)
+  (*   a *)
+  (*   solve_proper. *)
+  (* Qed. *)
 
   Global Instance gen_generation_ne (f : A → A) :
     NonExpansive f →
     NonExpansive (gen_cmra_trans (DS := DS) f).
-  Proof. solve_proper. Qed.
+  Proof. Admitted. (* solve_proper. Qed. *)
 
-  Lemma gen_cmra_trans_apply f (a : generational_cmraR A DS) :
-    (gen_cmra_trans f) a =
-      (Some (to_agree f), GTS_floor a.1.1.1.1.2, f <$> a.1.1.1.2, a.1.1.2,
-        gen_pv_trans a.1.2, gen_pv_trans a.2).
+  Lemma gen_cmra_trans_apply (t : A → A) a b c d e f :
+    (gen_cmra_trans t) (MkGen a b c d e f) =
+      MkGen (DS := DS)
+        (Some (to_agree t)) (GTS_floor b) (t <$> c) d
+        (gen_pv_trans e) (gen_pv_trans f).
   Proof. done. Qed.
 
-End gen_cmra.
+  Definition gen_cmra_unit : generational_cmraUR A DS := ε.
+
+  Lemma option_unit_least {B} (a : optionR B) :
+    ε ≼ a.
+  Proof.
+    pose proof (ucmra_unit_least (A := optionR B) a).
+    Set Printing All.
+    simpl in *.
+    apply H.
+  Qed.
+
+End lemmas.
 
 Lemma generational_cmraR_transp {A1 A2 n1 n2} {DS1 : ivec n1 cmra} {DS2 : ivec n2 cmra}
     (eq_n : n1 = n2) :
@@ -202,3 +413,37 @@ Lemma generational_cmraR_transp_refl {A n} {DS : ivec n cmra} :
     eq_refl eq_refl eq_refl = eq_refl.
 Proof. done. Qed.
 
+Section generational_resources.
+  Context {n} {A} {DS : ivec n cmra} `{i : !inG Σ (generational_cmraR A DS)}.
+  Implicit Types (R : rel_over DS A) (P : (A → A) → Prop).
+
+  Definition gen_pick_out γ r : iProp Σ :=
+    own γ (gc_tup_pick_out DS r).
+
+  (* The generational version of [own] that should be used instead of [own]. *)
+  Definition gen_own (γ : gname) (a : A) : iProp Σ :=
+    own γ (gc_tup_elem DS a).
+
+  Definition know_deps γ (γs : ivec n gname) : iProp Σ :=
+    own γ (gc_tup_deps A DS (ivec_to_list γs)).
+
+  (* Definition gen_promise_list γ l := *)
+  (*   own γ (gc_tup_promise_list l). *)
+
+  Definition gen_promise_rel_pred_list γ rels preds :=
+    own γ (gc_tup_rel_pred rels preds).
+
+  Definition gen_token_used γ : iProp Σ :=
+    gen_pick_out γ GTS_tok_perm.
+
+  Definition gen_token γ : iProp Σ :=
+    gen_pick_out γ (GTS_tok_both).
+
+  Definition own_frozen_auth_promise_list γ rels preds : iProp Σ :=
+    gen_promise_rel_pred_list γ
+      (gP (●ML rels) ⋅ gV (●ML□ rels)) (gP (●ML preds) ⋅ gV (●ML□ preds)).
+
+  Definition own_unit γ : iProp Σ :=
+    own γ ε.
+
+End generational_resources.
