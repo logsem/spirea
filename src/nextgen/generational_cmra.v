@@ -70,18 +70,23 @@ Section cmra.
   #[global]
   Instance mk_gen_proper :
     Proper (equiv ==> equiv ==> equiv ==> equiv ==> equiv ==> equiv ==> equiv) MkGen.
-  Proof. Admitted. (* solve_proper. Qed. *)
+  Proof. repeat intros ?. done. Qed.
 
   Definition generational_cmra_ofe_mixin : OfeMixin (generational_cmra A DS).
   Proof.
-  Admitted.
-  (*   split. *)
-  (*   - intros mx my; split; [by destruct 1; constructor; apply equiv_dist|]. *)
-  (*     intros Hxy; destruct (Hxy 0); constructor; apply equiv_dist. *)
-  (*     by intros n; feed inversion (Hxy n). *)
-  (*   - apply _. *)
-  (*   - destruct 1; constructor; eauto using dist_le with si_solver. *)
-  (* Qed. *)
+  (* Admitted. *)
+    split.
+    - intros [??????] [??????].
+      unfold equiv, gen_cmra_equiv, dist, gen_cmra_dist. simpl.
+      rewrite 6!equiv_dist.
+      naive_solver.
+    - intros ?. split.
+      + done.
+      + intros [??????] [??????] (? & ? & ? & ? & ? & ?). done.
+      + intros [??????] [??????] [??????]
+          (? & ? & ? & ? & ? & ?) (? & ? & ? & ? & ? & ?).
+        split_and!; etrans; done.
+  Qed.
   Canonical Structure generational_cmraO := Ofe (generational_cmra A DS) generational_cmra_ofe_mixin.
 
   Local Instance gen_cmra_valid_instance : Valid (generational_cmra A DS) := λ ma,
