@@ -74,7 +74,6 @@ Section cmra.
 
   Definition generational_cmra_ofe_mixin : OfeMixin (generational_cmra A DS).
   Proof.
-  (* Admitted. *)
     split.
     - intros [??????] [??????].
       unfold equiv, gen_cmra_equiv, dist, gen_cmra_dist. simpl.
@@ -86,6 +85,8 @@ Section cmra.
       + intros [??????] [??????] [??????]
           (? & ? & ? & ? & ? & ?) (? & ? & ? & ? & ? & ?).
         split_and!; etrans; done.
+    - intros ?? [??????] [??????] (? & ? & ? & ? & ? & ?) ?. simpl in *.
+      split_and!; eapply dist_lt; done.
   Qed.
   Canonical Structure generational_cmraO := Ofe (generational_cmra A DS) generational_cmra_ofe_mixin.
 
@@ -124,13 +125,38 @@ Section cmra.
       (gc_promises_pred a ⋅ gc_promises_pred b).
 
   Lemma gen_cmra_op_eq a a' b b' c c' d d' e e' f f' :
-   MkGen a b c d e f ⋅ MkGen a' b' c' d' e' f' ≡
+   MkGen a b c d e f ⋅ MkGen a' b' c' d' e' f' =
      MkGen (a ⋅ a') (b ⋅ b') (c ⋅ c') (d ⋅ d') (e ⋅ e') (f ⋅ f').
   Proof. done. Qed.
 
   Lemma generational_cmra_cmra_mixin : CmraMixin (generational_cmra A DS).
   Proof.
-    split.
+    apply cmra_total_mixin.
+    - done.
+    - admit.
+    - intros ? [??????] [??????].
+      unfold core, pcore, gen_cmra_pcore_instance.
+      unfold dist, gen_cmra_dist. simpl.
+      intros (-> & -> & -> & -> & -> & ->).
+      done.
+    - admit.
+    - intros [??????]. simpl.
+      unfold valid, gen_cmra_valid_instance, validN, gen_cmra_validN_instance.
+      simpl. rewrite 6!cmra_valid_validN.
+      naive_solver.
+    - intros ? [??????].
+      unfold validN, gen_cmra_validN_instance. simpl.
+      intros H; split_and!; apply cmra_validN_S, H.
+    - intros [??????] [??????] [??????].
+      rewrite 4!gen_cmra_op_eq.
+      rewrite 6!assoc. done.
+    - intros [??????] [??????].
+      rewrite 2!gen_cmra_op_eq.
+      split_and!; simpl; apply: comm.
+    - admit.
+    - admit.
+    - admit.
+    - admit.
     - eauto.
   Admitted.
     (* - intros [?] [?] [?]. simpl. solve_proper. simpl. *)
@@ -213,23 +239,11 @@ Definition gen_cmra_trans {n} {A : cmra} {DS : ivec n cmra} (t : A → A) :
     (gen_pv_trans (gc_promises_rel a))
     (gen_pv_trans (gc_promises_pred a)).
 
-(* Constructors for each of the elements in the pair. *)
-
-(* Global Instance gen_trans_const {A : ofe} (a : A) : *)
-(*   CmraMorphism (A := optionR (agreeR A)) (const (Some (to_agree a))). *)
-(* Proof. *)
-(*   split; first apply _. *)
-(*   - done. *)
-(*   - intros. simpl. rewrite (core_id). done. *)
-(*   - intros ??. simpl. *)
-(*     rewrite -Some_op. *)
-(*     rewrite agree_idemp. *)
-(*     done. *)
-(* Qed. *)
-
 Section contstructors.
   Context {n : nat}.
   Implicit Types (A : cmra) (DS : ivec n cmra).
+
+  (* Constructors for each of the elements in the pair. *)
 
   Definition gc_tup_pick_in {A} (DS : ivec n cmra) pick_in : generational_cmraR A DS :=
    MkGen (Some (to_agree (pick_in))) ε ε ε ε ε.
@@ -270,12 +284,6 @@ End upred.
 
 Section lemmas.
   Context {n : nat} (A : cmra) (DS : ivec n cmra).
-(*
-Section tuple_helpers.
-  (* Working with the 6-tuple is sometimes annoying. These lemmas help. *)
-  Context {A B C D E F : cmra}.
-  Implicit Types (a : A) (b : B) (c : C) (d : D) (e : E) (f : F).
- *)
 
   Lemma prod_valid_1st {Σ} a1 b1 c1 d1 e1 f1 a2 b2 c2 d2 e2 f2 :
     ✓ (MkGen (A := A) (DS := DS) a1 b1 c1 d1 e1 f1 ⋅ MkGen a2 b2 c2 d2 e2 f2) ⊢@{iProp Σ} ✓ (a1 ⋅ a2).
@@ -392,17 +400,6 @@ Section tuple_helpers.
         (Some (to_agree t)) (GTS_floor b) (t <$> c) d
         (gen_pv_trans e) (gen_pv_trans f).
   Proof. done. Qed.
-
-  Definition gen_cmra_unit : generational_cmraUR A DS := ε.
-
-  Lemma option_unit_least {B} (a : optionR B) :
-    ε ≼ a.
-  Proof.
-    pose proof (ucmra_unit_least (A := optionR B) a).
-    Set Printing All.
-    simpl in *.
-    apply H.
-  Qed.
 
 End lemmas.
 
