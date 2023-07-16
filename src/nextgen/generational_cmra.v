@@ -129,17 +129,38 @@ Section cmra.
      MkGen (a ⋅ a') (b ⋅ b') (c ⋅ c') (d ⋅ d') (e ⋅ e') (f ⋅ f').
   Proof. done. Qed.
 
+  Lemma gen_cmra_incl_mono a a' b b' c c' d d' e e' f f' :
+    (a ≼ a' ∧ b ≼ b' ∧ c ≼ c' ∧ d ≼ d' ∧ e ≼ e' ∧ f ≼ f') ↔
+    MkGen a b c d e f ≼ MkGen a' b' c' d' e' f'.
+  Proof.
+    split.
+    - intros ([a3 ?] & [b3 ?] & [c3 ?] & [d3 ?] & [e3 ?] & [f3 ?]).
+      exists (MkGen a3 b3 c3 d3 e3 f3).
+      rewrite gen_cmra_op_eq.
+      split_and!; simpl; assumption.
+    - intros [[??????] ?].
+      destruct H as (? & ? & ? & ? & ? & ?). simpl in *.
+      split_and!; eexists _; eassumption.
+  Qed.
+
   Lemma generational_cmra_cmra_mixin : CmraMixin (generational_cmra A DS).
   Proof.
     apply cmra_total_mixin.
     - done.
-    - admit.
+    - intros [??????] ? [??????] [??????].
+      rewrite 2!gen_cmra_op_eq /dist /gen_cmra_dist. simpl.
+      intros (-> & -> & -> & -> & -> & ->). done.
     - intros ? [??????] [??????].
       unfold core, pcore, gen_cmra_pcore_instance.
       unfold dist, gen_cmra_dist. simpl.
       intros (-> & -> & -> & -> & -> & ->).
       done.
-    - admit.
+    - intros ? [??????] [??????]. simpl.
+      unfold validN, gen_cmra_validN_instance. simpl.
+      unfold dist, gen_cmra_dist. simpl.
+      intros eq.
+      destruct eq as (-> & -> & -> & -> & -> & ->).
+      done.
     - intros [??????]. simpl.
       unfold valid, gen_cmra_valid_instance, validN, gen_cmra_validN_instance.
       simpl. rewrite 6!cmra_valid_validN.
@@ -150,16 +171,38 @@ Section cmra.
     - intros [??????] [??????] [??????].
       rewrite 4!gen_cmra_op_eq.
       rewrite 6!assoc. done.
-    - intros [??????] [??????].
-      rewrite 2!gen_cmra_op_eq.
+    - intros [??????] [??????]. rewrite 2!gen_cmra_op_eq.
       split_and!; simpl; apply: comm.
-    - admit.
-    - admit.
-    - admit.
-    - admit.
+    - intros [??????]. rewrite gen_cmra_op_eq. simpl.
+      split_and!; simpl; apply cmra_core_l.
+    - intros [??????].
+      unfold core, pcore, gen_cmra_pcore_instance. simpl.
+      split_and!; simpl; apply cmra_core_idemp.
+    - intros [??????] [??????].
+      unfold core, pcore, gen_cmra_pcore_instance. simpl.
+      rewrite -2!gen_cmra_incl_mono.
+      intros inc. split_and!; try apply: cmra_core_mono; apply inc.
+    - intros ? [??????] [??????]. simpl.
+      intros (? & ? & ? & ? & ? & ?). simpl in *.
+      split_and!; simpl; eapply cmra_validN_op_l; eassumption.
     - eauto.
-  Admitted.
-    (* - intros [?] [?] [?]. simpl. solve_proper. simpl. *)
+      intros n' [a1 a2 a3 a4 a5 a6] [b1 b2 b3 b4 b5 b6] [c1 c2 c3 c4 c5 c6].
+      intros (? & ? & ? & ? & ? & ?). simpl in *.
+      intros (? & ? & ? & ? & ? & ?). simpl in *.
+      Search "cmra" "ext".
+      edestruct (cmra_extend n' a1 b1 c1) as (z1 & y1 & ? & ? & ?); [done|done| ].
+      edestruct (cmra_extend n' a2 b2 c2) as (z2 & y2 & ? & ? & ?); [done|done| ].
+      edestruct (cmra_extend n' a3 b3 c3) as (z3 & y3 & ? & ? & ?); [done|done| ].
+      edestruct (cmra_extend n' a4 b4 c4) as (z4 & y4 & ? & ? & ?); [done|done| ].
+      edestruct (cmra_extend n' a5 b5 c5) as (z5 & y5 & ? & ? & ?); [done|done| ].
+      edestruct (cmra_extend n' a6 b6 c6) as (z6 & y6 & ? & ? & ?); [done|done| ].
+      eexists (MkGen _ _ _ _ _ _).
+      eexists (MkGen _ _ _ _ _ _).
+      rewrite gen_cmra_op_eq.
+      split. { split_and!; simpl; eassumption. }
+      split. { split_and!; simpl; eassumption. }
+      split_and!; simpl; try eassumption.
+  Qed.
   Canonical Structure generational_cmraR :=
     Cmra (generational_cmra A DS) generational_cmra_cmra_mixin.
 
@@ -180,11 +223,6 @@ Section cmra.
     done.
   Qed.
   Canonical Structure generational_cmraUR := Ucmra (generational_cmra A DS) generational_cmra_ucmra_mixin.
-
-  Lemma get_gen_mono a a' b b' c c' d d' e e' f f' :
-    a ≼ a' → b ≼ b' → c ≼ c' → d ≼ d' → e ≼ e' → f ≼ f' →
-    MkGen a b c d e f ≼ MkGen a' b' c' d' e' f'.
-  Proof. Admitted. (* intros [c?]. exists (MkGen c). done. Qed. *)
 
   #[global]
   Instance gen_cmra_coreid a b c d e f :
