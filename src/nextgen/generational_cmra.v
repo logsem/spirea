@@ -124,6 +124,28 @@ Section cmra.
       (gc_promises_rel a ⋅ gc_promises_rel b)
       (gc_promises_pred a ⋅ gc_promises_pred b).
 
+  Lemma gen_cmra_pcore_eq ma :
+    pcore ma =
+      Some (MkGen
+        (core (gc_in ma))
+        (core (gc_single_shot ma))
+        (core (gc_elem ma))
+        (core (gc_deps ma))
+        (core (gc_promises_rel ma))
+        (core (gc_promises_pred ma))).
+  Proof. reflexivity. Qed.
+
+  Lemma gen_cmra_core_eq ma :
+    core ma =
+      (MkGen
+        (core (gc_in ma))
+        (core (gc_single_shot ma))
+        (core (gc_elem ma))
+        (core (gc_deps ma))
+        (core (gc_promises_rel ma))
+        (core (gc_promises_pred ma))).
+  Proof. reflexivity. Qed.
+
   Lemma gen_cmra_op_eq a a' b b' c c' d d' e e' f f' :
    MkGen a b c d e f ⋅ MkGen a' b' c' d' e' f' =
      MkGen (a ⋅ a') (b ⋅ b') (c ⋅ c') (d ⋅ d') (e ⋅ e') (f ⋅ f').
@@ -151,7 +173,7 @@ Section cmra.
       rewrite 2!gen_cmra_op_eq /dist /gen_cmra_dist. simpl.
       intros (-> & -> & -> & -> & -> & ->). done.
     - intros ? [??????] [??????].
-      unfold core, pcore, gen_cmra_pcore_instance.
+      rewrite gen_cmra_core_eq.
       unfold dist, gen_cmra_dist. simpl.
       intros (-> & -> & -> & -> & -> & ->).
       done.
@@ -176,7 +198,7 @@ Section cmra.
     - intros [??????]. rewrite gen_cmra_op_eq. simpl.
       split_and!; simpl; apply cmra_core_l.
     - intros [??????].
-      unfold core, pcore, gen_cmra_pcore_instance. simpl.
+      rewrite gen_cmra_core_eq. simpl.
       split_and!; simpl; apply cmra_core_idemp.
     - intros [??????] [??????].
       unfold core, pcore, gen_cmra_pcore_instance. simpl.
@@ -400,37 +422,41 @@ Section lemmas.
       rewrite ?ucmra_unit_right_id; rewrite ?ucmra_unit_left_id; reflexivity.
   Qed.
 
-  Global Instance gen_generation_gen_trans (f : A → A)
-    `{!Proper (equiv ==> equiv) f} :
-    CmraMorphism f → CmraMorphism (gen_cmra_trans (DS := DS) f).
-  Proof. Admitted. (* apply _. Qed. *)
-
-  (* Global Instance gen_generation_proper (f : A → A) : *)
-  (*   Proper ((≡) ==> (≡)) f → *)
-  (*   Proper ((≡) ==> (≡)) (underlying_trans (DS := DS) f). *)
-  (* Proof. *)
-  (*   intros ? [[??]?] [[??]?] [[??]?]. simpl in *. *)
-  (*   rewrite /underlying_trans. *)
-  (*   simpl in *. *)
-  (*   solve_proper. *)
-  (* Qed. *)
+  Global Instance gen_generation_ne (f : A → A) :
+    NonExpansive f →
+    NonExpansive (gen_cmra_trans (DS := DS) f).
+  Proof.
+    intros ?? [??????] [??????].
+    intros (_ & ? & ? & ? & ? & ?).
+    split_and!; solve_proper.
+  Qed.
 
   Global Instance gen_generation_proper (f : A → A) :
     Proper ((≡) ==> (≡)) f →
     Proper ((≡) ==> (≡)) (gen_cmra_trans (DS := DS) f).
   Proof.
-  Admitted.
-  (*   intros ? [[[??]?]] [[[??]?]] [[[??]?]]. simpl in *. *)
-  (*   rewrite /gen_cmra_trans. *)
-  (*   simpl. *)
-  (*   a *)
-  (*   solve_proper. *)
-  (* Qed. *)
+    intros ? [??????] [??????].
+    intros (? & ? & ? & ? & ? & ?). simpl in *.
+    solve_proper.
+  Qed.
 
-  Global Instance gen_generation_ne (f : A → A) :
-    NonExpansive f →
-    NonExpansive (gen_cmra_trans (DS := DS) f).
-  Proof. Admitted. (* solve_proper. Qed. *)
+  Global Instance gen_generation_gen_trans (f : A → A)
+    `{!Proper (equiv ==> equiv) f} :
+    CmraMorphism f → CmraMorphism (gen_cmra_trans (DS := DS) f).
+  Proof.
+    split; first apply _.
+    - intros ? [??????].
+      intros (? & ? & ? & ? & ? & ?). simpl in *.
+      split_and!; simpl; try done; apply: cmra_morphism_validN; done.
+    - intros [??????]. simpl. rewrite gen_cmra_pcore_eq.
+      f_equiv.
+      unfold gen_cmra_trans.
+      f_equiv; rewrite ?cmra_morphism_core; reflexivity.
+    - intros [??????] [??????].
+      rewrite gen_cmra_op_eq.
+      split_and!; try (simpl; rewrite -?cmra_morphism_op; done).
+      simpl. rewrite -Some_op agree_idemp. done.
+  Qed.
 
   Lemma gen_cmra_trans_apply (t : A → A) a b c d e f :
     (gen_cmra_trans t) (MkGen a b c d e f) =
