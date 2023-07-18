@@ -16,22 +16,24 @@ Proof. intros i. inversion i. Qed.
 
 Section crashed_at.
   Context `{i : !genInDepsG Σ Ω (agreeR viewO) [] }.
-  (* Context `{i : crashed_at_inG Σ Ω}. *)
 
-  (* bi_pure *)
-  (* Locate "⌜". *)
-
-  Definition crashed_at γ CV : iProp Σ :=
-    "agree" ∷ gen_own (i := genInDepsG_gen) γ CV ∗
-    "rely" ∷ rely_self (g := genInG_genInSelfG genInDepsG_gen)
-      γ (λ t, ∃ CV2, t = const (to_agree CV2))%type%stdpp.
+  Definition crashed_at γ (CV : view) : iProp Σ :=
+    "agree" ∷ gen_own (i := genInDepsG_gen i) γ (to_agree CV) ∗
+    "rely" ∷ rely_self (g := genInG_genInSelfG (genInDepsG_gen i))
+      γ (λ t, ∃ (CV2 : view), t = const (to_agree CV2))%type%stdpp.
 
   Lemma crashed_at_nextgen γ CV :
     crashed_at γ CV ⊢ ⚡==> ∃ CV2, crashed_at γ CV2.
   Proof.
     iNamed 1.
     iModIntro.
-    iDestruct "agree" as (t) "agree".
-  Admitted.
+    iDestruct "agree" as (t) "[picked1 agree]".
+    iDestruct "rely" as "[rely (%t' & %HP & picked2)]".
+    iDestruct (gen_picked_in_agree with "picked1 picked2") as %<-.
+    destruct HP as (CV2 & eq).
+    iExists CV2.
+    rewrite eq. simpl.
+    iFrame.
+  Qed.
 
 End crashed_at.
