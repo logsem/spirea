@@ -2045,7 +2045,7 @@ Section nextgen_assertion_rules.
     unfold Oown.
     f_equiv. simpl.
     simpl.
-    apply get_gen_mono; try done. apply ucmra_unit_least.
+    apply gen_cmra_incl_mono; split_and!; try done; apply ucmra_unit_least.
   Qed.
 
   (* NOTE: This doesn't really work as an instance since TC search can't find
@@ -2335,6 +2335,33 @@ Section rules_with_deps.
     rewrite eq1 eq2 eq3.
     rewrite 3!rew_opp_l.
     done.
+  Qed.
+
+  Lemma promise_info_for_pi_rel pia γs P R ts t :
+    promise_info_for pia γs R P →
+    pi_rel pia ts t →
+    R (rew <- [id] trans_for_genInG in ts)
+      (rew <- [cmra_to_trans] genInG_gti_typ in t)
+    ∧ P (rew <- [cmra_to_trans] genInG_gti_typ in t).
+  Proof.
+    intros (? & pred_eq & rel_eq) relHolds.
+    pose proof (pi_rel_to_pred pia _ _ relHolds) as predHolds.
+    rewrite rel_eq in relHolds.
+    rewrite pred_eq in predHolds.
+    rewrite /rel_over_Oc_Ocs_genInG in relHolds.
+    rewrite /trans_for_genInG.
+    destruct g as [genInG idsEq]. destruct genInG.
+    simpl in *.
+    clear -relHolds predHolds.
+    unfold Ocs in *. simpl in *.
+    destruct (gc_map Ω genInG_id0). simpl in *.
+    destruct genInG_gcd_n0. simpl in *.
+    destruct genInG_gti_typ0.
+    unfold eq_rect_r in *. simpl in *.
+    destruct genInG_gcd_deps0. simpl in *.
+    split.
+    + apply relHolds.
+    + apply predHolds.
   Qed.
 
   (* Lemma rely_self_resource_for_deps γs deps_preds : *)
@@ -3199,7 +3226,6 @@ Section rules_with_deps.
     iNamed 1.
     iDestruct (know_promise_extract_frag with "relyPromise") as (?? pref1) "[? fragPreds]".
     iNamed "relyPromise".
-    destruct pia_for as (γs_eq & pred_eq & rel_eq).
     rewrite /nextgen.
     iExists (λ i, ∅), promises.
     iSplit; first done.
@@ -3214,7 +3240,7 @@ Section rules_with_deps.
     simpl in *.
     iDestruct (own_resource_for_deps_pick_in with "ownDeps") as "depsPickedIn";
       first done.
-    { rewrite γs_eq in H. apply H. }
+    { destruct pia_for as (eq & _). rewrite eq in H. apply H. }
     iDestruct (own_resource_for_deps_nextgen with "ownDeps") as "ownDeps'";
       first done.
     iModIntro.
@@ -3230,29 +3256,9 @@ Section rules_with_deps.
       iExists (rew <- [id] trans_for_genInG in ts).
       simpl.
       iFrame "picked_in".
-      iSplit; first iPureIntro.
-      { pose proof (pi_rel_to_pred pia _ _ relHolds) as predHolds.
-        rewrite rel_eq in relHolds.
-        rewrite pred_eq in predHolds.
-        clear -relHolds predHolds.
-        rewrite /rel_over_Oc_Ocs_genInG in relHolds.
-        rewrite /rel_over_eq in relHolds.
-        rewrite /pred_over_Oc_genInG in predHolds.
-        rewrite /trans_for_genInG.
-        rewrite /hvec_fmap_eq.
-        destruct g as [genInG idsEq]. destruct genInG.
-        simpl in *.
-        clear idsEq.
-        unfold Ocs in *. simpl in *.
-        destruct (gc_map Ω genInG_id0). simpl in *.
-        destruct genInG_gcd_n0. simpl in *.
-        destruct genInG_gti_typ0.
-        unfold eq_rect_r in *. simpl in *.
-        destruct genInG_gcd_deps0. simpl in *.
-        split.
-        + apply relHolds.
-        + apply predHolds. }
-    iFrame "depsPickedIn".
+      iFrame "depsPickedIn".
+      iPureIntro.
+      eapply promise_info_for_pi_rel; done.
   Qed.
 
   Lemma picked_out_nextgen γ t `{!CmraMorphism t} :
@@ -3276,6 +3282,40 @@ Section rules_with_deps.
     rewrite rew_opp_l.
     done.
   Qed.
+
+  Lemma rely_self_nextgen γ P :
+    rely_self γ P ⊢
+    ⚡==> rely_self γ P ∗ ∃ t, ⌜ P t ⌝ ∗ picked_in γ t.
+  Proof.
+    iNamed 1.
+    iDestruct (know_promise_extract_frag with "relyPromise") as (?? pref1) "[? fragPreds]".
+    iNamed "relyPromise".
+    iExists (λ i, ∅), promises.
+    iSplit; first done.
+    iSplit; first done.
+    iSplit; first iApply own_picks_empty.
+    iFrame "prs".
+    iIntros (full_picks val resp _).
+    iDestruct (own_build_trans_next_gen with "fragPreds") as "-#frag_preds'"; first done.
+    iDestruct (own_promises_nextgen with "prs") as "prs'"; first done.
+    edestruct (transmap_resp_promises_lookup_at)
+      as (ts & t & look & ? & relHolds); [done|done| ].
+    simpl in *.
+    iModIntro.
+    iDestruct (own_gen_cmra_split with "frag_preds'")
+      as "(picked_in & frag_preds' & _ & _ & A & B)".
+    iSplit.
+    { iExists _, _, _, _. iFrame "prs'". done. }
+    iExists (rew <- [cmra_to_trans] genInG_gti_typ in t).
+    rewrite look.
+    iFrame "picked_in".
+    iPureIntro.
+    edestruct promise_info_for_pi_rel as [_ HP];  done.
+  Qed.
+
+  #[global]
+  Instance into_nextgen_rely_relf γ P : IntoNextgen _ _ :=
+    rely_self_nextgen γ P.
 
 End rules_with_deps.
 
