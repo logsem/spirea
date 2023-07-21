@@ -13,7 +13,7 @@ From self Require Export hvec.
 From self Require Import extra basic_nextgen_modality cmra_morphism_extra
   gen_single_shot gen_pv.
 From self.high Require Import increasing_map.
-From self.nextgen Require Import types omega generational_cmra transmap promise.
+From self.nextgen Require Export types omega generational_cmra transmap promise.
 
 Import EqNotations. (* Get the [rew] notation. *)
 Import uPred.
@@ -3211,7 +3211,7 @@ Section rules_with_deps.
   Instance into_nextgen_gen_own γ a : IntoNextgen _ _ := gen_own_nextgen γ a.
 
   Lemma rely_nextgen γ γs (R : rel_over DS A) (P : pred_over A) :
-    rely γ γs R P -∗
+    rely γ γs R P ⊢
     ⚡==>
       rely γ γs R P ∗
       ∃ (t : A → A) (ts : trans_for n DS),
@@ -3260,6 +3260,10 @@ Section rules_with_deps.
       iPureIntro.
       eapply promise_info_for_pi_rel; done.
   Qed.
+
+  #[global]
+  Instance into_nextgen_rely γ γs R P : IntoNextgen _ _ :=
+    rely_nextgen γ γs R P.
 
   Lemma picked_out_nextgen γ t `{!CmraMorphism t} :
     picked_out γ t -∗ ⚡==> picked_in γ t.
@@ -3314,7 +3318,7 @@ Section rules_with_deps.
   Qed.
 
   #[global]
-  Instance into_nextgen_rely_relf γ P : IntoNextgen _ _ :=
+  Instance into_nextgen_rely_self γ P : IntoNextgen _ _ :=
     rely_self_nextgen γ P.
 
 End rules_with_deps.

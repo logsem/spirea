@@ -198,10 +198,10 @@ Section cmra.
     - intros [??????]. rewrite gen_cmra_op_eq. simpl.
       split_and!; simpl; apply cmra_core_l.
     - intros [??????].
-      rewrite gen_cmra_core_eq. simpl.
+      rewrite gen_cmra_core_eq.
       split_and!; simpl; apply cmra_core_idemp.
     - intros [??????] [??????].
-      unfold core, pcore, gen_cmra_pcore_instance. simpl.
+      rewrite gen_cmra_core_eq.
       rewrite -2!gen_cmra_incl_mono.
       intros inc. split_and!; try apply: cmra_core_mono; apply inc.
     - intros ? [??????] [??????]. simpl.
