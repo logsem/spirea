@@ -519,7 +519,7 @@ Section post_crash_interact.
   Qed.
 
   Lemma post_crash_know_full_pred `{Countable ST} ℓ (ϕ : ST → val → dProp Σ) :
-    know_full_pred_d ℓ ϕ -∗ <PC> if_rec ℓ (know_full_pred_d ℓ ϕ).
+    know_full_pred_d ℓ ϕ ⊢ <PC> if_rec ℓ (know_full_pred_d ℓ ϕ).
   Proof.
     iModel.
     iIntros "HP".
@@ -534,7 +534,7 @@ Section post_crash_interact.
   Qed.
 
   Lemma post_crash_know_read_pred `{Countable ST} ℓ (ϕ : ST → val → dProp Σ) :
-    know_read_pred_d ℓ ϕ -∗ <PC> if_rec ℓ (know_read_pred_d ℓ ϕ).
+    know_read_pred_d ℓ ϕ ⊢ <PC> if_rec ℓ (know_read_pred_d ℓ ϕ).
   Proof.
     iModel.
     iIntros "HP".
@@ -549,7 +549,7 @@ Section post_crash_interact.
   Qed.
 
   Lemma post_crash_know_pers_pred `{Countable ST} ℓ (ϕ : ST → val → dProp Σ) :
-    know_pers_pred_d ℓ ϕ -∗ <PC> if_rec ℓ (know_pers_pred_d ℓ ϕ).
+    know_pers_pred_d ℓ ϕ ⊢ <PC> if_rec ℓ (know_pers_pred_d ℓ ϕ).
   Proof.
     iModel.
     iIntros "HP".

@@ -555,7 +555,8 @@ Section wpr.
       ⌜∀ ℓ h1 h2, phys_hists !! ℓ = Some h1 → abs_hists !! ℓ = Some h2 → dom h1 = dom h2⌝
     )%I as %physAbsHistTimestamps.
     { iIntros (?????).
-      iDestruct (big_sepM2_lookup with "predsFullHold") as (??) "(_ & _ & sep)"; try eassumption.
+      iDestruct (big_sepM2_lookup with "predsFullHold") as (??) "(_ & sep)"; try eassumption.
+      iDestruct "sep" as "(_ & sep)".
       iApply (big_sepM2_dom with "sep"). }
 
     (* [CV] is a valid slice of the physical and abstract history. *)
@@ -1142,9 +1143,9 @@ Section wpr.
     (* gathering hypotheses *)
     iPoseProof (big_sepM2_sep_2 with "predsReadHold predsPersHold") as "predsHold".
     iPoseProof (big_sepM2_sep_2 with "predsFullHold predsHold") as "predsHold".
-    (* gathering goals *)
-    rewrite bi.sep_assoc -(to_named "predsFullHold") -(to_named "predsReadHold") -big_sepM2_sep.
-    rewrite bi.sep_assoc -(to_named "predsPersHold") -big_sepM2_sep.
+    rewrite [named "predsFullHold" _]/named [named "predsReadHold" _]/named [named "predsPersHold" _]/named.
+    rewrite bi.sep_assoc -big_sepM2_sep.
+    rewrite bi.sep_assoc -big_sepM2_sep.
     (* now we can split the goal properly, and show that the encoded predicates
        still holds for the new abstract history *)
 
@@ -1336,6 +1337,15 @@ Section wpr.
         done.
       }
       iSimpl.
+
+      Set Nested Proofs Allowed.
+
+      Lemma bi_wand_drop_premise `{!BiAffine PROP} P (Q: PROP):
+        Q ⊢ ⌜ P ⌝ -∗ Q.
+      Proof.
+        iIntros.
+        done.
+      Qed.
 
       rewrite -2!bi_wand_drop_premise.
 
@@ -1715,7 +1725,7 @@ Section wpr.
         iApply (big_sepM2_impl_subseteq with "predFullPostCrash").
         { by apply restrict_subseteq. }
         { by apply restrict_subseteq. }
-        { rewrite 2!restrict_dom.
+        { rewrite 2!restrict_dom_L.
           rewrite -FullBumperDoms.
           done. }
       }
@@ -1736,7 +1746,7 @@ Section wpr.
       iApply (big_sepM2_impl_subseteq with "predReadPostCrash").
       { by apply restrict_subseteq. }
       { by apply restrict_subseteq. }
-      { rewrite 2!restrict_dom.
+      { rewrite 2!restrict_dom_L.
         rewrite -ReadBumperDoms.
         done. }
     }
@@ -1745,7 +1755,7 @@ Section wpr.
       iApply (big_sepM2_impl_subseteq with "predFullReadSplit").
       { by apply restrict_subseteq. }
       { by apply restrict_subseteq. }
-      { rewrite 2!restrict_dom.
+      { rewrite 2!restrict_dom_L.
         rewrite ReadBumperDoms FullBumperDoms.
         done. }
     }
