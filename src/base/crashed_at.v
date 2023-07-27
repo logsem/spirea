@@ -39,17 +39,21 @@ Section crashed_at.
   Definition crashed_at γ (CV : view) : iProp Σ :=
     "agree" ∷ gen_own (i := genInDepsG_gen i) γ (to_agree CV) ∗
     "rely" ∷ rely γ [] (crashed_at_rel ∅) (crashed_at_pred ∅).
+
+  Definition crashed_at_tok γ LV : iProp Σ :=
+    token γ [] (crashed_at_rel LV) (crashed_at_pred LV).
     (* "rely" ∷ rely_self (g := genInG_genInSelfG (genInDepsG_gen i)) γ pred. *)
 
   Lemma crashed_at_alloc CV :
-    ⊢ |==> ∃ γ, crashed_at γ CV.
+    ⊢ |==> ∃ γ, crashed_at γ CV ∗ crashed_at_tok γ ∅.
   Proof.
     iMod (own_gen_alloc (DS := []) (to_agree CV) [] [] with "[]") as (γ) "(HO & tok)".
     { done. }
     { iIntros (i'). inversion i'. }
     iMod (
       token_strengthen_promise (DS := [])
-        _ [] [] _ (crashed_at_rel ∅) _ (crashed_at_pred ∅) with "[] tok").
+        _ [] [] _ (crashed_at_rel ∅) _ (crashed_at_pred ∅) with "[] tok")
+      as "tok".
     { intros ???. unfold True_rel. rewrite huncurry_curry. done. }
     { done. }
     { intros ts. dependent elimination ts. done. }
@@ -59,10 +63,13 @@ Section crashed_at.
       exists ∅. done. }
     { iIntros (i'). inversion i'. }
     iModIntro.
-    iExists (γ). iFrame "HO".
-    iApply token_to_rely. done.
+    iExists (γ).
+    iDestruct (token_to_rely with "tok") as "#$".
+    iFrame.
   Qed.
 
+  (** Owning [crashed_at] gives [crashed_at] for some view in the next
+   * generation. *)
   Lemma crashed_at_nextgen γ CV :
     crashed_at γ CV ⊢ ⚡==> ∃ CV2, crashed_at γ CV2.
   Proof.
@@ -77,13 +84,24 @@ Section crashed_at.
     iFrame.
   Qed.
 
+  Lemma crashed_at_pick_nextgen γ CV CV2 LV :
+    CV ⊑ CV2 →
+    crashed_at γ CV -∗
+    crashed_at_tok γ LV -∗
+    ⚡==> crashed_at γ CV2 ∗
+          crashed_at_tok γ ∅. (* NOTE: We will not be able to prove this. *)
+  Proof.
+    iIntros (le). iNamed 1. iIntros "tok".
+    unfold crashed_at_tok.
+    iModIntro.
+  Admitted.
+
 End crashed_at.
 
 Definition persisted_genInG Σ Ω := genInG Σ Ω (authR viewUR) [agreeR viewO].
 
 Section persisted.
   Context `{!genInDepsG Σ Ω (agreeR viewO) [] }.
-  (* Context `{EqDecision loc}. *)
   Context `{i : !genInDepsG Σ Ω (authR viewUR) [agreeR viewO] }.
   Context (persist_view_name : gname).
   Context (crashedγ : gname).
@@ -101,7 +119,7 @@ Section persisted.
     rely_self crashedγ (crashed_at_pred PV).
 
   Lemma post_crash_persisted PV :
-    persisted PV -∗
+    persisted PV ⊢
     ⚡==> persisted (view_to_zero PV) ∗
           ∃ CV, ⌜ PV ⊑ CV ⌝ ∗ crashed_at crashedγ CV.
   Proof.
