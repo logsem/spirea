@@ -29,6 +29,43 @@
   specific to the logic.
 * [`examples`](src/examples) - Contains examples.
 
+## Correspondence to OOPSLA 23 paper
+
+The rules in Figure 5.
+
+| Rule                      | Coq                                                                   |
+|---------------------------|-----------------------------------------------------------------------|
+| lb-knowledge              | `store_lb_persistent`, `flush_lb_persistent`, `persist_lb_persistent` |
+| lb-persistent-flush-store | `persist_lb_to_flush_lb` and `flush_lb_to_store_lb`                   |
+| obj-noflush-nobuffer      | `buffer_free_objective` and `flush_free_objective`                    |
+| mapsto-store-lb           | `mapsto_na_store_lb` and `mapsto_at_store_lb`                         |
+| mapsto-lb-pers            | `mapsto_na_persist_lb`                                                |
+| mapsto-na-store-lb        | `mapsto_na_store_lb_incl`                                             |
+| post-fence-no-flush       | `post_fence_no_flush`                                                 |
+| pfs-pf                    | `post_fenc_sync_post_fence`                                           |
+| rec-in-if-rec             | `crashed_in_if_rec`                                                   |
+| PC-na-mapsto              | `post_crash_mapsto_na`                                                |
+| PC-at-mapsto              | `post_crash_mapsto_at`                                                |
+| PC-invariant              | `post_crash_know_protocol`                                            |
+| PC-PCF                    | `post_crash_flush_post_crash`                                         |
+| PC-persist-lb             | `post_crash_persist_lb`                                               |
+| PCF-flush-lb              | `post_crash_flush_flush_lb`                                           |
+| rec-in-agree              | `crashed_in_agree`                                                    |
+
+The rules in Figure 6.
+
+| Rule          | Coq                                  |
+|---------------|--------------------------------------|
+| Ht-flush      | `wp_flush_lb`                        |
+| Ht-fence-sync | `wp_fence_sync`                      |
+| Ht-fence      | `wp_fence` and `wp_fence_prop`       |
+| Ht-na-alloc   | `wp_alloc_na`                        |
+| Ht-at-alloc   | `wp_alloc_at`                        |
+| Ht-na-read    | `wp_load_na`                         |
+| Ht-na-write   | `wp_store_na`                        |
+| Ht-at-read    | `wp_load_at` and `wp_load_at_simple` |
+| Ht-at-write   | `wp_store_at`                        |
+
 ## Development
 
 The `main` branch is currently developed using Coq version 8.17.1.
