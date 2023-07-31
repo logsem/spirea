@@ -10,7 +10,8 @@ From self Require Import cmra_morphism_extra.
 From self.algebra Require Import view.
 From self.nextgen Require Import types. (* FIXME: Should not need this *)
 
-Definition crashed_at_inG Σ Ω := genInG Σ Ω (agreeR viewO) [].
+Definition crashed_atR : cmra := prodR (agreeR viewO) (agreeR viewO).
+Definition crashed_at_inG Σ Ω := genInG Σ Ω crashed_atR [].
 
 Instance genInSelgG_empty Σ Ω :
   ∀ i : fin 0, genInSelfG Σ Ω ([]%IL !!! i).
@@ -19,7 +20,7 @@ Proof. intros i. inversion i. Qed.
 Instance genInSelgG_one Σ Ω n A (DS : ivec n cmra):
   genInG Σ Ω A DS →
   ∀ i : fin 1, genInSelfG Σ Ω ([A]%IL !!! i).
-Proof. intros ? i. dependent elimination i. Qed.
+Proof. intros ? i. dependent elimination i. Defined.
 
 (* Names used:
  * - OV: The offset view, the sum of all crash views from prior generations
@@ -29,48 +30,84 @@ Proof. intros ? i. dependent elimination i. Qed.
  * - PV: The persist view, PV = OPV - OV
  *)
 
+Definition view_add (V1 V2 : view) : view :=
+  let to_nat (n : option max_nat) := from_option max_nat_car 0 n in
+  merge (λ n1 n2, Some (MaxNat (to_nat n1 + to_nat n2))) V1 V2.
+
+Infix "`view_add`" := view_add (at level 50, left associativity).
+
+Definition view_sub (V1 V2 : view) : view :=
+  let to_nat (n : option max_nat) := from_option max_nat_car 0 n in
+  merge (λ n1 n2, (λ n, MaxNat (max_nat_car n - to_nat n2)) <$> n1) V1 V2.
+  (* Some (MaxNat (to_nat n1 - to_nat n2))) V1 V2. *)
+
+Infix "`view_sub`" := view_sub (at level 50, left associativity).
+
+Lemma view_add_empty V :
+  ∅ `view_add` V = V.
+Proof. Admitted.
+
 Section crashed_at.
   (* Resource for crashed at view *)
-  Context `{caI : !genInDepsG Σ Ω (agreeR viewO) [] }.
+  Context `{caI : !genInDepsG Σ Ω crashed_atR [] }.
   (* Resource for views that depend on the crashed at view *)
-  Context `{vI : !genInDepsG Σ Ω (authR viewUR) [agreeR viewO] }.
+  Context `{vI : !genInDepsG Σ Ω (authR viewUR) [crashed_atR] }.
 
-  Definition crashed_at_pred (OPV : view) : pred_over (agreeR viewO) :=
-    λ t, ∃ (CV : view), PV ⊑ CV ∧ t = const (to_agree CV).
+  Definition crashed_at_trans OCV2 : crashed_atR → crashed_atR :=
+    λ '(_, OCV), (OCV, to_agree OCV2).
 
-  Definition crashed_at_rel PV : rel_over [] (agreeR viewO) :=
+  Instance crashed_at_trans_cmra_morphism OCV2 :
+    CmraMorphism (crashed_at_trans OCV2).
+  Proof. Admitted.
+
+  Definition crashed_at_pred (OPV : view) : pred_over crashed_atR :=
+    λ t, ∃ OCV2, OPV ⊑ OCV2 ∧ t = crashed_at_trans OCV2.
+
+  Definition crashed_at_rel PV : rel_over [] crashed_atR :=
     crashed_at_pred PV.
 
+  Definition crashed_at_offset γ OV OCV :=
+    gen_own γ (to_agree OV, to_agree OCV).
+
   Definition crashed_at γ (CV : view) : iProp Σ :=
-    "agree" ∷ gen_own γ (to_agree CV) ∗
-    "rely" ∷ rely γ [] (crashed_at_rel ∅) (crashed_at_pred ∅).
+    ∃ (OV OCV LV : view),
+      (* "%view_add" ∷ ⌜ OV `view_add` CV = OCV ⌝ ∗ *)
+      "%view_eq" ∷ ⌜ OCV `view_sub` OV = CV ⌝ ∗
+      "agree" ∷ gen_own γ (to_agree OV, to_agree OCV)
+      (* ∗ "rely" ∷ rely γ [] (crashed_at_rel LV) (crashed_at_pred LV). *)
+      ∗ "rely" ∷ rely_self γ (crashed_at_pred LV).
 
   Definition crashed_at_tok γ LV : iProp Σ :=
     token γ [] (crashed_at_rel LV) (crashed_at_pred LV).
 
   Lemma crashed_at_alloc CV :
-    ⊢ |==> ∃ γ, crashed_at γ CV ∗ crashed_at_tok γ ∅.
+    ⊢ |==> ∃ γ, crashed_at γ CV ∗ crashed_at_tok γ CV.
   Proof.
-    iMod (own_gen_alloc (DS := []) (to_agree CV) [] [] with "[]") as (γ) "(HO & tok)".
+    iMod (own_gen_alloc (DS := [])
+      (to_agree ∅, to_agree CV) [] [] with "[]") as (γ) "(HO & tok)".
     { done. }
     { iIntros (i'). inversion i'. }
     iMod (
       token_strengthen_promise (DS := [])
-        _ [] [] _ (crashed_at_rel ∅) _ (crashed_at_pred ∅) with "[] tok")
+        _ [] [] _ (crashed_at_rel CV) _ (crashed_at_pred CV) with "[] tok")
       as "tok".
     { intros ???. unfold True_rel. rewrite huncurry_curry. done. }
     { done. }
     { intros ts. dependent elimination ts. done. }
     { intros ts _. dependent elimination ts.
-      exists (const (to_agree ∅)).
+      exists (λ '(_, CV1), (CV1, to_agree CV)).
       split; first apply _.
-      exists ∅. done. }
+      exists CV. done. }
     { iIntros (i'). inversion i'. }
     iModIntro.
     iExists (γ).
-    iDestruct (token_to_rely with "tok") as "#$".
+    iDestruct (token_to_rely with "tok") as "#R".
     iFrame.
-  Qed.
+    iExists ∅, CV, _. iFrame.
+    (* iFrame "R". *)
+    (* iPureIntro. *)
+  Admitted. (* apply view_add_empty.*)
+  (* Qed. *)
 
   (** Owning [crashed_at] gives [crashed_at] for some view in the next
    * generation. *)
@@ -80,53 +117,122 @@ Section crashed_at.
     iNamed 1.
     iModIntro.
     iDestruct "agree" as (t) "[picked1 agree]".
-    iDestruct "rely" as "[rely (%t' & % & (? & %HP) & picked2 & ?)]".
+    iDestruct "rely" as "[rely (%t' & %HP & picked2)]".
+    (* iDestruct "rely" as "[rely (%t' & % & (? & %HP) & picked2 & ?)]". *)
     iDestruct (gen_picked_in_agree with "picked1 picked2") as %<-.
-    destruct HP as (CV2 & ? & eq).
-    iExists CV2.
+    destruct HP as (OCV2 & ? & eq).
+    (* iExists _, _, _. *)
+    unfold crashed_at.
     rewrite eq. simpl.
+    iExists _, _, _, LV.
     iFrame.
+    iPureIntro. reflexivity.
   Qed.
 
-  Lemma crashed_at_pick_nextgen γ CV CV2 LV :
-    CV ⊑ CV2 →
-    crashed_at γ CV -∗
+  Lemma crashed_at_pick_nextgen γ OV OCV OCV2 LV :
+    LV ⊑ OCV2 →
+    crashed_at_offset γ OV OCV -∗
     crashed_at_tok γ LV -∗
-    ⚡==> crashed_at γ CV2 ∗
-          crashed_at_tok γ ∅. (* NOTE: We will not be able to prove this. *)
+    |==> ⚡==> crashed_at_offset γ OCV OCV2 ∗
+          crashed_at_tok γ LV.
   Proof.
-    iIntros (le). iNamed 1. iIntros "tok".
-    unfold crashed_at_tok.
+    iIntros (le) "AG tok".
+    unfold crashed_at_tok, crashed_at_offset.
+    iMod (
+      token_pick (DS := []) _ _ _ _ []%HV (crashed_at_trans OCV2) with "[] tok")
+      as "[tok picked]".
+    { exists OCV2. done. }
+    { iIntros (i). inversion i. }
     iModIntro.
-  Admitted.
+    iModIntro.
+    iFrame "tok".
+    iDestruct "AG" as (t) "[picked2 ?]".
+    iDestruct (gen_picked_in_agree with "picked picked2") as %<-.
+    simpl. done.
+  Qed.
 
 End crashed_at.
 
 Definition persisted_genInG Σ Ω := genInG Σ Ω (authR viewUR) [agreeR viewO].
 
 Section persisted.
-  Context `{!genInDepsG Σ Ω (agreeR viewO) [] }.
-  Context `{i : !genInDepsG Σ Ω (authR viewUR) [agreeR viewO] }.
+  Context `{!genInDepsG Σ Ω crashed_atR [] }.
+  Context `{i : !genInDepsG Σ Ω (authR viewUR) [crashed_atR] }.
   Context (persist_view_name : gname).
   Context (crashedγ : gname).
 
-  Local Definition persisted_rel : rel_over [agreeR viewO] (authR viewUR) :=
+  Local Definition persisted_rel : rel_over [crashed_atR] (authR viewUR) :=
     λ tC tP,
-      ∃ CV, tC = const (to_agree CV) ∧ tP = fmap_auth (const (view_to_zero CV)).
+      ∃ OCV,
+        tC = crashed_at_trans OCV ∧
+        tP = fmap_auth (const OCV).
 
-  Definition persisted_auth PV : iProp Σ :=
-    gen_own persist_view_name (● PV) ∗
-    rely_self crashedγ (crashed_at_pred PV).
+  Definition persisted_auth OPV : iProp Σ :=
+    gen_own persist_view_name (● OPV) ∗
+    rely_self crashedγ (crashed_at_pred OPV).
 
   Definition persisted PV : iProp Σ :=
-    gen_own persist_view_name (◯ PV) ∗
-    rely_self crashedγ (crashed_at_pred PV).
+    ∃ OV OCV OPV,
+      "%view_eq" ∷ ⌜ OPV `view_sub` OCV = PV ⌝ ∗
+      "agree" ∷ crashed_at_offset crashedγ OV OCV ∗
+      "persLub" ∷ gen_own persist_view_name (◯ OPV) ∗
+      "crashRely" ∷ rely_self crashedγ (crashed_at_pred OPV) ∗
+      "rely" ∷ rely persist_view_name [crashedγ] persisted_rel (λ _, true).
+
+  (* Lemma persisted_weak PV PV' : PV' ≼ PV → persisted PV -∗ persisted PV'. *)
+  (* Proof. ... Qed. *)
+
+  Lemma view_sub_mono V1 V2 V3 : V1 ⊑ V2 → V1 `view_sub` V3 ⊑ V2 `view_sub` V3.
+  Proof. Admitted.
 
   Lemma post_crash_persisted PV :
     persisted PV ⊢
     ⚡==> persisted (view_to_zero PV) ∗
           ∃ CV, ⌜ PV ⊑ CV ⌝ ∗ crashed_at crashedγ CV.
   Proof.
+    iNamed 1.
+    iModIntro.
+    iDestruct "crashRely" as "(crashRely & (%t & (%OCV2 & %incl & ->) & picked1))".
+    iDestruct "agree" as (?) "[picked2 agree]".
+    iDestruct (gen_picked_in_agree with "picked1 picked2") as %<-.
+    iClear "picked2".
+    iDestruct "rely" as "[rely (%tP & %ts & (%rel & _) & pickedP & pickedC)]".
+    simpl.
+    unfold trans_for in ts.
+    simpl in ts.
+    dependent elimination ts as [hcons tC hnil].
+    iSpecialize ("pickedC" $! 0%fin).
+    simpl in rel.
+    rewrite hvec_lookup_fmap_equation_2.
+    iDestruct (gen_picked_in_agree with "picked1 pickedC") as %<-.
+    iClear "pickedC".
+    destruct rel as (OCV2' & eqs & ->).
+    assert (OCV2 = OCV2') as <-.
+    { admit. }
+    iDestruct "persLub" as (?) "[picked2 persLub]".
+    iDestruct (gen_picked_in_agree with "pickedP picked2") as %<-.
+    iClear "picked2".
+    (* Search bi_sep bi_exist. *)
+    rewrite bi.sep_exist_l.
+    iExists (OCV2 `view_sub` OCV).
+    assert (PV ⊑ OCV2 `view_sub` OCV).
+    { rewrite -view_eq. apply view_sub_mono. done. }
+    iSplit.
+    { iExists OCV, OCV2, OPV. iFrame. simpl.
+      rewrite fmap_auth_frag. simpl.
+      iSplit.
+      { iPureIntro. rewrite -view_eq.
+        (* this seems true *)
+        admit. }
+      iApply (gen_own_mono with "persLub").
+      Search auth_frag "view".
+      destruct incl as (V & ->).
+      exists (◯ V). done. }
+    iFrame.
+    iSplit; first done.
+    iExists _, _, _.
+    iFrame.
+    done.
   Admitted.
 
 End persisted.

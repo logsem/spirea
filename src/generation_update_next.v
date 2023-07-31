@@ -2375,6 +2375,15 @@ Section rules_with_deps.
   (*   f_equiv. *)
   (* Qed. *)
 
+  Global Instance gen_own_proper γ : Proper ((≡) ==> (≡)) (gen_own γ).
+  Proof. unfold gen_own, gc_tup_elem. solve_proper. Qed.
+
+  Lemma gen_own_op γ a1 a2 : gen_own γ (a1 ⋅ a2) ⊣⊢ gen_own γ a1 ∗ gen_own γ a2.
+  Proof. unfold gen_own, gc_tup_elem. rewrite -own_op. done. Qed.
+
+  Lemma gen_own_mono γ a1 a2 : a2 ≼ a1 → gen_own γ a1 ⊢ gen_own γ a2.
+  Proof. move=> [c ->]. rewrite gen_own_op sep_elim_l. done. Qed.
+
   Lemma own_gen_alloc (a : A) γs (deps_preds : preds_for n DS) :
     ✓ a →
     (* For every dependency we own a [rely_self]. *)
@@ -2725,7 +2734,7 @@ Section rules_with_deps.
          done.
   Qed.
 
-  Lemma token_nextgen γ γs (R : rel_over DS A) P :
+  Lemma used_token_nextgen γ γs (R : rel_over DS A) P :
     used_token γ γs R P ⊢ ⚡==> token γ γs R P.
   Proof.
     iNamed 1. iNamed "tokenPromise".
@@ -2754,6 +2763,10 @@ Section rules_with_deps.
     iCombine "A B" as "$".
     done.
   Qed.
+
+  #[global]
+  Instance into_nextgen_used_token γ γs R P : IntoNextgen _ _ :=
+    used_token_nextgen γ γs R P.
 
   Lemma own_promises_auth_promise_list prs γ rels preds (R : rel_over DS A) P pia :
     pred_prefix_list_for' rels preds R P →
@@ -3266,7 +3279,7 @@ Section rules_with_deps.
     rely_nextgen γ γs R P.
 
   Lemma picked_out_nextgen γ t `{!CmraMorphism t} :
-    picked_out γ t -∗ ⚡==> picked_in γ t.
+    picked_out γ t ⊢ ⚡==> picked_in γ t.
   Proof.
     iNamed 1.
     unfold nextgen.
@@ -3286,6 +3299,10 @@ Section rules_with_deps.
     rewrite rew_opp_l.
     done.
   Qed.
+
+  #[global]
+  Instance into_nextgen_picked_out γ t `{!CmraMorphism t} : IntoNextgen _ _ :=
+    picked_out_nextgen γ t.
 
   Lemma rely_self_nextgen γ P :
     rely_self γ P ⊢

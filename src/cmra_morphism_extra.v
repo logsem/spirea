@@ -83,6 +83,10 @@ Section fmap_auth.
       solve_proper.
   Qed.
 
+  Lemma fmap_auth_frag a t :
+    fmap_auth t (◯ a) = ◯ (t a).
+  Proof. done. Qed.
+
 End fmap_auth.
 
 #[global]
