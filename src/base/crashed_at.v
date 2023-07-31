@@ -19,30 +19,34 @@ Proof. intros i. inversion i. Qed.
 Instance genInSelgG_one Σ Ω n A (DS : ivec n cmra):
   genInG Σ Ω A DS →
   ∀ i : fin 1, genInSelfG Σ Ω ([A]%IL !!! i).
-Proof.
-  intros ? i.
-  dependent elimination i.
-Qed.
+Proof. intros ? i. dependent elimination i. Qed.
+
+(* Names used:
+ * - OV: The offset view, the sum of all crash views from prior generations
+ * - OCV: The crash view including offsets
+ * - OPV: The persist view including offsets
+ * - CV: The crash view, CV = OCV - OV
+ * - PV: The persist view, PV = OPV - OV
+ *)
 
 Section crashed_at.
-  Context `{i : !genInDepsG Σ Ω (agreeR viewO) [] }.
+  (* Resource for crashed at view *)
+  Context `{caI : !genInDepsG Σ Ω (agreeR viewO) [] }.
+  (* Resource for views that depend on the crashed at view *)
+  Context `{vI : !genInDepsG Σ Ω (authR viewUR) [agreeR viewO] }.
 
-  Definition crashed_at_pred (PV : view) : pred_over (agreeR viewO) :=
+  Definition crashed_at_pred (OPV : view) : pred_over (agreeR viewO) :=
     λ t, ∃ (CV : view), PV ⊑ CV ∧ t = const (to_agree CV).
-
-  (* Definition pred : pred_over (agreeR viewO) := *)
-  (*   λ t, ∃ (CV2 : view), t = const (to_agree CV2). *)
 
   Definition crashed_at_rel PV : rel_over [] (agreeR viewO) :=
     crashed_at_pred PV.
 
   Definition crashed_at γ (CV : view) : iProp Σ :=
-    "agree" ∷ gen_own (i := genInDepsG_gen i) γ (to_agree CV) ∗
+    "agree" ∷ gen_own γ (to_agree CV) ∗
     "rely" ∷ rely γ [] (crashed_at_rel ∅) (crashed_at_pred ∅).
 
   Definition crashed_at_tok γ LV : iProp Σ :=
     token γ [] (crashed_at_rel LV) (crashed_at_pred LV).
-    (* "rely" ∷ rely_self (g := genInG_genInSelfG (genInDepsG_gen i)) γ pred. *)
 
   Lemma crashed_at_alloc CV :
     ⊢ |==> ∃ γ, crashed_at γ CV ∗ crashed_at_tok γ ∅.
