@@ -30,23 +30,6 @@ Proof. intros ? i. dependent elimination i. Defined.
  * - PV: The persist view, PV = OPV - OV
  *)
 
-Definition view_add (V1 V2 : view) : view :=
-  let to_nat (n : option max_nat) := from_option max_nat_car 0 n in
-  merge (λ n1 n2, Some (MaxNat (to_nat n1 + to_nat n2))) V1 V2.
-
-Infix "`view_add`" := view_add (at level 50, left associativity).
-
-Definition view_sub (V1 V2 : view) : view :=
-  let to_nat (n : option max_nat) := from_option max_nat_car 0 n in
-  merge (λ n1 n2, (λ n, MaxNat (max_nat_car n - to_nat n2)) <$> n1) V1 V2.
-  (* Some (MaxNat (to_nat n1 - to_nat n2))) V1 V2. *)
-
-Infix "`view_sub`" := view_sub (at level 50, left associativity).
-
-Lemma view_add_empty V :
-  ∅ `view_add` V = V.
-Proof. Admitted.
-
 Section crashed_at.
   (* Resource for crashed at view *)
   Context `{caI : !genInDepsG Σ Ω crashed_atR [] }.
@@ -59,6 +42,17 @@ Section crashed_at.
   Instance crashed_at_trans_cmra_morphism OCV2 :
     CmraMorphism (crashed_at_trans OCV2).
   Proof. Admitted.
+
+  Lemma crashed_at_trans_inj V1 V2 :
+    crashed_at_trans V1 = crashed_at_trans V2 → V1 = V2.
+  Proof.
+    unfold crashed_at_trans.
+    intros ?.
+    specialize (equal_f H (to_agree (∅ : viewO), to_agree (∅ : viewO))).
+    simpl.
+    intros [= ?].
+    done.
+  Qed.
 
   Definition crashed_at_pred (OPV : view) : pred_over crashed_atR :=
     λ t, ∃ OCV2, OPV ⊑ OCV2 ∧ t = crashed_at_trans OCV2.
@@ -104,10 +98,10 @@ Section crashed_at.
     iDestruct (token_to_rely with "tok") as "#R".
     iFrame.
     iExists ∅, CV, _. iFrame.
-    (* iFrame "R". *)
-    (* iPureIntro. *)
-  Admitted. (* apply view_add_empty.*)
-  (* Qed. *)
+    iDestruct (rely_to_rely_self with "R") as "$".
+    iPureIntro.
+    apply view_sub_empty.
+  Qed.
 
   (** Owning [crashed_at] gives [crashed_at] for some view in the next
    * generation. *)
@@ -182,9 +176,16 @@ Section persisted.
   (* Lemma persisted_weak PV PV' : PV' ≼ PV → persisted PV -∗ persisted PV'. *)
   (* Proof. ... Qed. *)
 
-  Lemma view_sub_mono V1 V2 V3 : V1 ⊑ V2 → V1 `view_sub` V3 ⊑ V2 `view_sub` V3.
-  Proof. Admitted.
-
+  Lemma view_sub_something OPV OCV2 OCV :
+    OPV ⊑ OCV2 →
+    OPV `view_sub` OCV2 = view_to_zero (OPV `view_sub` OCV).
+  Proof.
+    intros gr.
+    rewrite view_sub_greater; last done.
+    apply view_to_zero_dom_eq.
+    symmetry.
+    apply view_sub_dom_eq.
+  Qed.
   Lemma post_crash_persisted PV :
     persisted PV ⊢
     ⚡==> persisted (view_to_zero PV) ∗
@@ -207,8 +208,7 @@ Section persisted.
     iDestruct (gen_picked_in_agree with "picked1 pickedC") as %<-.
     iClear "pickedC".
     destruct rel as (OCV2' & eqs & ->).
-    assert (OCV2 = OCV2') as <-.
-    { admit. }
+    apply crashed_at_trans_inj in eqs as <-.
     iDestruct "persLub" as (?) "[picked2 persLub]".
     iDestruct (gen_picked_in_agree with "pickedP picked2") as %<-.
     iClear "picked2".
@@ -222,8 +222,7 @@ Section persisted.
       rewrite fmap_auth_frag. simpl.
       iSplit.
       { iPureIntro. rewrite -view_eq.
-        (* this seems true *)
-        admit. }
+        apply view_sub_something. done. }
       iApply (gen_own_mono with "persLub").
       Search auth_frag "view".
       destruct incl as (V & ->).
@@ -233,6 +232,6 @@ Section persisted.
     iExists _, _, _.
     iFrame.
     done.
-  Admitted.
+  Qed.
 
 End persisted.

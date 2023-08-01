@@ -2384,6 +2384,10 @@ Section rules_with_deps.
   Lemma gen_own_mono γ a1 a2 : a2 ≼ a1 → gen_own γ a1 ⊢ gen_own γ a2.
   Proof. move=> [c ->]. rewrite gen_own_op sep_elim_l. done. Qed.
 
+  Lemma rely_to_rely_self γ γs R P :
+    rely γ γs R P ⊢ rely_self γ P.
+  Proof. iNamed 1. iExists _, _, _, _. iFrame "relyPromise". Qed.
+
   Lemma own_gen_alloc (a : A) γs (deps_preds : preds_for n DS) :
     ✓ a →
     (* For every dependency we own a [rely_self]. *)

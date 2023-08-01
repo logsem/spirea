@@ -31,6 +31,12 @@ Instance subseteq_view : SqSubsetEq view := λ v w, v ≼ w.
 Lemma view_join V W : (V ⊔ W) = (V ⋅ W).
 Proof. done. Qed.
 
+Definition view_add (V1 V2 : view) : view :=
+  let to_nat (n : option max_nat) := from_option max_nat_car 0 n in
+  merge (λ n1 n2, Some (MaxNat (to_nat n1 + to_nat n2))) V1 V2.
+
+Infix "`view_add`" := view_add (at level 50, left associativity).
+
 Lemma subseteq_view_incl V W : (V ⊑ W) = (V ≼ W).
 Proof. done. Qed.
 
@@ -95,38 +101,45 @@ Proof. rewrite /lookup_zero. destruct (V !! ℓ); lia. Qed.
 Lemma lookup_zero_None_zero V ℓ : V !! ℓ = None -> V !!0 ℓ = 0.
 Proof. rewrite /lookup_zero. intros ->. done. Qed.
 
+Lemma view_included V W :
+  V ⊑ W ↔ (∀ i : loc, V !! i ≼ W !! i).
+Proof. rewrite subseteq_view_incl lookup_included. done. Qed.
+
 (* A convenient condition for showing that one view is included in another. *)
 Lemma view_le_lookup V W :
-  (∀ ℓ t, V !! ℓ = Some (MaxNat t) → ∃ t', W !! ℓ = Some (MaxNat t') ∧ t ≤ t') →
+  (∀ ℓ t, V !! ℓ = Some (MaxNat t) → ∃ t', W !! ℓ = Some (MaxNat t') ∧ t ≤ t') ↔
   V ⊑ W.
 Proof.
-  intros H.
-  rewrite subseteq_view_incl lookup_included => ℓ.
-  case (V !! ℓ) as [[t]|] eqn:look.
-  - destruct (H ℓ t) as [t' [eq le]]; first done.
-    rewrite look eq.
-    apply Some_included_total.
-    apply max_nat_included.
-    done.
-  - rewrite look.
-    replace (None) with (ε : option max_nat); last done.
-    apply ucmra_unit_least.
+  rewrite view_included. split.
+  * intros H ℓ.
+    case (V !! ℓ) as [[t]|] eqn:look.
+    - destruct (H ℓ t) as [t' [eq le]]; first done.
+      rewrite eq Some_included_total max_nat_included. done.
+    - assert (@None (ofe_car (cmra_ofeO max_natR)) = (ε : option max_nat)) as ->;
+        first done.
+      apply ucmra_unit_least.
+  * intros incl ℓ t look.
+    specialize (incl ℓ).
+    rewrite look in incl.
+    destruct (W !! ℓ) as [[t']|].
+    - exists t'. split; first done.
+      rewrite Some_included_total max_nat_included in incl.
+      done.
+    - apply option_not_included_None in incl. done.
 Qed.
 
 Global Instance view_lt_lt : Proper ((⊑) ==> (=) ==> (≤)) (lookup_zero).
 Proof.
   intros V V' le ℓ ? <-.
-  rewrite subseteq_view_incl in le. setoid_rewrite lookup_included in le.
+  rewrite view_included in le.
   specialize (le ℓ).
   move: le.
   rewrite /lookup_zero.
   destruct (V !! ℓ) as [[t]|] eqn:eq, (V' !! ℓ) as [[t'']|] eqn:eq'; simpl; try lia.
-  - rewrite eq. rewrite eq'.
-    rewrite Some_included_total.
+  - rewrite Some_included_total.
     rewrite max_nat_included.
     done.
-  - rewrite eq. rewrite eq'.
-    by intros ?%option_not_included_None.
+  - by intros ?%option_not_included_None.
 Qed.
 
 Lemma view_le_dom_subseteq V W : V ⊑ W → dom V ⊆ dom W.
@@ -360,6 +373,82 @@ Proof.
   intros [a b] [? ?]. cbv. rewrite (comm _ a) (comm _ b). done.
 Qed.
 
+(* Subtract a view from another. *)
+Definition view_sub (V1 V2 : view) : view :=
+  map_imap (λ ℓ t, Some (MaxNat (max_nat_car t - (V2 !!0 ℓ)))) V1.
+  (* let to_nat (n : option max_nat) := from_option max_nat_car 0 n in *)
+  (* merge (λ n1 n2, (λ n, MaxNat (max_nat_car n - to_nat n2)) <$> n1) V1 V2. *)
+
+Infix "`view_sub`" := view_sub (at level 50, left associativity).
+
+Lemma view_sub_lookup V1 V2 ℓ :
+  (V1 `view_sub` V2) !! ℓ =
+    (λ t, MaxNat $ (max_nat_car t) - (V2 !!0 ℓ)) <$> V1 !! ℓ.
+Proof.
+  rewrite /view_sub. rewrite map_lookup_imap /lookup_zero.
+  destruct (V1 !! ℓ); destruct (V2 !! ℓ); done.
+Qed.
+
+Lemma view_sub_lookup_Some V1 V2 t ℓ :
+  (V1 `view_sub` V2) !! ℓ = Some (MaxNat t) →
+  ∃ t2, V1 !! ℓ = Some (MaxNat t2) ∧ t = t2 - (V2 !!0 ℓ).
+Proof.
+  rewrite view_sub_lookup /lookup_zero.
+  destruct (V1 !! ℓ) as [[t1]|]; destruct (V2 !! ℓ) as [[t2]|]; naive_solver.
+Qed.
+
+Lemma view_sub_mono V1 V2 V3 :
+  V1 ⊑ V2 → V1 `view_sub` V3 ⊑ V2 `view_sub` V3.
+Proof.
+  rewrite -!view_le_lookup.
+  intros H ℓ t (t2 & look1 & ?)%view_sub_lookup_Some.
+  rewrite view_sub_lookup.
+  destruct (H ℓ _ look1) as (? & look2 & ?).
+  eexists _.
+  rewrite look2 /=. split; first done.
+  lia.
+Qed.
+
+Lemma view_sub_empty V :
+  V `view_sub` ∅ = V.
+Proof.
+  apply map_eq. intros ℓ. rewrite view_sub_lookup.
+  destruct (V !! ℓ) as [[t]|]; last done. simpl.
+  rewrite view_lookup_zero_empty.
+  f_equiv. f_equiv. lia.
+Qed.
+
+Lemma view_sub_greater V1 V2 :
+  V1 ⊑ V2 → V1 `view_sub` V2 = view_to_zero V1.
+Proof.
+  rewrite -view_le_lookup => H.
+  apply map_eq => ℓ.
+  rewrite view_sub_lookup /view_to_zero.
+  rewrite lookup_fmap.
+  destruct (V1 !! ℓ) as [[t]|] eqn:look; simpl; last done.
+  f_equiv. f_equiv.
+  rewrite /lookup_zero.
+  destruct (H ℓ _ look) as (? & -> & ?).
+  simpl. lia.
+Qed.
+
+Lemma view_to_zero_dom_eq V1 V2 :
+  dom V1 = dom V2 →
+  view_to_zero V1 = view_to_zero V2.
+Proof. unfold view_to_zero. rewrite -2!gset_to_gmap_dom. intros ->. done.
+Qed.
+
+Lemma view_sub_dom_eq V1 V2 :
+  dom (V1 `view_sub` V2) = dom V1.
+Proof.
+  unfold view_sub.
+  apply dom_imap_L.
+  intros ?. rewrite elem_of_dom /is_Some. naive_solver.
+Qed.
+
+(* Lemma view_add_empty V : *)
+(*   ∅ `view_add` V = V. *)
+(* Proof. Qed. *)
 
 (* Global Instance pair_join_mono `{!Join A, !Join B, !SqSubsetEq A, !SqSubsetEq B} : Proper ((⊑@{A * B}) ==> (⊑) ==> (⊑)) (⊔). *)
 (* Proof. *)
