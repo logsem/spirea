@@ -1,3 +1,7 @@
+(* A high-level [nextgen] modality that supports picking transformations per
+ * ghost location that satisfies a dynamically picked promise that can depend
+ * on other ghost locations. *)
+
 From Equations Require Import Equations.
 From stdpp Require Import finite.
 
@@ -10,10 +14,9 @@ From iris.prelude Require Import options.
 From iris_named_props Require Import named_props.
 
 From self Require Export hvec.
-From self Require Import extra basic_nextgen_modality cmra_morphism_extra
-  gen_single_shot gen_pv.
 From self.high Require Import increasing_map.
-From self.nextgen Require Export types omega generational_cmra transmap promise.
+From self.nextgen Require Export nextgen_basic types omega generational_cmra
+  transmap promise cmra_morphism_extra gen_single_shot gen_pv.
 
 Import EqNotations. (* Get the [rew] notation. *)
 Import uPred.

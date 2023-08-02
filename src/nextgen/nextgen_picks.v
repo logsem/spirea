@@ -1,9 +1,15 @@
+(* A high-level [nextgen] modality that supports picking transformations per
+ * ghost location. The transformations must be picked from a fixed set of valid
+ * transformation. See [./nextgen_promise.v] for a continuation of this that
+ * also supports a dynamic set of transformations through "promises". *)
+
 From iris.algebra Require Import functions gmap agree excl csum.
 From iris.proofmode Require Import classes tactics.
 From iris.base_logic.lib Require Export iprop own invariants.
 From iris.prelude Require Import options.
 
-From self Require Import extra basic_nextgen_modality cmra_morphism_extra gen_single_shot.
+From self Require Import extra.
+From self.nextgen Require Import nextgen_basic cmra_morphism_extra gen_single_shot.
 Import uPred.
 
 Definition generational_cmra A : Type :=

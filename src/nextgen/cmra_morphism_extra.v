@@ -1,3 +1,6 @@
+(* This file defines additional [CmraMorphisms] and instances in addition to
+ * those included in Iris. *)
+
 From iris.base_logic.lib Require Export iprop own invariants.
 From iris.prelude Require Import options.
 

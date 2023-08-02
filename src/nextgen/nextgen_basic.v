@@ -1,4 +1,5 @@
-(* From stdpp Require Import hlist. *)
+(* The basic nextgen modality. *)
+
 From iris.proofmode Require Import classes tactics.
 From iris.base_logic.lib Require Export iprop own invariants.
 From iris.prelude Require Import options.

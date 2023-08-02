@@ -1,5 +1,4 @@
-From self Require Import basic_nextgen_modality.
-(* From self.nextgen Require Import gen_trans. *)
+From self.nextgen Require Import nextgen_basic.
 
 Import uPred.
 
@@ -32,7 +31,7 @@ Section bnextgen_rules.
   Proof.
     unfold ng_persistently.
     uPred.unseal.
-    rewrite !basic_nextgen_modality.uPred_bnextgen_unseal.
+    rewrite !nextgen_basic.uPred_bnextgen_unseal.
     done.
   Qed.
 
