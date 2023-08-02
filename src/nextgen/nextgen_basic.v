@@ -60,6 +60,22 @@ Section bnextgen_rules.
     unseal. split. simpl. intros n x Hv ?. apply: gen_trans_monoN. done.
   Qed.
 
+  Lemma bnextgen_ownM_inv' (a : M) b :
+    (∀ x n, b ≼{n} f x → a ≼{n} x) →
+    (⚡={f}=> uPred_ownM b) ⊢ uPred_ownM a.
+  Proof.
+    intros H. unseal. split. simpl. intros n x Hv ?. apply H. done.
+  Qed.
+
+  Lemma bnextgen_ownM_inv (a : M) g
+      `{mono : ∀ n, Proper (includedN n ==> includedN n) g} :
+    (∀ a, g (f a) = a) →
+    (⚡={f}=> uPred_ownM a) ⊢ uPred_ownM (g a).
+  Proof.
+    intros eq. apply bnextgen_ownM_inv'.
+    intros ?? incl%mono. rewrite eq in incl. done.
+  Qed.
+
   #[global] Instance bnextgen_ne : NonExpansive (uPred_bnextgen f).
   Proof.
     unseal. intros ? P Q Heq.
