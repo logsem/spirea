@@ -1415,6 +1415,14 @@ Section nextgen_structural_properties.
     IntoNextgen (⚡==> P) P.
   Proof. done. Qed.
 
+  Global Instance into_nextgen_exist {A} (Ψ Ψ' : A → _) :
+    (∀ x : A, IntoNextgen (Ψ x) (Ψ' x)) →
+    IntoNextgen (∃ x : A, Ψ x) (∃ x : A, Ψ' x).
+  Proof.
+    intros ?. unfold IntoNextgen. iIntros "(% & ?)".
+    iModIntro. iExists x. done.
+  Qed.
+
   Lemma nextgen_forall {A} Ψ :
     (⚡==> (∀ a : A, Ψ a)) ⊣⊢ (∀ a : A, ⚡==> Ψ a).
   Proof.
