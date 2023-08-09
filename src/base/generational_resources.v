@@ -9,14 +9,14 @@
  *)
 
 From Equations Require Import Equations.
-From iris.algebra Require Import agree.
+From iris.algebra Require Import gmap_view agree.
 From iris.base_logic.lib Require Export iprop own invariants.
 From iris.proofmode Require Import classes tactics.
 From iris_named_props Require Import named_props.
 From nextgen Require Import cmra_morphism_extra gmap_view_transformation.
 
-From self Require Import hvec.
-From self.nextgen Require Import hvec cmra_morphism_extra nextgen_promises.
+From self Require Import extra map_extra.
+From self.nextgen Require Import hvec nextgen_promises.
 From self.nextgen Require Import nextgen_promises.
 From self.algebra Require Import view.
 
@@ -70,8 +70,9 @@ Section crashed_at.
   Definition crashed_at_rel PV : rel_over [] crashed_atR :=
     crashed_at_pred PV.
 
-  Definition crashed_at_offset γ OV OCV :=
-    gen_own γ (to_agree OV, to_agree OCV).
+  (* Ownership over the offest crashed at view. *)
+  Definition crashed_at_offset γ OCV : iProp Σ :=
+    ∃ OV, gen_own γ (to_agree OV, to_agree OCV).
 
   Definition crashed_at γ (CV : view) : iProp Σ :=
     ∃ (OV OCV LV : view),
@@ -133,14 +134,14 @@ Section crashed_at.
     iPureIntro. reflexivity.
   Qed.
 
-  Lemma crashed_at_pick_nextgen γ OV OCV OCV2 LV :
+  Lemma crashed_at_pick_nextgen γ OCV OCV2 LV :
     LV ⊑ OCV2 →
-    crashed_at_offset γ OV OCV -∗
+    crashed_at_offset γ OCV -∗
     crashed_at_tok γ LV -∗
-    |==> ⚡==> crashed_at_offset γ OCV OCV2 ∗
+    |==> ⚡==> crashed_at_offset γ OCV2 ∗
           crashed_at_tok γ LV.
   Proof.
-    iIntros (le) "AG tok".
+    iIntros (le) "(% & AG) tok".
     unfold crashed_at_tok, crashed_at_offset.
     iMod (
       token_pick (DS := []) _ _ _ _ []%HV (crashed_at_trans OCV2) with "[] tok")
@@ -152,7 +153,7 @@ Section crashed_at.
     iFrame "tok".
     iDestruct "AG" as (t) "[picked2 ?]".
     iDestruct (gen_picked_in_agree with "picked picked2") as %<-.
-    simpl. done.
+    simpl. naive_solver.
   Qed.
 
 End crashed_at.
@@ -176,9 +177,9 @@ Section persisted.
     rely_self crashedγ (crashed_at_pred OPV).
 
   Definition persisted PV : iProp Σ :=
-    ∃ OV OCV OPV,
+    ∃ OCV OPV,
       "%view_eq" ∷ ⌜ OPV `view_sub` OCV = PV ⌝ ∗
-      "agree" ∷ crashed_at_offset crashedγ OV OCV ∗
+      "agree" ∷ crashed_at_offset crashedγ OCV ∗
       "persLub" ∷ gen_own persist_view_name (◯ OPV) ∗
       "crashRely" ∷ rely_self crashedγ (crashed_at_pred OPV) ∗
       "rely" ∷ rely persist_view_name [crashedγ] persisted_rel (λ _, true).
@@ -196,6 +197,7 @@ Section persisted.
     symmetry.
     apply view_sub_dom_eq.
   Qed.
+
   Lemma post_crash_persisted PV :
     persisted PV ⊢
     ⚡==> persisted (view_to_zero PV) ∗
@@ -204,7 +206,7 @@ Section persisted.
     iNamed 1.
     iModIntro.
     iDestruct "crashRely" as "(crashRely & (%t & (%OCV2 & %incl & ->) & picked1))".
-    iDestruct "agree" as (?) "[picked2 agree]".
+    iDestruct "agree" as (??) "[picked2 agree]".
     iDestruct (gen_picked_in_agree with "picked1 picked2") as %<-.
     iClear "picked2".
     iDestruct "rely" as "[rely (%tP & %ts & (%rel & _) & pickedP & pickedC)]".
@@ -228,11 +230,12 @@ Section persisted.
     assert (PV ⊑ OCV2 `view_sub` OCV).
     { rewrite -view_eq. apply view_sub_mono. done. }
     iSplit.
-    { iExists OCV, OCV2, OPV. iFrame. simpl.
+    { iExists OCV2, OPV. iFrame. simpl.
       rewrite fmap_auth_frag. simpl.
       iSplit.
       { iPureIntro. rewrite -view_eq.
         apply view_sub_something. done. }
+      iSplit. { iExists _. iFrame. }
       iApply (gen_own_mono with "persLub").
       Search auth_frag "view".
       destruct incl as (V & ->).
@@ -245,3 +248,49 @@ Section persisted.
   Qed.
 
 End persisted.
+
+Section heap.
+  (* The transformation of the heap depends on the transformation of the crashed_at view. *)
+  Context `{!genInDepsG Σ Ω crashed_atR [] }.
+  Context {V : Type}.
+  Context `{i : !genInDepsG Σ Ω (gmap_viewR loc (leibnizO (gmap nat V))) [crashed_atR] }.
+  Context (crashedγ : gname).
+  Context (heapγ : gname).
+
+  Definition drop_above_hist (OCV : view) (l : loc) (hist : leibnizO (gmap nat V)) : option (leibnizO (gmap nat V)) :=
+    (λ '(MaxNat t), drop_above (t) hist) <$> (OCV !! l).
+
+  Instance drop_above_hist_map_trans OCV:
+     MapTrans (drop_above_hist OCV).
+  Proof.
+    split; last solve_proper.
+    unfold drop_above_hist.
+    intros ℓ v1 ->%fmap_None v2. done.
+  Qed.
+
+  Definition drop_above_map (OCV : view) heap :=
+    map_imap (drop_above_hist OCV) heap.
+
+  Local Definition heap_rel : rel_over [crashed_atR] (gmap_viewR loc (leibnizO (gmap nat V))) :=
+    λ tC tP, ∃ OCV,
+      tC = crashed_at_trans OCV ∧
+      tP = map_entry_lift_gmap_view (drop_above_hist OCV).
+
+  Definition own_auth_heap heap : iProp Σ :=
+    "own_auth" ∷  gen_own heapγ (gmap_view_auth (DfracOwn 1) heap) ∗
+    "rely" ∷ rely heapγ [crashedγ] heap_rel (λ _, true).
+
+  Lemma own_auth_heap_alloc LV heap :
+    rely_self crashedγ (crashed_at_pred LV) ==∗ own_auth_heap heap.
+  Proof.
+  Admitted.
+
+  Lemma own_auth_heap_nextgen heap :
+    own_auth_heap heap
+    ⊢ ⚡==> ∃ OCV,
+      crashed_at_offset crashedγ OCV ∗
+      own_auth_heap (drop_above_map OCV heap).
+  Proof.
+  Admitted.
+
+End heap.
