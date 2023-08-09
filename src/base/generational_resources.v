@@ -1,11 +1,21 @@
+(* The generational resources used by BaseSpirea.
+ *
+ * The base logic uses 5 resources that change at a crash:
+ * - The crashed_at resource.
+ * - The persisted resource.
+ * - The heap.
+ * - The store view.
+ * - The [NC] crashGS thing from Perennial
+ *)
+
 From Equations Require Import Equations.
 From iris.algebra Require Import agree.
 From iris.base_logic.lib Require Export iprop own invariants.
 From iris.proofmode Require Import classes tactics.
 From iris_named_props Require Import named_props.
 
-From self Require Import hvec.
-From self.nextgen Require Import cmra_morphism_extra nextgen_promises.
+(* From self Require Import hvec. *)
+From self.nextgen Require Import hvec cmra_morphism_extra nextgen_promises.
 From self.algebra Require Import view.
 
 Definition crashed_atR : cmra := prodR (agreeR viewO) (agreeR viewO).
