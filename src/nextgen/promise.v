@@ -1,7 +1,8 @@
 From Equations Require Import Equations.
 From iris.base_logic.lib Require Export own.
 
-From self Require Import hvec cmra_morphism_extra.
+From nextgen Require Import cmra_morphism_extra.
+From self Require Import hvec.
 From self.nextgen Require Import types generational_cmra omega.
 
 Import EqNotations. (* Get the [rew] notation. *)

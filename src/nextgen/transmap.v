@@ -1,4 +1,5 @@
-From self Require Import cmra_morphism_extra.
+From nextgen Require Import cmra_morphism_extra.
+
 From self.nextgen Require Import types omega.
 
 Definition map_agree_overlap `{FinMap K M} {A} (m1 m2 : M A) :=

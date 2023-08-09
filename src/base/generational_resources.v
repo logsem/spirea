@@ -13,9 +13,11 @@ From iris.algebra Require Import agree.
 From iris.base_logic.lib Require Export iprop own invariants.
 From iris.proofmode Require Import classes tactics.
 From iris_named_props Require Import named_props.
+From nextgen Require Import cmra_morphism_extra gmap_view_transformation.
 
-(* From self Require Import hvec. *)
+From self Require Import hvec.
 From self.nextgen Require Import hvec cmra_morphism_extra nextgen_promises.
+From self.nextgen Require Import nextgen_promises.
 From self.algebra Require Import view.
 
 Definition crashed_atR : cmra := prodR (agreeR viewO) (agreeR viewO).

@@ -12,11 +12,11 @@ From iris.base_logic.lib Require Export iprop own invariants.
 From iris.prelude Require Import options.
 
 From iris_named_props Require Import named_props.
+From nextgen Require Export nextgen_basic cmra_morphism_extra gen_single_shot gen_nc.
 
 From self Require Export hvec.
 From self.high Require Import increasing_map.
-From self.nextgen Require Export nextgen_basic types omega generational_cmra
-  transmap promise cmra_morphism_extra gen_single_shot gen_pv.
+From self.nextgen Require Export types omega generational_cmra transmap promise.
 
 Import EqNotations. (* Get the [rew] notation. *)
 Import uPred.
@@ -911,7 +911,7 @@ Section own_picks.
       ⌜ rel_prefix_list_for rel_weaker Rs R ⌝ ∧
       Oown i γ (
         MkGen ε (GTS_tok_gen_shot t) ε (Some (to_agree (ivec_to_list γs)))
-        (gV (●ML□ Rs)) (gV (●ML□ Ps))
+        (gC (●ML□ Rs)) (gC (●ML□ Ps))
       ).
 
   (* The resource contains the agreement resources for all the picks in
@@ -997,7 +997,7 @@ Section next_gen_definition.
       (Ps : list (pred_over (Oc Ω pi.(pi_id)))) : iProp Σ :=
     Oown pi.(pi_id) pi.(pi_γ) (MkGen
       ε ε ε (Some (to_agree (ivec_to_list pi.(pi_deps_γs))))
-      (gPV (◯ML Rs)) (gPV (◯ML Ps))
+      (gNC (◯ML Rs)) (gNC (◯ML Ps))
     ).
 
   Definition own_promise_info (pi : promise_info Ω) : iProp Σ :=
@@ -1131,8 +1131,8 @@ Section own_promises_properties.
     iPureIntro.
     rewrite -Some_op Some_valid to_agree_op_valid_L in Hv1.
     apply ivec_to_list_inj in Hv1.
-    rewrite gen_pv_op gen_pv_valid auth_frag_op_valid in Hv2.
-    rewrite gen_pv_op gen_pv_valid auth_frag_op_valid in Hv3.
+    rewrite gen_nc_op gen_nc_valid auth_frag_op_valid in Hv2.
+    rewrite gen_nc_op gen_nc_valid auth_frag_op_valid in Hv3.
     apply to_max_prefix_list_op_valid_L in Hv2.
     apply to_max_prefix_list_op_valid_L in Hv3.
     eapply pred_prefix_list_for_stronger; done.
@@ -1165,8 +1165,8 @@ Section own_promises_properties.
     iDestruct (own_valid_2 with "PS1 PS2") as "V2".
     iDestruct (prod_valid_6th with "V2") as %V2.
     iPureIntro.
-    unfold gPV, gV in V1, V2.
-    apply gen_pv_op_valid in V1, V2.
+    unfold gNC, gC in V1, V2.
+    apply gen_nc_op_valid in V1, V2.
     rewrite comm in V1.
     rewrite comm in V2.
     apply mono_list_both_dfrac_valid_L in V1 as [_ pref1].
@@ -1461,18 +1461,18 @@ Section generational_resources.
 
   Definition own_frozen_auth_promise_list γ rels preds : iProp Σ :=
     gen_promise_rel_pred_list γ
-      (gP (●ML rels)) (gP (●ML preds)) ∗
+      (gN (●ML rels)) (gN (●ML preds)) ∗
     gen_promise_rel_pred_list γ
-      (gV (●ML□ rels)) (gV (●ML□ preds)).
+      (gC (●ML□ rels)) (gC (●ML□ preds)).
 
   Definition own_unit γ : iProp Σ :=
     own γ (ε : generational_cmraR A DS).
 
   Definition own_auth_promise_list γ rels preds : iProp Σ :=
-    gen_promise_rel_pred_list γ (gPV (●ML rels)) (gPV (●ML preds)).
+    gen_promise_rel_pred_list γ (gNC (●ML rels)) (gNC (●ML preds)).
 
   Definition own_frag_promise_list γ rels preds : iProp Σ :=
-    gen_promise_rel_pred_list γ (gPV (◯ML rels)) (gPV (◯ML preds)).
+    gen_promise_rel_pred_list γ (gNC (◯ML rels)) (gNC (◯ML preds)).
 
   Definition promise_info_for pia γs R P : Prop :=
     pia.(pi_deps_γs) = rew [λ n, ivec n _] genInG_gcd_n in γs ∧
@@ -2121,7 +2121,7 @@ Section nextgen_assertion_rules.
     ∃ rels' (preds' : list (pred_over A)),
       ⌜ pred_prefix_list_for' rels' preds' R P ⌝ ∗
       know_deps γ γs ∗
-      gen_promise_rel_pred_list γ (gPV (◯ML rels')) (gPV (◯ML preds')).
+      gen_promise_rel_pred_list γ (gNC (◯ML rels')) (gNC (◯ML preds')).
   Proof.
     iNamed 1.
     unfold own_promises.
@@ -2226,8 +2226,8 @@ Section rules_with_deps.
     rewrite -own_op.
     unfold own_auth_promise_list.
     unfold own_frag_promise_list.
-    unfold gPV.
-    unfold mk_gen_pv.
+    unfold gNC.
+    unfold mk_gen_nc.
     unfold gen_promise_rel_pred_list.
     unfold gc_tup_rel_pred.
     rewrite {1 2}(mono_list_auth_lb_op _ rs).
@@ -2243,11 +2243,11 @@ Section rules_with_deps.
     rewrite /gen_promise_rel_pred_list.
     apply own_update.
     apply gen_cmra_update; try reflexivity.
-    - apply gen_pv_update.
+    - apply gen_nc_update.
       apply mono_list_update.
       apply prefix_app_r.
       done.
-    - apply gen_pv_update.
+    - apply gen_nc_update.
       apply mono_list_update.
       apply prefix_app_r.
       done.
@@ -2408,21 +2408,21 @@ Section rules_with_deps.
        gc_tup_elem DS a ⋅
        gc_tup_pick_out DS GTS_tok_both ⋅
        gc_tup_rel_pred
-         (gPV (●ML (True_rel :: [])))
-         (gPV (●ML (True_pred :: []))) ⋅
+         (gNC (●ML (True_rel :: [])))
+         (gNC (●ML (True_pred :: []))) ⋅
        gc_tup_rel_pred
-         (gPV (◯ML (True_rel :: []))) (gPV (◯ML (True_pred :: [])))
+         (gNC (◯ML (True_rel :: []))) (gNC (◯ML (True_pred :: [])))
        ) (promises_different_gname prs)) as (γ pHolds) "[[[[OD OA] A'] B1] B2]".
     { apply promises_different_gname_infinite. }
     { split_and!; simpl; try done.
       - rewrite ucmra_unit_left_id.
-        rewrite gen_pv_op.
-        apply gen_pv_valid.
+        rewrite gen_nc_op.
+        apply gen_nc_valid.
         apply mono_list_both_valid.
         exists []. done.
       - rewrite ucmra_unit_left_id.
-        rewrite gen_pv_op.
-        apply gen_pv_valid.
+        rewrite gen_nc_op.
+        apply gen_nc_valid.
         apply mono_list_both_valid.
         exists []. done. }
     iExists γ.
@@ -3133,7 +3133,7 @@ Section rules_with_deps.
     iDestruct (prod_valid_5th with "val") as "%val".
     iPureIntro.
     move: val.
-    rewrite gen_pv_op. rewrite gen_pv_valid.
+    rewrite gen_nc_op. rewrite gen_nc_valid.
     intros prefix%mono_list_both_valid_L.
     destruct pred_prefix as (? & ? & ? & ?).
     destruct pref as (? & ? & ? & ?).

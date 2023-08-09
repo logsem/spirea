@@ -9,7 +9,7 @@ From iris.base_logic.lib Require Export iprop own invariants.
 From iris.prelude Require Import options.
 
 From self Require Import extra.
-From self.nextgen Require Import nextgen_basic cmra_morphism_extra gen_single_shot.
+From nextgen Require Import nextgen_basic cmra_morphism_extra gen_single_shot.
 Import uPred.
 
 Definition generational_cmra A : Type :=

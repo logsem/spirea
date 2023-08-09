@@ -1,8 +1,10 @@
 From iris.algebra Require Import functions gmap agree excl csum max_prefix_list.
 From iris.algebra.lib Require Import mono_list.
 From iris.proofmode Require Import classes tactics.
+From nextgen Require Import cmra_morphism_extra.
+From nextgen Require Import gen_single_shot gen_nc.
 
-From self Require Import hvec extra cmra_morphism_extra gen_single_shot gen_pv.
+From self Require Import hvec extra.
 From self.nextgen Require Import types.
 
 Import EqNotations. (* Get the [rew] notation. *)
@@ -32,9 +34,9 @@ Record generational_cmra {n} (A : cmra) (DS : ivec n cmra) : Type := MkGen {
   (* Gname of dependencies - we don't need to store their [gid] as that is static. *)
   gc_deps : option (agree (leibnizO (list gname)));
   (* List of promised relations. *)
-  gc_promises_rel : gen_pv (mono_list (rel_overO DS A));
+  gc_promises_rel : gen_nc (mono_list (rel_overO DS A));
   (* List of promised predicates. *)
-  gc_promises_pred : gen_pv (mono_list (pred_overO A));
+  gc_promises_pred : gen_nc (mono_list (pred_overO A));
 }.
 
 Arguments MkGen {_ _ _} _.
@@ -284,8 +286,8 @@ Proof. apply: ucmra_unit_least. Qed.
 (*   (GTS_floor : (GTSR (A → A)) → (GTSR (A → A))) *M* *)
 (*   (fmap t : optionR A → optionR A) *M* *)
 (*   id *M* *)
-(*   gen_pv_trans *M* *)
-(*   gen_pv_trans. *)
+(*   gen_nc_trans *M* *)
+(*   gen_nc_trans. *)
 
 (* The generational transformation function for the encoding of each ownership
  * over a generational camera. *)
@@ -296,8 +298,8 @@ Definition gen_cmra_trans {n} {A : cmra} {DS : ivec n cmra} (t : A → A) :
     (GTS_floor (gc_single_shot a))
     (fmap t (gc_elem a))
     (gc_deps a)
-    (gen_pv_trans (gc_promises_rel a))
-    (gen_pv_trans (gc_promises_pred a)).
+    (gen_nc_trans (gc_promises_rel a))
+    (gen_nc_trans (gc_promises_pred a)).
 
 Section contstructors.
   Context {n : nat}.
@@ -462,7 +464,7 @@ Section lemmas.
     (gen_cmra_trans t) (MkGen a b c d e f) =
       MkGen (DS := DS)
         (Some (to_agree t)) (GTS_floor b) (t <$> c) d
-        (gen_pv_trans e) (gen_pv_trans f).
+        (gen_nc_trans e) (gen_nc_trans f).
   Proof. done. Qed.
 
 End lemmas.
@@ -507,7 +509,7 @@ Section generational_resources.
 
   Definition own_frozen_auth_promise_list γ rels preds : iProp Σ :=
     gen_promise_rel_pred_list γ
-      (gP (●ML rels) ⋅ gV (●ML□ rels)) (gP (●ML preds) ⋅ gV (●ML□ preds)).
+      (gN (●ML rels) ⋅ gC (●ML□ rels)) (gN (●ML preds) ⋅ gC (●ML□ preds)).
 
   Definition own_unit γ : iProp Σ :=
     own γ ε.

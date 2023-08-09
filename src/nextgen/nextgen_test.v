@@ -9,10 +9,11 @@ From iris.prelude Require Import options.
 
 From iris_named_props Require Import named_props.
 
+From nextgen Require Import cmra_morphism_extra gen_single_shot gen_nc.
+
 From self Require Import extra.
 (* From self Require Import generation_update_next. *)
-From self.nextgen Require Import hvec nextgen_promises cmra_morphism_extra omega generational_cmra transmap promise.
-From self.nextgen.algebra Require Import gen_single_shot gen_pv.
+From self.nextgen Require Import hvec nextgen_promises omega generational_cmra transmap promise.
 
 Import uPred.
 
