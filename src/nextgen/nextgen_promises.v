@@ -1191,10 +1191,6 @@ Section nextgen_structural_properties.
   Context {Σ : gFunctors} {Ω : gGenCmras Σ}.
   Implicit Types (P : iProp Σ) (Q : iProp Σ).
 
-  (* Lemma res_for_picks_empty : *)
-  (*   res_for_picks (λ i : gid Σ, ∅) ε. *)
-  (* Proof. done. Qed. *)
-
   Lemma own_picks_empty :
     ⊢@{iProp Σ} own_picks (λ i, ∅).
   Proof. iIntros (????). done. Qed.
@@ -1203,16 +1199,30 @@ Section nextgen_structural_properties.
     ⊢@{iProp Σ} own_promises [].
   Proof. iApply big_sepL_nil. done. Qed.
 
+  (* Helper lemma to show things under the nextgen modality when you do not
+   * care about the picks and promises. *)
+  Lemma nextgen_empty P :
+    (∀ full_picks (val : transmap_valid full_picks),
+    let _ := build_trans_generation full_picks val in
+    ⚡={build_trans full_picks}=> P)
+    ⊢ ⚡==> P.
+  Proof.
+    rewrite /nextgen.
+    iIntros "HP".
+    iExists (λ i, ∅), [].
+    iSplit; first done.
+    iSplit; first done.
+    iSplit; first iApply own_picks_empty.
+    iSplit; first iApply own_promises_empty.
+    iIntros (????).
+    iApply "HP".
+  Qed.
+
   Lemma nextgen_emp_2 : emp ⊢@{iProp Σ} ⚡==> emp.
   Proof.
     iIntros "E".
-    rewrite /nextgen.
-    iExists (λ i, ∅), [].
-    iSplit. { iPureIntro. intros ??. inversion 1. }
-    iSplit. { done. }
-    iSplitL "". { iApply own_picks_empty. }
-    iSplitL "". { iApply own_promises_empty. }
-    iIntros (full_picks ?) "? ?".
+    iApply nextgen_empty.
+    iIntros (full_picks ?).
     iModIntro.
     iFrame "E".
   Qed.
@@ -1440,14 +1450,9 @@ Section nextgen_structural_properties.
   Lemma nextgen_intro_plain P `{!Plain P} :
     P ⊢ ⚡==> P.
   Proof.
-    rewrite /nextgen.
     iIntros "HP".
-    iExists (λ i, ∅), [].
-    iSplit; first done.
-    iSplit; first done.
-    iSplit; first iApply own_picks_empty.
-    iSplit; first iApply own_promises_empty.
-    iIntros (????).
+    iApply nextgen_empty.
+    iIntros (??).
     iModIntro.
     done.
   Qed.
@@ -2031,13 +2036,8 @@ Section nextgen_assertion_rules.
     own γ m ⊢ ⚡==> ∃ t, own γ (gen_cmra_trans t m).
   Proof.
     iIntros "O".
-    unfold nextgen.
-    iExists (λ i, ∅), [].
-    iSplit; first done.
-    iSplit; first done.
-    iSplit. { iApply own_picks_empty. }
-    iSplit. { iApply own_promises_empty. }
-    iIntros (full_picks ?) "_ %sub".
+    iApply nextgen_empty.
+    iIntros (full_picks ?).
     iDestruct (own_build_trans_next_gen with "O") as "O"; first done.
     iModIntro. iExists _. iApply "O".
   Qed.
@@ -2749,11 +2749,6 @@ Section rules_with_deps.
     ⚡={build_trans full_picks}=> own_resource_for_deps γs.
   Proof.
     iIntros "O".
-    (* iExists (λ i, ∅), []. *)
-    (* do 2 (iSplit; first done). *)
-    (* iSplit. { iApply own_picks_empty. } *)
-    (* iSplit. { iApply own_promises_empty. } *)
-    (* iIntros (full_picks ? ? ?). *)
     rewrite bnextgen_forall.
     iIntros (idx).
     iSpecialize ("O" $! idx).
@@ -2772,11 +2767,8 @@ Section rules_with_deps.
     used_token γ γs R P ⊢ ⚡==> token γ γs R P.
   Proof.
     iNamed 1. iNamed "tokenPromise".
-    iExists (λ i, ∅), [].
-    do 2 (iSplit; first done).
-    iSplit. { iApply own_picks_empty. }
-    iSplit. { iApply own_promises_empty. }
-    iIntros (full_picks ? ? ?).
+    iApply nextgen_empty.
+    iIntros (full_picks ?).
     iDestruct (own_resource_for_deps_nextgen with "ownDeps") as "ownDeps'";
       first done.
     iDestruct (own_promises_nextgen with "prs") as "prs'"; first done.
