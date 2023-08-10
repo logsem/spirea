@@ -255,7 +255,7 @@ Section heap.
   Context {V : Type}.
   Context `{i : !genInDepsG Σ Ω (gmap_viewR loc (leibnizO (gmap nat V))) [crashed_atR] }.
   Context (crashedγ : gname).
-  Context (heapγ : gname).
+  (* Context (heapγ : gname). *)
 
   Definition drop_above_hist (OCV : view) (l : loc) (hist : leibnizO (gmap nat V)) : option (leibnizO (gmap nat V)) :=
     (λ '(MaxNat t), drop_above (t) hist) <$> (OCV !! l).
@@ -276,21 +276,89 @@ Section heap.
       tC = crashed_at_trans OCV ∧
       tP = map_entry_lift_gmap_view (drop_above_hist OCV).
 
-  Definition own_auth_heap heap : iProp Σ :=
-    "own_auth" ∷  gen_own heapγ (gmap_view_auth (DfracOwn 1) heap) ∗
-    "rely" ∷ rely heapγ [crashedγ] heap_rel (λ _, true).
+  Definition own_auth_heap heapγ heap : iProp Σ :=
+    ∃ OCV,
+      "own_auth" ∷  gen_own heapγ (gmap_view_auth (DfracOwn 1) heap) ∗
+      "crashed" ∷ crashed_at_offset crashedγ OCV ∗
+      (* We only keep the rely as we never want to strengthen the promise and
+       * never want to pick anything (the promise itself completely determines
+       * the transformation). *)
+      "rely" ∷ rely heapγ [crashedγ] heap_rel (λ _, true).
+       (* "tok" ∷ token heapγ [crashedγ] heap_rel True_pred. *)
 
-  Lemma own_auth_heap_alloc LV heap :
-    rely_self crashedγ (crashed_at_pred LV) ==∗ own_auth_heap heap.
+  Lemma own_auth_heap_alloc LV heap OCV :
+    crashed_at_offset crashedγ OCV -∗
+    rely_self crashedγ (crashed_at_pred LV) ==∗
+    ∃ heapγ, own_auth_heap heapγ heap.
   Proof.
-  Admitted.
+    iIntros "crashed #rely".
+    iMod (own_gen_alloc (DS := [_])
+      (gmap_view_auth (DfracOwn 1) heap)
+      [crashedγ] [crashed_at_pred LV] with "[]") as (γ) "[HH tok]".
+    { apply gmap_view_auth_valid. }
+    { iIntros (i').
+      dependent elimination i' as [0%fin].
+      iApply "rely". }
+    iMod (
+      token_strengthen_promise (DS := [_])
+        _ [_] [_] _ heap_rel _ True_pred with "[] tok")
+      as "tok".
+    { intros ???. unfold True_rel. rewrite huncurry_curry. done. }
+    { done. }
+    { intros ts. dependent elimination ts. done. }
+    2: {
+      iIntros (i').
+      dependent elimination i' as [0%fin].
+      iApply "rely". }
+    { intros ts crashedPred.
+      dependent elimination ts as [hcons tC hnil].
+      destruct crashedPred as ((OCV2 & ? & ->) & _).
+      exists (map_entry_lift_gmap_view (drop_above_hist OCV2)).
+      split; first apply _.
+      simpl.
+      exists OCV2. done. }
+    iModIntro.
+    iExists γ, OCV.
+    unfold own_auth_heap.
+    iFrame.
+    iDestruct (token_to_rely with "tok") as "$".
+  Qed.
 
-  Lemma own_auth_heap_nextgen heap :
-    own_auth_heap heap
+  Lemma map_entry_lift_gmap_view_auth dq (heap : gmap loc (leibnizO (gmap nat V))) map_entry :
+    (map_entry_lift_gmap_view map_entry
+                      (gmap_view_auth dq heap)) =
+    (gmap_view_auth dq (map_imap map_entry heap)).
+  Proof.
+    unfold map_entry_lift_gmap_view, fmap_view, fmap_pair. simpl.
+    rewrite agree_map_to_agree. done.
+  Qed.
+
+  Lemma own_auth_heap_nextgen heapγ heap :
+    own_auth_heap heapγ heap
     ⊢ ⚡==> ∃ OCV,
       crashed_at_offset crashedγ OCV ∗
-      own_auth_heap (drop_above_map OCV heap).
+      own_auth_heap heapγ (drop_above_map OCV heap).
   Proof.
-  Admitted.
+    iNamed 1.
+    iModIntro.
+    iDestruct ("crashed") as (? tC) "(pickedC & ?)".
+    iDestruct "rely" as "(rely & (%tH & % & (%rel & _) & pickedH & pickedC'))".
+    iSpecialize ("pickedC'" $! 0%fin).
+    dependent elimination ts as [hcons tC' hnil].
+    rewrite hvec_lookup_fmap_equation_2.
+    iDestruct (gen_picked_in_agree with "pickedC pickedC'") as %<-.
+    iClear "pickedC'".
+    iDestruct "own_auth" as (tH') "(pickedH' & own_auth)".
+    iDestruct (gen_picked_in_agree with "pickedH pickedH'") as %<-.
+    iClear "pickedH'".
+    destruct rel as (OCV2 & -> & ->).
+    iExists OCV2.
+    iSplit.
+    { iExists _. iFrame. }
+    { iExists _. iFrame.
+      iSplit. 2: { iExists _. iFrame. }
+      rewrite map_entry_lift_gmap_view_auth.
+      iFrame. }
+  Qed.
 
 End heap.
