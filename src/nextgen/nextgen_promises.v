@@ -1437,6 +1437,25 @@ Section nextgen_structural_properties.
     - iIntros "H".
   Abort.
 
+  Lemma nextgen_intro_plain P `{!Plain P} :
+    P ⊢ ⚡==> P.
+  Proof.
+    rewrite /nextgen.
+    iIntros "HP".
+    iExists (λ i, ∅), [].
+    iSplit; first done.
+    iSplit; first done.
+    iSplit; first iApply own_picks_empty.
+    iSplit; first iApply own_promises_empty.
+    iIntros (????).
+    iModIntro.
+    done.
+  Qed.
+
+  #[global]
+  Instance plain_into_nextgen P `{!Plain P} : IntoNextgen _ _ :=
+    nextgen_intro_plain P.
+
 End nextgen_structural_properties.
 
 (* Ownership over generational ghost state. *)
