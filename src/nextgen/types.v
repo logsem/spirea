@@ -35,7 +35,7 @@ Section types.
 
   (* An example to demonstrate [rel_over]. This results in the type:
      [(max_nat → max_nat) → (excl () → excl ()) → (nat → nat) → Prop] *)
-  Compute (rel_over [max_natR; exclR unitO] natR).
+  (* Compute (rel_over [max_natR; exclR unitO] natR). *)
 
   (** Relation that is always true. *)
   Definition True_rel {n} {DS : ivec n cmra} {A} : rel_over DS A :=
@@ -182,6 +182,12 @@ Section dependency_relation_extra.
   Qed.
 
 End dependency_relation_extra.
+
+Lemma rel_over_eq {n m A1 A2} {DS1 : ivec n cmra} {DS2 : ivec m cmra} (eq : n = m) :
+  A1 = A2 →
+  DS1 = rew <- eq in DS2 →
+  rel_over DS1 A1 = rel_over DS2 A2.
+Proof. intros -> ->. destruct eq. done. Defined.
 
 Definition path_different {A} (id1 : A) (γ1 : gname) id2 γ2 :=
   id1 ≠ id2 ∨ γ1 ≠ γ2.

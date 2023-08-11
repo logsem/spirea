@@ -2,6 +2,8 @@ From Equations Require Import Equations.
 
 From stdpp Require Import tactics fin.
 
+Import EqNotations. (* Get the [rew] notation. *)
+
 Local Set Universe Polymorphism.
 
 (* To prevent problems with Equations. *)
@@ -302,6 +304,17 @@ Section hvec.
   (*   - specialize (IHAs (λ i, l (FS i)) t). *)
   (*     apply IHAs. *)
   (* Qed. *)
+
+  Lemma hvec_eq {n m} (eq : m = n) (DS : ivec n Type) (DS2 : ivec m Type) :
+    DS = rew [λ n, ivec n _] eq in DS2 →
+    hvec n DS = hvec m DS2.
+  Proof. destruct eq. intros ->. done. Qed.
+
+  Lemma hvec_fmap_eq {n m A} {f : A → Type}
+      (eq : n = m) (DS : ivec n A) (DS2 : ivec m A) :
+    DS = rew <- [λ n, ivec n _] eq in DS2 →
+    hvec n (f <$> DS) = hvec m (f <$> DS2).
+  Proof. destruct eq. intros ->. done. Defined.
 
 End hvec.
 

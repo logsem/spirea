@@ -24,10 +24,6 @@ Arguments gcd_deps_ids {_} {_}.
 Arguments gcd_gid {_} {_}.
 Arguments gcd_cmra_eq {_} {_}.
 
-Definition gen_cmra_data_to_inG {Σ len} (gcd : gen_cmra_data Σ len) :
-    inG Σ (generational_cmraR gcd.(gcd_cmra) gcd.(gcd_deps)).
-Proof. econstructor. apply gcd_cmra_eq. Defined.
-
 Definition gen_cmras_data Σ len := fin len → gen_cmra_data Σ len.
 
 (* Each entry in [gen_cmras_data] contain a list of cameras that should be the
@@ -61,6 +57,14 @@ Class gGenCmras (Σ : gFunctors) := {
 Definition ggid {Σ} (Ω : gGenCmras Σ) := fin gc_len.
 
 Global Arguments gc_map {_} _.
+
+Definition gen_cmra_data_to_inG {Σ len} (gcd : gen_cmra_data Σ len) :
+    inG Σ (generational_cmraR gcd.(gcd_cmra) gcd.(gcd_deps)).
+Proof. econstructor. apply gcd_cmra_eq. Defined.
+
+(* Ownership based on data in [Ω]. *)
+Definition Oown {Σ} {Ω : gGenCmras Σ} (i : ggid Ω) γ a :=
+  @own _ _ (gen_cmra_data_to_inG (Ω.(gc_map) i)) γ a.
 
 #[export] Hint Mode gGenCmras +.
 

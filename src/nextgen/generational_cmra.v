@@ -213,7 +213,6 @@ Section cmra.
       intros n' [a1 a2 a3 a4 a5 a6] [b1 b2 b3 b4 b5 b6] [c1 c2 c3 c4 c5 c6].
       intros (? & ? & ? & ? & ? & ?). simpl in *.
       intros (? & ? & ? & ? & ? & ?). simpl in *.
-      Search "cmra" "ext".
       edestruct (cmra_extend n' a1 b1 c1) as (z1 & y1 & ? & ? & ?); [done|done| ].
       edestruct (cmra_extend n' a2 b2 c2) as (z2 & y2 & ? & ? & ?); [done|done| ].
       edestruct (cmra_extend n' a3 b3 c3) as (z3 & y3 & ? & ? & ?); [done|done| ].
