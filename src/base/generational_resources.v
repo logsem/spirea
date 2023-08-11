@@ -20,17 +20,20 @@ From self.nextgen Require Import hvec nextgen_promises.
 From self.nextgen Require Import nextgen_promises.
 From self.algebra Require Import view.
 
-Definition crashed_atR : cmra := prodR (agreeR viewO) (agreeR viewO).
-Definition crashed_at_inG Σ Ω := genInG Σ Ω crashed_atR [].
+From self.lang Require Import lang.
 
-Instance genInSelgG_empty Σ Ω :
+Instance genInSelfG_empty Σ Ω :
   ∀ i : fin 0, genInSelfG Σ Ω ([]%IL !!! i).
 Proof. intros i. inversion i. Qed.
 
-Instance genInSelgG_one Σ Ω n A (DS : ivec n cmra):
+Instance genInSelfG_one Σ Ω n A (DS : ivec n cmra):
   genInG Σ Ω A DS →
   ∀ i : fin 1, genInSelfG Σ Ω ([A]%IL !!! i).
 Proof. intros ? i. dependent elimination i. Defined.
+
+Definition crashed_atR : cmra := prodR (agreeR viewO) (agreeR viewO).
+(* Definition crashed_at_inG Σ Ω := genInDepsG Σ Ω crashed_atR []. *)
+Notation crashed_at_inG Σ Ω := (genInDepsG Σ Ω crashed_atR []).
 
 (* Names used:
  * - OV: The offset view, the sum of all crash views from prior generations
@@ -42,9 +45,7 @@ Proof. intros ? i. dependent elimination i. Defined.
 
 Section crashed_at.
   (* Resource for crashed at view *)
-  Context `{caI : !genInDepsG Σ Ω crashed_atR [] }.
-  (* Resource for views that depend on the crashed at view *)
-  Context `{vI : !genInDepsG Σ Ω (authR viewUR) [crashed_atR] }.
+  Context `{caI : !crashed_at_inG Σ Ω}.
 
   Definition crashed_at_trans OCV2 : crashed_atR → crashed_atR :=
     λ '(_, OCV), (OCV, to_agree OCV2).
@@ -69,6 +70,9 @@ Section crashed_at.
 
   Definition crashed_at_rel PV : rel_over [] crashed_atR :=
     crashed_at_pred PV.
+
+  Definition crashed_at_both γ OV OCV : iProp Σ :=
+    gen_own (i := genInDepsG_gen caI) γ (to_agree OV, to_agree OCV).
 
   (* Ownership over the offest crashed at view. *)
   Definition crashed_at_offset γ OCV : iProp Σ :=
@@ -134,14 +138,13 @@ Section crashed_at.
     iPureIntro. reflexivity.
   Qed.
 
-  Lemma crashed_at_pick_nextgen γ OCV OCV2 LV :
+  Lemma crashed_at_pick_nextgen γ OV OCV OCV2 LV :
     LV ⊑ OCV2 →
-    crashed_at_offset γ OCV -∗
+    crashed_at_both γ OV OCV -∗
     crashed_at_tok γ LV -∗
-    |==> ⚡==> crashed_at_offset γ OCV2 ∗
-          crashed_at_tok γ LV.
+    |==> ⚡==> crashed_at_both γ OCV OCV2 ∗ crashed_at_tok γ LV.
   Proof.
-    iIntros (le) "(% & AG) tok".
+    iIntros (le) "AG tok".
     unfold crashed_at_tok, crashed_at_offset.
     iMod (
       token_pick (DS := []) _ _ _ _ []%HV (crashed_at_trans OCV2) with "[] tok")
@@ -158,11 +161,12 @@ Section crashed_at.
 
 End crashed_at.
 
-Definition persisted_genInG Σ Ω := genInG Σ Ω (authR viewUR) [agreeR viewO].
+Definition persisted_genInG Σ Ω `{i : !crashed_at_inG Σ Ω} :=
+  genInDepsG Σ Ω (authR viewUR) [crashed_atR].
 
 Section persisted.
-  Context `{!genInDepsG Σ Ω crashed_atR [] }.
-  Context `{i : !genInDepsG Σ Ω (authR viewUR) [crashed_atR] }.
+  Context `{!crashed_at_inG Σ Ω}.
+  Context `{i : !persisted_genInG Σ Ω}.
   Context (persist_view_name : gname).
   Context (crashedγ : gname).
 
@@ -173,16 +177,16 @@ Section persisted.
         tP = fmap_auth (const OCV).
 
   Definition persisted_auth OPV : iProp Σ :=
-    gen_own persist_view_name (● OPV) ∗
+    gen_own (i := genInDepsG_gen i) persist_view_name (● OPV) ∗
     rely_self crashedγ (crashed_at_pred OPV).
 
   Definition persisted PV : iProp Σ :=
     ∃ OCV OPV,
       "%view_eq" ∷ ⌜ OPV `view_sub` OCV = PV ⌝ ∗
       "agree" ∷ crashed_at_offset crashedγ OCV ∗
-      "persLub" ∷ gen_own persist_view_name (◯ OPV) ∗
+      "persLub" ∷ gen_own (i := genInDepsG_gen i) persist_view_name (◯ OPV) ∗
       "crashRely" ∷ rely_self crashedγ (crashed_at_pred OPV) ∗
-      "rely" ∷ rely persist_view_name [crashedγ] persisted_rel (λ _, true).
+      "rely" ∷ rely (g := i) persist_view_name [crashedγ] persisted_rel (λ _, true).
 
   (* Lemma persisted_weak PV PV' : PV' ≼ PV → persisted PV -∗ persisted PV'. *)
   (* Proof. ... Qed. *)
@@ -248,6 +252,9 @@ Section persisted.
   Qed.
 
 End persisted.
+
+Definition gmap_view_genInG Σ Ω `{i : !genInDepsG Σ Ω crashed_atR [] } :=
+  genInDepsG Σ Ω (gmap_viewR loc (leibnizO (gmap nat message))) [crashed_atR].
 
 Section heap.
   (* The transformation of the heap depends on the transformation of the crashed_at view. *)
@@ -362,3 +369,57 @@ Section heap.
   Qed.
 
 End heap.
+
+(* All the functors that we need for the base logic (and not ghost names). This
+is identical to [nvmBaseFixedG] except for the [invG] part. *)
+Class nvmBaseG Σ Ω  := NvmBaseG {
+  (* crashed at *)
+  nvmBaseG_crashed_at_in :> crashed_at_inG Σ Ω;
+  crashed_at_name : gname;
+  (* persisted *)
+  nvmBaseG_persisted_in :> persisted_genInG (i := nvmBaseG_crashed_at_in) Σ Ω;
+  persisted_name : gname;
+  (* heap map *)
+  nvmBaseG_gmap_view_in :> gmap_view_genInG (i := nvmBaseG_crashed_at_in) Σ Ω;
+  heap_name : gname;
+}.
+
+(* The state interpretation for the base logic. *)
+Definition nvm_heap_ctx `{!nvmBaseG Σ Ω} (σ : mem_config) : iProp Σ :=
+  ∃ (OV OCV : view),
+    (* crashed at*)
+    "crashed" ∷ gen_own crashed_at_name (to_agree OV, to_agree OCV) ∗
+    "crashed_at_tok" ∷ crashed_at_tok crashed_at_name (OV `view_add` σ.2) ∗
+    (* The interpretation of the heap. *)
+    "Hσ" ∷
+      own_auth_heap (i := nvmBaseG_gmap_view_in) crashed_at_name heap_name σ.1 ∗
+    (* "lubauth" ∷ own store_view_name (● (max_view σ.1)) ∗ *)
+    "%Hop" ∷ ⌜ valid_heap σ.1 ⌝ ∗
+    "pers" ∷ persisted_auth (i := nvmBaseG_persisted_in) crashed_at_name persisted_name (OV `view_add` σ.2)
+    .
+    (* ∗ *)
+    (* "crash" ∷ (∃ (CV : view), *)
+    (*   "%cvSubset" ∷ ⌜dom CV ⊆ dom σ.1⌝ ∗ *)
+    (*   "#crashedAt" ∷ own crashed_at_view_name (to_agree CV : agreeR viewO)). *)
+
+From Perennial.program_logic Require Export weakestpre.
+From Perennial.program_logic Require Export crash_lang crash_weakestpre.
+
+(* If we have the state interpretation before a crash, then after a crash we
+ * will have it under the nextgen modality. *)
+Lemma heap_ctx_next_generation `{!nvmBaseG Σ Ω} σ1 σ2 :
+  crash_prim_step nvm_crash_lang σ1 σ2 →
+  nvm_heap_ctx σ1 ⊢ |==> ⚡==> nvm_heap_ctx σ2.
+Proof.
+  intros [store PV CV pIncl cut].
+  unfold nvm_heap_ctx.
+  iNamed 1.
+  iMod (crashed_at_pick_nextgen _ _ _ (OV `view_add` CV) with "crashed crashed_at_tok") as "crashed".
+  { simpl. admit. (* trivial *) }
+  iModIntro. iModIntro.
+  iDestruct "crashed" as "(crashed & crashed_at_tok)".
+  iExists OCV, _.
+  iFrame "crashed". simpl.
+  (* iFrame "crashed_at_tok". *)
+Admitted.
+
