@@ -446,6 +446,33 @@ Proof.
   intros ?. rewrite elem_of_dom /is_Some. naive_solver.
 Qed.
 
+(* Lemma view_add_lookup V1 V2 ℓ : *)
+(*   (V1 `view_add` V2) !! ℓ = *)
+(*   Some MaxNat (V1 !!0 ℓ + (V2 !!0 ℓ)). *)
+(* Proof. *)
+(* Qed. *)
+
+#[global]
+Instance view_add_mono : Proper ((⊑) ==> (⊑) ==> (⊑)) view_add.
+Proof.
+  unfold Proper, respectful.
+  setoid_rewrite <- view_le_lookup.
+  intros VL1 ? le1 VL2 ? le2.
+  intros ℓ ?.
+  unfold view_add.
+  Search merge lookup.
+  rewrite 2!lookup_merge.
+  destruct (VL1 !! ℓ) as [[?]|] eqn:look1;
+    destruct (VL2 !! ℓ) as [[?]|] eqn:look2; simpl; try done.
+    - edestruct le1 as (? & -> & ?); first done.
+      edestruct le2 as (? & -> & ?); first done. simpl.
+      intros [= <-]. eexists _. split; first done. lia.
+    - edestruct le1 as (? & -> & ?); first done.
+      intros [= <-]. eexists _. split; first done. simpl.
+      destruct (y0 !! ℓ); lia.
+    - edestruct le2 as (? & -> & ?); first done. simpl.
+      intros [= <-]. destruct (y !! ℓ); eexists _; split; done || (simpl; lia).
+Qed.
 (* Lemma view_add_empty V : *)
 (*   ∅ `view_add` V = V. *)
 (* Proof. Qed. *)

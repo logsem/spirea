@@ -31,8 +31,6 @@ Global Instance genInG_forall_2 {Σ n m} {Ω} {A B} {DS1 : ivec n cmra} {DS2 : i
 Proof.
   intros i.
   dependent elimination i as [Fin.F1|FS i].
-  dependent elimination i as [Fin.F1|FS i].
-  dependent elimination i.
 Defined.
 
 (* Two lemmas to check that the weird definition above does what it is supposed to. *)

@@ -1994,6 +1994,46 @@ Section rules_with_deps.
 
 End rules_with_deps.
 
+Instance genInSelfG_empty Σ Ω :
+  ∀ i : fin 0, genInSelfG Σ Ω ([]%IL !!! i).
+Proof. intros i. inversion i. Qed.
+
+Instance genInSelfG_one Σ Ω n A (DS : ivec n cmra):
+  genInG Σ Ω A DS →
+  ∀ i : fin 1, genInSelfG Σ Ω ([A]%IL !!! i).
+Proof. intros ? i. dependent elimination i. Defined.
+
+Section rules_zero_deps.
+
+  Context
+  (* {n : nat} {DS : ivec n cmra} *)
+    (* `{gs : ∀ (i : fin n), genInSelfG Σ Ω (DS !!! i)} *)
+    `{g : !genInDepsG Σ Ω A [] }.
+
+  (* Various lemmas from above specialized to the case where a generational
+   * camera has no dependencies. In this cas there is no difference between the
+   * relation and the predicate, and there are no information about
+   * dependencies, hence lemmas can be simplified quite a bit. *)
+
+  Lemma token_strengthen_promise_0_deps γ
+      (P_1 P_2 : (A → A) → Prop) :
+    (* The new predicate is stronger. *)
+    (∀ t, P_2 t → P_1 t) →
+    (* Evidence that the promise is realizeable. *)
+    (∃ (t : A → A), CmraMorphism t ∧ P_2 t) →
+    token γ [] P_1 P_1 ==∗
+    token γ [] P_2 P_2.
+  Proof.
+    intros. iIntros "T".
+    iApply (token_strengthen_promise (DS := []) _ _ [] with "[] T"); try done.
+    - intros ts. dependent elimination ts as [hnil]. done.
+    - intros ts. dependent elimination ts as [hnil]. done.
+    - intros ts. dependent elimination ts as [hnil]. done.
+    - iIntros (i). inversion i.
+  Qed.
+
+End rules_zero_deps.
+
 Section test.
   Context `{Ω : gGenCmras Σ}.
 

@@ -22,15 +22,6 @@ From self.algebra Require Import view.
 
 From self.lang Require Import lang.
 
-Instance genInSelfG_empty Σ Ω :
-  ∀ i : fin 0, genInSelfG Σ Ω ([]%IL !!! i).
-Proof. intros i. inversion i. Qed.
-
-Instance genInSelfG_one Σ Ω n A (DS : ivec n cmra):
-  genInG Σ Ω A DS →
-  ∀ i : fin 1, genInSelfG Σ Ω ([A]%IL !!! i).
-Proof. intros ? i. dependent elimination i. Defined.
-
 Definition crashed_atR : cmra := prodR (agreeR viewO) (agreeR viewO).
 (* Definition crashed_at_inG Σ Ω := genInDepsG Σ Ω crashed_atR []. *)
 Notation crashed_at_inG Σ Ω := (genInDepsG Σ Ω crashed_atR []).
@@ -83,11 +74,26 @@ Section crashed_at.
       (* "%view_add" ∷ ⌜ OV `view_add` CV = OCV ⌝ ∗ *)
       "%view_eq" ∷ ⌜ OCV `view_sub` OV = CV ⌝ ∗
       "agree" ∷ gen_own γ (to_agree OV, to_agree OCV)
-      (* ∗ "rely" ∷ rely γ [] (crashed_at_rel LV) (crashed_at_pred LV). *)
+      (* ∗ "rely" ∷ rely γ [] (crashed_at_pred LV) (crashed_at_pred LV). *)
       ∗ "rely" ∷ rely_self γ (crashed_at_pred LV).
 
+  (* Ownership over the crashed at token with a promise that after the next
+   * crash the [OCV] will be at least [LV]. *)
   Definition crashed_at_tok γ LV : iProp Σ :=
-    token γ [] (crashed_at_rel LV) (crashed_at_pred LV).
+    token γ [] (crashed_at_pred LV) (crashed_at_pred LV).
+
+  Lemma crashed_at_tok_strengthen γ LV1 LV2 :
+    LV1 ⊑ LV2 →
+    crashed_at_tok γ LV1 ⊢ |==> crashed_at_tok γ LV2.
+  Proof.
+    iIntros (le) "tok".
+    iApply (token_strengthen_promise_0_deps with "tok").
+    - intros ?. unfold crashed_at_pred.
+      intros (LV3 & ? & ?). eexists LV3. split; last done. etrans; done.
+    - exists (λ '(_, CV1), (CV1, to_agree LV2)).
+      split; first apply _.
+      eexists LV2. done.
+  Qed.
 
   Lemma crashed_at_alloc CV :
     ⊢ |==> ∃ γ, crashed_at γ CV ∗ crashed_at_tok γ CV.
@@ -98,7 +104,7 @@ Section crashed_at.
     { iIntros (i'). inversion i'. }
     iMod (
       token_strengthen_promise (DS := [])
-        _ [] [] _ (crashed_at_rel CV) _ (crashed_at_pred CV) with "[] tok")
+        _ [] [] _ (crashed_at_pred CV) _ (crashed_at_pred CV) with "[] tok")
       as "tok".
     { intros ???. unfold True_rel. rewrite huncurry_curry. done. }
     { done. }
@@ -389,13 +395,13 @@ Definition nvm_heap_ctx `{!nvmBaseG Σ Ω} (σ : mem_config) : iProp Σ :=
   ∃ (OV OCV : view),
     (* crashed at*)
     "crashed" ∷ gen_own crashed_at_name (to_agree OV, to_agree OCV) ∗
-    "crashed_at_tok" ∷ crashed_at_tok crashed_at_name (OV `view_add` σ.2) ∗
+    "crashed_at_tok" ∷ crashed_at_tok crashed_at_name (OCV `view_add` σ.2) ∗
     (* The interpretation of the heap. *)
     "Hσ" ∷
       own_auth_heap (i := nvmBaseG_gmap_view_in) crashed_at_name heap_name σ.1 ∗
     (* "lubauth" ∷ own store_view_name (● (max_view σ.1)) ∗ *)
     "%Hop" ∷ ⌜ valid_heap σ.1 ⌝ ∗
-    "pers" ∷ persisted_auth (i := nvmBaseG_persisted_in) crashed_at_name persisted_name (OV `view_add` σ.2)
+    "pers" ∷ persisted_auth (i := nvmBaseG_persisted_in) crashed_at_name persisted_name (OCV `view_add` σ.2)
     .
     (* ∗ *)
     (* "crash" ∷ (∃ (CV : view), *)
@@ -409,16 +415,18 @@ From Perennial.program_logic Require Export crash_lang crash_weakestpre.
  * will have it under the nextgen modality. *)
 Lemma heap_ctx_next_generation `{!nvmBaseG Σ Ω} σ1 σ2 :
   crash_prim_step nvm_crash_lang σ1 σ2 →
-  nvm_heap_ctx σ1 ⊢ |==> ⚡==> nvm_heap_ctx σ2.
+  nvm_heap_ctx σ1 ⊢ |==> ⚡==> |==> nvm_heap_ctx σ2.
 Proof.
   intros [store PV CV pIncl cut].
-  unfold nvm_heap_ctx.
+  unfold nvm_heap_ctx. simpl.
   iNamed 1.
-  iMod (crashed_at_pick_nextgen _ _ _ (OV `view_add` CV) with "crashed crashed_at_tok") as "crashed".
-  { simpl. admit. (* trivial *) }
+  iMod (crashed_at_pick_nextgen _ _ _ (OCV `view_add` CV) with "crashed crashed_at_tok") as "crashed".
+  { f_equiv. done. }
   iModIntro. iModIntro.
   iDestruct "crashed" as "(crashed & crashed_at_tok)".
-  iExists OCV, _.
+  iMod (crashed_at_tok_strengthen _ _ (OCV `view_add` CV) with "crashed_at_tok") as "tok".
+  { f_equiv. done. }
+  iExists OCV, (OCV `view_add` CV).
   iFrame "crashed". simpl.
   (* iFrame "crashed_at_tok". *)
 Admitted.
