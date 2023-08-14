@@ -447,6 +447,7 @@ Proof.
 Qed.
 
 (* Lemma view_add_lookup V1 V2 ℓ : *)
+(*   dom V1 = dom V2 → *)
 (*   (V1 `view_add` V2) !! ℓ = *)
 (*   Some MaxNat (V1 !!0 ℓ + (V2 !!0 ℓ)). *)
 (* Proof. *)
@@ -473,6 +474,31 @@ Proof.
     - edestruct le2 as (? & -> & ?); first done. simpl.
       intros [= <-]. destruct (y !! ℓ); eexists _; split; done || (simpl; lia).
 Qed.
+
+Lemma view_add_view_zero V1 :
+  V1 `view_add` (view_to_zero V1) = V1.
+Proof.
+  apply map_eq. intros ℓ.
+  rewrite lookup_merge /view_to_zero lookup_fmap.
+  destruct (V1 !! ℓ) as [[t]|]; simpl; last reflexivity.
+  f_equiv. f_equiv. lia.
+Qed.
+
+Instance view_add_assoc : Assoc (=) view_add.
+Proof.
+  intros x y z.
+  apply map_eq. intros ℓ.
+  rewrite !lookup_merge.
+  destruct (x !! ℓ); destruct (y !! ℓ); destruct (z !! ℓ);
+    simpl; f_equiv; f_equiv; lia.
+Qed.
+
+Instance view_add_comm : Comm (=) view_add.
+Proof.
+  intros x y. apply map_eq. intros ℓ. rewrite !lookup_merge.
+  destruct (x !! ℓ); destruct (y !! ℓ); simpl; f_equiv; f_equiv; lia.
+Qed.
+
 (* Lemma view_add_empty V : *)
 (*   ∅ `view_add` V = V. *)
 (* Proof. Qed. *)

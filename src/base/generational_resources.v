@@ -426,8 +426,11 @@ Proof.
   iDestruct "crashed" as "(crashed & crashed_at_tok)".
   iMod (crashed_at_tok_strengthen _ _ (OCV `view_add` CV) with "crashed_at_tok") as "tok".
   { f_equiv. done. }
+  iModIntro.
   iExists OCV, (OCV `view_add` CV).
   iFrame "crashed". simpl.
-  (* iFrame "crashed_at_tok". *)
+  rewrite -(assoc view_add).
+  rewrite view_add_view_zero.
+  iFrame "tok".
 Admitted.
 
