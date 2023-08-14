@@ -758,7 +758,7 @@ Section nextgen_assertion_rules.
   Lemma nextgen_plain_soundness P `{!Plain P} :
     (⊢ ⚡==> P) → ⊢ P.
   Proof.
-    rewrite /nextgen.
+    rewrite nextgen_unseal /nextgen_def.
     intros HP.
     iDestruct HP as (picks prs) "H".
     iNamed "H". clear HP.
@@ -1893,7 +1893,7 @@ Section rules_with_deps.
     iNamed 1.
     iDestruct (know_promise_extract_frag with "relyPromise") as (?? pref1) "[? fragPreds]".
     iNamed "relyPromise".
-    rewrite /nextgen.
+    rewrite nextgen_unseal /nextgen_def.
     iExists (λ i, ∅), promises.
     iSplit; first done.
     iSplit; first done.
@@ -1936,7 +1936,7 @@ Section rules_with_deps.
     picked_out γ t ⊢ ⚡==> picked_in γ t.
   Proof.
     iNamed 1.
-    unfold nextgen.
+    rewrite nextgen_unseal /nextgen_def.
     iExists picks, [].
     iSplit; first done.
     iSplit; first done.
@@ -1965,6 +1965,7 @@ Section rules_with_deps.
     iNamed 1.
     iDestruct (know_promise_extract_frag with "relyPromise") as (?? pref1) "[? fragPreds]".
     iNamed "relyPromise".
+    rewrite nextgen_unseal /nextgen_def.
     iExists (λ i, ∅), promises.
     iSplit; first done.
     iSplit; first done.

@@ -781,7 +781,7 @@ Section next_gen_definition.
   Instance own_promises_persistent ps : Persistent (own_promises ps).
   Proof. apply _. Qed.
 
-  Definition nextgen P : iProp Σ :=
+  Definition nextgen_def P : iProp Σ :=
     ∃ (picks : TransMap Ω) (prs : list (promise_info Ω)),
       "%picksValid" ∷ ⌜ transmap_valid picks ⌝ ∗
       "%prsWf" ∷ ⌜ promises_wf Ω.(gc_map_wf) prs ⌝ ∗
@@ -793,6 +793,11 @@ Section next_gen_definition.
         ⌜ picks ⊆ full_picks ⌝ -∗
         let _ := build_trans_generation full_picks val in
         ⚡={build_trans full_picks}=> P.
+  Local Definition nextgen_aux : seal (@nextgen_def). Proof. by eexists. Qed.
+  Definition nextgen := nextgen_aux.(unseal).
+
+  Lemma nextgen_unseal : nextgen = nextgen_def.
+  Proof. rewrite -nextgen_aux.(seal_eq) //. Qed.
 
 End next_gen_definition.
 
@@ -972,7 +977,7 @@ Section nextgen_structural_properties.
     ⚡={build_trans full_picks}=> P)
     ⊢ ⚡==> P.
   Proof.
-    rewrite /nextgen.
+    rewrite nextgen_unseal /nextgen_def.
     iIntros "HP".
     iExists (λ i, ∅), [].
     iSplit; first done.
@@ -1031,7 +1036,7 @@ Section nextgen_structural_properties.
   Lemma nextgen_sep_2 P Q :
     (⚡==> P) ∗ (⚡==> Q) ⊢ ⚡==> (P ∗ Q) .
   Proof.
-    rewrite /nextgen.
+    rewrite nextgen_unseal /nextgen_def.
     iIntros "[P Q]".
     iNamed "P".
     iDestruct "Q" as (? prs2)
@@ -1068,7 +1073,7 @@ Section nextgen_structural_properties.
   Lemma nextgen_and_1 P Q :
     (⚡==> P) ∧ (⚡==> Q) ⊢ ⚡==> (P ∧ Q).
   Proof.
-    unfold nextgen.
+    rewrite nextgen_unseal /nextgen_def.
     iIntros "PQ".
     rewrite and_exist_r. iDestruct "PQ" as (picks1) "PQ".
     rewrite and_exist_r. iDestruct "PQ" as (prs1) "PQ".
@@ -1104,7 +1109,7 @@ Section nextgen_structural_properties.
   Lemma nextgen_intuitionistically_1 P :
     (⚡==> (<pers> P)) ⊢ <pers> (⚡==> P).
   Proof.
-    unfold nextgen.
+    rewrite nextgen_unseal /nextgen_def.
     iIntros "#P". iNamed "P".
     iExists picks, prs.
     iFrame "%#".
@@ -1117,7 +1122,7 @@ Section nextgen_structural_properties.
   Lemma nextgen_intuitionistically_2 P :
     <pers> (⚡==> P) ⊢ ⚡==> (<pers> P).
   Proof.
-    unfold nextgen.
+    rewrite nextgen_unseal /nextgen_def.
     iIntros "#P". iNamed "P".
     iExists picks, prs.
     iFrame "%#".
@@ -1131,7 +1136,7 @@ Section nextgen_structural_properties.
     (P ⊢ Q) → (⚡==> P) ⊢ ⚡==> Q.
   Proof.
     intros Hi.
-    unfold nextgen.
+    rewrite nextgen_unseal /nextgen_def.
     iIntros "P". iNamed "P".
     iExists picks, prs.
     iFrame "%#".
@@ -1152,7 +1157,7 @@ Section nextgen_structural_properties.
 
   #[global]
   Instance nextgen_ne : NonExpansive nextgen.
-  Proof. solve_proper. Qed.
+  Proof. rewrite nextgen_unseal. solve_proper. Qed.
 
   Global Instance nextgen_mono' :
     Proper ((⊢) ==> (⊢)) nextgen.
@@ -1201,7 +1206,7 @@ Section nextgen_structural_properties.
   Lemma nextgen_forall {A} Ψ :
     (⚡==> (∀ a : A, Ψ a)) ⊣⊢ (∀ a : A, ⚡==> Ψ a).
   Proof.
-    unfold nextgen.
+    rewrite nextgen_unseal /nextgen_def.
     setoid_rewrite bnextgen_forall.
     iSplit.
     - iNamed 1. iIntros (a).

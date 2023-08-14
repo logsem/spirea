@@ -383,10 +383,14 @@ Class nvmBaseG Σ Ω  := NvmBaseG {
   nvmBaseG_crashed_at_in :> crashed_at_inG Σ Ω;
   crashed_at_name : gname;
   (* persisted *)
-  nvmBaseG_persisted_in :> persisted_genInG (i := nvmBaseG_crashed_at_in) Σ Ω;
+  nvmBaseG_persisted_in :>
+    genInDepsG Σ Ω (authR viewUR) [#crashed_atR];
+    (* persisted_genInG (i := nvmBaseG_crashed_at_in) Σ Ω; *)
   persisted_name : gname;
   (* heap map *)
-  nvmBaseG_gmap_view_in :> gmap_view_genInG (i := nvmBaseG_crashed_at_in) Σ Ω;
+  nvmBaseG_gmap_view_in :>
+    genInDepsG Σ Ω (gmap_viewR loc (leibnizO (gmap nat message))) [#crashed_atR];
+    (* gmap_view_genInG (i := nvmBaseG_crashed_at_in) Σ Ω; *)
   heap_name : gname;
 }.
 
@@ -398,7 +402,7 @@ Definition nvm_heap_ctx `{!nvmBaseG Σ Ω} (σ : mem_config) : iProp Σ :=
     "crashed_at_tok" ∷ crashed_at_tok crashed_at_name (OCV `view_add` σ.2) ∗
     (* The interpretation of the heap. *)
     "Hσ" ∷
-      own_auth_heap (i := nvmBaseG_gmap_view_in) crashed_at_name heap_name σ.1 ∗
+      own_auth_heap crashed_at_name heap_name σ.1 ∗
     (* "lubauth" ∷ own store_view_name (● (max_view σ.1)) ∗ *)
     "%Hop" ∷ ⌜ valid_heap σ.1 ⌝ ∗
     "pers" ∷ persisted_auth (i := nvmBaseG_persisted_in) crashed_at_name persisted_name (OCV `view_add` σ.2)
