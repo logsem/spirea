@@ -14,12 +14,13 @@ Set Default Proof Using "Type".
 
 (*** Recovery ***)
 
-  About nextgen.
 (* A recovery WP is parameterized by three predicates: [Φ] is the postcondition
    for normal non-crashing execution, [Φinv] is a condition that holds at each restart
    point, and [Φr] is the postcondition satisfied in case of a crash.
-   [Φinv] can refer to the current [generationGS], which is useful for
-   the higher levels to "remember" information about how that was generated.
+
+   Compared to the [wpr] in Perennial, in this variant [generationGS] is a
+   fixed argument, not one that changes on each crash, as generations are
+   handled by the nextgen modality.
 
    We don't support the [NC] token in a meaningful way, and only demand a
    [generationGS] as the Perennial program logic needs such an instance. The
@@ -42,8 +43,9 @@ Definition wpr_pre {Σ} {Ω : gGenCmras Σ} `{irisGS Λ Σ, generationGS Λ Σ}
   (WPC e @ s ; E
      {{ Φ }}
      {{ ∀ σ g mj D σ' (HC : crash_prim_step CS σ σ') ns κs n,
-        state_interp σ n -∗ global_state_interp g ns mj D κs ={E}=∗ ▷ |={E}=>
-        ⚡==> (* this is where we want the post crash modality *)
+        state_interp σ n -∗ global_state_interp g ns mj D κs ={E}=∗ ▷
+          ⚡==> (* this is where we want the post crash modality *)
+         |={E}=>
           (* NC 1 ∗ *) (* Here you would get an [NC] token but we don't care. *)
           state_interp σ' 0 ∗
           global_state_interp g (step_count_next ns) mj D κs ∗
@@ -119,8 +121,9 @@ Section wpr.
     iIntros "H".
     iModIntro. iIntros (?????????) "Hσ Hg". iMod ("H" with "[//] Hσ Hg") as "H".
     iModIntro. iNext.
+    iModIntro.
     iMod "H" as "H".
-    iModIntro. iModIntro.
+    iModIntro.
     iDestruct "H" as "(?&?&H)".
     iFrame.
     iSplit.
@@ -138,7 +141,7 @@ Section wpr.
     ⊢ WPC e @ s ; E1 {{ Φx }} {{ Φcx }} -∗
      (■ ∀ σ g σ' (HC: crash_prim_step CS σ σ') ns mj D κs n,
           Φcx -∗ state_interp σ n -∗ global_state_interp g ns mj D κs ={E1}=∗
-          ▷ |={E1}=> ⚡==>
+          ▷ ⚡==> |={E1}=>
               (* NC 1 ∗ *)
               state_interp σ' 0 ∗ global_state_interp g (step_count_next ns) mj D κs ∗
               (Φinv ∧ WPC rec @ s ; E1 {{ Φrx }} {{ Φcx }})) -∗
@@ -157,9 +160,9 @@ Section wpr.
     { set_solver +. }
     iIntros. iMod ("Hidemp" with "[ ] [$] [$] [$]") as "H".
     { eauto. }
-    iModIntro. iNext.
+    iModIntro. iNext. iModIntro.
     iMod "H" as "H".
-    iModIntro. iModIntro.
+    iModIntro.
     iDestruct "H" as "(?&?&Hc)".
     iFrame.
     iSplit.

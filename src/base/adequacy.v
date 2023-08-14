@@ -105,7 +105,7 @@ Section base_adequacy.
     iExists (
       λ inv gen, ∃ nD', ⌜gen = nvmBase_generationGS (hGD := nD') ⌝ ∗ Φinv nD'
     )%I.
-    
+
     iDestruct (@cred_frag_to_pre_borrowN _ hG _ _ n with "Hpre") as "Hpre".
     iDestruct (Hwp hG hGD with "Hpre pts validV pers") as "(#H1 & #H2 & Hwp)".
 
