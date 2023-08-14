@@ -31,7 +31,7 @@ Section types.
 
   (** A relation over transformations between the cameras in [DS and [A]. *)
   Definition rel_over {n} (DS : ivec n cmra) (A : cmra) :=
-    iimpl (cmra_to_trans <$> DS) ((A → A) → Prop).
+    iimpl (cmra_to_trans <$$> DS) ((A → A) → Prop).
 
   (* An example to demonstrate [rel_over]. This results in the type:
      [(max_nat → max_nat) → (excl () → excl ()) → (nat → nat) → Prop] *)
@@ -41,7 +41,7 @@ Section types.
   Definition True_rel {n} {DS : ivec n cmra} {A} : rel_over DS A :=
     hcurry (λ _ _, True).
 
-  Definition trans_for n (DS : ivec n cmra) := hvec n (cmra_to_trans <$> DS).
+  Definition trans_for n (DS : ivec n cmra) := hvec n (cmra_to_trans <$$> DS).
 
   (* Test that [trans_for] does not give universe issue. *)
   #[local]
@@ -59,7 +59,7 @@ Section types.
 End types.
 
 #[global]
-Notation preds_for n ls := (hvec n (pred_over <$> ls)).
+Notation preds_for n ls := (hvec n (pred_over <$$> ls)).
 
 #[global]
 (* The functor in [Σ] at index [i] applied to [iProp]. *)

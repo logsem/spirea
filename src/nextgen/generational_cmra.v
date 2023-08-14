@@ -492,7 +492,7 @@ Section generational_resources.
     own γ (gc_tup_elem DS a).
 
   Definition know_deps γ (γs : ivec n gname) : iProp Σ :=
-    own γ (gc_tup_deps A DS (ivec_to_list γs)).
+    own γ (gc_tup_deps A DS (vec_to_list γs)).
 
   (* Definition gen_promise_list γ l := *)
   (*   own γ (gc_tup_promise_list l). *)

@@ -24,7 +24,7 @@ From self.lang Require Import lang.
 
 Definition crashed_atR : cmra := prodR (agreeR viewO) (agreeR viewO).
 (* Definition crashed_at_inG Σ Ω := genInDepsG Σ Ω crashed_atR []. *)
-Notation crashed_at_inG Σ Ω := (genInDepsG Σ Ω crashed_atR []).
+Notation crashed_at_inG Σ Ω := (genInDepsG Σ Ω crashed_atR [#]).
 
 (* Names used:
  * - OV: The offset view, the sum of all crash views from prior generations
@@ -59,7 +59,7 @@ Section crashed_at.
   Definition crashed_at_pred (OPV : view) : pred_over crashed_atR :=
     λ t, ∃ OCV2, OPV ⊑ OCV2 ∧ t = crashed_at_trans OCV2.
 
-  Definition crashed_at_rel PV : rel_over [] crashed_atR :=
+  Definition crashed_at_rel PV : rel_over [#] crashed_atR :=
     crashed_at_pred PV.
 
   Definition crashed_at_both γ OV OCV : iProp Σ :=
@@ -80,7 +80,7 @@ Section crashed_at.
   (* Ownership over the crashed at token with a promise that after the next
    * crash the [OCV] will be at least [LV]. *)
   Definition crashed_at_tok γ LV : iProp Σ :=
-    token γ [] (crashed_at_pred LV) (crashed_at_pred LV).
+    token γ [#] (crashed_at_pred LV) (crashed_at_pred LV).
 
   Lemma crashed_at_tok_strengthen γ LV1 LV2 :
     LV1 ⊑ LV2 →
@@ -98,13 +98,13 @@ Section crashed_at.
   Lemma crashed_at_alloc CV :
     ⊢ |==> ∃ γ, crashed_at γ CV ∗ crashed_at_tok γ CV.
   Proof.
-    iMod (own_gen_alloc (DS := [])
-      (to_agree ∅, to_agree CV) [] [] with "[]") as (γ) "(HO & tok)".
+    iMod (own_gen_alloc (DS := [#])
+      (to_agree ∅, to_agree CV) [#] [##] with "[]") as (γ) "(HO & tok)".
     { done. }
     { iIntros (i'). inversion i'. }
     iMod (
-      token_strengthen_promise (DS := [])
-        _ [] [] _ (crashed_at_pred CV) _ (crashed_at_pred CV) with "[] tok")
+      token_strengthen_promise (DS := [#])
+        _ [#] [##] _ (crashed_at_pred CV) _ (crashed_at_pred CV) with "[] tok")
       as "tok".
     { intros ???. unfold True_rel. rewrite huncurry_curry. done. }
     { done. }
@@ -153,7 +153,7 @@ Section crashed_at.
     iIntros (le) "AG tok".
     unfold crashed_at_tok, crashed_at_offset.
     iMod (
-      token_pick (DS := []) _ _ _ _ []%HV (crashed_at_trans OCV2) with "[] tok")
+      token_pick (DS := [#]) _ _ _ _ [##]%HV (crashed_at_trans OCV2) with "[] tok")
       as "[tok picked]".
     { exists OCV2. done. }
     { iIntros (i). inversion i. }
@@ -168,7 +168,7 @@ Section crashed_at.
 End crashed_at.
 
 Definition persisted_genInG Σ Ω `{i : !crashed_at_inG Σ Ω} :=
-  genInDepsG Σ Ω (authR viewUR) [crashed_atR].
+  genInDepsG Σ Ω (authR viewUR) [#crashed_atR].
 
 Section persisted.
   Context `{!crashed_at_inG Σ Ω}.
@@ -176,7 +176,7 @@ Section persisted.
   Context (persist_view_name : gname).
   Context (crashedγ : gname).
 
-  Local Definition persisted_rel : rel_over [crashed_atR] (authR viewUR) :=
+  Local Definition persisted_rel : rel_over [#crashed_atR] (authR viewUR) :=
     λ tC tP,
       ∃ OCV,
         tC = crashed_at_trans OCV ∧
@@ -192,7 +192,7 @@ Section persisted.
       "agree" ∷ crashed_at_offset crashedγ OCV ∗
       "persLub" ∷ gen_own (i := genInDepsG_gen i) persist_view_name (◯ OPV) ∗
       "crashRely" ∷ rely_self crashedγ (crashed_at_pred OPV) ∗
-      "rely" ∷ rely (g := i) persist_view_name [crashedγ] persisted_rel (λ _, true).
+      "rely" ∷ rely (g := i) persist_view_name [#crashedγ] persisted_rel (λ _, true).
 
   (* Lemma persisted_weak PV PV' : PV' ≼ PV → persisted PV -∗ persisted PV'. *)
   (* Proof. ... Qed. *)
@@ -259,14 +259,14 @@ Section persisted.
 
 End persisted.
 
-Definition gmap_view_genInG Σ Ω `{i : !genInDepsG Σ Ω crashed_atR [] } :=
-  genInDepsG Σ Ω (gmap_viewR loc (leibnizO (gmap nat message))) [crashed_atR].
+Definition gmap_view_genInG Σ Ω `{i : !genInDepsG Σ Ω crashed_atR [#] } :=
+  genInDepsG Σ Ω (gmap_viewR loc (leibnizO (gmap nat message))) [#crashed_atR].
 
 Section heap.
   (* The transformation of the heap depends on the transformation of the crashed_at view. *)
-  Context `{!genInDepsG Σ Ω crashed_atR [] }.
+  Context `{!genInDepsG Σ Ω crashed_atR [#] }.
   Context {V : Type}.
-  Context `{i : !genInDepsG Σ Ω (gmap_viewR loc (leibnizO (gmap nat V))) [crashed_atR] }.
+  Context `{i : !genInDepsG Σ Ω (gmap_viewR loc (leibnizO (gmap nat V))) [#crashed_atR] }.
   Context (crashedγ : gname).
   (* Context (heapγ : gname). *)
 
@@ -284,7 +284,7 @@ Section heap.
   Definition drop_above_map (OCV : view) heap :=
     map_imap (drop_above_hist OCV) heap.
 
-  Local Definition heap_rel : rel_over [crashed_atR] (gmap_viewR loc (leibnizO (gmap nat V))) :=
+  Local Definition heap_rel : rel_over [#crashed_atR] (gmap_viewR loc (leibnizO (gmap nat V))) :=
     λ tC tP, ∃ OCV,
       tC = crashed_at_trans OCV ∧
       tP = map_entry_lift_gmap_view (drop_above_hist OCV).
@@ -296,7 +296,7 @@ Section heap.
       (* We only keep the rely as we never want to strengthen the promise and
        * never want to pick anything (the promise itself completely determines
        * the transformation). *)
-      "rely" ∷ rely heapγ [crashedγ] heap_rel (λ _, true).
+      "rely" ∷ rely heapγ [#crashedγ] heap_rel (λ _, true).
        (* "tok" ∷ token heapγ [crashedγ] heap_rel True_pred. *)
 
   Lemma own_auth_heap_alloc LV heap OCV :
@@ -305,16 +305,16 @@ Section heap.
     ∃ heapγ, own_auth_heap heapγ heap.
   Proof.
     iIntros "crashed #rely".
-    iMod (own_gen_alloc (DS := [_])
+    iMod (own_gen_alloc (DS := [#_])
       (gmap_view_auth (DfracOwn 1) heap)
-      [crashedγ] [crashed_at_pred LV] with "[]") as (γ) "[HH tok]".
+      [#crashedγ] [##crashed_at_pred LV] with "[]") as (γ) "[HH tok]".
     { apply gmap_view_auth_valid. }
     { iIntros (i').
       dependent elimination i' as [0%fin].
       iApply "rely". }
     iMod (
-      token_strengthen_promise (DS := [_])
-        _ [_] [_] _ heap_rel _ True_pred with "[] tok")
+      token_strengthen_promise (DS := [#_])
+        _ [#_] [##_] _ heap_rel _ True_pred with "[] tok")
       as "tok".
     { intros ???. unfold True_rel. rewrite huncurry_curry. done. }
     { done. }

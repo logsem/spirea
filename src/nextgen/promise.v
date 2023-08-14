@@ -10,8 +10,8 @@ Import EqNotations. (* Get the [rew] notation. *)
 (** The transformations [ts] satisfies the predicates [ps]. *)
 Equations preds_hold {n} {DS : ivec n cmra}
     (ps : preds_for n DS) (ts : trans_for n DS) : Prop :=
-  @preds_hold _ (icons _ DS') (hcons p ps') (hcons t ts') := p t ∧ preds_hold ps' ts';
-  @preds_hold _ (inil) hnil hnil := True.
+  @preds_hold _ (vcons _ DS') (hcons p ps') (hcons t ts') := p t ∧ preds_hold ps' ts';
+  @preds_hold _ (vnil) hnil hnil := True.
 Global Transparent preds_hold.
 
 Lemma preds_hold_alt {n DS} (ps : preds_for n DS) (ts : trans_for n DS) :
@@ -1036,9 +1036,9 @@ Section promise_info.
         intros idx. inversion idx. }
       (* There is some number of dependencies and all the lists related to the
        * dependencies must be of the [cons] form. *)
-      dependent elimination gcd_deps as [icons d_c deps'].
-      dependent elimination gcd_deps_ids as [icons d_id deps_ids'].
-      dependent elimination pi_deps_γs0 as [icons d_γ deps_γs'].
+      dependent elimination gcd_deps as [vcons d_c deps'].
+      dependent elimination gcd_deps_ids as [vcons d_id deps_ids'].
+      dependent elimination pi_deps_γs0 as [vcons d_γ deps_γs'].
       dependent elimination pi_deps_preds0 as [hcons piaIns_pred deps_preds'].
       dependent elimination pi_deps_preds1 as [hcons pia_pred prec_deps_preds'].
       (* piaIns_pred should be stronger than pia_pred *)

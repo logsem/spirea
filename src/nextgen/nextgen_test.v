@@ -27,7 +27,7 @@ over all the dependencies during type class resolution (maybe inspired by
 [TCForall] for lists). *)
 Global Instance genInG_forall_2 {Σ n m} {Ω} {A B} {DS1 : ivec n cmra} {DS2 : ivec m cmra}
   (g1 : genInG Σ Ω A DS1) (g2 : genInG Σ Ω B DS2) :
-  ∀ (i : fin 2), genInSelfG Σ Ω ([A; B]%IL !!! i).
+  ∀ (i : fin 2), genInSelfG Σ Ω ([#A; B] !!! i).
 Proof.
   intros i.
   dependent elimination i as [Fin.F1|FS i].
@@ -47,9 +47,9 @@ Lemma genInG_forall_2_lookup_2 {Σ n m} {A B} {DS1 : ivec n cmra} {DS2 : ivec m 
 Proof. done. Qed.
 
 Section test.
-  Context `{max_i : !genInG Σ Ω max_natR [] }.
-  Context `{unit_i : !genInG Σ Ω unitR [] }.
-  Context `{i : !genInDepsG Σ Ω max_natR [max_natR; unitR] }.
+  Context `{max_i : !genInG Σ Ω max_natR [#] }.
+  Context `{unit_i : !genInG Σ Ω unitR [#] }.
+  Context `{i : !genInDepsG Σ Ω max_natR [#max_natR; unitR] }.
 
   Lemma test :
     ⊢ ⚡==> ⌜ (2 + 2 = 4)%nat ⌝.
@@ -58,9 +58,9 @@ Section test.
 End test.
 
 Definition myΣ : gFunctors := #[
-  GFunctor (generational_cmraR max_natR []);
-  GFunctor (generational_cmraR unitR []);
-  GFunctor (generational_cmraR max_natR [max_natR; unitR])
+  GFunctor (generational_cmraR max_natR [#]);
+  GFunctor (generational_cmraR unitR [#]);
+  GFunctor (generational_cmraR max_natR [#max_natR; unitR])
 ].
 
 Set Printing Coercions.
@@ -103,8 +103,8 @@ Next Obligation.
   { apply {|
       gcd_cmra := max_natR;
       gcd_n := 0;
-      gcd_deps := inil;
-      gcd_deps_ids := inil;
+      gcd_deps := vnil;
+      gcd_deps_ids := vnil;
       gcd_gid := (0%fin : gid myΣ);
       gcd_cmra_eq := eq_refl;
     |}. }
@@ -112,16 +112,16 @@ Next Obligation.
   { apply {|
       gcd_cmra := unitR;
       gcd_n := 0;
-      gcd_deps := inil;
-      gcd_deps_ids := inil;
+      gcd_deps := vnil;
+      gcd_deps_ids := vnil;
       gcd_gid := (1%fin : gid myΣ);
       gcd_cmra_eq := eq_refl;
     |}. }
   apply {|
       gcd_cmra := max_natR;
       gcd_n := 2;
-      gcd_deps := [max_natR; unitR];
-      gcd_deps_ids := [0%fin; 1%fin];
+      gcd_deps := [#max_natR; unitR];
+      gcd_deps_ids := [#0%fin; 1%fin];
       gcd_gid := (2%fin : gid myΣ);
       gcd_cmra_eq := eq_refl;
     |}.
@@ -129,18 +129,18 @@ Defined.
 Next Obligation. solve_omega_wf. Qed.
 Next Obligation. solve_gid_uniq. Qed.
 
-Instance subG_raΣ_1 : genInG myΣ myΩ max_natR [].
-Proof. eapply (GenInG 0 myΣ myΩ max_natR [] 0%fin eq_refl); done. Defined.
+Instance subG_raΣ_1 : genInG myΣ myΩ max_natR [#].
+Proof. eapply (GenInG 0 myΣ myΩ max_natR [#] 0%fin eq_refl); done. Defined.
 
-Instance subG_raΣ_2 : genInG myΣ myΩ unitR [].
-Proof. eapply (GenInG 0 myΣ myΩ unitR [] 1%fin eq_refl); done. Defined.
+Instance subG_raΣ_2 : genInG myΣ myΩ unitR [#].
+Proof. eapply (GenInG 0 myΣ myΩ unitR [#] 1%fin eq_refl); done. Defined.
 
-Instance subG_raΣ_3 : genInG myΣ myΩ max_natR [max_natR; unitR].
+Instance subG_raΣ_3 : genInG myΣ myΩ max_natR [#max_natR; unitR].
 Proof. eapply (GenInG _ myΣ myΩ _ _ 2%fin eq_refl); done. Defined.
 
 (* NOTE: If we don't supply [gs] manually here then Coq infers [subG_raΣ_3] for
  * the second instance which is horrible. *)
-Instance subG_raΣ_3_deps : genInDepsG (gs := genInG_forall_2 subG_raΣ_1 subG_raΣ_2) myΣ myΩ max_natR [max_natR; unitR].
+Instance subG_raΣ_3_deps : genInDepsG (gs := genInG_forall_2 subG_raΣ_1 subG_raΣ_2) myΣ myΩ max_natR [#max_natR; unitR].
 Proof.
   (* set (gs := genInG_forall_2 subG_raΣ_1 subG_raΣ_2). *)
   eapply (GenDepsInG _ myΣ myΩ max_natR _).

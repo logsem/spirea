@@ -1,6 +1,6 @@
 From Equations Require Import Equations.
 
-From stdpp Require Import tactics fin.
+From stdpp Require Import tactics fin vector.
 
 Import EqNotations. (* Get the [rew] notation. *)
 
@@ -13,16 +13,20 @@ Local Unset Mangle Names. (* work around https://github.com/mattam82/Coq-Equatio
 (* Not using [list] in order to avoid universe inconsistencies. [ivec] stands
    for independent list in the sense that it is independent from anything in
    stdpp that might cause universe problems. *)
-Inductive ivec' (A : Type) : nat → Type :=
-| inil : ivec' A 0
-| icons {n : nat} : A → ivec' A n → ivec' A (S n).
+(* Inductive ivec' (A : Type) : nat → Type := *)
+(* | inil : ivec' A 0 *)
+(* | icons {n : nat} : A → ivec' A n → ivec' A (S n). *)
 
-Definition ivec n A := ivec' A n.
+Definition ivec n A := vec A n.
+
+Derive Signature NoConfusion NoConfusionHom for Vector.t.
+Derive Subterm for Vector.t.
 
 (* Derive NoConfusion for ivec. *)
-Derive Signature NoConfusion NoConfusionHom for ivec'.
-Derive Subterm for ivec'.
+(* Derive Signature NoConfusion NoConfusionHom for ivec'. *)
+(* Derive Subterm for ivec'. *)
 
+(*
 Arguments inil {A}.
 Arguments icons {A} {n} a l.
 
@@ -35,9 +39,11 @@ Global Infix "::" := icons (at level 60, right associativity) : ivec_scope.
 Global Notation "[ ] " := inil : ivec_scope.
 Global Notation "[ x ] " := (icons x inil) : ivec_scope.
 Global Notation "[ x ; .. ; y ] " := (icons x .. (icons y inil) ..) : ivec_scope.
+ *)
 
 Section ivec.
 
+  (*
   Equations ilen {A n} (l : ivec n A) : nat :=
   | inil => 0
   | icons _ t => S (ilen t).
@@ -95,20 +101,22 @@ Section ivec.
     | inil => Bs
     | icons A As => icons A (iapp As Bs)
     end.
+  *)
 
   Fixpoint iimpl {n} (As : ivec n Type) (B : Type) : Type :=
     match As with
-    | inil => B
-    | icons A As => A → iimpl As B
+    | vnil => B
+    | vcons A As => A → iimpl As B
     end.
 
-  Fixpoint ivec_to_list {A n} (As : ivec n A) : list A :=
+  (*
+  Fixpoint vec_to_list {A n} (As : ivec n A) : list A :=
     match As with
     | inil => nil
-    | icons A As => cons A (ivec_to_list As)
+    | icons A As => cons A (vec_to_list As)
     end.
 
-  Global Instance ivec_to_list_inj {A n} : Inj (=) (=) (@ivec_to_list A n).
+  Global Instance vec_to_list_inj {A n} : Inj (=) (=) (@vec_to_list A n).
   Proof.
     intros l1 l2.
     induction l1 as [ | ? ? ? IH].
@@ -118,9 +126,11 @@ Section ivec.
       apply IH in eq2 as ->.
       done.
   Qed.
+   *)
 
+  (* NOTE: This is similar to [vlookup_map] but is [Defined] so it can compute. *)
   Lemma ivec_lookup_fmap {A B n} (F : A → B) (As : ivec n A) i :
-    F (As !!! i) = (ivec_map F As) !!! i.
+    F (As !!! i) = (vmap F As) !!! i.
   Proof.
     induction As as [|??? IH]. { inversion i. }
     dependent elimination i. { reflexivity. }
@@ -129,18 +139,24 @@ Section ivec.
 
 End ivec.
 
-#[global] Infix "<$>" := ivec_map (at level 61, left associativity) : ivec_scope.
-#[global] Infix "++" := iapp (at level 60, right associativity) : ivec_scope.
+(* We follow the stdpp convention of throwing in extra symbols in the vector
+ * notation. *)
+#[global]
+Infix "<$$>" := vmap (at level 61, left associativity) : vector_scope.
 
 (** A telescope inspired notation for [iimpl]. *)
 Notation "As -ii> B" :=
   (iimpl As B) (at level 99, B at level 200, right associativity).
 
-(* We call it [hvec] just to distinguish is from the stdpp's [hlist]. We
- * parameterize [hvec] by a type [A], a length, and a list of [A]. *)
-Inductive hvec : forall (n : nat), ivec' Type n → Type :=
-  | hnil : hvec 0 []%IL
-  | hcons {n x} {As : ivec' Type n} : x → hvec n As → hvec (S n) (x :: As)%IL.
+(* A heterogenous vector.
+ *
+ * Compared to [hlist] in stdpp, [hvec] stores the types of its elements in a
+ * [vec] and not a [list] and its lenght is tracked it the type of [hvec]. This
+ * makes it more convenient to work with multiple [hvec]s of the same length.
+ * For instance, given [h1 : hvec n As] and [h2 : hvec n Bs] we can now that [i
+ * : fin n] can be used as an index in both. *)
+Inductive hvec : forall (n : nat), vec Type n → Type := | hnil : hvec 0 [#] |
+    hcons {n x} {As : vec Type n} : x → hvec n As → hvec (S n) (x ::: As).
 
 Arguments hcons {_ _ _} a l.
 
@@ -151,36 +167,37 @@ Declare Scope hvec_scope.
 Bind Scope hvec_scope with hvec.
 Delimit Scope hvec_scope with HV.
 
-Global Infix "::" := hcons (at level 60, right associativity) : hvec_scope.
-Global Notation "[ ] " := hnil : hvec_scope.
-Global Notation "[ x ] " := (hcons x hnil) : hvec_scope.
-Global Notation "[ x ; .. ; y ] " := (hcons x .. (hcons y hnil) ..) : hvec_scope.
+(* Global Infix "::::" := hcons (at level 60, right associativity) : hvec_scope. *)
+Global Notation "[## ] " := hnil : hvec_scope.
+Global Notation "[## x ] " := (hcons x hnil) : hvec_scope.
+Global Notation "[## x ; .. ; y ] " := (hcons x .. (hcons y hnil) ..) : hvec_scope.
 
 Section hvec.
   Fixpoint happ {n m} {As : ivec n Type} {Bs : ivec m Type}
-      (xs : hvec n As) (ys : hvec m Bs) : hvec (n + m) (iapp As Bs) :=
+    (xs : hvec n As) (ys : hvec m Bs) : hvec (n + m) (As +++ Bs) :=
     match xs with hnil => ys | hcons x xs => hcons x (happ xs ys) end.
 
-  Definition hhead {n a As} (xs : hvec (S n) (a :: As)) : a :=
+  Definition hhead {n a As} (xs : hvec (S n) (a ::: As)) : a :=
     match xs with hnil => () | hcons x _ => x end.
-  Definition htail {n a As} (xs : hvec (S n) (a :: As)) : hvec n As :=
+  Definition htail {n a As} (xs : hvec (S n) (a ::: As)) : hvec n As :=
     match xs with hnil => () | hcons _ xs => xs end.
 
   Fixpoint hheads {n m As} {Bs : ivec m Type} :
-      hvec (n + m) (As ++ Bs) → hvec n As :=
+      hvec (n + m) (As +++ Bs) → hvec n As :=
     match As with
-    | inil => λ _, hnil
-    | icons _ _ => λ xs, hcons (hhead xs) (hheads (htail xs))
+    | vnil => λ _, hnil
+    | vcons _ _ => λ xs, hcons (hhead xs) (hheads (htail xs))
     end.
-  Fixpoint htails {n m} {As : ivec n Type} {Bs : ivec m Type} : hvec (n + m) (iapp As Bs) → hvec m Bs :=
+  Fixpoint htails {n m} {As : ivec n Type} {Bs : ivec m Type} :
+      hvec (n + m) (As +++ Bs) → hvec m Bs :=
     match As with
-    | inil => id
-    | icons _ _ => λ xs, htails (htail xs)
+    | vnil => id
+    | vcons _ _ => λ xs, htails (htail xs)
     end.
 
-  Definition hinit {B} (y : B) : iimpl inil B := y.
+  Definition hinit {B} (y : B) : iimpl vnil B := y.
   Definition hlam {n x} {As : ivec n Type} {B}
-    (f : x → iimpl As B) : iimpl (icons x As) B := f.
+    (f : x → iimpl As B) : iimpl (vcons x As) B := f.
   Global Arguments hlam _ _ _ _ _ _ / : assert.
 
   Equations huncurry {n} {As B} (f : iimpl As B) (xs : hvec n As) : B :=
@@ -192,8 +209,8 @@ Section hvec.
 
   Fixpoint hcurry {n} {As B} : (hvec n As → B) → iimpl As B :=
     match As with
-    | inil => λ f, f []%HV
-    | icons x xs => λ f, hlam (λ x, hcurry (f ∘ hcons x))
+    | vnil => λ f, f [##]%HV
+    | vcons x xs => λ f, hlam (λ x, hcurry (f ∘ hcons x))
     end.
 
   Lemma huncurry_curry {n As B} (f : hvec n As → B) xs :
@@ -203,22 +220,22 @@ Section hvec.
   Fixpoint hcompose {n} {As : ivec n Type} {B C} (f : B → C) {struct As} :
       iimpl As B → iimpl As C :=
     match As with
-    | inil => f
-    | icons A As => λ g, hlam (λ x, hcompose f (g x))
+    | vnil => f
+    | vcons A As => λ g, hlam (λ x, hcompose f (g x))
     end.
 
-  (* Compute (icons nat (icons bool (icons (fin 0) inil))) !!! 1%fin. *)
+  (* Compute (vcons nat (vcons bool (vcons (fin 0) vnil))) !!! 1%fin. *)
 
   Equations hvec_lookup {n As} (l : hvec n As) (i : fin n) : As !!! i :=
-    hvec_lookup (xx :: _) 0%fin := xx ;
-    hvec_lookup (_ :: xs) (FS i') := hvec_lookup xs i'.
+    hvec_lookup (hcons xx _) 0%fin := xx ;
+    hvec_lookup (hcons _ xs) (FS i') := hvec_lookup xs i'.
   Global Transparent hvec_lookup.
 
   (** Turns a function over [fin n] into an [hvec] of length [n]. *)
   Equations fun_to_hvec {n A} F (As : ivec n A)
-    (f : ∀ (i : fin n), F (As !!! i)) : hvec n (F <$> As) :=
-  | _, inil, _ => []
-  | _, icons A' As', f =>
+    (f : ∀ (i : fin n), F (As !!! i)) : hvec n (F <$$> As) :=
+  | _, vnil, _ => [##]
+  | _, vcons A' As', f =>
       hcons (f 0%fin : F A') (fun_to_hvec F As' (λ i, f (FS i))).
   Global Transparent fun_to_hvec.
 
@@ -229,14 +246,14 @@ Section hvec.
     intros ?.
     induction n.
     - dependent elimination As.
-      exists []%HV.
+      exists [##]%HV.
       intros i.
       dependent elimination i.
-    - dependent elimination As as [icons a As'].
+    - dependent elimination As as [vcons a As'].
       edestruct IHn as (xs & allP).
       { intros i. destruct (H (FS i)). exists x. apply H0. }
       destruct (H 0%fin) as (x & xP).
-      exists (x :: xs)%HV.
+      exists (hcons x xs).
       intros i.
       dependent elimination i as [0%fin | FS ii].
       * apply xP.
@@ -248,11 +265,11 @@ Section hvec.
   (* | f, hcons xx xs => hcons (f _ xx) (hvec_map f xs). *)
 
   Equations hvec_lookup_fmap {n A F} {As : ivec n A}
-    (l : hvec n (F <$> As)) (i : fin n) : F (As !!! i) :=
-    @hvec_lookup_fmap _ _ _ (_ :: _) (xx :: _) 0%fin := xx ;
-    @hvec_lookup_fmap _ _ _ (_ :: _) (_ :: xs) (FS i') := hvec_lookup_fmap xs i'.
+    (l : hvec n (F <$$> As)) (i : fin n) : F (As !!! i) :=
+    @hvec_lookup_fmap _ _ _ (_ ::: _) (hcons xx _) 0%fin := xx ;
+    @hvec_lookup_fmap _ _ _ (_ ::: _) (hcons _ xs) (FS i') := hvec_lookup_fmap xs i'.
 
-  Lemma hvec_lookup_fmap_eq {n A F As} (l : hvec n (F <$> As)) i :
+  Lemma hvec_lookup_fmap_eq {n A F As} (l : hvec n (F <$$> As)) i :
     hvec_lookup l i =
       eq_rect _ id (hvec_lookup_fmap (A := A) l i) _ (ivec_lookup_fmap _ _ _).
   Proof.
@@ -265,27 +282,27 @@ Section hvec.
 
   Equations hvec_lookup_to_vec_involution A F n (As : ivec n A) f i :
     (hvec_lookup_fmap (fun_to_hvec F As f)) i = f i :=
-  hvec_lookup_to_vec_involution _ _ _ (_ :: _) f 0%fin => eq_refl ;
-  hvec_lookup_to_vec_involution _ _ n1 (_ :: As') f (FS i) =>
+  hvec_lookup_to_vec_involution _ _ _ (_ ::: _) f 0%fin => eq_refl ;
+  hvec_lookup_to_vec_involution _ _ n1 (_ ::: As') f (FS i) =>
     hvec_lookup_to_vec_involution _ _  n1 As' (λ i, f (FS i)) i.
 
   Lemma fun_ex_to_ex_hvec_fmap {n A F} (As : ivec n A) (P : ∀ i (x : F (As !!! i)), Prop) :
     (∀ (i : fin n), ∃ (x : F (As !!! i)), P i x) →
-    (∃ (xs : hvec n (F <$> As)), (∀ i, P i (hvec_lookup_fmap xs i))).
+    (∃ (xs : hvec n (F <$$> As)), (∀ i, P i (hvec_lookup_fmap xs i))).
   Proof.
     (* NOTE: This proof is copy pasted from the non-fmap version. This was
      * easier than reusing the other lemma. *)
     intros ?.
     induction n.
     - dependent elimination As.
-      exists []%HV.
+      exists [##]%HV.
       intros i.
       dependent elimination i.
-    - dependent elimination As as [icons a As'].
+    - dependent elimination As as [vcons a As'].
       edestruct IHn as (xs & allP).
       { intros i. destruct (H (FS i)). exists x. apply H0. }
       destruct (H 0%fin) as (x & xP).
-      exists (x :: xs)%HV.
+      exists (hcons x xs).
       intros i.
       dependent elimination i as [0%fin | FS ii].
       * apply xP.
@@ -313,7 +330,7 @@ Section hvec.
   Lemma hvec_fmap_eq {n m A} {f : A → Type}
       (eq : n = m) (DS : ivec n A) (DS2 : ivec m A) :
     DS = rew <- [λ n, ivec n _] eq in DS2 →
-    hvec n (f <$> DS) = hvec m (f <$> DS2).
+    hvec n (f <$$> DS) = hvec m (f <$$> DS2).
   Proof. destruct eq. intros ->. done. Defined.
 
 End hvec.

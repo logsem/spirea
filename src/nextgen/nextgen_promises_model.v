@@ -360,7 +360,7 @@ Section transmap.
   (** The vector [trans] contains at every index the transition for the
    * corresponding dependency in [p] from [transmap] *)
   Definition trans_at_deps transmap (i : ggid Ω) (γs : ivec (On Ω i) gname)
-      (ts : hvec (On Ω i) (cmra_to_trans <$> Ocs Ω i)) :=
+      (ts : hvec (On Ω i) (cmra_to_trans <$$> Ocs Ω i)) :=
     ∀ idx,
       let id := Oids Ω i !!! idx in
       let t : Oc Ω id → Oc Ω id := lookup_fmap_Ocs ts idx (Ω.(gc_map_wf) i) in
@@ -642,8 +642,8 @@ End transmap.
 (* Arguments promise_self_info Σ : clear implicits. *)
 
 Lemma deps_agree {Σ A n} {DS : ivec n cmra} `{!inG Σ (generational_cmraR A DS)} γ (γs1 γs2 : ivec n gname) :
-  own γ (gc_tup_deps A DS (ivec_to_list γs1)) -∗
-  own γ (gc_tup_deps A DS (ivec_to_list γs2)) -∗
+  own γ (gc_tup_deps A DS (vec_to_list γs1)) -∗
+  own γ (gc_tup_deps A DS (vec_to_list γs2)) -∗
   ⌜ γs1 = γs2 ⌝.
 Proof.
   iIntros "A B".
@@ -652,7 +652,8 @@ Proof.
   iPureIntro.
   rewrite Some_valid in val.
   rewrite to_agree_op_valid_L in val.
-  apply ivec_to_list_inj.
+  (* Search vec_to_list. *)
+  apply vec_to_list_inj2.
   apply val.
 Qed.
 
@@ -668,13 +669,13 @@ Section own_picks.
    * dependencies must also have been picked. This is ensured by this
    * definition through [trans_at_deps]. *)
   Definition own_pick picks i γ t : iProp Σ :=
-    ∃ (ts : hvec (On Ω i) (cmra_to_trans <$> Ocs Ω i))
+    ∃ (ts : hvec (On Ω i) (cmra_to_trans <$$> Ocs Ω i))
         (γs : ivec (On Ω i) gname) Ps R Rs,
       ⌜ trans_at_deps picks i γs ts ⌝ ∧
       ⌜ huncurry R ts t ⌝ ∧
       ⌜ rel_prefix_list_for rel_weaker Rs R ⌝ ∧
       Oown i γ (
-        MkGen ε (GTS_tok_gen_shot t) ε (Some (to_agree (ivec_to_list γs)))
+        MkGen ε (GTS_tok_gen_shot t) ε (Some (to_agree (vec_to_list γs)))
         (gC (●ML□ Rs)) (gC (●ML□ Ps))
       ).
 
@@ -760,7 +761,7 @@ Section next_gen_definition.
       (Rs : list (rel_over (Ocs Ω pi.(pi_id)) _))
       (Ps : list (pred_over (Oc Ω pi.(pi_id)))) : iProp Σ :=
     Oown pi.(pi_id) pi.(pi_γ) (MkGen
-      ε ε ε (Some (to_agree (ivec_to_list pi.(pi_deps_γs))))
+      ε ε ε (Some (to_agree (vec_to_list pi.(pi_deps_γs))))
       (gNC (◯ML Rs)) (gNC (◯ML Ps))
     ).
 
@@ -894,7 +895,7 @@ Section own_promises_properties.
     iDestruct "Hv" as "(_ & _ & _ & %Hv1 & %Hv2 & %Hv3)".
     iPureIntro.
     rewrite -Some_op Some_valid to_agree_op_valid_L in Hv1.
-    apply ivec_to_list_inj in Hv1.
+    apply vec_to_list_inj2 in Hv1.
     rewrite gen_nc_op gen_nc_valid auth_frag_op_valid in Hv2.
     rewrite gen_nc_op gen_nc_valid auth_frag_op_valid in Hv3.
     apply to_max_prefix_list_op_valid_L in Hv2.

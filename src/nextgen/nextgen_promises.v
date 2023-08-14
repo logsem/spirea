@@ -35,7 +35,7 @@ Section generational_resources.
     own γ (gc_tup_elem DS a).
 
   Definition know_deps γ (γs : ivec n gname) : iProp Σ :=
-    own γ (gc_tup_deps A DS (ivec_to_list γs)).
+    own γ (gc_tup_deps A DS (vec_to_list γs)).
 
   Definition gen_promise_rel_pred_list γ rels preds :=
     own γ (gc_tup_rel_pred rels preds).
@@ -138,8 +138,8 @@ Definition rely_self `{g : !genInSelfG Σ Ω A} γ (P : pred_over A) : iProp Σ 
     "#relyPromise" ∷ know_promise (g := genInSelfG_gen g) γ γs R P pia promises.
 
 Equations True_preds_for {n} (ts : ivec n cmra) : preds_for n ts :=
-| inil => hnil;
-| icons t ts' => hcons True_pred (True_preds_for ts').
+| vnil => hnil;
+| vcons t ts' => hcons True_pred (True_preds_for ts').
 
 Lemma True_preds_for_lookup_fmap {n} (ts : ivec n cmra) i :
   hvec_lookup_fmap (True_preds_for ts) i = True_pred.
@@ -239,11 +239,11 @@ Proof.
     intros i.
     inversion i. }
   iIntros "#relys".
-  dependent elimination γs as [icons γ0 γs'].
+  dependent elimination γs as [vcons γ0 γs'].
   dependent elimination DS.
   simpl in deps_preds.
   dependent elimination deps_preds as [hcons p0 preds'].
-  iDestruct (IH i (λ n, gs (FS n)) γs' preds' with "[]") as (prs wf2 prop) "OP".
+  iDestruct (IH _ (λ n, gs (FS n)) γs' preds' with "[]") as (prs wf2 prop) "OP".
   { iIntros (j).
     iSpecialize ("relys" $! (FS j)).
     iApply "relys". }
@@ -258,9 +258,9 @@ Proof.
   iPureIntro.
   split; first done.
   intros n2.
-  dependent elimination n2; last first.
+  dependent elimination n2 as [0%fin | FS n3]; last first.
   { (* This one is from the IH *)
-    destruct (prop t) as (pia' & elm & sat).
+    destruct (prop n3) as (pia' & elm & sat).
     destruct val as (? & str & ?).
     apply (promises_elem_of _ _ _ wf2) in elm.
     destruct (str _ _ _ elm) as (pia2 & look2 & str2).
@@ -344,11 +344,11 @@ Proof.
     exfalso.
     inversion i. }
   iIntros "#outs".
-  dependent elimination γs as [icons γ0 γs']. simpl in *.
-  dependent elimination DS as [icons D DS'].
-  dependent elimination gcd_deps_ids as [icons dId deps_ids'].
+  dependent elimination γs as [vcons γ0 γs']. simpl in *.
+  dependent elimination DS as [vcons D DS'].
+  dependent elimination gcd_deps_ids as [vcons dId deps_ids'].
   unfold trans_for in ts.
-  dependent elimination ts. (* as [icons t ts']. *)
+  dependent elimination ts. (* as [vcons t ts']. *)
   specialize (IH DS' (λ n, gs (FS n)) deps_ids' (λ n, genInDepsG_eqs (FS n))).
   specialize (IH γs' h (λ n, o (FS n))).
   iAssert (
@@ -1059,7 +1059,7 @@ Section rules_with_deps.
      * from all existing promises. We "overapproximate" this by requiring the
      * new gname to be different from the gname for any existing promise. *)
     iMod (own_alloc_strong
-      (gc_tup_deps A DS (ivec_to_list γs) ⋅
+      (gc_tup_deps A DS (vec_to_list γs) ⋅
        gc_tup_elem DS a ⋅
        gc_tup_pick_out DS GTS_tok_both ⋅
        gc_tup_rel_pred
@@ -1098,7 +1098,7 @@ Section rules_with_deps.
         iClear "relys ownPrs D OD B2".
         iStopProof.
         f_equiv. simpl.
-        exists (gc_tup_deps (DS !!! idx) genInSelfG_DS (ivec_to_list γs2)).
+        exists (gc_tup_deps (DS !!! idx) genInSelfG_DS (vec_to_list γs2)).
         done. }
     iSplit; first done.
     iSplit. { iPureIntro. apply promises_lookup_at_cons. }
@@ -1294,7 +1294,7 @@ Section rules_with_deps.
     (* wf *)
     (genInG_gti_typ : DS !!! i = Oc Ω iid)
     (ts : hvec (On Ω (genInDepsG_id g))
-      (cmra_to_trans <$> Ocs Ω (genInDepsG_id g)))
+      (cmra_to_trans <$$> Ocs Ω (genInDepsG_id g)))
     (full_picks : ∀ i : fin gc_len, gmap gname (Oc Ω i → Oc Ω i))
     (transAt : full_picks
                 (Oids Ω (genInDepsG_id g) !!! rew [fin] genInG_gcd_n in i)
@@ -1346,7 +1346,7 @@ Section rules_with_deps.
   Lemma own_resource_for_deps_pick_in
       (γs : ivec n gname)
       (ts : hvec (On Ω (genInDepsG_id g))
-        (cmra_to_trans <$> Ocs Ω (genInDepsG_id g)))
+        (cmra_to_trans <$$> Ocs Ω (genInDepsG_id g)))
       (full_picks : ∀ i : fin gc_len, gmap gname (Oc Ω i → Oc Ω i))
     (hv : transmap_valid full_picks)
     (_ : CmraMorphism (build_trans full_picks)) :
@@ -1995,12 +1995,12 @@ Section rules_with_deps.
 End rules_with_deps.
 
 Instance genInSelfG_empty Σ Ω :
-  ∀ i : fin 0, genInSelfG Σ Ω ([]%IL !!! i).
+  ∀ i : fin 0, genInSelfG Σ Ω ([#] !!! i).
 Proof. intros i. inversion i. Qed.
 
 Instance genInSelfG_one Σ Ω n A (DS : ivec n cmra):
   genInG Σ Ω A DS →
-  ∀ i : fin 1, genInSelfG Σ Ω ([A]%IL !!! i).
+  ∀ i : fin 1, genInSelfG Σ Ω ([#A] !!! i).
 Proof. intros ? i. dependent elimination i. Defined.
 
 Section rules_zero_deps.
@@ -2008,7 +2008,7 @@ Section rules_zero_deps.
   Context
   (* {n : nat} {DS : ivec n cmra} *)
     (* `{gs : ∀ (i : fin n), genInSelfG Σ Ω (DS !!! i)} *)
-    `{g : !genInDepsG Σ Ω A [] }.
+    `{g : !genInDepsG Σ Ω A [#] }.
 
   (* Various lemmas from above specialized to the case where a generational
    * camera has no dependencies. In this cas there is no difference between the
@@ -2021,11 +2021,11 @@ Section rules_zero_deps.
     (∀ t, P_2 t → P_1 t) →
     (* Evidence that the promise is realizeable. *)
     (∃ (t : A → A), CmraMorphism t ∧ P_2 t) →
-    token γ [] P_1 P_1 ==∗
-    token γ [] P_2 P_2.
+    token γ [#] P_1 P_1 ==∗
+    token γ [#] P_2 P_2.
   Proof.
     intros. iIntros "T".
-    iApply (token_strengthen_promise (DS := []) _ _ [] with "[] T"); try done.
+    iApply (token_strengthen_promise (DS := [#]) _ _ [##] with "[] T"); try done.
     - intros ts. dependent elimination ts as [hnil]. done.
     - intros ts. dependent elimination ts as [hnil]. done.
     - intros ts. dependent elimination ts as [hnil]. done.

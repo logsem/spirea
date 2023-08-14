@@ -116,7 +116,7 @@ Section omega_helpers.
    * ensure that looking up in [cs] results in a useful return type. [f] will
    * usually be [pred_over] or [cmra_to_trans]. *)
   Definition lookup_fmap_Ocs `{Ω : gGenCmras Σ} {f id}
-      (cs : hvec (On Ω id) (f <$> Ocs Ω id)) i (wf : omega_wf_at Ω.(gc_map) id)
+      (cs : hvec (On Ω id) (f <$$> Ocs Ω id)) i (wf : omega_wf_at Ω.(gc_map) id)
       : f (Oc Ω (Oids Ω id !!! i)) :=
     eq_rect _ _ (hvec_lookup_fmap cs i) _ (Ocs_Oids_distr _ _ wf).
 
