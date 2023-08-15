@@ -4,17 +4,16 @@ From Perennial.Helpers Require Import ipm.
 From Perennial.base_logic.lib Require Import wsat.
 From Perennial.program_logic Require Export weakestpre.
 From Perennial.program_logic Require Export crash_lang.
-From Perennial.program_logic Require Import crash_adequacy.
 Import uPred.
 
 From self.nextgen Require Import nextgen_promises.
-From self.base Require Export recovery_weakestpre.
+From self.program_logic Require Export crash_adequacy recovery_weakestpre.
 
 Set Default Proof Using "Type".
 Set Default Goal Selector "!".
 
 Section recovery_adequacy.
-  Context {Σ} {Ω : gGenCmras Σ} `{!irisGS Λ Σ, !generationGS Λ Σ}.
+  Context {Σ} {Ω : gGenCmras Σ} `{!irisGS Λ Σ}.
   Implicit Types s : stuckness.
   Implicit Types P : iProp Σ.
   Implicit Types Φ : val Λ → iProp Σ.
@@ -86,11 +85,10 @@ Section recovery_adequacy.
     iPoseProof (wptp_strong_adequacy with "Hσ Hg [He] Ht") as "H".
     { eauto. }
     {rewrite wpr_unfold /wpr_pre. iApply "He". }
-    iSpecialize ("H" with "[]"). { admit. }
     rewrite /step_fupdN_fresh.
     iIntros "Hlc". iSpecialize ("H" with "Hlc").
     iApply (step_fupd2N_wand with "H"); auto.
-  Admitted.
+  Qed.
 
   Lemma wptp_recv_normal_progress {CS Φ Φinv Φr κs'} n ns ncurr mj D r1 e1 t1 κs t2 σ1 g1 σ2 g2 e2 :
     nrsteps (CS := CS) r1 (ns ++ [n]) (e1 :: t1, (σ1,g1)) κs (t2, (σ2,g2)) Normal →
@@ -99,7 +97,6 @@ Section recovery_adequacy.
     global_state_interp g1 ncurr mj D (κs ++ κs') -∗
     wpr CS NotStuck ⊤ e1 r1 Φ Φinv Φr -∗
     wptp NotStuck t1 -∗ step_fupdN_fresh ncurr ns (
-      (* ⌜ HG' = ⌝ ∗ *)
     (£ (steps_sum num_laters_per_step step_count_next ncurr (S n)) -∗
      ||={⊤|⊤,∅|∅}=> ||▷=>^(steps_sum num_laters_per_step step_count_next ncurr n) ||={∅|∅, ∅|∅}=>
      ||▷=>^(num_laters_per_step (Nat.iter n step_count_next ncurr) + 1)
@@ -110,7 +107,7 @@ Section recovery_adequacy.
     iPoseProof (wptp_progress with "Hσ Hg [He] Ht") as "H".
     { eauto. } { done. }
     {rewrite wpr_unfold /wpr_pre. iApply "He". }
-    iSpecialize ("H" with "[]"). { admit. }
+    (* iSpecialize ("H" with "[]"). { admit. } *)
     assert (ns = []) as ->;
       first by (eapply nrsteps_normal_empty_prefix; eauto).
     inversion H. subst.
@@ -118,7 +115,7 @@ Section recovery_adequacy.
     (* iSplitL ""; first by eauto. *)
     iIntros "Hlc". iSpecialize ("H" with "Hlc").
     iApply (step_fupd2N_wand with "H"); auto.
-  Admitted.
+  Qed.
 
   Fixpoint sum_crash_steps ns :=
     match ns with
@@ -163,8 +160,7 @@ Section recovery_adequacy.
     rewrite -assoc wpr_unfold /wpr_pre.
     rewrite Nat.iter_succ.
     iIntros "Hlc".
-    iPoseProof (@wptp_strong_crash_adequacy with "[$] [$] [$] [$] [] [$]") as "H"; eauto.
-    { admit. }
+    iPoseProof (@wptp_strong_crash_adequacy with "[$] [$] [$] [$] [$]") as "H"; eauto.
     iMod "H". iModIntro.
     iApply (step_fupd2N_wand (steps_sum num_laters_per_step step_count_next ncurr (S n'))
               with "H").
@@ -175,7 +171,7 @@ Section recovery_adequacy.
     iMod ("Hclo") as "_".
     iMod (fupd2_mask_subseteq ∅ ∅) as "Hclo"; [set_solver+..|].
     iMod ("Hclo") as "_".
-    iDestruct "H" as (e2 t2' ?) "(H&Hσ&Hg&HC)".
+    iDestruct "H" as (e2 t2' ?) "(H&Hσ&Hg)".
     iMod ("H" with "[//] Hσ Hg") as "H".
     iMod (fupd2_mask_subseteq ∅ ∅) as "Hclo"; [set_solver+..|]. do 2 iModIntro. iNext.
     iModIntro.
@@ -233,7 +229,7 @@ Section recovery_adequacy.
       rewrite -Nat.iter_succ Nat.iter_succ_r.
       rewrite Nat.iter_add Nat.iter_succ_r.
       eauto.
-  Admitted.
+  Qed.
 
   (* unfortunately this duplicates the large induction above.
   There is probably some way to factor this... *)
@@ -268,8 +264,7 @@ Section recovery_adequacy.
     rewrite -assoc wpr_unfold /wpr_pre.
     rewrite Nat.iter_succ.
     iIntros "Hlc".
-    iPoseProof (@wptp_strong_crash_adequacy with "[$] [$] [$] [$] [] [$]") as "H"; eauto.
-    { admit. }
+    iPoseProof (@wptp_strong_crash_adequacy with "[$] [$] [$] [$] [$]") as "H"; eauto.
     iMod "H". iModIntro.
     iApply (step_fupd2N_wand (steps_sum num_laters_per_step step_count_next ncurr (S n'))
               with "H").
@@ -280,7 +275,7 @@ Section recovery_adequacy.
     iMod ("Hclo") as "_".
     iMod (fupd2_mask_subseteq ∅ ∅) as "Hclo"; [set_solver+..|].
     iMod ("Hclo") as "_".
-    iDestruct "H" as (e2 t2' ?) "(H&Hσ&Hg&HC)".
+    iDestruct "H" as (e2 t2' ?) "(H&Hσ&Hg)".
     iMod ("H" with "[//] Hσ Hg") as "H".
     iMod (fupd2_mask_subseteq ∅ ∅) as "Hclo"; [set_solver+..|]. do 2 iModIntro. iNext.
     iModIntro.
@@ -346,7 +341,7 @@ Section recovery_adequacy.
       rewrite ![_ + 1]comm. simpl.
       rewrite Nat.iter_add Nat.iter_succ_r.
       eauto.
-  Admitted.
+  Qed.
 
   Lemma wptp_recv_strong_adequacy {CS Φ Φinv Φinv' Φr κs' s} ns mj D n r1 e1 t1 κs t2 σ1 g1 ncurr σ2 g2 stat :
     nrsteps (CS := CS) r1 (ns ++ [n]) (e1 :: t1, (σ1,g1)) κs (t2, (σ2,g2)) stat →
@@ -354,7 +349,7 @@ Section recovery_adequacy.
     global_state_interp g1 ncurr mj D (κs ++ κs') -∗
     wpr CS s ⊤ e1 r1 Φ Φinv Φr -∗
     ■ (Φinv -∗ □ Φinv') -∗
-    wptp s t1 -∗ (* NC 1-∗ *) step_fupdN_fresh ncurr ns (
+    wptp s t1 -∗ step_fupdN_fresh ncurr ns (
       let ntot := (steps_sum num_laters_per_step step_count_next
                              (Nat.iter (sum_crash_steps ns) step_count_next ncurr )
                              n)  in
@@ -368,9 +363,7 @@ Section recovery_adequacy.
        | Normal => from_option Φ True (to_val e2)
        | Crashed => from_option (Φr) True (to_val e2) ∗ □ Φinv'
        end)  ∗
-      ([∗ list] v ∈ omap to_val t2', fork_post v)
-      (* ∗ NC 1 *)
-      ))).
+      ([∗ list] v ∈ omap to_val t2', fork_post v)))).
   Proof.
     intros. destruct stat.
     - iIntros.
@@ -534,7 +527,7 @@ Proof.
 Qed.
 
 Corollary wp_recv_adequacy_inv Σ {Ω : gGenCmras Σ} Λ CS
-    `{!invGpreS Σ, !generationGS Λ Σ} nsinit s e r σ g φ φr φinv f1 f2:
+    `{!invGpreS Σ} nsinit s e r σ g φ φr φinv f1 f2:
   (∀ `(Hinv : !invGS Σ) `(Hc: !crashGS Σ) κs,
      ⊢ |={⊤}=> ∃
          (stateI : state Λ → nat → iProp Σ) (* for the initial generation *)

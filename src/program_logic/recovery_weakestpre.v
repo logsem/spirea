@@ -4,10 +4,11 @@
 From iris.proofmode Require Import tactics.
 From iris.algebra Require Import gmap auth agree gset coPset.
 From Perennial.base_logic.lib Require Import wsat.
-From Perennial.program_logic Require Export weakestpre.
-From Perennial.program_logic Require Export crash_lang crash_weakestpre.
+(* From Perennial.program_logic Require Export weakestpre. *)
+From Perennial.program_logic Require Export crash_lang.
 Import uPred.
 
+From self.program_logic Require Import crash_weakestpre.
 From self.nextgen Require Import nextgen_promises.
 
 Set Default Proof Using "Type".
@@ -28,7 +29,7 @@ Set Default Proof Using "Type".
    easily support such a thing with the nextgen modality, but we would have to
    make more changes to Perennial's program logic, and we don't use the token
    for anything anyway. *)
-Definition wpr_pre {Σ} {Ω : gGenCmras Σ} `{irisGS Λ Σ, generationGS Λ Σ}
+Definition wpr_pre {Σ} {Ω : gGenCmras Σ} `{irisGS Λ Σ}
     (CS : crash_semantics Λ) (s : stuckness)
     (wpr : coPset -d> expr Λ -d> expr Λ -d>
                      (val Λ -d> iPropO Σ) -d>
@@ -51,7 +52,7 @@ Definition wpr_pre {Σ} {Ω : gGenCmras Σ} `{irisGS Λ Σ, generationGS Λ Σ}
           global_state_interp g (step_count_next ns) mj D κs ∗
           (Φinv ∧ wpr E rec rec Φr Φinv Φr) }})%I.
 
-Local Instance wpr_pre_contractive {Σ} {Ω : gGenCmras Σ} `{!irisGS Λ Σ, generationGS Λ Σ} CS s :
+Local Instance wpr_pre_contractive {Σ} {Ω : gGenCmras Σ} `{!irisGS Λ Σ} CS s :
   Contractive (wpr_pre CS s).
 Proof.
   rewrite /wpr_pre=> n wp wp' Hwp E1 e1 rec Φ Φinv Φc.
@@ -59,27 +60,27 @@ Proof.
   repeat (f_contractive || f_equiv). apply Hwp.
 Qed.
 
-Definition wpr_def {Σ} {Ω : gGenCmras Σ} `{!irisGS Λ Σ, generationGS Λ Σ} CS (s : stuckness) :
+Definition wpr_def {Σ} {Ω : gGenCmras Σ} `{!irisGS Λ Σ} CS (s : stuckness) :
   coPset → expr Λ → expr Λ →
   (val Λ → iProp Σ) →
   (iProp Σ) →
   (val Λ → iProp Σ) → iProp Σ := fixpoint (wpr_pre CS s).
-Definition wpr_aux {Σ} {Ω : gGenCmras Σ} `{!irisGS Λ Σ, generationGS Λ Σ} : seal (@wpr_def Σ _ Λ _ _).
+Definition wpr_aux {Σ} {Ω : gGenCmras Σ} `{!irisGS Λ Σ} : seal (@wpr_def Σ _ Λ _).
 Proof. by eexists. Qed.
-Definition wpr {Σ} {Ω : gGenCmras Σ} `{!irisGS Λ Σ, generationGS Λ Σ} := wpr_aux.(unseal).
-Definition wpr_eq {Σ} {Ω : gGenCmras Σ} `{!irisGS Λ Σ, generationGS Λ Σ} :
-  wpr = @wpr_def Σ _ Λ _ _ := wpr_aux.(seal_eq).
+Definition wpr {Σ} {Ω : gGenCmras Σ} `{!irisGS Λ Σ} := wpr_aux.(unseal).
+Definition wpr_eq {Σ} {Ω : gGenCmras Σ} `{!irisGS Λ Σ} :
+  wpr = @wpr_def Σ _ Λ _ := wpr_aux.(seal_eq).
 
 (* Make [generationGS] implicit.
 Arguments wpr {Λ Σ _} _ _ _ {_}. *)
 
-Lemma wpr_unfold {Σ} {Ω : gGenCmras Σ} `{!irisGS Λ Σ, generationGS Λ Σ}
+Lemma wpr_unfold {Σ} {Ω : gGenCmras Σ} `{!irisGS Λ Σ}
     CS s E e rec Φ Φinv Φc :
   wpr CS s E e rec Φ Φinv Φc ⊣⊢ wpr_pre CS s (wpr CS s) E e rec Φ Φinv Φc.
 Proof. rewrite wpr_eq. apply (fixpoint_unfold (wpr_pre _ s)). Qed.
 
 Section wpr.
-  Context {Σ} {Ω : gGenCmras Σ} `{!irisGS Λ Σ, generationGS Λ Σ}.
+  Context {Σ} {Ω : gGenCmras Σ} `{!irisGS Λ Σ}.
   Implicit Types CS : crash_semantics Λ.
   Implicit Types s : stuckness.
   Implicit Types P : iProp Σ.

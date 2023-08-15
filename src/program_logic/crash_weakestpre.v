@@ -36,7 +36,6 @@ Global Arguments state_interp : simpl never.
 
 Global Arguments state_interp {Λ Σ G} : rename.
 
-#[local]
 Notation global_state_interp := (crash_weakestpre.global_state_interp).
 Notation num_laters_per_step := (crash_weakestpre.num_laters_per_step).
 Notation step_count_next := (crash_weakestpre.step_count_next).
@@ -770,23 +769,23 @@ Proof.
   iPoseProof (wpc0_value_inv' with "[$] [$]") as "H". eauto.
 Qed.
 
-(* Lemma wpc0_value_inv_option s mj D E1 q Φ Φc e g κs ns : *)
-(*   wpc0 s mj E1 e Φ Φc -∗ *)
-(*   global_state_interp g ns mj D κs -∗ *)
-(*   ||={E1|⊤∖D, E1|⊤∖D}=> from_option Φ True (to_val e) ∗ global_state_interp g ns mj D κs ∗ NC q. *)
-(* Proof. *)
-(*   iIntros. destruct (to_val e) as [v|] eqn:He; last by iFrame. *)
-(*   apply of_to_val in He as <-. by iMod (wpc0_value_inv' with "[$] [$] [$]") as "($&$)". *)
-(* Qed. *)
+Lemma wpc0_value_inv_option s mj D E1 Φ Φc e g κs ns :
+  wpc0 s mj E1 e Φ Φc -∗
+  global_state_interp g ns mj D κs -∗
+  ||={E1|⊤∖D, E1|⊤∖D}=> from_option Φ True (to_val e) ∗ global_state_interp g ns mj D κs.
+Proof.
+  iIntros. destruct (to_val e) as [v|] eqn:He; last by iFrame.
+  apply of_to_val in He as <-. by iMod (wpc0_value_inv' with "[$] [$]") as "($&$)".
+Qed.
 
-(* Lemma wpc_value_inv_option s mj D E1 q Φ Φc e g κs ns : *)
-(*   WPC e @ s; E1 {{ Φ }} {{ Φc }} -∗ *)
-(*   global_state_interp g ns mj D κs -∗ *)
-(*   ||={E1|⊤∖D, E1|⊤∖D}=> from_option Φ True (to_val e) ∗ global_state_interp g ns mj D κs ∗ NC q. *)
-(* Proof. *)
-(*   iIntros. destruct (to_val e) as [v|] eqn:He; last by iFrame. *)
-(*   apply of_to_val in He as <-. by iMod (wpc_value_inv' with "[$] [$] [$]") as "($&$)". *)
-(* Qed. *)
+Lemma wpc_value_inv_option s mj D E1 Φ Φc e g κs ns :
+  WPC e @ s; E1 {{ Φ }} {{ Φc }} -∗
+  global_state_interp g ns mj D κs -∗
+  ||={E1|⊤∖D, E1|⊤∖D}=> from_option Φ True (to_val e) ∗ global_state_interp g ns mj D κs.
+Proof.
+  iIntros. destruct (to_val e) as [v|] eqn:He; last by iFrame.
+  apply of_to_val in He as <-. by iMod (wpc_value_inv' with "[$] [$]") as "($&$)".
+Qed.
 
 (* Lemma wpc_C s E1 e Φ Φc : *)
 (*  C ∗ Φc ⊢ WPC e @ s; E1 {{ Φ }} {{ Φc }}. *)
