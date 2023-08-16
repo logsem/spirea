@@ -477,7 +477,7 @@ Admitted.
 (*     do 3 iModIntro. rewrite assoc. done. *)
 (* Qed. *)
 
-Lemma step_fupdN_fresh_soundness {Λ Σ} {Ω : gGenCmras Σ} `{!invGpreS Σ} `{!crashGpreS Σ} (φ : Prop) ns ncurr k k2 f g:
+Lemma step_fupdN_fresh_soundness {Λ Σ} {Ω : gGenCmras Σ} `{!invGpreS Σ} (φ : Prop) ns ncurr k k2 f g:
   (∀ (Hi: invGS Σ), ⊢ |={⊤}=>
     ∃ (HI: irisGS Λ Σ) (Hpf1: iris_invGS = Hi)
      (Hpf2: num_laters_per_step = f) (Hpf2: step_count_next = g),
@@ -528,16 +528,18 @@ Qed.
 
 Corollary wp_recv_adequacy_inv Σ {Ω : gGenCmras Σ} Λ CS
     `{!invGpreS Σ} nsinit s e r σ g φ φr φinv f1 f2:
-  (∀ `(Hinv : !invGS Σ) `(Hc: !crashGS Σ) κs,
+  (∀ `(Hinv : !invGS Σ) κs,
      ⊢ |={⊤}=> ∃
          (stateI : state Λ → nat → iProp Σ) (* for the initial generation *)
          (global_stateI : global_state Λ → nat → fracR → coPset → list (observation Λ) → iProp Σ)
          (fork_post : val Λ → iProp Σ) Hpf1a Hpf1b
          Φinv,
-        let HI := IrisGS Λ Σ Hinv (global_stateI) (fork_post) f1 f2 Hpf1a Hpf1b in
-        let HG := GenerationGS Λ Σ Hc stateI in
+        let HI :=
+          Perennial.program_logic.crash_weakestpre.IrisGS Λ Σ Hinv global_stateI
+            fork_post f1 f2 Hpf1a Hpf1b in
+        let HI2 := IrisGS Λ Σ HI stateI in
        □ (∀ σ nt, stateI σ nt -∗ |={⊤, ∅}=> ⌜ φinv σ ⌝) ∗ (* φinv for initial gen. *)
-       ■ (Φinv Hinv -∗ □ ∀ σ nt, state_interp σ nt -∗ |={⊤, ∅}=> ⌜ φinv σ ⌝) ∗ (* φinv for later generations *)
+       ■ (Φinv Hinv -∗ □ ∀ σ nt, stateI σ nt -∗ |={⊤, ∅}=> ⌜ φinv σ ⌝) ∗ (* φinv for later generations *)
        stateI σ 0 ∗ global_stateI g nsinit 1%Qp ∅ κs ∗
        wpr CS s ⊤ e r (λ v, ⌜φ v⌝) (Φinv Hinv) (λ v, ⌜φr v⌝)) →
   recv_adequate (CS := CS) s e r σ g (λ v _ _, φ v) (λ v _ _, φr v) (λ σ _, φinv σ).
@@ -553,13 +555,13 @@ Proof.
               (crash_adequacy.steps_sum f1 f2 (Nat.iter (sum_crash_steps ns') f2 nsinit) n')
                (S (S  (f1 (Nat.iter (n' + sum_crash_steps ns') f2 nsinit)))))
          => Hinv.
-  (* iIntros "HNC". *)
-  iMod (Hwp Hinv _ κs) as (stateI global_stateI fork_post Hpf1a Hpf1b) "H".
+  iMod (Hwp Hinv κs) as (stateI global_stateI fork_post Hpf1a Hpf1b) "H".
   iDestruct "H" as (Φinv) "(#Hinv1&#Hinv2&Hσ&Hg&H)".
   iModIntro.
-  set (HI := IrisGS Λ Σ Hinv (global_stateI) (fork_post) f1 f2 Hpf1a Hpf1b).
-  set (HG := GenerationGS Λ Σ _ stateI).
-  iExists HI.
+  set (HI := Perennial.program_logic.crash_weakestpre.IrisGS
+    Λ Σ Hinv (global_stateI) (fork_post) f1 f2 Hpf1a Hpf1b).
+  set (HI2 := IrisGS Λ Σ HI stateI).
+  iExists HI2.
   iDestruct (wptp_recv_strong_adequacy
                (Φinv' := (∀ σ nt, state_interp σ nt -∗ |={⊤, ∅}=> ⌜ φinv σ ⌝)%I)
                (κs' := []) with "[Hσ] [Hg] [H] [] []") as "H"; eauto.
@@ -599,13 +601,13 @@ Proof.
                 (f1 (Nat.iter (n' + sum_crash_steps ns') f2 nsinit) + 1))
          => Hinv.
   (* iIntros "HNC". *)
-  iMod (Hwp Hinv _ κs) as (stateI global_stateI fork_post Hpf1a Hpf1b) "H".
+  iMod (Hwp Hinv κs) as (stateI global_stateI fork_post Hpf1a Hpf1b) "H".
   iDestruct "H" as (Φinv) "(#Hinv1&#Hinv2&Hσ&Hg&H)".
   iModIntro.
-  set (HI := IrisGS Λ Σ Hinv (global_stateI) (fork_post) f1 f2 Hpf1a Hpf1b).
-  set (HG := GenerationGS Λ Σ _ stateI).
-  iExists HI.
-  (* , HG. *)
+  set (HI := Perennial.program_logic.crash_weakestpre.IrisGS
+    Λ Σ Hinv (global_stateI) (fork_post) f1 f2 Hpf1a Hpf1b).
+  set (HI2 := IrisGS Λ Σ HI stateI).
+  iExists HI2.
   iDestruct (wptp_recv_progress
     (Φinv' := (∀ σ nt, state_interp σ nt -∗ |={⊤, ∅}=> ⌜ φinv σ ⌝)%I)
                (κs' := []) with "[Hσ] [Hg] [H] [] []") as "H"; [eauto..|].
@@ -615,7 +617,6 @@ Proof.
   (* iIntros (?). *)
   iIntros "H Hlc".
   iApply "H". iExactEq "Hlc". f_equiv; first done.
-  rewrite assoc. f_equiv. done.
- }
+  rewrite assoc. f_equiv. done. }
 Qed.
 
