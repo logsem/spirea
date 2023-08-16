@@ -34,36 +34,36 @@ Section recovery_adequacy.
     match ns with
     | [] => P
     | (n :: ns) =>
-      (£ (steps_sum (num_laters_per_step) (step_count_next) ncurrent (S n)) -∗
+      £ (steps_sum (num_laters_per_step) (step_count_next) ncurrent (S n)) -∗
         ||={⊤|⊤,∅|∅}=> ||▷=>^(steps_sum (num_laters_per_step) (step_count_next)
                                        ncurrent (S n)) ||={∅|∅, ⊤|⊤}=>
-       ||={⊤|⊤,∅|∅}=> ||▷=>^2 ||={∅|∅, ⊤|⊤}=> ⚡==>
-       |={⊤}=>
-         step_fupdN_fresh ((Nat.iter (S n) step_count_next ncurrent)) ns P)
+        ||={⊤|⊤,∅|∅}=> ||▷=>^2 ||={∅|∅, ⊤|⊤}=> ⚡==>
+        |={⊤}=>
+          step_fupdN_fresh ((Nat.iter (S n) step_count_next ncurrent)) ns P
     end%I.
 
   Lemma step_fupdN_fresh_wand ncurr1 ncurr2 (ns: list nat) Q Q':
     ncurr1 = ncurr2 →
-    step_fupdN_fresh ncurr1 (ns) Q -∗ (Q -∗ Q')
-    -∗ step_fupdN_fresh ncurr2 ns Q'.
+    step_fupdN_fresh ncurr1 ns Q -∗
+    ■ (Q -∗ Q') -∗
+    step_fupdN_fresh ncurr2 ns Q'.
   Proof.
-  Admitted.
-  (*   revert ncurr1 ncurr2. *)
-  (*   induction ns => ?? Hncurr. *)
-  (*   - iIntros "H Hwand". iApply "Hwand". eauto. *)
-  (*   - iIntros "H Hwand Hlc". rewrite /step_fupdN_fresh -/step_fupdN_fresh. *)
-  (*     rewrite {1}Hncurr. *)
-  (*     iSpecialize ("H" with "Hlc"). *)
-  (*     iApply (step_fupd2N_inner_wand with "H"); try auto. *)
-  (*     { subst. auto. } *)
-  (*     iIntros "H". *)
-  (*     iMod "H". iModIntro. iApply (step_fupd2N_wand with "H"). iIntros "H". *)
-  (*     iMod "H". iModIntro. *)
-  (*     iMod "H" as "H". *)
-  (*     iModIntro. iApply (IHns with "H"). *)
-  (*     { subst. auto. } *)
-  (*     eauto. *)
-  (* Qed. *)
+    revert ncurr1 ncurr2.
+    induction ns => ?? Hncurr.
+    - iIntros "H Hwand". iApply "Hwand". eauto.
+    - iIntros "H Hwand Hlc". rewrite /step_fupdN_fresh -/step_fupdN_fresh.
+      rewrite {1}Hncurr.
+      iSpecialize ("H" with "Hlc").
+      iApply (step_fupd2N_inner_wand with "H"); try auto.
+      { subst. auto. }
+      iIntros "H".
+      iMod "H". iModIntro. iApply (step_fupd2N_wand with "H"). iIntros "H".
+      iMod "H". iModIntro. iModIntro.
+      iMod "H" as "H".
+      iModIntro. iApply (IHns with "H").
+      { subst. auto. }
+      eauto.
+  Qed.
 
   Lemma wptp_recv_strong_normal_adequacy {CS Φ Φinv Φr κs' s} n ncurr mj D r1 e1 t1 κs t2 σ1 g1 σ2 g2 :
     nrsteps (CS := CS) r1 [n] (e1 :: t1, (σ1,g1)) κs (t2, (σ2,g2)) Normal →
@@ -106,8 +106,7 @@ Section recovery_adequacy.
     inversion Hstep. subst.
     iPoseProof (wptp_progress with "Hσ Hg [He] Ht") as "H".
     { eauto. } { done. }
-    {rewrite wpr_unfold /wpr_pre. iApply "He". }
-    (* iSpecialize ("H" with "[]"). { admit. } *)
+    { rewrite wpr_unfold /wpr_pre. iApply "He". }
     assert (ns = []) as ->;
       first by (eapply nrsteps_normal_empty_prefix; eauto).
     inversion H. subst.
@@ -129,7 +128,7 @@ Section recovery_adequacy.
     global_state_interp g1 ncurr mj D (κs ++ κs') -∗
     wpr CS s ⊤ e1 r1 Φ Φinv Φr -∗
     ■ (Φinv -∗ □ Φinv') -∗
-    wptp s t1 -∗ (* NC 1 -∗ *) step_fupdN_fresh ncurr ns (
+    wptp s t1 -∗ step_fupdN_fresh ncurr ns (
       let ntot := (steps_sum num_laters_per_step step_count_next
                              (Nat.iter (sum_crash_steps ns) step_count_next ncurr )
                              n)  in
@@ -187,6 +186,7 @@ Section recovery_adequacy.
       iModIntro. simpl. eauto.
       iApply (step_fupdN_fresh_wand with "H").
       { auto. }
+      iModIntro.
       iIntros "H Hlc".
       iSpecialize ("H" with "[Hlc]").
       { iExactEq "Hlc". f_equal.
@@ -290,6 +290,7 @@ Section recovery_adequacy.
       iModIntro. simpl. eauto.
       iApply (step_fupdN_fresh_wand with "H").
       { auto. }
+      iModIntro.
       iIntros "H Hlc".
       iSpecialize ("H" with "[Hlc]").
       { iExactEq "Hlc". f_equal. f_equal. f_equal.
@@ -318,7 +319,7 @@ Section recovery_adequacy.
       iDestruct (wptp_recv_normal_progress with "[Hσ] [Hg] [Hr] []") as "H"; eauto.
       iApply (step_fupdN_fresh_wand with "H").
       { simpl. lia. }
-      iModIntro.
+      iClear "Hinv'". iModIntro. iModIntro.
       iIntros "H".
       (* iDestruct "H" as (->) "H". *)
       rewrite steps_sum_S_r.
@@ -369,6 +370,7 @@ Section recovery_adequacy.
     - iIntros.
       iDestruct (wptp_recv_strong_crash_adequacy with "[$] [$] [$] [$] [$]") as "H"; eauto.
       iApply (step_fupdN_fresh_wand with "H"); first auto.
+      iModIntro.
       iIntros "H Hlc". iSpecialize ("H" with "Hlc").
       iApply (step_fupd2N_wand with "H"); auto.
       iIntros "H".
@@ -408,6 +410,7 @@ Section recovery_adequacy.
     - iIntros.
       iDestruct (wptp_recv_normal_progress with "[$] [$] [$] [$]") as "H"; eauto.
       iApply (step_fupdN_fresh_wand with "H"); first auto.
+      iModIntro.
       iIntros "H Hlc".
       (* iDestruct "H" as (->) "H". *)
       assert (ns = []) as ->; first by (eapply nrsteps_normal_empty_prefix; eauto).
@@ -538,7 +541,7 @@ Corollary wp_recv_adequacy_inv Σ {Ω : gGenCmras Σ} Λ CS
           Perennial.program_logic.crash_weakestpre.IrisGS Λ Σ Hinv global_stateI
             fork_post f1 f2 Hpf1a Hpf1b in
         let HI2 := IrisGS Λ Σ HI stateI in
-       □ (∀ σ nt, stateI σ nt -∗ |={⊤, ∅}=> ⌜ φinv σ ⌝) ∗ (* φinv for initial gen. *)
+       ■ (∀ σ nt, stateI σ nt -∗ |={⊤, ∅}=> ⌜ φinv σ ⌝) ∗ (* φinv for initial gen. *)
        ■ (Φinv Hinv -∗ □ ∀ σ nt, stateI σ nt -∗ |={⊤, ∅}=> ⌜ φinv σ ⌝) ∗ (* φinv for later generations *)
        stateI σ 0 ∗ global_stateI g nsinit 1%Qp ∅ κs ∗
        wpr CS s ⊤ e r (λ v, ⌜φ v⌝) (Φinv Hinv) (λ v, ⌜φr v⌝)) →
@@ -553,7 +556,7 @@ Proof.
   { destruct (nrsteps_snoc _ _ _ _ _ _ H) as (ns'&n'&->).
   eapply (step_fupdN_fresh_soundness _ ns' nsinit
               (crash_adequacy.steps_sum f1 f2 (Nat.iter (sum_crash_steps ns') f2 nsinit) n')
-               (S (S  (f1 (Nat.iter (n' + sum_crash_steps ns') f2 nsinit)))))
+               (S (S (f1 (Nat.iter (n' + sum_crash_steps ns') f2 nsinit)))))
          => Hinv.
   iMod (Hwp Hinv κs) as (stateI global_stateI fork_post Hpf1a Hpf1b) "H".
   iDestruct "H" as (Φinv) "(#Hinv1&#Hinv2&Hσ&Hg&H)".
@@ -570,6 +573,7 @@ Proof.
   iModIntro.
   iApply (step_fupdN_fresh_wand with "H").
   { auto. }
+  iModIntro.
   iIntros "H [Hlc1 Hlc2]".
   iMod ("H" with "Hlc1") as "H".
   iApply (step_fupd2N_wand with "H"); auto.
@@ -614,6 +618,7 @@ Proof.
   { rewrite app_nil_r. eauto. }
   do 3 iExists eq_refl. iModIntro.
   iApply (step_fupdN_fresh_wand with "H"); first done.
+  iModIntro.
   (* iIntros (?). *)
   iIntros "H Hlc".
   iApply "H". iExactEq "Hlc". f_equiv; first done.
