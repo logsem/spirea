@@ -946,56 +946,9 @@ Section own_promises_properties.
     done.
   Qed.
 
-End own_promises_properties.
-
-(* In the following section we prove structural rules of the nextgen modality.
- * and add the modality instances for the proof mode. *)
-
-Class IntoNextgen `{Ω : gGenCmras Σ} (P : iProp Σ) (Q : iProp Σ) :=
-  into_nextgen : P ⊢ ⚡==> Q.
-Global Arguments IntoNextgen  {_ _} _%I _%I.
-Global Arguments into_nextgen {_ _} _%I _%I.
-Global Hint Mode IntoNextgen + + + - : typeclass_instances.
-
-Section nextgen_structural_properties.
-  Context {Σ : gFunctors} {Ω : gGenCmras Σ}.
-  Implicit Types (P : iProp Σ) (Q : iProp Σ).
-
-  Lemma own_picks_empty :
-    ⊢@{iProp Σ} own_picks (λ i, ∅).
-  Proof. iIntros (????). done. Qed.
-
   Lemma own_promises_empty :
     ⊢@{iProp Σ} own_promises [].
   Proof. iApply big_sepL_nil. done. Qed.
-
-  (* Helper lemma to show things under the nextgen modality when you do not
-   * care about the picks and promises. *)
-  Lemma nextgen_empty P :
-    (∀ full_picks (val : transmap_valid full_picks),
-    let _ := build_trans_generation full_picks val in
-    ⚡={build_trans full_picks}=> P)
-    ⊢ ⚡==> P.
-  Proof.
-    rewrite nextgen_unseal /nextgen_def.
-    iIntros "HP".
-    iExists (λ i, ∅), [].
-    iSplit; first done.
-    iSplit; first done.
-    iSplit; first iApply own_picks_empty.
-    iSplit; first iApply own_promises_empty.
-    iIntros (????).
-    iApply "HP".
-  Qed.
-
-  Lemma nextgen_emp_2 : emp ⊢@{iProp Σ} ⚡==> emp.
-  Proof.
-    iIntros "E".
-    iApply nextgen_empty.
-    iIntros (full_picks ?).
-    iModIntro.
-    iFrame "E".
-  Qed.
 
   Lemma big_sepL_forall_elem_of {A} (l : list A) Φ :
     (∀ x, Persistent (Φ x)) →
@@ -1031,6 +984,53 @@ Section nextgen_structural_properties.
       iExists _, _. iFrame.
     - iDestruct ("prR" $! _ elm2) as (??) "?".
       iExists _, _. iFrame.
+  Qed.
+
+End own_promises_properties.
+
+(* In the following section we prove structural rules of the nextgen modality.
+ * and add the modality instances for the proof mode. *)
+
+Class IntoNextgen `{Ω : gGenCmras Σ} (P : iProp Σ) (Q : iProp Σ) :=
+  into_nextgen : P ⊢ ⚡==> Q.
+Global Arguments IntoNextgen  {_ _} _%I _%I.
+Global Arguments into_nextgen {_ _} _%I _%I.
+Global Hint Mode IntoNextgen + + + - : typeclass_instances.
+
+Section nextgen_structural_properties.
+  Context {Σ : gFunctors} {Ω : gGenCmras Σ}.
+  Implicit Types (P : iProp Σ) (Q : iProp Σ).
+
+  Lemma own_picks_empty :
+    ⊢@{iProp Σ} own_picks (λ i, ∅).
+  Proof. iIntros (????). done. Qed.
+
+  (* Helper lemma to show things under the nextgen modality when you do not
+   * care about the picks and promises. *)
+  Lemma nextgen_empty P :
+    (∀ full_picks (val : transmap_valid full_picks),
+    let _ := build_trans_generation full_picks val in
+    ⚡={build_trans full_picks}=> P)
+    ⊢ ⚡==> P.
+  Proof.
+    rewrite nextgen_unseal /nextgen_def.
+    iIntros "HP".
+    iExists (λ i, ∅), [].
+    iSplit; first done.
+    iSplit; first done.
+    iSplit; first iApply own_picks_empty.
+    iSplit; first iApply own_promises_empty.
+    iIntros (????).
+    iApply "HP".
+  Qed.
+
+  Lemma nextgen_emp_2 : emp ⊢@{iProp Σ} ⚡==> emp.
+  Proof.
+    iIntros "E".
+    iApply nextgen_empty.
+    iIntros (full_picks ?).
+    iModIntro.
+    iFrame "E".
   Qed.
 
   Lemma nextgen_sep_2 P Q :
@@ -1195,6 +1195,15 @@ Section nextgen_structural_properties.
     IntoNextgen (⚡==> P) P.
   Proof. done. Qed.
 
+  #[global]
+  Instance into_nextgen_sep P P' Q Q' :
+    IntoNextgen P P' →
+    IntoNextgen Q Q' →
+    IntoNextgen (P ∗ Q) (P' ∗ Q').
+  Proof.
+    intros ??. rewrite /IntoNextgen. iIntros "[? ?]". iModIntro. iFrame.
+  Qed.
+
   Global Instance into_nextgen_exist {A} (Ψ Ψ' : A → _) :
     (∀ x : A, IntoNextgen (Ψ x) (Ψ' x)) →
     IntoNextgen (∃ x : A, Ψ x) (∃ x : A, Ψ' x).
@@ -1226,6 +1235,9 @@ Section nextgen_structural_properties.
     iModIntro.
     done.
   Qed.
+
+  Lemma nextgen_wand P Q : (⚡==> (P -∗ Q)) ⊢ (⚡==> P) -∗ (⚡==> Q).
+  Proof. iIntros "W P". iModIntro. iApply "W". done. Qed.
 
   #[global]
   Instance plain_into_nextgen P `{!Plain P} : IntoNextgen _ _ :=
