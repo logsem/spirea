@@ -140,7 +140,7 @@ Section state_interpretation.
                     ⌜ increasing_map order hist ⌝) ∗
 
       (* persistent knowledge matches that of abstract history *)
-      "%histPViewDoms" ∷ ⌜ dom abs_hists = dom global_pview ⌝ ∗
+      "%histPViewDoms" ∷ ⌜ dom global_pview ⊆ dom abs_hists ⌝ ∗
 
       (* The full/read predicates hold for all locations. *)
       "predsFullHold" ∷
@@ -180,7 +180,7 @@ Section state_interpretation.
             ⌜ predicates_pers !! ℓ = Some pred_pers ⌝ ∗
             (* It seems like the timestamp in [persisted] assertion is before
                offset, we need to add it here *)
-            ⌜ offsets_add offsets global_pview !! ℓ = Some t ⌝ ∗
+            ⌜ offsets_add offsets global_pview !! ℓ = Some t ∨ offsets !! ℓ = Some t ⌝ ∗
             ⌜ abs_hist !! t = Some encS ⌝ ∗
             ⌜ phys_hist !! t = Some msg ⌝ ∗
             encoded_predicate_holds

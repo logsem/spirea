@@ -60,13 +60,15 @@ Section wp_at_rules.
   Lemma interp_insert_loc_at ℓ prot `{!ProtocolConditions prot} s SV PV BV nG v :
     SV !!0 ℓ = 0 →
     interp -∗
-    p_inv prot s v (SV, PV, BV, nG) -∗
+    p_full prot s v (SV, PV, BV, nG) -∗
+    p_pers prot s v (SV, PV, BV, nG) -∗
+    (* persisted {[ ℓ := MaxNat 0 ]} -∗ *)
     ℓ ↦h initial_history AT SV PV v ==∗
     (ℓ ↦_AT^{prot} [s]) (SV, PV, BV, nG) ∗ interp.
   Proof.
     iIntros (svLook).
     iNamed 1.
-    iIntros "pred pts".
+    iIntros "pred predPers pts".
 
     iDestruct (big_sepM2_dom with "oldViewsDiscarded") as %offsetsDom.
     (* The new location is not in the existing [phys_hist]. *)
@@ -78,9 +80,8 @@ Section wp_at_rules.
       iDestruct (mapsto_valid_2 with "pts pts'") as (?) "_".
       done. }
 
-    iDestruct (big_sepM2_dom with "predsHold") as %domEq.
+    iDestruct (big_sepM2_dom with "predsFullHold") as %domEq.
     iDestruct (big_sepM2_dom with "bumperSome") as %domEq2.
-    iDestruct (big_sepM2_dom with "predPostCrash") as %domEq3.
     iDestruct (big_sepM2_dom with "bumpMono") as %domEq4.
 
     assert (offsets !! ℓ = None) as offsetsLook.
@@ -98,9 +99,17 @@ Section wp_at_rules.
     { done. }
 
     (* Add the predicate to the ghost state of predicates. *)
-    iMod (own_all_preds_insert with "predicates") as "[predicates knowPred]".
+    iMod (own_all_preds_insert with "full_predicates") as "[full_predicates knowFullPred]".
     { eapply map_dom_eq_lookup_None; last apply physHistsLook.
-      rewrite domEq3. congruence. }
+      congruence. }
+
+    iMod (own_all_preds_insert with "read_predicates") as "[read_predicates knowReadPred]".
+    { eapply map_dom_eq_lookup_None; last apply physHistsLook.
+      congruence. }
+
+    iMod (own_all_preds_insert with "pers_predicates") as "[pers_predicates knowPersPred]".
+    { eapply map_dom_eq_lookup_None; last apply physHistsLook.
+      congruence. }
 
     (* Add a new offset to the ghost state of offfsets. *)
     iMod (ghost_map_insert_persist _ 0 with "offsets") as "[offsets #offset]".
@@ -133,10 +142,10 @@ Section wp_at_rules.
       monPred_simpl.
       simpl.
       rewrite !monPred_at_embed.
-      iFrame "knowPred knowBumper knowOrder". }
+      iFrame "knowFullPred knowReadPred knowPersPred knowBumper knowOrder". }
 
     iModIntro.
-    iSplitL "knowPred knowBumper".
+    iSplitL "knowFullPred knowReadPred knowPersPred knowBumper".
     { rewrite /mapsto_at.
       iExists _, {[ 0 := (Msg v SV PV PV) ]}, 0, 0, 0, s, _.
       iSplitPure; first done.
@@ -163,7 +172,7 @@ Section wp_at_rules.
       - iFrame "ptsMap". erewrite view_slice.drop_prefix_zero. iFrame "pts".
       - apply map_lookup_zip_with_None. naive_solver. }
     iFrameF "offsets". iFrameF "physHist".
-    iFrame "crashedAt history predicates allOrders naLocs atLocs".
+    iFrame "crashedAt history full_predicates read_predicates pers_predicates allOrders naLocs atLocs".
 
     (* oldViewsDiscarded *)
     iSplit.
@@ -175,6 +184,7 @@ Section wp_at_rules.
     iSplit.
     { iApply (big_sepM_insert_2 with "[] historyFragments");
       simpl; rewrite big_sepM_singleton; iFrame "fragHist". }
+    (* globalPViewPersisted *)
     (* locsDisjoint *)
     iSplitPure. {
       assert (ℓ ∉ dom abs_hists).

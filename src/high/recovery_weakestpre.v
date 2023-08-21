@@ -1295,6 +1295,7 @@ Section wpr.
              end.
 
       iSplitPure. {
+        left.
         rewrite /offsets_add.
         rewrite map_lookup_zip_with_Some.
         eexists. exists (MaxNat 0).
@@ -1337,15 +1338,6 @@ Section wpr.
         done.
       }
       iSimpl.
-
-      Set Nested Proofs Allowed.
-
-      Lemma bi_wand_drop_premise `{!BiAffine PROP} P (Q: PROP):
-        Q ⊢ ⌜ P ⌝ -∗ Q.
-      Proof.
-        iIntros.
-        done.
-      Qed.
 
       rewrite -2!bi_wand_drop_premise.
 
@@ -1478,20 +1470,30 @@ Section wpr.
             - lia.
           }
           assert (msg_persisted_after_view old_pers_msg ⊑ CV). {
-            rewrite map_lookup_zip_with_Some in globalPViewLook.
-            destruct globalPViewLook as (? & [] & ? & ? & GlobalPViewLook).
-            simplify_eq.
-            eapply consistent_cut_extract; [done | done | | |  ].
-            - eapply lookup_weaken; last done.
-              apply map_lookup_zip_with_Some.
-              eexists _, _. split_and!; done.
-            - apply drop_prefix_lookup_Some_2.
-              rewrite plus_comm.
-              done.
-            - assert (global_pview ≼ CV) as view_included by (by etrans).
-              rewrite lookup_included in view_included.
-              rewrite -Some_MaxNat_included -cvLook -GlobalPViewLook.
-              done.
+            destruct globalPViewLook as [globalPViewLook | globalPViewLook].
+            - rewrite map_lookup_zip_with_Some in globalPViewLook.
+              destruct globalPViewLook as (? & [?] & ? & ? & globalPViewLook).
+              simplify_eq.
+              eapply consistent_cut_extract; [done | done | | |  ].
+              + eapply lookup_weaken; last done.
+                apply map_lookup_zip_with_Some.
+                eexists _, _. split_and!; done.
+              + apply drop_prefix_lookup_Some_2.
+                rewrite plus_comm.
+                done.
+              + assert (global_pview ≼ CV) as view_included by (by etrans).
+                rewrite lookup_included in view_included.
+                rewrite -Some_MaxNat_included -cvLook -globalPViewLook.
+                done.
+            - eapply consistent_cut_extract; [done | done | | |  ].
+              + eapply lookup_weaken; last done.
+                apply map_lookup_zip_with_Some.
+                eexists _, _. split_and!; done.
+              + apply drop_prefix_lookup_Some_2.
+                rewrite plus_comm.
+                rewrite [old_ts]plus_n_O in physHistPersLook.
+                done.
+              + lia.
           }
           iSplitPure; first by apply view_lub_le.
           iApply (persisted_weak with "pers").
@@ -1503,10 +1505,13 @@ Section wpr.
             do ? (rewrite lookup_delete_ne; last done);
             [ apply physHistFullLook | apply absHistFullLook | | by rewrite -Nat.add_1_r lookup_max_msg_succ | ]. {
               apply (le_trans _ old_ts).
-              - rewrite map_lookup_zip_with_Some in globalPViewLook.
-                destruct globalPViewLook as (x & [] & ? & ? & ?).
-                simplify_eq.
-                lia.
+              - destruct globalPViewLook as [globalPViewLook | globalPViewLook].
+                + rewrite map_lookup_zip_with_Some in globalPViewLook.
+                  destruct globalPViewLook as (x & [] & ? & ? & ?).
+                  simplify_eq.
+                  lia.
+                + simplify_eq.
+                  lia.
               - apply max_list_elem_of_le.
                 apply elem_of_elements.
                 apply elem_of_dom.
@@ -1542,13 +1547,16 @@ Section wpr.
             as (P_full' P_pers') "(#eqFull & #eqPers & pred)".
           { assert (old_ts ≤ tCrash). {
               rewrite map_lookup_zip_with_Some in globalPViewLook.
-              destruct globalPViewLook as (? & [?] & ? & ? & globalPViewLook).
-              simplify_eq.
-              apply plus_le_compat_l.
-              rewrite -Some_MaxNat_included -cvLook -globalPViewLook.
-              assert (global_pview ≼ CV) as view_included by (by etrans).
-              rewrite lookup_included in view_included.
-              done.
+              destruct globalPViewLook as [globalPViewLook | globalPViewLook].
+              - destruct globalPViewLook as (? & [?] & ? & ? & globalPViewLook).
+                simplify_eq.
+                apply plus_le_compat_l.
+                rewrite -Some_MaxNat_included -cvLook -globalPViewLook.
+                assert (global_pview ≼ CV) as view_included by (by etrans).
+                rewrite lookup_included in view_included.
+                done.
+              - simplify_eq.
+                lia.
             }
             destruct (Nat.eq_dec old_ts tCrash); [simplify_eq; by right | left].
             eapply ordered; [ | done | done ].
@@ -1599,19 +1607,29 @@ Section wpr.
           }
           assert (msg_persisted_after_view old_pers_msg ⊑ CV). {
             rewrite map_lookup_zip_with_Some in globalPViewLook.
-            destruct globalPViewLook as (? & [] & ? & ? & GlobalPViewLook).
-            simplify_eq.
-            eapply consistent_cut_extract; [done | done | | |  ].
-            - eapply lookup_weaken; last done.
-              apply map_lookup_zip_with_Some.
-              eexists _, _. split_and!; done.
-            - apply drop_prefix_lookup_Some_2.
-              rewrite plus_comm.
-              done.
-            - assert (global_pview ≼ CV) as view_included by (by etrans).
-              rewrite lookup_included in view_included.
-              rewrite -Some_MaxNat_included -cvLook -GlobalPViewLook.
-              done.
+            destruct globalPViewLook as [globalPViewLook | globalPViewLook].
+            - destruct globalPViewLook as (? & [] & ? & ? & GlobalPViewLook).
+              simplify_eq.
+              eapply consistent_cut_extract; [done | done | | |  ].
+              + eapply lookup_weaken; last done.
+                apply map_lookup_zip_with_Some.
+                eexists _, _. split_and!; done.
+              + apply drop_prefix_lookup_Some_2.
+                rewrite plus_comm.
+                done.
+              + assert (global_pview ≼ CV) as view_included by (by etrans).
+                rewrite lookup_included in view_included.
+                rewrite -Some_MaxNat_included -cvLook -GlobalPViewLook.
+                done.
+            - eapply consistent_cut_extract; [done | done | | |  ].
+              + eapply lookup_weaken; last done.
+                apply map_lookup_zip_with_Some.
+                eexists _, _. split_and!; done.
+              + apply drop_prefix_lookup_Some_2.
+                rewrite plus_comm.
+                rewrite [old_ts]plus_n_O in physHistPersLook.
+                done.
+              + lia.
           }
           iSplitPure; first by apply view_lub_le.
           iApply (persisted_weak with "pers").
