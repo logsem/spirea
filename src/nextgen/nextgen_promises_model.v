@@ -130,6 +130,9 @@ We need
     {i : A | P i} + {∀ i, ¬ P i}.
   Proof. destruct (decide (∃ i, P i)) as [?%choice | ?]; naive_solver. Qed.
 
+  (* Given an index from [gid Σ] (all cameras) [Omega_lookup_inverse] finds a
+   * matching index in [ggid Ω] (the generationals cameras) that corresponds to
+   * it, or it returns evidence that not such index exists. *)
   Definition Omega_lookup_inverse (j : gid Σ) :
     {i : ggid Ω | Ogid Ω i = j} + {∀ i, Ogid Ω i ≠ j}.
   Proof. apply (finite_decidable_sig (λ i, Ogid Ω i = j)). Qed.
@@ -1242,5 +1245,27 @@ Section nextgen_structural_properties.
   #[global]
   Instance plain_into_nextgen P `{!Plain P} : IntoNextgen _ _ :=
     nextgen_intro_plain P.
+
+  (* Non-generational cameras are left unchanged by the nextgen
+  * modality. *)
+  Lemma nextgen_own_non_gen `{ig : inG Σ A} (a : A) γ :
+    (∀ i, Ogid Ω i ≠ inG_id ig) →
+    own γ a ⊢ ⚡==> own γ a.
+  Proof.
+    iIntros (not) "O".
+    iApply nextgen_empty. iIntros (??).
+    rewrite own.own_eq /own.own_def.
+    iModIntro.
+    rewrite /build_trans. simpl.
+    iStopProof. f_equiv. simpl.
+    rewrite /own.iRes_singleton.
+    apply discrete_fun_included_spec => id.
+    destruct (decide (id = inG_id ig)) as [->|idNeq]; simpl.
+    2: { rewrite !discrete_fun_lookup_singleton_ne; last done.
+      apply ucmra_unit_least. }
+    destruct (Omega_lookup_inverse (inG_id ig)) as [(i' & ?)|].
+    { specialize (not i'). done. }
+    done.
+  Qed.
 
 End nextgen_structural_properties.

@@ -122,4 +122,3 @@ Section rules.
   Proof. rewrite own_gen_cmra_data_to_inG. rewrite rew_opp_r. done. Qed.
 
 End rules.
-
