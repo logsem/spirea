@@ -5,10 +5,14 @@ From iris.base_logic Require Import lib.later_credits.
 From Perennial.algebra Require Import mlist.
 From Perennial.Helpers Require Import ipm.
 From Perennial.base_logic.lib Require Import wsat.
-From Perennial.program_logic Require Export weakestpre.
-From Perennial.program_logic Require Export crash_lang.
+
+Search "invGS".
+(* From Perennial.program_logic Require Export weakestpre. *)
+(* From Perennial.program_logic Require Export crash_lang. *)
 
 From self.nextgen Require Import nextgen_promises_ng.
+
+Export invGS.
 
 (* Below are the resources used in Perennial for fupd, but where [inG] has been
  * replaced with [inG]. *)
@@ -16,9 +20,21 @@ From self.nextgen Require Import nextgen_promises_ng.
 Class ngFmlistG (A : Type) {Heq: EqDecision A} Σ Ω :=
   { ngFmlist_inG :> ngInG Σ Ω (fmlistUR A) }.
 
+#[global]
+Instance ngFmlistG_unwrap A {Heq : EqDecision A} Σ Ω :
+    ngFmlistG A Σ Ω → fmlistG A Σ := {
+  fmlist_inG := _
+}.
+
 (** The ghost state for later credits *)
-Class ngLcGpreS (Σ : gFunctors) Ω := LcGpreS {
+Class ngLcGpreS (Σ : gFunctors) Ω := NgLcGpreS {
   ngLcGpreS_inG : ngInG Σ Ω (authR natUR)
+}.
+
+#[global]
+(** The ghost state for later credits *)
+Instance ngLcGpreS_unwrap (Σ : gFunctors) Ω (l : ngLcGpreS Σ Ω) : lcGpreS Σ := {
+  lcGpreS_inG := @ngInG_inG _ _ _ ngLcGpreS_inG;
 }.
 
 Class ngLcGS (Σ : gFunctors) Ω := NgLcGS {
@@ -41,20 +57,47 @@ Definition invR Σ :=
       (optionR (prodR fracR (agreeR (listO (laterO (iPropO Σ)))))))).
 
 Class ngInvGpreS (Σ : gFunctors) Ω : Set := WsatPreG {
-  inv_inPreG :> ngInG Σ Ω (invR Σ);
-  enabled_inPreG :> ngInG Σ Ω coPset_disjR;
-  disabled_inPreG :> ngInG Σ Ω (gset_disjR positive);
-  mlist_inPreG :> ngFmlistG (invariant_level_names) Σ Ω;
-  inv_lcPreG : ngLcGpreS Σ Ω;
+  ngInv_inPreG :> ngInG Σ Ω (invR Σ);
+  ngEnabled_inPreG :> ngInG Σ Ω coPset_disjR;
+  ngDisabled_inPreG :> ngInG Σ Ω (gset_disjR positive);
+  ngMlist_inPreG :> ngFmlistG (invariant_level_names) Σ Ω;
+  ngInv_lcPreG :> ngLcGpreS Σ Ω;
+}.
+
+#[global]
+Program Instance ngInvGpreS_unwrap Σ Ω : ngInvGpreS Σ Ω → invGpreS Σ := {
+  inv_inPreG := _;
+  enabled_inPreG := _;
+  disabled_inPreG := _;
+  mlist_inPreG := _;
+  inv_lcPreG := _;
 }.
 
 Class ngInvGS (Σ : gFunctors) Ω : Set := WsatG {
-  inv_inG :> ngInvGpreS Σ Ω;
-  invGS_lc :> ngLcGS Σ Ω;
-  inv_list_name : gname;
-  enabled_name : gname;
-  disabled_name : gname;
+  ngInv_inG :> ngInvGpreS Σ Ω;
+  ngInvGS_lc :> ngLcGS Σ Ω;
+  ngInv_list_name : gname;
+  ngEnabled_name : gname;
+  ngDisabled_name : gname;
 }.
+
+#[global]
+Instance ngInvGS_unwrap Σ Ω : ngInvGS Σ Ω → invGS Σ := {
+  inv_inG := _;
+  invGS_lc := _;
+  inv_list_name := 1%positive;
+  enabled_name := 1%positive;
+  disabled_name := 1%positive;
+}.
+
+(* #[global] *)
+Definition ngInvG_combine {Σ Ω} (p : ngInvGpreS Σ Ω) (i : invGS Σ) : ngInvGS Σ Ω := {|
+  ngInv_inG := p;
+  ngInvGS_lc := NgLcGS _ _ (@ngLcGpreS_inG _ _ ngInv_lcPreG) lcGS_name;
+  ngInv_list_name := inv_list_name;
+  ngEnabled_name := enabled_name;
+  ngDisabled_name := disabled_name;
+|}.
 
 Section ngInv_lemmas.
   Context `{!ngInvGS Σ Ω}.
