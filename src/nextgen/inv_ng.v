@@ -82,12 +82,12 @@ Class ngInvGS (Σ : gFunctors) Ω : Set := WsatG {
 }.
 
 #[global]
-Instance ngInvGS_unwrap Σ Ω : ngInvGS Σ Ω → invGS Σ := {
+Instance ngInvGS_unwrap {Σ Ω} : ngInvGS Σ Ω → invGS Σ := {
   inv_inG := _;
   invGS_lc := _;
-  inv_list_name := 1%positive;
-  enabled_name := 1%positive;
-  disabled_name := 1%positive;
+  inv_list_name := ngInv_list_name;
+  enabled_name := ngEnabled_name;
+  disabled_name := ngDisabled_name;
 }.
 
 (* #[global] *)
@@ -98,6 +98,13 @@ Definition ngInvG_combine {Σ Ω} (p : ngInvGpreS Σ Ω) (i : invGS Σ) : ngInvG
   ngEnabled_name := enabled_name;
   ngDisabled_name := disabled_name;
 |}.
+
+Lemma ngInv_combine_unwrap {Σ Ω} (p : ngInvGpreS Σ Ω) (i : invGS Σ) :
+  i = ngInvGS_unwrap (ngInvG_combine p i).
+Proof.
+  unfold ngInvG_combine, ngInvGS_unwrap.
+  destruct i. f_equiv; try done.
+Admitted.
 
 Section ngInv_lemmas.
   Context `{!ngInvGS Σ Ω}.

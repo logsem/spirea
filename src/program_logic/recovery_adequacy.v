@@ -6,7 +6,7 @@ From Perennial.program_logic Require Export weakestpre.
 From Perennial.program_logic Require Export crash_lang.
 Import uPred.
 
-From self.nextgen Require Import nextgen_promises.
+From self.nextgen Require Import nextgen_promises (* inv_ng *).
 From self.program_logic Require Export crash_adequacy recovery_weakestpre.
 
 Set Default Proof Using "Type".
@@ -70,14 +70,14 @@ Section recovery_adequacy.
     global_state_interp g1 ncurr mj D (κs ++ κs') -∗
     wpr CS s ⊤ e1 r1 Φ Φinv Φr -∗
     wptp s t1 -∗ (
-      (£ (steps_sum num_laters_per_step step_count_next ncurr n) -∗
-       ||={⊤|⊤,∅|∅}=> ||▷=>^(steps_sum num_laters_per_step step_count_next ncurr n) ||={∅|∅,⊤|⊤}=>
+      £ (steps_sum num_laters_per_step step_count_next ncurr n) -∗
+      ||={⊤|⊤,∅|∅}=> ||▷=>^(steps_sum num_laters_per_step step_count_next ncurr n) ||={∅|∅,⊤|⊤}=>
       ∃ e2 t2',
-      ⌜ t2 = e2 :: t2' ⌝ ∗
-      state_interp σ2 (length t2') ∗
-      global_state_interp g2 (Nat.iter n step_count_next ncurr) mj D κs' ∗
-      from_option Φ True (to_val e2) ∗
-      ([∗ list] v ∈ omap to_val t2', fork_post v))).
+        ⌜ t2 = e2 :: t2' ⌝ ∗
+        state_interp σ2 (length t2') ∗
+        global_state_interp g2 (Nat.iter n step_count_next ncurr) mj D κs' ∗
+        from_option Φ True (to_val e2) ∗
+        ([∗ list] v ∈ omap to_val t2', fork_post v)).
   Proof.
     iIntros (Hstep) "Hσ Hg He Ht".
     inversion Hstep. subst.
@@ -126,10 +126,11 @@ Section recovery_adequacy.
     ■ (Φinv -∗ □ Φinv') -∗
     wptp s t1 -∗
     step_fupdN_fresh ncurr ns (
-      let ntot := (steps_sum num_laters_per_step step_count_next
-                             (Nat.iter (sum_crash_steps ns) step_count_next ncurr )
-                             n)  in
-      let ntot' := ((Nat.iter (n + sum_crash_steps ns) step_count_next ncurr)) in
+      let ntot :=
+        (steps_sum num_laters_per_step step_count_next
+                   (Nat.iter (sum_crash_steps ns) step_count_next ncurr )
+                   n)  in
+      let ntot' := (Nat.iter (n + sum_crash_steps ns) step_count_next ncurr) in
       £ ntot -∗
       (||={⊤|⊤, ∅|∅}=> ||▷=>^ntot ||={∅|∅, ⊤|⊤}=> (∃ e2 t2',
       ⌜ t2 = e2 :: t2' ⌝ ∗
@@ -489,6 +490,33 @@ Proof. Admitted. (* We can bake this into [nextgen]. *)
 Instance into_nextgen_lc {Σ} {Ω : gGenCmras Σ} `{!invGS Σ} k :
   IntoNextgen _ _ := nextgen_lc k.
 
+(* Lemma step_fupd2N_soundness_strong `{ip : !invGpreS Σ} n m φ : *)
+(*   (∀ `{Hinv: !invGS Σ}, *)
+(*     @inv_inG _ Hinv = ip → *)
+(*     @lcGS_inG (@lcGS_inG Hinv) = lcGpreS_inG (inv_lcPreG ip) → *)
+(*   £ m ⊢@{iPropI Σ} ||={⊤|⊤,∅|∅}=> ||▷=>^n ⌜ φ ⌝) → *)
+(*   φ. *)
+(* Proof. *)
+(*   intros Hiter. eapply (fupd2_soundness (m+n)). *)
+(*   intros Hinv. iIntros "[Hm Hn]". *)
+(*   iMod (Hiter with "Hm") as "Hupd". clear Hiter. *)
+(*   iInduction n as [|n] "IH"; simpl. *)
+(*   - iModIntro. done.  *)
+(*   - rewrite lc_succ. iDestruct "Hn" as "[Hone Hn]". *)
+(*     iMod "Hupd". iMod (lc_fupd_elim_later with "Hone Hupd") as "> Hupd". *)
+(*     by iApply ("IH" with "Hn Hupd"). *)
+(* Qed. *)
+
+Lemma bupd_laterN_plain_interweave {PROP : bi}
+    `{BiBUpd PROP} `{BiPlainly PROP} `{BiBUpdPlainly PROP}
+    (P : PROP) (n : nat) `{!Plain P} :
+  Nat.iter n (λ P, |==> ▷ P) P ⊢ ▷^n P.
+Proof.
+  iIntros "Hn". iInduction n as [|n] "IH"; first done.
+  simpl. iMod "Hn". iNext. iApply "IH". iFrame.
+Qed.
+
+(* Old proof that doesn't work. We keep it here for reference. *)
 Lemma step_fupdN_fresh_soundness {Λ Σ} {Ω : gGenCmras Σ} `{!invGpreS Σ} (φ : Prop) ns ncurr k k2 f g:
   (∀ (Hi: invGS Σ), ⊢ |={⊤}=>
     ∃ (HI: irisGS Λ Σ) (Hpf1: iris_invGS = Hi)
@@ -498,14 +526,16 @@ Lemma step_fupdN_fresh_soundness {Λ Σ} {Ω : gGenCmras Σ} `{!invGpreS Σ} (φ
   φ.
 Proof.
   intros Hiter.
-  eapply (step_fupd2N_soundness (fresh_later_count f g ncurr ns + S k + k2) (fresh_later_count f g ncurr ns + k + k2)).
+  set (step1 := (fresh_later_count f g ncurr ns + S k + k2)).
+  set (step2 := (fresh_later_count f g ncurr ns + k + k2)).
+  eapply (step_fupd2N_soundness step1 step2).
   iIntros (Hinv) "Hlc".
   iMod (Hiter Hinv) as (Hiris <- <- <-) "H".
   clear Hiter.
   (* poor mans iInduction. *)
   iRevert "Hlc H".
   iStopProof.
-  revert ncurr.
+  generalize dependent ncurr. simpl.
   induction ns as [|n' ns IH]; iIntros (ncurr) "_ Hlc H".
   - rewrite /step_fupdN_fresh.
     iMod "H". iMod ("H" with "Hlc") as "H". iModIntro.
@@ -544,6 +574,155 @@ Proof.
     (* iMod ("IH" $! with "H [Hlc2 Hlck]") as "H". *)
     (* { iEval rewrite !lc_split. by iFrame. } *)
     (* do 3 iModIntro. rewrite assoc. done. *)
+Abort.
+
+Definition fupd_res `{!invGS Σ} E1 E2 n : iProp Σ :=
+  later_credits.lc_supply n ∗ wsat_all ∗
+  ownE (AlwaysEn ∪ MaybeEn1 E1 ∪ MaybeEn2 E2).
+
+Local Hint Extern 0 (AlwaysEn ## MaybeEn1 _) => apply coPset_inl_inr_disj : core.
+Local Hint Extern 0 (AlwaysEn ## MaybeEn2 _) => apply coPset_inl_inr_disj : core.
+Local Hint Extern 0 (MaybeEn1 _ ## MaybeEn2 _) => apply MaybeEn12_disj : core.
+
+Notation "'|==£>' P" := (later_credits.le_upd.le_upd P%I) (at level 99, P at level 200, format "|==£>  P") : bi_scope.
+
+Lemma fupd_to_bupd_res_credit `{!invGS Σ} E1 E2 E n P :
+  fupd_res E1 E n -∗
+  £ n -∗
+  (|={E1,E2}=> P) -∗
+  |==> ◇ (fupd_res E2 E n ∗ £ n ∗ P).
+Proof.
+  rewrite uPred_fupd_eq /uPred_fupd_def.
+  Search ownE MaybeEn1.
+  iIntros "(H● & Hw & HE) Hlc H".
+  rewrite ownE_op. 2: { apply disjoint_union_l. auto. }
+  iDestruct "HE" as "(HE & HE2)".
+  iSpecialize ("H" with "[$Hw HE]").
+  { iApply (ownE_weaken with "HE"). set_solver. }
+  rewrite later_credits.le_upd.le_upd_unfold.
+  iMod ("H" with "H●") as "[(H● & >(? & HE & ?)) | noway]"; last first.
+  { iDestruct "noway" as (? ?) "[H● ?]".
+    iDestruct (lc_supply_bound with "H● [$]") as "%".
+    lia. }
+  iModIntro.
+  iModIntro.
+  iFrame.
+  iCombine "HE HE2" as "HH".
+  rewrite -ownE_op. 2: { apply disjoint_union_l. auto. }
+  done.
+Qed.
+
+Lemma fupd2_to_bupd_res_credit `{!invGS Σ} E1a E1b E2a E2b n P :
+  fupd_res E1a E1b n -∗
+  £ n -∗
+  (||={E1a|E1b,E2a|E2b}=> P) -∗
+  |==> ◇ (fupd_res E2a E2b n ∗ £ n ∗ P).
+Proof.
+  (* rewrite uPred_fupd2_eq /uPred_fupd2_def. *)
+  rewrite uPred_fupd2_eq /uPred_fupd2_def.
+  iIntros "(H● & Hw & HE) ? H".
+  iSpecialize ("H" with "[$Hw $HE]").
+  rewrite later_credits.le_upd.le_upd_unfold.
+  iMod ("H" with "H●") as "[(H● & >(? & HE & ?)) | noway]"; last first.
+  { iDestruct "noway" as (? ?) "[H● ?]".
+    iDestruct (lc_supply_bound with "H● [$]") as "%".
+    lia. }
+  iModIntro.
+  iModIntro.
+  iFrame.
+Qed.
+
+Lemma fupd2_to_bupd_res `{!invGS Σ} E1a E1b E2a E2b n P :
+  fupd_res E1a E1b n -∗
+  (||={E1a|E1b,E2a|E2b}=> P) -∗
+  ∃ k, ⌜ k ≤ n ⌝ ∧ Nat.iter k (λ Q, |==> ▷ Q) (fupd_res E2a E2b (n - k) ∗ P).
+Proof.
+  (* rewrite uPred_fupd2_eq /uPred_fupd2_def. *)
+  rewrite uPred_fupd2_eq /uPred_fupd2_def.
+  iIntros "(H● & Hw & HE) H".
+  iSpecialize ("H" with "[$Hw $HE]").
+  rewrite later_credits.le_upd.le_upd_unfold.
+  (* iMod ("H" with "H●") as "[(H● & >(? & HE & ?)) | bingo]". *)
+  (* - iModIntro. *)
+  (*   iModIntro. *)
+  (*   iFrame. *)
+  (* - iDestruct "bingo" as (? ?) "[H● ?]". *)
+Admitted.
+
+Lemma step_fupdN_fresh_soundness {Λ Σ} {Ω : gGenCmras Σ}
+    `{!invGpreS Σ}
+    (* `{!ngInvGpreS Σ Ω} *)
+    (φ : Prop) ns ncurr k k2 f g :
+  (∀ (Hi : invGS Σ), ⊢ |={⊤}=>
+  (* (∀ (Hi : ngInvGS Σ Ω), ⊢ |={⊤}=> *)
+    ∃ (HI : irisGS Λ Σ)
+        (Hpf1: iris_invGS = Hi)
+        (* (Hpf1: iris_invGS = ngInvGS_unwrap Hi) *)
+        (Hpf2 : num_laters_per_step = f) (Hpf2: step_count_next = g),
+      (|={⊤}=> step_fupdN_fresh ncurr ns (
+       £ (k + k2) -∗ ||={⊤|⊤,∅|∅}=> ||▷=>^k ||={∅|∅,∅|∅}=> ||▷=>^k2 ⌜φ⌝))%I) →
+  φ.
+Proof.
+  intros Hiter.
+  set (step1 := (fresh_later_count f g ncurr ns + S k + k2)).
+  set (step2 := (fresh_later_count f g ncurr ns + k + k2)).
+  apply (pure_soundness (M := iResUR Σ)).
+  apply (laterN_soundness _ (S (S (step1 + step2)))).
+  (* apply (laterN_soundness _ (S step1)). *)
+  (* iMod (later_credits.le_upd.lc_alloc (S (step1 + step2))) as (C) "[H● Hlc]". *)
+  iMod (later_credits.le_upd.lc_alloc step2) as (C) "[H● Hlc]".
+  iMod wsat_alloc as (Hw ?) "[Hw HE]".
+  rewrite H.
+  iApply bupd_plain.
+  iDestruct (Hiter _) as "H". clear Hiter.
+  iDestruct (fupd_to_bupd_res_credit ⊤ ⊤ ⊤ with "[$H● $Hw HE] Hlc H") as ">>H'".
+  { iApply (ownE_weaken with "HE"). set_solver. }
+  iClear "H".
+  iDestruct "H'" as "((H● & Hw & HE) & Hlc & H)".
+  iDestruct "H" as (Hiris <- <- <-) "H".
+  (* poor mans iInduction. *)
+  iRevert "Hw HE Hlc H H●".
+  iStopProof.
+  generalize dependent ncurr. simpl.
+  induction ns as [|n' ns IH]; iIntros (ncurr) "_ Hw HE Hlc H H●".
+  - rewrite /step_fupdN_fresh. simpl.
+    iDestruct (fupd_to_bupd_res_credit ⊤ ⊤ with "[$H● $Hw HE] Hlc H") as ">>H'".
+    { iApply (ownE_weaken with "HE"). set_solver. }
+    iDestruct "H'" as "((H● & Hw & HE) & Hlc & H)".
+    iSpecialize ("H" with "Hlc").
+    iMod (lc_zero) as "Hlc".
+    iDestruct (fupd2_to_bupd_res with "[$H● $Hw HE] H") as (l le) "H'".
+    { iApply (ownE_weaken with "HE"). set_solver. }
+    simpl.
+    (* iDestruct (later_credits.le_upd.le_upd_elim_complete with "H● H") as "H". *)
+    simpl.
+    (*
+    iMod "H". iModIntro. iModIntro.
+    iMod "H". iModIntro.
+    iMod "H".
+    (* Search "except_0". *)
+    (* iApply except_0_laterN. *)
+    iModIntro.
+    iApply bupd_laterN_plain_interweave.
+    iApply (iter_modal_mono with "[-H] H").
+    { iIntros (??) "W H". iMod "H". iApply "W". done. }
+    iIntros "(? & ? & H)".
+    Search "except_0".
+    iDestruct "H" as (?) "H".
+    iApply "H".
+
+    iApply (iter_modal_mono with "[-H] H").
+    iMod "H". iMod ("H" with "Hlc") as "H". iModIntro.
+    rewrite fresh_later_count_nil.
+    replace (0 + S k) with (k + 1) by lia.
+    rewrite -!assoc -step_fupd2N_add.
+    iApply (step_fupd2N_wand with "H"). iIntros "H".
+    rewrite -step_fupd2N_add.
+    iMod "H". iApply (fupd2_mask_intro); [done..|]. iIntros "_".
+    done.
+     *)
+    admit.
+  - ammit.
 Admitted.
 
 Record recv_adequate {Λ CS} (s : stuckness) (e1 r1: expr Λ) (σ1 : state Λ) (g1 : global_state Λ)
