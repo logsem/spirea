@@ -748,7 +748,7 @@ Proof.
 Qed.
 
 Lemma bi_wand_drop_premise `{!BiAffine PROP} P (Q: PROP):
-  Q -∗ ⌜ P ⌝ -∗ Q.
+  Q ⊢ ⌜ P ⌝ -∗ Q.
 Proof.
   iIntros.
   done.

@@ -68,7 +68,7 @@ Section wp_at_rules.
   Proof.
     iIntros (svLook).
     iNamed 1.
-    iIntros "pred predPers pts".
+    iIntros "predFull predPers pts".
 
     iDestruct (big_sepM2_dom with "oldViewsDiscarded") as %offsetsDom.
     (* The new location is not in the existing [phys_hist]. *)
@@ -185,7 +185,9 @@ Section wp_at_rules.
     { iApply (big_sepM_insert_2 with "[] historyFragments");
       simpl; rewrite big_sepM_singleton; iFrame "fragHist". }
     (* globalPViewPersisted *)
+    iSplitL ""; first by iFrame "#".
     (* locsDisjoint *)
+
     iSplitPure. {
       assert (ℓ ∉ dom abs_hists).
       { rewrite -domEq. apply not_elem_of_dom. done. }
@@ -215,14 +217,65 @@ Section wp_at_rules.
     iSplit.
     { iApply (big_sepM2_insert_2); last done.
       iPureIntro. apply increasing_map_singleton. }
-    (* predsHold *)
-    iSplitL "predsHold pred".
-    { iApply (big_sepM2_insert_2 with "[pred] [predsHold]").
-      - iExists _. rewrite lookup_insert.
-        iSplit; first done.
+    (* histPViewDoms *)
+    iSplitPure; first by set_solver.
+    (* predsFullHold *)
+    iSplitL "predsFullHold predFull".
+    { iApply (big_sepM2_insert_2 with "[predFull] [predsFullHold]").
+      - iExists _, _. rewrite ?lookup_insert.
+        iSplitPure; first done.
+        iSplitPure; first done.
         rewrite /initial_history.
         simpl.
         rewrite big_sepM2_singleton /=.
+        assert (na_views !! ℓ = None) as ->.
+        { apply not_elem_of_dom in physHistsLook.
+          apply not_elem_of_dom.
+          rewrite naViewsDom.
+          eapply not_elem_of_weaken; first apply physHistsLook.
+          rewrite domEq histDomLocs.
+          set_solver. }
+        simpl.
+        iIntros "_ _".
+        iDestruct (predicate_holds_phi with "[]") as "HH".
+        { done. }
+        { done. }
+        iApply "HH".
+        (* destruct TV as [[??]?]. *)
+        iApply (into_no_buffer_at with "predFull").
+      - iApply (big_sepM2_impl with "predsFullHold").
+        iModIntro. iIntros (ℓ' ????) "(%pred & %offset & %look & %offsetLook & ?)".
+        iExists pred, offset.
+        assert (ℓ ≠ ℓ') by congruence.
+        do ? (rewrite lookup_insert_ne; last done).
+        iSplitPure; first done.
+        iSplitPure; first done.
+        iFrame. }
+    (* predsReadHold *)
+    iSplitL "predsReadHold".
+    { iApply (big_sepM2_insert_2 with "[] [predsReadHold]").
+      - iExists _. rewrite lookup_insert.
+        iSplitPure; first done.
+        rewrite /initial_history.
+        rewrite big_sepM2_singleton /=.
+        iIntros "%contra".
+        destruct contra.
+        discriminate.
+      - iApply (big_sepM2_impl with "predsReadHold").
+        iModIntro. iIntros (ℓ' ????) "(%pred & %look & ?)".
+        iExists pred.
+        assert (ℓ ≠ ℓ') by congruence.
+        rewrite lookup_insert_ne; last done.
+        iSplitPure; first done.
+        iFrame. }
+    (* predsPersHold *)
+    iSplitL "predsPersHold predPers".
+    { iApply (big_sepM2_insert_2 with "[predPers] [predsPersHold]").
+      - iExists _, _, _, _. rewrite ?lookup_insert.
+        iSplitPure; first done.
+        iSplitPure; first (by right).
+        iSplitPure; first done.
+        iSplitPure; first done.
         assert (na_views !! ℓ = None) as ->.
         { apply not_elem_of_dom in physHistsLook.
           apply not_elem_of_dom.
@@ -236,13 +289,19 @@ Section wp_at_rules.
         { done. }
         iApply "HH".
         (* destruct TV as [[??]?]. *)
-        iApply (into_no_buffer_at with "pred").
-      - iApply (big_sepM2_impl with "predsHold").
-        iModIntro. iIntros (ℓ' ????) "(%pred & %look & ?)".
-        iExists (pred).
+        iApply (into_no_buffer_at with "predPers").
+      - iApply (big_sepM2_impl with "predsPersHold").
+        iModIntro. iIntros (ℓ' ????) "(%pred & %t & %encS & %msg &
+                                       %predLook & %tLook & %encSLook & %msgLook & ?)".
+        iExists pred, t, encS, msg.
         assert (ℓ ≠ ℓ') by congruence.
-        rewrite lookup_insert_ne; last done.
-        iSplit; first done.
+        rewrite map_lookup_zip_with.
+        do ? (rewrite lookup_insert_ne; last done).
+        rewrite -map_lookup_zip_with.
+        iSplitPure; first done.
+        iSplitPure; first done.
+        iSplitPure; first done.
+        iSplitPure; first done.
         iFrame. }
     iFrame "allBumpers".
     (* bumpMono *)
@@ -250,20 +309,134 @@ Section wp_at_rules.
     { iApply (big_sepM2_insert_2 with "[] bumpMono").
       iPureIntro. simpl.
       apply encode_bumper_bump_mono. apply bumper_mono. }
+    (* bumper = three domains *)
+    iSplitPure; first set_solver.
+    iSplitPure; first set_solver.
+    iSplitPure; first set_solver.
     (* predPostCrash *)
-    iSplit.
-    { iApply (big_sepM2_insert_2 with "[] predPostCrash").
-      iModIntro. iIntros (??????) "(%eq & eq2 & P)".
+    iSplit. {
+      iApply (big_sepM2_insert_2 with "[]").
+      - iExists _, _, _.
+        rewrite ?lookup_insert.
+        do 3 (iSplitPure; first done).
+        iModIntro. iIntros (????) "(%P_pers & #eqPers & persHolds)".
+        iSplit.
+        + iIntros (???) "(%P_full & #eqFull & fullHolds) %bumperEq".
+          apply encode_bumper_Some_decode in bumperEq.
+          destruct bumperEq as (s3 & bumperEq & bumperEq').
+          iEval (rewrite /encode_predicate).
+          rewrite -bumperEq'.
+          rewrite decode_encode.
+          iExists _, _.
+          iSplit. { iPureIntro. simpl. reflexivity. }
+          iSplit. { iPureIntro. simpl. reflexivity. }
+          iDestruct (encode_predicate_decode with "eqPers") as (s4) "%s5DecodeEq".
+          iPoseProof (encode_predicate_extract with "eqPers persHolds") as "predPers".
+          { done. }
+          iPoseProof (encode_predicate_extract with "eqFull fullHolds") as "predFull".
+          { done. }
+          iPoseProof (pred_full_post_crash with "predPers") as "[PostCrash _]".
+          by iApply "PostCrash".
+        + iIntros (??????) "#eqFull".
+          iDestruct (encode_predicate_decode with "eqPers") as (s4) "%s4DecodeEq".
+          iPoseProof (encode_predicate_extract with "eqPers persHolds") as "predPers".
+          { done. }
+          iDestruct (encode_predicate_decode with "eqFull") as (s5) "%s5DecodeEq".
+          iPoseProof (pred_full_post_crash with "predPers") as "[_ PostCrash]".
+          (* we need to instantiate the universal, but we cannot find the
+             instance for [s_c], because we don't know whether [decode e_c]
+             yields anything, not until after we instantiate [s_c]. but we can
+             get around it by case distinction. *)
+          destruct (@decode ST _ _ e_c) as [s3 | ] eqn:Heqn.
+          * iDestruct ("PostCrash" $! s5 v_f s3 v_c) as (P_obj) "[objImpl PostCrash]".
+            iExists P_obj.
+            iSplitL "objImpl". {
+              (* monPred_simpl. *)
+              iIntros (?).
+              rewrite monPred_at_wand.
+              iIntros (view') "% fullHolds".
+              iPoseProof (encode_predicate_extract with "eqFull fullHolds") as "predFull".
+              { done. }
+              iSpecialize ("objImpl" $! view' with "predFull").
+              iFrame.
+            }
+            iIntros "objHolds %bumperEq %order1 %order2 (%P_read & #eqRead & readHolds)".
+            iSpecialize ("PostCrash" with "objHolds").
+            apply encode_bumper_Some_decode in bumperEq.
+            destruct bumperEq as (s3' & bumperEq & bumperEq').
+            iEval (rewrite /encode_predicate).
+            rewrite -bumperEq'.
+            rewrite decode_encode.
+            simplify_eq.
+            iPoseProof (encode_predicate_extract with "eqRead readHolds") as "predRead".
+            { done. }
+            iPoseProof (monPred_wand_force with "PostCrash") as "PostCrash".
+            iSpecialize ("PostCrash" with "predRead").
+            iExists _, _.
+            iSplit. { iPureIntro. simpl. reflexivity. }
+            iSplit. { iPureIntro. simpl. reflexivity. }
+            rewrite encode_relation_decode_iff in order1; [ | done | done ].
+            rewrite encode_relation_decode_iff in order2; [ | done | done ].
+            iApply "PostCrash"; iPureIntro; destruct order1; simplify_eq; done.
+          * (* this is the spurious case, we will see that once we get hold of
+               [encode_bumper], we will just feed some random [ST] *)
+            iDestruct ("PostCrash" $! s5 v_f s4 v_c) as (P_obj) "[objImpl PostCrash]".
+            iExists P_obj.
+            iSplitL "objImpl". {
+              (* monPred_simpl. *)
+              iIntros (?).
+              rewrite monPred_at_wand.
+              iIntros (view') "% fullHolds".
+              iPoseProof (encode_predicate_extract with "eqFull fullHolds") as "predFull".
+              { done. }
+              iSpecialize ("objImpl" $! view' with "predFull").
+              iFrame.
+            }
+            iIntros "_ %bumperEq".
+            apply encode_bumper_Some_decode in bumperEq.
+            destruct bumperEq as (s3' & bumperEq & bumperEq').
+            rewrite Heqn in bumperEq.
+            discriminate.
+      - iApply (big_sepM2_impl with "predFullPostCrash").
+        iIntros "!> %ℓ' %pred_full %bumper %predFullLook %bumperLook
+                 (%pred_read & %pred_pers & %order &
+                  %predReadLook & %predPersLook & %orderLook & PostCrash)".
+        iExists pred_read, pred_pers, order.
+        assert (ℓ' ∈ dom abs_hists). {
+          apply elem_of_dom_2 in bumperLook.
+          congruence.
+        }
+        assert (ℓ ≠ ℓ') by congruence.
+        do ? (rewrite lookup_insert_ne; last done).
+        do 3 (iSplitPure; first done).
+        iApply "PostCrash".
+    }
+    iSplit. {
+      iApply (big_sepM2_insert_2 with "[] predReadPostCrash").
+      iIntros (?????) "!> %bumperEq (%Pread & #eqRead & ReadHolds)".
+      apply encode_bumper_Some_decode in bumperEq.
+      destruct bumperEq as (s3 & bumperEq & bumperEq').
       iEval (rewrite /encode_predicate).
-      apply encode_bumper_Some_decode in eq.
-      destruct eq as (s3 & eq' & eq2').
-      rewrite -eq2'.
+      rewrite -bumperEq'.
       rewrite decode_encode.
       iExists _.
       iSplit. { iPureIntro. simpl. reflexivity. }
-      iDestruct (encode_predicate_extract with "eq2 P") as "pred".
+      iPoseProof (encode_predicate_extract with "eqRead ReadHolds") as "predRead".
       { done. }
-      iApply (pred_condition with "pred"). }
+      iPoseProof (pred_read_post_crash with "predRead") as "PostCrash".
+      iApply "PostCrash".
+    }
+    iSplit. {
+      iApply (big_sepM2_insert_2 with "[] predFullReadSplit").
+      iIntros (???) "!> (%P_full & #eqFull & fullHolds)".
+      iDestruct (encode_predicate_decode with "eqFull") as (s4) "%s4DecodeEq".
+      iPoseProof (encode_predicate_extract with "eqFull fullHolds") as "predFull".
+      { done. }
+      iPoseProof (full_read_split with "predFull") as "[predRead _]".
+      iExists _.
+      iEval (rewrite /encode_predicate s4DecodeEq).
+      iSplit; done.
+    }
     (* bumperBumpToValid *)
     iSplitPure.
     { rewrite map_Forall_insert.
@@ -278,13 +451,13 @@ Section wp_at_rules.
   Qed.
 
   Lemma wp_alloc_at v s prot `{!ProtocolConditions prot} st E :
-    {{{ prot.(p_inv) s v }}}
+    {{{ prot.(p_full) s v ∗ prot.(p_pers) s v }}}
       ref_AT v @ st; E
     {{{ ℓ, RET #ℓ; ℓ ↦_AT^{prot} [s] }}}.
   Proof.
     intros Φ.
     iModel.
-    iIntros "phi".
+    iIntros "[ϕ_full ϕ_pers]".
     iIntros ([TV' ?] [incl [= <-]]) "Φpost".
     iApply wp_unfold_at.
     iIntros ([[SV PV] BV] incl2) "#val".
@@ -299,9 +472,10 @@ Section wp_at_rules.
     simpl.
     iFrame "val".
     destruct TV as [[??]?].
-    iMod (interp_insert_loc_at ℓ prot with "interp [phi] pts")
+    iMod (interp_insert_loc_at ℓ prot with "interp [ϕ_full] [ϕ_pers] pts")
       as "(pts & interp)"; first done.
-    { iApply monPred_mono; last iApply "phi". split; last done. etrans; done. }
+    { iApply monPred_mono; last iApply "ϕ_full". split; last done. etrans; done. }
+    { iApply monPred_mono; last iApply "ϕ_pers". split; last done. etrans; done. }
     iModIntro.
     rewrite -assoc. iSplit; first done.
     iFrame "interp".

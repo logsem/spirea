@@ -157,6 +157,22 @@ Section predicates.
   Global Instance know_pers_pred_contractive `{Countable ST} ℓ :
     Contractive (know_pers_pred (ST := ST) ℓ) := know_pred_contractive (ST := ST) pers_predicates_name ℓ.
 
+  Lemma encode_predicate_decode `{Countable ST}
+    (ϕ: predicate ST) e v
+    (P: dPropO Σ) :
+    (encode_predicate ϕ e v: optionO (dPropO Σ)) ≡ Some P -∗
+    (⌜ ∃ (s: ST), decode e = Some s ⌝: iPropI Σ).
+  Proof.
+    iIntros "eq".
+    iEval (rewrite /encode_predicate) in "eq".
+    destruct (decode e) eqn:Heqn.
+    - iPureIntro. by eexists.
+    - iSimpl in "eq".
+      iPoseProof (discrete_eq_1 with "eq") as "%contra".
+      (* TODO: a clearer way to achieve this? *)
+      inversion contra.
+  Qed.
+
   Lemma encode_predicate_extract `{Countable ST}
       (ϕ : predicate ST) e s v
       (P : dPropO Σ) i :
