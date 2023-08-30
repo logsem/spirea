@@ -121,7 +121,7 @@ Section generational_resources_with_deps.
     ∃ (rels : list (rel_over DS A)) preds promises pia,
       "tokenPromise" ∷ know_promise γ γs R P pia promises ∗
       "%pred_prefix" ∷ ⌜ pred_prefix_list_for' rels preds R P ⌝ ∗
-      "frocenAuthPreds" ∷ own_frozen_auth_promise_list γ rels preds ∗
+      "frozenAuthPreds" ∷ own_frozen_auth_promise_list γ rels preds ∗
       "usedToken" ∷ gen_pick_out γ GTS_tok_perm ∗
       "#ownDeps" ∷ own_resource_for_deps γs.
 
@@ -1042,6 +1042,27 @@ Section rules_with_deps.
   Lemma gen_own_mono γ a1 a2 : a2 ≼ a1 → gen_own γ a1 ⊢ gen_own γ a2.
   Proof. move=> [c ->]. rewrite gen_own_op sep_elim_l. done. Qed.
 
+  Lemma gen_own_valid γ a : gen_own γ a ⊢ ✓ a.
+  Proof.
+    rewrite /gen_own own_valid /gc_tup_elem gen_cmra_validI.
+    iIntros "(_ & _ & ? & _ & _ & _)".
+    rewrite option_validI. done.
+  Qed.
+
+  #[global]
+  Instance into_sep_gen_own γ a b1 b2 :
+    IsOp a b1 b2 → IntoSep (gen_own γ a) (gen_own γ b1) (gen_own γ b2).
+  Proof. intros. rewrite /IntoSep (is_op a) gen_own_op. done. Qed.
+
+  Lemma gen_own_valid_2 γ a1 a2 :
+    gen_own γ a1 -∗ gen_own γ a2 -∗ ✓ (a1 ⋅ a2).
+  Proof.
+    rewrite /gen_own.
+    iIntros "O1 O2".
+    iCombine "O1 O2" as "H".
+    iApply gen_own_valid. iApply "H".
+  Qed.
+
   Lemma rely_to_rely_self γ γs R P :
     rely γ γs R P ⊢ rely_self γ P.
   Proof. iNamed 1. iExists _, _, _, _. iFrame "relyPromise". Qed.
@@ -1391,6 +1412,38 @@ Section rules_with_deps.
          done.
   Qed.
 
+  Lemma token_nextgen γ γs (R : rel_over DS A) P :
+    token γ γs R P ⊢ ⚡==> token γ γs R P.
+  Proof.
+    iNamed 1. iNamed "tokenPromise".
+    iApply nextgen_empty.
+    iIntros (full_picks ?).
+    iDestruct (own_resource_for_deps_nextgen with "ownDeps") as "ownDeps'";
+      first done.
+    iDestruct (own_promises_nextgen with "prs") as "prs'"; first done.
+    iDestruct (own_build_trans_next_gen with "token") as "-#token";
+      first done.
+    (* iDestruct "frozenAuthPreds" as "[auth1 auth2]". *)
+    (* iCombine "auth1 auth2" as "auth". *)
+    iDestruct (own_build_trans_next_gen with "auth_preds")
+      as "-#auth_preds"; first done.
+    iModIntro.
+    iExists rels, preds, promises, pia.
+    iSplit. { iFrame "prs'". done. }
+    iDestruct (own_gen_cmra_split_alt with "token")
+      as "(_ & $ & _ & _ & _ & _)".
+    iDestruct (own_gen_cmra_split_alt with "auth_preds")
+      as "(_ & _ & _ & _ & A & B)".
+    iFrame "ownDeps'".
+    unfold gen_cmra_trans. simpl.
+    iCombine "A B" as "$".
+    done.
+  Qed.
+
+  #[global]
+  Instance into_nextgen_token γ γs R P : IntoNextgen _ _ :=
+    token_nextgen γ γs R P.
+
   Lemma used_token_nextgen γ γs (R : rel_over DS A) P :
     used_token γ γs R P ⊢ ⚡==> token γ γs R P.
   Proof.
@@ -1402,7 +1455,7 @@ Section rules_with_deps.
     iDestruct (own_promises_nextgen with "prs") as "prs'"; first done.
     iDestruct (own_build_trans_next_gen with "usedToken") as "-#usedToken";
       first done.
-    iDestruct "frocenAuthPreds" as "[auth1 auth2]".
+    iDestruct "frozenAuthPreds" as "[auth1 auth2]".
     iCombine "auth1 auth2" as "auth".
     iDestruct (own_build_trans_next_gen with "auth") as "-#auth"; first done.
     iModIntro.
