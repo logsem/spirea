@@ -48,36 +48,6 @@ Section wpr.
       iExists _. iSplitR; first done. by iApply "H".
   Qed.
 
-  Lemma store_inv_cut `{nvmBaseFixedG Σ, hGD : nvmBaseDeltaG} store p :
-    consistent_cut p store →
-    valid_heap store → valid_heap (slice_of_store p store).
-  Proof.
-    rewrite /valid_heap /valid_heap_lub.
-    intros cut val.
-    intros ℓ h look'.
-    rewrite /slice_of_store /slice_of_hist map_fmap_zip_with in look'.
-    rewrite map_fmap_zip_with in look'.
-    apply map_lookup_zip_with_Some in look'.
-    destruct look' as ([t] & hist & ? & pLook & ?).
-    eapply map_Forall_lookup_1 in val; last done.
-    destruct val as [hi ho].
-    split.
-    - (* Extract info from consistent cut. *)
-      rewrite /consistent_cut in cut.
-      setoid_rewrite map_Forall_lookup in cut.
-      pose proof (cut ℓ (MaxNat t) pLook) as (? & ? & ? & eq & ?).
-      simplify_eq.
-      rewrite eq.
-      naive_solver.
-    - rewrite H0.
-      destruct (hist !! t);
-        [rewrite map_fmap_singleton|rewrite fmap_empty];
-        simpl; last apply map_Forall_empty.
-      simplify_eq.
-      apply map_Forall_singleton.
-      apply view_empty_least.
-  Qed.
-
   Definition persist_auth `{nvmBaseFixedG, hGD : nvmBaseDeltaG}
              (σ : mem_config) :=
     own persist_view_name (● σ.2).

@@ -34,6 +34,13 @@ Notation crashed_at_inG Σ Ω := (genInDepsG Σ Ω crashed_atR [#]).
  * - PV: The persist view, PV = OPV - OV
  *)
 
+Definition drop_word s := substring (1 + findex 0 " " s) (String.length s) s.
+
+Tactic Notation "iPickedInAgree" constr(Hs) :=
+  let na := eval vm_compute in (drop_word Hs) in
+  iDestruct (gen_picked_in_agree with Hs) as %<-;
+  iClear na.
+
 Section crashed_at.
   (* Resource for crashed at view *)
   Context `{caI : !crashed_at_inG Σ Ω}.
@@ -172,7 +179,9 @@ Section crashed_at.
     LV ⊑ OCV2 →
     crashed_at_both γ OV OCV -∗
     crashed_at_tok γ LV -∗
-    |==> ⚡==> crashed_at_both γ OCV OCV2 ∗ crashed_at_tok γ LV.
+    |==> ⚡==>
+      crashed_at_both γ OCV OCV2 ∗ crashed_at_tok γ LV ∗
+      picked_in γ (crashed_at_trans OCV2).
   Proof.
     iIntros (le) "AG tok".
     unfold crashed_at_tok, crashed_at_offset.
@@ -185,7 +194,7 @@ Section crashed_at.
     iModIntro.
     iFrame "tok".
     iDestruct "AG" as (t) "[picked2 ?]".
-    iDestruct (gen_picked_in_agree with "picked picked2") as %<-.
+    iPickedInAgree "picked picked2".
     simpl. naive_solver.
   Qed.
 
@@ -193,6 +202,37 @@ End crashed_at.
 
 Definition persisted_genInG Σ Ω `{i : !crashed_at_inG Σ Ω} :=
   genInDepsG Σ Ω (authR viewUR) [#crashed_atR].
+
+#[global]
+Instance genInSelfG_one Σ Ω A :
+  genInSelfG Σ Ω A →
+  ∀ i : fin 1, genInSelfG Σ Ω ([#A] !!! i).
+Proof. intros ? i. dependent elimination i. Defined.
+
+Section rules_one_dep.
+  Context `{gd : !genInSelfG Σ Ω B}.
+  Context `{g : !genInDepsG Σ Ω A [#B] }.
+
+  #[global]
+  Instance rely_1_dep_into_nextgen γ γd R P :
+    IntoNextgen (rely (DS := [#_]) γ [#γd] R P)
+      (rely γ [#γd] R P ∗
+      ∃ (t : A → A) (td : B → B),
+        ⌜ R td t ∧ P t ⌝ ∗
+        picked_in γ t ∗
+        picked_in (g := genInSelfG_gen gd) γd td).
+  Proof.
+    rewrite /IntoNextgen.
+    iIntros "R". iModIntro.
+    iDestruct "R" as "($ & (%t & %ts & [% %] & ? & HD))".
+    iSpecialize ("HD" $! 0%fin).
+    dependent elimination ts as [hcons td hnil].
+    iExists t, td.
+    iFrame.
+    iPureIntro. split; done.
+  Qed.
+
+End rules_one_dep.
 
 Section persisted.
   Context `{!crashed_at_inG Σ Ω}.
@@ -208,7 +248,38 @@ Section persisted.
 
   Definition persisted_auth OPV : iProp Σ :=
     gen_own (i := genInDepsG_gen i) persist_view_name (● OPV) ∗
-    rely_self crashedγ (crashed_at_pred OPV).
+    rely (g := i) persist_view_name [#crashedγ] persisted_rel (λ _, true).
+    (* ∗ rely_self crashedγ (crashed_at_pred OPV). *)
+
+  (* has been upstreamed to [iris-nextgen]. *)
+  Lemma fmap_auth_auth {A : ucmra} (a : A) t :
+    fmap_auth t (● a) ≡ ● (t a) ⋅ ◯ (t ε).
+  Proof.
+    rewrite /fmap_auth /fmap_view view.view_op_eq /=.
+    rewrite right_id left_id /fmap_pair agree_map_to_agree //.
+  Qed.
+
+  #[global]
+  Instance persisted_auth_into_nextgen OPV :
+    IntoNextgen
+      (persisted_auth OPV)
+      (∃ OCV2,
+        persisted_auth OCV2 ∗
+        picked_in crashedγ (crashed_at_trans OCV2)).
+      (* (∃ OCV2, ⌜ OPV ⊑ OCV2 ⌝ ∗ persisted_auth (OPV `view_add` CV)). *)
+  Proof.
+    rewrite /IntoNextgen /persisted_auth.
+    iIntros "(auth & relyP)".
+    iModIntro.
+    iDestruct "auth" as (t) "(picked & auth)".
+    iDestruct "relyP" as "(relyP & (%t' & %tC & (%R & _) & picked' & pickedC))".
+    iPickedInAgree "picked picked'".
+    destruct R as (OCV2 & -> & ->).
+    iExists OCV2.
+    rewrite fmap_auth_auth. simpl.
+    iFrame.
+    iDestruct "auth" as "($ & _)".
+  Qed.
 
   Definition persisted PV : iProp Σ :=
     ∃ OCV OPV,
@@ -232,33 +303,28 @@ Section persisted.
     apply view_sub_dom_eq.
   Qed.
 
-  Lemma post_crash_persisted PV :
-    persisted PV
-    ⊢ ⚡==>
-      persisted (view_to_zero PV) ∗
-      ∃ CV, ⌜ PV ⊑ CV ⌝ ∗ crashed_at crashedγ CV.
+  #[global]
+  Instance persisted_into_nextgen PV :
+    IntoNextgen
+      (persisted PV)
+      (persisted (view_to_zero PV) ∗ ∃ CV, ⌜PV ⊑ CV⌝ ∗ crashed_at crashedγ CV).
   Proof.
+    rewrite /IntoNextgen.
     iNamed 1.
     iModIntro.
     iDestruct "crashRely" as "(crashRely & (%t & (%OCV2 & %incl & ->) & picked1))".
     iDestruct "agree" as (??) "[picked2 agree]".
-    iDestruct (gen_picked_in_agree with "picked1 picked2") as %<-.
-    iClear "picked2".
+    iPickedInAgree "picked1 picked2".
     iDestruct "rely" as "[rely (%tP & %ts & (%rel & _) & pickedP & pickedC)]".
     simpl.
     unfold trans_for in ts.
-    simpl in ts.
-    dependent elimination ts as [hcons tC hnil].
-    iSpecialize ("pickedC" $! 0%fin).
     simpl in rel.
-    rewrite hvec_lookup_fmap_equation_2.
-    iDestruct (gen_picked_in_agree with "picked1 pickedC") as %<-.
-    iClear "pickedC".
+    (* rewrite hvec_lookup_fmap_equation_2. *)
+    iPickedInAgree "picked1 pickedC".
     destruct rel as (OCV2' & eqs & ->).
     apply crashed_at_trans_inj in eqs as <-.
     iDestruct "persLub" as (?) "[picked2 persLub]".
-    iDestruct (gen_picked_in_agree with "pickedP picked2") as %<-.
-    iClear "picked2".
+    iPickedInAgree "pickedP picked2".
     (* Search bi_sep bi_exist. *)
     rewrite bi.sep_exist_l.
     iExists (OCV2 `view_sub` OCV).
@@ -386,14 +452,9 @@ Section heap.
     iModIntro.
     iDestruct ("crashed") as (? tC) "(pickedC & ?)".
     iDestruct "rely" as "(rely & (%tH & % & (%rel & _) & pickedH & pickedC'))".
-    iSpecialize ("pickedC'" $! 0%fin).
-    dependent elimination ts as [hcons tC' hnil].
-    rewrite hvec_lookup_fmap_equation_2.
-    iDestruct (gen_picked_in_agree with "pickedC pickedC'") as %<-.
-    iClear "pickedC'".
+    iPickedInAgree "pickedC pickedC'".
     iDestruct "own_auth" as (tH') "(pickedH' & own_auth)".
-    iDestruct (gen_picked_in_agree with "pickedH pickedH'") as %<-.
-    iClear "pickedH'".
+    iPickedInAgree "pickedH pickedH'".
     destruct rel as (OCV2 & -> & ->).
     iExists OCV2.
     iSplit.
@@ -432,14 +493,14 @@ Class nvmBaseG Σ Ω  := NvmBaseG {
 Definition nvm_heap_ctx `{!nvmBaseG Σ Ω} (σ : mem_config) : iProp Σ :=
   ∃ (OV OCV : view),
     (* crashed at *)
+    "%Hop" ∷ ⌜ valid_heap σ.1 ⌝ ∗
     "crashed" ∷ gen_own crashed_at_name (to_agree OV, to_agree OCV) ∗
     (* The lower bound on the next [OCV] is the current [OCV] plus [PV]. *)
     "crashed_at_tok" ∷ crashed_at_tok crashed_at_name (OCV `view_add` σ.2) ∗
     (* The interpretation of the heap. *)
     "Hσ" ∷ own_auth_heap crashed_at_name heap_name σ.1 ∗
     (* "lubauth" ∷ own store_view_name (● (max_view σ.1)) ∗ *)
-    "%Hop" ∷ ⌜ valid_heap σ.1 ⌝ ∗
-    "pers" ∷ persisted_auth (i := nvmBaseG_persisted_in) crashed_at_name persisted_name (OCV `view_add` σ.2)
+    "pers" ∷ persisted_auth (i := nvmBaseG_persisted_in) persisted_name crashed_at_name (OCV `view_add` σ.2)
     .
     (* ∗ *)
     (* "crash" ∷ (∃ (CV : view), *)
@@ -462,11 +523,12 @@ Proof.
     with "crashed crashed_at_tok") as "crashed".
   { f_equiv. done. }
   iModIntro. iModIntro.
-  iDestruct "crashed" as "(#crashed & crashed_at_tok)".
+  iDestruct "crashed" as "(#crashed & crashed_at_tok & pickedC)".
   iMod (crashed_at_tok_strengthen _ _ (OCV `view_add` CV) with "crashed_at_tok") as "tok".
   { f_equiv. done. }
   iModIntro.
   iExists OCV, (OCV `view_add` CV).
+  iSplit. { iPureIntro. apply store_inv_cut; done. }
   iFrame "crashed". simpl.
   rewrite -(assoc view_add).
   rewrite view_add_view_zero.
@@ -474,6 +536,11 @@ Proof.
   (* heap *)
   iDestruct ("Hσ") as (?) "[(% & of) Hσ]".
   iDestruct (crashed_at_both_agree with "of [$]") as "[-> ->]".
-  rewrite /slice_of_store.
+  (* persisted *)
+  iDestruct "pers" as "(% & pers & pickedC')".
+  iDestruct (gen_picked_in_agree with "pickedC' pickedC") as %eq.
+  apply crashed_at_trans_inj in eq.
+  rewrite eq.
+  iFrame "pers".
 Admitted.
 
