@@ -171,6 +171,19 @@ Section consistent_cut.
     by simplify_eq.
   Qed.
 
+  Lemma slice_of_store_drop CV hists (offsets : gmap loc nat) :
+    slice_of_store CV (map_zip_with drop_prefix hists offsets) =
+      map_zip_with drop_prefix
+              ((λ hist : history, discard_msg_views <$> hist) <$>
+              drop_all_above (offsets_add offsets CV) hists)
+              (offsets_add offsets CV).
+  Proof.
+    rewrite /slice_of_store.
+    rewrite map_zip_with_drop_prefix_fmap.
+    rewrite slice_of_hist_drop.
+    done.
+  Qed.
+
 End consistent_cut.
 
 Section memory.

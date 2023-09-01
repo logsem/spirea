@@ -15,7 +15,7 @@ From iris.proofmode Require Import classes tactics.
 From iris_named_props Require Import named_props.
 From nextgen Require Import cmra_morphism_extra gmap_view_transformation.
 
-From self Require Import extra map_extra.
+From self Require Import extra map_extra view_slice.
 From self.nextgen Require Import hvec nextgen_promises.
 From self.nextgen Require Import nextgen_promises.
 From self.algebra Require Import view.
@@ -355,21 +355,22 @@ Definition gmap_view_genInG Σ Ω `{i : !genInDepsG Σ Ω crashed_atR [#] } :=
 
 (* Resources and transformation for the heap. *)
 
-Definition heapR V : cmra := gmap_viewR loc (leibnizO (gmap nat V)).
+Definition heapR : cmra := gmap_viewR loc (leibnizO history).
 
 Section heap.
   (* The transformation of the heap depends on the transformation of the
    * crashed_at view. *)
   Context `{!genInDepsG Σ Ω crashed_atR [#] }.
-  Context {V : Type}.
-  Context `{i : !genInDepsG Σ Ω (heapR V) [#crashed_atR] }.
+  (* Context {V : Type}. *)
+  Context `{i : !genInDepsG Σ Ω heapR [#crashed_atR] }.
   Context (crashedγ : gname).
 
   (* Given a new [OCV] we can define the transformation applied to the history
    * [hist] at each key [l]. *)
   Definition drop_above_hist (OCV : view) (l : loc)
-      (hist : leibnizO (gmap nat V)) : option (leibnizO (gmap nat V)) :=
-    (λ '(MaxNat t), drop_above t hist) <$> (OCV !! l).
+      (hist : leibnizO history) : option _ :=
+    (λ '(MaxNat t),
+      discard_msg_views <$> drop_above t hist) <$> (OCV !! l).
 
   Instance drop_above_hist_map_trans OCV: MapTrans (drop_above_hist OCV).
   Proof.
@@ -380,7 +381,7 @@ Section heap.
   Definition drop_above_map (OCV : view) heap :=
     map_imap (drop_above_hist OCV) heap.
 
-  Local Definition heap_rel : rel_over [#crashed_atR] (heapR V) :=
+  Local Definition heap_rel : rel_over [#crashed_atR] (heapR) :=
     λ tC tP, ∃ OCV,
       tC = crashed_at_trans OCV ∧
       tP = map_entry_lift_gmap_view (drop_above_hist OCV).
@@ -434,7 +435,7 @@ Section heap.
   Qed.
 
   Lemma map_entry_lift_gmap_view_auth dq
-      (heap : gmap loc (leibnizO (gmap nat V))) map_entry :
+      (heap : gmap loc (leibnizO history)) map_entry :
     (map_entry_lift_gmap_view map_entry (gmap_view_auth dq heap)) =
     (gmap_view_auth dq (map_imap map_entry heap)).
   Proof.
@@ -489,16 +490,26 @@ Class nvmBaseG Σ Ω  := NvmBaseG {
   heap_name : gname;
 }.
 
+Search drop_prefix.
+(* [hist] might have locations that are not in [OCV]. Hence we cannot use
+ * [map_zip_with] here. *)
+Definition store_drop_prefix OCV (hist : store) :=
+  map_imap (λ l h, Some $ drop_prefix h (OCV !!0 l)) hist.
+
 (* The state interpretation for the base logic. *)
 Definition nvm_heap_ctx `{!nvmBaseG Σ Ω} (σ : mem_config) : iProp Σ :=
-  ∃ (OV OCV : view),
+  ∃ (OV OCV : view) (full_hist : store),
     (* crashed at *)
+    "%full_hist_eq" ∷
+      ⌜ σ.1 = store_drop_prefix OCV full_hist ⌝ ∗
+      (* ⌜ σ.1 = map_zip_with drop_prefix full_hist (max_nat_car <$> OCV) ⌝ ∗ *)
     "%Hop" ∷ ⌜ valid_heap σ.1 ⌝ ∗
     "crashed" ∷ gen_own crashed_at_name (to_agree OV, to_agree OCV) ∗
     (* The lower bound on the next [OCV] is the current [OCV] plus [PV]. *)
     "crashed_at_tok" ∷ crashed_at_tok crashed_at_name (OCV `view_add` σ.2) ∗
     (* The interpretation of the heap. *)
-    "Hσ" ∷ own_auth_heap crashed_at_name heap_name σ.1 ∗
+    "Hσ" ∷ own_auth_heap crashed_at_name heap_name full_hist ∗
+    (* (drop_prefix σ.1) ∗ *)
     (* "lubauth" ∷ own store_view_name (● (max_view σ.1)) ∗ *)
     "pers" ∷ persisted_auth (i := nvmBaseG_persisted_in) persisted_name crashed_at_name (OCV `view_add` σ.2)
     .
@@ -507,11 +518,102 @@ Definition nvm_heap_ctx `{!nvmBaseG Σ Ω} (σ : mem_config) : iProp Σ :=
     (*   "%cvSubset" ∷ ⌜dom CV ⊆ dom σ.1⌝ ∗ *)
     (*   "#crashedAt" ∷ own crashed_at_view_name (to_agree CV : agreeR viewO)). *)
 
-From Perennial.program_logic Require Export weakestpre.
-From Perennial.program_logic Require Export crash_lang crash_weakestpre.
+(* From Perennial.program_logic Require Export weakestpre. *)
+(* From Perennial.program_logic Require Export crash_lang crash_weakestpre. *)
+
+(* Lemma view_add_offsets_add V1 V2 : *)
+(*   max_nat_car <$> V1 `view_add` V2 = offsets_add (max_nat_car <$> V1) V2. *)
+(* Proof. *)
+(*   rewrite /offsets_add /view_add. *)
+(*   apply map_eq => l. *)
+(*   rewrite map_lookup_zip_with. *)
+(*   rewrite 2!lookup_fmap. *)
+(*   rewrite lookup_merge. *)
+(*   destruct (V1 !! l); simpl; *)
+(*     destruct (V2 !! l); simpl; try done. *)
+(* Admitted. *)
+
+(* Lemma drop_above_map_drop_all_above OCV CV full_hist : *)
+(*   (λ hist : history, discard_msg_views <$> hist) <$> *)
+(*     drop_all_above (offsets_add (max_nat_car <$> OCV) CV) full_hist = *)
+(*   drop_above_map (OCV `view_add` CV) full_hist. *)
+(* Proof. *)
+(*   unfold drop_above_map. unfold drop_all_above. unfold drop_above_hist. *)
+(*   rewrite -view_add_offsets_add. *)
+(*   rewrite map_fmap_zip_with. apply map_eq => l. *)
+(*   rewrite map_zip_with_flip. rewrite map_lookup_imap. *)
+(*   rewrite map_lookup_zip_with. rewrite lookup_fmap. *)
+(*   destruct (full_hist !! l) as [h|] eqn:look1; rewrite look1 /=; last done. *)
+(*   destruct ((OCV `view_add` CV) !! l) as [[t]|]; done. *)
+(* Qed. *)
+
+(* Lemma slice_of_store_drop_cv CV hists (offsets : view) : *)
+(*   slice_of_store CV (store_drop_prefix offsets hists) = *)
+(*     map_zip_with drop_prefix *)
+(*             ((λ hist : history, discard_msg_views <$> hist) <$> *)
+(*             drop_all_above (offsets `view_add` CV) hists) *)
+(*             (offsets `view_add` CV). *)
+
+Lemma view_add_lookup_zero V1 V2 ℓ :
+  (V1 `view_add` V2) !!0 ℓ = (V1 !!0 ℓ) + (V2 !!0 ℓ).
+Proof.
+Admitted.
+
+Lemma slice_of_store_drop_prefix CV OCV full_hist :
+  dom OCV ⊆ dom CV →
+  slice_of_store CV (store_drop_prefix OCV full_hist) =
+  store_drop_prefix (OCV `view_add` CV)
+    (drop_above_map (OCV `view_add` CV) full_hist).
+Proof.
+  intros sub.
+  apply map_eq => ℓ.
+  rewrite /store_drop_prefix.
+  rewrite /slice_of_store.
+  rewrite /slice_of_hist.
+  rewrite 2!lookup_fmap.
+  rewrite /drop_above_map.
+  rewrite 2!map_lookup_imap.
+  rewrite /slice_hist.
+  rewrite map_zip_with_flip.
+  rewrite map_lookup_zip_with.
+  rewrite map_lookup_imap.
+  destruct (full_hist !! ℓ) eqn:look; rewrite look; simpl; last done.
+  unfold drop_above_hist.
+  rewrite !view_add_lookup_zero.
+  unfold view_add.
+  rewrite lookup_merge.
+  unfold lookup_zero.
+  destruct (CV !! ℓ) as [[t]|] eqn:look2; simpl;
+    destruct (OCV !! ℓ) as [[t2]|] eqn:look3; simpl; try done.
+  - f_equiv.
+    apply map_eq. intros i.
+    rewrite !drop_prefix_lookup.
+    rewrite !lookup_fmap.
+    destruct (decide (i = 0)) as [->|neq]; simpl.
+    * rewrite drop_above_lookup_t.
+      rewrite Nat.add_comm.
+      destruct (g !! (t2 + t)); done.
+    * rewrite drop_above_lookup_gt; last lia.
+      destruct (g !! (t + t2)); simpl;
+        rewrite ?lookup_singleton_ne; done.
+  - f_equiv.
+    apply map_eq. intros i.
+    rewrite !drop_prefix_lookup.
+    rewrite !lookup_fmap.
+    rewrite Nat.add_comm. simpl.
+    destruct (decide (i = 0)) as [->|neq]; simpl.
+    * rewrite drop_above_lookup_t.
+      destruct (g !! t); done.
+    * rewrite drop_above_lookup_gt; last lia.
+      destruct (g !! t); simpl;
+        rewrite ?lookup_singleton_ne; done.
+  - apply not_elem_of_dom_2 in look2.
+    apply elem_of_dom_2 in look3.
+    set_solver.
+Qed.
 
 (* If we have the state interpretation before a crash, then after a crash we
- * will have it under the nextgen modality. *)
+ * have it under the nextgen modality. *)
 Lemma heap_ctx_next_generation `{!nvmBaseG Σ Ω} σ1 σ2 :
   crash_prim_step nvm_crash_lang σ1 σ2 →
   nvm_heap_ctx σ1 ⊢ |==> ⚡==> |==> nvm_heap_ctx σ2.
@@ -527,20 +629,30 @@ Proof.
   iMod (crashed_at_tok_strengthen _ _ (OCV `view_add` CV) with "crashed_at_tok") as "tok".
   { f_equiv. done. }
   iModIntro.
-  iExists OCV, (OCV `view_add` CV).
+  set (OCV2 := OCV `view_add` CV).
+  iDestruct ("Hσ") as (?) "[(% & crashed') Hσ]".
+  iDestruct (crashed_at_both_agree with "crashed' crashed") as "[-> ->]".
+  iExists OCV, OCV2, _.
+  iFrame "Hσ".
+  iSplit.
+  { iPureIntro. rewrite full_hist_eq.
+    rewrite /OCV2.
+    apply slice_of_store_drop_prefix.
+    admit. }
+    (* domm OCV =  *)
+    (* dom offsets ⊑ dom CV *)
+    (* (* rewrite view_add_offsets_add. *) *)
+    (* rewrite slice_of_store_drop. *)
+    (* rewrite drop_above_map_drop_all_above. done. } *)
   iSplit. { iPureIntro. apply store_inv_cut; done. }
   iFrame "crashed". simpl.
   rewrite -(assoc view_add).
   rewrite view_add_view_zero.
   iFrame "tok".
-  (* heap *)
-  iDestruct ("Hσ") as (?) "[(% & of) Hσ]".
-  iDestruct (crashed_at_both_agree with "of [$]") as "[-> ->]".
-  (* persisted *)
   iDestruct "pers" as "(% & pers & pickedC')".
   iDestruct (gen_picked_in_agree with "pickedC' pickedC") as %eq.
   apply crashed_at_trans_inj in eq.
   rewrite eq.
   iFrame "pers".
-Admitted.
+Qed.
 
