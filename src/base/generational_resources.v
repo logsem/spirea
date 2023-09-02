@@ -486,7 +486,7 @@ Class nvmBaseG Σ Ω  := NvmBaseG {
   (* heap map *)
   nvmBaseG_gmap_view_in :>
     genInDepsG Σ Ω (gmap_viewR loc (leibnizO (gmap nat message))) [#crashed_atR];
-    (* gmap_view_genInG (i := nvmBaseG_crashed_at_in) Σ Ω; *)
+  (* gmap_view_genInG (i := nvmBaseG_crashed_at_in) Σ Ω; *)
   heap_name : gname;
 }.
 
@@ -500,59 +500,18 @@ Definition store_drop_prefix OCV (hist : store) :=
 Definition nvm_heap_ctx `{!nvmBaseG Σ Ω} (σ : mem_config) : iProp Σ :=
   ∃ (OV OCV : view) (full_hist : store),
     (* crashed at *)
-    "%full_hist_eq" ∷
-      ⌜ σ.1 = store_drop_prefix OCV full_hist ⌝ ∗
-      (* ⌜ σ.1 = map_zip_with drop_prefix full_hist (max_nat_car <$> OCV) ⌝ ∗ *)
+    "%full_hist_eq" ∷ ⌜ σ.1 = store_drop_prefix OCV full_hist ⌝ ∗
     "%Hop" ∷ ⌜ valid_heap σ.1 ⌝ ∗
     "crashed" ∷ gen_own crashed_at_name (to_agree OV, to_agree OCV) ∗
     (* The lower bound on the next [OCV] is the current [OCV] plus [PV]. *)
     "crashed_at_tok" ∷ crashed_at_tok crashed_at_name (OCV `view_add` σ.2) ∗
     (* The interpretation of the heap. *)
     "Hσ" ∷ own_auth_heap crashed_at_name heap_name full_hist ∗
-    (* (drop_prefix σ.1) ∗ *)
-    (* "lubauth" ∷ own store_view_name (● (max_view σ.1)) ∗ *)
-    "pers" ∷ persisted_auth (i := nvmBaseG_persisted_in) persisted_name crashed_at_name (OCV `view_add` σ.2)
-    .
-    (* ∗ *)
-    (* "crash" ∷ (∃ (CV : view), *)
-    (*   "%cvSubset" ∷ ⌜dom CV ⊆ dom σ.1⌝ ∗ *)
-    (*   "#crashedAt" ∷ own crashed_at_view_name (to_agree CV : agreeR viewO)). *)
-
-(* From Perennial.program_logic Require Export weakestpre. *)
-(* From Perennial.program_logic Require Export crash_lang crash_weakestpre. *)
-
-(* Lemma view_add_offsets_add V1 V2 : *)
-(*   max_nat_car <$> V1 `view_add` V2 = offsets_add (max_nat_car <$> V1) V2. *)
-(* Proof. *)
-(*   rewrite /offsets_add /view_add. *)
-(*   apply map_eq => l. *)
-(*   rewrite map_lookup_zip_with. *)
-(*   rewrite 2!lookup_fmap. *)
-(*   rewrite lookup_merge. *)
-(*   destruct (V1 !! l); simpl; *)
-(*     destruct (V2 !! l); simpl; try done. *)
-(* Admitted. *)
-
-(* Lemma drop_above_map_drop_all_above OCV CV full_hist : *)
-(*   (λ hist : history, discard_msg_views <$> hist) <$> *)
-(*     drop_all_above (offsets_add (max_nat_car <$> OCV) CV) full_hist = *)
-(*   drop_above_map (OCV `view_add` CV) full_hist. *)
-(* Proof. *)
-(*   unfold drop_above_map. unfold drop_all_above. unfold drop_above_hist. *)
-(*   rewrite -view_add_offsets_add. *)
-(*   rewrite map_fmap_zip_with. apply map_eq => l. *)
-(*   rewrite map_zip_with_flip. rewrite map_lookup_imap. *)
-(*   rewrite map_lookup_zip_with. rewrite lookup_fmap. *)
-(*   destruct (full_hist !! l) as [h|] eqn:look1; rewrite look1 /=; last done. *)
-(*   destruct ((OCV `view_add` CV) !! l) as [[t]|]; done. *)
-(* Qed. *)
-
-(* Lemma slice_of_store_drop_cv CV hists (offsets : view) : *)
-(*   slice_of_store CV (store_drop_prefix offsets hists) = *)
-(*     map_zip_with drop_prefix *)
-(*             ((λ hist : history, discard_msg_views <$> hist) <$> *)
-(*             drop_all_above (offsets `view_add` CV) hists) *)
-(*             (offsets `view_add` CV). *)
+    (* [OCV] is "the sum of all crash views". The domain of the crash views
+     * only grows and is always included in the persist view. And hence the
+     * domain of the persist view also contains the domain of [OCV]. *)
+    "%ocvDom" ∷ ⌜ dom OCV ⊆ dom σ.2 ⌝ ∗
+    "pers" ∷ persisted_auth (i := nvmBaseG_persisted_in) persisted_name crashed_at_name (OCV `view_add` σ.2).
 
 Lemma view_add_lookup_zero V1 V2 ℓ :
   (V1 `view_add` V2) !!0 ℓ = (V1 !!0 ℓ) + (V2 !!0 ℓ).
@@ -612,6 +571,15 @@ Proof.
     set_solver.
 Qed.
 
+Lemma view_add_dom V1 V2 :
+  dom (V1 `view_add` V2) = dom V1 ∪ dom V2.
+Proof.
+  apply set_eq => ℓ.
+  rewrite elem_of_union 3!elem_of_dom.
+  rewrite /view_add lookup_merge.
+  destruct (V1 !! ℓ); destruct (V2 !! ℓ); naive_solver.
+Qed.
+
 (* If we have the state interpretation before a crash, then after a crash we
  * have it under the nextgen modality. *)
 Lemma heap_ctx_next_generation `{!nvmBaseG Σ Ω} σ1 σ2 :
@@ -634,16 +602,12 @@ Proof.
   iDestruct (crashed_at_both_agree with "crashed' crashed") as "[-> ->]".
   iExists OCV, OCV2, _.
   iFrame "Hσ".
+  apply view_le_dom_subseteq in pIncl.
   iSplit.
   { iPureIntro. rewrite full_hist_eq.
     rewrite /OCV2.
     apply slice_of_store_drop_prefix.
-    admit. }
-    (* domm OCV =  *)
-    (* dom offsets ⊑ dom CV *)
-    (* (* rewrite view_add_offsets_add. *) *)
-    (* rewrite slice_of_store_drop. *)
-    (* rewrite drop_above_map_drop_all_above. done. } *)
+    etrans; done. }
   iSplit. { iPureIntro. apply store_inv_cut; done. }
   iFrame "crashed". simpl.
   rewrite -(assoc view_add).
@@ -654,5 +618,12 @@ Proof.
   apply crashed_at_trans_inj in eq.
   rewrite eq.
   iFrame "pers".
+  iPureIntro.
+  rewrite /OCV2.
+  rewrite /view_add.
+  rewrite view_add_dom.
+  rewrite /view_to_zero.
+  rewrite dom_fmap.
+  set_solver.
 Qed.
 

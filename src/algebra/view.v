@@ -461,7 +461,6 @@ Proof.
   intros VL1 ? le1 VL2 ? le2.
   intros ℓ ?.
   unfold view_add.
-  Search merge lookup.
   rewrite 2!lookup_merge.
   destruct (VL1 !! ℓ) as [[?]|] eqn:look1;
     destruct (VL2 !! ℓ) as [[?]|] eqn:look2; simpl; try done.
