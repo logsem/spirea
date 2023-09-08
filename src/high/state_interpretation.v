@@ -116,8 +116,11 @@ Section state_interpretation.
       (* All the encoded orders *)
       "allOrders" ∷ own_all_preorders preorders_name orders ∗
 
-      (* TODO: add ghost resource for high level persisted view  *)
+      (* the duplicable resource to connect with baseSpirea *)
       "#globalPViewPersisted" ∷ persisted global_pview ∗
+
+      (* the authoritative resource exposes to the program logic *)
+      "globalPView" ∷ ghost_map_auth pview_lb_name (DfracOwn 1) global_pview ∗
 
       (* Seperation of locations. *)
       "%locsDisjoint" ∷ ⌜ na_locs ## at_locs ⌝ ∗
@@ -151,7 +154,7 @@ Section state_interpretation.
             (* The predicate holds for "exclusive-write" message in the history. *)
             ([∗ map] t ↦ msg; encS ∈ phys_hist; abs_hist,
                ⌜ offset ≤ t ⌝ -∗
-               ⌜ ¬ is_Some $ phys_hist !! (S t) ⌝ -∗
+               ⌜ phys_hist !! (S t) = None ⌝ -∗
                encoded_predicate_holds
                  pred
                  encS
@@ -180,7 +183,7 @@ Section state_interpretation.
             ⌜ predicates_pers !! ℓ = Some pred_pers ⌝ ∗
             (* It seems like the timestamp in [persisted] assertion is before
                offset, we need to add it here *)
-            ⌜ offsets_add offsets global_pview !! ℓ = Some t ∨ offsets !! ℓ = Some t ⌝ ∗
+            ⌜ offsets_add offsets global_pview !! ℓ = Some t ∨ (global_pview !! ℓ = None ∧ offsets !! ℓ = Some t) ⌝ ∗
             ⌜ abs_hist !! t = Some encS ⌝ ∗
             ⌜ phys_hist !! t = Some msg ⌝ ∗
             encoded_predicate_holds

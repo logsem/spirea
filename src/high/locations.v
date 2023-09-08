@@ -228,7 +228,8 @@ Section mapsto_at_lemmas.
       "#lbBase" ∷ lb_base ℓ prot offset tP sP ∗
       (* We have the persisted state in our store view. *)
       "#tPLe" ∷ have_FV ℓ (tP - offset) ∗
-      "persisted" ∷ persisted_loc_d ℓ (tP - offset).
+      "persisted" ∷ persisted_loc_d ℓ (tP - offset) ∗
+      "#pview_lb" ∷ lift_d (λ nD, ℓ ↪[pview_lb_name]□ tP).
 
   Definition crashed_in prot ℓ s : dProp Σ :=
     ∃ CV,
@@ -447,7 +448,7 @@ Section mapsto_at_lemmas.
     iFrameF (slice). iFrame "physMsg". iFrame "inThreadView".
     iSplitPure; first done.
     iFrameF (haveTStore).
-    iLeft. iApply persisted_loc_d_weak; last done. lia.
+    iLeft. iApply persisted_loc_d_weak. last done. lia.
   Qed.
 
   Lemma mapsto_na_persist_lb_last ℓ prot q ss s `{!AntiSymm (=) (⊑@{ST})} :

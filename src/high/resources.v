@@ -30,6 +30,7 @@ Class nvmHighDeltaG := MkNvmHighDeltaG {
   exclusive_locs_name : gname;
   shared_locs_name : gname;
   bumpers_name : gname;
+  pview_lb_name : gname;
 }.
 
 (* A record of all the global ghost names that we need. *)
@@ -71,6 +72,7 @@ Class nvmHighFixedG Σ := {
   offsetsG :> ghost_mapG Σ loc nat;
   locsG :> inG Σ shared_locsR;
   nvm_bumpersG :> bumpersG Σ;
+  pview_lbG :> ghost_mapG Σ loc max_nat;
 }.
 
 Definition nvmHighΣ :=
@@ -82,7 +84,9 @@ Definition nvmHighΣ :=
      ghost_mapΣ loc (relation2 positive);
      ghost_mapΣ loc nat;
      GFunctor (shared_locsR);
-     ghost_mapΣ loc (positive → option positive) ].
+     ghost_mapΣ loc (positive → option positive);
+     ghost_mapΣ loc max_nat
+    ].
 
 Instance subG_nvmHighΣ {Σ} : subG nvmHighΣ Σ → nvmHighFixedG Σ.
 Proof. solve_inG. Qed.

@@ -273,7 +273,12 @@ Section wp_at_rules.
     { iApply (big_sepM2_insert_2 with "[predPers] [predsPersHold]").
       - iExists _, _, _, _. rewrite ?lookup_insert.
         iSplitPure; first done.
-        iSplitPure; first (by right).
+        iSplitPure. {
+          right.
+          rewrite -not_elem_of_dom.
+          split; first set_solver.
+          done.
+        }
         iSplitPure; first done.
         iSplitPure; first done.
         assert (na_views !! ℓ = None) as ->.
@@ -485,23 +490,46 @@ Section wp_at_rules.
     { done. }
   Qed.
 
-  Definition encoded_predicate_hold nG physHist (absHist : gmap nat positive) pred : iProp Σ :=
-    ([∗ map] msg;encS ∈ physHist;absHist,
+  Definition encoded_full_predicate_hold nG physHist (absHist : gmap nat positive) offset pred : iProp Σ :=
+    ([∗ map] t ↦ msg;encS ∈ physHist;absHist,
+      ⌜ offset ≤ t ⌝ -∗ ⌜ physHist !! (S t) = None ⌝ -∗
       encoded_predicate_holds pred encS
                               (msg_val msg)
                               (msg_store_view msg,
                               msg_persisted_after_view msg, ∅, nG)).
 
-  Definition loc_info nG ℓ prot (pred : enc_predicateO) physHists physHist absHist offset : iProp Σ :=
+  Definition encoded_read_predicate_hold nG physHist (absHist : gmap nat positive) pred : iProp Σ :=
+    ([∗ map] t ↦ msg;encS ∈ physHist;absHist,
+      ⌜ is_Some $ physHist !! (S t) ⌝ -∗
+      encoded_predicate_holds pred encS
+                              (msg_val msg)
+                              (msg_store_view msg,
+                              msg_persisted_after_view msg, ∅, nG)).
+
+  Definition encoded_pers_predicate_hold nG (physHist: history) (absHist : gmap nat positive) offset pview pred : iProp Σ :=
+    ∃ t encS msg, ⌜ (plus offset) <$> pview = Some t ∨ (pview = None ∧ offset = t) ⌝ -∗
+    ⌜ absHist !! t = Some encS ⌝ ∗
+    ⌜ physHist !! t = Some msg ⌝ ∗
+    encoded_predicate_holds pred encS
+                            (msg_val msg)
+                            (msg_store_view msg,
+                            msg_persisted_after_view msg, ∅, nG).
+
+  Definition loc_info nG ℓ prot (predFull predRead predPers: enc_predicateO) physHists physHist absHist offset pview : iProp Σ :=
     "physHists" ∷ auth_map_map_auth phys_history_name physHists ∗
     "%physHistsLook" ∷ ⌜ physHists !! ℓ = Some physHist ⌝ ∗
+    "%pviewLook" ∷ ⌜ global_pview ⌝ ∗
     "%domEq" ∷ ⌜ dom physHist = dom absHist ⌝ ∗
     "%increasing" ∷ ⌜ increasing_map (encode_relation (⊑@{ST})) absHist ⌝ ∗
     "%atInvs" ∷
       ⌜ map_Forall (λ t msg, atomic_loc_inv ℓ t msg) (drop_prefix physHist offset) ⌝ ∗
-    "#predEquiv" ∷ ▷ (pred ≡ encode_predicate (p_inv prot)) ∗
+    "#predFullEquiv" ∷ ▷ (predFull ≡ encode_predicate (p_full prot)) ∗
+    "#predReadEquiv" ∷ ▷ (predRead ≡ encode_predicate (p_read prot)) ∗
+    "#predPersEquiv" ∷ ▷ (predPers ≡ encode_predicate (p_pers prot)) ∗
     "#frags" ∷ ([∗ map] k2 ↦ v ∈ absHist, frag_entry abs_history_name ℓ k2 v) ∗
-    "predHolds" ∷ encoded_predicate_hold nG physHist absHist pred ∗
+    "predFullHolds" ∷ encoded_full_predicate_hold nG physHist absHist offset predFull ∗
+    "predReadHolds" ∷ encoded_read_predicate_hold nG physHist absHist predRead ∗
+    "predPersHolds" ∷ encoded_pers_predicate_hold nG physHist absHist offset pview predFull ∗
     "fullHist" ∷ know_full_encoded_history_loc ℓ 1 absHist ∗
     "pts" ∷ ℓ ↦h drop_prefix physHist offset.
 

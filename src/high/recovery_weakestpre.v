@@ -430,6 +430,7 @@ Section wpr.
     (* We freeze/persist the old authorative resource algebra. *)
     iMod (ghost_map_auth_persist with "allOrders") as "#allOrders".
     iMod (ghost_map_auth_persist with "offsets") as "#oldOffsets".
+    iMod (ghost_map_auth_persist with "globalPView") as "#oldGlobalPView".
     iMod (own_update with "atLocs") as "atLocs".
     { apply auth_update_auth_persist. }
     iDestruct "atLocs" as "#atLocs".
@@ -466,6 +467,10 @@ Section wpr.
 
     iMod (ghost_map_alloc_persistent newOffsets) as
       (new_offset_name) "[offsets #offsetPts]".
+
+    set new_global_pview := (restrict recLocs (view_to_zero CV)).
+    iMod (ghost_map_alloc_persistent new_global_pview) as
+      (new_pview_lb_name) "[globalPView #globalPviewPts]".
 
     set newFullPreds := restrict recLocs predicates_full.
     iMod (know_predicates_alloc newFullPreds) as
@@ -507,8 +512,6 @@ Section wpr.
         (drop_all_above newOffsets phys_hists).
     iMod (auth_map_map_alloc (A := leibnizO _) newPhysHists)
       as (new_phys_hist_name) "[newPhysHists #newPhysHistFrag]".
-    set new_global_pview :=
-      (λ _: max_nat, MaxNat 0) <$> global_pview.
 
     (* We show a few results that will be useful below. *)
     iAssert (
@@ -585,6 +588,7 @@ Section wpr.
       exclusive_locs_name := new_exclusive_locs_name;
       shared_locs_name := new_shared_locs_name;
       bumpers_name := new_bumpers_name;
+      pview_lb_name := new_pview_lb_name;
     |}).
     iExists (NvmDeltaG hGD' hD').
 
@@ -1069,13 +1073,15 @@ Section wpr.
 
     (* GlobalPViewPersisted *)
     iSplit. {
-      iPoseProof (persisted_weak _ (restrict recLocs (view_to_zero CV)) with "[$]") as "$".
+      iPoseProof (persisted_weak _ new_global_pview with "[$]") as "$".
       apply view_le_lookup.
       intros.
       exists t. split; last done.
       by apply restrict_lookup_Some in H0 as [? ?].
     }
 
+    (* GlobalPView *)
+    iSplitL "globalPView"; first iFrame.
     iSplitPure.
     { set_solver. }
     (* [histDomLocs] *)
@@ -1320,7 +1326,7 @@ Section wpr.
       iDestruct (big_sepM2_lookup with "bumperSome") as %map; [done|done|].
 
       rewrite -2!big_sepM2_later_2.
-      pull_left ([∗ map] _↦ _; _ ∈ _; _, ▷ (_ -∗ ⌜ ¬ is_Some _ ⌝ -∗ _))%I.
+      pull_left ([∗ map] _↦ _; _ ∈ _; _, ▷ (_ -∗ ⌜ _ = None ⌝ -∗ _))%I.
       iApply bi.wand_frame_r. {
         iApply (big_sepM_singleton_hold _ _ _ (tCrash));
           [ | | by rewrite lookup_fmap_Some; eexists | done ].
@@ -1470,7 +1476,7 @@ Section wpr.
             - lia.
           }
           assert (msg_persisted_after_view old_pers_msg ⊑ CV). {
-            destruct globalPViewLook as [globalPViewLook | globalPViewLook].
+            destruct globalPViewLook as [globalPViewLook | [? ?]].
             - rewrite map_lookup_zip_with_Some in globalPViewLook.
               destruct globalPViewLook as (? & [?] & ? & ? & globalPViewLook).
               simplify_eq.
@@ -1505,7 +1511,7 @@ Section wpr.
             do ? (rewrite lookup_delete_ne; last done);
             [ apply physHistFullLook | apply absHistFullLook | | by rewrite -Nat.add_1_r lookup_max_msg_succ | ]. {
               apply (le_trans _ old_ts).
-              - destruct globalPViewLook as [globalPViewLook | globalPViewLook].
+              - destruct globalPViewLook as [globalPViewLook | []].
                 + rewrite map_lookup_zip_with_Some in globalPViewLook.
                   destruct globalPViewLook as (x & [] & ? & ? & ?).
                   simplify_eq.
@@ -1521,7 +1527,7 @@ Section wpr.
           set V_read := (v in encoded_predicate_holds _ crash_encS _ (v, _)).
           iAssert (encoded_predicate_holds predRead crash_encS (msg_val read_msg) (V_read, hGD))%I
             with "[readEncAtCrash fullEncAtCrash]" as "readEnc". {
-            destruct (is_Some_dec (physHist !! S tCrash)) as [ HSome | HNone ].
+            destruct (physHist !! S tCrash) eqn:Heqn.
             - iApply "readEncAtCrash".
               done.
             - iDestruct (big_sepM2_lookup with "predFullReadSplit") as "#split"; [ done | done | ].
@@ -1547,7 +1553,7 @@ Section wpr.
             as (P_full' P_pers') "(#eqFull & #eqPers & pred)".
           { assert (old_ts ≤ tCrash). {
               rewrite map_lookup_zip_with_Some in globalPViewLook.
-              destruct globalPViewLook as [globalPViewLook | globalPViewLook].
+              destruct globalPViewLook as [globalPViewLook | []].
               - destruct globalPViewLook as (? & [?] & ? & ? & globalPViewLook).
                 simplify_eq.
                 apply plus_le_compat_l.
@@ -1607,7 +1613,7 @@ Section wpr.
           }
           assert (msg_persisted_after_view old_pers_msg ⊑ CV). {
             rewrite map_lookup_zip_with_Some in globalPViewLook.
-            destruct globalPViewLook as [globalPViewLook | globalPViewLook].
+            destruct globalPViewLook as [globalPViewLook | []].
             - destruct globalPViewLook as (? & [] & ? & ? & GlobalPViewLook).
               simplify_eq.
               eapply consistent_cut_extract; [done | done | | |  ].
