@@ -18,6 +18,8 @@ From self.high Require Import increasing_map.
 From self.nextgen Require Export types omega generational_cmra transmap
   promise nextgen_promises_model gen_ing.
 
+From Coq.Logic Require Import Eqdep. (* Import UIP axiom. *)
+
 Import EqNotations. (* Get the [rew] notation. *)
 Import uPred.
 
@@ -298,8 +300,10 @@ Proof.
   destruct G. destruct genInSelfG_gen. simpl in *.
   destruct cmraEq.
   simpl.
-  (* provable with UIP *)
-Admitted.
+  f_equiv.
+  rewrite (UIP_refl _ _ genInG_gti_typ).
+  done.
+Qed.
 
 Lemma list_picked_out {n : nat} {DS : ivec n cmra}
   `{gs : ∀ (i : fin n), genInSelfG Σ Ω (DS !!! i)}
@@ -391,8 +395,9 @@ Lemma pred_over_rew_id_cmra {Σ} {Ω : gGenCmras Σ} (id2 : fin gc_len) id1
   (rew [λ id : fin gc_len, pred_over (Oc Ω id)] eq2 in p) t.
 Proof.
   destruct eq2. simpl.
-  (* This holds with UIP. *)
-Admitted.
+  rewrite (UIP_refl _ _ eq1).
+  done.
+Qed.
 
 Lemma promises_has_deps_rew {n : nat} {DS : ivec n cmra}
     `{gs : ∀ (i : fin n), genInSelfG Σ Ω (DS !!! i)}
@@ -1358,11 +1363,12 @@ Section rules_with_deps.
     clear -genInG_gti_typ.
     set (C := Oc Ω (gcd_deps_ids !!! i)). rewrite -/C. generalize dependent C.
     destruct genInG_gti_typ.
-    intros ????.
+    intros ??? eq.
     destruct e.
     simpl.
-    (* Provable with UIP *)
-  Admitted.
+    rewrite (UIP_refl _ _ eq).
+    done.
+  Qed.
 
   Lemma own_resource_for_deps_pick_in
       (γs : ivec n gname)
