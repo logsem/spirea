@@ -516,7 +516,9 @@ Definition nvm_heap_ctx `{!nvmBaseG Σ Ω} (σ : mem_config) : iProp Σ :=
 Lemma view_add_lookup_zero V1 V2 ℓ :
   (V1 `view_add` V2) !!0 ℓ = (V1 !!0 ℓ) + (V2 !!0 ℓ).
 Proof.
-Admitted.
+  rewrite /view_add /lookup_zero lookup_merge.
+  destruct (V1 !! ℓ); destruct (V2 !! ℓ); simpl; done.
+Qed.
 
 Lemma slice_of_store_drop_prefix CV OCV full_hist :
   dom OCV ⊆ dom CV →
