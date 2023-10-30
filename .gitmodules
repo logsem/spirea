@@ -1,3 +1,6 @@
 [submodule "external/perennial"]
 	path = external/perennial
 	url = git@github.com:mit-pdos/perennial.git
+[submodule "external/iris-nextgen"]
+	path = external/iris-nextgen
+	url = git@github.com:logsem/iris-nextgen.git

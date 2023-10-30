@@ -192,19 +192,6 @@ Qed.
 Section wpr.
   Context `{nvmG Σ}.
 
-  Definition drop_all_above {A} (offsets : gmap loc nat)
-             (abs_hists : gmap loc (gmap time A)) :=
-    map_zip_with (λ offset h, drop_above offset h) offsets abs_hists.
-
-  Lemma drop_all_above_lookup_Some {A} (offsets : gmap loc nat)
-        (abs_hists : gmap loc (gmap time A)) ℓ h :
-    drop_all_above offsets abs_hists !! ℓ = Some h →
-    ∃ offset hist,
-      h = drop_above offset hist ∧
-      offsets !! ℓ = Some offset ∧
-      abs_hists !! ℓ = Some hist.
-  Proof. apply map_lookup_zip_with_Some. Qed.
-
   (* Computes the new abstract history based on the old history, the crash
   view, and the bumpers. *)
   Definition new_abs_hist (abs_hists : gmap loc (gmap time positive))
@@ -365,66 +352,6 @@ Section wpr.
       as (? & ? & [????] & ? & ? & ? & ? & -> & ?).
     rewrite /atomic_loc_inv.
     naive_solver.
-  Qed.
-
-  Lemma map_zip_with_drop_prefix_fmap (f : message → message) (m : store) (offsets : gmap loc nat) :
-    map_zip_with drop_prefix ((λ hist, f <$> hist) <$> m) offsets =
-      (λ hist, f <$> hist) <$> (map_zip_with drop_prefix m offsets).
-  Proof.
-    rewrite map_zip_with_fmap_1.
-    rewrite map_fmap_zip_with.
-    (* We can't rewrite under the binder with [drop_prefix_fmap] :'( for some
-    reason. So we get rid of the binder. *)
-    apply map_eq. intros i.
-    rewrite !map_lookup_zip_with.
-    destruct (m !! i); destruct (offsets !! i); simpl; try done.
-    rewrite drop_prefix_fmap.
-    done.
-  Qed.
-
-  Lemma slice_of_hist_drop CV (phys_hists : store) (offsets : gmap loc nat) :
-    slice_of_hist CV (map_zip_with drop_prefix phys_hists offsets) =
-    map_zip_with drop_prefix (drop_all_above (offsets_add offsets CV) phys_hists) (offsets_add offsets CV).
-  Proof.
-    apply map_eq. intros ℓ.
-    rewrite /slice_of_hist. rewrite lookup_fmap. rewrite /slice_hist.
-    rewrite map_lookup_zip_with.
-    rewrite map_lookup_zip_with.
-    rewrite map_lookup_zip_with.
-    rewrite /drop_all_above.
-    rewrite map_lookup_zip_with.
-    rewrite /offsets_add.
-    rewrite map_lookup_zip_with.
-
-    destruct (CV !! ℓ);
-      destruct (offsets !! ℓ);
-      destruct (phys_hists !! ℓ); simpl; try reflexivity.
-    f_equiv.
-    destruct m as [t].
-    apply map_eq. intros i.
-    rewrite drop_prefix_lookup.
-    rewrite drop_prefix_lookup.
-
-    destruct (decide (i = 0)) as [->|neq].
-    * rewrite drop_above_lookup_t.
-      rewrite Nat.add_0_l Nat.add_comm.
-      destruct (g !! (n + t)) eqn:look; done.
-    * rewrite drop_above_lookup_gt; last lia.
-      destruct (g !! (t + n)) eqn:look; simpl;
-        rewrite ?lookup_singleton_ne; done.
-  Qed.
-
-  Lemma slice_of_store_drop CV (phys_hists : store) (offsets : gmap loc nat) :
-    slice_of_store CV (map_zip_with drop_prefix phys_hists offsets) =
-      map_zip_with drop_prefix
-              ((λ hist : history, discard_msg_views <$> hist) <$>
-              drop_all_above (offsets_add offsets CV) phys_hists)
-              (offsets_add offsets CV).
-  Proof.
-    rewrite /slice_of_store.
-    rewrite map_zip_with_drop_prefix_fmap.
-    rewrite slice_of_hist_drop.
-    done.
   Qed.
 
   (* Given the state interpretations _before_ a crash we reestablish the

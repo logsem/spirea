@@ -171,6 +171,19 @@ Section consistent_cut.
     by simplify_eq.
   Qed.
 
+  Lemma slice_of_store_drop CV hists (offsets : gmap loc nat) :
+    slice_of_store CV (map_zip_with drop_prefix hists offsets) =
+      map_zip_with drop_prefix
+              ((λ hist : history, discard_msg_views <$> hist) <$>
+              drop_all_above (offsets_add offsets CV) hists)
+              (offsets_add offsets CV).
+  Proof.
+    rewrite /slice_of_store.
+    rewrite map_zip_with_drop_prefix_fmap.
+    rewrite slice_of_hist_drop.
+    done.
+  Qed.
+
 End consistent_cut.
 
 Section memory.
@@ -369,3 +382,38 @@ Definition valid_heap_lub lub (s : store) : Prop :=
   map_Forall (λ _ hist, hist_inv lub hist) s.
 
 Definition valid_heap store : Prop := valid_heap_lub (max_view store) store.
+
+(* Lemmas about [valid_heap]. *)
+Section valid_heap.
+
+  Lemma store_inv_cut store p :
+    consistent_cut p store →
+    valid_heap store → valid_heap (slice_of_store p store).
+  Proof.
+    rewrite /valid_heap /valid_heap_lub.
+    intros cut val.
+    intros ℓ h look'.
+    rewrite /slice_of_store /slice_of_hist map_fmap_zip_with in look'.
+    rewrite map_fmap_zip_with in look'.
+    apply map_lookup_zip_with_Some in look'.
+    destruct look' as ([t] & hist & eq & pLook & ?).
+    eapply map_Forall_lookup_1 in val; last done.
+    destruct val as [hi ho].
+    split.
+    - (* Extract info from consistent cut. *)
+      rewrite /consistent_cut in cut.
+      setoid_rewrite map_Forall_lookup in cut.
+      pose proof (cut ℓ (MaxNat t) pLook) as (? & ? & ? & eq2 & ?).
+      simplify_eq.
+      rewrite eq2.
+      naive_solver.
+    - rewrite eq.
+      destruct (hist !! t);
+        [rewrite map_fmap_singleton|rewrite fmap_empty];
+        simpl; last apply map_Forall_empty.
+      simplify_eq.
+      apply map_Forall_singleton.
+      apply view_empty_least.
+  Qed.
+
+End valid_heap.

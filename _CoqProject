@@ -13,6 +13,7 @@
 # Iris-disabled warnings
 -arg -w -arg -notation-overridden,-redundant-canonical-projection,-deprecated-typeclasses-transparency-without-locality
 
+-Q external/iris-nextgen nextgen
 # Included to ensure that Perennial can find what it is looking for
 # This section should be kept up to date with what Perennial has in their _CoqProject
 -Q external/perennial/external/stdpp/stdpp stdpp

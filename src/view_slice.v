@@ -297,3 +297,69 @@ Proof.
     destruct temp as [? look].
     eexists _. rewrite drop_prefix_lookup. rewrite (comm Nat.add). done.
 Qed.
+
+Definition drop_all_above {A} (offsets : gmap loc nat)
+           (abs_hists : gmap loc (gmap time A)) :=
+  map_zip_with (λ offset h, drop_above offset h) offsets abs_hists.
+
+Lemma drop_all_above_lookup_Some {A} (offsets : gmap loc nat)
+      (abs_hists : gmap loc (gmap time A)) ℓ h :
+  drop_all_above offsets abs_hists !! ℓ = Some h →
+  ∃ offset hist,
+    h = drop_above offset hist ∧
+    offsets !! ℓ = Some offset ∧
+    abs_hists !! ℓ = Some hist.
+Proof. apply map_lookup_zip_with_Some. Qed.
+
+Section drop_all_above.
+  Context {A : Type}.
+  Implicit Types (hists : gmap loc (gmap time A)).
+
+  Lemma slice_of_hist_drop CV hists (offsets : gmap loc nat) :
+    slice_of_hist CV (map_zip_with drop_prefix hists offsets) =
+    map_zip_with drop_prefix (drop_all_above (offsets_add offsets CV) hists) (offsets_add offsets CV).
+  Proof.
+    apply map_eq. intros ℓ.
+    rewrite /slice_of_hist. rewrite lookup_fmap. rewrite /slice_hist.
+    rewrite map_lookup_zip_with.
+    rewrite map_lookup_zip_with.
+    rewrite map_lookup_zip_with.
+    rewrite /drop_all_above.
+    rewrite map_lookup_zip_with.
+    rewrite /offsets_add.
+    rewrite map_lookup_zip_with.
+
+    destruct (CV !! ℓ);
+      destruct (offsets !! ℓ);
+      destruct (hists !! ℓ); simpl; try reflexivity.
+    f_equiv.
+    destruct m as [t].
+    apply map_eq. intros i.
+    rewrite drop_prefix_lookup.
+    rewrite drop_prefix_lookup.
+
+    destruct (decide (i = 0)) as [->|neq].
+    * rewrite drop_above_lookup_t.
+      rewrite Nat.add_0_l Nat.add_comm.
+      destruct (g !! (n + t)) eqn:look; done.
+    * rewrite drop_above_lookup_gt; last lia.
+      destruct (g !! (t + n)) eqn:look; simpl;
+        rewrite ?lookup_singleton_ne; done.
+  Qed.
+
+  Lemma map_zip_with_drop_prefix_fmap (f : A → A) histss (offsets : gmap loc nat) :
+    map_zip_with drop_prefix ((λ hist, f <$> hist) <$> histss) offsets =
+      (λ hist, f <$> hist) <$> (map_zip_with drop_prefix histss offsets).
+  Proof.
+    rewrite map_zip_with_fmap_1.
+    rewrite map_fmap_zip_with.
+    (* We can't rewrite under the binder with [drop_prefix_fmap] :'( for some
+    reason. So we get rid of the binder. *)
+    apply map_eq. intros i.
+    rewrite !map_lookup_zip_with.
+    destruct (histss !! i); destruct (offsets !! i); simpl; try done.
+    rewrite drop_prefix_fmap.
+    done.
+  Qed.
+
+End drop_all_above.
