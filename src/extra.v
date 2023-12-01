@@ -658,6 +658,22 @@ Section big_sepM2.
     iApply big_sepM2_update; eauto.
   Qed.
 
+  Lemma big_sepM2_split `{!BiAffine PROP}
+    (P: K → A → B → Prop) m1 m2 Φ:
+    (∀ k x1 x2, Decision (P k x1 x2)) →
+    ([∗ map] k ↦ x1; x2 ∈ m1; m2, Φ k x1 x2) ⊢
+    ([∗ map] k ↦ x1; x2 ∈ m1; m2, ⌜ P k x1 x2 ⌝ -∗ Φ k x1 x2) ∗
+    [∗ map] k ↦ x1; x2 ∈ m1; m2, ⌜ ¬ P k x1 x2 ⌝ -∗ Φ k x1 x2.
+  Proof.
+    iIntros.
+    iEval (rewrite -big_sepM2_sep).
+    iApply (big_sepM2_impl with "[$]").
+    iIntros "!> % % % % % ?".
+    destruct (decide (P k x1 x2)).
+    - iSplitR ""; by iIntros (?).
+    - iSplitL ""; by iIntros (?).
+  Qed.
+
   (* Could be upstreamed. *)
   Lemma monPred_at_big_sepM2 {I : biIndex} `{Countable K}
         i (Φ : K → A → B → monPred I PROP) (m1 : gmap K A) (m2 : gmap K B) :
@@ -762,3 +778,16 @@ Proof.
   iDestruct ("wand2" with "[$]") as "[? ?]".
   iFrame.
 Qed.
+
+Tactic Notation "pull_right" uconstr(pat) :=
+  do ? [ rewrite [(pat ∗ _)%I]bi.sep_comm
+       | rewrite [(_ ∗ _ ∗ pat)%I]bi.sep_assoc].
+
+Tactic Notation "pull_left" uconstr(pat) :=
+  do ? [ rewrite [(_ ∗ pat)%I]bi.sep_comm
+       | rewrite -[((pat ∗ _) ∗ _)%I]bi.sep_assoc
+       | rewrite [(_ ∗ pat ∗ _)%I]bi.sep_assoc
+       | rewrite [(▷ (pat ∗ _))%I]bi.later_sep].
+
+Ltac distrib_later :=
+  do ? [ rewrite [(▷ (_ ∗ _))%I]bi.later_sep].

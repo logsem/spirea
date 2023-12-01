@@ -430,7 +430,9 @@ Section wpr.
     (* We freeze/persist the old authorative resource algebra. *)
     iMod (ghost_map_auth_persist with "allOrders") as "#allOrders".
     iMod (ghost_map_auth_persist with "offsets") as "#oldOffsets".
-    iMod (ghost_map_auth_persist with "globalPView") as "#oldGlobalPView".
+    (* iMod (own_update with "globalPView") as "oldGlobalPView". *)
+    (* { apply auth_update_auth_persist. } *)
+    (* iDestruct "oldGlobalPView" as "#oldGlobalPView". *)
     iMod (own_update with "atLocs") as "atLocs".
     { apply auth_update_auth_persist. }
     iDestruct "atLocs" as "#atLocs".
@@ -469,8 +471,10 @@ Section wpr.
       (new_offset_name) "[offsets #offsetPts]".
 
     set new_global_pview := (restrict recLocs (view_to_zero CV)).
-    iMod (ghost_map_alloc_persistent new_global_pview) as
-      (new_pview_lb_name) "[globalPView #globalPviewPts]".
+    iMod (own_alloc (● (new_global_pview: viewUR) ⋅ ◯ _))
+      as (new_pview_lb_name) "[globalPView globalPViewPts]".
+    { apply auth_both_valid. split; first done. apply view_valid. }
+    iDestruct "globalPViewPts" as "#globalPViewPts".
 
     set newFullPreds := restrict recLocs predicates_full.
     iMod (know_predicates_alloc newFullPreds) as
@@ -1080,8 +1084,9 @@ Section wpr.
       by apply restrict_lookup_Some in H0 as [? ?].
     }
 
-    (* GlobalPView *)
-    iSplitL "globalPView"; first iFrame.
+    (* (* GlobalPView *) *)
+    (* iSplitL "globalPView"; first iFrame. *)
+    (* [locDisjoint] *)
     iSplitPure.
     { set_solver. }
     (* [histDomLocs] *)
@@ -1189,23 +1194,12 @@ Section wpr.
       rewrite /newOffsets in offsetLook.
       simplify_eq.
 
-      iIntros "((%predFull & %offset & %predsFullLook & %offsetLook & fullEncs) &
-                (%predRead & %predsReadLook & readEncs) &
+      iIntros "((%predFull & % & %predsFullLook & % & fullEncs) &
+                (%predRead & % & %predsReadLook & % & readEncs) &
                 (%predPers & %old_ts & %old_pers_encS & %old_pers_msg &
                  %predsPersLook & %globalPViewLook & %absHistPersLook &
                  %physHistPersLook & persEnc))".
       simplify_eq.
-
-      Tactic Notation "pull_right" uconstr(pat) :=
-        do ? [ rewrite [(pat ∗ _)%I]bi.sep_comm
-             | rewrite [(_ ∗ _ ∗ pat)%I]bi.sep_assoc].
-      Tactic Notation "pull_left" uconstr(pat) :=
-        do ? [ rewrite [(_ ∗ pat)%I]bi.sep_comm
-             | rewrite -[((pat ∗ _) ∗ _)%I]bi.sep_assoc
-             | rewrite [(_ ∗ pat ∗ _)%I]bi.sep_assoc
-             | rewrite [(▷ (pat ∗ _))%I]bi.later_sep].
-      Ltac distrib_later :=
-        do ? [ rewrite [(▷ (_ ∗ _))%I]bi.later_sep].
 
       distrib_later.
       pull_left (▷ (∃ _ _, ⌜newFullPreds !! _ = _⌝ ∗ _))%I.
@@ -1224,10 +1218,14 @@ Section wpr.
         apply elem_of_dom_2 in cvLook.
         apply elem_of_dom_2 in absHistsLook.
         set_solver+ cvLook absHistsLook. }
+      rewrite bi.later_sep -bi.sep_assoc.
+      iSplitPure; first done.
       (* predsRead *)
-      pull_left (▷ (∃ _, ⌜newReadPreds !! _ = _⌝ ∗ _))%I.
+      pull_left (▷ (∃ _ _, ⌜newReadPreds !! _ = _⌝ ∗ _))%I.
       rewrite bi.later_exist bi.sep_exist_r.
       iExists predRead.
+      rewrite bi.later_exist bi.sep_exist_r.
+      iExists (tCrash).
       iAssert (⌜newReadPreds !! ℓ = Some predRead⌝)%I as "$". {
         iPureIntro.
         rewrite /newReadPreds.
@@ -1235,7 +1233,8 @@ Section wpr.
         apply elem_of_dom_2 in cvLook.
         apply elem_of_dom_2 in absHistsLook.
         set_solver+ cvLook absHistsLook. }
-      (* A direct [iFrame "%"] took too long to finish *)
+      rewrite bi.later_sep -bi.sep_assoc.
+      iSplitPure; first done.
 
       (* predsPers *)
       pull_left (▷ (∃ _ _ _ _, _))%I.
@@ -1279,7 +1278,7 @@ Section wpr.
                       ltac:(done)
                       ltac:(rewrite map_lookup_zip_with_Some;
                             eexists _, _; done)) as [msg [physHistLook _]].
-        rewrite drop_prefix_lookup in physHistLook. rewrite plus_comm in physHistLook.
+        rewrite drop_prefix_lookup in physHistLook. rewrite Nat.add_comm in physHistLook.
         eexists.
         rewrite drop_above_lookup_t.
         done.
@@ -1318,9 +1317,6 @@ Section wpr.
       }
       iSplitPure; first done.
       iSplitPure; first by (rewrite lookup_fmap_Some; eexists).
-
-      pull_left (▷ ⌜ _ ⌝)%I.
-      iSplitPure; first done.
 
       iDestruct (big_sepM2_dom with "fullEncs") as %physEncDomEq.
       iDestruct (big_sepM2_lookup with "bumperSome") as %map; [done|done|].
@@ -1381,7 +1377,7 @@ Section wpr.
 
       (* lookup for read states (at crash timestamp) *)
       assert (is_Some $ physHist !! (tCrash)) as [read_msg physHistReadLook]. {
-        rewrite /tCrash -plus_comm.
+        rewrite /tCrash -Nat.add_comm.
         rewrite -drop_prefix_lookup.
         eapply valid_slice_lookup; [ exact cvSlicesPhysHists | done | ].
         apply map_lookup_zip_with_Some.
@@ -1389,7 +1385,7 @@ Section wpr.
       }
 
       assert (is_Some $ absHist !! (tCrash)) as [crash_encS absHistCrashLook]. {
-        rewrite /tCrash -plus_comm.
+        rewrite /tCrash -Nat.add_comm.
         rewrite -drop_prefix_lookup.
         rewrite -valid_slice_drop_prefix in cvSlicesAbsHists.
         eapply valid_slice_lookup; [ exact cvSlicesAbsHists | done | ].
@@ -1397,19 +1393,29 @@ Section wpr.
         by exists absHist, oldOffset.
       }
 
+      (* We try to allocate all the predicates for the next generation
+       * first, all [read] predicates except for the [tCrash] predicate are still
+       * allocated [read].
+       * second, the pers predicate, the read predicate at [tCrash], and one of the
+       * full predicate after [tCrash] are allocated for the full recovery
+       * third, all full predicates before [tCrash] are reduced to [read] predicates
+       * for the next generation.
+       * *)
+
       (* The crash timestamp is special for read predicates *)
-      rewrite [([∗ map] _ ↦ _; _ ∈ physHist; _,  ⌜ is_Some _ ⌝ -∗ _)%I](big_sepM2_delete _ _ _ tCrash);
-        [ | done | done ].
-      iDestruct "readEncs" as "[readEncAtCrash readEncs]".
+      iPoseProof (big_sepM2_delete with "readEncs") as "[readEncAtCrash readEncs]";
+        [ eassumption | done | ].
+      iPoseProof ((big_sepM2_split (λ t _ _, tCrash ≤ t)) with "fullEncs")
+        as "[fullAfterCrash fullBeforeCrash]".
 
       rewrite [(▷ _ ∗ ▷ _ ∗ _)%I]bi.sep_assoc.
-      iApply (wand_passthrough with "[] [] [baseMap pcRes] [persEnc fullEncs readEncAtCrash] [readEncs]");
+      iApply (wand_passthrough with "[] [] [baseMap pcRes] [persEnc fullAfterCrash readEncAtCrash] [readEncs fullBeforeCrash]");
         [ | | iAccu | iAccu | iAccu ].
       { (* proof for full and pers *)
         iIntros "((persEnc & fullEncs & readEncAtCrash) & baseMap & pcRes)".
-        rewrite [([∗ map] _ ↦ _; _ ∈ physHist; _,  ⌜  _ ≤ _ ⌝ -∗ _)%I](big_sepM2_delete _ _ _ tCrash);
-          [ | done | done ].
-        iDestruct "fullEncs" as "[fullEncAtCrash fullEncs]".
+        iPoseProof ((big_sepM2_delete _ _ _ tCrash) with "fullEncs") as "[fullEncAtCrash fullEncs]";
+          [ done | done | ].
+        iSpecialize ("fullEncAtCrash" with "[//]").
         iDestruct (big_sepM2_lookup with "predFullPostCrash")
           as (pred_read' pred_pers' order) "(% & % & %orderLook & postCrash)";
           [ apply predsFullLook | apply bumpersLook | ].
@@ -1419,6 +1425,7 @@ Section wpr.
         (* case distinction on whether we crashed at the full timestamp *)
         destruct (Nat.eq_dec t_full (tCrash)) as [ Heq | ? ].
         - (* we crash at [t_full] *)
+          iClear "readEncAtCrash fullEncs".
           (* lookup for full predicate *)
           simplify_eq.
           iSpecialize ("fullEncAtCrash" with "[%] [%]");
@@ -1436,9 +1443,9 @@ Section wpr.
           iSpecialize ("postCrash" $! old_pers_encS old_pers_msg.(msg_val)
                         with "[$persEnc]").
           iDestruct "postCrash" as "[postCrash _]".
-          iSpecialize ("postCrash" $! full_encS _ full_msg.(msg_val) with "[$fullEncAtCrash]").
+          iSpecialize ("postCrash" $! full_encS _ full_msg.(msg_val) with "fullEncAtCrash").
           iDestruct ("postCrash" with "[//]") as (P_full P_pers) "(#fullEq & #persEq & pred)".
-          iEval (simpl) in "pred".
+          iSimpl in "pred".
           iDestruct ("pred" $! _ _ bumpers na_views store _
                       with "persImpl baseMap") as "(baseMap & pred)".
           iDestruct ("pred" with "[$pcResPers $pcRes]") as "[H pcRes]".
@@ -1471,7 +1478,7 @@ Section wpr.
               apply map_lookup_zip_with_Some.
               eexists _, _. split_and!; done.
             - apply drop_prefix_lookup_Some_2.
-              rewrite plus_comm.
+              rewrite Nat.add_comm.
               done.
             - lia.
           }
@@ -1485,7 +1492,7 @@ Section wpr.
                 apply map_lookup_zip_with_Some.
                 eexists _, _. split_and!; done.
               + apply drop_prefix_lookup_Some_2.
-                rewrite plus_comm.
+                rewrite Nat.add_comm.
                 done.
               + assert (global_pview ≼ CV) as view_included by (by etrans).
                 rewrite lookup_included in view_included.
@@ -1496,7 +1503,7 @@ Section wpr.
                 apply map_lookup_zip_with_Some.
                 eexists _, _. split_and!; done.
               + apply drop_prefix_lookup_Some_2.
-                rewrite plus_comm.
+                rewrite Nat.add_comm.
                 rewrite [old_ts]plus_n_O in physHistPersLook.
                 done.
               + lia.
@@ -1507,10 +1514,15 @@ Section wpr.
           by apply view_lub_le.
         - (* we crash at some other timestamps, we should use the second rule *)
           (* but first, we need to sort out the proper thread view *)
-          iDestruct (big_sepM2_lookup with "fullEncs [%] [%]") as "fullEnc";
+          iPoseProof (big_sepM2_lookup with "fullEncs [%] [%] [%]") as "fullEnc";
             do ? (rewrite lookup_delete_ne; last done);
-            [ apply physHistFullLook | apply absHistFullLook | | by rewrite -Nat.add_1_r lookup_max_msg_succ | ]. {
-              apply (le_trans _ old_ts).
+            [ apply physHistFullLook |
+              apply absHistFullLook | | |
+              by rewrite -Nat.add_1_r lookup_max_msg_succ | ].
+            { apply max_list_elem_of_le.
+              rewrite elem_of_elements elem_of_dom.
+              by eexists. }
+            { apply (Nat.le_trans _ old_ts).
               - destruct globalPViewLook as [globalPViewLook | []].
                 + rewrite map_lookup_zip_with_Some in globalPViewLook.
                   destruct globalPViewLook as (x & [] & ? & ? & ?).
@@ -1521,15 +1533,15 @@ Section wpr.
               - apply max_list_elem_of_le.
                 apply elem_of_elements.
                 apply elem_of_dom.
-                by exists old_pers_msg.
-            }
+                by exists old_pers_msg. }
           set V_pers := (v in encoded_predicate_holds _ old_pers_encS _ (v, _)).
           set V_read := (v in encoded_predicate_holds _ crash_encS _ (v, _)).
           iAssert (encoded_predicate_holds predRead crash_encS (msg_val read_msg) (V_read, hGD))%I
             with "[readEncAtCrash fullEncAtCrash]" as "readEnc". {
-            destruct (physHist !! S tCrash) eqn:Heqn.
+            assert (oldOffset ≤ tCrash) by lia.
+            destruct (physHist !! S tCrash).
             - iApply "readEncAtCrash".
-              done.
+              iPureIntro; right; done.
             - iDestruct (big_sepM2_lookup with "predFullReadSplit") as "#split"; [ done | done | ].
               iSpecialize ("fullEncAtCrash" with "[%] [//]"); first lia.
               iApply "split".
@@ -1607,7 +1619,7 @@ Section wpr.
               apply map_lookup_zip_with_Some.
               eexists _, _. split_and!; done.
             - apply drop_prefix_lookup_Some_2.
-              rewrite plus_comm.
+              rewrite Nat.add_comm.
               done.
             - lia.
           }
@@ -1621,7 +1633,7 @@ Section wpr.
                 apply map_lookup_zip_with_Some.
                 eexists _, _. split_and!; done.
               + apply drop_prefix_lookup_Some_2.
-                rewrite plus_comm.
+                rewrite Nat.add_comm.
                 done.
               + assert (global_pview ≼ CV) as view_included by (by etrans).
                 rewrite lookup_included in view_included.
@@ -1632,7 +1644,7 @@ Section wpr.
                 apply map_lookup_zip_with_Some.
                 eexists _, _. split_and!; done.
               + apply drop_prefix_lookup_Some_2.
-                rewrite plus_comm.
+                rewrite Nat.add_comm.
                 rewrite [old_ts]plus_n_O in physHistPersLook.
                 done.
               + lia.
@@ -1643,17 +1655,24 @@ Section wpr.
           by apply view_lub_le.
       }
       {
-        iIntros "(readEncs & baseMap & pcRes)".
+        iIntros "([readEncs fullEncs] & baseMap & pcRes)".
         rewrite [([∗ map] _ ↦ _; _ ∈ _; _, ▷ _)%I](big_sepM2_delete _ _ _ tCrash);
         [ | rewrite lookup_fmap_Some; by eexists | done ].
         rewrite [(discard_msg_views <$> _) !! _]lookup_fmap drop_above_lookup_gt; last lia.
         pull_left (▷ _)%I.
         iSplitL "". {
           iIntros "!>" (Hcontra).
-          by apply is_Some_None in Hcontra.
+          destruct Hcontra as [ | Hcontra ]; [ lia | by apply is_Some_None in Hcontra ].
         }
         pull_right ([∗ map] _ ↦ _; _ ∈ _; _, _)%I.
-        iApply (big_sepM2_impl_dom_subseteq_with_resource with "[baseMap pcRes] readEncs").
+
+        (* merge full predicates and read predicates into one single [∗ map] for
+         * the next lemma. *)
+        iPoseProof (big_sepM2_delete _ _ _ tCrash with "fullEncs") as "[_ fullEncs]";
+          [ done | done | ].
+        iPoseProof (big_sepM2_sep_2 with "readEncs fullEncs") as "encs".
+
+        iApply (big_sepM2_impl_dom_subseteq_with_resource with "[baseMap pcRes] encs").
         {
           rewrite 2!dom_delete.
           rewrite dom_fmap_L.
@@ -1671,64 +1690,71 @@ Section wpr.
         { iFrame. }
         iIntros "!>" (t msg oldS ? newS physHistLook absHistLook).
         assert (tCrash ≠ t) by (by apply lookup_delete_Some in physHistLook as [? _]).
-        rewrite 2!(lookup_delete_ne _ tCrash t ltac:(done)).
+        rewrite ?(lookup_delete_ne _ tCrash t ltac:(done)).
         rewrite lookup_delete_ne in physHistLook; last done.
         rewrite lookup_delete_ne in absHistLook; last done.
         iIntros ((? & <- & look)%lookup_fmap_Some bumperLook).
         apply map_filter_lookup_Some in look as [??].
         apply lookup_omap_Some in bumperLook as (? & ? & (? & ?)%map_filter_lookup_Some).
         simplify_eq.
-        iIntros "[baseMap pcRes] predReadHolds".
+        iIntros "[baseMap pcRes] [predReadHolds predFullHolds]".
+        iSpecialize ("predFullHolds" with "[%]"); first lia.
         pull_left (▷ _)%I.
-        destruct (is_Some_dec (physHist !! S t)) as [HSome | HNone].
-        - iSpecialize ("predReadHolds" with "[//]").
-          (* It's time to lookup the postcrash invariant *)
-          iDestruct (big_sepM2_lookup with "predReadPostCrash [//] [$predReadHolds]")
-            as (?P) "[#predEq pred]"; [apply predsReadLook | apply bumpersLook | ].
-          iEval (simpl) in "pred".
-          iDestruct ("pred" $! _ _ bumpers na_views store _
+        iAssert (encoded_predicate_holds predRead oldS (msg_val msg)
+                   (default (msg_store_view msg) (na_views !! ℓ),
+                      msg_persisted_after_view msg, ∅, hGD))%I
+          with "[predReadHolds predFullHolds]" as "predReadHolds". {
+          destruct (decide (oldOffset ≤ t ∧ physHist !! S t = None)) as [ [] | yes ].
+          - iSpecialize ("predFullHolds" with "[//] [//]").
+            iPoseProof (big_sepM2_lookup with "predFullReadSplit predFullHolds") as "split";
+              [ done | done | ].
+            iFrame.
+          - iApply ("predReadHolds" with "[%]").
+            apply not_and_l in yes as [ | ].
+            + left. lia.
+            + right. by destruct (physHist !! S t) eqn:Heqn.
+        }
+        (* It's time to lookup the postcrash invariant *)
+        iDestruct (big_sepM2_lookup with "predReadPostCrash [//] [$predReadHolds]")
+          as (?P) "[#predEq pred]"; [apply predsReadLook | apply bumpersLook | ].
+        iEval (simpl) in "pred".
+        iDestruct ("pred" $! _ _ bumpers na_views store _
                     with "persImpl baseMap") as "(baseMap & pred)".
-          iDestruct ("pred" with "[$pcResPers $pcRes]") as "[H pcRes]".
-          iFrame.
-          iIntros "!>" (_).
-          iExists _.
-          iFrame "#".
-          iEval (simpl).
-          assert (default ∅ (newNaViews !! ℓ) = ∅) as ->. {
-            rewrite /newNaViews.
-            destruct (gset_to_gmap ∅ newNaLocs !! ℓ) eqn:eq.
-            - apply lookup_gset_to_gmap_Some in eq as [_ ->]. done.
-            - done.
-          }
-          iApply ("H" $! CV).
-          iSimpl.
-          iFrame "newCrashedAt".
-          iDestruct (big_sepM2_lookup with "oldViewsDiscarded") as %disc; [done | done | ].
-          assert (msg_persisted_after_view msg ⊑ CV). {
-            assert (t < oldOffset ∨ oldOffset ≤ t) as [? | le] by lia.
-            { eassert _ as eq by (by eapply disc).
-              rewrite -eq.
-              apply view_empty_least. }
-            apply Nat.le_exists_sub in le as (tt & eq & ?).
-            eapply consistent_cut_extract; [done | done | | |  ].
-            - eapply lookup_weaken; last done.
-              apply map_lookup_zip_with_Some.
-              eexists _, _. split_and!; done.
-            - apply drop_prefix_lookup_Some_2.
-              erewrite <- eq.
-              done.
-            - lia.
-          }
-          iSplitPure; first done.
-          iApply (persisted_weak with "pers").
-          f_equiv.
-          done.
-        - iFrame.
-          rewrite lookup_fmap.
-          rewrite -eq_None_not_Some in HNone.
-          rewrite [drop_above _ _ !! _]map_filter_lookup_None_2; last by left.
-          iIntros "!>" (Hcontra).
-          by apply is_Some_None in Hcontra.
+        iDestruct ("pred" with "[$pcResPers $pcRes]") as "[H pcRes]".
+        iFrame.
+        iIntros "!>" (_).
+        iExists _.
+        iFrame "#".
+        iEval (simpl).
+        assert (default ∅ (newNaViews !! ℓ) = ∅) as ->. {
+          rewrite /newNaViews.
+          destruct (gset_to_gmap ∅ newNaLocs !! ℓ) eqn:eq.
+          - apply lookup_gset_to_gmap_Some in eq as [_ ->]. done.
+          - done.
+        }
+        iApply ("H" $! CV).
+        iSimpl.
+        iFrame "newCrashedAt".
+        iDestruct (big_sepM2_lookup with "oldViewsDiscarded") as %disc; [done | done | ].
+        assert (msg_persisted_after_view msg ⊑ CV). {
+          assert (t < oldOffset ∨ oldOffset ≤ t) as [? | le] by lia.
+          { eassert _ as eq by (by eapply disc).
+            rewrite -eq.
+            apply view_empty_least. }
+          apply Nat.le_exists_sub in le as (tt & eq & ?).
+          eapply consistent_cut_extract; [done | done | | |  ].
+          - eapply lookup_weaken; last done.
+            apply map_lookup_zip_with_Some.
+            eexists _, _. split_and!; done.
+          - apply drop_prefix_lookup_Some_2.
+            erewrite <- eq.
+            done.
+          - lia.
+        }
+        iSplitPure; first done.
+        iApply (persisted_weak with "pers").
+        f_equiv.
+        done.
       }
     }
     (* [bumpMono] - Show that the bumpers are still monotone. *)

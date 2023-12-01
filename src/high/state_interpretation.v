@@ -120,7 +120,7 @@ Section state_interpretation.
       "#globalPViewPersisted" ∷ persisted global_pview ∗
 
       (* the authoritative resource exposes to the program logic *)
-      "globalPView" ∷ ghost_map_auth pview_lb_name (DfracOwn 1) global_pview ∗
+      (* "globalPView" ∷ own pview_lb_name (● global_pview) ∗ *)
 
       (* Seperation of locations. *)
       "%locsDisjoint" ∷ ⌜ na_locs ## at_locs ⌝ ∗
@@ -150,7 +150,7 @@ Section state_interpretation.
         ([∗ map] ℓ ↦ phys_hist;abs_hist ∈ phys_hists;abs_hists,
           ∃ pred offset,
             ⌜predicates_full !! ℓ = Some pred⌝ ∗
-            ⌜ offsets !! ℓ = Some $ offset ⌝ ∗
+            ⌜ offsets !! ℓ = Some offset ⌝ ∗
             (* The predicate holds for "exclusive-write" message in the history. *)
             ([∗ map] t ↦ msg; encS ∈ phys_hist; abs_hist,
                ⌜ offset ≤ t ⌝ -∗
@@ -164,11 +164,12 @@ Section state_interpretation.
 
       "predsReadHold" ∷
         ([∗ map] ℓ ↦ phys_hist;abs_hist ∈ phys_hists;abs_hists,
-          ∃ pred,
+          ∃ pred offset,
             ⌜predicates_read !! ℓ = Some pred⌝ ∗
+            ⌜ offsets !! ℓ = Some offset ⌝ ∗
             (* The predicate holds for each message in the history. *)
             ([∗ map] t ↦ msg; encS ∈ phys_hist; abs_hist,
-               ⌜ is_Some $ phys_hist !! (S t) ⌝ -∗
+               ⌜ offset > t ∨ is_Some $ phys_hist !! (S t) ⌝ -∗
                encoded_predicate_holds
                  pred
                  encS

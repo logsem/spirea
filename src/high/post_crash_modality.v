@@ -18,7 +18,7 @@ Notation base_post_crash := post_crash_modality.post_crash.
 
 (** We define the post crash modality. *)
 
-(* The three implications for the things stored for a protocolt. *)
+(* The three implications for the things stored for a protocol. *)
 Definition post_crash_full_pred_impl `{nvmG Σ} (nD nD' : nvmDeltaG) : iProp Σ :=
   □ ∀ ST (_ : EqDecision ST) (_ : Countable ST) ℓ (ϕ : ST → val → dProp Σ),
     know_full_pred (hGD := nD) ℓ ϕ -∗
@@ -62,6 +62,11 @@ Definition offsets_impl `{nvmG Σ}
            (nD nD' : nvmDeltaG) : iProp Σ :=
   □ ∀ ℓ t, ℓ ↪[get_offset_name nD]□ t -∗
     or_lost_post_crash ℓ (λ tC, ℓ ↪[get_offset_name nD']□ (t + tC)).
+
+(* Definition pview_lb_impl `{nvmG Σ} *)
+(*            (nD nD' : nvmDeltaG) : iProp Σ := *)
+(*   □ ∀ ℓ t, own (get_pview_lb_name nD) (◯ {[ ℓ := MaxNat t ]}) -∗ *)
+(*     or_lost_post_crash_no_t ℓ (own (get_pview_lb_name nD') (◯ {[ ℓ := MaxNat 0 ]})). *)
 
 (* We don't have a post crash rule for the physical history anymore, instead one
 gets the physical history knowledge from knowing the full abstract history. *)
