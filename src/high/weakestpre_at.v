@@ -2011,17 +2011,19 @@ Section wp_at_rules.
   Lemma wp_cmpxchg_at Q1 Q2 Q3 ℓ prot `{!ProtocolConditions prot} ss s_i (v_i : val) v_t R s_t st E :
     {{{
       ℓ ↦_AT^{prot} (ss ++ [s_i]) ∗
-      (∀ s_l v_l s_p v_p, ⌜ s_i ⊑ s_l ⌝ -∗
+      (∀ s_l v_l s_p v_p, ∃ P, ⌜ s_i ⊑ s_l ⌝ -∗
         ((▷ prot.(p_read) s_l v_l) -∗ ⌜ vals_compare_safe v_i v_l ⌝) ∗
-        (((* in case of success *)
+        (( (* in case of success *)
           (* The state we write fits in the history. *)
           ⌜ s_l ⊑ s_t ⌝ ∗
           (∀ s_n v_n, ⌜ s_l ⊑ s_n ⌝ -∗ prot.(p_full) s_l v_l -∗
             prot.(p_read) s_n v_n -∗ ⌜ s_t ⊑ s_n ⌝) ∗
+          (* Extract the objective knowledge from [p_pers] *)
+          (<obj> (prot.(p_pers) s_p v_p -∗ <obj> P ∗ (P -∗ prot.(p_pers) s_p v_p))) ∗
           (* Extract from the location we load. *)
-          (<obj> (prot.(p_full) s_l v_l ∗ prot.(p_pers) s_p v_p -∗ prot.(p_read) s_l v_l ∗ R s_l)) ∗
+          (<obj> (prot.(p_full) s_l v_l ∗ P -∗ prot.(p_read) s_l v_l ∗ R s_l)) ∗
           (* Establish the invariant for the value we store. *)
-          (R s_l -∗ prot.(p_full) s_t v_t ∗ prot.(p_pers) s_p v_p ∗ Q1 s_l))
+          (R s_l ==∗ prot.(p_full) s_t v_t ∗ <obj> P ∗ Q1 s_l))
         ∧ (* in case of failure *)
           ((<obj> (prot.(p_full) s_l v_l -∗ prot.(p_full) s_l v_l ∗ Q2 s_l)) ∗ Q3)
         ))
@@ -2077,7 +2079,8 @@ Section wp_at_rules.
       eassert _ as  temp. { eapply read_atomic_location; done. }
       destruct temp as (s_l & encSL & ? & ? & ? & <- & orderRelated).
 
-      iDestruct ("impl" $! _ vM _ _ orderRelated) as "(safe & _)".
+      iDestruct ("impl" $! _ vM _ _) as (?) "impl".
+      iDestruct ("impl" $! orderRelated) as "(safe & _)".
       iEval (monPred_simpl) in "safe".
       iEval (setoid_rewrite monPred_at_pure) in "safe".
       simpl.
@@ -2144,8 +2147,9 @@ Section wp_at_rules.
       iDestruct (predicate_holds_phi_decode with "predPersEquiv predP") as "PP";
         first done.
 
-      iDestruct ("impl" $! _ _ SP (msg_val msgP) orderRelated) as "[hi [(%above & below & impl1 & impl2) _]]".
-      rewrite monPred_at_objectively.
+      iDestruct ("impl" $! _ _ SP (msg_val msgP)) as (P_pers_obj) "impl".
+      iDestruct ("impl" $! orderRelated) as "[hi [(%above & below & p_pers_obj & impl1 & impl2) _]]".
+      rewrite ?monPred_at_objectively.
 
       iAssert (
         ⌜increasing_map (encode_relation sqsubseteq) (<[(t_l + offset + 1)%nat := encode s_t]> absHist)⌝
@@ -2199,29 +2203,34 @@ Section wp_at_rules.
           solve_view_le. } }
 
       set L_view := (SVm, _, _).
-      iDestruct ("impl1" $! (L_view, gnames) with "[PL PP]") as "[PL R]".
+
+      (* we extract the objective fraction from [p_pers] *)
+      iDestruct ("p_pers_obj" with "PP") as "[PPObj PP]".
+      rewrite monPred_at_objectively.
+
+      iDestruct ("impl1" $! (L_view, gnames) with "[PL PPObj]") as "[PL R]".
       { iSplitL "PL".
         - iApply (monPred_mono with "[$]").
           split; last done.
           solve_view_le.
-        - iApply (monPred_mono with "[$]").
-          split; last done.
-          (* I'm not 100% confident, but I'm pretty sure this is not provable:
-           * there is no proof that the persistent timestamp maps to a message view smaller than
-           * the full timestamp, with the concurrent max writes in mind *)
-          admit.
+        - iApply "PPObj".
       }
 
       iEval (monPred_simpl) in "impl2".
-      iDestruct ("impl2" $! (L_view ⊔ TV, gnames) with "[] [R]") as "(HI & HP & Q)".
+      iDestruct ("impl2" $! (L_view ⊔ TV, gnames) with "[] [R]") as "> (HI & HPObj & Q)".
       { iPureIntro. split; last done. apply thread_view_le_r. }
       { iApply monPred_mono; last iApply "R". split; last done. apply thread_view_le_l. }
+
+      (* we recover [P_pers] from the objective fragment *)
+      iEval (rewrite monPred_at_wand) in "PP".
+      iEval (rewrite monPred_at_objectively) in "HPObj".
+      iSpecialize ("PP" with "[//] HPObj").
 
       rewrite drop_prefix_insert.
       assert (t_l + 1 + offset = t_l + offset + 1) as eq by lia.
       rewrite eq in H3. rewrite eq.
       iMod ("reins" $! (t_l + offset + 1) s_t
-        with "[%] [//] [//] [] [] physHists [predFullMap predReadHolds PL HI] [HP] fullHist [//] pts")
+        with "[%] [//] [//] [] [] physHists [predFullMap predReadHolds PL HI] [PP] fullHist [//] pts")
           as "(#frag & #physHistFrag & $)".
       { lia. }
       { iPureIntro. simpl. rewrite lookup_zero_insert. lia. }
@@ -2289,8 +2298,12 @@ Section wp_at_rules.
         rewrite lookup_insert_ne; last lia.
         done.
       }
-      { (* we have a similar proble here: when we applied "impl2", we bumped [p_pers] to current thread view *)
-        admit. }
+      { rewrite /encoded_pers_predicate_hold.
+        iExists encSP, msgP.
+        assert (tP ≠ t_l + offset + 1) by by simplify_map_eq.
+        do 2 (rewrite lookup_insert_ne; last done).
+        iFrame "%".
+        by iApply (predicate_holds_phi_decode_2 with "[//] PP"). }
       iModIntro.
 
       iSplitPure. { solve_view_le. }
@@ -2389,8 +2402,9 @@ Section wp_at_rules.
       iDestruct (predicate_holds_phi_decode with "predFullEquiv predFullHolds") as "PH";
         first done.
 
-      iDestruct ("impl" $! _ _ _ _ orderRelated) as "[HI [_ [impl Q3]]]".
-      rewrite monPred_at_objectively.
+      iDestruct ("impl" $! _ _ _ _) as (?) "impl".
+      iDestruct ("impl" $! orderRelated) as "[HI [_ [impl Q3]]]".
+      iEval (rewrite monPred_at_objectively) in "impl".
       iSpecialize ("impl" $! (∅, ∅, ∅)).
       iEval (monPred_simpl) in "impl".
       iDestruct ("impl" $! _ with "[%] PH") as "[PH Q2]".
@@ -2450,7 +2464,10 @@ Section wp_at_rules.
         rewrite assoc. apply view_le_r. }
       { split; last done.
         etrans; first done. etrans; first done. repeat split; auto using view_le_l. }
-  Admitted.
+      (* these shelved goals seem to be [s_p] and [v_p] for the safe comparison and failure case
+       * it's probably better to rewrite the quantifiers, but not an important problem *)
+      Unshelve. all: done.
+  Qed.
 
   (** [Q1] is the resource we want to extract in case of success and and [Q2] is
   the resource we want to extract in case of failure. *)
