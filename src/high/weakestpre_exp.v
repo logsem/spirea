@@ -510,3 +510,4 @@ Section wp_rules.
     repeat (iSplit; first iAssumption).
     done.
   Qed.
+End wp_rules.

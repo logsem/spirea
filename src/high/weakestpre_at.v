@@ -1122,6 +1122,7 @@ Section wp_at_rules.
     iAssert (⌜ phys_hist ⊆ physHist ⌝)%I as %sub.
     { rewrite map_subseteq_spec.
       iIntros (?? physHistLook).
+
       iDestruct (big_sepM_lookup with "physHist") as "[hi frag]"; first done.
       iDestruct (auth_map_map_auth_frag with "physHists frag") as %(physHist' & ? & ?).
       assert (physHist = physHist') as <-.
@@ -2014,18 +2015,19 @@ Section wp_at_rules.
       (∀ s_l v_l s_p v_p, ∃ P, ⌜ s_i ⊑ s_l ⌝ -∗
         ((▷ prot.(p_read) s_l v_l) -∗ ⌜ vals_compare_safe v_i v_l ⌝) ∗
         (( (* in case of success *)
-          (* The state we write fits in the history. *)
-          ⌜ s_l ⊑ s_t ⌝ ∗
-          (∀ s_n v_n, ⌜ s_l ⊑ s_n ⌝ -∗ prot.(p_full) s_l v_l -∗
-            prot.(p_read) s_n v_n -∗ ⌜ s_t ⊑ s_n ⌝) ∗
-          (* Extract the objective knowledge from [p_pers] *)
-          (<obj> (prot.(p_pers) s_p v_p -∗ <obj> P ∗ (P -∗ prot.(p_pers) s_p v_p))) ∗
-          (* Extract from the location we load. *)
-          (<obj> (prot.(p_full) s_l v_l ∗ P -∗ prot.(p_read) s_l v_l ∗ R s_l)) ∗
-          (* Establish the invariant for the value we store. *)
-          (R s_l ==∗ prot.(p_full) s_t v_t ∗ <obj> P ∗ Q1 s_l))
-        ∧ (* in case of failure *)
-          ((<obj> (prot.(p_full) s_l v_l -∗ prot.(p_full) s_l v_l ∗ Q2 s_l)) ∗ Q3)
+            ⌜ v_l = v_i ⌝ -∗
+            (* The state we write fits in the history. *)
+            (<obj> (prot.(p_full) s_l v_l -∗ ⌜ s_l ⊑ s_t ⌝)) ∗
+            (∀ s_n v_n, ⌜ s_l ⊑ s_n ⌝ -∗ prot.(p_full) s_l v_l -∗
+                        prot.(p_read) s_n v_n -∗ ⌜ s_t ⊑ s_n ⌝) ∗
+            (* Extract the objective knowledge from [p_pers] *)
+            (<obj> (prot.(p_pers) s_p v_p -∗ <obj> P ∗ (P -∗ prot.(p_pers) s_p v_p))) ∗
+            (* Extract from the location we load. *)
+            (<obj> (prot.(p_full) s_l v_l ∗ P -∗ prot.(p_read) s_l v_l ∗ R s_l)) ∗
+            (* Establish the invariant for the value we store. *)
+            (R s_l ==∗ prot.(p_full) s_t v_t ∗ <obj> P ∗ Q1 s_l))
+         ∧ (* in case of failure *)
+           ((<obj> (prot.(p_full) s_l v_l -∗ prot.(p_full) s_l v_l ∗ Q2 s_l)) ∗ Q3)
         ))
     }}}
       CmpXchg #ℓ v_i v_t @ st; E
@@ -2148,7 +2150,10 @@ Section wp_at_rules.
         first done.
 
       iDestruct ("impl" $! _ _ SP (msg_val msgP)) as (P_pers_obj) "impl".
-      iDestruct ("impl" $! orderRelated) as "[hi [(%above & below & p_pers_obj & impl1 & impl2) _]]".
+      iDestruct ("impl" $! orderRelated) as "[hi [impl _]]".
+      iDestruct ("impl" with "[//]") as "(above & below & p_pers_obj & impl1 & impl2)".
+      iEval (rewrite monPred_at_objectively) in "above".
+      iDestruct ("above" with "[$]") as "%above".
       rewrite ?monPred_at_objectively.
 
       iAssert (
@@ -2469,43 +2474,43 @@ Section wp_at_rules.
       Unshelve. all: done.
   Qed.
 
-  (** [Q1] is the resource we want to extract in case of success and and [Q2] is
-  the resource we want to extract in case of failure. *)
-  Lemma wp_cas_at Q1 Q2 Q3 ℓ prot `{!ProtocolConditions prot} ss s_i
-      (v_i v_t : val) R s_t st E :
-    {{{
-      ℓ ↦_AT^{prot} (ss ++ [s_i]) ∗
-      (∀ s_l v_l, ⌜ s_i ⊑ s_l ⌝ -∗
-        ((▷ prot.(p_inv) s_l v_l) -∗ ⌜ vals_compare_safe v_i v_l ⌝) ∗
-        (((* in case of success *)
-          (* The state we write fits in the history. *)
-          ⌜ s_l ⊑ s_t ⌝ ∗
-          (∀ s_n v_n, ⌜ s_l ⊑ s_n ⌝ -∗ prot.(p_inv) s_l v_l -∗
-            prot.(p_inv) s_n v_n -∗ ⌜ s_t ⊑ s_n ⌝) ∗
-          (* Extract from the location we load. *)
-          (<obj> (prot.(p_inv) s_l v_l -∗ prot.(p_inv) s_l v_l ∗ R s_l)) ∗
-          (* Establish the invariant for the value we store. *)
-          (R s_l -∗ prot.(p_inv) s_t v_t ∗ Q1 s_l))
-        ∧ (* in case of failure *)
-          ((<obj> (prot.(p_inv) s_l v_l -∗ prot.(p_inv) s_l v_l ∗ Q2 s_l)) ∗ Q3)
-        ))
-    }}}
-      CAS #ℓ v_i v_t @ st; E
-    {{{ b s_l, RET #b;
-      (⌜ b = true ⌝ ∗ <fence> Q1 s_l ∗ ℓ ↦_AT^{prot} ((ss ++ [s_i]) ++ [s_t])) ∨
-      (⌜ b = false ⌝ ∗ ⌜ s_i ⊑ s_l ⌝ ∗ ℓ ↦_AT^{prot} (ss ++ [s_i]) ∗ <fence> (Q2 s_l) ∗ Q3)
-    }}}.
-  Proof.
-    intros Φ.
-    iIntros "H Φpost".
-    iApply (wp_bind ([SndCtx])).
-    iApply (wp_cmpxchg_at with "H").
-    iIntros "!>" (v b s_l) "disj /=".
-    iApply wp_pure_step_later; first done.
-    iNext.
-    iApply wp_value.
-    iApply "Φpost".
-    iApply "disj".
-  Qed.
+  (* (** [Q1] is the resource we want to extract in case of success and and [Q2] is *)
+  (* the resource we want to extract in case of failure. *) *)
+  (* Lemma wp_cas_at Q1 Q2 Q3 ℓ prot `{!ProtocolConditions prot} ss s_i *)
+  (*     (v_i v_t : val) R s_t st E : *)
+  (*   {{{ *)
+  (*     ℓ ↦_AT^{prot} (ss ++ [s_i]) ∗ *)
+  (*     (∀ s_l v_l, ⌜ s_i ⊑ s_l ⌝ -∗ *)
+  (*       ((▷ prot.(p_inv) s_l v_l) -∗ ⌜ vals_compare_safe v_i v_l ⌝) ∗ *)
+  (*       (((* in case of success *) *)
+  (*         (* The state we write fits in the history. *) *)
+  (*         ⌜ s_l ⊑ s_t ⌝ ∗ *)
+  (*         (∀ s_n v_n, ⌜ s_l ⊑ s_n ⌝ -∗ prot.(p_inv) s_l v_l -∗ *)
+  (*           prot.(p_inv) s_n v_n -∗ ⌜ s_t ⊑ s_n ⌝) ∗ *)
+  (*         (* Extract from the location we load. *) *)
+  (*         (<obj> (prot.(p_inv) s_l v_l -∗ prot.(p_inv) s_l v_l ∗ R s_l)) ∗ *)
+  (*         (* Establish the invariant for the value we store. *) *)
+  (*         (R s_l -∗ prot.(p_inv) s_t v_t ∗ Q1 s_l)) *)
+  (*       ∧ (* in case of failure *) *)
+  (*         ((<obj> (prot.(p_inv) s_l v_l -∗ prot.(p_inv) s_l v_l ∗ Q2 s_l)) ∗ Q3) *)
+  (*       )) *)
+  (*   }}} *)
+  (*     CAS #ℓ v_i v_t @ st; E *)
+  (*   {{{ b s_l, RET #b; *)
+  (*     (⌜ b = true ⌝ ∗ <fence> Q1 s_l ∗ ℓ ↦_AT^{prot} ((ss ++ [s_i]) ++ [s_t])) ∨ *)
+  (*     (⌜ b = false ⌝ ∗ ⌜ s_i ⊑ s_l ⌝ ∗ ℓ ↦_AT^{prot} (ss ++ [s_i]) ∗ <fence> (Q2 s_l) ∗ Q3) *)
+  (*   }}}. *)
+  (* Proof. *)
+  (*   intros Φ. *)
+  (*   iIntros "H Φpost". *)
+  (*   iApply (wp_bind ([SndCtx])). *)
+  (*   iApply (wp_cmpxchg_at with "H"). *)
+  (*   iIntros "!>" (v b s_l) "disj /=". *)
+  (*   iApply wp_pure_step_later; first done. *)
+  (*   iNext. *)
+  (*   iApply wp_value. *)
+  (*   iApply "Φpost". *)
+  (*   iApply "disj". *)
+  (* Qed. *)
 
 End wp_at_rules.
