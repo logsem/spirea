@@ -2019,7 +2019,10 @@ Section wp_at_rules.
             (* The state we write fits in the history. *)
             (<obj> (prot.(p_full) s_l v_l -∗ ⌜ s_l ⊑ s_t ⌝)) ∗
             (∀ s_n v_n, ⌜ s_l ⊑ s_n ⌝ -∗ prot.(p_full) s_l v_l -∗
-                        prot.(p_read) s_n v_n -∗ ⌜ s_t ⊑ s_n ⌝) ∗
+                        prot.(p_full) s_n v_n ∨
+                        (prot.(p_read) s_n v_n ∧
+                        ∃ s_n' v_n', ⌜ s_n ⊑ s_n' ⌝ ∗ prot.(p_full) s_n' v_n') -∗
+                        ⌜ s_t ⊑ s_n ⌝) ∗
             (* Extract the objective knowledge from [p_pers] *)
             (<obj> (prot.(p_pers) s_p v_p -∗ <obj> P ∗ (P -∗ prot.(p_pers) s_p v_p))) ∗
             (* Extract from the location we load. *)
@@ -2165,7 +2168,8 @@ Section wp_at_rules.
             (increasing_map_insert_succ _ _ _ _ (encode s_t) increasing
                                           absHistLook).
           eapply encode_relation_decode_iff; eauto using decode_encode. }
-        iIntros (t_c e_c ? ?).
+        iIntros (t_c e_c a ?).
+        assert (offset < t_c) by lia.
 
         assert (is_Some (physHist !! t_c)) as [[v_c cSV cFV ?] look2].
         { rewrite -elem_of_dom domEq elem_of_dom. done. }
@@ -2176,37 +2180,91 @@ Section wp_at_rules.
         rewrite /encode_relation. rewrite decode_encode. rewrite decodeS'.
         simpl.
 
-        iAssert (p_read prot s_c v_c (cSV, msg_persisted_after_view, ∅, gnames))%I
-          with "[predReadHolds predFullMap]" as "predC". {
-          destruct (decide (offset ≤ t_c ∧ physHist !! S t_c = None)) as [[] | no ].
-          - iDestruct (big_sepM2_delete with "predFullMap") as "[predC _]".
-            { rewrite lookup_delete_ne; [apply look2 | lia]. }
-            { rewrite lookup_delete_ne; [apply a | lia]. }
-            iSpecialize ("predC" with "[//] [//]").
-            iSpecialize ("predFullReadSplit" with "predC").
-            simpl.
-            iDestruct (predicate_holds_phi_decode with "predReadEquiv predFullReadSplit") as "$";
-              first done.
-          - iDestruct (big_sepM2_lookup with "predReadHolds") as "predC"; [ done | done | ].
-            rewrite not_and_l in no.
-            iSpecialize ("predC" with "[%]");
-              first (destruct no; [ left; lia | right; by destruct (physHist !! S t_c) ]).
-            iDestruct (predicate_holds_phi_decode with "predReadEquiv predC") as "$";
-              first done.
-        }
-
         iSpecialize ("below" $! s_c v_c orderRelated2).
         iEval (monPred_simpl) in "below".
-        iApply ("below" $! ((TV ⊔ (SVm, FVm, ∅) ⊔ (_, _, _)), _) with "[%] [PL] [predC]").
-        { rewrite -assoc. split; last done. apply thread_view_le_l. }
-        2: { iApply monPred_mono; last iApply "predC".
-             split; last done. apply thread_view_le_r. }
-        { iApply monPred_mono; last iApply "PL".
-          destruct TV as [[??]?].
-          rewrite thread_view_lub.
-          split; last done.
-          solve_view_le. } }
-
+        (* we need to justify precondition for the "below" clause,
+         * and we need to distinguish whether [t_c] is the max timestamp.
+         * but first, we extract the full predicate at max timestamp for both cases. *)
+        set t_max := (max_msg physHist).
+        assert (t_c ≤ t_max) by (apply max_list_elem_of_le, elem_of_elements, elem_of_dom; done).
+        assert (is_Some (physHist !! t_max)) as [[v_max maxSV maxFV ?] look_max]. {
+          apply elem_of_dom.
+          rewrite /max_msg.
+          apply elem_of_elements.
+          apply max_list_elem_of.
+          assert (t_c ∈ dom physHist) by (apply elem_of_dom; done).
+          rewrite elements_empty_iff.
+          set_solver.
+        }
+        assert (is_Some (absHist !! t_max)) as [e_max look_max'].
+        { rewrite -elem_of_dom -domEq elem_of_dom. done. }
+        eassert _ as  temp. { eapply (read_atomic_location_no_inv t_c t_max); try done || lia. }
+        destruct temp as (s_max & encMax & ? & decodeSMax & orderRelated_max).
+        simplify_eq.
+        iDestruct (big_sepM2_delete with "predFullMap") as "[predMax predFullMap]".
+        { rewrite lookup_delete_ne; [apply look_max | lia ]. }
+        { rewrite lookup_delete_ne; [apply look_max' | lia]. }
+        iSpecialize ("predMax" with "[%] [%]"); first lia.
+        { rewrite -Nat.add_1_r. apply lookup_max_msg_succ. }
+        iDestruct (predicate_holds_phi_decode with "predFullEquiv predMax") as "predMax";
+          first done.
+        (* we now case analysis whether [t_c] is the final timestamp *)
+        destruct (decide (t_c = t_max)) as [ -> | ].
+        - (* in case [t_c] is max timestamp, we do not need to extract further go with the left branch. *)
+          simplify_map_eq.
+          iApply ("below" $! ((TV ⊔ (SVm, FVm, ∅) ⊔ (_, _, _)), _) with "[%] [PL] [predMax]").
+          { rewrite -assoc. split; last done. apply thread_view_le_l. }
+          2: { iLeft. iApply monPred_mono; last iApply "predMax".
+               split; last done. apply thread_view_le_r. }
+          { iApply monPred_mono; last iApply "PL".
+            destruct TV as [[??]?].
+            rewrite thread_view_lub.
+            split; last done.
+            solve_view_le. }
+        - (* in case [t_c] is not max timestamp, we need to extract [p_read] for it and
+           *  go with the right branch. *)
+          iAssert (p_read prot s_c v_c (cSV, msg_persisted_after_view, ∅, gnames))%I
+            with "[predReadHolds predFullMap]" as "predC". {
+            destruct (decide (offset ≤ t_c ∧ physHist !! S t_c = None)) as [[] | no ].
+            - iDestruct (big_sepM2_delete with "predFullMap") as "[predC _]".
+              { rewrite 2?lookup_delete_ne; [apply look2 | lia | lia ]. }
+              { rewrite 2?lookup_delete_ne; [apply a | lia | lia ]. }
+              iSpecialize ("predC" with "[//] [//]").
+              iSpecialize ("predFullReadSplit" with "predC").
+              simpl.
+              iDestruct (predicate_holds_phi_decode with "predReadEquiv predFullReadSplit") as "$";
+                first done.
+            - iDestruct (big_sepM2_lookup with "predReadHolds") as "predC"; [ exact look2 | done | ].
+              rewrite not_and_l in no.
+              iSpecialize ("predC" with "[%]");
+                first (destruct no; [ left; lia | right; by destruct (physHist !! S t_c) ]).
+              iDestruct (predicate_holds_phi_decode with "predReadEquiv predC") as "$";
+                first done.
+          }
+          iAssert (((_ ∗ _): dProp Σ) (_ ⊔ _, _))%I with "[predC predMax]" as "pred". {
+            rewrite monPred_at_sep.
+            iSplitL "predC".
+            { iApply monPred_mono; [ | iAccu ].
+              split; last done. apply thread_view_le_l. }
+            { iSimpl in "predMax". iApply monPred_mono; [ | iAccu ].
+              split; last done. apply thread_view_le_r. }
+          }
+          iDestruct (monPred_at_sep with "pred") as "[predC predMax]".
+          iApply ("below" $! ((TV ⊔ (SVm, FVm, ∅) ⊔ (_, _, _)), _) with "[%] [PL] [predC predMax]").
+          { rewrite -assoc. split; last done. apply thread_view_le_l. }
+          2: { iRight.
+               iSplitL "predC".
+               { iApply monPred_mono; last iFrame.
+                 split; last done. apply thread_view_le_r. }
+               iExists s_max, v_max.
+               iFrame "%".
+               iApply monPred_mono; last iFrame.
+               split; last done. apply thread_view_le_r. }
+          { iApply monPred_mono; last iApply "PL".
+            destruct TV as [[??]?].
+            rewrite thread_view_lub.
+            split; last done.
+            solve_view_le. } }
       set L_view := (SVm, _, _).
 
       (* we extract the objective fraction from [p_pers] *)

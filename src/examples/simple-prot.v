@@ -10,7 +10,7 @@ From self.lang Require Export notation lang lemmas tactics syntax.
 From self.algebra Require Import view.
 From self.base Require Import primitive_laws class_instances adequacy.
 From self.high Require Import proofmode wpc_proofmode.
-From self.high Require Import weakestpre_exp locations.
+From self.high Require Import weakestpre_exp weakestpre_at locations.
 From self.high.modalities Require Import fence.
 From self.high Require Import protocol no_buffer abstract_state_instances.
 
@@ -26,36 +26,6 @@ Section Axioms.
     {{{ mapsto_na ℓ prot 1 ss ∗ prot.(p_full) s v }}}
       #ℓ <-_NA v @ st; E
     {{{ RET #(); mapsto_na ℓ prot 1 (ss ++ [s]) }}}.
-  Proof.
-  Admitted.
-
-
-  Lemma wp_cmpxchg_at Q1 Q2 Q3 ℓ prot `{!ProtocolConditions prot} ss s_i (v_i : val) v_t R s_t st E :
-    {{{
-      ℓ ↦_AT^{prot} (ss ++ [s_i]) ∗
-      (∀ s_l v_l s_p v_p, ∃ P, ⌜ s_i ⊑ s_l ⌝ -∗
-        ((▷ prot.(p_read) s_l v_l) -∗ ⌜ vals_compare_safe v_i v_l ⌝) ∗
-        (( (* in case of success *)
-            ⌜ v_l = v_i ⌝ -∗
-            (* The state we write fits in the history. *)
-            (<obj> (prot.(p_full) s_l v_l -∗ ⌜ s_l ⊑ s_t ⌝)) ∗
-            (∀ s_n v_n, ⌜ s_l ⊑ s_n ⌝ -∗ prot.(p_full) s_l v_l -∗
-                        prot.(p_read) s_n v_n -∗ ⌜ s_l = s_n ∨ s_t ⊑ s_n ⌝) ∗
-            (* Extract the objective knowledge from [p_pers] *)
-            (<obj> (prot.(p_pers) s_p v_p -∗ <obj> P ∗ (P -∗ prot.(p_pers) s_p v_p))) ∗
-            (* Extract from the location we load. *)
-            (<obj> (prot.(p_full) s_l v_l ∗ P -∗ prot.(p_read) s_l v_l ∗ R s_l)) ∗
-            (* Establish the invariant for the value we store. *)
-            (R s_l ==∗ prot.(p_full) s_t v_t ∗ <obj> P ∗ Q1 s_l))
-         ∧ (* in case of failure *)
-           ((<obj> (prot.(p_full) s_l v_l -∗ prot.(p_full) s_l v_l ∗ Q2 s_l)) ∗ Q3)
-        ))
-    }}}
-      CmpXchg #ℓ v_i v_t @ st; E
-    {{{ v b s_l, RET (v, #b);
-      (⌜ b = true ⌝ ∗ <fence> Q1 s_l ∗ ℓ ↦_AT^{prot} ((ss ++ [s_i]) ++ [s_t])) ∨
-      (⌜ b = false ⌝ ∗ ⌜ s_i ⊑ s_l ⌝ ∗ ℓ ↦_AT^{prot} (ss ++ [s_i]) ∗ <fence> (Q2 s_l) ∗ Q3)
-    }}}.
   Proof.
   Admitted.
 End Axioms.
@@ -105,35 +75,17 @@ Section fence_sync.
       by iModIntro. }
   Qed.
 
+  Variable (excl_token: dProp Σ).
+  Axiom excl_token_excl: excl_token ∗ excl_token -∗ False.
+
   (* Predicate used for the location [ℓ]. *)
   Definition prot : LocationProtocol nat :=
-    {| p_full := λ (n : nat) v, (⌜ v = #n ⌝ ∗ (⌜ n ≥ 1 ⌝ -∗ store_lb ℓ' prot' 42 ∗ flush_lb ℓ' prot' 42)) %I;
+    {| p_full := λ (n : nat) v, (⌜ v = #n ⌝ ∗ excl_token ∗ (⌜ n = 1 ⌝ -∗ ℓ' ↦_{prot'} [0; 42])) %I;
        p_read := λ (n : nat) v, ⌜ v = #n ⌝%I;
        p_pers := λ (n : nat) v, True%I;
        p_bumper n := n |}.
-
   Global Instance prot_cond : ProtocolConditions prot.
-  Proof.
-    split; try apply _.
-    { intros.
-      rewrite /IntoNoBuffer /p_full /prot //=.
-      iIntros "[% H]".
-      destruct (decide (1 ≤ s)).
-      - iSpecialize ("H" with "[//]").
-        iModIntro.
-        iSplit; first done.
-        by iIntros.
-      - iModIntro.
-        iSplit; first done.
-        iIntros; lia. }
-    { iIntros.
-      rewrite /p_full /p_read /prot' //=.
-      iSplit.
-      - iIntros "[% H]".
-        by iFrame "%∗".
-      - iIntros "[% H]".
-        by iApply "H".  }
-  Admitted.
+  Proof. Admitted.
 
   Lemma spec_left st E:
     {{{ ℓ' ↦_{prot'} [0] ∗ ℓ ↦_AT^{prot} [0] }}}
@@ -157,7 +109,7 @@ Section fence_sync.
                 (λ _, True)%I
                 (True)%I
                 ℓ prot [] 0 _ _
-                (λ n, True)%I
+                (λ n, excl_token)%I
                 1 with "[$pts pts']").
     { iIntros.
       iExists (True)%I.
@@ -176,21 +128,17 @@ Section fence_sync.
           rewrite /sqsubseteq.
           lia. }
         iSplitL "".
-        { rewrite /sqsubseteq.
-          iIntros (??) "% [% ?] %".
-          simplify_eq.
-          iPureIntro.
-          lia. }
+        { iIntros (??) "% (_ & ? & _) [ (_ & ? & _) | (_ & % & % & _ & _ & ? & _) ]";
+          iDestruct (excl_token_excl with "[$]") as "[]". }
         iSplitL "".
         { iIntros "!> _".
           iSplitL ""; first by iModIntro.
           done. }
         iSplitL "".
-        { iIntros "!>[[% φ_old] _]".
-          iFrame "%". }
-        iIntros "_ !>".
-        iPoseProof (mapsto_na_store_lb ℓ' prot' (1%Qp) [0] 42 with "pts'") as "#?".
-        iFrame "#".
+        { iIntros "!>[(% & ? & _) _]".
+          iFrame "%∗". }
+        iIntros "$ !>".
+        iFrame "pts'".
         iSplitPure; first done.
         iSplit; first iModIntro; done.
       }
@@ -201,7 +149,7 @@ Section fence_sync.
     iIntros (???) "[H | H]"; rewrite //=.
     - (* successful *)
       wp_pures.
-      wp_apply (wp_flush_lb _ prot 1 _ _ True%I with "[H]").
+      wp_apply (weakestpre_exp.wp_flush_lb _ prot 1 _ _ True%I with "[H]").
       { iDestruct "H" as "(_ & _ & H)".
         iSplit; first iApply (mapsto_at_store_lb ℓ prot [0] with "[$]").
         iSplit.
@@ -222,7 +170,7 @@ Section fence_sync.
         done. }
       iIntros "post_fence".
       wp_pures.
-      wp_apply (wp_fence_sync with "post_fence").
+      wp_apply (weakestpre_exp.wp_fence_sync with "post_fence").
       iIntros "[? _]".
       wp_pures.
       iModIntro.
@@ -233,7 +181,7 @@ Section fence_sync.
       (* probably better have a lemma for flush that's essentially no-op *)
       wp_pures.
       iDestruct "H" as "(% & % & H & _)".
-      wp_apply (wp_flush_lb _ prot 0 _ _ True%I with "[H]").
+      wp_apply (weakestpre_exp.wp_flush_lb _ prot 0 _ _ True%I with "[H]").
       { iSplit; first iApply (mapsto_at_store_lb ℓ prot [] with "[$]").
         iSplit.
         { rewrite /mapsto_at.
@@ -253,7 +201,7 @@ Section fence_sync.
         done. }
       iIntros "post_fence".
       wp_pures.
-      wp_apply (wp_fence_sync with "post_fence").
+      wp_apply (weakestpre_exp.wp_fence_sync with "post_fence").
       iIntros "[? _]".
       wp_pures.
       iModIntro.
@@ -265,16 +213,16 @@ Section fence_sync.
   Lemma spec_right st E:
     {{{ ℓ ↦_AT^{prot} [0] }}}
       prog_right @ st; E
-      {{{ v b, RET (v, #b); ⌜ b = true ⌝ -∗ <fence> store_lb ℓ' prot' 42 }}}.
+      {{{ v b, RET (v, #b); ⌜ b = true ⌝ -∗ <fence> ℓ' ↦_{prot'} [0; 42] }}}.
   Proof.
     iIntros (Φ) "pts Φpost".
     rewrite /prog_right.
     wp_apply (wp_cmpxchg_at
-                (λ n, ⌜1%Z = Z.of_nat n⌝ ∗ store_lb ℓ' prot' 42)%I
+                (λ n, ⌜1%Z = Z.of_nat n⌝ ∗ ℓ' ↦_{prot'} [0; 42])%I
                 (λ _, True)%I
                 (True)%I
                 ℓ prot [] 0 _ _
-                (λ n, ⌜1%Z = Z.of_nat n⌝ ∗ store_lb ℓ' prot' 42)%I
+                (λ n, excl_token ∗ ⌜1%Z = Z.of_nat n⌝ ∗ ℓ' ↦_{prot'} [0; 42])%I
                 2 with "[$pts]").
     { iIntros.
       iExists (True)%I.
@@ -293,30 +241,29 @@ Section fence_sync.
           rewrite /sqsubseteq.
           lia. }
         iSplitL "".
-        { rewrite /sqsubseteq.
-          iIntros (??) "% [% ?] %".
-          simplify_eq.
-          iPureIntro.
-          lia. }
+        { iIntros (??) "% (_ & ? & _) [ (_ & ? & _) | (_ & % & % & _ & _ & ? & _) ]";
+          iDestruct (excl_token_excl with "[$]") as "[]". }
         iSplitL "".
-        { iIntros "!>[% ?]".
+        { iIntros "!> _".
           iSplitL ""; first by iModIntro.
           iIntros "_".
           iFrame "%".
           done. }
         iSplitL "".
-        { iIntros "!>[[% φ_old] _]".
+        { iIntros "!>[(% & ? & φ_old) _]".
           iFrame "%".
           simplify_eq.
-          iFrame "%".
+          iFrame "%∗".
           iApply "φ_old".
           iPureIntro.
           lia. }
-        iIntros "[% #?] !>".
-        iFrame "#%".
-        iSplit; last by iModIntro.
-        iSplitPure; first done.
-        by iIntros.
+        iIntros "(token & % & ?) !>".
+        iSplitL "token".
+        { iFrame "%∗".
+          iSplitPure; first done.
+          iIntros (?). lia. }
+        iFrame "∗%".
+        by iModIntro.
       }
       (* failure *)
       { iSplit; last done.
@@ -328,7 +275,4 @@ Section fence_sync.
     iDestruct "H" as "[ (_ & [? ?] & _) | [% _] ]"; last congruence.
     iFrame.
   Qed.
-
-  Lemma
-
 End fence_sync.
