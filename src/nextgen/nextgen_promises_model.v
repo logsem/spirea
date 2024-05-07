@@ -693,6 +693,20 @@ Section own_picks.
   Instance own_picks_persistent picks : Persistent (own_picks picks).
   Proof. apply _. Qed.
 
+  #[global]
+  Instance own_pick_timeless picks (i : ggid Ω) γ t : Timeless (own_pick picks i γ t).
+  Proof.
+    rewrite /own_pick /Oown.
+    repeat apply exist_timeless =>?.
+    repeat (apply and_timeless;[apply _|]).
+    rewrite own_gen_cmra_split.
+    repeat (apply sep_timeless); apply _.
+  Qed.  
+  
+  #[global]
+  Instance own_picks_timeless picks : Timeless (own_picks picks).
+  Proof. apply _. Qed.
+
   Lemma tokens_for_picks_agree_overlap picks1 picks2 :
     own_picks picks1 -∗
     own_picks picks2 -∗
@@ -784,6 +798,17 @@ Section next_gen_definition.
   Instance own_promises_persistent ps : Persistent (own_promises ps).
   Proof. apply _. Qed.
 
+  #[global]
+  Instance own_promises_timeless ps : Timeless (own_promises ps).
+  Proof.
+    apply big_sepL_timeless =>???.
+    repeat (apply exist_timeless=>?).
+    apply sep_timeless;[apply _|].
+    rewrite /own_promise_info_resource /Oown.
+    rewrite own_gen_cmra_split.
+    repeat (apply sep_timeless);apply _.
+  Qed.
+    
   Definition nextgen_def P : iProp Σ :=
     ∃ (picks : TransMap Ω) (prs : list (promise_info Ω)),
       "%picksValid" ∷ ⌜ transmap_valid picks ⌝ ∗
@@ -1135,6 +1160,34 @@ Section nextgen_structural_properties.
     iModIntro. iApply "contP".
   Qed.
 
+  Global Instance pick_inhabited : Inhabited (∀ i : fin gc_len, gmap gname (Oc Ω i → Oc Ω i)).
+  Proof. constructor. exact (λ x, ∅). Qed.
+  
+  Lemma nextgen_later P :
+    (⚡==> (▷ P)) ⊢ ▷ (⚡==> P).
+  Proof.
+    rewrite nextgen_unseal /nextgen_def.
+    iIntros "P". iNamed "P".
+    iExists picks, prs.
+    iFrame "%#".
+    iApply later_forall_2.
+    iIntros (?? resp sub).
+    iSpecialize ("contP" $! _ _ resp sub).
+    iApply bnextgen_later. auto.
+  Qed.
+
+  Lemma nextgen_later_2 P :
+    ▷ (⚡==> P) ⊢ ◇ (⚡==> ▷ P).
+  Proof.
+    rewrite nextgen_unseal /nextgen_def.
+    iIntros "P".
+    iDestruct "P" as (picks prs) "(>picksValid & >prsWf & >ownPicks & >ownPrs & contP)".
+    iExists _,_. iFrame.
+    iModIntro. iIntros (????).
+    iApply bnextgen_later. iNext.
+    iApply "contP";auto.
+  Qed.
+
   Lemma nextgen_mono P Q :
     (P ⊢ Q) → (⚡==> P) ⊢ ⚡==> Q.
   Proof.
@@ -1266,6 +1319,53 @@ Section nextgen_structural_properties.
     destruct (Omega_lookup_inverse (inG_id ig)) as [(i' & ?)|].
     { specialize (not i'). done. }
     done.
+  Qed.
+
+  (* derived nextgen distribution over sep *)
+
+  Lemma nextgen_big_sepM {A B : Type} `{!EqDecision A} `{!Countable A} (P : A -> B -> iProp Σ) m :
+    ([∗ map] i↦x ∈ m, ⚡==> P i x) ⊢ ⚡==> [∗ map] i↦x ∈ m, P i x.
+  Proof.
+    induction m using map_ind.
+    - iIntros "_". iModIntro. by rewrite big_sepM_empty.
+    - rewrite big_sepM_insert//.
+      iIntros "[Hx Hm]".
+      iDestruct (IHm with "Hm") as "Hm".
+      iModIntro.
+      rewrite big_sepM_insert//. iFrame.
+  Qed.
+
+  Lemma nextgen_big_sepL {A : Type} (P : nat -> A -> iProp Σ) (l : list A) :
+    ([∗ list] n↦x ∈ l, ⚡==> P n x) ⊢ ⚡==> [∗ list] n↦x ∈ l, P n x.
+  Proof.
+    induction l using rev_ind.
+    - iIntros "_". iModIntro. done.
+    - rewrite big_sepL_app.
+      iIntros "[Hm Hx]".
+      rewrite big_sepL_singleton.
+      iDestruct (IHl with "Hm") as "Hm".
+      iModIntro.
+      rewrite big_sepL_app big_sepL_singleton.
+      iFrame.
+  Qed.
+
+  Lemma nextgen_big_sepL2 {A B : Type} (P : nat -> A -> B -> iProp Σ) (l1 : list A) (l2 : list B) :
+    ([∗ list] n↦x;y ∈ l1;l2, ⚡==> P n x y) ⊢ ⚡==> [∗ list] n↦x;y ∈ l1;l2, P n x y.
+  Proof.
+    revert l2. induction l1 using rev_ind;intros l2.
+    - iIntros "Hl".
+      iDestruct (big_sepL2_length with "Hl") as %Hlen.
+      destruct l2;try done. simpl.
+      iModIntro. done.
+    - iIntros "Hl".
+      iDestruct (big_sepL2_length with "Hl") as %Hlen.
+      rewrite app_length /= in Hlen.
+      rewrite PeanoNat.Nat.add_1_r in Hlen.
+      destruct l2 using rev_ind;try done;clear IHl2.
+      iDestruct (big_sepL2_snoc with "Hl") as "[Hl1 Hl2]".
+      iDestruct (IHl1 with "Hl1") as "Hl1".
+      iModIntro.
+      iApply big_sepL2_snoc. iFrame.
   Qed.
 
 End nextgen_structural_properties.

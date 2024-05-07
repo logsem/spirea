@@ -1,4 +1,4 @@
-SRC_DIRS := 'src' 'external'
+SRC_DIRS := 'src' 'external' 'perennial'
 ALL_VFILES := $(shell find $(SRC_DIRS)  -not -path "external/perennial/external/coqutil/etc/coq-scripts/*" -name "*.v")
 VFILES := $(shell find 'src' -name "*.v")
 
@@ -61,6 +61,8 @@ clean:
 clean-local:
 	@echo "CLEAN vo glob aux"
 	$(Q)find src \( -name "*.vo" -o -name "*.vo[sk]" \
+		-o -name ".*.aux" -o -name ".*.cache" -name "*.glob" \) -delete
+	$(Q)find perennial \( -name "*.vo" -o -name "*.vo[sk]" \
 		-o -name ".*.aux" -o -name ".*.cache" -name "*.glob" \) -delete
 	$(Q)rm -f .lia.cache
 	rm -f .coqdeps.d

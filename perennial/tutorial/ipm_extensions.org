@@ -1,0 +1,31 @@
+#+TITLE: IPM extensions
+
+You can follow along in the demo file ([[file:./ipm_extensions.v][ipm_extensions.v]]) associated with this
+tutorial by building its dependencies: ~make -j4 src/tutorial/ipm_extensions.vo~
+(should only take a couple minutes). You will need to initialize the submodules
+(~git submodule update --init~) to get stdpp, iris, and string-ident.
+
+* Introduction
+Perennial is a research project on verified concurrent storage systems.
+** Iris (concurrency)
+** Crash program logic (storage)
+** Verifying Go programs (systems)
+* iNamed
+named propositions
+** [[file:ipm_extensions.v::first extension][Coq demo]]
+** "simple" example [[file:../program_proof/wal/sliding_proof.v::is_sliding][sliding abstraction relation]]
+** really hairy usage [[file:../program_proof/wal/invariant.v::Definition memLog_linv γ][wal memLog_linv]]
+** examples in Hoare logic [[file:../program_proof/examples/inode_proof.v::wpc_Inode__Append][inode append wpc]], [[file:../program_proof/examples/inode_proof.v::wpc_Write_fupd][applying wpc_Write]]
+* iCache
+caching subproofs
+** [[file:ipm_extensions.v::second extension][Coq demo]]
+** arises in crash safety since crash conditions are repetitive
+** simple example [[file:../program_proof/examples/replicated_block_proof.v::wpc_RepBlock__Read][replicated block Read]]
+** integration with [[file:../goose_lang/wpc_proofmode.v::tac_wpc_wp_frame_cache][wpc_frame]]
+* Restore
+destruct and then reconstruct (WIP)
+** [[file:ipm_extensions.v::third extension][Coq demo]]
+** often want to read from an abstraction relation
+** restoring the persistent/pure parts is annoying
+** egregious example involving [[file:../program_proof/wal/logger_proof.v::iFrame "# % ∗"][iFrame "# % ∗"]]
+** note: even without modifications this is useful

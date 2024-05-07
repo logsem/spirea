@@ -11,6 +11,7 @@ From self.lang Require Import lang.
 From self.base Require Import post_crash_modality primitive_laws wpr_lifting.
 From self.base Require Import cred_frag.
 From self.base Require Import primitive_laws.
+From self.nextgen Require Import omega.
 From Perennial.program_logic Require Import language.
 
 Section frac_coPset_prop.
@@ -58,7 +59,7 @@ Section crash_borrow_def.
 
 (* Context `{!heapGS Σ}. *)
   Context `{!stagedG Σ}.
-  Context `{nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG}.
+  Context `{nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG, gGenCmras Σ}.
 
   Global Instance later_tokG_heap : later_tokG (nvmBase_irisGS).
   Proof.
@@ -228,7 +229,8 @@ Section crash_borrow_def.
     iIntros "H HP #Hwand".
     iDestruct "H" as "(Hlt1&H)".
     iDestruct "H" as "(Hlt2&Hlt3)".
-    iDestruct (staged_value_init_cancel P Pc with "[$]") as "H".
+    iDestruct (staged_value_init_cancel P Pc with "[$Hlt1 $Hlt2 $Hwand $HP]") as "H".
+    { }
     iApply (init_cancel_wand with "H [-] []").
     { iIntros "H". iExists _, _. iFrame "# ∗". iSplitL; eauto. }
     eauto.

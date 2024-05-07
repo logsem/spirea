@@ -7,7 +7,8 @@ From stdpp Require Import finite.
 From iris.algebra Require Import functions gmap agree excl csum max_prefix_list.
 From iris.algebra.lib Require Import mono_list.
 From iris.proofmode Require Import classes tactics.
-From iris.base_logic.lib Require Export iprop own invariants.
+From iris.base_logic.lib Require Export iprop own.
+From iris.base_logic.lib Require Import invariants.
 From iris.prelude Require Import options.
 
 From iris_named_props Require Import named_props.
@@ -776,6 +777,22 @@ Section nextgen_assertion_rules.
     done.
   Qed.
 
+  Lemma nextgen_plain_plain P `{!Plain P} :
+    ((⚡==> P) -∗ P).
+  Proof.
+    rewrite nextgen_unseal /nextgen_def.
+    iIntros "HP".
+    iDestruct "HP" as (picks prs) "H".
+    iNamed "H".
+    iDestruct (own_picks_promises_satisfy with "ownPicks ownPrs") as %resp.
+    destruct (transmap_and_promises_to_full_map picks prs)
+      as (full_picks & val & resp' & sub); try done.
+    iSpecialize ("contP" $! full_picks val resp' sub).
+    set (T := build_trans_generation full_picks val).
+    rewrite -{2}(bnextgen_plain (build_trans full_picks) P).
+    done.
+  Qed.
+
   Lemma know_promise_extract_frag γ γs R P pia promises :
     know_promise γ γs R P pia promises ⊢
     ∃ rels' (preds' : list (pred_over A)),
@@ -1041,8 +1058,15 @@ Section rules_with_deps.
   Global Instance gen_own_proper γ : Proper ((≡) ==> (≡)) (gen_own γ).
   Proof. unfold gen_own, gc_tup_elem. solve_proper. Qed.
 
+  Global Instance gen_own_ne γ : NonExpansive (gen_own γ).
+  Proof. unfold gen_own, gc_tup_elem. solve_proper_prepare.
+         f_equiv. repeat (split;auto). simpl. by f_equiv. Qed.
+
   Lemma gen_own_op γ a1 a2 : gen_own γ (a1 ⋅ a2) ⊣⊢ gen_own γ a1 ∗ gen_own γ a2.
   Proof. unfold gen_own, gc_tup_elem. rewrite -own_op. done. Qed.
+
+  Lemma gen_own_op_2 γ a1 a2 : gen_own γ a1 -∗ gen_own γ a2 -∗ gen_own γ (a1 ⋅ a2).
+  Proof. iIntros "Hown1 Hown2". iApply gen_own_op. iFrame. Qed.
 
   Lemma gen_own_mono γ a1 a2 : a2 ≼ a1 → gen_own γ a1 ⊢ gen_own γ a2.
   Proof. move=> [c ->]. rewrite gen_own_op sep_elim_l. done. Qed.
@@ -1053,6 +1077,73 @@ Section rules_with_deps.
     iIntros "(_ & _ & ? & _ & _ & _)".
     rewrite option_validI. done.
   Qed.
+
+  Lemma gen_own_updateP P γ a :
+    a ~~>: P → gen_own γ a ⊢ |==> ∃ a' : A, ⌜P a'⌝ ∗ gen_own γ a'.
+  Proof.
+    rewrite /gen_own.
+    iIntros (Ha).
+    rewrite /gc_tup_elem.
+    rewrite own_gen_cmra_split.
+    iIntros "(?&?&Hown&?&?&?)".
+    iMod (own_updateP with "Hown") as "Hown".
+    { instantiate (1:=λ p, from_option P False (gc_elem p) ). intros ???.
+      destruct mz.
+      - destruct c. simpl in *.
+        specialize (Ha n0 gc_elem).
+        rewrite gen_cmra_op_eq in H.
+        destruct H as (?&?&H&?&?&?). simpl in *.
+        destruct gc_elem.
+        + rewrite -Some_op in H.
+          apply Ha in H as [y [HP Hy]].
+          exists (gc_tup_elem _ y). split;auto.
+          rewrite /gc_tup_elem gen_cmra_op_eq /=.
+          split;auto.
+        + simpl in *. rewrite op_None_right_id in H.
+          apply Some_validN in H.
+          apply Ha in H as [y [HP Hy]].
+          exists (gc_tup_elem _ y). split;auto.
+          rewrite /gc_tup_elem gen_cmra_op_eq /=.
+          split;auto.
+      - destruct H as (?&?&H&?&?&?). simpl in *.
+        rewrite Some_validN in H.
+        specialize (Ha n0 None).
+        apply Ha in H as [y [HP Hy]].
+        exists (gc_tup_elem _ y). split;auto.
+        split;auto. }
+    iDestruct "Hown" as (a' Ha') "Hown".
+    destruct a',gc_elem;simpl in *;[|done].
+    iDestruct (own_gen_cmra_split with "Hown") as "(? & ? & Hown & ? & ? & ?)".
+    eauto.
+  Qed.
+
+  Lemma gen_own_update γ a a' :
+    a ~~> a' → gen_own γ a ⊢ |==> gen_own γ a'.
+  Proof.
+    rewrite /gen_own.
+    iIntros (Ha). iApply own_update.
+    rewrite /gc_tup_elem.
+    apply gen_cmra_update;
+      try by apply cmra_update_included.
+    by apply option_update.
+  Qed.
+
+  Lemma gen_own_update_2 γ a1 a2 a' :
+    a1 ⋅ a2 ~~> a' → gen_own γ a1 -∗ gen_own γ a2 ==∗ gen_own γ a'.
+  Proof.
+    iIntros (Ha) "Hown1 Hown2".
+    iDestruct (gen_own_op with "[$Hown1 $Hown2]") as "Hown".
+    by iApply (gen_own_update with "Hown").
+  Qed.
+
+  Lemma gen_own_update_3 γ a1 a2 a3 a' :
+    a1 ⋅ a2 ⋅ a3 ~~> a' → gen_own γ a1 -∗ gen_own γ a2 -∗ gen_own γ a3 ==∗ gen_own γ a'.
+  Proof.
+    iIntros (Ha) "Hown1 Hown2 Hown3".
+    iDestruct (gen_own_op with "[$Hown1 $Hown2]") as "Hown".
+    iDestruct (gen_own_op with "[$Hown $Hown3]") as "Hown".
+    by iApply (gen_own_update with "Hown").
+  Qed.    
 
   #[global]
   Instance into_sep_gen_own γ a b1 b2 :

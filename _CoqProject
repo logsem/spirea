@@ -1,5 +1,5 @@
 -Q src self
--Q external/perennial/src Perennial
+-Q perennial Perennial
 
 # Perennial-disabled warnings
 -arg -w -arg -ssr-search-moved

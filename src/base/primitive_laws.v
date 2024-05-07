@@ -9,6 +9,7 @@ From iris.algebra Require Import auth gmap numbers.
 From iris_named_props Require Import named_props.
 From iris.prelude Require Import options.
 
+From self.nextgen Require Import omega.
 From self Require Import extra ipm_tactics.
 From self Require Import cred_frag.
 From self.algebra Require Import view.
@@ -135,7 +136,7 @@ Definition nvm_heap_ctx `{hG : !nvmBaseFixedG Σ, hGD : nvmBaseDeltaG} σ : iPro
 
 Definition borrowN := nroot .@ "borrow".
 Definition crash_borrow_ginv_number : nat := 6%nat.
-Definition crash_borrow_ginv `{!invGS Σ} `{creditGS Σ}
+Definition crash_borrow_ginv `{!invGS Σ} `{Ω : gGenCmras Σ} `{creditGS Σ}
   := (inv borrowN (cred_frag crash_borrow_ginv_number)).
 
 Class extraStateInterp Σ := {
@@ -143,18 +144,18 @@ Class extraStateInterp Σ := {
 }.
 
 Global Program Instance nvmBase_irisGS
-       `{!nvmBaseFixedG Σ, hGD : nvmBaseDeltaG, extraStateInterp Σ} :
-  irisGS nvm_lang Σ := {
+       `{!nvmBaseFixedG Σ, hGD : nvmBaseDeltaG, extraStateInterp Σ, Ω : gGenCmras Σ} :
+  irisGS nvm_lang Σ Ω := {
   iris_invGS := nvmBaseG_invGS;
   global_state_interp g ns mj D _ :=
-    (@crash_borrow_ginv _ nvmBaseG_invGS _ ∗
+    (@crash_borrow_ginv _ nvmBaseG_invGS Ω _ ∗
      cred_interp ns ∗
      ⌜(/ 2 < mj ≤ 1) ⌝%Qp ∗
      pinv_tok mj D)%I;
   fork_post _ := True%I;
   num_laters_per_step := (λ n, 3 ^ (n + 1))%nat; (* This is the choice GooseLang takes. *)
   step_count_next := (λ n, 10 * (n + 1))%nat;
-}.
+  }.
 
 Global Program Instance nvmBase_generationGS
        `{!nvmBaseFixedG Σ, hGD : nvmBaseDeltaG, extraStateInterp Σ} :
@@ -447,7 +448,7 @@ Section persisted.
 End persisted.
 
 Section lifting.
-  Context `{!nvmBaseFixedG Σ, nvmBaseDeltaG, extra : !extraStateInterp Σ}.
+  Context `{!nvmBaseFixedG Σ, nvmBaseDeltaG, extra : !extraStateInterp Σ, Ω : gGenCmras Σ}.
 
   Implicit Types Q : iProp Σ.
   Implicit Types Φ Ψ : val → iProp Σ.
@@ -1047,7 +1048,7 @@ From self.base Require Import class_instances.
 
 Section extra_state_interp.
 
-  Context `{!nvmBaseFixedG Σ, nvmBaseDeltaG, extra : extraStateInterp Σ}.
+  Context `{!nvmBaseFixedG Σ, nvmBaseDeltaG, extra : extraStateInterp Σ, Ω : gGenCmras Σ}.
 
   Lemma wp_extra_state_interp_fupd (e : expr) `{!AtomicBase StronglyAtomic e}
         TV s E (Φ : thread_val → iProp Σ) :

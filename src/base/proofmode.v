@@ -6,12 +6,13 @@ From iris.proofmode Require Export tactics.
 
 From Perennial.program_logic Require Export weakestpre.
 
+From self.nextgen Require Import omega.
 From self.base Require Export primitive_laws class_instances.
 From self.lang Require Import notation.
 From self.lang Require Import lang tactics.
 Import uPred.
 
-Lemma tac_wp_expr_eval `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG} Δ s E Φ e e' :
+Lemma tac_wp_expr_eval `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG, Ω : gGenCmras Σ} Δ s E Φ e e' :
   (∀ (e'':=e'), e = e'') →
   envs_entails Δ (WP e' @ s; E {{ Φ }}) → envs_entails Δ (WP e @ s; E {{ Φ }}).
 Proof. by intros ->. Qed.
@@ -28,7 +29,7 @@ Ltac wp_expr_simpl :=
   simpl; rewrite /thread_fill_item; simpl; (* TODO: Investigate why this is necessary. *)
   wp_expr_eval simpl.
 
-Lemma tac_wp_pure `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG} Δ Δ' s E K e1 e2 TV φ n Φ :
+Lemma tac_wp_pure `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG, Ω : gGenCmras Σ} Δ Δ' s E K e1 e2 TV φ n Φ :
   PureExecBase φ n e1 e2 →
   φ →
   MaybeIntoLaterNEnvs n Δ Δ' →
@@ -46,7 +47,7 @@ Proof.
   by iIntros.
 Qed.
 
-Lemma tac_wp_value_noncfupd `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG} Δ s E Φ v TV :
+Lemma tac_wp_value_noncfupd `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG, Ω : gGenCmras Σ} Δ s E Φ v TV :
   envs_entails Δ (Φ (ThreadVal v TV)) → envs_entails Δ (WP (ThreadState (Val v) TV) @ s; E {{ Φ }}).
 Proof. rewrite envs_entails_unseal=> ->. by apply wp_value. Qed.
 
@@ -61,7 +62,7 @@ Proof. rewrite envs_entails_unseal=> ->. by apply wp_value. Qed.
 (*   iIntros ">HΦ". done. *)
 (* Qed. *)
 
-Lemma tac_wp_value `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG} Δ s E (Φ : _ → iPropI Σ) v TV :
+Lemma tac_wp_value `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG, Ω : gGenCmras Σ} Δ s E (Φ : _ → iPropI Σ) v TV :
   envs_entails Δ (|NC={E}=> Φ (ThreadVal v TV)) → envs_entails Δ (WP (ThreadState (Val v) TV) @ s; E {{ Φ }}).
 Proof. rewrite envs_entails_unseal=> ->. iApply wp_value_fupd. Qed.
 
@@ -169,7 +170,7 @@ Tactic Notation "wp_inj" := wp_pure (InjL _) || wp_pure (InjR _).
 Tactic Notation "wp_pair" := wp_pure (Pair _ _).
 Tactic Notation "wp_closure" := wp_pure (Rec _ _ _).
 
-Lemma tac_wp_bind `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG} K Δ s E Φ e TV f :
+Lemma tac_wp_bind `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG, Ω : gGenCmras Σ} K Δ s E Φ e TV f :
   f = (λ (e : thread_state), fill K e) → (* as an eta expanded hypothesis so that we can `simpl` it *)
   envs_entails Δ (WP ThreadState e TV @ s; E {{ tv, WP (f (ThreadState (Val tv.(val_val)) tv.(val_view))) @ s; E {{ Φ }} }})%I →
   envs_entails Δ (WP (fill K (ThreadState e TV)) @ s; E {{ Φ }}).
@@ -195,7 +196,7 @@ Tactic Notation "wp_bind" open_constr(efoc) :=
 
 (** Heap tactics *)
 Section heap.
-Context `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG}.
+Context `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG, Ω : gGenCmras Σ}.
 Implicit Types P Q : iProp Σ.
 Implicit Types Φ : thread_val → iProp Σ.
 Implicit Types Δ : envs (uPredI (iResUR Σ)).

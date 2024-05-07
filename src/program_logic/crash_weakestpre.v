@@ -2,6 +2,7 @@ From iris.algebra Require Import auth agree excl csum.
 From Perennial.base_logic Require Import ae_invariants.
 From iris.bi Require Export weakestpre.
 From iris.proofmode Require Import base tactics classes.
+From self.nextgen Require Import nextgen_promises.
 From Perennial.base_logic Require Export invariants fupd_level fancy_updates2.
 From Perennial.program_logic Require Import step_fupd_extra ae_invariants_mutable.
 From Perennial.algebra Require Export own_discrete.
@@ -23,8 +24,8 @@ From Perennial.program_logic Require crash_weakestpre.
  * interpretation. We extend Perennial's [irisGS] such that we don't have to
    * repeat all the fields here. *)
 
-Class irisGS (Λ : language) (Σ : gFunctors) := IrisGS {
-  perennial_irisGS :> crash_weakestpre.irisGS Λ Σ;
+Class irisGS (Λ : language) (Σ : gFunctors) (Ω : gGenCmras Σ) := IrisGS {
+  perennial_irisGS :> crash_weakestpre.irisGS Λ Σ Ω;
   (** The state interpretation is a per-machine invariant that should hold in
   between each step of reduction. Here [state Λ] is the per-machine state, and
   the [nat] is the number of forked-off threads (not the total number of threads,
@@ -34,7 +35,7 @@ Class irisGS (Λ : language) (Σ : gFunctors) := IrisGS {
 
 Global Arguments state_interp : simpl never.
 
-Global Arguments state_interp {Λ Σ G} : rename.
+Global Arguments state_interp {Λ Σ Ω G} : rename.
 
 Notation global_state_interp := (crash_weakestpre.global_state_interp).
 Notation num_laters_per_step := (crash_weakestpre.num_laters_per_step).
@@ -43,7 +44,7 @@ Notation fork_post := (crash_weakestpre.fork_post).
 
 (* This definition is equal to Perennial's except that it uses our [irisGS] and
  * that we have erased the [NC] and [C] tokens. *)
-Definition wpc_pre `{!irisGS Λ Σ} (s : stuckness) (mj: fracR)
+Definition wpc_pre `{!irisGS Λ Σ Ω} (s : stuckness) (mj: fracR)
     (wpc : coPset -d> expr Λ -d> (val Λ -d> iPropO Σ) -d> iPropO Σ -d> iPropO Σ) :
     coPset -d> expr Λ -d> (val Λ -d> iPropO Σ) -d> iPropO Σ -d> iPropO Σ := λ E1 e1 Φ Φc,
   ((match to_val e1 with
@@ -67,7 +68,7 @@ Definition wpc_pre `{!irisGS Λ Σ} (s : stuckness) (mj: fracR)
      £ (num_laters_per_step ns) -∗
      ||={E1|⊤∖D,∅|∅}=> ||▷=>^(num_laters_per_step ns) ||={∅|∅,E1|⊤∖D}=> global_state_interp g1 ns mj D κs ∗ Φc))))%I.
 
-Local Instance wpc_pre_contractive `{!irisGS Λ Σ} s mj : Contractive (wpc_pre s mj).
+Local Instance wpc_pre_contractive `{!irisGS Λ Σ Ω} s mj : Contractive (wpc_pre s mj).
 Proof.
   rewrite /wpc_pre=> n wp wp' Hwp E1 e1 Φ Φc.
   do 20 (f_contractive || f_equiv).
@@ -76,19 +77,19 @@ Proof.
   - simpl in IH. rewrite -IH. eauto.
 Qed.
 
-Definition wpc0 `{!irisGS Λ Σ} (s : stuckness) mj :
+Definition wpc0 `{!irisGS Λ Σ Ω} (s : stuckness) mj :
   coPset → expr Λ → (val Λ → iProp Σ) → iProp Σ → iProp Σ := fixpoint (wpc_pre s mj).
 
-Definition wpc_def `{!irisGS Λ Σ} (s : stuckness) :
+Definition wpc_def `{!irisGS Λ Σ Ω} (s : stuckness) :
   coPset → expr Λ → (val Λ → iProp Σ) → iProp Σ → iProp Σ :=
   λ E1 e1 Φ Φc, (∀ mj, wpc0 s mj E1 e1 Φ Φc)%I.
-Definition wpc_aux `{!irisGS Λ Σ} : seal (@wpc_def Λ Σ _). by eexists. Qed.
+Definition wpc_aux `{!irisGS Λ Σ Ω} : seal (@wpc_def Λ Σ Ω _). by eexists. Qed.
 
-Definition wpc `{!irisGS Λ Σ} := wpc_aux.(unseal).
-Arguments wpc {Λ Σ _} _ E _%E _%I _%I.
+Definition wpc `{!irisGS Λ Σ Ω} := wpc_aux.(unseal).
+Arguments wpc {Λ Σ Ω _} _ E _%E _%I _%I.
 #[global]
-Instance: Params (@wpc) 7 := {}.
-Definition wpc_eq `{!irisGS Λ Σ} : wpc = @wpc_def Λ Σ _ := wpc_aux.(seal_eq).
+Instance: Params (@wpc) 8 := {}.
+Definition wpc_eq `{!irisGS Λ Σ Ω} : wpc = @wpc_def Λ Σ Ω _ := wpc_aux.(seal_eq).
 
 (** Notations for partial crash weakest preconditions *)
 (** Notations without binder -- only parsing because they overlap with the
@@ -202,14 +203,14 @@ Notation "'{{{' P } } } e ? {{{ 'RET' pat ; Q } } }" :=
 
 (** Defining WP in terms of WPC (needs to be here since WP is used in this file)
 *)
-Definition wp_def `{!irisGS Λ Σ} : Wp (iProp Σ) (expr Λ) (val Λ) stuckness :=
+Definition wp_def `{!irisGS Λ Σ Ω} : Wp (iProp Σ) (expr Λ) (val Λ) stuckness :=
   λ s E e Φ, (WPC e @ s ; E {{ Φ }} {{ True }})%I.
 Definition wp_aux : seal (@wp_def). Proof. by eexists. Qed.
 Definition wp' := wp_aux.(unseal).
 Global Arguments wp' {Λ Σ _}.
 (* We cannot make this an instance since [simple apply] unification is too weak. *)
 Global Hint Extern 0 (Wp _ _ _ _) => apply wp' : typeclass_instances.
-Lemma wp_eq `{!irisGS Λ Σ} : wp = @wp_def Λ Σ _.
+Lemma wp_eq `{!irisGS Λ Σ Ω} : wp = @wp_def Λ Σ Ω _.
 Proof. rewrite -wp_aux.(seal_eq) //. Qed.
 
 (** We do not really need crashGS, but it is the laziest way
@@ -240,7 +241,7 @@ Proof.
 Qed.*)
 
 Section wpc.
-Context `{!irisGS Λ Σ}.
+Context `{!irisGS Λ Σ Ω}.
 Implicit Types s : stuckness.
 Implicit Types P : iProp Σ.
 Implicit Types Φ : val Λ → iProp Σ.
@@ -1626,7 +1627,7 @@ End wpc.
   Search "wpc_mono".
 (** Proofmode class instances *)
 Section proofmode_classes.
-  Context `{!irisGS Λ Σ}.
+  Context `{!irisGS Λ Σ Ω}.
   Implicit Types P Q : iProp Σ.
   Implicit Types Φ : val Λ → iProp Σ.
 
@@ -1775,7 +1776,7 @@ End proofmode_classes.
 
 Section wpc_ectx_lifting.
 Import ectx_language.
-Context {Λ : ectxLanguage} `{!irisGS Λ Σ} {Hinh : Inhabited (state Λ)}.
+Context {Λ : ectxLanguage} `{!irisGS Λ Σ Ω} {Hinh : Inhabited (state Λ)}.
 Hint Resolve head_prim_reducible head_reducible_prim_step : core.
 Local Definition reducible_not_val_inhabitant_state e := reducible_not_val e inhabitant.
 Hint Resolve reducible_not_val_inhabitant_state : core.

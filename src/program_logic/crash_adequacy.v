@@ -13,7 +13,7 @@ Import uPred.
 Import language.
 
 Section crash_adequacy.
-Context `{!irisGS Λ Σ}.
+Context `{!irisGS Λ Σ Ω}.
 Implicit Types s : stuckness.
 Implicit Types e : expr Λ.
 Implicit Types P Q : iProp Σ.
@@ -247,7 +247,7 @@ Qed.
 End crash_adequacy.
 
 Section crash_adequacy.
-Context `{!irisGS Λ Σ}.
+Context `{!irisGS Λ Σ Ω}.
 Implicit Types s : stuckness.
 Implicit Types e : expr Λ.
 Implicit Types P Q : iProp Σ.

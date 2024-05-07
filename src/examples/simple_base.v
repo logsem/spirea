@@ -4,6 +4,7 @@ From self.base Require Export primitive_laws class_instances post_crash_modality
 From self.algebra Require Import view.
 From self.base Require Import proofmode wpc_proofmode wpr_lifting.
 From self.lang Require Import lang.
+From self.nextgen Require Import omega.
 
 Definition assignment_prog (ℓ : loc) : expr :=
   #ℓ <-_NA #1.
@@ -11,7 +12,7 @@ Definition assignment_prog (ℓ : loc) : expr :=
 Definition init_hist : history := {[ 0 := Msg #0 ∅ ∅ ∅ ]}.
 
 Section simple_assignment.
-  Context `{!nvmBaseFixedG Σ, extraStateInterp Σ, nvmBaseDeltaG}.
+  Context `{!nvmBaseFixedG Σ, extraStateInterp Σ, nvmBaseDeltaG, gGenCmras Σ}.
 
   Lemma wpc_assignment ℓ st E :
     {{{ validV ∅ ∗
@@ -72,7 +73,7 @@ Section simple_assignment.
 End simple_assignment.
 
 Section simple_increment.
-  Context `{!nvmBaseFixedG Σ, extraStateInterp Σ, nvmBaseDeltaG}.
+  Context `{!nvmBaseFixedG Σ, extraStateInterp Σ, nvmBaseDeltaG, gGenCmras Σ}.
 
   Definition pure : expr :=
     let: "a" := #1 in

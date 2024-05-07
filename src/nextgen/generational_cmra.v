@@ -9,6 +9,25 @@ From self.nextgen Require Import types.
 
 Import EqNotations. (* Get the [rew] notation. *)
 
+Lemma cmra_update_unit_Some_unit (A : ucmra) :
+  (ε : optionR A) ~~> (Some ε : optionR A).
+Proof.
+  intros n mz Hv. destruct mz;simpl in *.
+  - rewrite ucmra_unit_left_id in Hv.
+    destruct c;simpl.
+    + by rewrite -Some_op ucmra_unit_left_id.
+    + rewrite op_None_right_id.
+      apply Some_validN, ucmra_unit_validN.
+  - apply Some_validN, ucmra_unit_validN.
+Qed.
+  
+Lemma own_option_unit (A : ucmra) `{i : !inG Σ (optionR A:ucmra)} γ : ⊢ |==> own γ (Some ε:optionR A).
+Proof.
+  iMod (own_unit _ γ) as "Hown".
+  iMod (own_update with "Hown") as "$";[|done].
+  apply cmra_update_unit_Some_unit.
+Qed.
+
 Local Infix "*R*" := prodR (at level 50, left associativity).
 Local Infix "*UR*" := prodUR (at level 50, left associativity).
 
@@ -375,6 +394,116 @@ Section lemmas.
     ↔ (a1 ≡ a2) ∧ (b1 ≡ b2) ∧ (c1 ≡ c2) ∧ (d1 ≡ d2) ∧ (e1 ≡ e2) ∧ (f1 ≡ f2).
   Proof. done. Qed.
 
+  Global Instance gc_tup_elem_discrete (a : A) : Discrete a -> Discrete (gc_tup_elem DS a).
+  Proof.
+    intros Ha.
+    intros y (Hy1 & [Hy2 Hy2'] & Hy3 & Hy4 & [Hy5 Hy5'] & [Hy6 Hy6']).
+    destruct y;simpl in *.
+    inversion Hy1;subst.
+    inversion Hy4;subst.
+    repeat split;simpl;auto.
+    - by inversion Hy2.
+    - by inversion Hy2'.
+    - destruct gc_elem0;inversion Hy3;subst.
+      f_equiv. apply Ha. auto.
+    - by inversion Hy5.
+    - by inversion Hy5'.
+    - by inversion Hy6.
+    - by inversion Hy6'.
+  Qed.
+
+  Global Instance gc_tup_pick_in_discrete pick_in : Discrete pick_in -> Discrete (@gc_tup_pick_in _ A DS pick_in).
+  Proof.
+    intros Ha.
+    intros y (Hy1 & [Hy2 Hy2'] & Hy3 & Hy4 & [Hy5 Hy5'] & [Hy6 Hy6']).
+    destruct y;simpl in *.
+    inversion Hy1;subst.
+    inversion Hy4;subst.
+    repeat split;simpl;auto.
+    - f_equiv.
+      assert (✓ y) as Hv.
+      { apply cmra_discrete_valid. rewrite -H0. done. }
+      apply to_agree_uninj in Hv as [p Hp].
+      rewrite -Hp in H0.
+      apply to_agree_injN in H0.
+      rewrite Ha;eauto.
+    - by inversion Hy2.
+    - by inversion Hy2'.
+    - by inversion Hy3.
+    - by inversion Hy5.
+    - by inversion Hy5'.
+    - by inversion Hy6.
+    - by inversion Hy6'.
+  Qed.
+
+  Global Instance gc_tup_pick_out_discrete pick_out : Discrete pick_out -> Discrete (@gc_tup_pick_out _ A DS pick_out).
+  Proof.
+    intros Ha.
+    intros y (Hy1 & Hy2 & Hy3 & Hy4 & [Hy5 Hy5'] & [Hy6 Hy6']).
+    destruct y;simpl in *.
+    inversion Hy1;subst.
+    inversion Hy4;subst.
+    split;simpl;auto.
+    split;[|repeat split;simpl;auto].
+    - rewrite Ha;eauto.
+    - by inversion Hy3.
+    - by inversion Hy5.
+    - by inversion Hy5'.
+    - by inversion Hy6.
+    - by inversion Hy6'.
+  Qed.
+
+  Global Instance gc_tup_deps_discrete deps : Discrete deps -> Discrete (gc_tup_deps A DS deps).
+  Proof.
+    intros Ha.
+    intros y (Hy1 & [Hy2 Hy2'] & Hy3 & Hy4 & [Hy5 Hy5'] & [Hy6 Hy6']).
+    destruct y;simpl in *.
+    inversion Hy1;subst.
+    inversion Hy4;subst.
+    repeat split;simpl;auto.
+    - by inversion Hy2.
+    - by inversion Hy2'.
+    - by inversion Hy3.
+    - f_equiv.
+      assert (✓ y) as Hv.
+      { apply cmra_discrete_valid. rewrite -H0. done. }
+      apply to_agree_uninj in Hv as [p Hp].
+      rewrite -Hp in H0.
+      apply to_agree_injN in H0.
+      rewrite Ha;eauto.
+    - by inversion Hy5.
+    - by inversion Hy5'.
+    - by inversion Hy6.
+    - by inversion Hy6'.
+  Qed.
+
+  Global Instance gc_tup_promise_list_discrete l : Discrete l -> Discrete (@gc_tup_promise_list n A DS l).
+  Proof.
+    intros Ha.
+    intros y (Hy1 & [Hy2 Hy2'] & Hy3 & Hy4 & Hy5 & [Hy6 Hy6']).
+    destruct y;simpl in *.
+    inversion Hy1;subst.
+    inversion Hy4;subst.
+    split;simpl;auto.
+    split;[|split;[|split;[|split]]];auto.
+    - split; [by inversion Hy2|by inversion Hy2'].
+    - by inversion Hy3.
+    - split;simpl;[by inversion Hy6|by inversion Hy6'].
+  Qed.
+
+  Global Instance gc_tup_rel_pred_discrete l1 l2 : Discrete l1 -> Discrete l2 -> Discrete (@gc_tup_rel_pred n A DS l1 l2).
+  Proof.
+    intros Ha1 Ha2.
+    intros y (Hy1 & [Hy2 Hy2'] & Hy3 & Hy4 & Hy5 & Hy6).
+    destruct y;simpl in *.
+    inversion Hy1;subst.
+    inversion Hy4;subst.
+    split;simpl;auto.
+    split;[|split;[|split;[|split]]];auto.
+    - split; [by inversion Hy2|by inversion Hy2'].
+    - by inversion Hy3.
+  Qed.  
+
   (* Lemma prod_6_equivI {Σ} a1 b1 c1 d1 e1 f1 a2 b2 c2 d2 e2 f2 : *)
   (*   (a1, b1, c1, d1, e1, f1) ≡ (a2, b2, c2, d2, e2, f2) *)
   (*   ⊣⊢@{iProp Σ} (a1 ≡ a2) ∧ (b1 ≡ b2) ∧ (c1 ≡ c2) ∧ (d1 ≡ d2) ∧ (e1 ≡ e2) ∧ (f1 ≡ f2). *)
@@ -422,6 +551,20 @@ Section lemmas.
     repeat split; simpl;
       rewrite ?ucmra_unit_right_id; rewrite ?ucmra_unit_left_id; reflexivity.
   Qed.
+
+  Lemma own_gen_unit {Σ} `{!inG Σ (generational_cmraR B DS)} γ :
+    ⊢ |==> own γ (MkGen ε ε ε ε ε ε).
+  Proof. iApply own_unit. Qed.
+          
+  Lemma own_gen_gc_tup_elem_unit {Σ} {B : ucmra}
+    `{!inG Σ (generational_cmraR B DS)} γ :
+    ⊢ |==> own γ (gc_tup_elem DS ε).
+  Proof.
+    iMod (own_gen_unit γ) as "Hown".
+    iApply (own_update with "Hown").
+    apply gen_cmra_update;try done.
+    apply cmra_update_unit_Some_unit.
+  Qed.    
 
   Global Instance gen_generation_ne (f : A → A) :
     NonExpansive f →

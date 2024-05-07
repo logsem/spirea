@@ -3,11 +3,12 @@ From iris.program_logic Require Export weakestpre.
 
 From self.lang Require Import lang.
 From self.base Require Import proofmode.
+From self.nextgen Require Import omega.
 
 From iris.prelude Require Import options.
 
 Section lifting.
-  Context `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG}.
+  Context `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG, Ω : gGenCmras Σ}.
 
   Lemma wp_assert E (Φ : thread_val → iProp Σ) e TV :
     WP e `at` TV @ E {{ v, ⌜val_val v = #true⌝ ∧ ▷ Φ (ThreadVal #() (val_view v)) }} -∗

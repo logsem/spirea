@@ -2,112 +2,20 @@
 
 From iris.algebra Require Import gmap auth agree gset coPset list vector excl.
 From iris.base_logic Require Import lib.later_credits.
-From Perennial.algebra Require Import mlist.
 From Perennial.Helpers Require Import ipm.
-From Perennial.base_logic.lib Require Import wsat.
-
-Search "invGS".
-(* From Perennial.program_logic Require Export weakestpre. *)
-(* From Perennial.program_logic Require Export crash_lang. *)
+From Perennial.algebra Require Import mlist.
 
 From self.nextgen Require Import nextgen_promises_ng.
 
-Export invGS.
-
-(* Below are the resources used in Perennial for fupd, but where [inG] has been
- * replaced with [inG]. *)
-
-Class ngFmlistG (A : Type) {Heq: EqDecision A} Σ Ω :=
-  { ngFmlist_inG :> ngInG Σ Ω (fmlistUR A) }.
-
-#[global]
-Instance ngFmlistG_unwrap A {Heq : EqDecision A} Σ Ω :
-    ngFmlistG A Σ Ω → fmlistG A Σ := {
-  fmlist_inG := _
-}.
-
 (** The ghost state for later credits *)
-Class ngLcGpreS (Σ : gFunctors) Ω := NgLcGpreS {
-  ngLcGpreS_inG : ngInG Σ Ω (authR natUR)
-}.
-
-#[global]
-(** The ghost state for later credits *)
-Instance ngLcGpreS_unwrap (Σ : gFunctors) Ω (l : ngLcGpreS Σ Ω) : lcGpreS Σ := {
-  lcGpreS_inG := @ngInG_inG _ _ _ ngLcGpreS_inG;
-}.
-
-Class ngLcGS (Σ : gFunctors) Ω := NgLcGS {
+Class ngLcGS (Σ : gFunctors) Ω `{!inG Σ (authR natUR)} := NgLcGS {
   ngLcGS_inG :> ngInG Σ Ω (authR natUR);
-  ngLcGS_name : gname;
 }.
-
-#[global]
-Instance ngLcGS_unwrap Σ Ω : ngLcGS Σ Ω → lcGS Σ := {
-  lcGS_inG := _;
-  lcGS_name := ngLcGS_name;
-}.
-
-(* Global Hint Mode ngLcGS - : typeclass_instances. *)
-(* Local Existing Instances lcGS_inG lcGpreS_inG. *)
-
-Definition invR Σ :=
-  authR (gmapUR positive
-    (prodR (agreeR (prodO (listO (laterO (iPropO Σ))) bi_schemaO))
-      (optionR (prodR fracR (agreeR (listO (laterO (iPropO Σ)))))))).
-
-Class ngInvGpreS (Σ : gFunctors) Ω : Set := WsatPreG {
-  ngInv_inPreG :> ngInG Σ Ω (invR Σ);
-  ngEnabled_inPreG :> ngInG Σ Ω coPset_disjR;
-  ngDisabled_inPreG :> ngInG Σ Ω (gset_disjR positive);
-  ngMlist_inPreG :> ngFmlistG (invariant_level_names) Σ Ω;
-  ngInv_lcPreG :> ngLcGpreS Σ Ω;
-}.
-
-#[global]
-Program Instance ngInvGpreS_unwrap Σ Ω : ngInvGpreS Σ Ω → invGpreS Σ := {
-  inv_inPreG := _;
-  enabled_inPreG := _;
-  disabled_inPreG := _;
-  mlist_inPreG := _;
-  inv_lcPreG := _;
-}.
-
-Class ngInvGS (Σ : gFunctors) Ω : Set := WsatG {
-  ngInv_inG :> ngInvGpreS Σ Ω;
-  ngInvGS_lc :> ngLcGS Σ Ω;
-  ngInv_list_name : gname;
-  ngEnabled_name : gname;
-  ngDisabled_name : gname;
-}.
-
-#[global]
-Instance ngInvGS_unwrap {Σ Ω} : ngInvGS Σ Ω → invGS Σ := {
-  inv_inG := _;
-  invGS_lc := _;
-  inv_list_name := ngInv_list_name;
-  enabled_name := ngEnabled_name;
-  disabled_name := ngDisabled_name;
-}.
-
-(* #[global] *)
-Definition ngInvG_combine {Σ Ω} (p : ngInvGpreS Σ Ω) (i : invGS Σ) : ngInvGS Σ Ω := {|
-  ngInv_inG := p;
-  ngInvGS_lc := NgLcGS _ _ (@ngLcGpreS_inG _ _ ngInv_lcPreG) lcGS_name;
-  ngInv_list_name := inv_list_name;
-  ngEnabled_name := enabled_name;
-  ngDisabled_name := disabled_name;
-|}.
-
-Lemma ngInv_combine_unwrap {Σ Ω} (p : ngInvGpreS Σ Ω) (i : invGS Σ) :
-  i = ngInvGS_unwrap (ngInvG_combine p i).
-Proof.
-  unfold ngInvG_combine, ngInvGS_unwrap.
-  destruct i. f_equiv; try done.
-Admitted.
+Global Hint Mode ngLcGS - - - : typeclass_instances.
+Local Existing Instances lcGS_inG lcGpreS_inG.
 
 Section ngInv_lemmas.
-  Context `{!ngInvGS Σ Ω}.
+  Context `{!lcGS Σ} `{!ngLcGS Σ Ω}.
 
   Lemma nextgen_lc k : £ k ⊢ ⚡==> £ k.
   Proof.
@@ -118,6 +26,53 @@ Section ngInv_lemmas.
   Qed.
 
   #[global]
-  Instance into_nextgen_lc k : IntoNextgen _ _ := nextgen_lc k.
+    Instance into_nextgen_lc k : IntoNextgen _ _ := nextgen_lc k.
+
+  Lemma nextgen_lc_supply n : later_credits.lc_supply n ⊢ ⚡==> later_credits.lc_supply n.
+  Proof.
+    iIntros "O".
+    rewrite later_credits.lc_supply_unseal /later_credits.lc_supply_def.
+    iModIntro. done.
+  Qed.
+
+  #[global]
+    Instance into_nextgen_lc_supply k : IntoNextgen _ _ := nextgen_lc_supply k.
+
+End ngInv_lemmas.
+
+
+
+Class ngFmlistG (A : Type) {Heq: EqDecision A} Σ Ω `{!inG Σ (fmlistUR A)} :=
+  { ngFmlist_inG :> ngInG Σ Ω (fmlistUR A) }.
+
+Section ngInv_lemmas.
+  Context `{!EqDecision A} `{!fmlistG A Σ} `{!ngFmlistG A Σ Ω}.
+
+  Lemma nextgen_fmlist γ q1 l1 : fmlist γ q1 l1 ⊢ ⚡==> fmlist γ q1 l1.
+  Proof.
+    iIntros "O". rewrite /fmlist.
+    by iModIntro.
+  Qed.
+
+  #[global]
+    Instance into_nextgen_fmlist γ q1 l1 : IntoNextgen _ _ := nextgen_fmlist γ q1 l1.
+
+  Lemma nextgen_fmlist_lb γ l2 : fmlist_lb γ l2 ⊢ ⚡==> fmlist_lb γ l2.
+  Proof.
+    iIntros "O". rewrite /fmlist_lb.
+    by iModIntro.
+  Qed.
+
+  #[global]
+    Instance into_nextgen_fmlist_lb γ l2 : IntoNextgen _ _ := nextgen_fmlist_lb γ l2.
+
+  Lemma nextgen_fmlist_idx γ i a2 : fmlist_idx γ i a2 ⊢ ⚡==> fmlist_idx γ i a2.
+  Proof.
+    rewrite /fmlist_idx. iIntros "(%l & %Heq & O)".
+    iModIntro. eauto.
+  Qed.
+
+  #[global]
+    Instance into_nextgen_fmlist_idx γ i a2 : IntoNextgen _ _ := nextgen_fmlist_idx γ i a2.
 
 End ngInv_lemmas.

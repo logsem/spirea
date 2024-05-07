@@ -14,6 +14,7 @@ From Perennial.Helpers Require Export ipm NamedProps ProofCaching.
 
 From self Require Import ipm_tactics.
 From self.base Require Import proofmode.
+From self.nextgen Require Import omega.
 
 Set Default Proof Using "Type".
 Import uPred.
@@ -22,7 +23,7 @@ Lemma thread_of_val_fold (v : val) TV :
   ThreadState v TV = thread_of_val (ThreadVal v TV).
 Proof. done. Qed.
 
-Lemma wpc_fork `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG} s E1 e TV Φ Φc :
+Lemma wpc_fork `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG,Ω : gGenCmras Σ} s E1 e TV Φ Φc :
   ▷ WPC e `at` TV @ s; ⊤ {{ _, True }} {{ True }} -∗
   (Φc ∧ ▷ Φ (LitV LitUnit `at` TV)%TV) -∗
   WPC (Fork e `at` TV) @ s; E1 {{ Φ }} {{ Φc }}.
@@ -47,7 +48,7 @@ Proof.
   iApply wpc_value'. by rewrite comm.
 Qed.
 
-Lemma tac_wpc_expr_eval `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG} Δ (s: stuckness) E1 Φ (Φc: iProp Σ) e e' :
+Lemma tac_wpc_expr_eval `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG, Ω : gGenCmras Σ} Δ (s: stuckness) E1 Φ (Φc: iProp Σ) e e' :
   (∀ (e'':=e'), e = e'') →
   envs_entails Δ (WPC e' @ s; E1 {{ Φ }} {{ Φc }}) → envs_entails Δ (WPC e @ s; E1 {{ Φ }} {{ Φc }}).
 Proof. by intros ->. Qed.
@@ -60,7 +61,7 @@ Tactic Notation "wpc_expr_eval" tactic(t) :=
       [let x := fresh in intros x; t; unfold x; notypeclasses refine eq_refl|]
   end.
 
-Lemma tac_wpc_pure_ctx `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG, !crashGS Σ}
+Lemma tac_wpc_pure_ctx `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG, !crashGS Σ, Ω : gGenCmras Σ}
       Δ Δ' s E1 K e1 e2 TV φ Φ Φc :
   PureExecBase φ 1 e1 e2 →
   φ →
@@ -76,7 +77,7 @@ Proof.
   rewrite HΔ' //.
 Qed.
 
-Lemma tac_wpc_pure_no_later_ctx `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG, !crashGS Σ}
+Lemma tac_wpc_pure_no_later_ctx `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG, !crashGS Σ, Ω : gGenCmras Σ}
       Δ s E1 K e1 e2 TV φ Φ Φc :
   PureExecBase φ 1 e1 e2 →
   φ →
@@ -93,7 +94,7 @@ Proof.
     iApply HΔ'; iAssumption.
 Qed.
 
-Lemma tac_wpc_value `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG} Δ s E1 Φ Φc v TV :
+Lemma tac_wpc_value `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG, Ω : gGenCmras Σ} Δ s E1 Φ Φc v TV :
   envs_entails Δ (|NC={E1}=> Φ (ThreadVal v TV)) →
   envs_entails Δ Φc →
   envs_entails Δ (WPC (ThreadState (Val v) TV) @ s; E1 {{ Φ }} {{ Φc }}).
@@ -106,7 +107,7 @@ Proof.
   - rewrite H2. iIntros. iModIntro; auto.
 Qed.
 
-Lemma tac_wpc_value_fupd `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG} Δ s E1 Φ Φc v TV :
+Lemma tac_wpc_value_fupd `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG, Ω : gGenCmras Σ} Δ s E1 Φ Φc v TV :
   envs_entails Δ (|NC={E1}=> Φ (ThreadVal v TV)) →
   envs_entails Δ Φc →
   envs_entails Δ (WPC (ThreadState (Val v) TV) @ s; E1 {{ v, |={E1}=> Φ v }} {{ Φc }})%I.
@@ -118,7 +119,7 @@ Proof.
   - rewrite H2. iIntros. iModIntro; auto.
 Qed.
 
-Lemma tac_wpc_value_noncfupd `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG} Δ s E1 Φ Φc v TV :
+Lemma tac_wpc_value_noncfupd `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG, Ω : gGenCmras Σ} Δ s E1 Φ Φc v TV :
   envs_entails Δ (Φ (ThreadVal v TV)) →
   envs_entails Δ Φc →
   envs_entails Δ (WPC (ThreadState (Val v) TV) @ s; E1 {{ Φ }} {{ Φc }}).
@@ -270,7 +271,7 @@ Ltac wpc_pures :=
       [try iFromCache .. | repeat (wpc_pure_no_later wp_pure_filter as Hcrash; []); clear Hcrash]
   end.
 
-Lemma tac_wpc_bind `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG, !crashGS Σ} K Δ s E1 Φ Φc e TV f :
+Lemma tac_wpc_bind `{!nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG, !crashGS Σ, Ω : gGenCmras Σ} K Δ s E1 Φ Φc e TV f :
   f = (λ e, fill K e) → (* as an eta expanded hypothesis so that we can `simpl` it *)
   envs_entails Δ (WPC (ThreadState e TV) @ s; E1 {{ tv, WPC (ThreadState (f $ Val tv.(val_val)) (tv.(val_view))) @ s; E1 {{ Φ }} {{ Φc }} }} {{ Φc }})%I →
   envs_entails Δ (WPC (ThreadState (fill K e) TV) @ s; E1 {{ Φ }} {{ Φc }}).

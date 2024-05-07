@@ -1,16 +1,17 @@
 From stdpp Require Import numbers.
 From iris.proofmode Require Import tactics.
 From iris.algebra Require Import auth dfrac.
-From Perennial.base_logic.lib Require Import proph_map.
+(* From Perennial.base_logic.lib Require Import proph_map. *)
 From Perennial.program_logic Require Import recovery_weakestpre recovery_adequacy.
 
+From self.nextgen Require Import omega.
 From self Require Import extra map_extra ipm_tactics if_non_zero view_slice.
 From self.lang Require Import lang.
 From self.base Require Import primitive_laws post_crash_modality.
 
 Set Default Proof Using "Type".
 
-Definition wpr `{nvmBaseFixedG Σ, !extraStateInterp Σ, hG : nvmBaseDeltaG} `{hC : !crashGS Σ}
+Definition wpr `{nvmBaseFixedG Σ, !extraStateInterp Σ, hG : nvmBaseDeltaG, Ω : gGenCmras Σ} `{hC : !crashGS Σ}
            (s : stuckness) (E : coPset)
            (e : thread_state) (recv : thread_state) (Φ : thread_val → iProp Σ)
            (Φinv : nvmBaseDeltaG → iProp Σ)
@@ -29,7 +30,7 @@ Section wpr.
   Implicit Types v : thread_val.
   Implicit Types e : thread_state.
 
-  Lemma wpr_strong_mono `{hG : !nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG}
+  Lemma wpr_strong_mono `{hG : !nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG, Ω : gGenCmras Σ}
         s E e rec Φ Ψ Φinv Ψinv Φr Ψr :
     wpr s E e rec Φ Φinv Φr -∗
     (∀ v, Φ v ==∗ Ψ v) ∧
@@ -176,7 +177,7 @@ Section wpr.
     iSplitPure; first done. iFrame.
   Qed.
 
-  Lemma idempotence_wpr `{nG : nvmBaseFixedG Σ, !extraStateInterp Σ, nD : nvmBaseDeltaG}
+  Lemma idempotence_wpr `{nG : nvmBaseFixedG Σ, !extraStateInterp Σ, nD : nvmBaseDeltaG, Ω : gGenCmras Σ}
       s E1 e e_rec Φ Φinv Φr Φc :
     ⊢ WPC e @ s; E1 {{ Φ }} {{ Φc nD }} -∗
     (□ ∀ (nD1 : nvmBaseDeltaG),

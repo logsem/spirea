@@ -8,18 +8,17 @@ From iris.prelude Require Import options.
 From self.nextgen Require Export nextgen_promises_model.
 
 (** Non-generational cameras. *)
-Class ngInG Σ (Ω : gGenCmras Σ) A := NgInG {
-  ngInG_inG :> inG Σ A;
+Class ngInG Σ (Ω : gGenCmras Σ) A {ngInG_inG: inG Σ A} := NgInG {
   ngInG_evidence : ∀ i, Ogid Ω i ≠ inG_id ngInG_inG;
 }.
 
 Section non_generational_resources.
-  Context `{!ngInG Σ Ω A}.
+  Context `{!inG Σ A} `{nging: !ngInG Σ Ω A}.
   Implicit Types (a : A).
 
   Lemma nextgen_ng_own γ a :
     own γ a ⊢ ⚡==> own γ a.
-  Proof. iApply nextgen_own_non_gen. apply ngInG_evidence. Qed.
+  Proof using nging. iApply nextgen_own_non_gen. apply ngInG_evidence. Qed.
 
   #[global]
   Instance ng_own_into_nextgen γ (a : A) `{!ngInG Σ Ω A} :
