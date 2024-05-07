@@ -4,7 +4,7 @@ From iris_named_props Require Import named_props.
 
 From self Require Import encode_relation.
 From self.high Require Import dprop dprop_liftings resources modalities
-  post_crash_modality monpred_simpl or_lost if_rec predicates.
+  post_crash_modality monpred_simpl or_lost if_rec predicates viewobjective.
 From self.lang Require Import lang.
 From self.high.modalities Require Import no_buffer.
 
@@ -45,8 +45,8 @@ Class ProtocolConditions `{AbstractState ST, nvmG Σ} (prot : LocationProtocol S
     ∀ s v, BufferFree (prot.(p_full) s v);
   read_nobuf :>
     ∀ s v, BufferFree (prot.(p_read) s v);
-  pers_nobuf :>
-    ∀ s v, BufferFree (prot.(p_pers) s v);
+  pers_viewobj :>
+    ∀ s v, ViewObjective (prot.(p_pers) s v);
   full_read_split :
     forall s v, prot.(p_full) s v ⊣⊢ prot.(p_read) s v ∗ (prot.(p_read) s v -∗ prot.(p_full) s v);
   pred_full_post_crash :
@@ -68,7 +68,7 @@ Class ProtocolConditions `{AbstractState ST, nvmG Σ} (prot : LocationProtocol S
 
 Existing Instance full_nobuf.
 Existing Instance read_nobuf.
-Existing Instance pers_nobuf.
+Existing Instance pers_viewobj.
 Existing Instance bumper_mono.
 
 (** [know_protocol] represents the knowledge that a location is associated with a

@@ -295,7 +295,9 @@ Section wp_at_rules.
         { done. }
         iApply "HH".
         (* destruct TV as [[??]?]. *)
-        iApply (into_no_buffer_at with "predPers").
+        iPoseProof (view_objective_view_objectively with "predPers") as "P".
+        iPoseProof (monPred_at_view_objectively with "P") as "P".
+        iApply "P".
       - iApply (big_sepM2_impl with "predsPersHold").
         iModIntro. iIntros (ℓ' ????) "(%pred & %t & %encS & %msg &
                                        %predLook & %tLook & %encSLook & %msgLook & ?)".

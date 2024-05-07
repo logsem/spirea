@@ -240,11 +240,9 @@ Section wp_na_rules.
         { done. }
         iApply "HH".
         destruct TV as [[??]?]. destruct TV' as [[??]?].
-        iDestruct (into_no_buffer_at with "φ_pers") as "phi".
-        iApply (monPred_mono with "phi").
-        repeat split; last done.
-        * etrans; first apply incl. apply incl2.
-        * etrans; first apply incl. apply incl2.
+        iPoseProof (view_objective_view_objectively with "φ_pers") as "P".
+        iPoseProof (monPred_at_view_objectively with "P") as "P".
+        iApply "P".
       - iApply (big_sepM2_impl with "predsPersHold").
         iModIntro. iIntros (ℓ' ????) "(%pred & %t & %encS & %msg & % & %pview & % & % & ?)".
         iExists pred, t, encS, msg.
@@ -796,7 +794,6 @@ Section wp_na_rules.
              end.
       iPoseProof (big_sepM2_sep with "[$]") as "predHolds".
       iEval (rewrite -big_sepM2_sep big_sepM2_insert_delete).
-      iEval (rewrite -(delete_notin _ _ look) -(delete_notin _ _ absHistLook)).
       iDestruct (big_sepM2_dom with "[$]") as "%domEq".
       rewrite dom_fmap_L in domEq.
       iSplitL "phi"; first iSplitL "phi".
@@ -810,13 +807,37 @@ Section wp_na_rules.
         repeat split; last done.
         solve_view_le.
         * etrans; first apply incl. apply incl2. }
-      { rewrite -elem_of_dom (delete_notin _ _ look) dom_insert elem_of_union domEq elem_of_dom nolater; last lia.
+      { rewrite -elem_of_dom dom_insert elem_of_union domEq elem_of_dom nolater; last lia.
         iIntros ([ | [ contra | [] ] ]); [ lia | | done ].
         apply elem_of_singleton_1 in contra.
         lia. }
-      (* depends on whether [tS +1 =? tT], we might need to move around the predicates *)
-      destruct (decide (tS + 1 = tT)) as [ <- | ? ].
-      +
+      iEval (rewrite (delete_notin _ _ look) -fmap_delete (delete_notin _ _ absHistLook)).
+      iApply (big_sepM2_impl with "[$]").
+      iModIntro. iIntros (t msg' encS' ??) "[read full]".
+      (* other than [tT + offset - 1] the implication is trivial *)
+      destruct (decide (S t = tT + offset)) as [ -> | ].
+      + rewrite lookup_insert.
+        iSplitL ""; first (iIntros; congruence).
+        iIntros (_).
+        destruct (decide ((offset ≤ t) ∧ (physHist !! (tT + offset) = None))) as [ [] | no ].
+        * iSpecialize ("full" with "[//] [//]").
+          iPoseProof (big_sepM2_lookup _ _ _ ℓ with "predFullReadSplit") as "split";
+            [ done | done | ].
+          iApply ("split" with "[full]").
+          rewrite (encoded_predicate_holds_mono pred _ _ _ (<[ℓ := MaxNat tT]> SV', _, _, _));
+            last (repeat split; by solve_view_le).
+          iFrame.
+        * iSpecialize ("read" with "[%]").
+          { apply not_and_l in no as [ | ]; [ lia | by right ]. }
+          rewrite (encoded_predicate_holds_mono predRead _ _ _ (<[ℓ := MaxNat tT]> SV', _, _, _));
+            last (repeat split; by solve_view_le).
+          iFrame.
+      + rewrite lookup_insert_ne; last lia.
+        rewrite (encoded_predicate_holds_mono pred _ _ _ (<[ℓ := MaxNat tT]> SV', _, _, _));
+          last (repeat split; by solve_view_le).
+        rewrite (encoded_predicate_holds_mono predRead _ _ _ (<[ℓ := MaxNat tT]> SV', _, _, _));
+          last (repeat split; by solve_view_le).
+        iFrame.
     - iApply (big_sepM2_impl with "predsRest").
       iModIntro. iIntros (ℓ' phys_hist abs_hist physHistsLook' ?).
       assert (ℓ ≠ ℓ') by (apply lookup_delete_Some in physHistsLook' as []; done).

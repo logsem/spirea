@@ -29,12 +29,12 @@ Section wp_rules.
   (* let's try a single location modality, just to make it easier on first attempt *)
 
   Definition R_progress ℓ prot s Q: dProp Σ :=
-    ∀ s_p v_p v, ∃ p_pers_obj p_read_obj,
-             (prot.(p_pers) s_p v_p -∗ □ <obj> p_pers_obj) ∗
-             (prot.(p_read) s v -∗ □ <obj> p_read_obj) ∗
-             (p_pers_obj -∗ p_read_obj -∗
-              (⌜ s_p ⊑ s ⌝ ==∗ prot.(p_pers) s v ∗ Q) ∧
-              (⌜ s ⊑ s_p ⌝ ==∗ Q)).
+    ∀ s_p v_p v,
+    (* extract the peristent & objective observation *)
+    ∃ P, (prot.(p_read) s v -∗ □ <obj> P) ∗
+         (P -∗
+          (⌜ s_p ⊑ s ⌝ -∗ prot.(p_pers) s_p v_p ==∗ prot.(p_pers) s v ∗ Q) ∧
+          (⌜ s ⊑ s_p ⌝ -∗ prot.(p_pers) s_p v_p ==∗ prot.(p_pers) s_p v_p ∗ Q)).
 
   Definition post_fence_sync_l i ℓ prot (P : dProp Σ): iProp Σ :=
     let nD := i.2 in
@@ -340,22 +340,15 @@ Section wp_rules.
       first done.
     (* we now have enough resrouce to specialize the progress resource *)
     iDestruct ("progress" $! SP (msg_val msgP) (msg_val msg))
-      as (pred_pers_obj pred_read_obj) "(persExtract & readExtract & progress)".
-    iEval (rewrite ?monPred_at_wand) in "persExtract".
-    iDestruct ("persExtract" with "[%] pred_pers_holds") as "#persExtract".
-    { simpl. split; [ solve_view_le | done ]. }
-    iEval (rewrite ?monPred_at_objectively) in "persExtract".
+      as (Pread) "[readExtract progress]".
     iEval (rewrite ?monPred_at_wand) in "readExtract".
     iDestruct ("readExtract" with "[%] pred_read_holds") as "#readExtract".
     { simpl. split; [ solve_view_le | done ]. }
     iEval (rewrite ?monPred_at_objectively) in "readExtract".
     iEval (rewrite monPred_at_wand) in "progress".
     set new_pers_view := (default (msg_store_view msg) (na_views !! ℓ), msg_persisted_after_view msg, ∅, gnames).
-    iSpecialize ("progress" $! new_pers_view with "[%] persExtract").
+    iSpecialize ("progress" $! new_pers_view with "[%] readExtract").
     { simpl. split; [ solve_view_le | done ]. }
-    iEval (rewrite monPred_wand_force) in "progress".
-    iSpecialize ("progress" with "readExtract").
-    iEval (rewrite monPred_at_and) in "progress".
     (* now we restore the read predicates *)
     iPoseProof (predicate_holds_phi_decode with "predReadEquiv pred_read_holds") as "predReadHolds";
       first done.
@@ -401,9 +394,20 @@ Section wp_rules.
         }
         iDestruct "progress" as "[_ progress]".
         iSpecialize ("progress" with "[//]").
-        iMod "progress". iFrame.
+        iMod ("progress" with "[pred_pers_holds]") as "[pred_pers_holds Q]".
+        { iPoseProof (view_objective_view_objectively with "pred_pers_holds") as "P".
+          iPoseProof (monPred_at_view_objectively with "P") as "P".
+          iApply "P". }
+        iAssert (p_pers prot SP (msg_val msgP)
+                        (default (msg_store_view msgP) (na_views !! ℓ),
+                           msg_persisted_after_view msgP, ∅, gnames))%I with "[pred_pers_holds]" as "pred_pers_holds".
+        { iPoseProof (view_objective_view_objectively with "pred_pers_holds") as "P".
+          iPoseProof (monPred_at_view_objectively with "P") as "P".
+          iApply "P". }
+        iFrame.
         iPoseProof (predicate_holds_phi_decode with "predPersEquiv pred_pers_holds") as "predPersHolds";
           first done.
+        simplify_map_eq.
         iPoseProof (big_sepM2_insert_delete with "[predsPersRest predPersHolds]") as "predsPersHold".
         { iFrame. iExistsN. iFrame. iFrame "%". }
         do 2 (rewrite insert_id; last done).
@@ -445,7 +449,10 @@ Section wp_rules.
         eapply (encode_relation.encode_relation_decode_iff_1) in increasing;
           [ | done | done ].
         iDestruct "progress" as "[progress _]".
-        iDestruct ("progress" with "[//]") as "> [new_pred_pers_holds $]".
+        iDestruct ("progress" with "[//] [pred_pers_holds]") as "> [new_pred_pers_holds $]".
+        { iPoseProof (view_objective_view_objectively with "pred_pers_holds") as "P".
+          iPoseProof (monPred_at_view_objectively with "P") as "P".
+          iApply "P". }
         iPoseProof (predicate_holds_phi_decode with "predPersEquiv new_pred_pers_holds") as "predPersHolds";
           first done.
         iApply (big_sepM2_delete);
