@@ -1097,10 +1097,17 @@ Proof.
     { iIntros (? ?) "H >H'". iModIntro. iNext. iApply "H";auto. }
     iIntros "H".
     iDestruct "H" as (k'' Hlek) "((Hs & Hw & He) & Hc & Hih)".
-    iApply nextgen_plain_plain.
     (* TODO: see if the following can be fixed *)
     assert (@ngLcGS Σ Ω lcGS_inG) as Hnglc; [rewrite H Hlceq;apply _|].
     rewrite H in Hnglc. rewrite -Hpre in ngInvG0.
+
+    assert (∃ n, length ns * steps_sum_layer stepih 2 MAX + stepb = S n) as [temp Heq].
+    { rewrite /stepb /steps_sum_base.
+      rewrite Nat.add_comm (Nat.add_comm _ 1) Nat.add_1_l !Nat.add_succ_l. eauto. }
+    rewrite Heq.
+    iMod (wsat_all_nextgen with "Hw") as "Hw".
+    rewrite -later_laterN -Heq. clear Heq.
+    iApply nextgen_plain_plain.
     iModIntro.
     iDestruct (lc_supply_bound with "Hs Hc") as %Hbound.
     specialize (IH k'' (Nat.iter (S n') step_count_next ncurr)).

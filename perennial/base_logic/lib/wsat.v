@@ -169,14 +169,15 @@ Fixpoint bi_schema_pre `{!invGS Σ} n (Ps Ps_mut: list (iProp Σ)) wsat (sch: bi
   | bi_sch_wsat => wsat
   | bi_sch_ownE E => ownE (E n)
 end%I.
+
+Definition inv_condition_weak `{!invGS Σ} `{Ω : gGenCmras Σ} (P : iProp Σ) : iProp Σ := ■ (P -∗ ◇ ⚡==> P).
                            
 Definition wsat_pre `{!invGS Σ} {Ω : gGenCmras Σ} n bi_schema_interp :=
   (∃ I : gmap positive ((list (iProp Σ) * bi_schema) * list (iProp Σ)),
         (∃ γs, fmlist_idx inv_list_name n γs ∗
              own (invariant_name γs) (● (inv_cmra_fmap <$> I : gmap _ _))) ∗
-          [∗ map] i ↦ Qs ∈ I, let P := bi_schema_interp (bi_later <$> Qs.1.1) (bi_later <$> Qs.2) Qs.1.2  in
-                              (■ (P -∗ ⚡==> P)) ∗
-                             (P ∗
+          [∗ map] i ↦ Qs ∈ I, inv_condition_weak (bi_schema_interp (bi_later <$> Qs.1.1) (bi_later <$> Qs.2) Qs.1.2) ∗
+                             (bi_schema_interp (bi_later <$> Qs.1.1) (bi_later <$> Qs.2) Qs.1.2  ∗
                              ownI_mut n i (1/2)%Qp (list_to_vec Qs.2) ∗
                              ownD {[i]}) ∨
                                 ownE {[i]})%I.
@@ -193,9 +194,8 @@ Fixpoint bi_schema_interp `{!invGS Σ} {Ω : gGenCmras Σ} n (Ps Ps_mut: list (i
   (∃ I : gmap positive ((list (iProp Σ) * bi_schema) * list (iProp Σ)),
         (∃ γs, fmlist_idx inv_list_name n γs ∗
              own (invariant_name γs) (● (inv_cmra_fmap <$> I : gmap _ _))) ∗
-          [∗ map] i ↦ Qs ∈ I, let P := bi_schema_interp n (bi_later <$> Qs.1.1) (bi_later <$> Qs.2) Qs.1.2 in
-                              (■ (P -∗ ⚡==> P)) ∗
-                             (P ∗
+          [∗ map] i ↦ Qs ∈ I, inv_condition_weak (bi_schema_interp n (bi_later <$> Qs.1.1) (bi_later <$> Qs.2) Qs.1.2) ∗
+                             (bi_schema_interp n (bi_later <$> Qs.1.1) (bi_later <$> Qs.2) Qs.1.2 ∗
                              ownI_mut n i (1/2)%Qp (list_to_vec Qs.2) ∗
                              ownD {[i]}) ∨
                             ownE {[i]})
@@ -212,9 +212,8 @@ Lemma wsat_unfold `{!invGS Σ} {Ω : gGenCmras Σ} n:
   (∃ I : gmap positive ((list (iProp Σ) * bi_schema) * list (iProp Σ)),
         (∃ γs, fmlist_idx inv_list_name n γs ∗
              own (invariant_name γs) (● (inv_cmra_fmap <$> I : gmap _ _))) ∗
-          [∗ map] i ↦ Qs ∈ I, let P := bi_schema_interp n (bi_later <$> Qs.1.1) (bi_later <$> Qs.2) Qs.1.2 in
-                              (■ (P -∗ ⚡==> P)) ∗
-                             (P ∗
+          [∗ map] i ↦ Qs ∈ I, inv_condition_weak (bi_schema_interp n (bi_later <$> Qs.1.1) (bi_later <$> Qs.2) Qs.1.2) ∗
+                             (bi_schema_interp n (bi_later <$> Qs.1.1) (bi_later <$> Qs.2) Qs.1.2 ∗
                              ownI_mut n i (1/2)%Qp (list_to_vec Qs.2) ∗
                              ownD {[i]}) ∨
                             ownE {[i]})
@@ -570,12 +569,46 @@ Proof.
     * iClear "HPQ1". by rewrite plainly_elim.
 Qed.
 
+Lemma bi_schema_interp_ctx lvl sch (Qs Qs_mut Ps Ps_mut: list (iProp Σ)):
+  ■ (∀ i, (Qs !! i ≡ Ps !! i)) -∗
+  ■ (∀ i, (Qs_mut !! i ≡ Ps_mut !! i)) -∗
+  bi_schema_interp lvl Qs Qs_mut sch ∗-∗
+  bi_schema_interp lvl Ps Ps_mut sch.
+Proof.
+  induction sch;
+    iIntros "#HPQ1 #HPQ2";rewrite ?bi_schema_interp_unfold; try auto; rewrite //=.
+  all: try rewrite ?bi_schema_interp_unfold in H.
+  all: try rewrite ?bi_schema_interp_unfold in IHsch.
+  all: try rewrite ?bi_schema_interp_unfold in IHsch1;
+    try rewrite ?bi_schema_interp_unfold in IHsch2.
+  (* iInduction sch as [] "IH"; rewrite ?bi_schema_interp_unfold; try auto; rewrite //=. *)
+  - iSplit; iIntros "H"; iSplit;
+    try iApply IHsch1; try iApply IHsch2; try iDestruct "H" as "($&_)"; try iDestruct "H" as "(_&$)";auto.
+  - iSplit; iIntros "HQ"; iDestruct "HQ" as "[HQ|HQ]";
+      try (iLeft; by iApply IHsch1);
+      try (iRight; by iApply IHsch2).
+  - iSplit; simpl; iIntros "H"; iIntros (a); iApply H; eauto.
+  - iSplit; simpl; iDestruct 1 as (a) "H"; iExists a; by iApply H; eauto.
+  - iSplit; simpl; iDestruct 1 as "(H1&H2)"; iSplitL "H1"; try (by iApply IHsch1); try (by iApply IHsch2).
+  - iSplit; simpl; iIntros "Hw H1"; iApply IHsch2;auto; iApply "Hw"; iApply IHsch1;auto.
+  - iSplit; simpl; iIntros "#H !>"; iApply IHsch; eauto.
+  - iSplit; simpl; iIntros "#H"; iModIntro; iApply IHsch;auto.
+  - iSplit; simpl; iIntros "H !>"; iApply IHsch; eauto.
+  - iSplit; simpl; iIntros ">H"; iApply IHsch; eauto.
+  - iSpecialize ("HPQ1" $! n). rewrite !plainly_elim.
+    destruct (Qs !! n),(Ps !! n);auto;rewrite option_equivI;[|done|done].
+    iRewrite "HPQ1"; auto.
+  - iSpecialize ("HPQ2" $! n). rewrite !plainly_elim.
+    destruct (Qs_mut !! n),(Ps_mut !! n);auto;rewrite option_equivI;[|done|done].
+    iRewrite "HPQ2"; auto.
+Qed.
+
 Lemma ownI_open {n} lvl i sch (Ps: vec _ n) :
   wsat (S lvl) ∗ ownI lvl i sch Ps ∗ ownE {[i]} ⊢
     wsat (S lvl) ∗ (∃ m (Ps_mut: vec _ m),
-                        let P :=  bi_schema_interp lvl (bi_later <$> (vec_to_list Ps))
-                                             (bi_later <$> (vec_to_list Ps_mut)) sch in 
-                        ■ (P -∗ ⚡==> P) ∗ P ∗
+                        inv_condition_weak (bi_schema_interp lvl (bi_later <$> (vec_to_list Ps)) (bi_later <$> (vec_to_list Ps_mut)) sch) ∗
+                          bi_schema_interp lvl (bi_later <$> (vec_to_list Ps))
+                          (bi_later <$> (vec_to_list Ps_mut)) sch ∗
                         ownI_mut lvl i (1/2)%Qp Ps_mut) ∗ ownD {[i]}.
 Proof.
   rewrite /ownI wsat_unfold.
@@ -591,11 +624,11 @@ Proof.
       iSplitR.
       { iClear "Hidx1 Hidx2". iModIntro.
         iIntros "Hsch".
-        iDestruct ("HPc" with "[Hsch]") as "Hsch".
+        iDestruct ("HPc" with "[Hsch]") as ">Hsch".
         { iApply (bi_schema_interp_ctx_later with "[HPQ] [] [$]");auto. }
-        iModIntro.
+        iModIntro;iModIntro.
         iApply (bi_schema_interp_ctx_later with "[HPQ] [] [$]");auto.
-        iModIntro. iIntros (i0). iNext.
+        iModIntro. iIntros (i0) "!>".
         by iRewrite ("HPQ" $! i0). }
       iApply (bi_schema_interp_ctx_later with "[HPQ] [] [$]").
       - iIntros (i0). iClear "Hidx1 Hidx2".
@@ -620,11 +653,11 @@ Proof.
 Qed.
 
 Lemma ownI_close {n m} lvl i sch (Ps : vec _ n) (Ps_mut: vec _ m) :
-  let P := bi_schema_interp lvl (bi_later <$> (vec_to_list Ps)) (bi_later <$> (vec_to_list Ps_mut)) sch in
   wsat (S lvl) ∗
   ownI lvl i sch Ps ∗
   ownI_mut lvl i (1/2)%Qp Ps_mut ∗
-  ■ (P -∗ ⚡==> P) ∗ P ∗
+  inv_condition_weak (bi_schema_interp lvl (bi_later <$> (vec_to_list Ps)) (bi_later <$> (vec_to_list Ps_mut)) sch ) ∗
+  bi_schema_interp lvl (bi_later <$> (vec_to_list Ps)) (bi_later <$> (vec_to_list Ps_mut)) sch ∗
   ownD {[i]} ⊢
   wsat (S lvl) ∗ ownE {[i]}.
 Proof.
@@ -651,11 +684,12 @@ Proof.
     iApply (big_sepM_delete _ _ i); eauto.
     iFrame "HI". iLeft. iFrame "HiD". iClear "Hi".
     iSplitR.
-    { iClear "Hidx1 Hidx2 Hidx3".
+    { rewrite /inv_condition_weak/=.
+      iClear "Hidx1 Hidx2 Hidx3".
       iModIntro. iIntros "HP".
-      iDestruct ("HPc" with "[HP]") as "HP".
+      iDestruct ("HPc" with "[HP]") as ">HP".
       { by iApply (bi_schema_interp_ctx_later with "HPQ HPQ_mut"). }
-      iModIntro. by iApply (bi_schema_interp_ctx_later with "HPQ HPQ_mut"). }
+      iModIntro; iModIntro. by iApply (bi_schema_interp_ctx_later with "HPQ HPQ_mut"). }
     iSplitL "HP".
     { by iApply (bi_schema_interp_ctx_later with "HPQ HPQ_mut"). }
     iApply (ownI_mut_later _ _ _ Ps_mut (list_to_vec Qs_mut)).
@@ -785,11 +819,11 @@ Proof.
 Qed.
 
 Lemma ownI_close_modify {n m m'} lvl i sch (Ps : vec _ n) (Ps_mut: vec _ m) (Qs_mut: vec _ m') :
-  let P := bi_schema_interp lvl (bi_later <$> (vec_to_list Ps)) (bi_later <$> (vec_to_list Ps_mut)) sch in
   wsat (S lvl) ∗
   ownI lvl i sch Ps ∗
   ownI_mut lvl i 1%Qp Qs_mut ∗
-  ■ (P -∗ ⚡==> P) ∗ P ∗
+  inv_condition_weak (bi_schema_interp lvl (bi_later <$> (vec_to_list Ps)) (bi_later <$> (vec_to_list Ps_mut)) sch) ∗
+  bi_schema_interp lvl (bi_later <$> (vec_to_list Ps)) (bi_later <$> (vec_to_list Ps_mut)) sch ∗
   ownD {[i]} ⊢
   |==> wsat (S lvl) ∗ ownE {[i]} ∗ ownI_mut lvl i (1/2)%Qp Ps_mut.
 Proof.
@@ -824,14 +858,14 @@ Proof.
   iSplitR.
   { iClear "Hidx1 Hidx2 Hidx3".
     iModIntro. iIntros "HP".
-    iDestruct ("HPc" with "[HP]") as "HP".
+    iDestruct ("HPc" with "[HP]") as ">HP".
     { rewrite HIlookup in HIlookup'. inversion HIlookup'; subst.
       iApply (bi_schema_interp_ctx_later with "HPQ []"); last eauto.
-      iModIntro. iIntros; iNext. trivial. }
-    iModIntro.
+      iModIntro. iIntros; trivial. }
+    iModIntro;iModIntro.
     rewrite HIlookup in HIlookup'. inversion HIlookup'; subst.
     iApply (bi_schema_interp_ctx_later with "HPQ []"); last eauto.
-    iModIntro. iIntros; iNext. trivial. }
+    iModIntro. iIntros; trivial. }
   iSplitL "HP".
   { simpl. rewrite HIlookup in HIlookup'. inversion HIlookup'; subst.
     iApply (bi_schema_interp_ctx_later with "HPQ []"); last eauto.
@@ -842,9 +876,9 @@ Qed.
 
 Lemma ownI_alloc {n m} φ sch lvl (Ps: vec _ n) (Ps_mut: vec _ m):
   (∀ E : gset positive, ∃ i, i ∉ E ∧ φ i) →
-  let P := bi_schema_interp lvl (bi_later <$> (vec_to_list Ps)) (bi_later <$> (vec_to_list Ps_mut)) sch in
   wsat (S lvl) ∗
-  ■ (P -∗ ⚡==> P) ∗ P ==∗
+  inv_condition_weak (bi_schema_interp lvl (bi_later <$> (vec_to_list Ps)) (bi_later <$> (vec_to_list Ps_mut)) sch) ∗
+  bi_schema_interp lvl (bi_later <$> (vec_to_list Ps)) (bi_later <$> (vec_to_list Ps_mut)) sch ==∗
   ∃ i, ⌜φ i⌝ ∗ wsat (S lvl) ∗ ownI lvl i sch Ps ∗ ownI_mut lvl i (1/2)%Qp Ps_mut.
 Proof.
   rewrite wsat_unfold. simpl.
@@ -880,9 +914,9 @@ Qed.
 
 Lemma ownI_alloc_nomut {n} φ sch lvl (Ps: vec _ n):
   (∀ E : gset positive, ∃ i, i ∉ E ∧ φ i) →
-  let P := bi_schema_interp lvl (bi_later <$> (vec_to_list Ps)) [] sch in
   wsat (S lvl) ∗
-  ■ (P -∗ ⚡==> P) ∗ P ==∗
+  inv_condition_weak (bi_schema_interp lvl (bi_later <$> (vec_to_list Ps)) [] sch) ∗
+  bi_schema_interp lvl (bi_later <$> (vec_to_list Ps)) [] sch ==∗
   ∃ i, ⌜φ i⌝ ∗ wsat (S lvl) ∗ ownI lvl i sch Ps.
 Proof.
   iIntros. iMod (ownI_alloc _ _ _ _ (list_to_vec []) with "[$]") as (?) "(?&?&?&?)"; auto.
@@ -998,50 +1032,95 @@ Qed.
 #[global]
   Instance into_nextgen_ownE `{!ngInvG Σ Ω} E : IntoNextgen _ _ :=
   ownE_nextgen E.
+
+Lemma test lvl sch (Qs Qs_mut : list (iProp Σ)) :
+  ■ ▷ ([∗ list] P ∈ Qs, P -∗ ⚡==> P) -∗
+  ■ ▷ ([∗ list] P ∈ Qs_mut, P -∗ ⚡==> P) -∗
+  bi_schema_interp lvl (bi_later <$> Qs) (bi_later <$> Qs_mut) sch -∗
+  ⚡==> bi_schema_interp lvl (bi_later <$> Qs) (bi_later <$> Qs_mut) sch.
+Proof.
+  induction sch;rewrite bi_schema_interp_unfold;auto;simpl.
+  all: iIntros "#Hcond1 #Hcond2 HP".
+  1,2: by iModIntro.
+  - iApply nextgen_and_1. iSplit.
+    + rewrite bi.and_elim_l.
+      iDestruct (IHsch1 with "Hcond1 Hcond2 HP") as "HP".
+      by iModIntro.
+    + rewrite bi.and_elim_r.
+      iDestruct (IHsch2 with "Hcond1 Hcond2 HP") as "HP".
+      by iModIntro.
+  - admit.
+    (* iDestruct "HP" as "[HP|HP]". *)
+    (* + iDestruct (IHsch1 with "Hcond1 Hcond2 HP") as "HP". *)
+    (*    by iModIntro. *)
+  - admit.
+  - admit.
+  - iDestruct "HP" as "[HP1 HP2]".
+    iDestruct (IHsch1 with "Hcond1 Hcond2 HP1") as "HP1".
+    iDestruct (IHsch2 with "Hcond1 Hcond2 HP2") as "HP2".
+    iModIntro. iFrame.
+  - (* this does not hold.... *)
+Abort.
+
+
+Lemma except_0_big_sepM :
+  ∀ {Σ : gFunctors} {A B : Type} {EqDecision0 : EqDecision A} {Countable0 : Countable A}
+    (P : A → B → iProp Σ) (m : gmap A B),
+    ([∗ map] i↦x ∈ m, ◇ P i x) ⊢ ◇ [∗ map] i↦x ∈ m, P i x.
+Proof.
+  intros. induction m using map_ind.
+  - rewrite !big_sepM_empty. iIntros "_ !> //".
+  - rewrite !big_sepM_insert//.
+    iIntros "[HP Hm]".
+    rewrite IHm. iMod "HP". iMod "Hm".
+    iModIntro. iFrame.
+Qed.
   
 Lemma wsat_nextgen `{!ngInvG Σ Ω} n :
-  wsat n ⊢ ⚡==> wsat n.
+  wsat n ⊢ ◇ ⚡==> wsat n.
 Proof.
   induction n;
   rewrite wsat_unfold.  
-  - iIntros "HD". by iModIntro.
+  - iIntros "HD". by do 2 iModIntro.
   - iIntros "[(%I & (%γs & Hfm & HI) & Hmap) Hw]".
-    iDestruct (IHn with "Hw") as "Hw".
-    set (P:=([∗ map] i↦Qs ∈ I, ■ (bi_schema_interp n (bi_later <$> Qs.1.1) (bi_later <$> Qs.2) Qs.1.2 -∗
-                                  ⚡==> bi_schema_interp n (bi_later <$> Qs.1.1) (bi_later <$> Qs.2) Qs.1.2) ∗
-                                 bi_schema_interp n (bi_later <$> Qs.1.1) (bi_later <$> Qs.2) Qs.1.2
-                                 ∗ ownI_mut n i (1 / 2)%Qp (list_to_vec Qs.2) ∗ ownD {[i]} ∨ 
-                                 ownE {[i]})%I).
-    iAssert (⚡==> P)%I with "[Hmap]" as "Hmap".
+    iDestruct (IHn with "Hw") as ">Hw".
+    set (P:=([∗ map] i↦Qs ∈ I, inv_condition_weak (bi_schema_interp n (bi_later <$> Qs.1.1) (bi_later <$> Qs.2) Qs.1.2 ) ∗
+                               bi_schema_interp n (bi_later <$> Qs.1.1) (bi_later <$> Qs.2) Qs.1.2 ∗
+                               ownI_mut n i (1 / 2)%Qp (list_to_vec Qs.2) ∗ ownD {[i]} ∨ 
+                               ownE {[i]})%I).
+    iAssert (◇ ⚡==> P)%I with "[Hmap]" as ">Hmap".
     { rewrite /P.
-      iApply nextgen_big_sepM.
+      rewrite -nextgen_big_sepM -except_0_big_sepM.      
       iApply (big_sepM_mono with "Hmap").
       iIntros (k x Hx) "[(#Hcond & HP & Hmut & Hown)|HP]".
-      - iDestruct ("Hcond" with "HP") as "HP".
+      - rewrite /inv_condition_weak.
+        iDestruct ("Hcond" with "HP") as ">HP".
+        iModIntro.
         rewrite /ownI_mut.
         iDestruct "Hmut" as (l γs') "(Hfm & Hgen)".
         iModIntro.
         iLeft. iFrame "∗ #". eauto.
-      - iModIntro. iRight. auto. }
-    iModIntro. rewrite /P.
+      - do 2 iModIntro. iRight. auto. }
+    do 2 iModIntro. rewrite /P.
     iFrame. iExists _. iFrame.
     iExists _. iFrame.
 Qed.
 
-#[global]
-  Instance into_nextgen_wsat `{!ngInvG Σ Ω} n : IntoNextgen _ _ :=
-  wsat_nextgen n.
+(* #[global] *)
+(*   Instance into_nextgen_wsat `{!ngInvG Σ Ω} n : IntoNextgen _ _ := *)
+(*   wsat_nextgen n. *)
 
 Lemma wsat_all_nextgen `{!ngInvG Σ Ω} :
-  wsat_all ⊢ ⚡==> wsat_all.
+  wsat_all ⊢ ◇ ⚡==> wsat_all.
 Proof.
   iIntros "(%l & Hfm & Hw)".
-  iModIntro. iExists _. iFrame.
+  iMod (wsat_nextgen with "Hfm").
+  do 2 iModIntro. iExists _. iFrame.
 Qed.
 
-#[global]
-  Instance into_nextgen_wsat_all `{!ngInvG Σ Ω} : IntoNextgen _ _ :=
-  wsat_all_nextgen.
+(* #[global] *)
+(*   Instance into_nextgen_wsat_all `{!ngInvG Σ Ω} : IntoNextgen _ _ := *)
+(*   wsat_all_nextgen. *)
   
 End wsat.
 
@@ -1069,7 +1148,7 @@ Definition ownI_bupd lvl i P := ownI lvl i (bi_sch_bupd (bi_sch_var_fixed O)) (l
 
 Lemma ownI_bupd_alloc lvl φ P :
   (∀ E : gset positive, ∃ i, i ∉ E ∧ φ i) →
-  wsat (S lvl) ∗ ■ ((|==> ▷ P) -∗ ⚡==> |==> ▷ P) ∗ (|==> ▷ P) ==∗ ∃ i, ⌜φ i⌝ ∗ wsat (S lvl) ∗ ownI_bupd lvl i P.
+  wsat (S lvl) ∗ ■ ((|==> ▷ P) -∗ ◇ ⚡==> |==> ▷ P) ∗ (|==> ▷ P) ==∗ ∃ i, ⌜φ i⌝ ∗ wsat (S lvl) ∗ ownI_bupd lvl i P.
 Proof.
   iIntros (?) "HwP".
   iApply (ownI_alloc_nomut); auto.
@@ -1100,10 +1179,10 @@ Definition ownI_bupd_factory lvl i P :=
 Definition ownI_full_bupd_factory lvl i q Q P :=
   (∃ n (Qs: vec _ n), ownI lvl i (bi_sch_bupd_factory (bi_sch_var_mut O) (bi_sch_var_fixed O)) (list_to_vec [P]) ∗
    ownI_mut lvl i q Qs ∗ ⌜ default True%I (vec_to_list Qs !! 0) = Q ⌝)%I.
-
+    
 Lemma ownI_bupd_factory_alloc lvl φ Q P :
   (∀ E : gset positive, ∃ i, i ∉ E ∧ φ i) →
-  wsat (S lvl) ∗ (▷ Q ∗ ■ (▷ Q ==∗ ▷ Q ∗ ▷ P)) ∗ ■ (▷ Q -∗ ⚡==> ▷ Q)
+  wsat (S lvl) ∗ (▷ Q ∗ ■ (▷ Q ==∗ ▷ Q ∗ ▷ P)) ∗ ■ (Q -∗ ⚡==> Q)
        ==∗ ∃ i, ⌜φ i⌝ ∗ wsat (S lvl) ∗ ownI_full_bupd_factory lvl i (1/2)%Qp Q P.
 Proof.
   iIntros (?) "(Hw&(HQ&#Hfactory)&#Hcond)".
@@ -1112,8 +1191,12 @@ Proof.
   repeat (rewrite ?bi_schema_interp_unfold //=).
   iFrame "∗ #".
   iModIntro. iIntros "[HQ _]".
-  iDestruct ("Hcond" with "HQ") as "HQ".
-  iModIntro. iFrame "∗ #".
+  iAssert (■ (▷ Q -∗ ◇ ⚡==> ▷ Q))%I as "Hcond'".
+  { iModIntro. iIntros "HQ".
+    iApply nextgen_later_2. iNext.
+    by iApply "Hcond". }
+  iDestruct ("Hcond'" with "HQ") as ">HQ".
+  do 2 iModIntro. iFrame "∗ #".
 Qed.
 
 Lemma ownI_full_bupd_factory_open lvl i Q P:
@@ -1144,7 +1227,7 @@ Qed.
 
 Lemma ownI_bupd_factory_open lvl i P:
   wsat (S lvl) ∗ ownI_bupd_factory lvl i P ∗ ownE {[i]} ⊢
-  wsat (S lvl) ∗ ∃ Q, (▷ Q ∗ ■ (▷ Q ==∗ ▷ Q ∗ ▷ P)) ∗ ■ (▷ Q -∗ ⚡==> ▷ Q) ∗ ownI_full_bupd_factory lvl i (1/2)%Qp Q P ∗ ownD {[i]}.
+  wsat (S lvl) ∗ ∃ Q, (▷ Q ∗ ■ (▷ Q ==∗ ▷ Q ∗ ▷ P)) ∗ ■ (▷ Q -∗ ◇ ⚡==> ▷ Q) ∗ ownI_full_bupd_factory lvl i (1/2)%Qp Q P ∗ ownD {[i]}.
 Proof.
   iIntros "(Hw&#HI0&HE)".
   iPoseProof (ownI_open with "[$Hw $HI0 $HE]") as "($&H&$)".
@@ -1157,19 +1240,19 @@ Proof.
     iFrame "#".
     iSplitR.
     { iClear "HI0". iModIntro. iIntros "Hb".
-      iDestruct ("Hcond" with "[$]") as "Hb".
-      iModIntro. iDestruct "Hb" as "[$ _]". }
+      iDestruct ("Hcond" with "[$]") as ">Hb".
+      do 2 iModIntro. iDestruct "Hb" as "[$ _]". }
     iExists _, Qs_mut. rewrite Heq //=. by iFrame.
   - iSplitL "Hinterp".
     { iDestruct "Hinterp" as "(?&#Hwand)". iSplitL ""; first eauto.
       iClear "HI0". iModIntro. iIntros. iMod ("Hwand" with "[//]") as "(?&$)"; eauto. }
     iFrame "#". iSplitR.
-    { iClear "HI0". iModIntro. iIntros "_". iModIntro. auto. }
+    { iClear "HI0". iModIntro. iIntros "_". do 2 iModIntro. auto. }
     iExists _, Qs_mut. rewrite Heq //=. by iFrame.
 Qed.
 
 Lemma ownI_bupd_factory_close lvl i Q P:
-  wsat (S lvl) ∗ (▷ Q ∗ ■ (▷ Q ==∗ ▷ Q ∗ ▷ P)) ∗ ■ (▷ Q -∗ ⚡==> ▷ Q) ∗ ownI_full_bupd_factory lvl i (1/2)%Qp Q P ∗ ownD {[i]} ⊢
+  wsat (S lvl) ∗ (▷ Q ∗ ■ (▷ Q ==∗ ▷ Q ∗ ▷ P)) ∗ ■ (▷ Q -∗ ◇ ⚡==> ▷ Q) ∗ ownI_full_bupd_factory lvl i (1/2)%Qp Q P ∗ ownD {[i]} ⊢
   wsat (S lvl) ∗ ownE {[i]}.
 Proof.
   iIntros "(Hw&Hinterp&#Hcond&HI0&HD)".
@@ -1182,17 +1265,17 @@ Proof.
   destruct (vec_to_list Qs_mut !! 0) as [?|] eqn:Heq; rewrite Heq //=.
   - move: Hp => //= ->.
     { iFrame. iModIntro. iIntros "[HQ #H]".
-      iDestruct ("Hcond" with "[$]") as "HQ". iModIntro.
+      iDestruct ("Hcond" with "[$]") as ">HQ". do 2 iModIntro.
       iFrame "∗ #". }
   - move: Hp => //= <-.
     { iDestruct "Hinterp" as "(?&#Hwand)". iSplitL ""; first eauto.
-      - iModIntro. iIntros "_". iModIntro. iSplit;auto. iModIntro.
+      - iModIntro. iIntros "_". do 2 iModIntro. iSplit;auto. iModIntro.
         iIntros. iMod ("Hwand" with "[//]") as "(?&$)"; eauto.
       - iSplit;auto. iModIntro. iIntros. iMod ("Hwand" with "[//]") as "(?&$)"; eauto. }
 Qed.
 
 Lemma ownI_bupd_factory_close_modify lvl i Q Q0 P:
-  wsat (S lvl) ∗ (▷ Q ∗ ■ (▷ Q ==∗ ▷ Q ∗ ▷ P)) ∗ ■ (▷ Q -∗ ⚡==> ▷ Q) ∗ ownI_full_bupd_factory lvl i 1%Qp Q0 P ∗ ownD {[i]} ⊢
+  wsat (S lvl) ∗ (▷ Q ∗ ■ (▷ Q ==∗ ▷ Q ∗ ▷ P)) ∗ ■ (▷ Q -∗ ◇ ⚡==> ▷ Q) ∗ ownI_full_bupd_factory lvl i 1%Qp Q0 P ∗ ownD {[i]} ⊢
   |==> wsat (S lvl) ∗ ownE {[i]} ∗ ownI_full_bupd_factory lvl i (1/2)%Qp Q P.
 Proof.
   iIntros "(Hw&Hinterp&#Hcond&HI0&HD)".
@@ -1205,8 +1288,8 @@ Proof.
     iDestruct "Hinterp" as "($&#$)".
     iClear "Hi". iModIntro.
     iIntros "[HQ #HQP]".
-    iDestruct ("Hcond" with "[$]") as "HQ".
-    iModIntro. iFrame "∗ #".
+    iDestruct ("Hcond" with "[$]") as ">HQ".
+    do 2 iModIntro. iFrame "∗ #".
   }
   iExists _, _. iFrame "# ∗" => //=.
 Qed.

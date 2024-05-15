@@ -28,7 +28,7 @@ Typeclasses Opaque ae_inv.
 Local Hint Extern 0 (AE _ _ ## MaybeEn1 _) => apply AE_MaybeEn_disj : core.
 Local Hint Extern 0 (AlwaysEn ## MaybeEn1 _) => apply coPset_inl_inr_disj : core.
 
-Definition ae_inv_condition `{!invGS Σ} `{Ω : gGenCmras Σ} (P : iProp Σ) : iProp Σ := ■ (▷ P -∗ ⚡==> ▷ P).
+Definition ae_inv_condition `{!invGS Σ} `{Ω : gGenCmras Σ} (P : iProp Σ) : iProp Σ := ■ (P -∗ ⚡==> P).
 
 (** * Ae_Invariants *)
 Section ae_inv.
@@ -116,7 +116,10 @@ Section ae_inv.
     rewrite uPred_fupd_split_level_eq. iIntros "HP #Hcond [Hw $]".
     iMod (ownI_alloc (.∈ AE_next_diff (S k) mj) (bi_sch_var_fixed O) k (list_to_vec [P]) (list_to_vec [])
             with "[HP $Hw]") as (i ?) "[$ [? ?]]"; auto using fresh_ae_inv_name.
-    { rewrite bi_schema_interp_unfold //=. iFrame "∗ #". }
+    { rewrite bi_schema_interp_unfold //=. iFrame "∗ #".
+      iModIntro. iIntros "HP".
+      iApply nextgen_later_2. iNext.
+      iApply "Hcond". auto. }
     do 2 iModIntro. iExists i. auto.
   Qed.
 

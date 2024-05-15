@@ -80,7 +80,7 @@ Local Hint Extern 0 (AlwaysEn ## MaybeEn1 _) => apply coPset_inl_inr_disj : core
 Local Hint Extern 0 (AlwaysEn ## MaybeEn2 _) => apply coPset_inl_inr_disj : core.
 Local Hint Extern 0 (MaybeEn1 _ ## MaybeEn2 _) => apply MaybeEn12_disj : core.
 
-Definition pri_inv_condition `{!irisGS Λ Σ Ω} (P : iProp Σ) : iProp Σ := ■ (▷ P -∗ ⚡==> ▷ P).
+Definition pri_inv_condition `{!irisGS Λ Σ Ω} (P : iProp Σ) : iProp Σ := ■ (P -∗ ⚡==> P).
 
 Section pri_inv.
 Context `{IRISG: !irisGS Λ Σ Ω, !generationGS Λ Σ}.
@@ -176,7 +176,7 @@ Context `{PRI: !pri_invG IRISG}.
     iIntros (Hinf) "HP #Hcond [Hw $]".
     iMod (wsat_all_acc 1 with "[$]") as "(Hw&Hclo)".
     iMod (ownI_alloc (.∈ MaybeEn2 E) (bi_sch_var_fixed O) O (list_to_vec [P]) (list_to_vec [])
-            with "[$HP $Hw $Hcond]")
+            with "[$HP $Hw Hcond]")
       as (i' ?) "[? [? ?]]"; auto using fresh_inv_name.
     {
       intros E'.
@@ -187,6 +187,9 @@ Context `{PRI: !pri_invG IRISG}.
       apply MaybeEn2_infinite in Hfin; auto.
       intros ?. eapply set_not_infinite_finite; eauto.
     }
+    { simpl. iModIntro. iIntros "HP".
+      iApply nextgen_later_2. iNext.
+      iApply "Hcond". auto. }
     iDestruct ("Hclo" with "[$]") as "$".
     iIntros "!> !>". rewrite pri_inv_eq /pri_inv_def. iExists _. iFrame; eauto.
   Qed.

@@ -19,7 +19,7 @@ Global Instance: Params (@inv) 4 := {}.
 Local Hint Extern 0 (AE _ _ ## MaybeEn1 _) => apply AE_MaybeEn_disj : core.
 Local Hint Extern 0 (AlwaysEn ## MaybeEn1 _) => apply coPset_inl_inr_disj : core.
 
-Definition inv_condition `{!invGS Σ} `{Ω : gGenCmras Σ} (P : iProp Σ) : iProp Σ := ■ (▷ P -∗ ⚡==> ▷ P).
+Definition inv_condition `{!invGS Σ} `{Ω : gGenCmras Σ} (P : iProp Σ) : iProp Σ := ■ (P -∗ ⚡==> P).
 
 (** * Invariants *)
 Section inv.
@@ -76,6 +76,9 @@ Section inv.
     iMod (ownI_alloc (.∈ MaybeEn1 (↑N : coPset)) (bi_sch_var_fixed O) O (list_to_vec [P]) (list_to_vec [])
             with "[$HP $Hw]")
       as (i ?) "[$ [? ?]]"; auto using fresh_inv_name.
+    { simpl. iModIntro. iIntros "HP".
+      iApply nextgen_later_2. iNext.
+      iApply "Hcond". auto. }
     do 2 iModIntro. iExists i. auto.
   Qed.
 
@@ -108,7 +111,10 @@ Section inv.
     rewrite ?ownE_op //.
     iDestruct "HE\N" as "($&HE\N)".
     iDestruct "HD" as "[HD1 HD2]".
-    iDestruct (ownI_close with "[$Hw $Hi $HP $HD1 $HD2 $Hcond]") as "[$ HEi]".
+    iDestruct (ownI_close with "[$Hw $Hi $HP $HD1 $HD2 Hcond]") as "[$ HEi]".
+    { simpl. iClear "Hi". iModIntro. iIntros "HP".
+      iApply nextgen_later_2. iNext.
+      iApply "Hcond". auto. }
     do 2 iModIntro.
     iCombine "HEi HEN\i HE\N" as "HEN".
     rewrite -?ownE_op; [|set_solver..].

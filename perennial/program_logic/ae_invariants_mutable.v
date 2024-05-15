@@ -31,7 +31,7 @@ Typeclasses Opaque ae_inv_mut_full.
 Local Hint Extern 0 (AE _ _ ## MaybeEn1 _) => apply AE_MaybeEn_disj : core.
 Local Hint Extern 0 (AlwaysEn ## MaybeEn1 _) => apply coPset_inl_inr_disj : core.
 
-Definition ae_inv_mut_condition `{!invGS Σ} `{Ω : gGenCmras Σ} (P : iProp Σ) : iProp Σ := ■ (▷ P -∗ ⚡==> ▷ P).
+Definition ae_inv_mut_condition `{!invGS Σ} `{Ω : gGenCmras Σ} (P : iProp Σ) : iProp Σ := ■ (P -∗ ⚡==> P).
 
 Section ae_inv_mut.
   Context `{!invGS Σ} `{Ω : gGenCmras Σ}.
@@ -58,7 +58,7 @@ Section ae_inv_mut.
              (bi_schema_interp k (bi_later <$> Ps) (bi_later <$> Qs') sch)
              R -∗
     ■ (bi_schema_interp k (bi_later <$> Ps) (bi_later <$> Qs') sch -∗
-     ⚡==> bi_schema_interp k (bi_later <$> Ps) (bi_later <$> Qs') sch) -∗
+     ◇ ⚡==> bi_schema_interp k (bi_later <$> Ps) (bi_later <$> Qs') sch) -∗
     |k,mj={E}=> ae_inv_mut_full k mj sch Qs' Ps ∗ R.
   Proof.
     rewrite uPred_fupd_split_level_eq /uPred_fupd_split_level_def ae_inv_mut_full_eq.
@@ -163,7 +163,7 @@ Section ae_inv_mut.
   Lemma ae_inv_mut_alloc k mj E sch Ps Qs :
     bi_schema_interp k (bi_later <$> Ps) (bi_later <$> Qs) sch -∗
     ■ (bi_schema_interp k (bi_later <$> Ps) (bi_later <$> Qs) sch -∗
-     ⚡==> bi_schema_interp k (bi_later <$> Ps) (bi_later <$> Qs) sch) -∗
+     ◇ ⚡==> bi_schema_interp k (bi_later <$> Ps) (bi_later <$> Qs) sch) -∗
     |k,mj={E}=> ae_inv_mut k mj sch Ps ∗ ae_inv_mut_full k mj sch Qs Ps.
   Proof.
     rewrite uPred_fupd_split_level_eq ?ae_inv_mut_eq ?ae_inv_mut_full_eq. iIntros "HP #Hcond [Hw $]".
