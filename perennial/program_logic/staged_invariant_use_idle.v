@@ -18,6 +18,7 @@ Context `{IRISG: !irisGS Λ Σ Ω, !generationGS Λ Σ}.
 Context `{!pri_invG IRISG}.
 Context `{!later_tokG IRISG}.
 Context `{!stagedG Σ}.
+Context `{!endisNG Σ Ω}.
 
 Definition staged_value_inuse e E1' E1 mj mj_wp mj_ukeep Φ Φc P :=
   (∃ E2 mj_wp_init mj_ishare mj_ushare γsaved γfinished γstatus γprop γprop',
@@ -37,7 +38,7 @@ Definition staged_value_inuse e E1' E1 mj mj_wp mj_ukeep Φ Φc P :=
       later_tok ∗
       pri_inv_tok mj_ukeep E2 ∗
       ⌜ /2 < mj ⌝%Qp ∗
-      pri_inv E2 (staged_inv_inner E1' E2 mj_wp_init mj_ishare γsaved γfinished γstatus P))%I.
+      pri_cg_inv E2 (staged_inv_inner E1' E2 mj_wp_init mj_ishare γsaved γfinished γstatus P))%I.
 
 End def.
 
@@ -46,6 +47,7 @@ Context `{IRISG: !irisGS Λ Σ Ω, !generationGS Λ Σ}.
 Context `{!pri_invG IRISG}.
 Context `{!later_tokG IRISG}.
 Context `{!stagedG Σ}.
+Context `{!endisNG Σ Ω}.
 Implicit Types i : positive.
 Implicit Types N : namespace.
 Implicit Types P Q R : iProp Σ.
@@ -64,7 +66,7 @@ Proof.
     iIntros (g1 ns D' κs) "Hg #HC Hlc".
     iDestruct (pri_inv_tok_disj with "[$]") as %[Hdisj|Hval]; last first.
     { exfalso. apply Qp.lt_nge in Hinvalid. revert Hval. rewrite frac_valid. eauto. }
-    iMod (pri_inv_acc with "[$]") as "(Hinner&Hclo)".
+    iMod (pri_cg_inv_acc with "[$]") as "(Hinner&Hclo)".
     { set_solver. }
     iEval (rewrite staged_inv_inner_unfold) in "Hinner".
     iDestruct "Hinner" as (γprop_stored ????) "(>Hown'&#Hsaved1'&#Hsaved2'&>Hstatus'&>Hitok_ishare&Hinner)".
@@ -152,7 +154,7 @@ Proof.
     { iApply "Hexact". }
     iClear "Hclo1".
     iIntros "Hclo1". iModIntro.
-    iMod (pri_inv_acc with "[$]") as "(Hinner&Hclo)".
+    iMod (pri_cg_inv_acc with "[$]") as "(Hinner&Hclo)".
     { set_solver. }
     iMod "Hclo1".
     iEval (rewrite staged_inv_inner_unfold) in "Hinner".
@@ -348,7 +350,7 @@ Proof.
   { iApply "Hexact". }
   iClear "Hclo1".
   iIntros "Hclo1". iModIntro.
-  iMod (pri_inv_acc with "[$]") as "(Hinner&Hclo)".
+  iMod (pri_cg_inv_acc with "[$]") as "(Hinner&Hclo)".
   { set_solver. }
   iEval (rewrite staged_inv_inner_unfold) in "Hinner".
   iDestruct "Hinner" as (?????) "(>Hown'&#Hsaved1'&#Hsaved2'&>Hstatus'&>Hitok_ishare&Hinner)".

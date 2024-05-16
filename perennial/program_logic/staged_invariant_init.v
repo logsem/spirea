@@ -18,6 +18,7 @@ Context `{IRISG: !irisGS Λ Σ Ω, !generationGS Λ Σ}.
 Context `{PRI: !pri_invG IRISG}.
 Context `{!later_tokG IRISG}.
 Context `{!stagedG Σ}.
+Context `{!endisNG Σ Ω}.
 Implicit Types i : positive.
 Implicit Types N : namespace.
 Implicit Types P Q R : iProp Σ.
@@ -39,10 +40,9 @@ Lemma staged_inv_create E1 E2 P Pc E Einv mj' :
   pri_inv_tok 1%Qp Einv -∗
   P -∗
   □ (P -∗ Pc) -∗
-  (∀ mj_ishare γ γ' γstatus, pri_inv_condition (staged_inv_inner E Einv mj' mj_ishare γ γ' γstatus Pc)) -∗
   ||={E1|E2,E1|E2}=> (staged_value E P Pc ∗ staged_inv_cancel E mj' Pc).
 Proof.
-  iIntros (Hlt) "Htok1 Htok2 Hitok HP #Hwand #Hcond".
+  iIntros (Hlt) "Htok1 Htok2 Hitok HP #Hwand".
 
   (* Create the invariant *)
 
@@ -62,7 +62,7 @@ Proof.
   iDestruct (pri_inv_tok_split with "Hitok") as "(Hitok_u&Hitok_i)".
   iEval (rewrite -Heq_mj) in "Hitok_i".
   iDestruct (pri_inv_tok_split with "Hitok_i") as "(Hitok_ikeep&Hitok_ishare)".
-  iMod (pri_inv_alloc Einv _ _ (staged_inv_inner E Einv mj' mj_ishare γ γ' γstatus Pc) with "[HP H1 Hitok_ishare Hstat1] []") as
+  iMod (pri_cg_inv_alloc Einv _ _ (staged_inv_inner E Einv mj' mj_ishare γ γ' γstatus Pc) with "[HP H1 Hitok_ishare Hstat1]") as
       "#Hpri_inv"; auto.
   { iNext. rewrite staged_inv_inner_unfold. iExists _, _, idle, P, True%I. iFrame "∗ #".
     iLeft. iSplit; first iFrame.
@@ -85,15 +85,13 @@ Lemma wpc0_staged_inv_create s mj' mj E e Φ Φc P Pc :
   later_tok ∗
   P ∗
   □ (P -∗ Pc) ∗
-  (∀ Einv mj_ishare γ γ' γstatus, pri_inv_condition (staged_inv_inner E Einv mj' mj_ishare γ γ' γstatus Pc)) ∗
   (staged_value E P Pc ∗ staged_inv_cancel E mj' Pc -∗ wpc0 s mj E e Φ (Φc ∗ Pc))
   ⊢ wpc0 s mj E e Φ (Φc ∗ Pc).
 Proof.
-  iIntros (Hlt) "(Htok1&Htok2&HP&#Hwand&#Hcond&Hwp)".
+  iIntros (Hlt) "(Htok1&Htok2&HP&#Hwand&Hwp)".
   iApply wpc0_pri_inv_tok_res.
   iIntros (D Einv) "(Hitok&%Hgt&%Hdisj)".
-  iSpecialize ("Hcond" $! Einv).
-  iMod (staged_inv_create with "[$] [$] [$] HP [$] [$]") as "H"; first (apply Hlt).
+  iMod (staged_inv_create with "[$] [$] [$] HP [$]") as "H"; first (apply Hlt).
   iModIntro. by iApply "Hwp".
 Qed.
 
@@ -162,7 +160,7 @@ Proof.
   iIntros "Hsc Hwpc".
   iDestruct "Hsc" as (mj0 Einv mj_ishare mj_ikeep γ γ' γstatus) "Hsc".
   iDestruct "Hsc" as (Hlt Hinf Hinvalid Heq_mj) "(Htok2&H&Hitok_ikeep&#Hpri_inv)".
-  iAssert (∃ E', ⌜ E' ⊆ E1 ⌝ ∧ pri_inv Einv (staged_inv_inner E' Einv mj0 mj_ishare γ γ' γstatus Pc))%I as "Hpri_inv'".
+  iAssert (∃ E', ⌜ E' ⊆ E1 ⌝ ∧ pri_cg_inv Einv (staged_inv_inner E' Einv mj0 mj_ishare γ γ' γstatus Pc))%I as "Hpri_inv'".
   { iExists E1. iSplit; eauto. }
   iClear "Hpri_inv". iDestruct "Hpri_inv'" as (E' Hsub') "#Hpri_inv".
   iLöb as "IH" forall (E' Einv mj0 mj_ikeep mj_ishare γ γ' γstatus Hsub' Heq_mj (* Hle_mj *) Hinvalid Hinf Hlt) "Hpri_inv".
@@ -171,7 +169,7 @@ Proof.
   { exfalso. apply Qp.lt_nge in Hinvalid. revert Hval. rewrite frac_valid.
     intros Hle'. apply Hinvalid. etransitivity; last eassumption.
     apply Qp.add_le_mono_r. naive_solver. }
-  iMod (pri_inv_acc with "Hpri_inv") as "(Hinner&Hclo)".
+  iMod (pri_cg_inv_acc with "Hpri_inv") as "(Hinner&Hclo)".
   { set_solver. }
   iEval (rewrite staged_inv_inner_unfold) in "Hinner".
   iDestruct "Hinner" as (γprop_stored ? stat ??) "(Hown1&#Hsaved1&#Hsaved2&Hstat&>Hitok_ishare&Hinner)".
@@ -336,7 +334,7 @@ Proof.
   {
     iDestruct "Hwp" as "(_&Hwp)".
     iClear "IH".
-    iAssert (∃ E', ⌜ E' ⊆ E1 ⌝ ∧ pri_inv Einv (staged_inv_inner E' Einv mj0 mj_ishare γ γ' γstatus Pc))%I as "Hpri_inv'".
+    iAssert (∃ E', ⌜ E' ⊆ E1 ⌝ ∧ pri_cg_inv Einv (staged_inv_inner E' Einv mj0 mj_ishare γ γ' γstatus Pc))%I as "Hpri_inv'".
     { iExists E1. iSplit; eauto. }
     iClear "Hpri_inv". iDestruct "Hpri_inv'" as (E' Hsub') "#Hpri_inv".
     iLöb as "IH" forall (E' Einv mj0 mj_ikeep mj_ishare γ γ' γstatus Hsub' Heq_mj Hle_mj Hinvalid Hinf Hlt) "Hpri_inv".
@@ -345,7 +343,7 @@ Proof.
     { exfalso. apply Qp.lt_nge in Hinvalid. revert Hval. rewrite frac_valid.
       intros Hle'. apply Hinvalid. etransitivity; last eassumption.
       apply Qp.add_le_mono_r. destruct Hlt; etransitivity; eassumption. }
-    iMod (pri_inv_acc with "Hpri_inv") as "(Hinner&Hclo)".
+    iMod (pri_cg_inv_acc with "Hpri_inv") as "(Hinner&Hclo)".
     { set_solver. }
     iEval (rewrite staged_inv_inner_unfold) in "Hinner".
     iDestruct "Hinner" as (γprop_stored ? stat ??) "(Hown1&#Hsaved1&#Hsaved2&Hstat&>Hitok_ishare&Hinner)".
@@ -497,19 +495,17 @@ Lemma staged_value_init_cancel P Pc :
   later_tok ∗
   later_tok ∗
   P ∗
-  □ (P -∗ Pc) ∗
-  (∀ mj Einv mj_ishare γ γ' γstatus, pri_inv_condition (staged_inv_inner ⊤ Einv mj mj_ishare γ γ' γstatus Pc)) -∗
+  □ (P -∗ Pc) -∗
   init_cancel (staged_value ⊤ P Pc) Pc.
 Proof.
-  iIntros "(Htok1&Htok2&HP&#Hwand&#Hcond)".
+  iIntros "(Htok1&Htok2&HP&#Hwand)".
   rewrite /init_cancel.
   iIntros (e s Φ Φc Φc' mj1 Hlt1) "Hwp".
   rewrite wpc_eq /wpc_def. iIntros (mj2).
   iApply (wpc0_mj_valid). iIntros (Hlt2).
   iPoseProof (wpc0_staged_inv_create _ (mj1 `min` mj2)%Qp mj2 _ _ (λ v, wpc_crash_modality ⊤ mj1 Φc' -∗ Φ v)%I ((Pc -∗ Φc)) P Pc) as "H".
   { apply Qp_min_glb1_lt; intuition eauto. }
-  iSpecialize ("Hcond" $! (mj1 `min` mj2)%Qp).
-  iSpecialize ("H" with "[$HP $Htok1 $Htok2 $Hwand Hwp $Hcond]").
+  iSpecialize ("H" with "[$HP $Htok1 $Htok2 $Hwand Hwp]").
   { iIntros "(Hval&Hcancel)".
     iApply (wpc0_staged_inv_cancel with "Hcancel"); eauto.
     { apply Qp.le_min_r. }
@@ -531,15 +527,13 @@ Lemma wpc_staged_inv_init s E e Φ Φc P Pc:
   later_tok ∗
   P ∗
   □ (P -∗ Pc) ∗
-  (∀ mj Einv mj_ishare γ γ' γstatus, pri_inv_condition (staged_inv_inner E Einv mj mj_ishare γ γ' γstatus Pc)) ∗
   (staged_value E P Pc -∗ WPC e @ s; E {{ Φ }} {{ Φc }})
   ⊢ WPC e @ s; E {{ Φ }} {{ Φc ∗ Pc }}.
 Proof.
-  iIntros "(Htok1&Htok2&HP&#Hwand&#Hcond&Hwp)".
+  iIntros "(Htok1&Htok2&HP&#Hwand&Hwp)".
   rewrite wpc_eq /wpc_def. iIntros (mj).
   iApply (wpc0_mj_valid). iIntros (Hlt).
   iApply (wpc0_staged_inv_create _ _ _ _ _ _ _ P); try eassumption.
-  iSpecialize ("Hcond" $! mj).
   iFrame "∗ #". iIntros "(Hval&Hcancel)".
   iApply (wpc0_staged_inv_cancel with "Hcancel"); auto.
   iSpecialize ("Hwp" with "[$]").

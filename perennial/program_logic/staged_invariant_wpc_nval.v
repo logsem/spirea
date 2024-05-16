@@ -19,6 +19,7 @@ Context `{IRISG: !irisGS Λ Σ Ω, !generationGS Λ Σ}.
 Context `{!pri_invG IRISG}.
 Context `{!later_tokG IRISG}.
 Context `{!stagedG Σ}.
+Context `{!endisNG Σ Ω}.
 
 Lemma staged_inv_wpc_nval E P Qs Qs' R :
   staged_value ⊤ Qs P -∗
@@ -45,7 +46,7 @@ Proof.
   rewrite Hnval.
   iIntros (q σ1 g1 ns D κ κs nt) "Hσ Hg HNC Hlc".
   iDestruct (pri_inv_tok_disj_inv_half with "[$]") as %Hdisj.
-  iMod (pri_inv_acc with "[$]") as "(Hinner&Hclo)".
+  iMod (pri_cg_inv_acc with "[$]") as "(Hinner&Hclo)".
   { set_solver. }
   iEval (rewrite staged_inv_inner_unfold) in "Hinner".
   iDestruct "Hinner" as (?????) "(>Hown'&#Hsaved1'&#Hsaved2'&>Hstatus'&>Hitok_ishare&Hinner)".

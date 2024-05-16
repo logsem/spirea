@@ -11,7 +11,7 @@ From self.lang Require Import lang.
 From self.base Require Import post_crash_modality primitive_laws wpr_lifting.
 From self.base Require Import cred_frag.
 From self.base Require Import primitive_laws.
-From self.nextgen Require Import omega.
+From self.nextgen Require Import omega nextgen_inv_promises.
 From Perennial.program_logic Require Import language.
 
 Section frac_coPset_prop.
@@ -60,6 +60,7 @@ Section crash_borrow_def.
 (* Context `{!heapGS Σ}. *)
   Context `{!stagedG Σ}.
   Context `{nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG, gGenCmras Σ}.
+  Context `{!endisNG Σ Ω}.
 
   Global Instance later_tokG_heap : later_tokG (nvmBase_irisGS).
   Proof.
@@ -230,7 +231,6 @@ Section crash_borrow_def.
     iDestruct "H" as "(Hlt1&H)".
     iDestruct "H" as "(Hlt2&Hlt3)".
     iDestruct (staged_value_init_cancel P Pc with "[$Hlt1 $Hlt2 $Hwand $HP]") as "H".
-    { }
     iApply (init_cancel_wand with "H [-] []").
     { iIntros "H". iExists _, _. iFrame "# ∗". iSplitL; eauto. }
     eauto.
@@ -428,7 +428,7 @@ Section crash_borrow_def.
     iDestruct (pri_inv_tok_split with "Hitok") as "(Hitok_u&Hitok_i)".
     iEval (rewrite -Heq_mj) in "Hitok_i".
     iDestruct (pri_inv_tok_split with "Hitok_i") as "(Hitok_ikeep&Hitok_ishare)".
-    iMod (pri_inv_alloc Einv _ _ (staged_inv_inner ⊤ Einv mj mj_ishare γ γ' γstatus Pc) with "[HP H1 Hitok_ishare Hstat1]") as
+    iMod (pri_cg_inv_alloc Einv _ _ (staged_inv_inner ⊤ Einv mj mj_ishare γ γ' γstatus Pc) with "[HP H1 Hitok_ishare Hstat1]") as
         "#Hpri_inv"; auto.
     { iNext. rewrite staged_inv_inner_unfold. iExists _, _, idle, P, True%I. iFrame "∗ #".
       iLeft. iSplit; first iFrame. iIntros "HC". iDestruct ("Hwand" with "[$]") as "$"; eauto.

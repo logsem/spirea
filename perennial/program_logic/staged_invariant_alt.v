@@ -5,7 +5,7 @@ From Perennial.base_logic.lib Require Import wsat invariants ae_invariants saved
 From Perennial.Helpers Require Import Qextra.
 From iris.algebra Require Import gmap.
 From iris.proofmode Require Import tactics.
-From Perennial.program_logic Require Export step_fupd_extra crash_weakestpre ae_invariants_mutable later_res private_invariants.
+From Perennial.program_logic Require Export step_fupd_extra crash_weakestpre ae_invariants_mutable later_res private_invariants_cg.
 From iris.prelude Require Import options.
 Set Default Proof Using "Type".
 Import uPred.
@@ -61,7 +61,7 @@ Context `{IRISG: !irisGS Λ Σ Ω, !crashGS Σ}.
 Context `{!pri_invG IRISG}.
 Context `{!later_tokG IRISG}.
 Context `{stagedG0: !stagedG Σ}.
-
+Context `{!endisNG Σ Ω}.
 (*
 Definition staged_inv_cancel_pre E mj Pc : iProp Σ :=
   ∃ Einv mj_ishare mj_ikeep γ γfinish γstatus,
@@ -96,7 +96,7 @@ Definition staged_inv_inner_pre
                                   later_tok ∗
                                   staged_pending 1 γfinish ∗
                                   pri_inv_tok mj_ikeep Einv ∗
-                                  pri_inv Einv (staged_inv_inner E1' Einv mj' mj_ishare γ γfinish γstatus P)) ∨
+                                  pri_cg_inv Einv (staged_inv_inner E1' Einv mj' mj_ishare γ γfinish γstatus P)) ∨
                                   staged_done γfinished
               | idle => (Ps ∧ (C ==∗ P ∗ Pr))
               end)
@@ -122,7 +122,7 @@ Lemma staged_inv_inner_unfold  E1 E2 mj1 mj2 γ1 γ2 γ3 P :
 Proof. apply (fixpoint_unfold staged_inv_inner_pre). Qed.
 
 Definition staged_inv E1 E2 (γsaved γfinished γstatus: gname) (P: iProp Σ) : iProp Σ :=
-  (∃ mj mj_ishare, ⌜ /2 < mj ⌝%Qp ∗ pri_inv E2 (staged_inv_inner E1 E2 mj mj_ishare γsaved γfinished γstatus P)).
+  (∃ mj mj_ishare, ⌜ /2 < mj ⌝%Qp ∗ pri_cg_inv E2 (staged_inv_inner E1 E2 mj mj_ishare γsaved γfinished γstatus P)).
 
 Definition staged_inv_cancel E mj0 Pc : iProp Σ :=
   ∃ mj Einv mj_ishare mj_ikeep γ γfinish γstatus,
@@ -133,7 +133,7 @@ Definition staged_inv_cancel E mj0 Pc : iProp Σ :=
     later_tok ∗
     staged_pending 1 γfinish ∗
     pri_inv_tok mj_ikeep Einv ∗
-    pri_inv Einv (staged_inv_inner E Einv mj mj_ishare γ γfinish γstatus Pc).
+    pri_cg_inv Einv (staged_inv_inner E Einv mj mj_ishare γ γfinish γstatus Pc).
 
 Definition staged_value_idle E1 (Ps Pr: iProp Σ) P : iProp Σ :=
   (∃ E2 γsaved γfinished γstatus γprop γprop',
@@ -154,6 +154,7 @@ Context `{IRISG: !irisGS Λ Σ Ω, !generationGS Λ Σ}.
 Context `{PRI: !pri_invG IRISG}.
 Context `{!later_tokG IRISG}.
 Context `{stagedG0: !stagedG Σ}.
+Context `{!endisNG Σ Ω}.
 Implicit Types i : positive.
 Implicit Types N : namespace.
 Implicit Types P Q R : iProp Σ.
@@ -446,7 +447,7 @@ Lemma wpc_crash_modality_split E Einv mj1 mj2 P1 P2 :
   pri_inv_tok 1%Qp Einv -∗
   wpc_crash_modality E mj1 (P1 ∗ P2) -∗
   ||={∅|∅, ∅|∅}=> wpc_crash_modality E mj2 P1 ∗ wpc_crash_modality E mj2 P2.
-Proof using stagedG0.
+Proof using stagedG0 endisNG0.
   destruct (decide (mj2 ≤ 1)%Qp) as [Hle|Hnle]; last first.
   { iIntros. iModIntro.
     iSplitL.
@@ -466,11 +467,10 @@ Proof using stagedG0.
   iMod (pending_alloc) as (γ1) "H1".
   iMod (pending_alloc) as (γ2) "H2".
   iDestruct (pri_inv_tok_infinite with "Hqb") as %Hinf.
-  iMod (pri_inv_alloc Einv _ _
+  iMod (pri_cg_inv_alloc Einv _ _
                       (pri_inv_tok qb Einv ∗ (wpc_crash_modality E mj1 (P1 ∗ P2) ∨
-                                              ((P1 ∨ staged_done γ1) ∗ (P2 ∨ staged_done γ2))))%I with "[$Hqb $Hg] []")
+                                              ((P1 ∨ staged_done γ1) ∗ (P2 ∨ staged_done γ2))))%I with "[$Hqb $Hg]")
     as "#Hinv"; first done.
-  { admit. }
   iModIntro.
   iSplitL "Hltok Hqa1 H1".
   {
@@ -485,7 +485,7 @@ Proof using stagedG0.
     { exfalso. apply Qp.lt_nge in Hlt2. revert Hval. rewrite frac_valid.
       intros HleX. apply Hlt2. etransitivity; last eassumption.
       apply Qp.add_le_mono_r. auto. }
-    iMod (pri_inv_acc with "Hinv") as "(Hinner&Hclo)".
+    iMod (pri_cg_inv_acc with "Hinv") as "(Hinner&Hclo)".
     { set_solver. }
     iMod (fupd2_mask_subseteq ∅ ∅) as "Hclo'"; [set_solver+..|].
     iModIntro. iModIntro. iNext. iMod "Hclo'".
@@ -544,7 +544,7 @@ Proof using stagedG0.
     { exfalso. apply Qp.lt_nge in Hlt2. revert Hval. rewrite frac_valid.
       intros HleX. apply Hlt2. etransitivity; last eassumption.
       apply Qp.add_le_mono_r. auto. }
-    iMod (pri_inv_acc with "Hinv") as "(Hinner&Hclo)".
+    iMod (pri_cg_inv_acc with "Hinv") as "(Hinner&Hclo)".
     { set_solver. }
     iMod (fupd2_mask_subseteq ∅ ∅) as "Hclo'"; [set_solver+..|].
     iModIntro. iModIntro. iNext. iMod "Hclo'".
@@ -591,6 +591,6 @@ Proof using stagedG0.
     { lia. }
     iFrame. eauto.
   }
-Abort. (* TODO: fix by adding inv condition *)
+Qed.
 
 End inv.
