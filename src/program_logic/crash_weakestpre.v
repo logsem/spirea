@@ -1524,6 +1524,18 @@ Proof.
 Qed.
 *)
 
+(* Some wp rules I need for lifting lemmas *)
+Lemma wp_value_fupd s E Φ e v : IntoVal e v → (|={E}=> Φ v) ⊢ WP e @ s; E {{ Φ }}.
+Proof.
+  intros <-. iIntros "HΦ".
+  rewrite wp_eq /wp_def.
+  iApply fupd_wpc.
+  iMod "HΦ". iApply wpc_value'. eauto.
+Qed.
+Lemma wp_value' s E Φ v : Φ v ⊢ WP (of_val v) @ s; E {{ Φ }}.
+Proof. iIntros "H". iApply wp_value_fupd; auto. done. Qed.
+Lemma wp_value s E Φ e v : IntoVal e v → Φ v ⊢ WP e @ s; E {{ Φ }}.
+Proof. intros <-. apply wp_value'. Qed.
 
 (*
 Lemma wp_stuck_mono s1 s2 E e Φ :
@@ -1588,6 +1600,7 @@ Lemma wp_wand_r s E e Φ Ψ :
   WP e @ s; E {{ Φ }} ∗ (∀ v, Φ v -∗ Ψ v) ⊢ WP e @ s; E {{ Ψ }}.
 Proof. iIntros "[Hwp H]". iApply (wp_wand with "Hwp H"). Qed.
 *)
+
 
 (** Access the state interpretation resources temporarily. This only gives the
     global resources because the very next step might be a crash. *)

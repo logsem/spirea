@@ -8,7 +8,6 @@ From iris.algebra Require Export auth numbers.
 From iris.base_logic.lib Require Import iprop own later_credits.
 
 From self.nextgen Require Import nextgen_promises.
-From self.base Require Import generational_resources.
                
 Import uPred.
 
@@ -69,7 +68,7 @@ Global Arguments gen_lc_supply {Σ Ω _} n.
 
 Lemma own_option_unit (A : ucmra) `{i : !inG Σ (optionR A:ucmra)} γ : ⊢ |==> own γ (Some ε:optionR A).
 Proof.
-  iMod (own_unit _ γ) as "Hown".
+  iMod (own.own_unit _ γ) as "Hown".
   iMod (own_update with "Hown") as "$";[|done].
   intros n mz Hv. destruct mz;simpl in *.
   - rewrite ucmra_unit_left_id in Hv.
