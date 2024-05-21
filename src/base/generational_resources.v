@@ -31,9 +31,8 @@ From self.lang Require Import lang.
  * - SV: The store view (also called "lub" view), SV = OSV - OV
  *)
 
-Definition store_viewR : cmra := (authR viewO).
+Definition store_viewR : cmra := (authR viewUR).
 Notation store_view_inG Σ Ω := (genInDepsG Σ Ω store_viewR [#]).
-
 
 Definition crashed_atR : cmra := prodR (agreeR viewO) (agreeR viewO).
 (* Definition crashed_at_inG Σ Ω := genInDepsG Σ Ω crashed_atR []. *)

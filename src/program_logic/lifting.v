@@ -62,7 +62,22 @@ Lemma wp_lift_step_fupdN s E Φ e1 :
       [∗ list] ef ∈ efs, WP ef @ s; ⊤ {{ fork_post }})
   ⊢ WP e1 @ s; E {{ Φ }}.
 Proof.
-Admitted.
+  rewrite wp_eq /wp_def !wpc_unfold /wpc_pre=>->.
+  iIntros "H" (mj). iSplit; last first.
+  { iIntros. iApply step_fupd_extra.step_fupd2N_inner_later; auto. iNext; iFrame. }
+  iIntros (???????) "Hσ Hg Hlc".
+  iSpecialize ("H" with "[$] [$]").
+  iMod "H" as "H".
+  iMod (fupd2_mask_subseteq ∅ ∅) as "Hclo"; [set_solver+..|].
+  iModIntro. iApply step_fupd_extra.step_fupdN_step_fupd2N.
+  iApply (step_fupdN_wand with "H"). iIntros "($&H)".
+  iIntros. iMod "Hclo". iMod ("H" with "[//] Hlc") as "($ & $ & He & Hef)".
+  iModIntro. iFrame. iSplitL "He".
+  - iApply wpc0_wpc.
+    iApply (wpc_strong_mono' with "[$]"); auto.
+    destruct (to_val); set_solver.
+  - iApply (big_sepL_mono with "Hef")=>???/=. iApply wpc0_wpc.
+Qed.
 
 Lemma wp_lift_step_fupd s E Φ e1 :
   to_val e1 = None →

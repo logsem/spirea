@@ -387,7 +387,23 @@ Section lifting.
     by iFrame.
   Qed.
 
-  Lemma auth_auth_view_grow_incl γ V V' : V ⊑ V' → gen_own γ (● V) ==∗ gen_own γ (● V').
+  Lemma store_auth_auth_view_grow_incl γ V V' :
+    V ⊑ V' →
+    gen_own (i := genInDepsG_gen storeI) γ (● V) ==∗
+    gen_own (i := genInDepsG_gen storeI) γ (● V').
+  Proof.
+    iIntros (incl) "H".
+    iMod (gen_own_update with "H") as "$"; last done.
+    apply auth_auth_grow. - apply view_valid. - done.
+  Qed.
+
+  (* TODO: I cannot get the same lemma to work for two different ghost resource when their dependency
+   * different *)
+
+  Lemma persisted_auth_auth_view_grow_incl γ V V' :
+    V ⊑ V' →
+    gen_own (i := genInDepsG_gen persistedI) γ (● V) ==∗
+    gen_own (i := genInDepsG_gen persistedI) γ (● V').
   Proof.
     iIntros (incl) "H".
     iMod (gen_own_update with "H") as "$"; last done.
@@ -396,11 +412,11 @@ Section lifting.
 
   Lemma store_view_alloc_big (σ σ' : (gmap loc history)) :
     σ' ##ₘ σ →
-    gen_own store_view_name (● (max_view (σ))) ==∗
-    gen_own store_view_name (● (max_view (σ' ∪ σ))).
+    gen_own (i := genInDepsG_gen storeI) store_view_name (● (max_view (σ))) ==∗
+    gen_own (i := genInDepsG_gen storeI) store_view_name (● (max_view (σ' ∪ σ))).
   Proof.
     iIntros (disj) "H".
-    iMod (auth_auth_view_grow_incl with "H") as "$"; last done.
+    iMod (store_auth_auth_view_grow_incl with "H") as "$"; last done.
     rewrite map_union_comm; last done.
     apply max_view_included_union_l. done.
   Qed.
@@ -486,27 +502,6 @@ Section lifting.
     rewrite big_opM_singleton; iDestruct "Hvs" as "[$ Hvs]". by iApply "IH".
   Qed.
 
-  Lemma auth_auth_view_grow_incl' γ V V' :
-    V ⊑ V' →
-    gen_own (i := genInDepsG_gen storeI) γ (● V) ==∗
-    gen_own (i := genInDepsG_gen storeI) γ (● V').
-  Proof.
-    iIntros (incl) "H".
-    iMod (gen_own_update with "H") as "$"; last done.
-    apply auth_auth_grow. - apply view_valid. - done.
-  Qed.
-
-  Lemma store_view_alloc_big' (σ σ' : (gmap loc history)) :
-    σ' ##ₘ σ →
-    gen_own (i := genInDepsG_gen storeI) store_view_name (● (max_view (σ))) ==∗
-    gen_own (i := genInDepsG_gen storeI) store_view_name (● (max_view (σ' ∪ σ))).
-  Proof.
-    iIntros (disj) "H".
-    iMod (auth_auth_view_grow_incl' with "H") as "$"; last done.
-    rewrite map_union_comm; last done.
-    apply max_view_included_union_l. done.
-  Qed.
-
   Lemma wp_allocN v a SV FV BV n s E :
     (0 < n)%Z →
     {{{ validV SV }}}
@@ -552,7 +547,7 @@ Section lifting.
       iMod (heap_alloc_big_fmapsto with "Hσ") as "[Hσ Hl]"; first apply Hdisj.
       rewrite /state_init_heap.
       simpl.
-      iMod (store_view_alloc_big' with "store_view_at") as "$".
+      iMod (store_view_alloc_big with "store_view_at") as "$".
       { apply heap_array_map_disjoint.
         rewrite replicate_length. assumption. }
       iModIntro.
@@ -1085,18 +1080,7 @@ Section lifting.
             lia.
       }
       iFrame "extra".
-      Set Nested Proofs Allowed.
-      Lemma auth_auth_view_grow_incl'' γ V V' :
-        V ⊑ V' →
-        gen_own (i := genInDepsG_gen persistedI) γ (● V) ==∗
-        gen_own (i := genInDepsG_gen persistedI) γ (● V').
-      Proof.
-        iIntros (incl) "H".
-        iMod (gen_own_update with "H") as "$"; last done.
-        apply auth_auth_grow. - apply view_valid. - done.
-      Qed.
-
-      iMod (auth_auth_view_grow_incl'' with "pers_own"); last first.
+      iMod (persisted_auth_auth_view_grow_incl with "pers_own"); last first.
       + iModIntro.
         iExists _, _, _.
         iFrame "∗#%".
