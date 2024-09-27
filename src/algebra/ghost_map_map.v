@@ -49,7 +49,7 @@ Section definitions.
 
   (* Ownership over the entire history for a single key. *)
   Definition full_entry γ k1 dq mi : iProp Σ :=
-    ∃ γp, k1 ↪[γ]□ γp ∗ own γp.2 dq ∗ ghost_map_auth γp.1 (dfrac_div_2 dq) mi.
+    ∃ γp, k1 ↪[γ]□ γp ∗ True ∗ ghost_map_auth γp.1 (dfrac_div_2 dq) mi.
 
   Definition frag_entry γ k1 k2 v : iProp Σ :=
     ∃ γi γf, k1 ↪[γ]□ (γi, γf) ∗ k2 ↪[γi]□ v.
@@ -68,8 +68,8 @@ Section lemmas.
     rewrite /full_entry.
     iSplit.
     - simpl. rewrite Qp.div_add_distr.
-      iDestruct 1 as ([γi γf]) "(#ptsa & [dq dq'] & [auth auth'])".
-      iSplitL "dq auth"; iExists (γi, γf); iFrame "∗#".
+      iDestruct 1 as ([γi γf]) "(#ptsa & _ & [auth auth'])".
+      iSplitL "auth"; iExists (γi, γf); iFrame "∗#".
     - iIntros "[(%γp & #pts & dq & auth) (%γp' & #pts' & dq' & auth')]".
       iDestruct (ghost_map_elem_agree with "pts pts'") as %<-.
       iCombine "auth auth'" as "auth".
@@ -176,7 +176,6 @@ Section lemmas.
     iIntros "!>" (k [??] ???) "(A & B & C)".
     iFrame.
     iDestruct (big_sepM_lookup with "ptsMap") as "$"; first done.
-    iCombine "B C" as "$".
   Qed.
 
   Lemma full_entry_valid γ k1 dq mi : full_entry γ k1 dq mi -∗ ⌜ ✓ dq ⌝.

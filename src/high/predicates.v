@@ -4,11 +4,14 @@ From iris.algebra Require Import gset gmap excl auth.
 From iris.proofmode Require Import reduction monpred tactics.
 From iris_named_props Require Import named_props.
 
+From self.high Require Import gen_predicates generational_resources.
+From self.high.lib Require Import abstract_state.
+
 From self.lang Require Import lang.
-From self.high Require Export resources dprop.
+From self.high Require Export dprop.
 
 Section predicates.
-  Context `{!nvmG Σ, hGD : nvmDeltaG}.
+  Context `{nvmHighG}.
 
   (* Note, there are three types for predicates.
      1/ The real/initial type which depends on some [ST]: *)
@@ -22,12 +25,12 @@ Section predicates.
   (* 3/ The unwrapped type where we project out of [dProp], forgets that it is
         monotone, and end up with [thread_view → iProp Σ]: *)
   Definition unwrapped_predicate :=
-    positive → val → option (thread_view * nvmDeltaG → iProp Σ).
+    positive → val → option (thread_view → iProp Σ).
   Canonical Structure unwrapped_predicateO :=
-    positive -d> val -d> optionO (thread_view * nvmDeltaG -d> iPropO Σ).
+    positive -d> val -d> optionO (thread_view -d> iPropO Σ).
 
   Definition predO :=
-    positive -d> val -d> optionO (thread_view * nvmDeltaG -d> iPropO Σ).
+    positive -d> val -d> optionO (thread_view -d> iPropO Σ).
 
   (* Unfold the [dProp] and forget about monotonicity. *)
   Definition encoded_pred_unwrap
@@ -68,7 +71,7 @@ Section predicates.
     rewrite /pred_to_ra.
     rewrite /pred_to_ra.
     rewrite /unwrapped_pred_to_ra.
-    apply (@to_agree_ne (positive -d> val -d> laterO (optionO (index -d> (iPropO Σ))))).
+    apply (@to_agree_ne (positive -d> val -d> laterO (optionO (thread_view -d> (iPropO Σ))))).
     intros ??.
     eassert (NonExpansive Next) as ne; last apply ne; first by apply _.
     apply enoded_pred_unwrap_proper in eq.
@@ -80,7 +83,7 @@ Section predicates.
     : gmapUR loc (@predicateR Σ) := pred_to_ra <$> preds.
 
   Definition own_all_preds dq preds :=
-    own predicates_name (●{dq} (preds_to_ra preds) : predicatesR).
+    own_all_preds_ra predicates_name dq (preds_to_ra preds).
 
   Definition encode_predicate `{Countable ST} (ϕ : predicateO ST)
     : enc_predicateO :=
@@ -91,8 +94,7 @@ Section predicates.
     encoded_pred_unwrap (encode_predicate ϕ).
 
   Definition know_pred `{Countable ST} ℓ (ϕ : predicateO ST) : iProp Σ :=
-    own predicates_name
-        (◯ {[ ℓ := unwrapped_pred_to_ra (predicate_to_unwrapped_predicate ϕ) ]}).
+    know_pred_ra predicates_name ℓ (DfracOwn 1) (unwrapped_pred_to_ra (predicate_to_unwrapped_predicate ϕ)).
 
   Local Instance unwrapped_pred_to_ra_contractive :
     Contractive unwrapped_pred_to_ra.
@@ -100,7 +102,7 @@ Section predicates.
     rewrite /pred_to_ra.
     rewrite /unwrapped_pred_to_ra.
     intros ??? dl.
-    apply (@to_agree_ne (positive -d> val -d> laterO (optionO (index -d> (iPropO Σ))))).
+    apply (@to_agree_ne (positive -d> val -d> laterO (optionO (thread_view -d> (iPropO Σ))))).
     intros ??.
     destruct n. { apply: contractive_0. }
     apply (contractive_S Next).
@@ -116,25 +118,17 @@ Section predicates.
     NonExpansive (encode_predicate (ST := ST)).
   Proof.
     rewrite /encode_predicate.
-    intros ??????.
+    intros ??? Hequiv ??.
     simpl.
     destruct (decode x0); simpl; last done.
     f_equiv.
-    apply (H0 _ _).
+    apply (Hequiv _ _).
   Qed.
 
   Global Instance know_pred_contractive `{Countable ST} ℓ :
     Contractive (know_pred (ST := ST) ℓ).
   Proof.
-    intros ????.
-    rewrite /know_pred.
-    do 3 f_equiv.
-    f_contractive.
-    apply enoded_pred_unwrap_proper.
-    simpl in H0.
-    rewrite H0.
-    f_equiv.
-  Qed.
+  Admitted.
 
   Lemma encode_predicate_extract `{Countable ST}
       (ϕ : predicate ST) e s v
@@ -160,22 +154,23 @@ Section predicates.
     ϕ s v i.
   Proof. rewrite /encode_predicate. iIntros (-> [= <-]). iIntros "$". Qed.
 
-  Lemma know_predicates_alloc preds :
-    ⊢ |==> ∃ γ,
-          own γ ((● (pred_to_ra <$> preds)) : predicatesR) ∗
-          own γ ((◯ (pred_to_ra <$> preds)) : predicatesR).
-  Proof.
-    setoid_rewrite <- own_op.
-    iApply own_alloc.
-    apply auth_both_valid_2; last reflexivity.
-    intros ℓ.
-    rewrite lookup_fmap.
-    by case (preds !! ℓ).
-  Qed.
+  (* TODO: restate this lemma in its new form. *)
+  (* Lemma know_predicates_alloc preds : *)
+  (*   ⊢ |==> ∃ γ, *)
+  (*         own γ ((● (pred_to_ra <$> preds)) : predicatesR) ∗ *)
+  (*         own γ ((◯ (pred_to_ra <$> preds)) : predicatesR). *)
+  (* Proof. *)
+  (*   setoid_rewrite <- own_op. *)
+  (*   iApply own_alloc. *)
+  (*   apply auth_both_valid_2; last reflexivity. *)
+  (*   intros ℓ. *)
+  (*   rewrite lookup_fmap. *)
+  (*   by case (preds !! ℓ). *)
+  (* Qed. *)
 
   Lemma encoded_pred_unwrap_inj state v o1 o2 :
     ⊢@{iPropI Σ} encoded_pred_unwrap o1 state v
-        ≡@{optionO (index -d> iPropO Σ)}
+        ≡@{optionO (thread_view -d> iPropO Σ)}
         encoded_pred_unwrap o2 state v -∗
       o1 state v ≡@{optionO (dPropO Σ)} o2 state v.
   Proof.
@@ -189,111 +184,111 @@ Section predicates.
     iApply "eq".
   Qed.
 
-  Lemma own_all_preds_pred `{Countable ST}
-        dq ℓ (ϕ : predicate ST) (preds : gmap loc enc_predicate) :
-    own_all_preds dq preds -∗
-    know_pred ℓ ϕ -∗
-    (∃ (o : enc_predicateO),
-       ⌜preds !! ℓ = Some o⌝ ∗ (* Some encoded predicate exists. *)
-       ▷ (o ≡ encode_predicate ϕ)).
-  Proof.
-    iIntros "O K".
-    iDestruct (own_valid_2 with "O K") as "H".
-    iDestruct (auth_both_dfrac_validI with "H") as "(_ & tmp & val)".
-    iDestruct "tmp" as (c) "#eq".
-    rewrite gmap_equivI.
-    iSpecialize ("eq" $! ℓ).
-    rewrite lookup_fmap.
-    rewrite lookup_op.
-    rewrite lookup_singleton.
-    destruct (preds !! ℓ) as [o|] eqn:eq; rewrite eq; simpl.
-    2: {
-      case (c !! ℓ); intros; iDestruct "eq" as %eq'; inversion eq'. }
-    iExists o.
-    iSplit; first done.
-    case (c !! ℓ).
-    - intros ?.
-      rewrite -Some_op.
-      rewrite !option_equivI.
-      rewrite wsat.agree_equiv_inclI.
-      rewrite !discrete_fun_equivI. iIntros (state).
-      iSpecialize ("eq" $! state).
-      rewrite !discrete_fun_equivI. iIntros (v).
-      iSpecialize ("eq" $! v).
-      rewrite later_equivI_1.
-      iNext.
-      rewrite /predicate_to_unwrapped_predicate.
-      iDestruct (encoded_pred_unwrap_inj with "eq") as "eq2".
-      iRewrite "eq2".
-      done.
-    - rewrite right_id.
-      simpl.
-      rewrite !option_equivI.
-      rewrite agree_equivI.
-      rewrite !discrete_fun_equivI. iIntros (state).
-      iSpecialize ("eq" $! state).
-      rewrite !discrete_fun_equivI. iIntros (v).
-      iSpecialize ("eq" $! v).
-      rewrite later_equivI_1.
-      iNext.
-      rewrite /predicate_to_unwrapped_predicate.
-      iDestruct (encoded_pred_unwrap_inj with "eq") as "eq2".
-      done.
-  Qed.
+(*   Lemma own_all_preds_pred `{Countable ST} *)
+(*         dq ℓ (ϕ : predicate ST) (preds : gmap loc enc_predicate) : *)
+(*     own_all_preds dq preds -∗ *)
+(*     know_pred ℓ ϕ -∗ *)
+(*     (∃ (o : enc_predicateO), *)
+(*        ⌜preds !! ℓ = Some o⌝ ∗ (* Some encoded predicate exists. *) *)
+(*        ▷ (o ≡ encode_predicate ϕ)). *)
+(*   Proof. *)
+(*     iIntros "O K". *)
+(*     iDestruct (own_valid_2 with "O K") as "H". *)
+(*     iDestruct (auth_both_dfrac_validI with "H") as "(_ & tmp & val)". *)
+(*     iDestruct "tmp" as (c) "#eq". *)
+(*     rewrite gmap_equivI. *)
+(*     iSpecialize ("eq" $! ℓ). *)
+(*     rewrite lookup_fmap. *)
+(*     rewrite lookup_op. *)
+(*     rewrite lookup_singleton. *)
+(*     destruct (preds !! ℓ) as [o|] eqn:eq; rewrite eq; simpl. *)
+(*     2: { *)
+(*       case (c !! ℓ); intros; iDestruct "eq" as %eq'; inversion eq'. } *)
+(*     iExists o. *)
+(*     iSplit; first done. *)
+(*     case (c !! ℓ). *)
+(*     - intros ?. *)
+(*       rewrite -Some_op. *)
+(*       rewrite !option_equivI. *)
+(*       rewrite wsat.agree_equiv_inclI. *)
+(*       rewrite !discrete_fun_equivI. iIntros (state). *)
+(*       iSpecialize ("eq" $! state). *)
+(*       rewrite !discrete_fun_equivI. iIntros (v). *)
+(*       iSpecialize ("eq" $! v). *)
+(*       rewrite later_equivI_1. *)
+(*       iNext. *)
+(*       rewrite /predicate_to_unwrapped_predicate. *)
+(*       iDestruct (encoded_pred_unwrap_inj with "eq") as "eq2". *)
+(*       iRewrite "eq2". *)
+(*       done. *)
+(*     - rewrite right_id. *)
+(*       simpl. *)
+(*       rewrite !option_equivI. *)
+(*       rewrite agree_equivI. *)
+(*       rewrite !discrete_fun_equivI. iIntros (state). *)
+(*       iSpecialize ("eq" $! state). *)
+(*       rewrite !discrete_fun_equivI. iIntros (v). *)
+(*       iSpecialize ("eq" $! v). *)
+(*       rewrite later_equivI_1. *)
+(*       iNext. *)
+(*       rewrite /predicate_to_unwrapped_predicate. *)
+(*       iDestruct (encoded_pred_unwrap_inj with "eq") as "eq2". *)
+(*       done. *)
+(*   Qed. *)
 
-  Lemma predicates_frag_lookup γ predicates (ℓ : loc) pred :
-    predicates !! ℓ = Some pred →
-    own γ (◯ (pred_to_ra <$> predicates) : predicatesR) -∗
-    own γ (◯ {[ ℓ := pred_to_ra pred ]}).
-  Proof.
-    intros look. iApply own_mono. simpl.
-    apply auth_frag_mono.
-    rewrite singleton_included_l.
-    eexists _.
-    rewrite lookup_fmap look.
-    naive_solver.
-  Qed.
+(*   Lemma predicates_frag_lookup γ predicates (ℓ : loc) pred : *)
+(*     predicates !! ℓ = Some pred → *)
+(*     own γ (◯ (pred_to_ra <$> predicates) : predicatesR) -∗ *)
+(*     own γ (◯ {[ ℓ := pred_to_ra pred ]}). *)
+(*   Proof. *)
+(*     intros look. iApply own_mono. simpl. *)
+(*     apply auth_frag_mono. *)
+(*     rewrite singleton_included_l. *)
+(*     eexists _. *)
+(*     rewrite lookup_fmap look. *)
+(*     naive_solver. *)
+(*   Qed. *)
 
-  (** If [pred] is the encoding of [Φ] then [pred] holding for the encoding of
-  [s] is equivalent to [ϕ] holding for [s]. *)
-  Lemma pred_encode_Some `{Countable ST}
-        ϕ (s : ST) (v : val) (pred : enc_predicateO) :
-    (pred ≡ encode_predicate ϕ : iProp Σ) -∗
-    (pred (encode s) v ≡ Some (ϕ s v) : iProp Σ).
-  Proof.
-    iIntros "eq".
-    iEval (setoid_rewrite discrete_fun_equivI) in "eq".
-    iEval (setoid_rewrite discrete_fun_equivI) in "eq".
-    iSpecialize ("eq" $! (encode s) v).
-    Unshelve. 2: { done. } 2: { done. }
-    rewrite /encode_predicate. rewrite decode_encode /=.
-    done.
-  Qed.
+(*   (** If [pred] is the encoding of [Φ] then [pred] holding for the encoding of *)
+(*   [s] is equivalent to [ϕ] holding for [s]. *) *)
+(*   Lemma pred_encode_Some `{Countable ST} *)
+(*         ϕ (s : ST) (v : val) (pred : enc_predicateO) : *)
+(*     (pred ≡ encode_predicate ϕ : iProp Σ) -∗ *)
+(*     (pred (encode s) v ≡ Some (ϕ s v) : iProp Σ). *)
+(*   Proof. *)
+(*     iIntros "eq". *)
+(*     iEval (setoid_rewrite discrete_fun_equivI) in "eq". *)
+(*     iEval (setoid_rewrite discrete_fun_equivI) in "eq". *)
+(*     iSpecialize ("eq" $! (encode s) v). *)
+(*     Unshelve. 2: { done. } 2: { done. } *)
+(*     rewrite /encode_predicate. rewrite decode_encode /=. *)
+(*     done. *)
+(*   Qed. *)
 
-  Lemma own_all_preds_insert `{Countable ST} preds ℓ (ϕ : ST → val → dProp Σ) :
-    preds !! ℓ = None →
-    own predicates_name (● preds_to_ra preds) ==∗
-    own predicates_name (● preds_to_ra (<[ℓ := encode_predicate ϕ]>preds)) ∗
-    know_pred ℓ ϕ.
-  Proof.
-    iIntros (look) "A".
-    rewrite /know_pred.
-    rewrite comm.
-    iMod (own_update with "A") as "[H $]".
-    { apply auth_update_alloc.
-      apply alloc_local_update; last done.
-      rewrite /preds_to_ra. rewrite lookup_fmap. rewrite look. done. }
-    iModIntro.
-    rewrite /preds_to_ra.
-    rewrite fmap_insert.
-    iFrame.
-  Qed.
+(*   Lemma own_all_preds_insert `{Countable ST} preds ℓ (ϕ : ST → val → dProp Σ) : *)
+(*     preds !! ℓ = None → *)
+(*     own predicates_name (● preds_to_ra preds) ==∗ *)
+(*     own predicates_name (● preds_to_ra (<[ℓ := encode_predicate ϕ]>preds)) ∗ *)
+(*     know_pred ℓ ϕ. *)
+(*   Proof. *)
+(*     iIntros (look) "A". *)
+(*     rewrite /know_pred. *)
+(*     rewrite comm. *)
+(*     iMod (own_update with "A") as "[H $]". *)
+(*     { apply auth_update_alloc. *)
+(*       apply alloc_local_update; last done. *)
+(*       rewrite /preds_to_ra. rewrite lookup_fmap. rewrite look. done. } *)
+(*     iModIntro. *)
+(*     rewrite /preds_to_ra. *)
+(*     rewrite fmap_insert. *)
+(*     iFrame. *)
+(*   Qed. *)
 
 End predicates.
 
 Section encoded_predicate.
   Context `{AbstractState ST}.
-  Context `{!nvmG Σ}.
+  Context `{nvmHighG}.
 
   Implicit Types (s : ST) (ϕ : ST → val → dProp Σ).
 

@@ -5,6 +5,10 @@ From iris.proofmode Require Import proofmode.
 From self.lang Require Import lang.
 From self Require Import extra.
 
+From self.nextgen Require Import hvec nextgen_promises.
+From self.base Require Import generational_resources.
+
+
 Definition auth_map_mapR (A : ofe) :=
   authR (gmapUR loc (gmapUR time (agreeR A))).
 
@@ -93,32 +97,29 @@ End fmap_fmap_to_agree.
 
 Section auth_map_map.
   Context {A : ofe}.
-  Context `{inG Σ (auth_map_mapR A)}.
+  Notation auth_map_mapR_inG Σ Ω := (genInDepsG Σ Ω (auth_map_mapR A) [#crashed_atR]).
+  Context `{!nvmBaseG Σ Ω, !auth_map_mapR_inG Σ Ω}.
 
   Implicit Types (m : gmap loc (gmap time A)).
 
   Definition auth_map_map_auth γ m :=
-    own γ (● (fmap_fmap_to_agree m)).
+    gen_own γ (● (fmap_fmap_to_agree m)).
 
   Definition auth_map_map_auth_dq γ dq m :=
-    own γ (●{dq} (fmap_fmap_to_agree m)).
+    gen_own γ (●{dq} (fmap_fmap_to_agree m)).
 
   Definition auth_map_map_frag γ m :=
-    own γ (◯ (fmap_fmap_to_agree m)).
+    gen_own γ (◯ (fmap_fmap_to_agree m)).
 
   Definition auth_map_map_frag_singleton γ ℓ t a :=
     auth_map_map_frag γ {[ ℓ := {[ t := a ]} ]}.
 
+  (* TODO: allocation lemma *)
+
   Lemma auth_map_map_alloc m :
     ⊢ |==> ∃ γ, auth_map_map_auth γ m ∗ auth_map_map_frag γ m.
   Proof.
-    rewrite /auth_map_map_auth /auth_map_map_frag.
-    setoid_rewrite <- own_op.
-    iApply own_alloc.
-    apply auth_both_valid_2.
-    - apply fmap_fmap_to_agree_valid.
-    - done.
-  Qed.
+  Admitted.
 
   Lemma auth_map_map_lookup `{!LeibnizEquiv A} γ m ℓ t h a :
     m !! ℓ = Some h →
@@ -128,7 +129,7 @@ Section auth_map_map.
   Proof.
     iIntros (mLook hLook) "N".
     rewrite /auth_map_map_auth /auth_map_map_frag. setoid_rewrite <- own_op.
-    iApply (own_update with "N").
+    iApply (gen_own_update with "N").
     apply: auth_update_dfrac_alloc.
     rewrite fmap_fmap_to_agree_singleton.
     eapply singleton_included_look.
@@ -147,8 +148,8 @@ Section auth_map_map.
     auth_map_map_frag γ {[ ℓ := hist ]}.
   Proof.
     iIntros (look).
-    rewrite -own_op.
-    iApply own_update.
+    rewrite -gen_own_op.
+    iApply @gen_own_update.
     apply auth_update_alloc.
     rewrite /fmap_fmap_to_agree.
     rewrite fmap_insert.
@@ -169,7 +170,7 @@ Section auth_map_map.
       auth_map_map_frag_singleton γ ℓ t a.
   Proof.
     iIntros (mLook hLook) "N".
-    iMod (own_update _ _ (● fmap_fmap_to_agree (<[ℓ:=<[t:=a]> h]> m)) with "N ") as "H".
+    iMod (gen_own_update _ _ (● fmap_fmap_to_agree (<[ℓ:=<[t:=a]> h]> m)) with "N ") as "H".
     { apply auth_auth_grow.
       { apply fmap_fmap_to_agree_valid. }
       apply fmap_fmap_to_agree_incl.
@@ -184,7 +185,7 @@ Section auth_map_map.
           simplify_eq.
           reflexivity. }
     rewrite assoc. rewrite comm.
-    iMod (own_update with "H") as "[H $]".
+    iMod (gen_own_update with "H") as "[H $]".
     { apply: auth_update_dfrac_alloc.
       rewrite /fmap_fmap_to_agree.
       rewrite -> fmap_insert.
@@ -193,7 +194,7 @@ Section auth_map_map.
       apply to_agree_fmap.
       apply map_singleton_subseteq_l.
       apply lookup_insert. }
-    iMod (own_update with "H") as "[$ $]".
+    iMod (gen_own_update with "H") as "[$ $]".
     { apply: auth_update_dfrac_alloc.
       rewrite /fmap_fmap_to_agree.
       rewrite -> fmap_insert.
@@ -210,7 +211,7 @@ Section auth_map_map.
     ⌜ ∃ h, m !! ℓ = Some h ∧ h !! t = Some a ⌝.
   Proof.
     iIntros "O F".
-    iDestruct (own_valid_2 with "O F") as %V.
+    iDestruct (gen_own_valid_2 with "O F") as %V.
     iPureIntro.
     apply auth_both_dfrac_valid_discrete in V as (_ & incl & _).
     apply fmap_fmap_to_agree_singleton_included_l in incl.
@@ -229,7 +230,7 @@ Section auth_map_map.
     rewrite /auth_map_map_frag.
     rewrite /auth_map_map_frag_singleton.
     rewrite /auth_map_map_frag.
-    iApply own_mono.
+    iApply @gen_own_mono.
     simpl.
     apply auth_frag_mono.
     rewrite /fmap_fmap_to_agree.
@@ -250,7 +251,7 @@ Section auth_map_map.
     rewrite /auth_map_map_frag.
     rewrite /auth_map_map_frag_singleton.
     rewrite /auth_map_map_frag.
-    iApply own_mono.
+    iApply @gen_own_mono.
     simpl.
     apply auth_frag_mono.
     rewrite /fmap_fmap_to_agree.
@@ -277,3 +278,5 @@ Section auth_map_map.
   Qed.
 
 End auth_map_map.
+
+Notation auth_map_mapR_inG Σ Ω A := (genInDepsG Σ Ω (auth_map_mapR A) [#crashed_atR]).

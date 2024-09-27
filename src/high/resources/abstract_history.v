@@ -7,7 +7,8 @@ From iris.base_logic.lib Require Import own.
 From iris.heap_lang Require Export locations.
 From iris.proofmode Require Import proofmode.
 
-From self.algebra Require Import ghost_map ghost_map_map.
+From self.base Require Import generational_resources.
+From self.high.resources Require Import gen_ghost_map gen_ghost_map_map.
 From self.lang Require Import lang.
 From self Require Import extra ipm_tactics.
 
@@ -19,8 +20,16 @@ abstract history. *)
 (** We define a few things about the resource algebra that that we use to encode
 abstract histories. *)
 Section abs_history_lemmas.
-  Context `{ghost_map_mapG Σ loc time positive}.
+  Notation K1 := loc.
+  Notation K2 := nat.
+  Notation V := positive.
+  Context `{!nvmBaseG Σ Ω, !genC_ghost_map_inG loc (V → option V) Σ Ω, !ghost_map_mapG K1 K2 V Σ Ω}.
   Context `{Countable ST}.
+
+  Local Existing Instance ghost_map_outer_inG.
+  Local Existing Instance ghost_map_inner_inG.
+
+  Variable (γbumper: gname).
 
   Implicit Types
     (abs_hist : gmap time ST) (ℓ : loc)
@@ -35,14 +44,15 @@ Section abs_history_lemmas.
   return [store_lb] for the returned state. At that point we can conclude that
   decoding the encoding gives a result but not that the encoding is an encoding
   of some state. *)
+
   Definition frag_entry_unenc γ ℓ t (s : ST) : iProp Σ :=
-    ∃ e, ⌜ decode e = Some s ⌝ ∗ frag_entry γ ℓ t e.
+    ∃ e, ⌜ decode e = Some s ⌝ ∗ frag_entry γbumper γ ℓ t e.
 
   Definition history_full_entry_encoded γ ℓ q enc_abs_hist : iProp Σ :=
-    full_entry γ ℓ (DfracOwn q) enc_abs_hist.
+    full_entry γbumper γ ℓ (DfracOwn q) enc_abs_hist.
 
   Definition full_entry_unenc γ ℓ q abs_hist : iProp Σ :=
-    full_entry γ ℓ (DfracOwn q) (encode <$> abs_hist).
+    full_entry γbumper γ ℓ (DfracOwn q) (encode <$> abs_hist).
 
   Lemma full_entry_unenc_agree γ ℓ q p abs_hist1 abs_hist2 :
     full_entry_unenc γ ℓ q abs_hist1 -∗
@@ -59,12 +69,12 @@ Section abs_history_lemmas.
   Proof. done. Qed.
 
   Lemma frag_history_equiv γ ℓ t s :
-    frag_entry γ ℓ t (encode s) -∗
+    frag_entry γbumper γ ℓ t (encode s) -∗
     frag_entry_unenc γ ℓ t s.
   Proof. iIntros "H". iExists _. iFrame. rewrite decode_encode. done. Qed.
 
   Lemma full_map_frag_singleton_agreee γ dq ℓ t (s : ST) hists :
-    full_map γ dq hists -∗
+    full_map γbumper γ dq hists -∗
     frag_entry_unenc γ ℓ t s -∗
     ⌜∃ hist enc,
       hists !! ℓ = Some hist ∧ hist !! t = Some enc ∧ decode enc = Some s⌝.
@@ -101,7 +111,7 @@ Section abs_history_lemmas.
     iIntros "F M".
     rewrite /frag_entry_unenc.
     iDestruct (big_sepM_exist_r with "M") as (hist_enc) "M".
-    iDestruct (full_entry_lookup_big _ _ _ _ hist_enc with "F [M]") as %sub.
+    iDestruct (full_entry_lookup_big _ _ _ _ _ hist_enc with "F [M]") as %sub.
     { iApply big_sepM_forall.
       iIntros (???).
       iDestruct (big_sepM2_lookup_r with "M") as (???) "$"; first done. }
