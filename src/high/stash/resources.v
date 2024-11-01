@@ -22,12 +22,15 @@ Class nvmHighDeltaG := MkNvmHighDeltaG {
   phys_history_name : gname;
   non_atomic_views_gname : gname;
   crashed_in_name : gname;
-  predicates_name : gname;
+  full_predicates_name : gname;
+  read_predicates_name : gname;
+  pers_predicates_name : gname;
   preorders_name : gname;
   offset_name : gname;
   exclusive_locs_name : gname;
   shared_locs_name : gname;
   bumpers_name : gname;
+  pview_lb_name : gname;
 }.
 
 (* A record of all the global ghost names that we need. *)
@@ -69,6 +72,7 @@ Class nvmHighFixedG Σ := {
   offsetsG :> ghost_mapG Σ loc nat;
   locsG :> inG Σ shared_locsR;
   nvm_bumpersG :> bumpersG Σ;
+  pview_lbG :> inG Σ (authR viewUR);
 }.
 
 Definition nvmHighΣ :=
@@ -80,7 +84,9 @@ Definition nvmHighΣ :=
      ghost_mapΣ loc (relation2 positive);
      ghost_mapΣ loc nat;
      GFunctor (shared_locsR);
-     ghost_mapΣ loc (positive → option positive) ].
+     ghost_mapΣ loc (positive → option positive);
+     GFunctor (authRF viewUR)
+    ].
 
 Instance subG_nvmHighΣ {Σ} : subG nvmHighΣ Σ → nvmHighFixedG Σ.
 Proof. solve_inG. Qed.
@@ -107,6 +113,7 @@ Definition get_bumpers_name (gnames : nvmDeltaG) := bumpers_name.
 Definition get_at_locs_name (gnames : nvmDeltaG) := shared_locs_name.
 Definition get_na_locs_name (gnames : nvmDeltaG) := exclusive_locs_name.
 Definition get_na_views_name (gnames : nvmDeltaG) := non_atomic_views_gname.
+Definition get_pview_lb_name (gnames : nvmDeltaG) := pview_lb_name.
 
 (* Wrappers around ownership of resources that extracts the ghost names from
    [nvmDeltaG]. These wrapper makes it easier to switch the ghost names around

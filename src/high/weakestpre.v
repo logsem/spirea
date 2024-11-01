@@ -265,8 +265,9 @@ Section wp_rules.
     (* Get the points-to predicate. *)
     iNamed "locationProtocol".
     iDestruct (ghost_map_lookup with "allOrders knowPreorder") as %look.
+
     iDestruct (big_sepM2_dom with "ordered") as %domEq.
-    iDestruct (big_sepM2_dom with "predsHold") as %domEq2.
+    iDestruct (big_sepM2_dom with "predsFullReadHold") as %domEq2.
     assert (is_Some (phys_hists !! ℓ)) as [physHist ?].
     { apply elem_of_dom. rewrite domEq2 domEq. apply elem_of_dom. naive_solver. }
     iDestruct (offset_loc_crashed_at_agree with "offset offsets") as %?.
@@ -292,7 +293,7 @@ Section wp_rules.
         rewrite /flush_lb.
         iExistsN.
         simpl.
-        iFrame "knowPred knowPreorder knowBumper knowFragHist offset".
+        iFrame "knowFullPred knowReadPred knowPersPred knowPreorder knowBumper knowFragHist offset".
         iSplitPure. { done. }
         iLeft. iPureIntro.
         repeat split; try apply view_empty_least.
@@ -305,7 +306,7 @@ Section wp_rules.
         rewrite /persist_lb.
         iExistsN.
         simpl.
-        iFrame "knowPred knowPreorder knowBumper knowFragHist offset".
+        iFrame "knowFullPred knowReadPred knowPersPred knowPreorder knowBumper knowFragHist offset".
         iSplitPure; first done.
         simpl.
         iSplit.

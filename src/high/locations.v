@@ -181,15 +181,19 @@ Section mapsto_at_lemmas.
     FlushFree (mapsto_at ℓ prot ss).
   Proof. apply _. Qed.
 
-  Global Instance mapsto_at_contractive ℓ ss bumper :
-    Contractive (λ (inv : loc_predO ST), (ℓ ↦_AT^{MkProt inv bumper} ss)).
+  Global Instance mapsto_at_contractive ℓ ss bumper:
+    Contractive (λ (invs : loc_predO ST * loc_predO ST * loc_predO ST),
+                   let '(full, read, pers) := invs in
+                   (ℓ ↦_AT^{MkProt full read pers bumper} ss)).
   Proof.
     rewrite /mapsto_at.
     intros ????.
+    destruct x as [[full read] pers].
+    destruct y as [[full' read'] pers'].
     f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv.
     f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv.
     f_equiv. f_equiv. f_equiv. f_equiv. f_equiv. f_equiv.
-    apply know_protocol_contractive.
+    apply (know_protocol_contractive ℓ bumper n (ST := ST) (full, read, pers) (full', read', pers')).
     assumption.
   Qed.
 
@@ -211,6 +215,9 @@ Section mapsto_at_lemmas.
       anything in the flush view. *)
       "viewFact" ∷ (have_FV_strong ℓ (tF - offset) ∨
                     ⎡ persisted_loc ℓ (tF - offset) ⎤).
+
+  (* Definition pview_lb_high ℓ t: dProp Σ := *)
+  (*   lift_d (λ nD, own pview_lb_name (◯ {[ ℓ := MaxNat t ]})). *)
 
   Program Definition persist_lb ℓ prot (sP : ST) : dProp Σ :=
     ∃ tP offset,
@@ -787,7 +794,7 @@ Section mapsto_at_lemmas.
   (*   rewrite /mapsto_at. *)
   (*   iNamed 1. *)
   (*   iDestruct (know_protocol_extract with "locationProtocol") *)
-  (*     as "(pred & knowPreorder & knowBumper)". *)
+  (*     as "(fullPred & readPred & PersPred & knowPreorder & knowBumper)". *)
   (*   iAssert (□ ∀ t s, know_frag_history_loc_d ℓ t s -∗ _)%I as "#impl". *)
   (*   { iIntros "!>" (??). *)
   (*     iApply (post_crash_frag_history with "knowPreorder offset knowBumper"). } *)
@@ -796,7 +803,7 @@ Section mapsto_at_lemmas.
   (*     iApply "impl". } *)
   (*   iCrashIntro. *)
   (*   iDestruct (if_rec_is_persisted ℓ) as "persisted". *)
-  (*   (* TODO: Why is this [IntoIfRec] instance not picked up automatically. *) *)
+  (*   (* TODO: Why is this [IntoIfRec] instsance not picked up automatically. *) *)
   (*   iDestruct (into_if_rec with "HI") as "HH". *)
   (*   { apply big_sepM_into_if_rec. intros. apply into_if_rec_if_rec. } *)
   (*   iModIntro. *)
@@ -850,6 +857,7 @@ Section mapsto_at_lemmas.
   (* NOTE: This lemma is (very likely) sound and is strictly stronger than the
    * lemma above. We have, however, not had a need for it yet and thus the
    * proof is aborted (for now). *)
+
   (* Lemma post_crash_mapsto_at ℓ prot (ss : list ST) : *)
   (*   ℓ ↦_AT^{prot} ss ⊢ *)
   (*   <PC> if_rec ℓ (∃ sC, *)
@@ -869,7 +877,7 @@ Section mapsto_at_lemmas.
   (*   rewrite /mapsto_at. *)
   (*   iNamed 1. *)
   (*   iDestruct (know_protocol_extract with "locationProtocol") *)
-  (*     as "(pred & order & bumper)". *)
+  (*     as "(FullPred & ReadPred & PersPred & order & bumper)". *)
   (*   iAssert (□ ∀ t s, know_frag_history_loc_d ℓ t s -∗ _)%I as "#impl". *)
   (*   { iIntros "!>" (??). *)
   (*     iApply (post_crash_frag_history with "order offset bumper"). } *)

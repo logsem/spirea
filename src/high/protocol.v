@@ -5,7 +5,7 @@ From self.high.lib Require Import abstract_state.
 From self Require Import encode_relation.
 
 From self.high Require Import dprop generational_resources modalities monpred_simpl predicates wrappers.
-From self.high.modalities Require Import no_buffer nextgen if_rec.
+From self.high.modalities Require Import no_buffer nextgen_flush nextgen if_rec.
 
 From self.lang Require Import lang.
 
@@ -14,45 +14,70 @@ Definition loc_pred `{nvmHighG} ST `{AbstractState ST} := ST → val → dProp �
 
 Definition loc_predO `{nvmHighG} ST := ST -d> val -d> dPropO Σ.
 
-
 (* A protocol consists of
   - A predicate [p_inv] that holds for each write and corresponding state of the
     location.
   - A function [bumper] that specifies how the state of a location changes
     after a crash. *)
+
 Record LocationProtocol ST `{AbstractState ST, nvmHighG} := MkProt {
-  p_inv : loc_pred ST;
+  p_full : loc_pred ST;
+  p_read : loc_pred ST;
+  p_pers : loc_pred ST;
   p_bumper : ST → ST;
 }.
 
 Global Arguments MkProt   {_ _ _ _ _ _ _ _} _%I _.
 
-Global Arguments p_inv    {ST _ _ _ _ _ _ _} _.
+Global Arguments p_full   {ST _ _ _ _ _ _ _} _.
+Global Arguments p_read   {ST _ _ _ _ _ _ _} _.
+Global Arguments p_pers   {ST _ _ _ _ _ _ _} _.
 Global Arguments p_bumper {ST _ _ _ _ _ _ _} _ _.
 
 (* Type class collection the properties that a protocol should have.
 
 Note: The fields are ordered by "difficulty" in the sense of how difficult these
 conditions usually are to show.  *)
+
 Class ProtocolConditions `{AbstractState ST, nvmHighG} (prot : LocationProtocol ST) := {
   bumper_mono :
     Proper ((⊑@{ST}) ==> (⊑))%signature (prot.(p_bumper));
-  inv_nobuf :>
-    ∀ s v, BufferFree (prot.(p_inv) s v);
-  pred_condition :
-    (⊢ ∀ s v, prot.(p_inv) s v -∗ nextgen (prot.(p_inv) (prot.(p_bumper) s) v) : dProp Σ)%I;
+  full_nobuf :>
+    ∀ s v, BufferFree (prot.(p_full) s v);
+  read_nobuf :>
+    ∀ s v, BufferFree (prot.(p_read) s v);
+  pers_obj :>
+    ∀ s v, Objective (prot.(p_pers) s v);
+  full_read_split :
+    forall s v, prot.(p_full) s v ⊣⊢ prot.(p_read) s v ∗ (prot.(p_read) s v -∗ prot.(p_full) s v);
+  pred_full_post_crash :
+    ⊢ ∀ s_p v_p, prot.(p_pers) s_p v_p -∗
+      (* first case: we crash exactly at [s] *)
+      (∀ s v, prot.(p_full) s v -∗ <NGF> prot.(p_full) (prot.(p_bumper) s) v ∗ prot.(p_pers) (prot.(p_bumper) s) v) ∧
+      (* second case: we crash later than [s_p] (included) but before [s] (excluded) *)
+      (∀ s v s_c v_c,
+         (* we need to extract the objective facts from the full predicate *)
+         ∃ P, (<obj> (prot.(p_full) s v -∗ <obj> P)) ∗
+              (P -∗ prot.(p_read) s_c v_c -∗ ⌜ s_p ⊑ s_c ⌝ -∗ ⌜ s_c ⊑ s ⌝ -∗
+              <NGF> prot.(p_full) (prot.(p_bumper) s_c) v_c ∗ prot.(p_pers) (prot.(p_bumper) s_c) v_c));
+  pred_read_nextgen :
+    ⊢ ∀ s v, prot.(p_read) s v -∗ <NGF> prot.(p_read) (prot.(p_bumper) s) v
 }.
 
 #[global] Hint Mode ProtocolConditions + + + + + + + + ! : typeclass_instances.
 
+Existing Instance full_nobuf.
+Existing Instance read_nobuf.
+Existing Instance pers_obj.
 Existing Instance bumper_mono.
-Existing Instance inv_nobuf.
 
 (** [know_protocol] represents the knowledge that a location is associated with a
 specific protocol. It's defined simply using more "primitive" assertions. *)
 Definition know_protocol `{AbstractState ST, nvmHighG}
            ℓ (prot : LocationProtocol ST) : dProp Σ :=
-  "#knowPred" ∷ ⎡ know_pred ℓ prot.(p_inv) ⎤ ∗
+  "#knowFullPred" ∷ ⎡ know_full_pred ℓ prot.(p_full) ⎤ ∗
+  "#knowReadPred" ∷ ⎡ know_read_pred ℓ prot.(p_read) ⎤ ∗
+  "#knowPersPred" ∷ ⎡ know_pers_pred ℓ prot.(p_pers) ⎤ ∗
   "#knowPreorder" ∷ ⎡ know_preorder_loc ℓ (⊑@{ST}) ⎤ ∗
   "#knowBumper" ∷ ⎡ know_bumper ℓ prot.(p_bumper) ⎤.
 
@@ -77,7 +102,7 @@ Section protocol.
   Implicit Types (prot : LocationProtocol ST).
 
   Lemma nextgen_know_protocol ℓ prot :
-    know_protocol ℓ prot -∗ nextgen $ if_rec ℓ (know_protocol ℓ prot).
+    know_protocol ℓ prot -∗ <NG> if_rec ℓ (know_protocol ℓ prot).
   Proof.
     iNamed 1.
     iModIntro.
@@ -96,16 +121,20 @@ Section protocol.
 
   Lemma know_protocol_extract ℓ prot :
     know_protocol ℓ prot -∗
-      ⎡ know_pred ℓ prot.(p_inv) ⎤ ∗
+      ⎡ know_full_pred ℓ prot.(p_full) ⎤ ∗
+      ⎡ know_read_pred ℓ prot.(p_read) ⎤ ∗
+      ⎡ know_pers_pred ℓ prot.(p_pers) ⎤ ∗
       ⎡ know_preorder_loc ℓ (⊑@{ST}) ⎤ ∗
       ⎡ know_bumper ℓ prot.(p_bumper) ⎤.
   Proof. iNamed 1. iFrame "#". Qed.
 
-  Lemma know_protocol_unfold ℓ prot i :
-    know_protocol ℓ prot i ⊣⊢
-    ("#knowPred" ∷ know_pred ℓ (p_inv prot) ∗
+  Lemma know_protocol_unfold ℓ prot TV :
+    know_protocol ℓ prot TV ⊣⊢
+    ("#knowFullPred" ∷ know_full_pred ℓ (p_full prot) ∗
+     "#knowReadPred" ∷ know_read_pred ℓ (p_read prot) ∗
+     "#knowPersPred" ∷ know_pers_pred ℓ (p_pers prot) ∗
      "#knowPreorder" ∷ know_preorder_loc ℓ (⊑@{ST}) ∗
-     "#knowBumper" ∷ know_bumper ℓ (p_bumper prot)).
+     "#knowBumper" ∷  know_bumper ℓ (p_bumper prot)).
   Proof. rewrite /know_protocol !monPred_at_sep !monPred_at_embed //. Qed.
 
   Global Instance know_protocol_buffer_free ℓ prot :
@@ -114,9 +143,11 @@ Section protocol.
 
   Lemma know_protocol_at ℓ prot TV :
     (know_protocol ℓ prot) TV ⊣⊢
-    know_pred ℓ prot.(p_inv) ∗
-    know_preorder_loc ℓ (⊑@{ST}) ∗
-    know_bumper ℓ prot.(p_bumper).
+      know_full_pred ℓ prot.(p_full) ∗
+      know_read_pred ℓ prot.(p_read) ∗
+      know_pers_pred ℓ prot.(p_pers) ∗
+      know_preorder_loc ℓ (⊑@{ST}) ∗
+      know_bumper ℓ prot.(p_bumper).
   Proof.
     rewrite /know_protocol. rewrite !monPred_at_sep.
     simpl. rewrite !monPred_at_embed.
@@ -124,14 +155,18 @@ Section protocol.
   Qed.
 
   Global Instance know_protocol_contractive ℓ bumper :
-    Contractive (λ (inv : loc_predO ST), (know_protocol ℓ (MkProt inv bumper))).
+    Contractive (λ (invs : (prodO (prodO (loc_predO ST) (loc_predO ST)) (loc_predO ST))),
+                      let '(full, read, pers) := invs in
+                      (know_protocol ℓ (MkProt full read pers bumper))).
   Proof.
     rewrite /know_protocol.
     intros ????.
-    f_equiv; last done.
-    f_equiv.
-    f_equiv.
-    f_contractive.
-    assumption.
+    destruct x as [[full read] pers].
+    destruct y as [[full' read'] pers'].
+    simpl.
+    repeat
+      (done ||
+       f_contractive ||
+       f_equiv); apply H2.
   Qed.
 End protocol.

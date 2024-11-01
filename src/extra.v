@@ -658,6 +658,22 @@ Section big_sepM2.
     iApply big_sepM2_update; eauto.
   Qed.
 
+  Lemma big_sepM2_split `{!BiAffine PROP}
+    (P: K → A → B → Prop) m1 m2 Φ:
+    (∀ k x1 x2, Decision (P k x1 x2)) →
+    ([∗ map] k ↦ x1; x2 ∈ m1; m2, Φ k x1 x2) ⊢
+    ([∗ map] k ↦ x1; x2 ∈ m1; m2, ⌜ P k x1 x2 ⌝ -∗ Φ k x1 x2) ∗
+    [∗ map] k ↦ x1; x2 ∈ m1; m2, ⌜ ¬ P k x1 x2 ⌝ -∗ Φ k x1 x2.
+  Proof.
+    iIntros.
+    iEval (rewrite -big_sepM2_sep).
+    iApply (big_sepM2_impl with "[$]").
+    iIntros "!> % % % % % ?".
+    destruct (decide (P k x1 x2)).
+    - iSplitR ""; by iIntros (?).
+    - iSplitL ""; by iIntros (?).
+  Qed.
+
   (* Could be upstreamed. *)
   Lemma monPred_at_big_sepM2 {I : biIndex} `{Countable K}
         i (Φ : K → A → B → monPred I PROP) (m1 : gmap K A) (m2 : gmap K B) :
@@ -721,3 +737,57 @@ Proof.
     apply prefix_app_singleton in eq as [-> ->].
     right. done.
   Qed.
+
+Lemma big_sepM_singleton_hold `{!BiAffine PROP} `{Countable K} {V1 V2} (m1: gmap K V1) (m2: gmap K V2) (P: K → V1 → V2 → PROP) k0 v01 v02:
+  (∀ k v1 v2, k ≠ k0 → k ∈ dom m1 → emp -∗ P k v1 v2) →
+  dom m1 = dom m2 →
+  m1 !! k0 = Some v01 →
+  m2 !! k0 = Some v02 →
+  P k0 v01 v02 -∗ [∗ map] k ↦ v1; v2 ∈ m1; m2, P k v1 v2.
+Proof.
+  iIntros (singleton). iIntros.
+  rewrite big_sepM2_delete; try eassumption.
+  iSplitL; first (iIntros; done).
+  iApply (big_sepM2_impl (λ _ _ _, emp)%I).
+  - rewrite big_sepM2_forall.
+    iSplit; [iPureIntro | done].
+    intros.
+    rewrite -2!elem_of_dom.
+    set_solver.
+  - iModIntro.
+    iIntros (???) "%Hlookup % ?".
+    iApply singleton; last done.
+    + pose proof (lookup_delete m1 k0).
+      congruence.
+    + apply elem_of_dom_2 in Hlookup.
+      set_solver.
+Qed.
+
+Lemma bi_wand_drop_premise `{!BiAffine PROP} P (Q: PROP):
+  Q ⊢ ⌜ P ⌝ -∗ Q.
+Proof.
+  iIntros.
+  done.
+Qed.
+
+Lemma wand_passthrough `{!BiAffine PROP} (R P1 P2 Q1 Q2: PROP):
+  (P1 ∗ R -∗ Q1 ∗ R) -∗ (P2 ∗ R -∗ Q2 ∗ R) -∗ R -∗ P1 -∗ P2 -∗ Q1 ∗ Q2 ∗ R.
+Proof.
+  iIntros "wand1 wand2 ? ? ?".
+  iDestruct ("wand1" with "[$]") as "[? ?]".
+  iDestruct ("wand2" with "[$]") as "[? ?]".
+  iFrame.
+Qed.
+
+Tactic Notation "pull_right" uconstr(pat) :=
+  do ? [ rewrite [(pat ∗ _)%I]bi.sep_comm
+       | rewrite [(_ ∗ _ ∗ pat)%I]bi.sep_assoc].
+
+Tactic Notation "pull_left" uconstr(pat) :=
+  do ? [ rewrite [(_ ∗ pat)%I]bi.sep_comm
+       | rewrite -[((pat ∗ _) ∗ _)%I]bi.sep_assoc
+       | rewrite [(_ ∗ pat ∗ _)%I]bi.sep_assoc
+       | rewrite [(▷ (pat ∗ _))%I]bi.later_sep].
+
+Ltac distrib_later :=
+  do ? [ rewrite [(▷ (_ ∗ _))%I]bi.later_sep].

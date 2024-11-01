@@ -28,8 +28,9 @@ From self.algebra Require Import view.
 
 Class nvmHighG Σ Ω `{!nvmBaseG Σ Ω} := NvmHighG {
   nvm_predicatesG :> predicates_inG Σ Ω;
-  (* TODO: after merge, this will be three ghost names *)
-  predicates_name : gname;
+  full_predicates_name : gname;
+  read_predicates_name : gname;
+  pers_predicates_name : gname;
   abs_historiesG :> ghost_map_mapG loc time positive Σ Ω;
   abs_history_name : gname;
   (* resharing [phy_history] for atomic locations *)

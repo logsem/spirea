@@ -2,7 +2,7 @@ From iris.proofmode Require Import proofmode.
 From iris_named_props Require Import named_props.
 
 From iris.bi Require Import monpred.
-From self.nextgen Require Export nextgen_promises.
+From self.nextgen Require Import nextgen_promises.
 From self.base Require Import generational_resources primitive_laws.
 From self.high Require Import dprop monpred_simpl.
 From self.high.modalities Require Import nextgen.

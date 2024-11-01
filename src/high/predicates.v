@@ -85,8 +85,14 @@ Section predicates.
   Definition preds_to_ra (preds : gmap loc (enc_predicate))
     : gmapUR loc (@predicateR Σ) := pred_to_ra <$> preds.
 
-  Definition own_all_preds dq preds :=
-    own_all_preds_ra predicates_name dq (preds_to_ra preds).
+  Definition own_all_preds γ dq preds :=
+    own_all_preds_ra γ dq (preds_to_ra preds).
+
+  Definition own_all_full_preds := own_all_preds full_predicates_name.
+
+  Definition own_all_read_preds := own_all_preds read_predicates_name.
+
+  Definition own_all_pers_preds := own_all_preds pers_predicates_name.
 
   Definition encode_predicate `{Countable ST} (ϕ : predicateO ST)
     : enc_predicateO :=
@@ -96,8 +102,14 @@ Section predicates.
     : unwrapped_predicate :=
     encoded_pred_unwrap (encode_predicate ϕ).
 
-  Definition know_pred `{Countable ST} ℓ (ϕ : predicateO ST) : iProp Σ :=
-    know_pred_ra predicates_name ℓ (unwrapped_pred_to_ra (predicate_to_unwrapped_predicate ϕ)).
+  Definition know_pred `{Countable ST} γ ℓ (ϕ : predicateO ST) : iProp Σ :=
+    know_pred_ra γ ℓ (unwrapped_pred_to_ra (predicate_to_unwrapped_predicate ϕ)).
+
+  Definition know_full_pred `{Countable ST} := know_pred (ST := ST) full_predicates_name.
+
+  Definition know_read_pred `{Countable ST} := know_pred (ST := ST) read_predicates_name.
+
+  Definition know_pers_pred `{Countable ST} := know_pred (ST := ST) pers_predicates_name.
 
   Local Instance unwrapped_pred_to_ra_contractive :
     Contractive unwrapped_pred_to_ra.
@@ -128,8 +140,8 @@ Section predicates.
     apply (Hequiv _ _).
   Qed.
 
-  Global Instance know_pred_contractive `{Countable ST} ℓ :
-    Contractive (know_pred (ST := ST) ℓ).
+  Lemma know_pred_contractive `{Countable ST} γ ℓ:
+    Contractive (know_pred (ST := ST) γ ℓ).
   Proof.
     intros ??? Hdist.
     rewrite /know_pred /know_pred_ra /named.
@@ -139,6 +151,31 @@ Section predicates.
     simpl in Hdist.
     rewrite Hdist.
     f_equiv.
+  Qed.
+
+  Global Instance know_full_pred_contractive `{Countable ST} ℓ :
+    Contractive (know_full_pred (ST := ST) ℓ) := know_pred_contractive (ST := ST) full_predicates_name ℓ.
+
+  Global Instance know_read_pred_contractive `{Countable ST} ℓ :
+    Contractive (know_read_pred (ST := ST) ℓ) := know_pred_contractive (ST := ST) read_predicates_name ℓ.
+
+  Global Instance know_pers_pred_contractive `{Countable ST} ℓ :
+    Contractive (know_pers_pred (ST := ST) ℓ) := know_pred_contractive (ST := ST) pers_predicates_name ℓ.
+
+  Lemma encode_predicate_decode `{Countable ST}
+    (ϕ: predicate ST) e v
+    (P: dPropO Σ) :
+    (encode_predicate ϕ e v: optionO (dPropO Σ)) ≡ Some P -∗
+    (⌜ ∃ (s: ST), decode e = Some s ⌝: iPropI Σ).
+  Proof.
+    iIntros "eq".
+    iEval (rewrite /encode_predicate) in "eq".
+    destruct (decode e) eqn:Heqn.
+    - iPureIntro. by eexists.
+    - iSimpl in "eq".
+      iPoseProof (discrete_eq_1 with "eq") as "%contra".
+      (* TODO: a clearer way to achieve this? *)
+      inversion contra.
   Qed.
 
   Lemma encode_predicate_extract `{Countable ST}
@@ -195,18 +232,10 @@ Section predicates.
     iApply "eq".
   Qed.
 
-  (* Lemma gmap_view_both_validI (preds: gmap loc enc_predicate) dq (ϕ: predicate ST) : *)
-  (*   ✓ (gmap_view_auth (DfracOwn 1) preds ⋅ gmap_view_frag k dq ϕ) ⊢ *)
-  (*   ✓ dq ∧ m !! k ≡ Some v. *)
-  (* Proof. *)
-  (*   rewrite /gmap_view_auth /gmap_view_frag. apply view_both_validI_1. *)
-  (*   intros n a. uPred.unseal. apply gmap_view.gmap_view_rel_lookup. *)
-  (* Qed. *)
-
-  Lemma own_all_preds_pred `{Countable ST}
+  Lemma own_all_preds_pred `{Countable ST} γ
         dq ℓ (ϕ : predicate ST) (preds : gmap loc enc_predicate) :
-    own_all_preds dq preds -∗
-    know_pred ℓ ϕ -∗
+    own_all_preds γ dq preds -∗
+    know_pred γ ℓ ϕ -∗
     (∃ (o : enc_predicateO),
        ⌜preds !! ℓ = Some o⌝ ∗ (* Some encoded predicate exists. *)
        ▷ (o ≡ encode_predicate ϕ)).
@@ -255,6 +284,33 @@ Section predicates.
       done.
   Qed.
 
+  Lemma own_all_full_preds_pred `{Countable ST}
+        dq ℓ (ϕ : predicate ST) (preds : gmap loc enc_predicate) :
+    own_all_full_preds dq preds -∗
+    know_full_pred ℓ ϕ -∗
+    (∃ (o : enc_predicateO),
+       ⌜preds !! ℓ = Some o⌝ ∗ (* Some encoded predicate exists. *)
+       ▷ (o ≡ encode_predicate ϕ)).
+    Proof. apply own_all_preds_pred. Qed.
+
+  Lemma own_all_read_preds_pred `{Countable ST}
+        dq ℓ (ϕ : predicate ST) (preds : gmap loc enc_predicate) :
+    own_all_read_preds dq preds -∗
+    know_read_pred ℓ ϕ -∗
+    (∃ (o : enc_predicateO),
+       ⌜preds !! ℓ = Some o⌝ ∗ (* Some encoded predicate exists. *)
+       ▷ (o ≡ encode_predicate ϕ)).
+  Proof. apply own_all_preds_pred. Qed.
+
+  Lemma own_all_pers_preds_pred `{Countable ST}
+        dq ℓ (ϕ : predicate ST) (preds : gmap loc enc_predicate) :
+    own_all_pers_preds dq preds -∗
+    know_pers_pred ℓ ϕ -∗
+    (∃ (o : enc_predicateO),
+       ⌜preds !! ℓ = Some o⌝ ∗ (* Some encoded predicate exists. *)
+       ▷ (o ≡ encode_predicate ϕ)).
+  Proof. apply own_all_preds_pred. Qed.
+
   Lemma predicates_frag_lookup γ predicates (ℓ : loc) pred :
     predicates !! ℓ = Some pred →
     gen_own γ (◯ (pred_to_ra <$> predicates) : predicatesR) -∗
@@ -285,11 +341,11 @@ Section predicates.
     done.
   Qed.
 
-  Lemma own_all_preds_insert `{Countable ST} preds ℓ (ϕ : ST → val → dProp Σ) :
+  Lemma own_all_preds_insert `{Countable ST} γ preds ℓ (ϕ : ST → val → dProp Σ) :
     preds !! ℓ = None →
-    own_all_preds (DfracOwn 1) preds ==∗
-    own_all_preds (DfracOwn 1) (<[ℓ := encode_predicate ϕ]> preds) ∗
-    know_pred ℓ ϕ.
+    own_all_preds γ (DfracOwn 1) preds ==∗
+    own_all_preds γ (DfracOwn 1) (<[ℓ := encode_predicate ϕ]> preds) ∗
+    know_pred γ ℓ ϕ.
   Proof.
     iIntros (look). iNamed 1.
     rewrite /know_pred.
@@ -304,7 +360,6 @@ Section predicates.
     rewrite fmap_insert.
     iFrame.
   Qed.
-
 End predicates.
 
 Section encoded_predicate.
@@ -385,11 +440,11 @@ Section encoded_predicate.
     iExists P. iFrame.
   Qed.
 
-  Global Instance own_all_preds_auth_into_nextgen dq preds:
+  Global Instance own_all_preds_auth_into_nextgen γ dq preds:
     IntoNextgen
-      (own_all_preds dq preds)
+      (own_all_preds γ dq preds)
       (∃ OCV,
-          own_all_preds dq (extra.restrict (dom OCV) preds) ∗
+          own_all_preds γ dq (extra.restrict (dom OCV) preds) ∗
           picked_in crashed_at_name (crashed_at_trans OCV)).
   Proof.
     rewrite /IntoNextgen.
@@ -400,10 +455,10 @@ Section encoded_predicate.
     rewrite /own_all_preds /restrict map_filter_fmap //.
   Qed.
 
-  Global Instance ghost_map_elem_into_nextgen k P:
+  Global Instance ghost_map_elem_into_nextgen γ k P:
     IntoNextgen
-      (know_pred (ST := ST) k P)
-      (if_rec k (know_pred (ST := ST) k P)).
+      (know_pred γ (ST := ST) k P)
+      (if_rec k (know_pred γ (ST := ST) k P)).
   Proof.
     rewrite /IntoNextgen.
     iIntros "know_pred !>!> //".
