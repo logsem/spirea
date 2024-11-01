@@ -60,8 +60,8 @@ Class nvmBaseG Σ Ω  := NvmBaseG {
 }.
 
 (* has been upstreamed to [iris-nextgen]. *)
-Lemma fmap_auth_auth {A : ucmra} (a : A) t :
-  fmap_auth t (● a) ≡ ● (t a) ⋅ ◯ (t ε).
+Lemma fmap_auth_auth {A : ucmra} dq (a : A) t :
+  fmap_auth t (●{dq} a) ≡ ●{dq} (t a) ⋅ ◯ (t ε).
 Proof.
   rewrite /fmap_auth /fmap_view view.view_op_eq /=.
   rewrite right_id left_id /fmap_pair agree_map_to_agree //.
@@ -235,12 +235,12 @@ Section crashed_at.
   Qed.
 
   Definition crashed_at (CV : view) : iProp Σ :=
-    ∃ (OV OCV LV : view),
+    ∃ (OV OCV PV : view),
       (* "%view_add" ∷ ⌜ OV `view_add` CV = OCV ⌝ ∗ *)
       "%view_eq" ∷ ⌜ OCV `view_sub` OV = CV ⌝ ∗
       "agree" ∷ gen_own crashed_at_name (to_agree OV, to_agree OCV)
       (* ∗ "rely" ∷ rely γ [] (crashed_at_pred LV) (crashed_at_pred LV). *)
-      ∗ "rely" ∷ rely_self crashed_at_name (crashed_at_pred LV).
+      ∗ "rely" ∷ rely_self crashed_at_name (crashed_at_pred PV).
 
   Lemma crashed_at_agree CV CV' :
     crashed_at CV -∗ crashed_at CV' -∗ ⌜CV = CV'⌝.
@@ -256,25 +256,25 @@ Section crashed_at.
   Qed.
   
   (** Ownership over the crashed at token with a promise that after the next
-   * crash the [OCV] will be at least [LV]. *)
-  Definition crashed_at_tok γ LV : iProp Σ :=
-    token γ [#] (crashed_at_pred LV) (crashed_at_pred LV).
+   * crash the [OCV] will be at least [PV]. *)
+  Definition crashed_at_tok γ PV : iProp Σ :=
+    token γ [#] (crashed_at_pred PV) (crashed_at_pred PV).
 
-  Lemma crashed_at_tok_strengthen {γ} LV1 LV2 :
-    LV1 ⊑ LV2 →
-    crashed_at_tok γ LV1 ⊢ |==> crashed_at_tok γ LV2.
+  Lemma crashed_at_tok_strengthen {γ} PV1 PV2 :
+    PV1 ⊑ PV2 →
+    crashed_at_tok γ PV1 ⊢ |==> crashed_at_tok γ PV2.
   Proof.
     iIntros (le) "tok".
     iApply (token_strengthen_promise_0_deps with "tok").
     - intros ?. unfold crashed_at_pred.
-      intros (LV3 & ? & ?). eexists LV3. split; last done. etrans; done.
-    - exists (λ '(_, CV1), (CV1, to_agree LV2)).
+      intros (PV3 & ? & ?). eexists PV3. split; last done. etrans; done.
+    - exists (λ '(_, CV1), (CV1, to_agree PV2)).
       split; first apply _.
-      eexists LV2. done.
+      eexists PV2. done.
   Qed.
 
-  Definition crashed_at_auth_crashed_at OV OCV LV:
-    crashed_at_tok crashed_at_name LV -∗
+  Definition crashed_at_auth_crashed_at OV OCV PV:
+    crashed_at_tok crashed_at_name PV -∗
     crashed_at_both OV OCV -∗
     crashed_at (OCV `view_sub` OV).
   Proof.
@@ -331,17 +331,17 @@ Section crashed_at.
     (* iExists _, _, _. *)
     unfold crashed_at.
     rewrite eq. simpl.
-    iExists _, _, _, LV.
+    iExists _, _, _, PV.
     iFrame.
     iPureIntro. reflexivity.
   Qed.
 
-  Lemma crashed_at_pick_nextgen OV OCV OCV2 LV :
-    LV ⊑ OCV2 →
+  Lemma crashed_at_pick_nextgen OV OCV OCV2 PV :
+    PV ⊑ OCV2 →
     crashed_at_both OV OCV -∗
-    crashed_at_tok crashed_at_name LV -∗
+    crashed_at_tok crashed_at_name PV -∗
     |==> ⚡==>
-      crashed_at_both OCV OCV2 ∗ crashed_at_tok crashed_at_name LV ∗
+      crashed_at_both OCV OCV2 ∗ crashed_at_tok crashed_at_name PV ∗
       picked_in crashed_at_name (crashed_at_trans OCV2).
   Proof.
     iIntros (le) "AG tok".
@@ -430,6 +430,7 @@ Section persisted.
     iDestruct "auth" as "($ & _)".
   Qed.
 
+  (* [OPV'] is the actual offset + persisted view, [OPV] is the offset + known persisted view *)
   Definition persisted PV : iProp Σ :=
     ∃ OCV OPV OPV',
       "%view_eq" ∷ ⌜ OPV `view_sub` OCV = PV ⌝ ∗
@@ -438,6 +439,9 @@ Section persisted.
       "%actualOPV" ∷ ⌜ OPV ⊑ OPV' ⌝ ∗
       "#crashRely" ∷ rely_self crashed_at_name (crashed_at_pred OPV') ∗
       "#rely" ∷ rely (g := i) persisted_name [#crashed_at_name] persisted_rel (λ _, true).
+
+  Definition persisted_loc ℓ t : iProp Σ :=
+    persisted {[ ℓ := MaxNat t ]}.
 
   Lemma persisted_auth_included OCV OPV PV' :
     crashed_at_offset OCV -∗

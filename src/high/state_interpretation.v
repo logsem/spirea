@@ -1,14 +1,13 @@
-From iris.proofmode Require Import base.
-From iris.algebra Require Import auth gset.
+From iris.proofmode Require Import proofmode.
 From iris_named_props Require Import named_props.
 
+From iris.algebra Require Import auth gset.
 From self Require Import extra view_slice.
-
 From self.high.lib Require Import increasing_map.
 
-From self.nextgen Require Import hvec nextgen_promises.
+From self.nextgen Require Import nextgen_promises.
 From self.base Require Import primitive_laws generational_resources.
-From self.high Require Export dprop predicates generational_resources.
+From self.high Require Export dprop predicates generational_resources wrappers.
 
 From self.lang Require Import lang.
 
@@ -90,7 +89,8 @@ Section state_interpretation.
       (* We keep the points-to predicates to ensure that we know that the keys
       in the abstract history correspond to the physical history. This ensures
       that at a crash we know that the value recovered after a crash has a
-      corresponding abstract value. *)
+      corresponding abstract value.
+       * TODO: attempt to simplify this part by using [↦fh]. *)
       "ptsMap" ∷ ([∗ map] ℓ ↦ hist ∈ (map_zip_with drop_prefix phys_hists offsets), ℓ ↦h hist) ∗
       "offsets" ∷ crashed_at_offset (MaxNat <$> offsets) ∗
       (* "%offsetDom" ∷ ⌜ dom (gset _) offsets = dom phys_hists ⌝ ∗ *)

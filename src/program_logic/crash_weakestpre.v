@@ -1537,6 +1537,13 @@ Proof. iIntros "H". iApply wp_value_fupd; auto. done. Qed.
 Lemma wp_value s E Φ e v : IntoVal e v → Φ v ⊢ WP e @ s; E {{ Φ }}.
 Proof. intros <-. apply wp_value'. Qed.
 
+Global Instance wp_mono' s E e :
+  Proper (pointwise_relation _ (⊢) ==> (⊢)) (wp (PROP:=iProp Σ) s E e).
+Proof. by intros Φ Φ' ?; apply wp_mono. Qed.
+Global Instance wp_flip_mono' s E e :
+  Proper (pointwise_relation _ (flip (⊢)) ==> (flip (⊢))) (wp (PROP:=iProp Σ) s E e).
+Proof. by intros Φ Φ' ?; apply wp_mono. Qed.
+
 (*
 Lemma wp_stuck_mono s1 s2 E e Φ :
   s1 ⊑ s2 → WP e @ s1; E {{ Φ }} ⊢ WP e @ s2; E {{ Φ }}.
@@ -1546,12 +1553,6 @@ Lemma wp_stuck_weaken s E e Φ :
 Proof. apply wp_stuck_mono. by destruct s. Qed.
 Lemma wp_mask_mono s E1 E2 e Φ : E1 ⊆ E2 → WP e @ s; E1 {{ Φ }} ⊢ WP e @ s; E2 {{ Φ }}.
 Proof. iIntros (?) "H"; iApply (wp_strong_mono with "H"); auto. Qed.
-Global Instance wp_mono' s E e :
-  Proper (pointwise_relation _ (⊢) ==> (⊢)) (wp (PROP:=iProp Σ) s E e).
-Proof. by intros Φ Φ' ?; apply wp_mono. Qed.
-Global Instance wp_flip_mono' s E e :
-  Proper (pointwise_relation _ (flip (⊢)) ==> (flip (⊢))) (wp (PROP:=iProp Σ) s E e).
-Proof. by intros Φ Φ' ?; apply wp_mono. Qed.
 
 Lemma wp_value s E Φ e v : IntoVal e v → Φ v ⊢ WP e @ s; E {{ Φ }}.
 Proof. intros <-. by apply wp_value'. Qed.

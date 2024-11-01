@@ -1,29 +1,24 @@
-(* In this file we define our weakest precondition on top of the weakest
-precondition included in Iris. *)
+(** In this file we define our weakest precondition on top of the weakest
+    precondition included in Iris.
+ ** This file also contains two of the easy rules: flush and fence(-sync). *)
 
-From stdpp Require Import gmap.
-From iris.program_logic Require weakestpre.
-
-From stdpp Require Import countable numbers gmap.
-From iris Require Import invariants.
-From iris.proofmode Require Import tactics monpred.
-From iris.algebra Require Import gmap gset excl auth.
-From iris.program_logic Require weakestpre.
-From iris.heap_lang Require Import locations.
+From iris.proofmode Require Import proofmode monpred.
 From iris_named_props Require Import named_props.
-
-From self.algebra Require Export ghost_map.
 From self Require Export extra ipm_tactics solve_view_le.
-From self.high Require Export dprop dprop_liftings.
-From self Require Export view.
-From self Require Export lang.
-From self.base Require Import primitive_laws.
+
+From self.high Require Export dprop.
+From self.base Require Import generational_resources primitive_laws.
+From self.high Require Import
+  generational_resources wrappers crash_weakestpre monpred_simpl modalities protocol locations.
+From self.high.lib Require Import abstract_state.
+
 From self.lang Require Import syntax tactics lemmas.
-From self.high Require Import resources crash_weakestpre lifted_modalities
-     monpred_simpl modalities protocol locations.
+From self Require Export lang.
 
 Section wp.
-  Context `{!nvmG Σ}.
+  Context `{!nvmBaseG Σ Ω, !nvmHighG Σ Ω, !PerennialG Σ}.
+
+  Set Default Proof Using "Type*".
 
   Implicit Types (Φ : val → dProp Σ) (e : expr).
 
@@ -36,7 +31,7 @@ Section wp.
   Proof. rewrite wp_eq. solve_proper. Qed.
 
   (* For the WP in Iris the other direction also holds, but not for this WP *)
-  Lemma wp_value_fupd' s E Φ v : (|NC={E}=> Φ v) ⊢ WP of_val v @ s; E {{ Φ }}.
+  Lemma wp_value_fupd' s E Φ v : (|={E}=> Φ v) ⊢ WP of_val v @ s; E {{ Φ }}.
   Proof.
     rewrite wp_eq /wp_def.
     iIntros "H".
@@ -52,7 +47,7 @@ Section wp.
   Proof. rewrite wp_eq /wp_def. iIntros "H". iApply wpc_bind. done. Qed.
 
   Lemma wp_value_fupd s E Φ e v :
-    IntoVal e v → (|NC={E}=> Φ v) ⊢ WP e @ s; E {{ Φ }}.
+    IntoVal e v → (|={E}=> Φ v) ⊢ WP e @ s; E {{ Φ }}.
   Proof. intros <-. apply wp_value_fupd'. Qed.
 
   (* If the expression is a value then showing the postcondition for the value
@@ -114,7 +109,6 @@ Section wp.
     iApply wpc_pure_step_fupd.
     { econstructor; last done. eassumption. }
     { constructor. }
-    Unshelve. 2: { done. } 2: { done. }
     iSplit.
     2: { iFrame. done. }
     simpl.
@@ -137,19 +131,23 @@ Section wp.
 
   (* This lemma "unfolds" the high-level WP into the low-level WP when the
   former is applied to a thread view. *)
-  Lemma wp_unfold_at e st E (Φ : val → dProp Σ) TV1 nD :
+  Lemma wp_unfold_at e st E (Φ : val → dProp Σ) TV1 :
     (∀ TV2, ⌜ TV1 ⊑ TV2 ⌝ -∗ validV (store_view TV2) -∗
       WP e `at` TV2 @ st; E
         {{ res,
           let '(v `at` TV3)%V := res
-          in ⌜ TV2 ⊑ TV3 ⌝ ∗ validV (store_view TV3) ∗ Φ v (TV3, nD) }}) -∗
-    (WP e @ st; E {{ Φ }}) (TV1, nD).
+          in ⌜ TV2 ⊑ TV3 ⌝ ∗ validV (store_view TV3) ∗ Φ v TV3 }}) -∗
+    (WP e @ st; E {{ Φ }}) TV1.
   Proof.
     iStartProof (iProp _).
     iIntros "impl".
     rewrite wp_eq /wp_def wpc_eq.
     iIntros (TV2 incl2) "#val".
-    rewrite monPred_at_pure.
+    (* a typeclass is missing here but I cannot figure out which *)
+    iApply self.program_logic.crash_weakestpre.wpc_mono.
+    { iIntros (v) "H". iAccu. }
+    { rewrite monPred_at_pure //. }
+
     iApply program_logic.crash_weakestpre.wp_wpc.
     iApply "impl". done. iAssumption.
   Qed.
@@ -158,15 +156,15 @@ End wp.
 
 Section wp_rules.
   Context `{AbstractState ST}.
-  Context `{!nvmG Σ}.
+  Context `{!nvmBaseG Σ Ω, !nvmHighG Σ Ω, !PerennialG Σ}.
 
-  Implicit Types (ℓ : loc) (s : ST) (ϕ : ST → val → nvmDeltaG → dProp Σ).
+  Implicit Types (ℓ : loc) (s : ST) (ϕ : ST → val → dProp Σ).
 
   Lemma last_cons (A : Type) (l : list A) (a b : A) :
-    last l = Some a → last (b :: l) = Some a.
+    (list.last l = Some a) → (list.last (b :: l) = Some a).
   Proof. intros Hl. induction l; [done|by rewrite -Hl]. Qed.
   Lemma last_app (A : Type) (l1 l2 : list A) (a : A) :
-    last l2 = Some a → last (l1 ++ l2) = Some a.
+    list.last l2 = Some a → list.last (l1 ++ l2) = Some a.
   Proof.
     intros Hl. induction l1; [done|].
     by erewrite <- app_comm_cons, last_cons.
@@ -256,7 +254,7 @@ Section wp_rules.
     iDestruct "lb" as (tS offset) "H". iNamed "H". iNamed "lbBase".
     iDestruct "tSLe" as %tSLe.
 
-    iIntros ([[[??]?] ?] [? [= <-]]) "HΦ".
+    iIntros ([[??]?] [?]) "HΦ".
     iApply wp_unfold_at.
     iIntros ([[SV PV] BV] incl) "#val".
 
@@ -265,16 +263,13 @@ Section wp_rules.
     iNamed 1.
 
     (* Get the points-to predicate. *)
-    iDestruct (know_protocol_extract with "locationProtocol")
-      as "(_ & order & _)".
-    rewrite /know_preorder_loc_d lift_d_at.
-    iDestruct (ghost_map_lookup with "allOrders order") as %look.
+    iNamed "locationProtocol".
+    iDestruct (ghost_map_lookup with "allOrders knowPreorder") as %look.
     iDestruct (big_sepM2_dom with "ordered") as %domEq.
     iDestruct (big_sepM2_dom with "predsHold") as %domEq2.
     assert (is_Some (phys_hists !! ℓ)) as [physHist ?].
     { apply elem_of_dom. rewrite domEq2 domEq. apply elem_of_dom. naive_solver. }
-    rewrite /offset_loc lift_d_at.
-    iDestruct (ghost_map_lookup with "offsets offset") as %?.
+    iDestruct (offset_loc_crashed_at_agree with "offset offsets") as %?.
     iDestruct (big_sepM_lookup_acc with "ptsMap") as "[pts ptsMap]".
     { apply map_lookup_zip_with_Some. naive_solver. }
 
@@ -291,16 +286,13 @@ Section wp_rules.
     iFrame "val".
     iSplitL "HΦ".
     { iEval (monPred_simpl) in "HΦ". iApply "HΦ".
-      { iPureIntro. split; last done. solve_view_le. }
+      { iPureIntro. solve_view_le. }
       iSplitL.
       - simpl.
         rewrite /flush_lb.
         iExistsN.
         simpl.
-        rewrite !monPred_at_embed.
-        iFrame "locationProtocol".
-        iFrame "knowFragHist".
-        iFrame "offset".
+        iFrame "knowPred knowPreorder knowBumper knowFragHist offset".
         iSplitPure. { done. }
         iLeft. iPureIntro.
         repeat split; try apply view_empty_least.
@@ -312,10 +304,8 @@ Section wp_rules.
         iIntros "#pers".
         rewrite /persist_lb.
         iExistsN.
-        simpl. rewrite !monPred_at_embed.
-        iFrame "locationProtocol".
-        iFrame "knowFragHist".
-        iFrame "offset".
+        simpl.
+        iFrame "knowPred knowPreorder knowBumper knowFragHist offset".
         iSplitPure; first done.
         simpl.
         iSplit.
@@ -402,7 +392,7 @@ Section wp_rules.
     intros Φ.
     iModel. destruct TV as [[sv pv] bv].
     rewrite monPred_at_wand.
-    iIntros "P". iIntros ([tv' ?] [incl [= <-]]) "HΦ".
+    iIntros "P". iIntros (TV' incl) "HΦ".
     iApply wp_unfold_at.
     iIntros ([[SV PV] BV] incl2) "#val".
     iApply (primitive_laws.wp_fence with "[//]").
@@ -413,13 +403,12 @@ Section wp_rules.
     rewrite monPred_at_wand.
     iApply "HΦ".
     - iPureIntro.
-      split; last done.
       etrans. apply incl2. repeat split; try done.
       apply view_le_l.
     - iApply monPred_mono; last iApply "P".
       eassert ((sv, pv, bv) ⊑ _) as incl3.
       { etrans; [apply incl|apply incl2]. }
-      destruct tv' as [[??]?].
+      destruct TV' as [[??]?].
       repeat split; try apply incl3.
       f_equiv; apply incl3.
   Qed.

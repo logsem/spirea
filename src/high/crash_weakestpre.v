@@ -1,33 +1,35 @@
-From iris.proofmode Require Import base tactics classes.
-From iris.algebra Require Import agree auth gset.
+From iris.proofmode Require Import proofmode.
 From iris_named_props Require Import named_props.
-From Perennial.base_logic.lib Require Export ncfupd.
-From Perennial.program_logic Require crash_weakestpre.
 
-From self.algebra Require Import ghost_map.
+(* From iris.algebra Require Import agree auth gset. *)
+(* From Perennial.base_logic.lib Require Export ncfupd. *)
+From self.program_logic Require crash_weakestpre.
+
 From self Require Import extra.
 From self.base Require Import primitive_laws class_instances.
-From self.high Require Export dprop viewobjective resources lifted_modalities monpred_simpl
-     post_crash_modality increasing_map state_interpretation wpc_notation.
+From self.high Require Export dprop generational_resources monpred_simpl state_interpretation wpc_notation.
+
+From self.high.modalities Require Import nextgen.
 
 Section wpc.
-  Context `{nvmG Σ}.
+  Context `{!nvmBaseG Σ Ω, !nvmHighG Σ Ω, !PerennialG Σ}.
+
+  Set Default Proof Using "Type*".
 
   Implicit Types (TV : thread_view).
 
   Program Definition wpc_def s E e (Φ : val → dProp Σ) (Φc : dProp Σ) : dProp Σ :=
     (* monPred_objectively Φc ∗ *)
-    MonPred (λ i,
-      let nD := i.2 in
+    MonPred (λ TV0,
       ∀ TV,
-        ⌜ i.1 ⊑ TV ⌝ -∗
+        ⌜ TV0 ⊑ TV ⌝ -∗
         validV (store_view TV) -∗
         crash_weakestpre.wpc s E (ThreadState e TV) (λ res,
           (let '(ThreadVal v TV') := res return _ in
             ⌜TV ⊑ TV'⌝ ∗ (* The operational semantics always grow the thread
             view, encoding this in the WPC is convenient. *)
-            validV (store_view TV') ∗ Φ v (TV', nD))
-        ) (* interp ∗ *) (Φc (⊥, nD))
+            validV (store_view TV') ∗ Φ v (TV'))
+          ) (* interp ∗ *) (Φc ⊥)
         (* WPC (ThreadState e TV) @ s; E {{ λ res, *)
         (*   (let '(ThreadVal v TV') := res return _ in *)
         (*     ⌜TV ⊑ TV'⌝ ∗ (* The operational semantics always grow the thread *)
@@ -37,7 +39,7 @@ Section wpc.
     )%I _.
   Next Obligation.
     intros ?????.
-    intros [TV1 ?] [TV2 ?] [? [= ->]].
+    intros TV1 TV2 ?.
     solve_proper.
   Qed.
 
@@ -100,7 +102,7 @@ Section wpc.
     iPureIntro. etrans; eassumption.
   Qed.
 
-  Lemma wpc_pure_step_later s E1 e1 e2 φ Φ Φc `{!ViewObjective Φc} :
+  Lemma wpc_pure_step_later s E1 e1 e2 φ Φ Φc `{!Objective Φc} :
     PureExecBase φ 1 e1 e2 →
     φ →
     ▷ WPC e2 @ s; E1 {{ Φ }} {{ Φc }} ∧ Φc
@@ -116,7 +118,7 @@ Section wpc.
     rewrite -crash_weakestpre.wpc_pure_step_later; last done.
     iSplit.
     - iNext. iApply ("WP" with "[//] val").
-    - iFrame. iApply view_objective_at. iDestruct "WP" as "[_ $]".
+    - iFrame. iApply objective_at. iDestruct "WP" as "[_ $]".
   Qed.
 
   Lemma wp_wpc s E1 e Φ:
@@ -134,10 +136,10 @@ Section wpc.
   *)
 
   Lemma wpc_strong_mono s1 s2 E1 E2 (e : expr) (Φ Ψ : val → dProp Σ) (Φc Ψc : dProp Σ)
-        `{!ViewObjective Φc, !ViewObjective Ψc} :
+        `{!Objective Φc, !Objective Ψc} :
     s1 ⊑ s2 → E1 ⊆ E2 →
     WPC e @ s1; E1 {{ Φ }} {{ Φc }} -∗
-    (∀ v, Φ v -∗ |NC={E2}=> Ψ v) ∧ (Φc -∗ |C={E2}=> Ψc) -∗
+    (∀ v, Φ v -∗ |={E2}=> Ψ v) ∧ (Φc -∗ |={E2}=> Ψc) -∗
     WPC e @ s2; E2 {{ Ψ }} {{ Ψc }}%I.
   Proof.
     intros ? HE.
@@ -146,7 +148,7 @@ Section wpc.
     iModel.
     monPred_simpl. simpl.
     iIntros "wpc".
-    iIntros ([TV1 ?] [? [= <-]]) "conj".
+    iIntros (TV1 ?) "conj".
     simpl.
     iIntros (TV2 ?) "val".
     iSpecialize ("wpc" $! TV2 with "[%] val"); try eassumption.
@@ -159,9 +161,7 @@ Section wpc.
       iSpecialize ("conj" $! _).
       monPred_simpl.
       iSpecialize ("conj" $! _ with "[%] phi").
-      { split; last done.
-        etrans. eassumption. eassumption. }
-      rewrite ncfupd_unfold_at.
+      { etrans. eassumption. eassumption. }
       iMod "conj" as "conj".
       iModIntro.
       iFrame "∗%".
@@ -169,22 +169,19 @@ Section wpc.
       iDestruct ("conj") as "[_ conj]".
       iIntros "phi".
       monPred_simpl.
-      iSpecialize ("conj" $! (TV1, _) with "[% //]").
-      rewrite /cfupd.
-      iIntros "HC".
+      iSpecialize ("conj" $! TV1 with "[% //]").
       (* iFrame "interp". *)
       simpl.
       monPred_simpl.
       iSpecialize ("conj" with "[phi]").
-      { iApply view_objective_at. iApply "phi". }
-      iSpecialize ("conj" $! (TV1, _) with "[% //] [HC]").
-      { iApply monPred_at_embed. done. }
-      iApply view_objective_at.
+      { iApply objective_at. iApply "phi". }
+      iSpecialize ("conj" $! TV1 with "[% //]").
+      iApply objective_at.
       done.
   Qed.
 
   Lemma wpc_strong_mono' s1 s2 E1 E2 e Φ Ψ Φc Ψc
-        `{!ViewObjective Φc, !ViewObjective Ψc} :
+        `{!Objective Φc, !Objective Ψc} :
     s1 ⊑ s2 → E1 ⊆ E2 →
     WPC e @ s1; E1 {{ Φ }} {{ Φc }} -∗
     (∀ v, Φ v ={E2}=∗ Ψ v) ∧ (Φc ={E2}=∗ Ψc) -∗
@@ -192,38 +189,34 @@ Section wpc.
   Proof.
     iIntros (??) "? H".
     iApply (wpc_strong_mono with "[$] [-]"); auto.
-    iSplit.
-    - iDestruct "H" as "(H & _)". iIntros. iMod ("H" with "[$]"). auto.
-    - iDestruct "H" as "(_ & H)".
-      iIntros "HΦc C". simpl. iApply "H". iAssumption.
   Qed.
 
-  Lemma ncfupd_wpc s E1 e Φ Φc `{!ViewObjective Φc} :
-    (cfupd E1 Φc) ∧ (|NC={E1}=> WPC e @ s; E1 {{ Φ }} {{ Φc }}) ⊢
-    WPC e @ s; E1 {{ Φ }} {{ Φc }}.
-  Proof.
-    rewrite wpc_eq.
-    iStartProof (iProp _). iIntros ([TV ?]).
-    iIntros "H".
-    simpl.
-    iIntros (?) "%incl val".
-    iApply ncfupd_wpc.
-    iSplit.
-    - iDestruct "H" as "[H _]".
-      rewrite cfupd_unfold_at.
-      iDestruct "H" as ">H".
-      iModIntro.
-      iFrame.
-      iApply view_objective_at.
-      iApply "H".
-    - iDestruct "H" as "[_ H]".
-      rewrite ncfupd_unfold_at.
-      iDestruct "H" as ">H".
-      iModIntro.
-      iApply ("H" with "[//] val").
-  Qed.
+  (* Lemma ncfupd_wpc s E1 e Φ Φc `{!ViewObjective Φc} : *)
+  (*   (cfupd E1 Φc) ∧ (|NC={E1}=> WPC e @ s; E1 {{ Φ }} {{ Φc }}) ⊢ *)
+  (*   WPC e @ s; E1 {{ Φ }} {{ Φc }}. *)
+  (* Proof. *)
+  (*   rewrite wpc_eq. *)
+  (*   iStartProof (iProp _). iIntros ([TV ?]). *)
+  (*   iIntros "H". *)
+  (*   simpl. *)
+  (*   iIntros (?) "%incl val". *)
+  (*   iApply ncfupd_wpc. *)
+  (*   iSplit. *)
+  (*   - iDestruct "H" as "[H _]". *)
+  (*     rewrite cfupd_unfold_at. *)
+  (*     iDestruct "H" as ">H". *)
+  (*     iModIntro. *)
+  (*     iFrame. *)
+  (*     iApply view_objective_at. *)
+  (*     iApply "H". *)
+  (*   - iDestruct "H" as "[_ H]". *)
+  (*     rewrite ncfupd_unfold_at. *)
+  (*     iDestruct "H" as ">H". *)
+  (*     iModIntro. *)
+  (*     iApply ("H" with "[//] val"). *)
+  (* Qed. *)
 
-  Lemma wpc_frame_l' s E1 e Φ Φc R R' `{!ViewObjective Φc, !ViewObjective R'} :
+  Lemma wpc_frame_l' s E1 e Φ Φc R R' `{!Objective Φc, !Objective R'} :
     (R ∧ R') ∗ WPC e @ s; E1 {{ Φ }} {{ Φc }}
     ⊢ WPC e @ s; E1 {{ v, R ∗ Φ v }} {{ R' ∗ Φc }}.
   Proof.
@@ -233,7 +226,7 @@ Section wpc.
     - iDestruct "HR" as "(_&H)". iModIntro. eauto.
   Qed.
 
-  Lemma wp_wpc_frame' s E1 e Φ Φc `{!ViewObjective Φc} R :
+  Lemma wp_wpc_frame' s E1 e Φ Φc `{!Objective Φc} R :
     (Φc ∧ R) ∗
     WP e @ s; E1 {{ λ v, R -∗ Φ v }} ⊢
     WPC e @ s; E1 {{ Φ }} {{ Φc }}.
@@ -250,9 +243,9 @@ Section wpc.
   Qed.
 
   Lemma wpc_atomic_crash_modality s E1 e Φ Φc
-        `{!AtomicBase StronglyAtomic e, !ViewObjective Φc} :
-    (cfupd E1 (Φc)) ∧
-    (WP e @ s; E1 {{ v, |={E1}=> (|={E1}=>Φ v) ∧ cfupd E1 (Φc) }}) ⊢
+        `{!AtomicBase StronglyAtomic e, !Objective Φc} :
+    (|={E1}=> (Φc)) ∧
+    (WP e @ s; E1 {{ v, |={E1}=> (|={E1}=>Φ v) ∧ |={E1}=> (Φc) }}) ⊢
     WPC e @ s; E1 {{ Φ }} {{ Φc }}.
   Proof.
     rewrite wpc_eq.
@@ -262,11 +255,10 @@ Section wpc.
     iIntros (?) "%incl val".
     iApply wpc_atomic_crash_modality.
     iSplit; [iDestruct "H" as "[H _]"|iDestruct "H" as "[_ H]"].
-    - rewrite cfupd_unfold_at.
-      iMod "H".
+    - iMod "H".
       iModIntro.
       iFrame.
-      iApply view_objective_at.
+      iApply objective_at.
       iApply "H".
     - rewrite wp_eq. rewrite /wp_def.
       rewrite wpc_eq. rewrite /wpc_def.
@@ -285,18 +277,17 @@ Section wpc.
       * rewrite monPred_at_fupd.
         iMod "H".
         iModIntro. iFrame.
-      * rewrite cfupd_unfold_at.
-        iMod "H".
+      * iMod "H".
         iModIntro.
         iFrame.
-        iApply view_objective_at.
+        iApply objective_at.
         iApply "H".
   Qed.
 
   Lemma wpc_value s E1 (Φ : val → dProp Σ) (Φc : dProp Σ)
-        `{!ViewObjective Φc} (v : val) :
-    ((|NC={E1}=> Φ v) : dProp _) ∧
-    (|C={E1}=> Φc) ⊢ WPC of_val v @ s; E1 {{ Φ }} {{ Φc }}.
+        `{!Objective Φc} (v : val) :
+    ((|={E1}=> Φ v) : dProp _) ∧
+    (|={E1}=> Φc) ⊢ WPC of_val v @ s; E1 {{ Φ }} {{ Φc }}.
   Proof.
     rewrite wpc_eq.
     iModel.
@@ -306,19 +297,17 @@ Section wpc.
     iApply (wpc_value _ _ _ _ (ThreadVal _ _)).
     iSplit.
     - iFrame. iDestruct "H" as "(H & _)".
-      rewrite ncfupd_unfold_at.
       iMod "H" as "H".
       iModIntro.
       iSplit; first done.
       iApply monPred_mono; last iApply "H".
       done.
     - iDestruct "H" as "(_ & HO)".
-      rewrite cfupd_unfold_at.
-      rewrite view_objective_at.
+      rewrite objective_at.
       iFrame.
   Qed.
 
-  Lemma wpc_value' s E1 Φ Φc `{!ViewObjective Φc} v :
+  Lemma wpc_value' s E1 Φ Φc `{!Objective Φc} v :
     Φ v ∧ Φc ⊢ WPC of_val v @ s; E1 {{ Φ }} {{ Φc }}.
   Proof.
     iIntros "H". iApply wpc_value.
@@ -329,7 +318,7 @@ Section wpc.
 
   (** * Derived rules *)
 
-  Lemma wpc_crash_mono stk E1 e Φ Φc Φc' `{!ViewObjective Φc, !ViewObjective Φc'} :
+  Lemma wpc_crash_mono stk E1 e Φ Φc Φc' `{!Objective Φc, !Objective Φc'} :
     (Φc' -∗ Φc) -∗
     WPC e @ stk; E1 {{ Φ }} {{ Φc' }} -∗
     WPC e @ stk; E1 {{ Φ }} {{ Φc }}.
@@ -341,7 +330,7 @@ Section wpc.
     by iApply "Hweaken".
   Qed.
 
-  Lemma wpc_mono s E1 e Φ Ψ Φc Ψc `{!ViewObjective Φc, !ViewObjective Ψc} :
+  Lemma wpc_mono s E1 e Φ Ψ Φc Ψc `{!Objective Φc, !Objective Ψc} :
     (∀ v, Φ v ⊢ Ψ v) →
     (Φc ⊢ Ψc) →
     WPC e @ s; E1 {{ Φ }} {{ Φc }} ⊢
@@ -353,7 +342,7 @@ Section wpc.
     - iIntros "? !>". by iApply HΦc.
   Qed.
 
-  Lemma wpc_mono' s E1 e Φ Ψ Φc Ψc `{!ViewObjective Φc, !ViewObjective Ψc} :
+  Lemma wpc_mono' s E1 e Φ Ψ Φc Ψc `{!Objective Φc, !Objective Ψc} :
     (∀ v, Φ v -∗ Ψ v) -∗ (Φc -∗ Ψc) -∗ WPC e @ s; E1 {{ Φ }} {{ Φc }} -∗
     WPC e @ s; E1  {{ Ψ }} {{ Ψc }}.
   Proof.
@@ -367,23 +356,22 @@ Section wpc.
     (∀ v, Φ v ⊢ Ψ v) → WP e @ s; E {{ Φ }} ⊢ WP e @ s; E {{ Ψ }}.
   Proof. intros Hpost. rewrite wp_eq. apply: wpc_mono; done. Qed.
 
-  Lemma wpc_atomic s E1 e (Φ : val → dProp Σ) Φc `{!AtomicBase StronglyAtomic e, !ViewObjective Φc} :
+  Lemma wpc_atomic s E1 e (Φ : val → dProp Σ) Φc `{!AtomicBase StronglyAtomic e, !Objective Φc} :
     (|={E1}=> Φc) ∧ WP e @ s; E1 {{ v, (|={E1}=> Φ v) ∧ |={E1}=> Φc }} ⊢
     WPC e @ s; E1 {{ Φ }} {{ Φc }}.
   Proof.
     iIntros "H". iApply (wpc_atomic_crash_modality). iApply (bi.and_mono with "H").
-    { iIntros "H HC". iFrame "H". }
+    { iIntros "H". iFrame "H". }
     iIntros "H".
     iApply (wp_mono with "H"). iIntros (?).
     iIntros "H". iModIntro.
     iApply (bi.and_mono with "H"); auto.
-    { iIntros "H HC". eauto. }
   Qed.
 
   (* Note that this also reverses the postcondition and crash condition, so we
   prove the crash condition first *)
   Lemma wpc_atomic_no_mask s E1 e Φ Φc
-        `{!AtomicBase StronglyAtomic e, !ViewObjective Φc} :
+        `{!AtomicBase StronglyAtomic e, !Objective Φc} :
     Φc ∧ WP e @ s; E1 {{ v, (|={E1}=> Φc) ∧ (|={E1}=> Φ v) }} ⊢
     WPC e @ s; E1 {{ Φ }} {{ Φc }}.
    Proof.

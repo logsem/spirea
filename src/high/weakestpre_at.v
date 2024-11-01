@@ -11,19 +11,20 @@ From iris.program_logic Require weakestpre.
 From iris.heap_lang Require Import locations.
 From iris_named_props Require Import named_props.
 
-From self.algebra Require Export ghost_map ghost_map_map.
 From self Require Export extra ipm_tactics encode_relation view view_slice.
 From self.lang Require Export lang lemmas tactics syntax.
 From self.base Require Import primitive_laws.
 From self Require Import solve_view_le.
-From self.high Require Export dprop resources crash_weakestpre weakestpre
-     lifted_modalities monpred_simpl modalities protocol locations.
-From self.high Require Import locations protocol.
+From self.high Require Export dprop generational_resources crash_weakestpre weakestpre
+     monpred_simpl modalities protocol locations.
 From self.high.modalities Require Import fence no_buffer.
+From self.high.lib Require Import abstract_state.
 
 Section wp_at_rules.
   Context `{AbstractState ST}.
-  Context `{!nvmG Σ}.
+  Context `{nvmHighG}.
+
+  Set Default Proof Using "Type*".
 
   Implicit Types (ℓ : loc) (s : ST) (prot : LocationProtocol ST).
 
@@ -40,8 +41,8 @@ Section wp_at_rules.
       (restrict atLocs hists) →
     hists !! ℓ = Some hist →
     hist !! t = Some (msg, s') →
-    own γ (● (atLocs : gsetUR loc)) -∗
-    own γ (◯ {[ℓ]}) -∗
+    gen_alocs_auth γ atLocs -∗
+    gen_alocs_frag γ {[ ℓ ]} -∗
     ⌜msg.(msg_persist_view) = msg.(msg_persisted_after_view)⌝.
   Proof.
     iIntros (m look look') "A B".

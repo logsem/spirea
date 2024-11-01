@@ -1,46 +1,25 @@
-(** The meaningful part of the definition of [if_rec] have been ported to base spirea.
- ** This file only contains [dProp] lifting definitions and lemmas. *)
-
-From iris.proofmode Require Import proofmode.
-From iris_named_props Require Import named_props.
-
+From iris.proofmode Require Import tactics.
 From iris.bi Require Import bi.
 From iris.bi Require Import derived_laws.
-From self.base Require Import generational_resources.
-From self.high Require Import dprop monpred_simpl.
+From iris.base_logic Require Import iprop.
+From iris_named_props Require Import named_props.
 
-From self.base.modalities Require Import if_rec.
-From self.high.modalities Require Import or_lost.
+From self.base Require Import primitive_laws generational_resources.
 
 From self.algebra Require Import view.
-
-Notation base_if_rec := self.base.modalities.if_rec.if_rec.
-
-Set Default Proof Using "Type".
 
 (* The predicate [P] holds for [ℓ] or [ℓ] has been lost. *)
 (* I believe the [persisted_loc] component is unnecessary
  * (implied by CV, at least in the context of a valid state interpretation),
  * but in case it's necessary in some unforseen way, I'm keeping it for now. *)
-Definition if_rec `{nvmBaseG} (ℓ : loc) (P : dProp Σ) : dProp Σ :=
+Definition if_rec `{nvmBaseG} (ℓ : loc) (P : iProp Σ) : iProp Σ :=
   ∀ (CV : view),
-  ⌜ is_Some (CV !! ℓ) ⌝ -∗ ⎡ crashed_at CV ⎤ -∗ ⎡ persisted_loc ℓ 0 ⎤ -∗ P.
+  ⌜ is_Some (CV !! ℓ) ⌝ -∗ crashed_at CV -∗ persisted_loc ℓ 0 -∗ P.
+(* alt
+  P ∨ (∃ CV, ⎡crashed_at CV⎤ ∗ ⌜ℓ ∉ dom (gset _) CV⌝ )
+ *)
 
-Section lifting.
-  Context `{nvmBaseG}.
-
-  Lemma if_rec_lift_if_rec ℓ P:
-    if_rec ℓ ⎡ P ⎤ ⊣⊢ ⎡ base_if_rec ℓ P ⎤.
-  Proof.
-    rewrite /if_rec /base_if_rec.
-    rewrite embed_forall.
-    do 2 f_equiv.
-    rewrite ?embed_wand embed_pure.
-    done.
-  Qed.
-End lifting.
-
-Class IntoIfRec `{nvmBaseG} ℓ (P : dProp Σ) (Q : dProp Σ) :=
+Class IntoIfRec `{nvmBaseG} ℓ (P : iProp Σ) (Q : iProp Σ) :=
   into_if_rec : P ⊢ if_rec ℓ Q.
 Global Arguments IntoIfRec {_} {_} {_} _ _%I _%I.
 Global Arguments into_if_rec  {_} {_} {_} {_} _%I _%I.
@@ -73,7 +52,7 @@ Section if_rec.
       * iDestruct "H" as "[_ H]". iApply "H"; done.
   Qed.
 
-  Lemma if_rec_sep ℓ (P Q : dProp Σ) :
+  Lemma if_rec_sep ℓ (P Q : iProp Σ) :
     if_rec ℓ P ∗ if_rec ℓ Q ⊢ if_rec ℓ (P ∗ Q)%I.
   Proof.
     iIntros "[P Q]". ifRecIntro.
@@ -81,7 +60,7 @@ Section if_rec.
     iDestruct ("Q" $! CV with "[//] crashed [$]") as "$".
   Qed.
 
-  Lemma if_rec_mono ℓ (P Q : dProp Σ) :
+  Lemma if_rec_mono ℓ (P Q : iProp Σ) :
     (P ⊢ Q) → if_rec ℓ P ⊢ if_rec ℓ Q.
   Proof.
     rewrite /if_rec.
@@ -91,7 +70,7 @@ Section if_rec.
     iApply "P"; done.
   Qed.
 
-  Lemma if_rec_emp ℓ : (emp : dProp Σ) ⊢ if_rec ℓ emp.
+  Lemma if_rec_emp ℓ : (emp : iProp Σ) ⊢ if_rec ℓ emp.
   Proof. iIntros "_". ifRecIntro. done. Qed.
 
   Lemma if_rec_intuitionistically_2 ℓ P : □ (if_rec ℓ P) ⊢ if_rec ℓ (□ P).
@@ -134,7 +113,7 @@ Section if_rec.
   (* Qed. *)
 
   Lemma if_rec_get CV ℓ P :
-    is_Some (CV !! ℓ) → ⎡ crashed_at CV ⎤ -∗ ⎡ persisted_loc ℓ 0 ⎤ -∗ if_rec ℓ P -∗ P.
+    is_Some (CV !! ℓ) → crashed_at CV -∗ persisted_loc ℓ 0 -∗ if_rec ℓ P -∗ P.
   Proof. iIntros ([[t] look]) "#? #? H". iApply "H"; naive_solver. Qed.
 
   (* Lemma if_rec_with_t_get CV ℓ t P : *)
@@ -149,44 +128,12 @@ Section if_rec.
 
   Lemma if_rec_is_rec ℓ :
     ⊢ if_rec ℓ (∃ CV,
-      ⌜ is_Some (CV !! ℓ) ⌝ ∗ ⎡ crashed_at CV ⎤).
+      ⌜ is_Some (CV !! ℓ) ⌝ ∗ crashed_at CV ∗ persisted_loc ℓ 0).
   Proof. ifRecIntro. iExists CV. iFrame "#%". Qed.
 
   Lemma if_rec_is_persisted ℓ :
-    ⊢ if_rec ℓ ⎡ persisted {[ ℓ := MaxNat 0 ]} ⎤.
+    ⊢ if_rec ℓ (persisted {[ ℓ := MaxNat 0 ]}).
   Proof. ifRecIntro. iFrame "#". Qed.
-
-  Lemma or_lost_if_rec_at ℓ (P : dProp Σ) TV :
-    or_lost_post_crash_no_t ℓ (P TV) -∗ (if_rec ℓ P) TV.
-  Proof.
-    iDestruct 1 as (CV) "[crash disj]".
-    iIntros (CV'). monPred_simpl.
-    iIntros (? ?). monPred_simpl.
-    iIntros ([??]). iIntros (? ?). monPred_simpl.
-    iIntros "crashed" (? ?) "pers".
-    simpl.
-    iDestruct (crashed_at_agree with "crash crashed") as %->.
-    iApply monPred_mono.
-    2: { iDestruct "disj" as "[(%t & %look & [_ $]) | %]".
-         congruence. }
-    etrans; first done. etrans; first done. done.
-  Qed.
-
-  Lemma or_lost_if_rec_embed ℓ P TV:
-    or_lost_post_crash_no_t ℓ P -∗ (if_rec ℓ ⎡ P ⎤) TV.
-  Proof.
-    iIntros "H". iApply or_lost_if_rec_at. rewrite monPred_at_embed. iApply "H".
-  Qed.
-
-  Lemma if_rec_or_lost_with_t ℓ P :
-    or_lost_with_t ℓ P ⊢ if_rec ℓ (∃ t, P t).
-  Proof.
-    iIntros "(%CV' & #crashed' & disj)".
-    ifRecIntro. destruct look as [??].
-    iDestruct (crashed_at_agree with "crashed crashed'") as %<-.
-    iDestruct "disj" as "[(% & % & #per & P) | %lost]"; last congruence.
-    iExists t. iFrame "P".
-  Qed.
 
   Global Instance into_if_rec_intro ℓ P : IntoIfRec ℓ P P := if_rec_intro ℓ P.
 
@@ -203,7 +150,7 @@ Section if_rec.
   Qed.
 
   Global Instance big_sepM_into_if_rec `{Countable K} :
-    ∀ ℓ (A : Type) Φ (Ψ : K → A → dProp Σ) (m : gmap K A),
+    ∀ ℓ (A : Type) Φ (Ψ : K → A → iProp Σ) (m : gmap K A),
     (∀ (k : K) (x : A), IntoIfRec ℓ (Φ k x) (Ψ k x)) →
     IntoIfRec ℓ ([∗ map] k↦x ∈ m, Φ k x)%I ([∗ map] k↦x ∈ m, Ψ k x)%I.
   Proof.
@@ -212,5 +159,4 @@ Section if_rec.
     - rewrite !big_sepM_insert //.
       iIntros "[??]". iModIntro. iFrame.
   Qed.
-
 End if_rec.

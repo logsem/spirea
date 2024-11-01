@@ -3,7 +3,7 @@ From iris.bi Require Import bi.
 From iris.bi Require Import derived_laws.
 From iris.base_logic Require Import iprop.
 
-From self.high Require Import dprop viewobjective resources modalities.
+From self.high Require Import dprop generational_resources modalities.
 
 Class IntoNoFlush {Σ} (P : dProp Σ) (Q : dProp Σ) :=
   into_no_flush : P ⊢ <noflush> Q.
@@ -17,12 +17,12 @@ Section no_flush.
   Context `{Σ : gFunctors}.
   Implicit Types (P : dProp Σ).
 
-  Lemma no_flush_at_alt P SV PV BV gnames :
-    ((<noflush> P) (SV, PV, BV, gnames) = P (SV, ∅, ∅, gnames))%I.
+  Lemma no_flush_at_alt P SV PV BV :
+    ((<noflush> P) (SV, PV, BV) = P (SV, ∅, ∅))%I.
   Proof. done. Qed.
 
-  Lemma no_flush_at P TV gnames :
-    ((<noflush> P) (TV, gnames) = P (store_view TV, ∅, ∅, gnames))%I.
+  Lemma no_flush_at P TV :
+    ((<noflush> P) TV = P (store_view TV, ∅, ∅))%I.
   Proof. destruct TV as [[??]?]. apply no_flush_at_alt. Qed.
 
   Global Instance no_flush_proper :
@@ -85,14 +85,6 @@ Section no_flush.
     rewrite no_flush_at. simpl. iApply objective_at.
   Qed.
 
-  Global Instance flush_free_view_objective P : ViewObjective P → FlushFree P.
-  Proof.
-    intros O.
-    rewrite /IntoNoFlush.
-    iModel. destruct TV as [[??]?].
-    rewrite no_flush_at. simpl. iApply view_objective_at.
-  Qed.
-
   Global Instance into_no_flush_if (b : bool) (P P' Q Q' : dProp Σ) :
     IntoNoFlush P P' →
     IntoNoFlush Q Q' →
@@ -138,8 +130,8 @@ Section no_flush.
       iFrame "A B".
   Qed.
 
-  Lemma into_no_flush_at P Q SV FV BV gnames `{!IntoNoFlush P Q} :
-    P (SV, FV, BV, gnames) ⊢ Q (SV, ∅, ∅, gnames).
+  Lemma into_no_flush_at P Q SV FV BV `{!IntoNoFlush P Q} :
+    P (SV, FV, BV) ⊢ Q (SV, ∅, ∅).
   Proof.
     erewrite <- no_flush_at_alt.
     apply into_no_flush.
@@ -155,8 +147,8 @@ Section no_flush.
     repeat split; try apply le; done.
   Qed.
 
-  Lemma no_flush_monPred_in SV FV PV i :
-    monPred_in (SV, FV, PV, i) ⊢@{dPropI Σ} <noflush> monPred_in (SV, ∅, ∅, i).
+  Lemma no_flush_monPred_in SV FV PV :
+    monPred_in (SV, FV, PV) ⊢@{dPropI Σ} <noflush> monPred_in (SV, ∅, ∅).
   Proof.
     iModel.
     iIntros (le). destruct TV as [[??]?]. rewrite no_flush_at.

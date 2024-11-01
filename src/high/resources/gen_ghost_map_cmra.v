@@ -15,8 +15,6 @@ From self.base Require Import generational_resources.
 
 From self.lang Require Import lang.
 
-viewR
-
 Definition predicateR Σ :=
   agreeR (positive -d> val -d> laterO (optionO (thread_view -d> iPropO Σ))).
 Definition predicatesR Σ := gmap_viewR loc (predicateR Σ).

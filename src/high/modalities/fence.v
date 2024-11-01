@@ -1,11 +1,10 @@
 From iris.proofmode Require Import tactics.
-From iris.bi Require Import bi.
-From iris.bi Require Import derived_laws.
+From iris.bi Require Import bi derived_laws.
+From iris.base_logic Require Import iprop.
 
 From self Require Import solve_view_le.
-From self.base Require Import primitive_laws.
-From self.high Require Import dprop resources crash_weakestpre weakestpre
-     recovery_weakestpre resources lifted_modalities modalities post_crash_modality protocol.
+From self.base Require Import generational_resources.
+From self.high Require Import dprop modalities monpred_simpl.
 From self.high.modalities Require Import no_flush.
 
 Class IntoFence {Σ} (P: dProp Σ) (Q : dProp Σ) :=
@@ -18,13 +17,13 @@ Section post_fence.
   Context `{Σ : gFunctors}.
   Implicit Types (P : dProp Σ).
 
-  Lemma post_fence_at P TV gnames :
-    ((<fence> P) (TV, gnames) =
-       P (store_view TV, (flush_view TV ⊔ buffer_view TV), buffer_view TV, gnames))%I.
+  Lemma post_fence_at P TV :
+    ((<fence> P) (TV) =
+       P (store_view TV, (flush_view TV ⊔ buffer_view TV), buffer_view TV))%I.
   Proof. done. Qed.
 
-  Lemma post_fence_at_alt P SV PV BV gnames :
-    ((<fence> P) (SV, PV, BV, gnames) = P (SV, PV ⊔ BV, BV, gnames))%I.
+  Lemma post_fence_at_alt P SV PV BV :
+    ((<fence> P) (SV, PV, BV) = P (SV, PV ⊔ BV, BV))%I.
   Proof. done. Qed.
 
   Global Instance post_fence_proper :
@@ -46,11 +45,11 @@ Section post_fence.
   Lemma post_fence_wand P Q : (P -∗ Q) -∗ <fence> P -∗ <fence> Q.
   Proof.
     iModel. iIntros "H".
-    introsIndex TV2 le.
+    iIntros (TV2 le).
     rewrite !post_fence_at.
     monPred_simpl.
     iApply "H".
-    iPureIntro. split; last done. solve_view_le.
+    iPureIntro. solve_view_le.
   Qed.
 
   Lemma post_fence_idemp P : <fence> <fence> P ⊢ <fence> P.
@@ -129,7 +128,7 @@ Section post_fence.
   Proof.
     iModel.
     rewrite post_fence_at. rewrite into_no_flush_at.
-    iApply monPred_mono. split; last done. solve_view_le.
+    iApply monPred_mono. solve_view_le.
   Qed.
 
   Lemma post_fence_flush_free P `{FlushFree P} : post_fence P ⊢ P.
@@ -137,7 +136,7 @@ Section post_fence.
     rewrite -> (into_no_flush P P) at 1.
     iModel.
     rewrite post_fence_at. rewrite into_no_flush_at.
-    iApply monPred_mono. split; last done. solve_view_le.
+    iApply monPred_mono. solve_view_le.
   Qed.
 
   Global Instance post_fence_persistent P :
@@ -192,15 +191,15 @@ Section post_fence.
 
 End post_fence.
 
-Class IntoFenceSync `{nvmG Σ}
+Class IntoFenceSync `{nvmBaseG}
       (P: dProp Σ) (Q : dProp Σ) :=
   into_fence_sync : P ⊢ <fence_sync> Q.
-Global Arguments IntoFenceSync  {_} {_} _%I _%I.
-Global Arguments into_fence_sync {_} _%I _%I {_}.
-Global Hint Mode IntoFenceSync - + ! -  : typeclass_instances.
+Global Arguments IntoFenceSync  {_ _ _} _%I _%I.
+Global Arguments into_fence_sync {_ _ _} _%I _%I {_}.
+Global Hint Mode IntoFenceSync - - + ! -  : typeclass_instances.
 
 Section post_fence_sync.
-  Context `{nvmG Σ}.
+  Context `{nvmBaseG}.
 
   Implicit Types (P : dProp Σ).
 
@@ -292,7 +291,7 @@ Section post_fence_sync.
   Qed.
 
   Lemma modality_post_fence_sync_mixin :
-    modality_mixin (@post_fence_sync _ _)
+    modality_mixin (@post_fence_sync _ _ _)
       (MIEnvTransform IntoFenceSync) (MIEnvTransform IntoFenceSync).
   Proof.
     split; simpl; split_and?;

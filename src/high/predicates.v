@@ -1,14 +1,17 @@
 From iris.bi Require Import lib.fractional.
 From iris.base_logic.lib Require Import own.
-From iris.algebra Require Import gset gmap excl auth.
+From iris.algebra Require Import gset gmap excl auth gmap_view.
 From iris.proofmode Require Import reduction monpred tactics.
 From iris_named_props Require Import named_props.
 
-From self.high Require Import gen_predicates generational_resources.
+From self Require Import extra.
+From self.high Require Import gen_predicates generational_resources dprop.
+From self.base.modalities Require Import if_rec.
+From self.nextgen Require Import nextgen_promises.
 From self.high.lib Require Import abstract_state.
 
 From self.lang Require Import lang.
-From self.high Require Export dprop.
+From Perennial.base_logic.lib Require Import wsat.
 
 Section predicates.
   Context `{nvmHighG}.
@@ -48,7 +51,7 @@ Section predicates.
   Definition pred_to_ra (pred : enc_predicateO) : (@predicateR Σ) :=
     unwrapped_pred_to_ra (encoded_pred_unwrap pred).
 
-  Global Instance enoded_pred_unwrap_proper :
+  Global Instance encoded_pred_unwrap_proper :
     ∀ n, Proper (@dist enc_predicateO _ n ==> @dist predO _ n) encoded_pred_unwrap.
   Proof.
     intros ? p1 p2 eq.
@@ -74,7 +77,7 @@ Section predicates.
     apply (@to_agree_ne (positive -d> val -d> laterO (optionO (thread_view -d> (iPropO Σ))))).
     intros ??.
     eassert (NonExpansive Next) as ne; last apply ne; first by apply _.
-    apply enoded_pred_unwrap_proper in eq.
+    apply encoded_pred_unwrap_proper in eq.
     specialize (eq x0).
     apply eq.
   Qed.
@@ -94,7 +97,7 @@ Section predicates.
     encoded_pred_unwrap (encode_predicate ϕ).
 
   Definition know_pred `{Countable ST} ℓ (ϕ : predicateO ST) : iProp Σ :=
-    know_pred_ra predicates_name ℓ (DfracOwn 1) (unwrapped_pred_to_ra (predicate_to_unwrapped_predicate ϕ)).
+    know_pred_ra predicates_name ℓ (unwrapped_pred_to_ra (predicate_to_unwrapped_predicate ϕ)).
 
   Local Instance unwrapped_pred_to_ra_contractive :
     Contractive unwrapped_pred_to_ra.
@@ -128,7 +131,15 @@ Section predicates.
   Global Instance know_pred_contractive `{Countable ST} ℓ :
     Contractive (know_pred (ST := ST) ℓ).
   Proof.
-  Admitted.
+    intros ??? Hdist.
+    rewrite /know_pred /know_pred_ra /named.
+    do 4 f_equiv.
+    f_contractive.
+    apply encoded_pred_unwrap_proper.
+    simpl in Hdist.
+    rewrite Hdist.
+    f_equiv.
+  Qed.
 
   Lemma encode_predicate_extract `{Countable ST}
       (ϕ : predicate ST) e s v
@@ -184,105 +195,115 @@ Section predicates.
     iApply "eq".
   Qed.
 
-(*   Lemma own_all_preds_pred `{Countable ST} *)
-(*         dq ℓ (ϕ : predicate ST) (preds : gmap loc enc_predicate) : *)
-(*     own_all_preds dq preds -∗ *)
-(*     know_pred ℓ ϕ -∗ *)
-(*     (∃ (o : enc_predicateO), *)
-(*        ⌜preds !! ℓ = Some o⌝ ∗ (* Some encoded predicate exists. *) *)
-(*        ▷ (o ≡ encode_predicate ϕ)). *)
-(*   Proof. *)
-(*     iIntros "O K". *)
-(*     iDestruct (own_valid_2 with "O K") as "H". *)
-(*     iDestruct (auth_both_dfrac_validI with "H") as "(_ & tmp & val)". *)
-(*     iDestruct "tmp" as (c) "#eq". *)
-(*     rewrite gmap_equivI. *)
-(*     iSpecialize ("eq" $! ℓ). *)
-(*     rewrite lookup_fmap. *)
-(*     rewrite lookup_op. *)
-(*     rewrite lookup_singleton. *)
-(*     destruct (preds !! ℓ) as [o|] eqn:eq; rewrite eq; simpl. *)
-(*     2: { *)
-(*       case (c !! ℓ); intros; iDestruct "eq" as %eq'; inversion eq'. } *)
-(*     iExists o. *)
-(*     iSplit; first done. *)
-(*     case (c !! ℓ). *)
-(*     - intros ?. *)
-(*       rewrite -Some_op. *)
-(*       rewrite !option_equivI. *)
-(*       rewrite wsat.agree_equiv_inclI. *)
-(*       rewrite !discrete_fun_equivI. iIntros (state). *)
-(*       iSpecialize ("eq" $! state). *)
-(*       rewrite !discrete_fun_equivI. iIntros (v). *)
-(*       iSpecialize ("eq" $! v). *)
-(*       rewrite later_equivI_1. *)
-(*       iNext. *)
-(*       rewrite /predicate_to_unwrapped_predicate. *)
-(*       iDestruct (encoded_pred_unwrap_inj with "eq") as "eq2". *)
-(*       iRewrite "eq2". *)
-(*       done. *)
-(*     - rewrite right_id. *)
-(*       simpl. *)
-(*       rewrite !option_equivI. *)
-(*       rewrite agree_equivI. *)
-(*       rewrite !discrete_fun_equivI. iIntros (state). *)
-(*       iSpecialize ("eq" $! state). *)
-(*       rewrite !discrete_fun_equivI. iIntros (v). *)
-(*       iSpecialize ("eq" $! v). *)
-(*       rewrite later_equivI_1. *)
-(*       iNext. *)
-(*       rewrite /predicate_to_unwrapped_predicate. *)
-(*       iDestruct (encoded_pred_unwrap_inj with "eq") as "eq2". *)
-(*       done. *)
-(*   Qed. *)
+  (* Lemma gmap_view_both_validI (preds: gmap loc enc_predicate) dq (ϕ: predicate ST) : *)
+  (*   ✓ (gmap_view_auth (DfracOwn 1) preds ⋅ gmap_view_frag k dq ϕ) ⊢ *)
+  (*   ✓ dq ∧ m !! k ≡ Some v. *)
+  (* Proof. *)
+  (*   rewrite /gmap_view_auth /gmap_view_frag. apply view_both_validI_1. *)
+  (*   intros n a. uPred.unseal. apply gmap_view.gmap_view_rel_lookup. *)
+  (* Qed. *)
 
-(*   Lemma predicates_frag_lookup γ predicates (ℓ : loc) pred : *)
-(*     predicates !! ℓ = Some pred → *)
-(*     own γ (◯ (pred_to_ra <$> predicates) : predicatesR) -∗ *)
-(*     own γ (◯ {[ ℓ := pred_to_ra pred ]}). *)
-(*   Proof. *)
-(*     intros look. iApply own_mono. simpl. *)
-(*     apply auth_frag_mono. *)
-(*     rewrite singleton_included_l. *)
-(*     eexists _. *)
-(*     rewrite lookup_fmap look. *)
-(*     naive_solver. *)
-(*   Qed. *)
+  Lemma own_all_preds_pred `{Countable ST}
+        dq ℓ (ϕ : predicate ST) (preds : gmap loc enc_predicate) :
+    own_all_preds dq preds -∗
+    know_pred ℓ ϕ -∗
+    (∃ (o : enc_predicateO),
+       ⌜preds !! ℓ = Some o⌝ ∗ (* Some encoded predicate exists. *)
+       ▷ (o ≡ encode_predicate ϕ)).
+  Proof.
+    iNamed 1. iIntros "[own_frag _]".
+    iDestruct (gen_own_valid_2 with "own_auth own_frag") as "H".
+    iDestruct (auth_both_dfrac_validI with "H") as "(_ & tmp & val)".
+    iDestruct "tmp" as (c) "#eq".
+    rewrite gmap_equivI.
+    iSpecialize ("eq" $! ℓ).
+    rewrite lookup_fmap.
+    rewrite lookup_op.
+    rewrite lookup_singleton.
+    destruct (preds !! ℓ) as [o|] eqn:eq; rewrite eq; simpl.
+    2: {
+      case (c !! ℓ); intros; iDestruct "eq" as %eq'; inversion eq'. }
+    iExists o.
+    iSplit; first done.
+    case (c !! ℓ).
+    - intros ?.
+      rewrite -Some_op.
+      rewrite !option_equivI.
+      rewrite wsat.agree_equiv_inclI.
+      rewrite !discrete_fun_equivI. iIntros (state).
+      iSpecialize ("eq" $! state).
+      rewrite !discrete_fun_equivI. iIntros (v).
+      iSpecialize ("eq" $! v).
+      rewrite later_equivI_1.
+      iNext.
+      rewrite /predicate_to_unwrapped_predicate.
+      iDestruct (encoded_pred_unwrap_inj with "eq") as "eq2".
+      iRewrite "eq2".
+      done.
+    - rewrite right_id.
+      simpl.
+      rewrite !option_equivI.
+      rewrite agree_equivI.
+      rewrite !discrete_fun_equivI. iIntros (state).
+      iSpecialize ("eq" $! state).
+      rewrite !discrete_fun_equivI. iIntros (v).
+      iSpecialize ("eq" $! v).
+      rewrite later_equivI_1.
+      iNext.
+      rewrite /predicate_to_unwrapped_predicate.
+      iDestruct (encoded_pred_unwrap_inj with "eq") as "eq2".
+      done.
+  Qed.
 
-(*   (** If [pred] is the encoding of [Φ] then [pred] holding for the encoding of *)
-(*   [s] is equivalent to [ϕ] holding for [s]. *) *)
-(*   Lemma pred_encode_Some `{Countable ST} *)
-(*         ϕ (s : ST) (v : val) (pred : enc_predicateO) : *)
-(*     (pred ≡ encode_predicate ϕ : iProp Σ) -∗ *)
-(*     (pred (encode s) v ≡ Some (ϕ s v) : iProp Σ). *)
-(*   Proof. *)
-(*     iIntros "eq". *)
-(*     iEval (setoid_rewrite discrete_fun_equivI) in "eq". *)
-(*     iEval (setoid_rewrite discrete_fun_equivI) in "eq". *)
-(*     iSpecialize ("eq" $! (encode s) v). *)
-(*     Unshelve. 2: { done. } 2: { done. } *)
-(*     rewrite /encode_predicate. rewrite decode_encode /=. *)
-(*     done. *)
-(*   Qed. *)
+  Lemma predicates_frag_lookup γ predicates (ℓ : loc) pred :
+    predicates !! ℓ = Some pred →
+    gen_own γ (◯ (pred_to_ra <$> predicates) : predicatesR) -∗
+    gen_own γ (◯ {[ ℓ := pred_to_ra pred ]}).
+  Proof.
+    intros look.
+    iIntros "H". iApply (gen_own_mono with "H").
+    apply auth_frag_mono.
+    rewrite singleton_included_l.
+    eexists _.
+    rewrite lookup_fmap look.
+    naive_solver.
+  Qed.
 
-(*   Lemma own_all_preds_insert `{Countable ST} preds ℓ (ϕ : ST → val → dProp Σ) : *)
-(*     preds !! ℓ = None → *)
-(*     own predicates_name (● preds_to_ra preds) ==∗ *)
-(*     own predicates_name (● preds_to_ra (<[ℓ := encode_predicate ϕ]>preds)) ∗ *)
-(*     know_pred ℓ ϕ. *)
-(*   Proof. *)
-(*     iIntros (look) "A". *)
-(*     rewrite /know_pred. *)
-(*     rewrite comm. *)
-(*     iMod (own_update with "A") as "[H $]". *)
-(*     { apply auth_update_alloc. *)
-(*       apply alloc_local_update; last done. *)
-(*       rewrite /preds_to_ra. rewrite lookup_fmap. rewrite look. done. } *)
-(*     iModIntro. *)
-(*     rewrite /preds_to_ra. *)
-(*     rewrite fmap_insert. *)
-(*     iFrame. *)
-(*   Qed. *)
+  (** If [pred] is the encoding of [Φ] then [pred] holding for the encoding of *)
+(*   [s] is equivalent to [ϕ] holding for [s]. *)
+  Lemma pred_encode_Some `{Countable ST}
+        ϕ (s : ST) (v : val) (pred : enc_predicateO) :
+    (pred ≡ encode_predicate ϕ : iProp Σ) -∗
+    (pred (encode s) v ≡ Some (ϕ s v) : iProp Σ).
+  Proof.
+    iIntros "eq".
+    iEval (setoid_rewrite discrete_fun_equivI) in "eq".
+    iEval (setoid_rewrite discrete_fun_equivI) in "eq".
+    iSpecialize ("eq" $! (encode s) v).
+    Unshelve. 2: { done. } 2: { done. }
+    rewrite /encode_predicate. rewrite decode_encode /=.
+    done.
+  Qed.
+
+  Lemma own_all_preds_insert `{Countable ST} preds ℓ (ϕ : ST → val → dProp Σ) :
+    preds !! ℓ = None →
+    own_all_preds (DfracOwn 1) preds ==∗
+    own_all_preds (DfracOwn 1) (<[ℓ := encode_predicate ϕ]> preds) ∗
+    know_pred ℓ ϕ.
+  Proof.
+    iIntros (look). iNamed 1.
+    rewrite /know_pred.
+    rewrite comm.
+    iMod (gen_own_update with "own_auth") as "[H $]".
+    { apply auth_update_alloc.
+      apply alloc_local_update; last done.
+      rewrite /preds_to_ra. rewrite lookup_fmap. rewrite look. done. }
+    iModIntro.
+    iFrame "#".
+    rewrite /preds_to_ra.
+    rewrite fmap_insert.
+    iFrame.
+  Qed.
 
 End predicates.
 
@@ -364,4 +385,27 @@ Section encoded_predicate.
     iExists P. iFrame.
   Qed.
 
+  Global Instance own_all_preds_auth_into_nextgen dq preds:
+    IntoNextgen
+      (own_all_preds dq preds)
+      (∃ OCV,
+          own_all_preds dq (extra.restrict (dom OCV) preds) ∗
+          picked_in crashed_at_name (crashed_at_trans OCV)).
+  Proof.
+    rewrite /IntoNextgen.
+    iIntros "own !>".
+    iDestruct "own" as (OCV) "[own picked]".
+    iExists OCV.
+    iFrame.
+    rewrite /own_all_preds /restrict map_filter_fmap //.
+  Qed.
+
+  Global Instance ghost_map_elem_into_nextgen k P:
+    IntoNextgen
+      (know_pred (ST := ST) k P)
+      (if_rec k (know_pred (ST := ST) k P)).
+  Proof.
+    rewrite /IntoNextgen.
+    iIntros "know_pred !>!> //".
+  Qed.
 End encoded_predicate.

@@ -3,11 +3,10 @@ From iris.bi Require Import fractional.
 From iris.proofmode Require Import reduction monpred tactics.
 
 From self Require Import extra.
-From self.algebra Require Import ghost_map ghost_map_map.
 From self.base Require Import primitive_laws.
 From self.high Require Import dprop monpred_simpl predicates.
 
-Definition lift_d {Σ} P : dProp Σ := with_gnames (λ nD, ⎡ P nD ⎤)%I.
+Definition lift_d {Σ} (P: iProp Σ) : dProp Σ := MonPred (λ _, P) _.
 
 Section lift_d_lemmas.
   Context {Σ : gFunctors}.

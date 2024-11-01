@@ -27,7 +27,7 @@ Definition dProp Σ := monPred thread_view_bi_index (iPropI Σ).
 Definition dPropO Σ := monPredO thread_view_bi_index (iPropI Σ).
 Definition dPropI Σ := monPredI thread_view_bi_index (iPropI Σ).
 
-Ltac iModel := iStartProof (iProp _); iIntros (TV).
+Ltac iModel := iStartProof (iProp _); iIntros (?TV).
 
 (* [bi_scope] is the scope associated with the scope key [I] from Iris. We bind
 it to the [dProp] type such that we avoid having to type `%I` to get the right
@@ -36,6 +36,12 @@ Bind Scope bi_scope with dProp.
 
 Section definitions.
   Context {Σ : gFunctors}.
+
+  Definition have_thread_view (TV : thread_view) : dProp Σ := monPred_in TV.
+
+  (* Global Instance have_thread_view_persistent TV : *)
+  (*   Persistent (have_thread_view TV). *)
+  (* Proof. rewrite /Persistent. iModel. auto. Qed. *)
 
   Program Definition have_SV ℓ t : dProp Σ :=
     MonPred (λ TV, ⌜ t ≤ (store_view TV) !!0 ℓ ⌝)%I _.

@@ -108,9 +108,6 @@ Global Program Instance nvmBaseG_irisGS
     state_interp σ _ := (nvm_heap_ctx σ ∗ extra_state_interp)%I;
   }.
 
-Definition persisted_loc `{!nvmBaseG Σ Ω} ℓ t : iProp Σ :=
-  persisted {[ ℓ := MaxNat t ]}.
-
 (** * Lemmas about [max_view] *)
 Section max_view.
   Context `{!nvmBaseG Σ Ω}.

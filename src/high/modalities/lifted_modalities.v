@@ -9,30 +9,32 @@ From Perennial.program_logic Require Import crash_weakestpre cfupd.
 From self.algebra Require Import ghost_map.
 From self Require Import extra.
 From self.base Require Import primitive_laws class_instances.
-From self.high Require Export dprop resources monpred_simpl
-     post_crash_modality increasing_map state_interpretation wpc_notation.
+From self.high Require Export dprop generational_resources monpred_simpl
+  increasing_map state_interpretation wpc_notation.
 
 From self.base Require Import primitive_laws class_instances.
 From self.high Require Import dprop monpred_simpl.
 
-Program Definition uPred_fupd_split_level_def `{!invGS Σ}
+From self.nextgen Require Import omega.
+
+Program Definition uPred_fupd_split_level_def `{!invGS Σ} `{Ω : gGenCmras Σ}
            (E1 E2 : coPset) (k : nat) mj (P : dProp Σ) : dProp Σ :=
   MonPred (λ TV, uPred_fupd_split_level_def E1 E2 k mj (P TV))%I _.
 Next Obligation. solve_proper. Qed.
 
-Definition uPred_fupd_split_level_aux `{!invGS Σ} : seal uPred_fupd_split_level_def.
+Definition uPred_fupd_split_level_aux `{!invGS Σ} `{Ω : gGenCmras Σ} : seal uPred_fupd_split_level_def.
 Proof. by eexists. Qed.
-Definition uPred_fupd_split_level `{!invGS Σ} := uPred_fupd_split_level_aux.(unseal).
-Definition uPred_fupd_split_level_eq `{!invGS Σ} :
+Definition uPred_fupd_split_level `{!invGS Σ} `{Ω : gGenCmras Σ} := uPred_fupd_split_level_aux.(unseal).
+Definition uPred_fupd_split_level_eq `{!invGS Σ} `{Ω : gGenCmras Σ} :
     uPred_fupd_split_level = uPred_fupd_split_level_def :=
   uPred_fupd_split_level_aux.(seal_eq).
 
-Definition uPred_fupd_level_def `{!invGS Σ} (E1 E2 : coPset) (k : nat) (P : dProp Σ) : dProp Σ :=
+Definition uPred_fupd_level_def `{!invGS Σ} `{Ω : gGenCmras Σ} (E1 E2 : coPset) (k : nat) (P : dProp Σ) : dProp Σ :=
   uPred_fupd_split_level E1 E2 k None P.
-Definition uPred_fupd_level_aux `{!invGS Σ} : seal uPred_fupd_level_def.
+Definition uPred_fupd_level_aux `{!invGS Σ} `{Ω : gGenCmras Σ} : seal uPred_fupd_level_def.
 Proof. by eexists. Qed.
-Definition uPred_fupd_level `{!invGS Σ} := uPred_fupd_level_aux.(unseal).
-Definition uPred_fupd_level_eq `{!invGS Σ} : uPred_fupd_level = uPred_fupd_level_def :=
+Definition uPred_fupd_level `{!invGS Σ} `{Ω : gGenCmras Σ} := uPred_fupd_level_aux.(unseal).
+Definition uPred_fupd_level_eq `{!invGS Σ} `{Ω : gGenCmras Σ} : uPred_fupd_level = uPred_fupd_level_def :=
   uPred_fupd_level_aux.(seal_eq).
 
 Notation "| k , j ={ E1 , E2 }=> Q" := (uPred_fupd_split_level E1 E2 k j Q) : bi_scope.
@@ -41,7 +43,7 @@ Notation "| k ={ E1 , E2 }=> Q" := (uPred_fupd_level E1 E2 k Q) : bi_scope.
 Notation "| k ={ E1 }=> Q" := (uPred_fupd_level E1 E1 k Q) : bi_scope.
 
 Section lifted_fupd_level.
-  Context `{!invGS Σ}.
+  Context `{!invGS Σ} `{Ω : gGenCmras Σ}.
 
   (*** fupd_level*)
 
@@ -85,42 +87,6 @@ Section lifted_fupd_level.
   Qed.
 
 End lifted_fupd_level.
-
-Program Definition ncfupd_def `{!nvmG Σ} (E1 E2 : coPset) (P : dProp Σ) : dProp Σ :=
-  MonPred (λ i, let nD := i.2 in ncfupd E1 E2 (P i))%I _.
-Next Obligation.
-  intros.
-  intros [??] [??] [? [= <-]].
-  simpl.
-  apply ncfupd_mono.
-  apply monPred_mono.
-  done.
-Qed.
-Definition ncfupd_aux `{!nvmG Σ} : seal (ncfupd_def). Proof. by eexists. Qed.
-Definition ncfupd `{!nvmG Σ} := ncfupd_aux.(unseal).
-Definition ncfupd_eq `{!nvmG Σ} : ncfupd = ncfupd_def := ncfupd_aux.(seal_eq).
-
-Notation "|NC={ E1 }=> Q" := (ncfupd E1 E1 Q)
-  (at level 99, E1 at level 50, Q at level 200,
-   format "'[  ' |NC={ E1 }=>  '/' Q ']'") : bi_scope.
-Notation "|NC={ E1 , E2 }=> P" := (ncfupd E1 E2 P)
-      (at level 99, E1, E2 at level 50, P at level 200,
-       format "'[  ' |NC={ E1 , E2 }=>  '/' P ']'") : bi_scope.
-Notation "|NC={ Eo } [ Ei ]▷=> Q" := (∀ q, NC q -∗ |={Eo,Ei}=> ▷ |={Ei,Eo}=> Q ∗ NC q)%I
-  (at level 99, Eo, Ei at level 50, Q at level 200,
-   format "'[  ' |NC={ Eo } [ Ei ]▷=>  '/' Q ']'") : bi_scope.
-Notation "|NC={ E1 } [ E2 ]▷=>^ n Q" := (Nat.iter n (λ P, |NC={E1}[E2]▷=> P) Q)%I
-  (at level 99, E1, E2 at level 50, n at level 9, Q at level 200,
-   format "'[  ' |NC={ E1 } [ E2 ]▷=>^ n  '/' Q ']'").
-
-Program Definition cfupd `{!nvmG Σ} E1 (P : dProp Σ) :=
-  (with_gnames (λ nD, ⎡ C ⎤) -∗ |={E1}=> P)%I.
-  (* MonPred (λ TV, cfupd k E1 (P TV))%I _. *)
-(* Next Obligation. solve_proper. Qed. *)
-
-Notation "|C={ E1 }=> P" := (cfupd E1 P)
-      (at level 99, E1 at level 50, P at level 200,
-       format "'[  ' |C={ E1 }=>  '/' P ']'").
 
 Section lifted_modalities.
   Context `{nvmG Σ}.

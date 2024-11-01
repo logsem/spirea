@@ -4,7 +4,7 @@ From iris.bi Require Import derived_laws.
 From iris.base_logic Require Import iprop.
 
 From self Require Import solve_view_le.
-From self.high Require Import dprop dprop_liftings resources modalities.
+From self.high Require Import dprop generational_resources modalities.
 
 (* Class BufferFree {Σ} (P : dProp Σ) := buffer_free : P ⊢ <nobuf> P. *)
 (* Global Arguments BufferFree {_} _%I : simpl never. *)
@@ -46,12 +46,12 @@ Section no_buffer.
   Context `{Σ : gFunctors}.
   Implicit Types (P : dProp Σ).
 
-  Lemma no_buffer_at_alt P SV PV BV gnames :
-    ((<nobuf> P) (SV, PV, BV, gnames) = P (SV, PV, ∅, gnames))%I.
+  Lemma no_buffer_at_alt P SV PV BV :
+    ((<nobuf> P) (SV, PV, BV) = P (SV, PV, ∅))%I.
   Proof. done. Qed.
 
-  Lemma no_buffer_at P TV gnames :
-    ((<nobuf> P) (TV, gnames) = P ((store_view TV, flush_view TV, ∅), gnames))%I.
+  Lemma no_buffer_at P TV :
+    ((<nobuf> P) (TV) = P ((store_view TV, flush_view TV, ∅)))%I.
   Proof. destruct TV as [[??]?]. apply no_buffer_at_alt. Qed.
 
   Global Instance no_buffer_proper :
@@ -118,22 +118,6 @@ Section no_buffer.
     rewrite no_buffer_at. simpl. iApply objective_at.
   Qed.
 
-  Global Instance into_no_buffer_with_gnames (P Q : _ → dProp Σ) :
-    (∀ nD, IntoNoBuffer (P nD) (Q nD)) →
-    IntoNoBuffer (with_gnames P) (with_gnames Q).
-  Proof.
-    rewrite /IntoNoBuffer.
-    intros Hi.
-    iModel.
-    simpl.
-    rewrite Hi.
-    auto.
-  Qed.
-
-  Global Instance buffer_free_lift_d (Φ : _ → iProp Σ) :
-    BufferFree (lift_d Φ).
-  Proof. apply _. Qed.
-
   Global Instance into_no_buffer_if (b : bool) (P P' Q Q' : dProp Σ) :
     IntoNoBuffer P P' →
     IntoNoBuffer Q Q' →
@@ -163,25 +147,24 @@ Section no_buffer.
     iModIntro. naive_solver.
   Qed.
 
-  Lemma into_no_buffer_at P Q SV FV BV gnames `{!IntoNoBuffer P Q} :
-    P (SV, FV, BV, gnames) ⊢ Q (SV, FV, ∅, gnames).
+  Lemma into_no_buffer_at P Q SV FV BV `{!IntoNoBuffer P Q} :
+    P (SV, FV, BV) ⊢ Q (SV, FV, ∅).
   Proof.
     erewrite <- no_buffer_at_alt.
     apply into_no_buffer.
     done.
   Qed.
 
-  Lemma buffer_free_at P SV FV BV gnames `{!BufferFree P} :
-    P (SV, FV, BV, gnames) ⊣⊢ P (SV, FV, ∅, gnames).
+  Lemma buffer_free_at P SV FV BV `{!BufferFree P} :
+    P (SV, FV, BV) ⊣⊢ P (SV, FV, ∅).
   Proof.
     iSplit; first iApply into_no_buffer_at.
     iApply monPred_mono.
-    split; last done.
     solve_view_le.
   Qed.
 
-  Lemma no_buffer_monPred_in SV FV PV gn :
-    monPred_in (SV, FV, PV, gn) ⊢@{dPropI Σ} <nobuf> monPred_in (SV, FV, ∅, gn).
+  Lemma no_buffer_monPred_in SV FV PV :
+    monPred_in (SV, FV, PV) ⊢@{dPropI Σ} <nobuf> monPred_in (SV, FV, ∅).
   Proof.
     iModel.
     iIntros (le). destruct TV as [[??]?]. rewrite no_buffer_at.
@@ -192,8 +175,8 @@ Section no_buffer.
   Lemma later_no_buffer (P : dProp Σ) : ▷ (<nobuf> P) ⊢ <nobuf> (▷ P).
   Proof. iModel. rewrite 2!no_buffer_at monPred_at_later. naive_solver. Qed.
 
-  Global Instance into_no_buffer_monPred_in SV FV PV gn :
-    IntoNoBuffer (monPred_in (SV, FV, PV, gn) : dProp Σ) (monPred_in (SV, FV, ∅, gn)).
+  Global Instance into_no_buffer_monPred_in SV FV PV :
+    IntoNoBuffer (monPred_in (SV, FV, PV) : dProp Σ) (monPred_in (SV, FV, ∅)).
   Proof. apply no_buffer_monPred_in. Qed.
 
   Global Instance have_thread_view_buffer_free SV FV PV :
