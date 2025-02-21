@@ -1,5 +1,6 @@
 From iris.algebra Require Import gmap auth agree gset coPset excl csum.
-From Perennial.program_logic Require Import staged_invariant post_expr crash_weakestpre.
+From Perennial.program_logic Require Import staged_invariant post_expr.
+From self.program_logic Require Import crash_weakestpre.
 From Perennial.base_logic.lib Require Import saved_prop.
 From Perennial.Helpers Require Import Qextra.
 
@@ -10,7 +11,7 @@ Arguments wpc {_ _ _ _} _ _ _%E _%I _%I.
 Instance: Params (@wpc) 9 := {}.
 
 (* Instance wpc' `{!irisGS Λ Σ, !generationGS Λ Σ} : Wpc Λ (iProp Σ) stuckness := wpc_aux.(unseal). *)
-Instance wpc' `{!irisGS Λ Σ Ω, !generationGS Λ Σ} : Wpc Λ (iProp Σ) stuckness :=
+Instance wpc' `{!irisGS Λ Σ Ω} : Wpc Λ (iProp Σ) stuckness :=
   crash_weakestpre.wpc.
 
 (** Notations for partial crash weakest preconditions *)

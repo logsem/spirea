@@ -1,5 +1,6 @@
 From iris.algebra Require Import gmap auth agree gset coPset excl csum.
-From Perennial.program_logic Require Import language staged_invariant.
+From Perennial.program_logic Require Import language.
+From self.program_logic Require Import staged_invariant.
 (* From Perennial.goose_lang Require Import crash_modality lifting wpr_lifting. *)
 (* From Perennial.goose_lang Require Import wpc_proofmode. *)
 From iris.proofmode Require Import tactics.
@@ -8,9 +9,9 @@ From Perennial.Helpers Require Import Qextra.
 
 (* From Perennial.program_logic Require Import language. *)
 From self.lang Require Import lang.
-From self.base Require Import post_crash_modality primitive_laws wpr_lifting.
+From self.base Require Import primitive_laws wpr_lifting.
 From self.base Require Import cred_frag.
-From self.base Require Import primitive_laws.
+From self.base Require Import primitive_laws generational_resources.
 From self.nextgen Require Import omega nextgen_inv_promises.
 From Perennial.program_logic Require Import language.
 
@@ -59,10 +60,10 @@ Section crash_borrow_def.
 
 (* Context `{!heapGS Σ}. *)
   Context `{!stagedG Σ}.
-  Context `{nvmBaseFixedG Σ, !extraStateInterp Σ, nvmBaseDeltaG, gGenCmras Σ}.
+  Context `{!nvmBaseG Σ Ω, !extraStateInterp Σ, gGenCmras Σ}.
   Context `{!endisNG Σ Ω}.
 
-  Global Instance later_tokG_heap : later_tokG (nvmBase_irisGS).
+  Global Instance later_tokG_heap : later_tokG (nvmBaseG_irisGS).
   Proof.
     refine {| later_tok := cred_frag 1 |};
       rewrite /step_count_next.

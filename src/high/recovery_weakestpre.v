@@ -6,25 +6,16 @@ From stdpp Require Import sets.
 From iris.proofmode Require Import tactics.
 From iris.algebra Require Import auth gset.
 From iris_named_props Require Import named_props.
-From Perennial.program_logic Require Import crash_weakestpre.
-From Perennial.program_logic Require Import recovery_weakestpre.
-From Perennial.program_logic Require Import recovery_adequacy.
+From self.program_logic Require Import crash_weakestpre recovery_weakestpre recovery_adequacy.
 
-From self.algebra Require Import ghost_map ghost_map_map.
+From self.high Require Import dprop generational_resources wrappers protocol.
 From self Require Import view extra ipm_tactics if_non_zero view_slice solve_view_le.
 From self.base Require Import primitive_laws wpr_lifting.
-From self.high Require Import dprop dprop_liftings resources crash_weakestpre
-     post_crash_modality or_lost.
+From self.high Require Import generational_resources crash_weakestpre.
+From self.high.modalities Require Import or_lost.
+From self.nextgen Require Import nextgen_promises.
 
 Set Default Proof Using "Type".
-
-Definition get_crash_name (hD : nvmDeltaG) :=
-  @crash_token_name (@nvm_delta_base hD).
-
-(* A wrapper around [NC] where the ghost name is explicit. *)
-Definition NC_name `{crashGpreS Σ} γcrash :=
-  @NC _ ({| crash_inG := _; crash_name := γcrash |}).
-Global Arguments NC_name {_ _} _ _%Qp.
 
 (** The recovery WP is parameterized by two predicates: [Φ], the postcondition
  for normal non-crashing execution and [Φr], the postcondition satisfied upon
@@ -33,7 +24,7 @@ Global Arguments NC_name {_ _} _ _%Qp.
  This definition of the recovery weakest precondition is defined on top of our
  crash weakest precondition following the same pattern that is used in Perennial
  to define Perennial's wpr on top of Perennial's wpc. *)
-Definition wpr_pre `{nvmG Σ} (s : stuckness)
+Definition wpr_pre `{!nvmBaseG Σ Ω, !nvmHighG Σ Ω, !PerennialG Σ} (s : stuckness)
     (wpr : coPset -d> expr -d> expr -d> (val -d> dPropO Σ) -d>
                      (val -d> dPropO Σ) -d> dPropO Σ) :
   coPset -d> expr -d> expr -d> (val -d> dPropO Σ) -d>
@@ -42,44 +33,88 @@ Definition wpr_pre `{nvmG Σ} (s : stuckness)
   (WPC e @ s ; E
     {{ Φ }}
     {{ ∀ σ mj D σ' (HC : crash_prim_step nvm_crash_lang σ σ') ns n, (* The [n] here actually doesn't matter. *)
-      lift_d (λ _, (* interp -∗ *)
-        state_interp σ n -∗
-        global_state_interp (Λ := nvm_lang) () ns mj D [] -∗
-        ∀ (γcrash : gname) q,
-        NC_name γcrash q ={E}=∗
-        ∃ (hD' : nvmDeltaG),
-          ⌜ get_crash_name hD' = γcrash ⌝ ∗
-          (* let hG := (nvm_update Σ hG _ Hc1 names) in *)
-          (* interp ∗ *)
-          ▷ state_interp σ' 0 ∗
-          global_state_interp (Λ := nvm_lang) () (step_count_next ns) mj D [] ∗
-          validV ∅ ∗
-          ▷ (monPred_at (wpr E e_rec e_rec (λ v, Φr v) Φr) (∅, ∅, ∅, hD')) ∗
-          NC q)
+      ⎡ state_interp σ n -∗ global_state_interp (Λ := nvm_lang) () ns mj D [] -∗ ▷
+      (* let hG := (nvm_update Σ hG _ Hc1 names) in *)
+      (* interp ∗ *)
+      ⚡==> (* this is where we want the post crash modality *)
+      |={E}=>
+      state_interp σ' 0 ∗
+      global_state_interp (Λ := nvm_lang) () (step_count_next ns) mj D [] ∗
+      validV ∅ ∗
+      (monPred_at (wpr E e_rec e_rec (λ v, Φr v) Φr) (∅, ∅, ∅)) ⎤
     }})%I.
 
-Local Instance wpr_pre_contractive `{nvmG Σ} s : Contractive (wpr_pre s).
+Local Instance wpr_pre_contractive `{!nvmBaseG Σ Ω, !nvmHighG Σ Ω, !PerennialG Σ} s : Contractive (wpr_pre s).
 Proof.
   rewrite /wpr_pre. intros ??? Hwp ?????.
   apply wpc_ne; eauto; first done.
+  do 17 f_equiv.
+  f_contractive.
   repeat f_equiv.
-  intros ?? ->.
-  repeat (f_contractive || f_equiv).
   apply Hwp.
 Qed.
 
-Definition wpr_def `{nvmG Σ} (s : stuckness) := fixpoint (wpr_pre s).
-Definition wpr_aux `{nvmG Σ} : seal (@wpr_def Σ). by eexists. Qed.
-Definition wpr' `{nvmG Σ} := (wpr_aux).(unseal).
-Definition wpr_eq `{nvmG Σ} : wpr' = @wpr_def _ := wpr_aux.(seal_eq).
+Definition wpr_def `{!nvmBaseG Σ Ω, !nvmHighG Σ Ω, !PerennialG Σ} (s : stuckness) := fixpoint (wpr_pre s).
+Definition wpr_aux `{!nvmBaseG Σ Ω, !nvmHighG Σ Ω, !PerennialG Σ} : seal (@wpr_def Σ Ω). by eexists. Qed.
+Definition wpr' `{!nvmBaseG Σ Ω, !nvmHighG Σ Ω, !PerennialG Σ} := (wpr_aux).(unseal).
+Definition wpr_eq `{!nvmBaseG Σ Ω, !nvmHighG Σ Ω, !PerennialG Σ} : wpr' = @wpr_def _ _ := wpr_aux.(seal_eq).
 (* Lemma wpr_eq `{nvmG Σ} : @wpr' Σ = @wpr_def Σ. *)
 (* Proof. rewrite /wpr'. rewrite wpr_aux.(seal_eq). done. Qed. *)
 
-Lemma wpr_unfold `{nvmG Σ} st E e rec Φ Φc :
-  wpr' _ st E e rec Φ Φc ⊣⊢ wpr_pre st (wpr' _ st) E e rec Φ Φc.
+Lemma wpr_unfold `{!nvmBaseG Σ Ω, !nvmHighG Σ Ω, !PerennialG Σ} st E e rec Φ Φc :
+  wpr' _ _ _ st E e rec Φ Φc ⊣⊢ wpr_pre st (wpr' _ _ _ st) E e rec Φ Φc.
 Proof.
   rewrite wpr_eq. rewrite /wpr_def.
   apply (fixpoint_unfold (wpr_pre st)).
+Qed.
+
+Definition wpr `{!nvmBaseG Σ Ω, !nvmHighG Σ Ω, !PerennialG Σ} s := wpr' _ _ _ s.
+
+Lemma wpr_mono `{!nvmBaseG Σ Ω, !nvmHighG Σ Ω, !PerennialG Σ} s E e rec Φ Ψ Φr Ψr :
+  wpr s E e rec Φ Φr -∗
+  ■ ((∀ v, Φ v ==∗ Ψ v) ∧ (∀ v, Φr v ==∗ Ψr v)) -∗
+  wpr s E e rec Ψ Ψr.
+Proof.
+  iModel.
+  iRevert (TV e E Φ Ψ Φr Ψr).
+  iApply löb_wand_plainly.
+  iIntros "!> IH". iIntros (TV e E Φ Ψ Φr Ψr) "H".
+  (* iLöb as "IH" forall (TV e E Φ Ψ Φr Ψr). *)
+  iIntros (TV1 incl) "HΦ".
+  rewrite /wpr !wpr_unfold /wpr_pre.
+  iApply (wpc_strong_mono' with "H"); auto.
+  iSplit.
+  { iDestruct "HΦ" as "(H & _)".
+    iIntros (v ? le) "Hi".
+    iSpecialize ("H" $! idx v).
+    iEval (rewrite monPred_wand_force) in "H".
+    iMod ("H" with "Hi").
+    done. }
+  iIntros (??) "H".
+  iModIntro.
+  iIntros (???????).
+  simpl.
+  iIntros "Hσ Hg".
+  iSpecialize ("H" with "[//]").
+  iSpecialize ("H" $! _ _ with "Hσ Hg").
+  iModIntro. iModIntro.
+  iMod "H" as "($ & $ & $ & H)".
+  iModIntro.
+  iApply ("IH" with "[H] [HΦ]").
+  { iApply monPred_mono; last iApply "H".
+    split; last done.
+    solve_view_le. }
+  iDestruct "HΦ" as "[_ HΦ]".
+  rewrite monPred_at_plainly.
+  iSplit.
+  - iSpecialize ("HΦ" $! (∅, ∅, ∅)).
+    rewrite monPred_at_plainly.
+    iIntros (idx').
+    iApply (plainly_mono with "HΦ"). iIntros "HΦ".
+    iApply (monPred_mono with "HΦ").
+    solve_view_le.
+  - rewrite monPred_at_plainly.
+    done.
 Qed.
 
 (** If we have a map of points-to predicates prior to a crash and know what view
@@ -117,57 +152,6 @@ Proof.
   iFrame.
 Qed.
 
-Definition wpr `{nvmG Σ} s := wpr' _ s.
-
-Lemma wpr_mono `{nvmG Σ} s E e rec Φ Ψ Φr Ψr :
-  wpr s E e rec Φ Φr -∗
-      ((∀ v, Φ v ==∗ Ψ v) ∧ <obj> (∀ v, Φr v ==∗ Ψr v)) -∗
-  wpr s E e rec Ψ Ψr.
-Proof.
-  iModel.
-  iLöb as "IH" forall (TV gnames e E Φ Ψ Φr Ψr).
-  iIntros "H" ([TV1 gnames'] incl).
-  assert (gnames = gnames') as <- by apply incl.
-  iIntros "HΦ".
-  rewrite /wpr !wpr_unfold /wpr_pre.
-  iApply (wpc_strong_mono' with "H"); auto.
-  iSplit.
-  { iDestruct "HΦ" as "(H & _)".
-    iIntros (v ? le) "Hi".
-    iSpecialize ("H" $! v).
-    monPred_simpl.
-    iMod ("H" $! _ le with "Hi").
-    done. }
-  iIntros ([??] [? [= <-]]) "H".
-  iModIntro.
-  iIntros (???????).
-  simpl.
-  rewrite monPred_at_embed.
-  iIntros "Hσ Hg".
-  iIntros (??) "NC".
-  setoid_rewrite monPred_at_embed.
-  iSpecialize ("H" with "[//]").
-  iMod ("H" $! _ _ with "Hσ Hg NC") as "H".
-  iModIntro.
-  iDestruct "H" as (nD') "(HNC & ? & ? & ? & H & ?)".
-  iExists nD'. iFrame.
-  iNext.
-  iApply ("IH" with "[H] [HΦ]").
-  { iApply monPred_mono; last iApply "H".
-    split; last done.
-    solve_view_le. }
-  iDestruct "HΦ" as "[_ HΦ]".
-  rewrite monPred_at_objectively.
-  iSplit.
-  - iIntros (v).
-    iSpecialize ("HΦ" $! (∅, ∅, ∅, nD') v).
-    iApply monPred_mono; last iApply "HΦ".
-    split; last done.
-    solve_view_le.
-  - rewrite monPred_at_objectively.
-    done.
-Qed.
-
 Lemma view_to_zero_lookup V ℓ x :
   V !! ℓ = Some x → (view_to_zero V) !! ℓ = Some (MaxNat 0).
 Proof.
@@ -192,8 +176,8 @@ Qed.
 Section wpr.
   Context `{nvmG Σ}.
 
-  (* Computes the new abstract history based on the old history, the crash
-  view, and the bumpers. *)
+  (* Computes the new abstract history based on the old history, the crash *)
+(*   view, and the bumpers. *)
   Definition new_abs_hist (abs_hists : gmap loc (gmap time positive))
              (offsets : gmap loc nat) (bumpers : gmap loc (positive → option positive))
     : gmap loc (gmap time positive) :=
@@ -341,8 +325,8 @@ Section wpr.
     map_Forall P m.
   Proof. rewrite map_subseteq_spec. rewrite /map_Forall. naive_solver. Qed.
 
-  (** The invariant for shared locations holds trivially for all locations after
-  a crash. *)
+  (** The invariant for shared locations holds trivially for all locations after *)
+(*   a crash. *)
   Lemma shared_locs_inv_slice_of_store (shared : gset loc) CV phys_hists :
     shared_locs_inv (restrict shared (slice_of_store CV phys_hists)).
   Proof.
@@ -354,8 +338,8 @@ Section wpr.
     naive_solver.
   Qed.
 
-  (* Given the state interpretations _before_ a crash we reestablish the
-  interpretations _after_ a crash. *)
+  (* Given the state interpretations _before_ a crash we reestablish the *)
+(*   interpretations _after_ a crash. *)
   Lemma nvm_reinit (hGD : nvmDeltaG) n P TV σ σ' (Hinv : invGS Σ) γcrash :
     crash_step σ σ' →
     ⊢ state_interp σ n -∗
@@ -371,9 +355,9 @@ Section wpr.
     iIntros "[H1 H2] P".
     iNamed "H1". iNamed "H2".
 
-    (* Our [phys_hist] may contain only a subset of all the locations in
-    [store]. But, those that are in [phys_hist] agree with what is in
-    [store]. *)
+    (* Our [phys_hist] may contain only a subset of all the locations in *)
+(*     [store]. But, those that are in [phys_hist] agree with what is in *)
+(*     [store]. *)
     iAssert (⌜ map_zip_with drop_prefix phys_hists offsets ⊆ store  ⌝)%I
       as %physHistsSubStore.
     { rewrite map_subseteq_spec.
@@ -385,8 +369,8 @@ Section wpr.
     iAssert (⌜ global_pview ⊑ PV ⌝)%I as "%pviewPV";
       first by iApply (persisted_auth_included with "Hpers").
 
-    (* We need to first re-create the ghost state for the base
-    interpretation. *)
+    (* We need to first re-create the ghost state for the base *)
+(*     interpretation. *)
     iMod (nvm_heap_reinit _ _ _ _ _ γcrash with "Hσ Hpers")
       as (hGD') "(%crEq & valView & baseMap & baseInterp & #persImpl & #pers &
                             #newCrashedAt)";
@@ -400,16 +384,16 @@ Section wpr.
     iDestruct (big_sepM2_dom with "predsFullHold") as %domPhysHistsEqAbsHists.
     iDestruct (big_sepM2_dom with "oldViewsDiscarded") as %offsetDom.
 
-    (* A name for the set of recovered locations. Per the above equalities this
-    set could be expressed in a number of other ways (for instance by using
-    [phys_hists] instead of [abs_hists].)*)
+    (* A name for the set of recovered locations. Per the above equalities this *)
+(*     set could be expressed in a number of other ways (for instance by using *)
+(*     [phys_hists] instead of [abs_hists].)*)
     set (recLocs := dom CV ∩ dom abs_hists).
 
     set newOffsets := offsets_add offsets CV.
 
-    (* The new offsets is a valid slice of the abstract history. This should
-    follow from the relationship between [phys_hists] and the points-to
-    predicates and the fact that [CV] is a valid slice of these. *)
+    (* The new offsets is a valid slice of the abstract history. This should *)
+(*     follow from the relationship between [phys_hists] and the points-to *)
+(*     predicates and the fact that [CV] is a valid slice of these. *)
 
     set (newAbsHists := new_abs_hist abs_hists newOffsets bumpers).
 
@@ -460,9 +444,9 @@ Section wpr.
     iDestruct "oldPhysHist" as "#oldPhysHist".
     iMod (ghost_map_auth_persist with "naView") as "#oldNaView".
 
-    (* Some locations may be lost after a crash. For these we need to
-    forget/throw away the predicate and preorder that was choosen for the
-    location. *)
+    (* Some locations may be lost after a crash. For these we need to *)
+(*     forget/throw away the predicate and preorder that was choosen for the *)
+(*     location. *)
     set newOrders := restrict recLocs orders.
     iMod (own_all_preorders_gname_alloc newOrders)
       as (new_orders_name) "[newOrders #fragOrders]".
@@ -556,8 +540,8 @@ Section wpr.
       rewrite domHistsEqOrders.
       split; done. }
 
-    (* The physical and abstract history has the same timestamps for all
-    locations. We will need this when we apply [valid_slice_transfer] below. *)
+    (* The physical and abstract history has the same timestamps for all *)
+(*     locations. We will need this when we apply [valid_slice_transfer] below. *)
     iAssert (
       ⌜∀ ℓ h1 h2, phys_hists !! ℓ = Some h1 → abs_hists !! ℓ = Some h2 → dom h1 = dom h2⌝
     )%I as %physAbsHistTimestamps.
@@ -576,8 +560,8 @@ Section wpr.
     { apply valid_slice_drop_prefix in cvSlicesPhysHists.
       eapply valid_slice_transfer; done. }
 
-    (* We are done allocating ghost state and can now present a new bundle of
-    ghost names. *)
+    (* We are done allocating ghost state and can now present a new bundle of *)
+(*     ghost names. *)
     iModIntro.
     set (hD' := {|
       abs_history_name := new_abs_history_name;
@@ -751,16 +735,16 @@ Section wpr.
         rewrite decode_encode.
         done. }
 
-      (* The preorder implication. We show that the preorders may survive a
-        crash. *)
+      (* The preorder implication. We show that the preorders may survive a *)
+(*         crash. *)
       iSplit.
       { iModIntro.
         iIntros (? ? ? ? ?) "order".
         iApply "orLost". iIntros (t look).
         iDestruct ("orderImpl" $! ST with "[//] order") as "[_ $]". }
 
-      (* "post_crash_full_pred_impl" - We show that the predicates survives a
-      crash. *)
+      (* "post_crash_full_pred_impl" - We show that the predicates survives a *)
+(*       crash. *)
       iSplitL "".
       { rewrite /post_crash_full_pred_impl.
         iModIntro.
@@ -786,8 +770,8 @@ Section wpr.
               own new_full_predicates_name (◯ {[ℓ := pred_to_ra r]})) with "equiv");
           last done.
         solve_proper. }
-      (* "post_crash_read_pred_impl" - We show that the predicates survives a
-      crash. *)
+      (* "post_crash_read_pred_impl" - We show that the predicates survives a *)
+(*       crash. *)
       iSplitL "".
       { rewrite /post_crash_read_pred_impl.
         iModIntro.
@@ -813,8 +797,8 @@ Section wpr.
               own new_read_predicates_name (◯ {[ℓ := pred_to_ra r]})) with "equiv");
           last done.
         solve_proper. }
-      (* "post_crash_pers_pred_impl" - We show that the predicates survives a
-      crash. *)
+      (* "post_crash_pers_pred_impl" - We show that the predicates survives a *)
+(*       crash. *)
       iSplitL "".
       { rewrite /post_crash_pers_pred_impl.
         iModIntro.
@@ -903,7 +887,7 @@ Section wpr.
         iDestruct ("bumperImpl" $! ST with "[//] oldBumper")
           as "[%bumpersLook newBumper]".
         iFrame "newBumper". } }
-    
+
     (* We show the assumption for the post crash modality. *)
     iDestruct ("P" with "[atLocsHistories naHistories naViewPts]") as "[$ pcRes]".
     { rewrite /post_crash_resource.
@@ -1093,8 +1077,8 @@ Section wpr.
     iSplitPure. { rewrite -domNewAbsHists. set_solver+ histDomLocs. }
     (* [naView] *)
     iSplitPure. { rewrite /newNaViews. apply dom_gset_to_gmap. }
-    (* mapShared. We show that the shared location still satisfy that
-    their two persist-views are equal. *)
+    (* mapShared. We show that the shared location still satisfy that *)
+(*     their two persist-views are equal. *)
     iSplitPure.
     { rewrite /shared_locs_inv.
       rewrite /map_map_Forall.
@@ -1147,9 +1131,9 @@ Section wpr.
       set_solver.
     }
 
-    (* for the recovery of the triple predicates, we need to process at once:
-       for each location, we need both the resource from [full] and [pers] to
-       invoke the [predsPostCrash] condition. *)
+    (* for the recovery of the triple predicates, we need to process at once: *)
+(*        for each location, we need both the resource from [full] and [pers] to *)
+(*        invoke the [predsPostCrash] condition. *)
 
     (* gathering hypotheses *)
     iPoseProof (big_sepM2_sep_2 with "predsReadHold predsPersHold") as "predsHold".
@@ -1157,8 +1141,8 @@ Section wpr.
     rewrite [named "predsFullHold" _]/named [named "predsReadHold" _]/named [named "predsPersHold" _]/named.
     rewrite bi.sep_assoc -big_sepM2_sep.
     rewrite bi.sep_assoc -big_sepM2_sep.
-    (* now we can split the goal properly, and show that the encoded predicates
-       still holds for the new abstract history *)
+    (* now we can split the goal properly, and show that the encoded predicates *)
+(*        still holds for the new abstract history *)
 
     iSplitL "baseMap pcRes predsHold".
     {
@@ -1292,8 +1276,8 @@ Section wpr.
         apply elem_of_dom_2 in absHistsLook.
         set_solver+ cvLook absHistsLook. }
 
-      (* [iFrame "%"] takes too long on my computer,
-         therefore I'm refactoring the goal here *)
+      (* [iFrame "%"] takes too long on my computer, *)
+(*          therefore I'm refactoring the goal here *)
       do ? lazymatch goal with
              | |- context [ ((_ ∗ _) ∗ _)%I ] => rewrite -bi.sep_assoc
              | |- context [ (▷ (_ ∗ _))%I ] => rewrite bi.later_sep
@@ -1393,14 +1377,14 @@ Section wpr.
         by exists absHist, oldOffset.
       }
 
-      (* We try to allocate all the predicates for the next generation
-       * first, all [read] predicates except for the [tCrash] predicate are still
-       * allocated [read].
-       * second, the pers predicate, the read predicate at [tCrash], and one of the
-       * full predicate after [tCrash] are allocated for the full recovery
-       * third, all full predicates before [tCrash] are reduced to [read] predicates
-       * for the next generation.
-       * *)
+      (* We try to allocate all the predicates for the next generation *)
+(*        * first, all [read] predicates except for the [tCrash] predicate are still *)
+(*        * allocated [read]. *)
+(*        * second, the pers predicate, the read predicate at [tCrash], and one of the *)
+(*        * full predicate after [tCrash] are allocated for the full recovery *)
+(*        * third, all full predicates before [tCrash] are reduced to [read] predicates *)
+(*        * for the next generation. *)
+(*        * *)
 
       (* The crash timestamp is special for read predicates *)
       iPoseProof (big_sepM2_delete with "readEncs") as "[readEncAtCrash readEncs]";
@@ -1666,8 +1650,8 @@ Section wpr.
         }
         pull_right ([∗ map] _ ↦ _; _ ∈ _; _, _)%I.
 
-        (* merge full predicates and read predicates into one single [∗ map] for
-         * the next lemma. *)
+        (* merge full predicates and read predicates into one single [∗ map] for *)
+(*          * the next lemma. *)
         iPoseProof (big_sepM2_delete _ _ _ tCrash with "fullEncs") as "[_ fullEncs]";
           [ done | done | ].
         iPoseProof (big_sepM2_sep_2 with "readEncs fullEncs") as "encs".
