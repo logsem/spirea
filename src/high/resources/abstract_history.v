@@ -10,7 +10,7 @@ From iris.proofmode Require Import proofmode.
 From self.base Require Import generational_resources.
 From self.high.resources Require Import gen_ghost_map gen_ghost_map_map.
 From self.lang Require Import lang.
-From self Require Import extra ipm_tactics.
+From self Require Import map_extra extra ipm_tactics.
 
 (* For abstract history we need two types of fragmental knowledge. One that
 represents ownership about the entire abstract history of a location (for
@@ -157,3 +157,6 @@ Section abs_history_lemmas.
   Qed.
 
 End abs_history_lemmas.
+
+Definition new_hist t (bumper : positive → option positive) (hist : gmap time positive) :=
+  omap bumper (drop_above t hist).
