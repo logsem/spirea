@@ -9,7 +9,7 @@ From self.high.modalities Require Import nextgen.
 
 From self.algebra Require Import view.
 
-Program Definition nextgen_flush `{nvmBaseG} (P : dProp Σ) : dProp Σ :=
+Program Definition nextgen_flush `{!nvmBaseGS Σ Ω} (P : dProp Σ) : dProp Σ :=
   MonPred (λ TV,
     (<NG>
       ∀ (CV : view),
@@ -23,7 +23,7 @@ Next Obligation.
   solve_proper.
 Qed.
 
-Class IntoNGFlush `{nvmBaseG}
+Class IntoNGFlush `{!nvmBaseGS Σ Ω}
       (P : dProp Σ) (Q : dProp Σ) :=
   into_nextgen_flushed : P ⊢ nextgen_flush (Σ := Σ) Q.
 
@@ -34,7 +34,7 @@ Notation "'<NGF>' P" :=
   (at level 200, right associativity) : bi_scope.
 
 Section nextgen_persisted.
-  Context `{nvmBaseG}.
+  Context `{!nvmBaseGS Σ Ω}.
 
   Lemma nextgen_flush_nextgen P :
     nextgen P ⊢ nextgen_flush P.
@@ -152,7 +152,7 @@ Section nextgen_persisted.
 End nextgen_persisted.
 
 Section IntoNGFlush.
-  Context `{nvmBaseG}.
+  Context `{!nvmBaseGS Σ Ω}.
 
   (* This is not an instance as it would probably have a negative impact on the
   performance of type class resolution. *)

@@ -23,7 +23,7 @@ Qed.
 Notation "'<fence>' P" :=
   (post_fence P) (at level 20, right associativity) : bi_scope.
 
-Program Definition post_fence_sync `{!nvmBaseG Σ Ω}
+Program Definition post_fence_sync `{!nvmBaseGS Σ Ω}
         (P : dProp Σ) : dProp Σ :=
   MonPred (λ TV,
     bi_wand

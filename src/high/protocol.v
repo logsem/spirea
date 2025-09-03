@@ -10,9 +10,9 @@ From self.high.modalities Require Import no_buffer nextgen_flush nextgen if_rec.
 From self.lang Require Import lang.
 
 (* A handy alias for the type of location predicates. *)
-Definition loc_pred `{nvmHighG} ST `{AbstractState ST} := ST → val → dProp Σ.
+Definition loc_pred `{nvmHighGS} ST `{AbstractState ST} := ST → val → dProp Σ.
 
-Definition loc_predO `{nvmHighG} ST := ST -d> val -d> dPropO Σ.
+Definition loc_predO `{nvmHighGS} ST := ST -d> val -d> dPropO Σ.
 
 (* A protocol consists of
   - A predicate [p_inv] that holds for each write and corresponding state of the
@@ -20,7 +20,7 @@ Definition loc_predO `{nvmHighG} ST := ST -d> val -d> dPropO Σ.
   - A function [bumper] that specifies how the state of a location changes
     after a crash. *)
 
-Record LocationProtocol ST `{AbstractState ST, nvmHighG} := MkProt {
+Record LocationProtocol ST `{AbstractState ST, nvmHighGS} := MkProt {
   p_full : loc_pred ST;
   p_read : loc_pred ST;
   p_pers : loc_pred ST;
@@ -39,7 +39,7 @@ Global Arguments p_bumper {ST _ _ _ _ _ _ _} _ _.
 Note: The fields are ordered by "difficulty" in the sense of how difficult these
 conditions usually are to show.  *)
 
-Class ProtocolConditions `{AbstractState ST, nvmHighG} (prot : LocationProtocol ST) := {
+Class ProtocolConditions `{AbstractState ST, nvmHighGS} (prot : LocationProtocol ST) := {
   bumper_mono :
     Proper ((⊑@{ST}) ==> (⊑))%signature (prot.(p_bumper));
   full_nobuf :>
@@ -73,7 +73,7 @@ Existing Instance bumper_mono.
 
 (** [know_protocol] represents the knowledge that a location is associated with a
 specific protocol. It's defined simply using more "primitive" assertions. *)
-Definition know_protocol `{AbstractState ST, nvmHighG}
+Definition know_protocol `{AbstractState ST, nvmHighGS}
            ℓ (prot : LocationProtocol ST) : dProp Σ :=
   "#knowFullPred" ∷ ⎡ know_full_pred ℓ prot.(p_full) ⎤ ∗
   "#knowReadPred" ∷ ⎡ know_read_pred ℓ prot.(p_read) ⎤ ∗
@@ -97,7 +97,7 @@ Proof.
 Qed.
 
 Section protocol.
-  Context `{nvmHighG, AbstractState ST}.
+  Context `{nvmHighGS, AbstractState ST}.
 
   Implicit Types (prot : LocationProtocol ST).
 

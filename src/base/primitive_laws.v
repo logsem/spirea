@@ -6,7 +6,7 @@ From iris.bi.lib Require Import fractional.
 (* From Perennial.program_logic Require Export ectx_language weakestpre lifting. *)
 From Perennial.program_logic Require crash_weakestpre.
 From self.program_logic Require Export ectx_lifting crash_weakestpre.
-From self.base Require Import generational_resources.
+From self.base Require Import generational_resources class_instances.
 From self.nextgen Require Import nextgen_promises.
 
 From iris.algebra Require Import auth gmap numbers.
@@ -87,30 +87,35 @@ Global Program Instance Perennial_irisGS
   Perennial.program_logic.crash_weakestpre.irisGS nvm_lang Σ Ω := {
   iris_invGS := P_invGS;
   global_state_interp g ns mj D _ :=
-    (@crash_borrow_ginv _ P_invGS _ _ ∗
-     cred_interp ns ∗
-     ⌜(/ 2 < mj ≤ 1) ⌝%Qp ∗
-     pinv_tok mj D)%I;
+      (∃ ns' mj' D', ⌜ ns = ns' ∧ mj = mj' ∧ D = D' ⌝)%I;
+    (* (@crash_borrow_ginv _ P_invGS _ _ ∗ *)
+    (*  cred_interp ns ∗ *)
+    (*  ⌜(/ 2 < mj ≤ 1) ⌝%Qp ∗ *)
+    (*  pinv_tok mj D)%I; *)
   fork_post _ := True%I;
   num_laters_per_step := (λ n, 3 ^ (n + 1))%nat; (* This is the choice GooseLang takes. *)
   step_count_next := (λ n, 10 * (n + 1))%nat;
   }.
 Next Obligation.
-  intros (**). iIntros "($ & ? & $)".
-  by iMod (cred_interp_incr with "[$]") as "($ & _)".
+  iIntros.
+  by iExistsN.
+  (* intros (**). iIntros "($ & ? & $)". *)
+  (* by iMod (cred_interp_incr with "[$]") as "($ & _)". *)
 Qed.
 Next Obligation. intros => //=. lia. Qed.
 
+
 Global Program Instance nvmBaseG_irisGS
-  `{!nvmBaseG Σ Ω, !extraStateInterp Σ, !PerennialG Σ} :
+  `{!nvmBaseGS Σ Ω, !extraStateInterp Σ, !PerennialG Σ} :
   irisGS nvm_lang Σ Ω := {
     perennial_irisGS := Perennial_irisGS;
     state_interp σ _ := (nvm_heap_ctx σ ∗ extra_state_interp)%I;
   }.
 
+
 (** * Lemmas about [max_view] *)
 Section max_view.
-  Context `{!nvmBaseG Σ Ω}.
+  Context `{!nvmBaseGS Σ Ω}.
   Implicit Types hist : history.
   Implicit Types ℓ : loc.
 
@@ -245,9 +250,9 @@ Section max_view.
 
   Lemma auth_both_max_view_insert ℓ t (heap : store) V (hist : history) msg :
     heap !! ℓ = Some hist →
-    store_view_auth store_view_name (max_view heap) -∗
+    store_view_auth (max_view heap) -∗
     validV V ==∗
-    store_view_auth store_view_name (max_view (<[ℓ := <[t := msg]> hist]> heap)) ∗
+    store_view_auth (max_view (<[ℓ := <[t := msg]> hist]> heap)) ∗
     validV (<[ℓ := MaxNat t]> V).
   Proof.
     iIntros (look) "Olub Flub".
@@ -265,7 +270,7 @@ Section max_view.
 End max_view.
 
 Section persisted.
-  Context `{!nvmBaseG Σ Ω}.
+  Context `{!nvmBaseGS Σ Ω}.
 
   Lemma persisted_loc_weak ℓ t1 t2 :
     t2 ≤ t1 → persisted_loc ℓ t1 -∗ persisted_loc ℓ t2.
@@ -301,10 +306,10 @@ Section persisted.
 End persisted.
 
 Section lifting.
-  Context `{!nvmBaseG Σ Ω, extra : !extraStateInterp Σ, !PerennialG Σ}.
+  Context `{!nvmBaseGS Σ Ω, extra : !extraStateInterp Σ, !PerennialG Σ}.
 
-  Notation storeI := nvmBaseG_store_view_in.
-  Notation persistedI := nvmBaseG_persisted_in.
+  Notation storeI := store_viewGpreS_store_view.
+  Notation persistedI := persistedGpreS_persisted.
 
   Implicit Types Q : iProp Σ.
   Implicit Types Φ Ψ : val → iProp Σ.
@@ -1102,10 +1107,8 @@ Section lifting.
 
 End lifting.
 
-From self.base Require Import class_instances.
-
 Section extra_state_interp.
-  Context `{!nvmBaseG Σ Ω, extra : !extraStateInterp Σ, !PerennialG Σ}.
+  Context `{!nvmBaseGS Σ Ω, extra : !extraStateInterp Σ, !PerennialG Σ}.
   (* Context `{!nvmBaseFixedG Σ, nvmBaseDeltaG, extra : extraStateInterp Σ, Ω : gGenCmras Σ}. *)
 
   Lemma wp_extra_state_interp_fupd (e : expr) `{!AtomicBase StronglyAtomic e}
@@ -1128,14 +1131,14 @@ Section extra_state_interp.
     iIntros (?).
     iSplit; last first.
     { iIntros.
-      iApply step_fupd_extra.step_fupd2N_inner_later; auto. iNext. iFrame. }
+      iApply step_fupd_extra.step_fupd2N_inner_later; auto. }
 
     rewrite /= /thread_to_val. rewrite eq /=.
     iIntros (???????) "[interp extra]". iIntros.
     iSpecialize ("H" with "extra").
     iDestruct ("H" $! mj) as "[H _]".
-    iSpecialize ("H" $! _ g1 _ _ κ [] 0 with "[$interp //] [$] [$]").
-
+    iSpecialize ("H" $! _ g1 _ _ κ [] 0 with "[$interp //] [] [$]").
+    { by iExistsN. }
     iMod "H".
     iModIntro.
     iApply (step_fupd_extra.step_fupd2N_wand with "H").
@@ -1152,7 +1155,7 @@ Section extra_state_interp.
 
     iEval (rewrite right_id) in "A".
     iMod (wpc0_value_inv_option _ _ _ _ _ _ _ _ [] _ with "C Q")
-      as "([Φ extra] & B & V)".
+      as "([Φ extra] & global)".
     simpl.
     iFrame.
     iMod "extra".
@@ -1170,6 +1173,7 @@ Section extra_state_interp.
     iApply step_fupd_extra.step_fupd2N_inner_later; first done; first done.
     iModIntro.
     iFrame.
+    by iExistsN.
   Qed.
 
   Lemma wp_extra_state_interp (e : expr) `{!AtomicBase StronglyAtomic e}

@@ -19,7 +19,7 @@ From self.high.resources Require Import gen_ghost_map.
  * since I believe it's obsolete after nextgen update. *)
 Notation inner_frac_inG Σ Ω := (genInDepsG Σ Ω (dfracR) [#]).
 
-Class ghost_map_mapG (K1 K2 V: Type) Σ Ω `{Countable K1, Countable K2} `{!nvmBaseG Σ Ω} :=
+Class ghost_map_mapG (K1 K2 V: Type) Σ Ω `{Countable K1, Countable K2} `{!nvmBaseGS Σ Ω} :=
   {
     ghost_map_outer_inG :> genC_ghost_map_inG K1 gname Σ Ω;
     ghost_map_inner_inG :> genC_ghost_map_inG K2 V Σ Ω;
@@ -36,7 +36,7 @@ Section definitions.
   Notation K1 := loc.
   Notation K2 := nat.
 
-  Context `{!nvmBaseG Σ Ω, !genC_ghost_map_inG loc (V → option V) Σ Ω, !ghost_map_mapG K1 K2 V Σ Ω}.
+  Context `{!nvmBaseGS Σ Ω, !genC_ghost_map_inG loc (V → option V) Σ Ω, !ghost_map_mapG K1 K2 V Σ Ω}.
   Implicit Types (m : gmap K1 (gmap K2 V)).
   Implicit Types (mi : gmap K2 V).
   Implicit Types (dq: dfrac) (γ: gname) (bumper: V → option V).
@@ -71,7 +71,7 @@ Section lemmas.
   Notation K1 := loc.
   Notation K2 := nat.
   Notation V := positive.
-  Context `{!nvmBaseG Σ Ω, !genC_ghost_map_inG loc (V → option V) Σ Ω, !ghost_map_mapG K1 K2 V Σ Ω}.
+  Context `{!nvmBaseGS Σ Ω, !genC_ghost_map_inG loc (V → option V) Σ Ω, !ghost_map_mapG K1 K2 V Σ Ω}.
   Implicit Types (m : gmap K1 (gmap K2 V)).
   Implicit Types (mi : gmap K2 V).
   Implicit Types (dq: dfrac) (γ: gname) (bumper: V → option V).

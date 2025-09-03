@@ -14,7 +14,7 @@ From self.lang Require Import lang.
 From Perennial.base_logic.lib Require Import wsat.
 
 Section predicates.
-  Context `{nvmHighG}.
+  Context `{nvmHighGS}.
 
   (* Note, there are three types for predicates.
      1/ The real/initial type which depends on some [ST]: *)
@@ -364,7 +364,7 @@ End predicates.
 
 Section encoded_predicate.
   Context `{AbstractState ST}.
-  Context `{nvmHighG}.
+  Context `{nvmHighGS}.
 
   Implicit Types (s : ST) (ϕ : ST → val → dProp Σ).
 

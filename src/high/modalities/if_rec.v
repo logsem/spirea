@@ -22,12 +22,12 @@ Set Default Proof Using "Type".
 (* I believe the [persisted_loc] component is unnecessary
  * (implied by CV, at least in the context of a valid state interpretation),
  * but in case it's necessary in some unforseen way, I'm keeping it for now. *)
-Definition if_rec `{nvmBaseG} (ℓ : loc) (P : dProp Σ) : dProp Σ :=
+Definition if_rec `{!nvmBaseGS Σ Ω} (ℓ : loc) (P : dProp Σ) : dProp Σ :=
   ∀ (CV : view),
   ⌜ is_Some (CV !! ℓ) ⌝ -∗ ⎡ crashed_at CV ⎤ -∗ ⎡ persisted_loc ℓ 0 ⎤ -∗ P.
 
 Section lifting.
-  Context `{nvmBaseG}.
+  Context `{nvmBaseGS}.
 
   Lemma if_rec_lift_if_rec ℓ P:
     if_rec ℓ ⎡ P ⎤ ⊣⊢ ⎡ base_if_rec ℓ P ⎤.
@@ -40,14 +40,14 @@ Section lifting.
   Qed.
 End lifting.
 
-Class IntoIfRec `{nvmBaseG} ℓ (P : dProp Σ) (Q : dProp Σ) :=
+Class IntoIfRec `{nvmBaseGS} ℓ (P : dProp Σ) (Q : dProp Σ) :=
   into_if_rec : P ⊢ if_rec ℓ Q.
 Global Arguments IntoIfRec {_} {_} {_} _ _%I _%I.
 Global Arguments into_if_rec  {_} {_} {_} {_} _%I _%I.
 Global Hint Mode IntoIfRec ! ! ! + + -  : typeclass_instances.
 
 Section if_rec.
-  Context `{nvmBaseG}.
+  Context `{nvmBaseGS}.
 
   Local Ltac ifRecIntro :=
     iIntros (CV);

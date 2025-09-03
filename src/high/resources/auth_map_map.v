@@ -98,7 +98,7 @@ End fmap_fmap_to_agree.
 Section auth_map_map.
   Context {A : ofe}.
   Notation auth_map_mapR_inG Σ Ω := (genInDepsG Σ Ω (auth_map_mapR A) [#crashed_atR]).
-  Context `{!nvmBaseG Σ Ω, !auth_map_mapR_inG Σ Ω}.
+  Context `{!nvmBaseGS Σ Ω, !auth_map_mapR_inG Σ Ω}.
 
   Implicit Types (m : gmap loc (gmap time A)).
 

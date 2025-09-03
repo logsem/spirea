@@ -27,7 +27,7 @@ Section crashed_at_ghost_map.
 
   Implicit Types (R: ghost_map_relyT).
 
-  Context `{!nvmBaseG Σ Ω, !ghost_map_inG Σ Ω}.
+  Context `{!nvmBaseGS Σ Ω, !ghost_map_inG Σ Ω}.
   Definition ghost_map_auth γ R dq m: iProp Σ :=
     "own_auth" ∷ gen_own γ (gmap_view_auth (V := leibnizO V) dq m) ∗
     "#rely" ∷ rely γ [#crashed_at_name] R True_pred ∗
@@ -47,7 +47,7 @@ Notation "k ↪[ γ , R ] dq v" := (ghost_map_elem γ R k dq v)
 (* current generation ghost map lemmas *)
 Section cgen_ghost_map_lemmas.
   Context `{Countable K} {V: Type}.
-  Context `{!nvmBaseG Σ Ω, !genC_ghost_map_inG K V Σ Ω}.
+  Context `{!nvmBaseGS Σ Ω, !genC_ghost_map_inG K V Σ Ω}.
   Implicit Types (k : K) (v : V) (dq : dfrac) (q : Qp) (m : gmap K V).
   (* select lemmas that is being used in Spirea repo. *)
 
@@ -313,7 +313,7 @@ Section loc_map_lemmas.
     rewrite agree_option_map_to_agree /drop_OCV decide_True //.
   Qed.
 
-  Context `{!nvmBaseG Σ Ω, !genC_ghost_map_inG loc V Σ Ω}.
+  Context `{!nvmBaseGS Σ Ω, !genC_ghost_map_inG loc V Σ Ω}.
 
   Instance ghost_map_auth_into_nextgen γ dq m:
     IntoNextgen

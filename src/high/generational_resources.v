@@ -26,7 +26,7 @@ From self.high.resources Require Export
 
 From self.algebra Require Import view.
 
-Class nvmHighG Σ Ω `{!nvmBaseG Σ Ω} := NvmHighG {
+Class nvmHighGS Σ Ω `{!nvmBaseGS Σ Ω} := NvmHighG {
   nvm_predicatesG :> predicates_inG Σ Ω;
   full_predicates_name : gname;
   read_predicates_name : gname;

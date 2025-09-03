@@ -23,7 +23,7 @@ Section abs_history_lemmas.
   Notation K1 := loc.
   Notation K2 := nat.
   Notation V := positive.
-  Context `{!nvmBaseG Σ Ω, !genC_ghost_map_inG loc (V → option V) Σ Ω, !ghost_map_mapG K1 K2 V Σ Ω}.
+  Context `{!nvmBaseGS Σ Ω, !genC_ghost_map_inG loc (V → option V) Σ Ω, !ghost_map_mapG K1 K2 V Σ Ω}.
   Context `{Countable ST}.
 
   Local Existing Instance ghost_map_outer_inG.

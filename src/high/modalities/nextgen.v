@@ -7,16 +7,16 @@ From self.base Require Import generational_resources.
 From self.high Require Import dprop.
 From self.nextgen Require Export nextgen_promises.
 
-Definition nextgen `{nvmBaseG} (P: dProp Σ): dProp Σ := MonPred (λ TV, ⚡==> P (∅, ∅, ∅))%I _.
+Definition nextgen `{!nvmBaseGS Σ Ω} (P: dProp Σ): dProp Σ := MonPred (λ TV, ⚡==> P (∅, ∅, ∅))%I _.
 
-Class IntoNextgen `{nvmBaseG} (P Q : dProp Σ) :=
+Class IntoNextgen `{!nvmBaseGS Σ Ω} (P Q : dProp Σ) :=
   into_nextgen : P ⊢ nextgen Q.
 Global Arguments IntoNextgen {_ _ _} _%I _%I.
 Global Arguments into_nextgen {_ _ _} _%I _%I.
 Global Hint Mode IntoNextgen + + + + - : typeclass_instances.
 
 Section Modality.
-  Context `{nvmBaseG}.
+  Context `{!nvmBaseGS Σ Ω}.
 
   Set Default Proof Using "Type*".
 
@@ -115,7 +115,7 @@ Notation "'<NG>' P" := (nextgen P)
   (at level 200, right associativity) : bi_scope.
 
 Section IntoNextgen.
-  Context `{nvmBaseG}.
+  Context `{!nvmBaseGS Σ Ω}.
 
   (* Arguments IntoNextgen {_} {_} {_} _%I hi%I. *)
 
@@ -212,7 +212,7 @@ Section IntoNextgen.
 End IntoNextgen.
 
 Section nextgen_derived.
-  Context `{nvmBaseG} `{AbstractState ST}.
+  Context `{!nvmBaseGS Σ Ω} `{AbstractState ST}.
 
   (* TODO: if this lemma is required, prove it in base logic. *)
   (* Lemma post_crash_persisted_loc_d ℓ t : *)

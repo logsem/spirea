@@ -10,7 +10,7 @@ From self.algebra Require Import view.
 Set Default Proof Using "Type".
 
 Section or_lost_post_crash.
-  Context `{nvmBaseG}.
+  Context `{!nvmBaseGS Σ Ω}.
 
   (* [iProp] version of [or_lost] *)
   Definition or_lost_post_crash ℓ (P : nat → iProp Σ) :=
@@ -33,7 +33,7 @@ Section or_lost_post_crash.
 End or_lost_post_crash.
 
 Section or_lost_with_t.
-  Context `{nvmBaseG}.
+  Context `{nvmBaseGS}.
 
   (* A [dProp] version of [or_lost_post_crash]. *)
   Definition or_lost_with_t ℓ (P : time → dProp Σ) : dProp Σ :=

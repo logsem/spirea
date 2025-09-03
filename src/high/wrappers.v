@@ -25,7 +25,7 @@ From self.algebra Require Export view.
 Set Default Proof Using "Type*".
 
 Section BaseLifting.
-  Context `{nvmBaseG}.
+  Context `{nvmBaseGS}.
 
   Definition offset_loc ℓ (t : nat) : iProp Σ :=
     ∃ OCV, crashed_at_offset OCV ∗ ⌜ OCV !! ℓ = Some $ MaxNat t ⌝.
@@ -66,7 +66,7 @@ Section BaseLifting.
 End BaseLifting.
 
 Section location_sets.
-  Context `{nvmHighG}.
+  Context `{nvmHighGS}.
   Implicit Types (locs : gset loc) (ℓ : loc).
 
   Definition is_at_loc ℓ : iProp Σ :=
@@ -97,7 +97,7 @@ Section location_sets.
 End location_sets.
 
 Section preorders.
-  Context `{nvmHighG}.
+  Context `{nvmHighGS}.
 
   Implicit Type (preorders : gmap loc (relation2 positive)).
   Context `{Countable ST}.
@@ -162,7 +162,7 @@ Section bumpers.
 End bumpers.
 
 Section own_encoded_bumpers.
-  Context `{nvmHighG}.
+  Context `{nvmHighGS}.
 
   Definition own_all_bumpers γ (encoded_bumpers: gmap loc (positive → option positive)) :=
     ghost_map_auth γ loc_map_rel (DfracOwn 1) encoded_bumpers.
@@ -176,8 +176,7 @@ Section own_encoded_bumpers.
 End own_encoded_bumpers.
 
 Section own_bumpers.
-  Context `{nvmHighG}.
-  Context `{AbstractState ST}.
+  Context `{nvmHighGS} `{AbstractState ST}.
 
   Definition own_know_bumper γ (ℓ : loc) (bumper : ST → ST) : iProp Σ :=
     let encodedBumper := encode_bumper bumper
@@ -215,7 +214,7 @@ Section own_bumpers.
 End own_bumpers.
 
 Section NAView.
-  Context `{nvmHighG}.
+  Context `{nvmHighGS}.
 
   Definition know_na_view ℓ q (SV : view) : iProp Σ :=
     ℓ ↪[non_atomic_views_gname, loc_map_rel]{#q} SV%I.
@@ -242,7 +241,7 @@ End NAView.
 Global Opaque know_na_view.
 
 Section crashed_in.
-  Context `{nvmHighG}.
+  Context `{nvmHighGS}.
   Context `{Countable ST}.
 
   Definition crashed_in ℓ (s : ST) : iProp Σ :=
@@ -250,7 +249,7 @@ Section crashed_in.
 End crashed_in.
 
 Section Histories.
-  Context `{nvmHighG}.
+  Context `{nvmHighGS}.
 
   Definition know_full_encoded_history_loc ℓ q enc_abs_hist : iProp Σ :=
     history_full_entry_encoded bumpers_name abs_history_name ℓ q enc_abs_hist.

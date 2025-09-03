@@ -12,21 +12,21 @@ From self.algebra Require Import view.
 (* I believe the [persisted_loc] component is unnecessary
  * (implied by CV, at least in the context of a valid state interpretation),
  * but in case it's necessary in some unforseen way, I'm keeping it for now. *)
-Definition if_rec `{nvmBaseG} (ℓ : loc) (P : iProp Σ) : iProp Σ :=
+Definition if_rec `{!nvmBaseGS Σ Ω} (ℓ : loc) (P : iProp Σ) : iProp Σ :=
   ∀ (CV : view),
   ⌜ is_Some (CV !! ℓ) ⌝ -∗ crashed_at CV -∗ persisted_loc ℓ 0 -∗ P.
 (* alt
   P ∨ (∃ CV, ⎡crashed_at CV⎤ ∗ ⌜ℓ ∉ dom (gset _) CV⌝ )
  *)
 
-Class IntoIfRec `{nvmBaseG} ℓ (P : iProp Σ) (Q : iProp Σ) :=
+Class IntoIfRec `{!nvmBaseGS Σ Ω} ℓ (P : iProp Σ) (Q : iProp Σ) :=
   into_if_rec : P ⊢ if_rec ℓ Q.
 Global Arguments IntoIfRec {_} {_} {_} _ _%I _%I.
 Global Arguments into_if_rec  {_} {_} {_} {_} _%I _%I.
 Global Hint Mode IntoIfRec ! ! ! + + -  : typeclass_instances.
 
 Section if_rec.
-  Context `{nvmBaseG}.
+  Context `{!nvmBaseGS Σ Ω}.
 
   Local Ltac ifRecIntro :=
     iIntros (CV);

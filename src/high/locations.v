@@ -21,7 +21,7 @@ From self.high.resources Require Export bumpers preorders auth_map_map abstract_
 From self.high.modalities Require Export no_buffer no_flush if_rec or_lost nextgen nextgen_flush.
 
 Section points_to_at.
-  Context `{nvmHighG, AbstractState ST}.
+  Context `{nvmHighGS, AbstractState ST}.
 
   Implicit Types (ℓ : loc) (s : ST) (ss : list ST) (prot : LocationProtocol ST).
 
@@ -163,7 +163,7 @@ Notation "l ↦_{ prot }^{ q } ss" := (mapsto_na l prot q ss) (at level 20).
 Notation "l ↦_AT^{ prot } ss" := (mapsto_at l prot ss) (at level 20).
 
 Section mapsto_at_lemmas.
-  Context `{nvmHighG, AbstractState ST}.
+  Context `{nvmHighGS, AbstractState ST}.
 
   Set Default Proof Using "Type*".
 

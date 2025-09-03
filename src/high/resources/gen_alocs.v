@@ -31,7 +31,10 @@ Section gen_alocs.
         tC = crashed_at_trans OCV ∧
         t = fmap_auth $ drop_OCV_locs OCV.
 
-  Context `{!nvmBaseG Σ Ω, !gen_alocsR_inG Σ Ω}.
+  #[local] Existing Instance nvmBaseGS_crashed_at_inG.
+  #[local] Existing Instance crashed_atGpreS_crashed_at.
+
+  Context `{!nvmBaseGS Σ Ω} `{!gen_alocsR_inG Σ Ω}.
 
   Definition gen_alocs_auth γ ℓs: iProp Σ :=
     ∃ OCV,

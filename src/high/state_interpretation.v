@@ -64,7 +64,7 @@ Definition shared_locs_inv (locs : gmap loc (gmap time message)) :=
   map_map_Forall atomic_loc_inv locs.
 
 Section state_interpretation.
-  Context `{nvmHighG}.
+  Context `{nvmHighGS}.
 
   Implicit Types (TV : thread_view).
 
