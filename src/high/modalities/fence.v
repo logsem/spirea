@@ -191,7 +191,7 @@ Section post_fence.
 
 End post_fence.
 
-Class IntoFenceSync `{nvmBaseG}
+Class IntoFenceSync `{nvmBaseGS}
       (P: dProp Σ) (Q : dProp Σ) :=
   into_fence_sync : P ⊢ <fence_sync> Q.
 Global Arguments IntoFenceSync  {_ _ _} _%I _%I.
@@ -199,7 +199,7 @@ Global Arguments into_fence_sync {_ _ _} _%I _%I {_}.
 Global Hint Mode IntoFenceSync - - + ! -  : typeclass_instances.
 
 Section post_fence_sync.
-  Context `{nvmBaseG}.
+  Context `{nvmBaseGS}.
 
   Implicit Types (P : dProp Σ).
 

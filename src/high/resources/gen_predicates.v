@@ -38,13 +38,11 @@ Section ownership.
 
   Definition own_all_preds_ra γ dq PRs: iProp Σ :=
     "own_auth" ∷ gen_own γ (●{dq} PRs) ∗
-    "#rely" ∷ rely γ [#crashed_at_name] predicates_rel True_pred ∗
-    "#crashed" ∷ ∃ OCV, crashed_at_offset OCV.
+    "#rely" ∷ rely γ [#crashed_at_name] predicates_rel True_pred.
 
   Definition know_pred_ra γ ℓ PR: iProp Σ :=
     "own_frag" ∷ gen_own γ (◯ {[ ℓ := PR ]}) ∗
-    "#rely" ∷ rely γ [#crashed_at_name] predicates_rel True_pred ∗
-    "#crashed" ∷ ∃ OCV, crashed_at_offset OCV.
+    "#rely" ∷ rely γ [#crashed_at_name] predicates_rel True_pred.
 
   Lemma map_imap_drop_OCV_restrict OCV m:
     map_imap (drop_OCV OCV) m = restrict (dom OCV) m.
@@ -67,7 +65,6 @@ Section ownership.
   Proof.
     rewrite /IntoNextgen.
     iNamed 1.
-    iDestruct "crashed" as (OCV) "crashed".
     iModIntro.
     iDestruct ("own_auth") as (t) "[#picked own_auth]".
     iDestruct "rely" as "(rely & (%t' & %tC & (%R & _) & picked' & pickedC))".
@@ -76,13 +73,8 @@ Section ownership.
     iExists OCV'.
     rewrite fmap_auth_auth.
     iDestruct "own_auth" as "[own_auth _]".
-    iDestruct "crashed" as (??) "[pickedC' #crashed_at]".
-    iPickedInAgree "pickedC pickedC'".
-    iEval (simpl) in "crashed_at".
     rewrite map_imap_drop_OCV_restrict.
     iFrame "∗#".
-    iExists _, _.
-    iApply "crashed_at".
   Qed.
 
   Global Instance ghost_map_elem_into_nextgen γ k PR:
@@ -92,35 +84,23 @@ Section ownership.
   Proof.
     rewrite /IntoNextgen.
     iNamed 1.
-    iDestruct "crashed" as (OCV) "crashed".
     iModIntro.
     iDestruct "own_frag" as (t) "[#picked frag]".
     iDestruct "rely" as "(rely & (%t' & %tC & (%R & _) & picked' & pickedC))".
     iPickedInAgree "picked picked'".
     destruct R as (OCV' & -> & ->).
-    iIntros (CV [[t] ?]) "#crashed_at #persisted_loc".
-    iAssert ⌜ k ∈ dom OCV' ⌝%I as "%".
-    { iDestruct "crashed_at" as (??? Hview) "[crashed_at _]".
-      iDestruct "crashed" as (??) "[pickedC' #crashed_at']".
-      iPickedInAgree "pickedC pickedC'".
-      iDestruct (gen_own_valid_2 with "crashed_at' crashed_at") as %[_ <-%to_agree_op_valid_L]%pair_valid.
-      iPureIntro.
-      rewrite -(view_sub_dom_eq _ OV) Hview.
-      rewrite elem_of_dom.
-      by eexists.
-    }
+    iIntros (?) "%look #picked_ifrec".
+    iDestruct (gen_picked_in_agree with "pickedC picked_ifrec") as %?.
+    simplify_eq.
+    rewrite -elem_of_dom in look.
+
     rewrite fmap_auth_frag.
     (* TODO: move to separate lemma *)
     rewrite -{1}insert_empty.
     erewrite map_imap_insert_Some;
       first rewrite map_imap_empty insert_empty //;
         last rewrite /drop_OCV decide_True //.
-    iDestruct "crashed" as (??) "[pickedC' #crashed_at']".
-    iPickedInAgree "pickedC pickedC'".
     iFrame "∗#".
-    iIntros.
-    iExists _, _.
-    iApply "crashed_at'".
   Qed.
 End ownership.
 

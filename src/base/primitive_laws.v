@@ -1005,6 +1005,33 @@ Section lifting.
       iFrame "∗#%". done.
   Qed.
 
+  Lemma wp_flush_alt SV FV BV ℓ (hist : history) s E :
+    {{{ ℓ ↦fh hist }}}
+      (Flush #ℓ) `at` (SV, FV, BV) @ s; E
+    {{{ RET #() `at` (SV, FV, {[ℓ := MaxNat (SV !!0 ℓ)]} ⊔ BV); ℓ ↦fh hist }}}.
+  Proof.
+    iIntros (Φ) "pts HΦ".
+    iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
+    iIntros ([??] [] ns mj D κ κs k) "[interp extra]". iNamed "interp".
+    iIntros "? /= !>".
+    iAssert (crashed_at_offset OCV)%I as "#crashed_at_offset"; first by iExists _.
+    (* From the points-to predicate we know that [hist] is in the heap at ℓ. *)
+    iDestruct (fmapsto_heap_valid with "[$] [$]") as %Hlook.
+    iSplit.
+    - rewrite /head_reducible.
+       iExists [], _, _, _, _. simpl. iPureIntro.
+       eapply impure_step; by econstructor; done.
+    - iNext. iIntros (e2 σ2 [] efs Hstep).
+      whack_global.
+      inv_impure_thread_step. iSplitR=>//.
+      iDestruct ("HΦ" with "pts") as "$".
+      iModIntro.
+      iFrame "extra".
+      iExists _, _, _.
+      iFrame "∗#%". done.
+  Qed.
+
+
   Lemma wp_fence SV FV BV s E :
     {{{ True }}}
       Fence `at` (SV, FV, BV) @ s; E

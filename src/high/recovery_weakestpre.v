@@ -1852,12 +1852,12 @@ Section wpr.
     rewrite /state_interp /=.
     iFrame "∗#".
 
-    iSplitL "". { rewrite /global_state_interp /=. admit. } (* global state interp a.k.a. crash borrows *)
+    (* iSplitL "". { rewrite /global_state_interp /=. admit. } (* global state interp a.k.a. crash borrows *) *)
 
     iModIntro.
     iSpecialize ("IH" $! _ _ with "Hidemp' [Hidemp]").
     { monPred_simpl. done. }
     iApply "IH".
-  Admitted.
+  Qed.
 
 End wpr.

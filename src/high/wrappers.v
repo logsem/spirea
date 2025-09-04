@@ -238,12 +238,15 @@ Section NAView.
 End NAView.
 
 (* so that iDestruct will prioritize fractional lemma over splitting [gen_own] *)
-Global Opaque know_na_view.
+#[global] Opaque know_na_view.
 
+(* TODO: replace this definition with [picked_in] of abstract history *)
 Section crashed_in.
   Context `{nvmHighGS}.
   Context `{Countable ST}.
 
+  (* [crashed_in ℓ s] means location [ℓ] crashed in (latest) abstract state [s]
+   * (before applying bumper). *)
   Definition crashed_in ℓ (s : ST) : iProp Σ :=
     ∃ es, ⌜ decode es = Some s ⌝ ∗ ℓ ↪[crashed_in_name, loc_map_rel]□ es.
 End crashed_in.

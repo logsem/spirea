@@ -90,96 +90,6 @@ Class nvmBaseGS Σ Ω := NvmBaseGS {
   nvmBaseGS_heap_inG :: heapGS Σ Ω;
 }.
 
-Definition nvmBaseΣ :=
-  #[
-      GFunctor (generational_cmraR store_viewR [#]); (* [store_view]  *)
-      GFunctor (generational_cmraR crashed_atR [#]); (* [crashed_at] *)
-      GFunctor (generational_cmraR persistedR [#crashed_atR]); (* [persisted] *)
-      GFunctor (generational_cmraR heapR [#crashed_atR])
-    ].
-
-Ltac dep_inv_fin idx :=
-  let H := fresh in
-  let T := type of idx in
-  match eval hnf in T with
-  | fin ?n =>
-    match eval hnf in n with
-    | 0 => inversion idx
-    | 1 => dependent elimination idx as [Fin.F1]
-    | S ?n => dependent elimination idx as [Fin.F1 | FS H];
-              last rename H into idx
-    end
-  end.
-
-(* Destruct a finite number as much a possible. *)
-Ltac destruct_fin i1 := repeat (dep_inv_fin i1).
-
-Ltac solve_gid_uniq :=
-  intros i1 i2 neq;
-  destruct_fin i1;
-  destruct_fin i2; done.
-
-Ltac solve_omega_wf :=
-  intros idx dIdx look;
-  destruct_fin idx;
-  destruct_fin dIdx;
-  done.
-
-
-Program Definition nvmBaseΩ : gGenCmras nvmBaseΣ := {|
-  gc_len := 4;
-  gc_map := λ (i : fin 4), _;
-|}.
-
-Next Obligation.
-  intros idx.
-  dependent elimination idx as [Fin.F1 | FS idx].
-  { apply {|
-      gcd_cmra := store_viewR;
-      gcd_n := 0;
-      gcd_deps := vnil;
-      gcd_deps_ids := vnil; (* here *)
-      gcd_gid := (0%fin : gid nvmBaseΣ);
-      gcd_cmra_eq := eq_refl;
-    |}. }
-  dependent elimination idx as [Fin.F1 | FS idx].
-  { apply {|
-      gcd_cmra := crashed_atR;
-      gcd_n := 0;
-      gcd_deps := vnil;
-      gcd_deps_ids := vnil; (* here *)
-      gcd_gid := (1%fin : gid nvmBaseΣ);
-      gcd_cmra_eq := eq_refl;
-    |}. }
-  dependent elimination idx as [Fin.F1 | FS idx].
-  { apply {|
-      gcd_cmra := persistedR;
-      gcd_n := 1;
-      gcd_deps := [#crashed_atR];
-      gcd_deps_ids := [#1%fin];
-      gcd_gid := (2%fin : gid nvmBaseΣ);
-      gcd_cmra_eq := eq_refl;
-    |}. }
-  { apply {|
-      gcd_cmra := heapR;
-      gcd_n := 1;
-      gcd_deps := [#crashed_atR];
-      gcd_deps_ids := [#1%fin];
-      gcd_gid := (3%fin : gid nvmBaseΣ);
-      gcd_cmra_eq := eq_refl;
-    |}. }
-Defined.
-Next Obligation. solve_omega_wf. Qed.
-Next Obligation. solve_gid_uniq. Qed.
-
-(* Instance subG_nvmBaseΣ : nvmBaseGpreS nvmBaseΣ nvmBaseΩ. *)
-(* Proof. *)
-(*   intros. *)
-(*   econstructor. *)
-(*   - econstructor. *)
-(*     eapply (GenDepsInG _ _ _ _ _ _ (GenInG 0 nvmBaseΣ nvmBaseΩ store_viewR [#] 0%fin eq_refl _ _)). *)
-(*     intros. destruct_fin i. *)
-
 (* has been upstreamed to [iris-nextgen]. *)
 Lemma fmap_auth_auth {A : ucmra} dq (a : A) t :
   fmap_auth t (●{dq} a) ≡ ●{dq} (t a) ⋅ ◯ (t ε).
@@ -329,12 +239,12 @@ Section crashed_at.
   Qed.
 
   Definition crashed_at (CV : view) : iProp Σ :=
-    ∃ (OV OCV PV : view),
+    ∃ (OV OCV OPV : view),
       (* "%view_add" ∷ ⌜ OV `view_add` CV = OCV ⌝ ∗ *)
       "%view_eq" ∷ ⌜ OCV `view_sub` OV = CV ⌝ ∗
       "agree" ∷ crashed_at_both OV OCV ∗
       (* ∗ "rely" ∷ rely γ [] (crashed_at_pred LV) (crashed_at_pred LV). *)
-      "rely" ∷ rely_self crashed_at_name (crashed_at_pred PV).
+      "rely" ∷ rely_self crashed_at_name (crashed_at_pred OPV).
 
   Lemma crashed_at_agree CV CV' :
     crashed_at CV -∗ crashed_at CV' -∗ ⌜CV = CV'⌝.
@@ -348,7 +258,7 @@ Section crashed_at.
     destruct eq as [-> ->].
     done.
   Qed.
-  
+
   (** Ownership over the crashed at token with a promise that after the next
    * crash the [OCV] will be at least [OPV]. *)
   Definition crashed_at_tok OPV : iProp Σ :=
@@ -395,7 +305,7 @@ Section crashed_at.
     (* iExists _, _, _. *)
     unfold crashed_at.
     rewrite eq. simpl.
-    iExists _, _, _, PV.
+    iExists _, _, _, OPV.
     iFrame.
     iPureIntro. reflexivity.
   Qed.
@@ -905,6 +815,14 @@ Section heap.
     done.
   Qed.
 
+  Lemma fmapsto_valid_2 ℓ dq1 dq2 h1 h2 :
+    fmapsto ℓ dq1 h1 -∗ fmapsto ℓ dq2 h2 -∗ ⌜✓ (dq1 ⋅ dq2) ∧ h1 = h2 ⌝.
+  Proof.
+    iIntros "H1 H2".
+    iDestruct (gen_own_valid_2 with "H1 H2") as %[? ?]%gmap_view_frag_op_valid_L.
+    done.
+  Qed.
+
   Lemma map_entry_lift_gmap_view_auth dq
       (heap : gmap loc (leibnizO history)) map_entry :
     (map_entry_lift_gmap_view map_entry (gmap_view_auth dq heap)) =
@@ -1256,10 +1174,6 @@ Section alloc.
     intros.
     iMod (store_view_alloc (max_view σ.1)) as (?) "?".
     iMod (crashed_at_alloc ∅) as (CrashedAtGS0 crash_inG_eq) "[#? ?]".
-    Check persisted_auth_alloc.
-    iDestruct (persisted_auth_alloc (crashed_atGS0 := CrashedAtGS0) (persistedGpreS0 := nvmBaseGpreS_persistedGpreS) with "[$]") as "[? >[% ?]]".
-    Check persisted_auth_alloc.
-
     pose proof (@persisted_auth_alloc _ _ CrashedAtGS0) as Hpersist.
     rewrite @crash_inG_eq in Hpersist.
     iDestruct (Hpersist with "[$]") as "[? >[% ?]]".

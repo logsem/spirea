@@ -17,12 +17,9 @@ From self.high.resources Require Import gen_ghost_map.
 (* the following sections is mostly adapted from the [ghost_map_map.v] file. *)
 (* major simplification: I'm removing the second ghost resource about fractions,
  * since I believe it's obsolete after nextgen update. *)
-Notation inner_frac_inG Σ Ω := (genInDepsG Σ Ω (dfracR) [#]).
-
-Class ghost_map_mapG (K1 K2 V: Type) Σ Ω `{Countable K1, Countable K2} `{!nvmBaseGS Σ Ω} :=
-  {
-    ghost_map_outer_inG :> genC_ghost_map_inG K1 gname Σ Ω;
-    ghost_map_inner_inG :> genC_ghost_map_inG K2 V Σ Ω;
+Class ghost_map_mapGpreS (K1 K2 V: Type) Σ Ω `{Countable K1, Countable K2}  `{!crashed_atGpreS Σ Ω} := {
+    ghost_map_outer_GpreS :: ghost_mapGpreS K1 gname Σ Ω;
+    ghost_map_inner_GpreS :: ghost_mapGpreS K2 V Σ Ω;
   }.
 
 Definition dfrac_div_2 (dq : dfrac) :=
@@ -36,12 +33,13 @@ Section definitions.
   Notation K1 := loc.
   Notation K2 := nat.
 
-  Context `{!nvmBaseGS Σ Ω, !genC_ghost_map_inG loc (V → option V) Σ Ω, !ghost_map_mapG K1 K2 V Σ Ω}.
+  Context `{!nvmBaseGS Σ Ω, !ghost_map_mapGpreS K1 K2 V Σ Ω}.
   Implicit Types (m : gmap K1 (gmap K2 V)).
   Implicit Types (mi : gmap K2 V).
   Implicit Types (dq: dfrac) (γ: gname) (bumper: V → option V).
 
-  (* TODO: make these part of a typeclass *)
+  (* TODO: make these two assumption into a typeclass *)
+  Context `{!ghost_mapGpreS loc (V → option V) Σ Ω}. (* ghost map for bumpers *)
   Variable (γbumper: gname).
   (* reminder to myself:
    * [k1] is location, [k2] is timestamp,
@@ -71,12 +69,13 @@ Section lemmas.
   Notation K1 := loc.
   Notation K2 := nat.
   Notation V := positive.
-  Context `{!nvmBaseGS Σ Ω, !genC_ghost_map_inG loc (V → option V) Σ Ω, !ghost_map_mapG K1 K2 V Σ Ω}.
+  Context `{!nvmBaseGS Σ Ω, !ghost_map_mapGpreS K1 K2 V Σ Ω}.
   Implicit Types (m : gmap K1 (gmap K2 V)).
   Implicit Types (mi : gmap K2 V).
   Implicit Types (dq: dfrac) (γ: gname) (bumper: V → option V).
 
-  (* TODO: make these part of a typeclass *)
+  (* TODO: make these two assumption into a typeclass *)
+  Context `{!ghost_mapGpreS loc (V → option V) Σ Ω}. (* ghost map for bumpers *)
   Variable (γbumper: gname).
 
   Global Instance full_entry_fractional γ ℓ enc_abs_hist :
@@ -169,10 +168,10 @@ Section lemmas.
   Proof.
   Admitted.
 
-  Lemma full_map_alloc LV OCV m :
+  Lemma full_map_alloc OPV OCV m :
     ([∗set] k1 ∈ dom m, ∃ bumper, k1 ↪[γbumper, loc_map_rel]□ bumper) -∗
     crashed_at_offset OCV -∗
-    rely_self crashed_at_name (crashed_at_pred LV) ==∗
+    rely_self crashed_at_name (crashed_at_pred OPV) ==∗
     ∃ γ, full_map γbumper γ (DfracOwn 1) m ∗
          ([∗ map] k1 ↦ mi ∈ m, full_entry γbumper γ k1 (DfracOwn 1) mi) ∗
          [∗ map] k1 ↦ mi ∈ m, [∗ map] k2 ↦ v ∈ mi, frag_entry γbumper γ k1 k2 v.
@@ -180,7 +179,7 @@ Section lemmas.
     rewrite /full_map /full_entry.
     iIntros "#bumpers #crashed_at_offset #rely_self".
     iMod (full_entry_alloc_big m with "bumpers") as (gnames) "(M1 & M2 & F)".
-    iMod (ghost_map_alloc_persistent LV loc_map_rel OCV gnames with "[#$] [#$]") as (γ) "[H1 #ptsMap]".
+    iMod (ghost_map_alloc_persistent OPV loc_map_rel gnames with "[#$]") as (γ) "[H1 #ptsMap]".
     iExists γ.
     rewrite bi.sep_exist_r.
     iExists (gnames).
@@ -261,22 +260,21 @@ Section lemmas.
   Qed.
 
   (* Insert a new entry at the top level *)
-  Lemma full_map_insert LV OCV γ m k1 bumper mi :
+  Lemma full_map_insert OPV γ m k1 bumper mi :
     m !! k1 = None →
-    crashed_at_offset OCV -∗
-    rely_self crashed_at_name (crashed_at_pred LV) -∗
+    rely_self crashed_at_name (crashed_at_pred OPV) -∗
     k1 ↪[γbumper, loc_map_rel]□ bumper -∗
     full_map γbumper γ (DfracOwn 1) m ==∗
       full_map γbumper γ (DfracOwn 1) (<[k1 := mi]> m) ∗
       full_entry γbumper γ k1 (DfracOwn 1) mi ∗
       [∗ map] k2 ↦ v ∈ mi, frag_entry γbumper γ k1 k2 v.
   Proof.
-    iIntros (?) "#crashed_at_offset #rely_self #bumper".
+    iIntros (?) "#rely_self #bumper".
     rewrite /full_map /full_entry.
     iDestruct 1 as (gnames) "[auth map]".
     iDestruct (big_sepM2_dom with "map") as %domEq.
     (* Allocate the ghost state for the entry. *)
-    iMod (ghost_map_alloc_persistent LV (hist_map_rel k1 bumper) OCV mi with "[#$] [#$]") as (γm) "[authI pts2]".
+    iMod (ghost_map_alloc_persistent OPV (hist_map_rel k1 bumper) mi with "[#$]") as (γm) "[authI pts2]".
     iEval (rewrite -Qp.half_half -dfrac_op_own ghost_map_auth_fractional) in "authI".
     replace (DfracOwn (1 / 2)) with (dfrac_div_2 (DfracOwn 1)); last done.
     iDestruct "authI" as "[authI authI']".

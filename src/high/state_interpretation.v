@@ -94,9 +94,11 @@ Section state_interpretation.
       that at a crash we know that the value recovered after a crash has a
       corresponding abstract value.
        * TODO: attempt to simplify this part by using [↦fh]. *)
-      "ptsMap" ∷ ([∗ map] ℓ ↦ hist ∈ (map_zip_with drop_prefix phys_hists offsets), ℓ ↦h hist) ∗
+      "ptsMap" ∷ ([∗ map] ℓ ↦ hist ∈ phys_hists, ℓ ↦fh hist) ∗
       "offsets" ∷ crashed_at_offset (MaxNat <$> offsets) ∗
-      (* "%offsetDom" ∷ ⌜ dom (gset _) offsets = dom phys_hists ⌝ ∗ *)
+      (* Yixuan: I revived this assertion because we no longer have [oldViewsDiscarded],
+       * which was used to infer the domains of two maps. *)
+      "%offsetsDom" ∷ ⌜ dom phys_hists = dom offsets ⌝ ∗
 
       "physHist" ∷ auth_map_map_auth phy_history_name phys_hists ∗
 

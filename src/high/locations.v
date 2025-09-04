@@ -36,7 +36,7 @@ Section points_to_at.
   (* Points-to predicate for non-atomics. This predcate says that we know that
      the last events at [ℓ] corresponds to the *)
   (* FIXME: Can [mapsto_na] use [lb_base]? *)
-  Program Definition mapsto_na (ℓ : loc) prot (q : frac) (ss : list ST) : dProp Σ :=
+  Definition mapsto_na (ℓ : loc) prot (q : frac) (ss : list ST) : dProp Σ :=
     (∃ (tLo tHi offset : time) SV (abs_hist : gmap time ST) (msg : message) s,
       "%lastEq" ∷ ⌜ last ss = Some s ⌝ ∗
       "#locationProtocol" ∷ know_protocol ℓ prot ∗
@@ -120,31 +120,36 @@ Section points_to_at.
     iModel. simpl. iPureIntro. apply view_empty_least.
   Qed.
 
-  Definition mapsto_at ℓ prot ss : dProp Σ :=
+  Definition mapsto_at_withP ℓ prot ss (P: dProp Σ) : dProp Σ :=
     (∃ (abs_hist : gmap time ST) (phys_hist : gmap time message) tLo tS offset s ms,
-      "%lastEq" ∷ ⌜ last ss = Some s ⌝ ∗ (* NOTE: Could we change this to non-empty? *)
-      "%slice" ∷ ⌜ map_sequence abs_hist tLo tS ss ⌝ ∗
-      "%slicePhys" ∷ ⌜ map_sequence phys_hist tLo tS ms ⌝ ∗
-      "%nolater" ∷ ⌜ map_no_later abs_hist tS ⌝ ∗
-      "%absPhysHistDomEq" ∷ ⌜ dom abs_hist = dom phys_hist ⌝ ∗
-      "#isAtLoc" ∷ ⎡ is_at_loc ℓ ⎤ ∗
-      "#locationProtocol" ∷ know_protocol ℓ prot ∗
-      "%incrMap" ∷ ⌜ increasing_map (⊑@{ST}) abs_hist ⌝ ∗
-      "#absHist" ∷
-        ([∗ map] t ↦ s ∈ abs_hist, ⎡ know_frag_history_loc ℓ t s ⎤) ∗
-      "#physHist" ∷
-        ([∗ map] t ↦ msg ∈ phys_hist,
-          (* When we load a message for this location only the views in that
-          message are physically added to our thread. If we want to access the
-          invariants for all the prior messages then we need to remember that
-          that these views have been added. We may however be able to lift this
-          requirement to make [mapsto_at] flush free due to how predicates are
-          used in [wp_load_at] (only objective things can be extracted). *)
-          have_msg_after_fence msg ∗
-          ⎡ know_phys_hist_msg ℓ t msg ⎤) ∗
-      "#offset" ∷ ⎡ offset_loc ℓ offset ⎤ ∗
-      "#tSLe" ∷ have_SV ℓ (tS - offset)).
+        "%lastEq" ∷ ⌜ last ss = Some s ⌝ ∗ (* NOTE: Could we change this to non-empty? *)
+        "%slice" ∷ ⌜ map_sequence abs_hist tLo tS ss ⌝ ∗
+        "%slicePhys" ∷ ⌜ map_sequence phys_hist tLo tS ms ⌝ ∗
+        "%nolater" ∷ ⌜ map_no_later abs_hist tS ⌝ ∗
+        "%absPhysHistDomEq" ∷ ⌜ dom abs_hist = dom phys_hist ⌝ ∗
+        "#isAtLoc" ∷ ⎡ is_at_loc ℓ ⎤ ∗
+        "#locationProtocol" ∷ know_protocol ℓ prot ∗
+        "%incrMap" ∷ ⌜ increasing_map (⊑@{ST}) abs_hist ⌝ ∗
+        "#absHist" ∷
+          ([∗ map] t ↦ s ∈ abs_hist, ⎡ know_frag_history_loc ℓ t s ⎤) ∗
+        "#physHist" ∷
+          ([∗ map] t ↦ msg ∈ phys_hist,
+             (* When we load a message for this location only the views in that
+              * message are physically added to our thread. If we want to access the
+              * invariants for all the prior messages then we need to remember that
+              * that these views have been added. We may however be able to lift this
+              * requirement to make [mapsto_at] flush free due to how predicates are
+              * used in [wp_load_at] (only objective things can be extracted). *)
+             have_msg_after_fence msg ∗
+             ⎡ know_phys_hist_msg ℓ t msg ⎤) ∗
+        "#offset" ∷ ⎡ offset_loc ℓ offset ⎤ ∗
+        "#tSLe" ∷ have_SV ℓ (tS - offset) ∗
+        "P" ∷ ⎡ match (last ms) with
+          | Some msg => P (msg.(msg_store_view), msg.(msg_persisted_after_view), ∅)
+          | None => True%I (* impossible since [ss] is non-empty. *)
+          end ⎤).
 
+  Definition mapsto_at ℓ prot ss : dProp Σ := mapsto_at_withP ℓ prot ss True%I.
 End points_to_at.
 
 (** Notation for the exclusive points-to predicate. *)
@@ -175,7 +180,7 @@ Section mapsto_at_lemmas.
 
   Global Instance mapsto_at_buffer_free ℓ prot (ss : list ST) :
     BufferFree (mapsto_at ℓ prot ss).
-  Proof. apply _. Qed.
+  Proof. rewrite /mapsto_at. rewrite /mapsto_at_withP. apply _. Qed.
 
   Global Instance mapsto_at_flush_free ℓ prot (ss : list ST) :
     FlushFree (mapsto_at ℓ prot ss).
@@ -186,7 +191,7 @@ Section mapsto_at_lemmas.
                    let '(full, read, pers) := invs in
                    (ℓ ↦_AT^{MkProt full read pers bumper} ss)).
   Proof.
-    rewrite /mapsto_at.
+    rewrite /mapsto_at /mapsto_at_withP.
     intros ????.
     destruct x as [[full read] pers].
     destruct y as [[full' read'] pers'].
@@ -227,9 +232,9 @@ Section mapsto_at_lemmas.
       "persisted" ∷ ⎡ persisted_loc ℓ (tP - offset) ⎤.
 
   Definition crashed_in prot ℓ s : dProp Σ :=
-    ∃ CV,
+    ∃ OCV,
       "#persistLb" ∷ persist_lb ℓ prot (prot.(p_bumper) s) ∗
-      "#crashed" ∷ ⎡ crashed_at CV ⎤ ∗
+      "#crashed" ∷ ⎡ picked_in crashed_at_name (crashed_at_trans OCV) ⎤ ∗
       "#crashedIn" ∷ ⎡ crashed_in ℓ s ⎤ ∗
       "%inCV" ∷ ⌜ ℓ ∈ dom CV ⌝.
 
@@ -386,30 +391,6 @@ Section mapsto_at_lemmas.
     mapsto_na ℓ prot q ss -∗ ⌜ increasing_list (⊑) ss ⌝.
   Proof.
     iNamed 1. iPureIntro. eapply increasing_map_to_increasing_list; done.
-  Qed.
-
-  (* Forgets all states except the last one for a [mapsto_at]. We could keep any
-  subsequence of the initial list, but this less general lemma suffices. *)
-  Lemma mapsto_na_drop ℓ prot ss s :
-    mapsto_at ℓ prot (ss ++ [s]) -∗ mapsto_at ℓ prot [s].
-  Proof.
-    iNamed 1.
-    apply map_sequence_lookup_hi_alt in slicePhys as (msg & ? & ?).
-    iExists {[ tS := s ]}, {[ tS := msg ]}. iExistsN.
-    iSplitPure; first done.
-    iSplitPure; first apply map_sequence_singleton.
-    iSplitPure; first apply map_sequence_singleton.
-    iSplitPure; first apply map_no_later_singleton.
-    iSplitPure; first set_solver.
-    iFrame "#".
-    iSplitPure; first apply increasing_map_singleton.
-    rewrite 2!big_sepM_singleton.
-    iDestruct (big_sepM_lookup with "absHist") as "$".
-    { apply map_sequence_lookup_hi in slice.
-      rewrite slice.
-      apply last_snoc. }
-    iApply (big_sepM_lookup with "physHist").
-    done.
   Qed.
 
   Lemma mapsto_na_persist_lb ℓ prot q ss s1 s2 s3 :
@@ -951,6 +932,33 @@ Section mapsto_at_lemmas.
   (*   (*   2: { apply last_snoc. } *) *)
   (*   (*   (1* destruct sC; try done. *1) *) *)
   (* Abort. *)
+
+
+  (* Forgets all states except the last one for a [mapsto_at]. We could keep any
+  subsequence of the initial list, but this less general lemma suffices. *)
+  Lemma mapsto_at_drop ℓ prot ss s :
+    mapsto_at ℓ prot (ss ++ [s]) -∗ mapsto_at ℓ prot [s].
+  Proof.
+    iNamed 1.
+    apply map_sequence_lookup_hi_alt in slicePhys as (msg & ? & Hlast_ms).
+    iExists {[ tS := s ]}, {[ tS := msg ]}. iExistsN.
+    iSplitPure; first done.
+    iSplitPure; first apply map_sequence_singleton.
+    iSplitPure; first apply map_sequence_singleton.
+    iSplitPure; first apply map_no_later_singleton.
+    iSplitPure; first set_solver.
+    iFrame "#".
+    iSplitPure; first apply increasing_map_singleton.
+    rewrite 2!big_sepM_singleton.
+    iDestruct (big_sepM_lookup with "absHist") as "$".
+    { apply map_sequence_lookup_hi in slice.
+      rewrite slice.
+      apply last_snoc. }
+    iSplit; first by iApply (big_sepM_lookup with "physHist").
+    rewrite Hlast_ms.
+    simpl.
+    done.
+  Qed.
 
 End mapsto_at_lemmas.
 

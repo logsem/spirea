@@ -23,11 +23,8 @@ Section abs_history_lemmas.
   Notation K1 := loc.
   Notation K2 := nat.
   Notation V := positive.
-  Context `{!nvmBaseGS Σ Ω, !genC_ghost_map_inG loc (V → option V) Σ Ω, !ghost_map_mapG K1 K2 V Σ Ω}.
+  Context `{!nvmBaseGS Σ Ω, !ghost_mapGpreS loc (V → option V) Σ Ω, !ghost_map_mapGpreS K1 K2 V Σ Ω}.
   Context `{Countable ST}.
-
-  Local Existing Instance ghost_map_outer_inG.
-  Local Existing Instance ghost_map_inner_inG.
 
   Variable (γbumper: gname).
 

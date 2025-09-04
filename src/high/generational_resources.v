@@ -31,20 +31,20 @@ Class nvmHighGS Σ Ω `{!nvmBaseGS Σ Ω} := NvmHighG {
   full_predicates_name : gname;
   read_predicates_name : gname;
   pers_predicates_name : gname;
-  abs_historiesG :> ghost_map_mapG loc time positive Σ Ω;
+  abs_historiesG :> ghost_map_mapGpreS loc time positive Σ Ω;
   abs_history_name : gname;
   (* resharing [phy_history] for atomic locations *)
   phy_historiesG :> auth_map_mapR_inG Σ Ω (leibnizO message);
   phy_history_name : gname;
-  non_atomic_views :> genC_ghost_map_inG loc view Σ Ω;
+  non_atomic_views :> ghost_mapGpreS loc view Σ Ω;
   non_atomic_views_gname : gname;
-  crashed_in_inG :> genC_ghost_map_inG loc positive Σ Ω;
+  crashed_in_inG :> ghost_mapGpreS loc positive Σ Ω;
   crashed_in_name : gname;
-  preordersG :> genC_ghost_map_inG loc (relation2 positive) Σ Ω;
+  preordersG :> ghost_mapGpreS loc (relation2 positive) Σ Ω;
   preorders_name : gname;
   locsG :> gen_alocsR_inG Σ Ω;
   exclusive_locs_name : gname;
   shared_locs_name : gname;
-  nvm_bumpersG :> genC_ghost_map_inG loc (positive → option positive) Σ Ω;
+  nvm_bumpersG :> ghost_mapGpreS loc (positive → option positive) Σ Ω;
   bumpers_name : gname;
 }.
