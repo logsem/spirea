@@ -13,9 +13,9 @@ From iris_named_props Require Import named_props.
 From self Require Import extra ipm_tactics solve_view_le.
 From self.base Require Import primitive_laws.
 From self.lang Require Import lang.
-From self.high Require Import increasing_map monpred_simpl.
+From self.high Require Import monpred_simpl.
 From self.high Require Import dprop generational_resources wrappers protocol.
-From self.high.lib Require Import abstract_state.
+From self.high.lib Require Import abstract_state increasing_map.
 From self.high Require Export modalities.
 From self.high.resources Require Export bumpers preorders auth_map_map abstract_history.
 From self.high.modalities Require Export no_buffer no_flush if_rec or_lost nextgen nextgen_flush.
@@ -95,7 +95,30 @@ Section points_to_at.
     AsFractional (mapsto_na ℓ prot q v) (λ q, mapsto_na ℓ prot q v)%I q.
   Proof. split; [done | apply _]. Qed.
 
-  Program Definition have_msg_after_fence msg : dProp Σ :=
+  (* This is a revived [have_msg_after_fence] before the commit 96f65f5.
+   * We (maybe?) need this stronger version in order to extract resource
+   * from [p_read] into thread local view. *)
+  
+  Program Definition have_msg_post_fence msg : dProp Σ :=
+    MonPred (λ TV,
+      ⌜ msg.(msg_store_view) ⊑ (store_view TV) ⌝
+      ∗
+      ⌜ msg.(msg_persisted_after_view) ⊑ (flush_view TV ⊔ buffer_view TV) ⌝
+    )%I _.
+  Next Obligation. solve_proper. Qed.
+
+  Global Instance have_msg_post_fence_persistent msg :
+    Persistent (have_msg_post_fence msg).
+  Proof. apply monPred_persistent=> j. apply _. Qed.
+
+  Lemma have_msg_post_fence_empty v PV : ⊢ have_msg_post_fence (Msg v ∅ PV ∅).
+  Proof.
+    iModel. simpl. iPureIntro. split; apply view_empty_least.
+  Qed.
+
+  (* and for the original assertion, I'm changing its name to be more explicit. *)
+  
+  Program Definition have_msg_store_view msg : dProp Σ :=
     MonPred (λ TV,
       ⌜ msg.(msg_store_view) ⊑ (store_view TV) ⌝
       (* ∗ *)
@@ -103,24 +126,24 @@ Section points_to_at.
     )%I _.
   Next Obligation. solve_proper. Qed.
 
-  Global Instance have_msg_after_fence_persistent msg :
-    Persistent (have_msg_after_fence msg).
+  Global Instance have_msg_store_view_persistent msg :
+    Persistent (have_msg_store_view msg).
   Proof. apply monPred_persistent=> j. apply _. Qed.
 
-  Global Instance have_msg_after_fence_buffer_free msg :
-    BufferFree (have_msg_after_fence msg).
+  Global Instance have_msg_store_view_buffer_free msg :
+    BufferFree (have_msg_store_view msg).
   Proof. rewrite /IntoNoBuffer. iModel. done. Qed.
 
-  Global Instance have_msg_after_fence_flush_free msg :
-    FlushFree (have_msg_after_fence msg).
+  Global Instance have_msg_store_view_flush_free msg :
+    FlushFree (have_msg_store_view msg).
   Proof. rewrite /IntoNoFlush. iModel. done. Qed.
 
-  Lemma have_msg_after_fence_empty v PV : ⊢ have_msg_after_fence (Msg v ∅ PV ∅).
+  Lemma have_msg_store_view_empty v PV : ⊢ have_msg_store_view (Msg v ∅ PV ∅).
   Proof.
     iModel. simpl. iPureIntro. apply view_empty_least.
   Qed.
 
-  Definition mapsto_at_withP ℓ prot ss (P: dProp Σ) : dProp Σ :=
+  Definition mapsto_at ℓ prot ss : dProp Σ :=
     (∃ (abs_hist : gmap time ST) (phys_hist : gmap time message) tLo tS offset s ms,
         "%lastEq" ∷ ⌜ last ss = Some s ⌝ ∗ (* NOTE: Could we change this to non-empty? *)
         "%slice" ∷ ⌜ map_sequence abs_hist tLo tS ss ⌝ ∗
@@ -140,16 +163,10 @@ Section points_to_at.
               * that these views have been added. We may however be able to lift this
               * requirement to make [mapsto_at] flush free due to how predicates are
               * used in [wp_load_at] (only objective things can be extracted). *)
-             have_msg_after_fence msg ∗
+             have_msg_store_view msg ∗
              ⎡ know_phys_hist_msg ℓ t msg ⎤) ∗
         "#offset" ∷ ⎡ offset_loc ℓ offset ⎤ ∗
-        "#tSLe" ∷ have_SV ℓ (tS - offset) ∗
-        "P" ∷ ⎡ match (last ms) with
-          | Some msg => P (msg.(msg_store_view), msg.(msg_persisted_after_view), ∅)
-          | None => True%I (* impossible since [ss] is non-empty. *)
-          end ⎤).
-
-  Definition mapsto_at ℓ prot ss : dProp Σ := mapsto_at_withP ℓ prot ss True%I.
+        "#tSLe" ∷ have_SV ℓ (tS - offset)).
 End points_to_at.
 
 (** Notation for the exclusive points-to predicate. *)
@@ -180,7 +197,7 @@ Section mapsto_at_lemmas.
 
   Global Instance mapsto_at_buffer_free ℓ prot (ss : list ST) :
     BufferFree (mapsto_at ℓ prot ss).
-  Proof. rewrite /mapsto_at. rewrite /mapsto_at_withP. apply _. Qed.
+  Proof. rewrite /mapsto_at. apply _. Qed.
 
   Global Instance mapsto_at_flush_free ℓ prot (ss : list ST) :
     FlushFree (mapsto_at ℓ prot ss).
@@ -191,7 +208,7 @@ Section mapsto_at_lemmas.
                    let '(full, read, pers) := invs in
                    (ℓ ↦_AT^{MkProt full read pers bumper} ss)).
   Proof.
-    rewrite /mapsto_at /mapsto_at_withP.
+    rewrite /mapsto_at.
     intros ????.
     destruct x as [[full read] pers].
     destruct y as [[full' read'] pers'].
@@ -207,6 +224,12 @@ Section mapsto_at_lemmas.
     "#knowFragHist" ∷ ⎡ know_frag_history_loc ℓ tS s ⎤ ∗
     "#offset" ∷ ⎡ offset_loc ℓ offset ⎤ ∗
     "#tSLe" ∷ have_SV ℓ (tS - offset).
+
+  Definition seen_store_state ℓ prot (s : ST) : dProp Σ :=
+    ∃ (tS : nat) (offset : nat) (msg: message),
+      "#lbBase" ∷ lb_base ℓ prot offset tS s ∗
+      "#knowPhysMsg" ∷ ⎡ know_phys_hist_msg ℓ tS msg ⎤ ∗
+      "#haveMsg" ∷ have_msg_post_fence msg.
 
   Definition store_lb ℓ prot (s : ST) : dProp Σ :=
     ∃ (tS : nat) (offset : nat),
@@ -234,9 +257,9 @@ Section mapsto_at_lemmas.
   Definition crashed_in prot ℓ s : dProp Σ :=
     ∃ OCV,
       "#persistLb" ∷ persist_lb ℓ prot (prot.(p_bumper) s) ∗
-      "#crashed" ∷ ⎡ picked_in crashed_at_name (crashed_at_trans OCV) ⎤ ∗
+      "#crashed_at_offset" ∷ ⎡ crashed_at_offset OCV ⎤ ∗
       "#crashedIn" ∷ ⎡ crashed_in ℓ s ⎤ ∗
-      "%inCV" ∷ ⌜ ℓ ∈ dom CV ⌝.
+      "%inCV" ∷ ⌜ ℓ ∈ dom OCV ⌝.
 
   Global Instance crashed_in_persistent prot ℓ s :
     Persistent (crashed_in prot ℓ s).
@@ -321,13 +344,13 @@ Section mapsto_at_lemmas.
     done.
   Qed.
 
-  Lemma crashed_in_or_lost `{AbstractState ST} prot ℓ P (s : ST) :
-    crashed_in prot ℓ s -∗ or_lost ℓ P -∗ P.
-  Proof.
-    iNamed 1. iIntros "P".
-    iApply (or_lost_get with "crashed P").
-    apply elem_of_dom. done.
-  Qed.
+  (* Lemma crashed_in_or_lost `{AbstractState ST} prot ℓ P (s : ST) : *)
+  (*   crashed_in prot ℓ s -∗ or_lost ℓ P -∗ P. *)
+  (* Proof. *)
+  (*   iNamed 1. iIntros "P". *)
+  (*   iApply (or_lost_get with "crashed_at P"). *)
+  (*   apply elem_of_dom. done. *)
+  (* Qed. *)
 
   Lemma crashed_in_if_rec `{AbstractState ST} prot ℓ P (s : ST) :
     crashed_in prot ℓ s -∗ if_rec ℓ P -∗ P.
@@ -954,12 +977,9 @@ Section mapsto_at_lemmas.
     { apply map_sequence_lookup_hi in slice.
       rewrite slice.
       apply last_snoc. }
-    iSplit; first by iApply (big_sepM_lookup with "physHist").
-    rewrite Hlast_ms.
-    simpl.
+    iApply (big_sepM_lookup with "physHist").
     done.
   Qed.
-
 End mapsto_at_lemmas.
 
 Opaque mapsto_na.

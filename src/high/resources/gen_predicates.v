@@ -38,11 +38,13 @@ Section ownership.
 
   Definition own_all_preds_ra γ dq PRs: iProp Σ :=
     "own_auth" ∷ gen_own γ (●{dq} PRs) ∗
-    "#rely" ∷ rely γ [#crashed_at_name] predicates_rel True_pred.
+    "#rely" ∷ rely γ [#crashed_at_name] predicates_rel True_pred ∗
+    "#crashed_at_offset" ∷ ∃ OCV, crashed_at_offset OCV.
 
   Definition know_pred_ra γ ℓ PR: iProp Σ :=
     "own_frag" ∷ gen_own γ (◯ {[ ℓ := PR ]}) ∗
-    "#rely" ∷ rely γ [#crashed_at_name] predicates_rel True_pred.
+    "#rely" ∷ rely γ [#crashed_at_name] predicates_rel True_pred ∗
+    "#crashed_at_offset" ∷ ∃ OCV, crashed_at_offset OCV.
 
   Lemma map_imap_drop_OCV_restrict OCV m:
     map_imap (drop_OCV OCV) m = restrict (dom OCV) m.
@@ -75,6 +77,10 @@ Section ownership.
     iDestruct "own_auth" as "[own_auth _]".
     rewrite map_imap_drop_OCV_restrict.
     iFrame "∗#".
+    iDestruct "crashed_at_offset" as (OCV ??) "[pickedC' #crashed_at_offset]".
+    iPickedInAgree "pickedC pickedC'".
+    iEval (simpl) in "crashed_at_offset".
+    iExists _, _. done.
   Qed.
 
   Global Instance ghost_map_elem_into_nextgen γ k PR:
@@ -89,9 +95,10 @@ Section ownership.
     iDestruct "rely" as "(rely & (%t' & %tC & (%R & _) & picked' & pickedC))".
     iPickedInAgree "picked picked'".
     destruct R as (OCV' & -> & ->).
-    iIntros (?) "%look #picked_ifrec".
-    iDestruct (gen_picked_in_agree with "pickedC picked_ifrec") as %?.
-    simplify_eq.
+    iIntros (?) "%look [%OV crashed_at_both'] #persisted_loc".
+    iDestruct "crashed_at_offset" as (OCV'' ??) "[pickedC' #crashed_at_both]".
+    iPickedInAgree "pickedC pickedC'".
+    iDestruct (crashed_at_both_agree with "crashed_at_both crashed_at_both'") as %[-> ->].
     rewrite -elem_of_dom in look.
 
     rewrite fmap_auth_frag.
@@ -101,6 +108,7 @@ Section ownership.
       first rewrite map_imap_empty insert_empty //;
         last rewrite /drop_OCV decide_True //.
     iFrame "∗#".
+    iExists _, _. done.
   Qed.
 End ownership.
 

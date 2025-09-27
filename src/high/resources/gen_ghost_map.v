@@ -35,11 +35,13 @@ Section ghost_map.
   Context `{!nvmBaseGS Σ Ω, !ghost_mapGpreS Σ Ω}.
   Definition ghost_map_auth γ R dq m: iProp Σ :=
     "own_auth" ∷ gen_own (i := genInDepsG_gen ghost_mapGpreS_ghost_map) γ (gmap_view_auth (V := leibnizO V) dq m) ∗
-    "#rely" ∷ rely (g := ghost_mapGpreS_ghost_map) γ [#crashed_at_name] R True_pred.
+    "#rely" ∷ rely (g := ghost_mapGpreS_ghost_map) γ [#crashed_at_name] R True_pred ∗
+    "#crashed" ∷ ∃ OCV, crashed_at_offset OCV.
 
   Definition ghost_map_elem γ R k dq v: iProp Σ :=
     "own_elem" ∷ gen_own γ (gmap_view_frag (V:= leibnizO V) k dq v) ∗
-    "#rely" ∷ rely γ [#crashed_at_name] R True_pred.
+    "#rely" ∷ rely γ [#crashed_at_name] R True_pred ∗
+    "#crashed" ∷ ∃ OCV, crashed_at_offset OCV.
 End ghost_map.
 
 Arguments ghost_map_auth {_ _ _ _ _ _ _ _} _ _ _ _.
@@ -200,12 +202,14 @@ Section current_gen_ghost_map_lemmas.
   Qed.
   (* TODO: allocation lemmas *)
 
-  Lemma ghost_map_alloc OPV R m dq :
+  Lemma ghost_map_alloc OPV OCV R m dq :
     ✓ dq →
+    (* this precondition means that we can only allocate in the context of [wp]. *)
+    crashed_at_offset OCV -∗
     rely_self crashed_at_name (crashed_at_pred OPV) ==∗
     ∃ γ, ghost_map_auth γ R (DfracOwn 1) m ∗ [∗ map] k ↦ v ∈ m, k ↪[γ, R]{dq} v.
   Proof.
-    iIntros (?) "#rely_self".
+    iIntros (?) "#crashed_at_offset #rely_self".
     iMod (own_gen_alloc
                   (DS := [#crashed_atR])
                   (gmap_view_auth (V:=leibnizO V) (DfracOwn 1) ∅)
@@ -239,7 +243,7 @@ Section current_gen_ghost_map_lemmas.
     iModIntro.
     rewrite (right_id _ (∪)).
     iFrame "auth #".
-    (* iSplit; first by iExists _. *)
+    iSplit; first by iExists _.
     (* TODO: need [gen_own] and [big_op] commute lemma *)
     rewrite /ghost_map_elem.
     replace (gen_own γ ([^ op map] k ↦ v ∈ m, (gmap_view_frag (V:= leibnizO V) k dq v))) with
@@ -247,21 +251,21 @@ Section current_gen_ghost_map_lemmas.
     iApply (big_sepM_impl with "frag").
     iIntros "!>" (k v ?) "$".
     iFrame "#".
+    by iExists _.
   Admitted.
-
-  Lemma ghost_map_alloc_persistent OPV R m :
+  
+  Lemma ghost_map_alloc_persistent OPV OCV R m :
+    crashed_at_offset OCV -∗
     rely_self crashed_at_name (crashed_at_pred OPV) ==∗
     ∃ γ, ghost_map_auth γ R (DfracOwn 1) m ∗ [∗ map] k ↦ v ∈ m, k ↪[γ, R]□ v.
   Proof.
-    iIntros "#rely_self".
-    iMod (ghost_map_alloc OPV R m (DfracDiscarded) with "[#$]") as (γ) "[auth map]";
+    iIntros "#crashed_at_offset #rely_self".
+    iMod (ghost_map_alloc OPV OCV R m (DfracDiscarded) with "[#$] [#$]") as (γ) "[auth map]";
       first done.
     iExists γ.
     iFrame.
     done.
   Qed.
-
-  (* nextgen lemmas/instances *)
 
   (* TODO: merge this lemma with the other lemma with the same name in base spirea. *)
   Lemma map_entry_lift_gmap_view_auth dq m map_entry :
@@ -271,6 +275,15 @@ Section current_gen_ghost_map_lemmas.
     unfold map_entry_lift_gmap_view, fmap_view, fmap_pair. simpl.
     rewrite agree_map_to_agree. done.
   Qed.
+  
+  (* The following two lemmas make the two-level maps easier to work with. *)
+  Lemma ghost_map_auth_crashed_at_offset γ R dq m:
+    ghost_map_auth γ R dq m -∗ ∃ OCV, crashed_at_offset OCV.
+  Proof. iNamed 1. iFrame "#". Qed.
+
+  Lemma ghost_map_elem_crashed_at_offset γ R ℓ dq v:
+    ghost_map_elem γ R ℓ dq v -∗ ∃ OCV, crashed_at_offset OCV.
+  Proof. iNamed 1. iFrame "#". Qed.
 End current_gen_ghost_map_lemmas.
 
 (* nextgen lemmas for the location maps *)
@@ -323,9 +336,9 @@ Section loc_map_lemmas.
           ghost_map_auth γ loc_map_rel dq (restrict (dom OCV) m) ∗
           picked_in crashed_at_name (crashed_at_trans OCV)).
   Proof.
-    rewrite /IntoNextgen.
+   rewrite /IntoNextgen.
     iNamed 1.
-    (* iDestruct "agree" as (OCV) "crashed". *)
+    iDestruct "crashed" as (OCV) "crashed".
     iModIntro.
     iDestruct ("own_auth") as (t) "[#picked own_auth]".
     iDestruct "rely" as "(rely & (%t' & %tC & (%R & _) & picked' & pickedC))".
@@ -333,11 +346,13 @@ Section loc_map_lemmas.
     destruct R as (OCV' & -> & ->).
     iExists OCV'.
     rewrite map_entry_lift_gmap_view_auth.
-    (* iDestruct "crashed" as (??) "[pickedC' #crashed_at]". *)
-    (* iPickedInAgree "pickedC pickedC'". *)
-    (* iEval (simpl) in "crashed_at". *)
+    iDestruct "crashed" as (??) "[pickedC' #crashed_at]".
+    iPickedInAgree "pickedC pickedC'".
+    iEval (simpl) in "crashed_at".
     rewrite map_imap_drop_OCV_restrict.
     iFrame "∗#".
+    iExists _, _.
+    iApply "crashed_at".
   Qed.
 
   Global Instance ghost_map_elem_into_nextgen γ ℓ dq v:
@@ -347,28 +362,29 @@ Section loc_map_lemmas.
   Proof.
     rewrite /IntoNextgen.
     iNamed 1.
-    (* iDestruct "agree" as (OCV) "crashed". *)
+    iDestruct "crashed" as (OCV) "crashed".
     iModIntro.
     iDestruct "own_elem" as (t) "[#picked elem]".
     iDestruct "rely" as "(rely & (%t' & %tC & (%R & _) & picked' & pickedC))".
     iPickedInAgree "picked picked'".
-    destruct R as (OCV & -> & ->).
-    iIntros (?) "%look #picked_ifrec".
-    iDestruct (gen_picked_in_agree with "pickedC picked_ifrec") as %?.
-    simplify_eq.
-    rewrite -elem_of_dom in look.
-    (* iAssert ⌜ ℓ ∈ dom OCV' ⌝%I as "%". *)
-    (* { iDestruct "crashed_at" as (??? Hview) "[crashed_at _]". *)
-    (*   (* iDestruct "crashed" as (??) "[pickedC' #crashed_at']". *) *)
-    (*   (* iPickedInAgree "pickedC pickedC'". *) *)
-    (*   iDestruct (gen_own_valid_2 with "crashed_at' crashed_at") as %[_ <-%to_agree_op_valid_L]%pair_valid. *)
-    (*   iPureIntro. *)
-    (*   rewrite -(view_sub_dom_eq _ OV) Hview. *)
-    (*   rewrite elem_of_dom. *)
-    (*   by eexists. *)
-    (* } *)
+    destruct R as (OCV' & -> & ->).
+    iIntros (CV [[t] ?]) "#crashed_at_offset #persisted_loc".
+    iAssert ⌜ ℓ ∈ dom OCV' ⌝%I as "%".
+    { iDestruct "crashed_at_offset" as (OV) "crashed_at_both".
+      iDestruct "crashed" as (??) "[pickedC' #crashed_at_both']".
+      iPickedInAgree "pickedC pickedC'".
+      iDestruct (crashed_at_both_agree with "crashed_at_both crashed_at_both'") as %[-> ->].
+      iPureIntro.
+      rewrite elem_of_dom.
+      by eexists.
+    }
     rewrite elem_of_drop_OCV_gmap_view_frag; last done.
+    iDestruct "crashed" as (??) "[pickedC' #crashed_at']".
+    iPickedInAgree "pickedC pickedC'".
     iFrame "∗#".
+    iIntros.
+    iExists _, _.
+    iApply "crashed_at'".
   Qed.
 End loc_map_lemmas.
 

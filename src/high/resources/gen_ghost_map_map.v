@@ -179,7 +179,7 @@ Section lemmas.
     rewrite /full_map /full_entry.
     iIntros "#bumpers #crashed_at_offset #rely_self".
     iMod (full_entry_alloc_big m with "bumpers") as (gnames) "(M1 & M2 & F)".
-    iMod (ghost_map_alloc_persistent OPV loc_map_rel gnames with "[#$]") as (γ) "[H1 #ptsMap]".
+    iMod (ghost_map_alloc_persistent OPV OCV loc_map_rel gnames with "[#$] [#$]") as (γ) "[H1 #ptsMap]".
     iExists γ.
     rewrite bi.sep_exist_r.
     iExists (gnames).
@@ -273,8 +273,10 @@ Section lemmas.
     rewrite /full_map /full_entry.
     iDestruct 1 as (gnames) "[auth map]".
     iDestruct (big_sepM2_dom with "map") as %domEq.
+    (* extract [crashed_at_offset] from existing resource *)
+    iDestruct (ghost_map_auth_crashed_at_offset with "auth") as (OCV) "#crashed_at_offset".
     (* Allocate the ghost state for the entry. *)
-    iMod (ghost_map_alloc_persistent OPV (hist_map_rel k1 bumper) mi with "[#$]") as (γm) "[authI pts2]".
+    iMod (ghost_map_alloc_persistent OPV OCV (hist_map_rel k1 bumper) mi with "[#$] [#$]") as (γm) "[authI pts2]".
     iEval (rewrite -Qp.half_half -dfrac_op_own ghost_map_auth_fractional) in "authI".
     replace (DfracOwn (1 / 2)) with (dfrac_div_2 (DfracOwn 1)); last done.
     iDestruct "authI" as "[authI authI']".
@@ -343,7 +345,6 @@ Section lemmas.
     iDestruct (ghost_map_elem_agree with "topPts hi") as %->.
     naive_solver.
   Qed.
-
 End lemmas.
 
 Opaque full_map.

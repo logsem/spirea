@@ -5,7 +5,6 @@ From iris.base_logic Require Import iprop.
 From iris_named_props Require Import named_props.
 
 From self.base Require Import primitive_laws generational_resources.
-From self.nextgen Require Import hvec nextgen_promises.
 
 From self.algebra Require Import view.
 
@@ -19,14 +18,11 @@ From self.algebra Require Import view.
 (* (* alt *)
 (*   P ∨ (∃ CV, ⎡crashed_at CV⎤ ∗ ⌜ℓ ∉ dom (gset _) CV⌝ ) *)
 (*  *) *)
-
-(* I decide to experiment with an alternative formalization:
- * a location [ℓ] recovers if it is part of the [OCV2] in [crashed_at_trans OCV2]. *)
+(* Yixuan: I'm making the change to use [crashed_at_offset] as much as possible. *)
 
 Definition if_rec `{!nvmBaseGS Σ Ω} (ℓ : loc) (P : iProp Σ) : iProp Σ :=
-  ∀ (OCV2 : view),
-  ⌜ is_Some (OCV2 !! ℓ) ⌝ -∗ picked_in crashed_at_name (crashed_at_trans OCV2) -∗ P.
-
+  ∀ (OCV : view),
+  ⌜ is_Some (OCV !! ℓ) ⌝ -∗ crashed_at_offset OCV -∗ persisted_loc ℓ 0 -∗ P.
 
 Class IntoIfRec `{!nvmBaseGS Σ Ω} ℓ (P : iProp Σ) (Q : iProp Σ) :=
   into_if_rec : P ⊢ if_rec ℓ Q.
@@ -39,7 +35,7 @@ Section if_rec.
 
   Local Ltac ifRecIntro :=
     iIntros (CV);
-    iIntros "%look #picked_in".
+    iIntros "%look #crashed #persisted".
 
   Lemma if_rec_intro ℓ P : P ⊢ if_rec ℓ P.
   Proof.
@@ -53,8 +49,8 @@ Section if_rec.
     iSplit.
     - iIntros "H".
       iSplit; ifRecIntro.
-      * iDestruct ("H" $! CV with "[//] [$]") as "[$ _]".
-      * iDestruct ("H" $! CV with "[//] [$]") as "[_ $]".
+      * iDestruct ("H" $! CV with "[//] crashed [$]") as "[$ _]".
+      * iDestruct ("H" $! CV with "[//] crashed [$]") as "[_ $]".
     - iIntros "H". ifRecIntro.
       iSplit.
       * iDestruct "H" as "[H _]". iApply "H"; done.
@@ -65,8 +61,8 @@ Section if_rec.
     if_rec ℓ P ∗ if_rec ℓ Q ⊢ if_rec ℓ (P ∗ Q)%I.
   Proof.
     iIntros "[P Q]". ifRecIntro.
-    iDestruct ("P" $! CV with "[//] [$]") as "$".
-    iDestruct ("Q" $! CV with "[//] [$]") as "$".
+    iDestruct ("P" $! CV with "[//] crashed [$]") as "$".
+    iDestruct ("Q" $! CV with "[//] crashed [$]") as "$".
   Qed.
 
   Lemma if_rec_mono ℓ (P Q : iProp Σ) :
@@ -121,9 +117,9 @@ Section if_rec.
   (*   iApply "P". *)
   (* Qed. *)
 
-  (* Lemma if_rec_get CV ℓ P : *)
-  (*   is_Some (CV !! ℓ) → crashed_at CV -∗ persisted_loc ℓ 0 -∗ if_rec ℓ P -∗ P. *)
-  (* Proof. iIntros ([[t] look]) "#? #? H". iApply "H"; naive_solver. Qed. *)
+  Lemma if_rec_get OCV ℓ P :
+    is_Some (OCV !! ℓ) → crashed_at_offset OCV -∗ persisted_loc ℓ 0 -∗ if_rec ℓ P -∗ P.
+  Proof. iIntros ([[t] look]) "#? #? H". iApply "H"; naive_solver. Qed.
 
   (* Lemma if_rec_with_t_get CV ℓ t P : *)
   (*   CV !! ℓ = Some (MaxNat t) → ⎡ crashed_at CV ⎤ -∗ if_rec_with_t ℓ P -∗ P t. *)
@@ -135,14 +131,14 @@ Section if_rec.
   (*   - congruence. *)
   (* Qed. *)
 
-  (* Lemma if_rec_is_rec ℓ : *)
-  (*   ⊢ if_rec ℓ (∃ CV, *)
-  (*     ⌜ is_Some (CV !! ℓ) ⌝ ∗ crashed_at CV ∗ persisted_loc ℓ 0). *)
-  (* Proof. ifRecIntro. iExists CV. iFrame "#%". Qed. *)
+  Lemma if_rec_is_rec ℓ :
+    ⊢ if_rec ℓ (∃ OCV,
+      ⌜ is_Some (OCV !! ℓ) ⌝ ∗ crashed_at_offset OCV ∗ persisted_loc ℓ 0).
+  Proof. ifRecIntro. iExists CV. iFrame "#%". Qed.
 
-  (* Lemma if_rec_is_persisted ℓ : *)
-  (*   ⊢ if_rec ℓ (persisted {[ ℓ := MaxNat 0 ]}). *)
-  (* Proof. ifRecIntro. iFrame "#". Qed. *)
+  Lemma if_rec_is_persisted ℓ :
+    ⊢ if_rec ℓ (persisted {[ ℓ := MaxNat 0 ]}).
+  Proof. ifRecIntro. iFrame "#". Qed.
 
   Global Instance into_if_rec_intro ℓ P : IntoIfRec ℓ P P := if_rec_intro ℓ P.
 

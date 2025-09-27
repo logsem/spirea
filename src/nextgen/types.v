@@ -4,7 +4,7 @@ From iris.algebra Require Import numbers excl.
 From iris.base_logic.lib Require Export iprop own.
 
 From self Require Import extra hvec.
-From self.high Require Import increasing_map.
+From self.high.lib Require Import increasing_map.
 
 Import EqNotations. (* Get the [rew] notation. *)
 Import uPred.
