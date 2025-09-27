@@ -16,7 +16,7 @@ From self.lang Require Import syntax tactics lemmas.
 From self Require Export lang.
 
 Section wp.
-  Context `{!nvmBaseG Σ Ω, !nvmHighG Σ Ω, !PerennialG Σ}.
+  Context `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω, !PerennialG Σ}.
 
   Set Default Proof Using "Type*".
 
@@ -156,7 +156,7 @@ End wp.
 
 Section wp_rules.
   Context `{AbstractState ST}.
-  Context `{!nvmBaseG Σ Ω, !nvmHighG Σ Ω, !PerennialG Σ}.
+  Context `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω, !PerennialG Σ}.
 
   Implicit Types (ℓ : loc) (s : ST) (ϕ : ST → val → dProp Σ).
 
@@ -272,9 +272,9 @@ Section wp_rules.
     { apply elem_of_dom. rewrite domEq2 domEq. apply elem_of_dom. naive_solver. }
     iDestruct (offset_loc_crashed_at_agree with "offset offsets") as %?.
     iDestruct (big_sepM_lookup_acc with "ptsMap") as "[pts ptsMap]".
-    { apply map_lookup_zip_with_Some. naive_solver. }
+    { naive_solver. }
 
-    iApply (wp_flush (extra := {| extra_state_interp := True |}) with "pts").
+    iApply (wp_flush_alt (extra := {| extra_state_interp := True |}) with "pts").
     iNext. iIntros "pts".
     iDestruct ("ptsMap" with "pts") as "ptsMap".
 
