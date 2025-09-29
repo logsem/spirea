@@ -225,7 +225,7 @@ Section mapsto_at_lemmas.
     "#offset" ∷ ⎡ offset_loc ℓ offset ⎤ ∗
     "#tSLe" ∷ have_SV ℓ (tS - offset).
 
-  Definition seen_store_state ℓ prot (s : ST) : dProp Σ :=
+  Definition seen_state ℓ prot (s : ST) : dProp Σ :=
     ∃ (tS : nat) (offset : nat) (msg: message),
       "#lbBase" ∷ lb_base ℓ prot offset tS s ∗
       "#knowPhysMsg" ∷ ⎡ know_phys_hist_msg ℓ tS msg ⎤ ∗

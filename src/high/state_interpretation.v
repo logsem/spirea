@@ -124,8 +124,8 @@ Section state_interpretation.
       (* Seperation of locations. *)
       "%locsDisjoint" ∷ ⌜ na_locs ## at_locs ⌝ ∗
       "%histDomLocs" ∷ ⌜ dom abs_hists = na_locs ∪ at_locs ⌝ ∗
-      "naLocs" ∷ gen_own exclusive_locs_name (● na_locs) ∗
-      "atLocs" ∷ gen_own shared_locs_name (● at_locs) ∗
+      "naLocs" ∷ gen_alocs_auth exclusive_locs_name na_locs ∗
+      "atLocs" ∷ gen_alocs_auth shared_locs_name at_locs ∗
 
       (* Non-atomic locations. *)
       "%naViewsDom" ∷ ⌜ dom na_views = na_locs ⌝ ∗ (* NOTE: If this equality persists we could remove na_locs *)
@@ -141,26 +141,27 @@ Section state_interpretation.
       "#ordered" ∷ ([∗ map] ℓ ↦ hist; order ∈ abs_hists; orders,
                     ⌜ increasing_map order hist ⌝) ∗
 
-      (* persistent knowledge matches that of abstract history *)
+      (* TODO: persistent knowledge matches that of abstract history *)
       "%histPViewDoms" ∷ ⌜ dom global_pview ⊆ dom abs_hists ⌝ ∗
 
       (* The full/read predicates hold for all locations. *)
       "predsFullReadHold" ∷
         ([∗ map] ℓ ↦ phys_hist;abs_hist ∈ phys_hists;abs_hists,
-          ∃ pred offset,
-            ⌜predicates_full !! ℓ = Some pred⌝ ∗
+          ∃ predFull predRead offset,
+            ⌜predicates_full !! ℓ = Some predFull ⌝ ∗
+            ⌜predicates_read !! ℓ = Some predRead ⌝ ∗
             ⌜ offsets !! ℓ = Some offset ⌝ ∗
             (* The predicate holds for "exclusive-write" message in the history. *)
             ([∗ map] t ↦ msg; encS ∈ phys_hist; abs_hist,
                if (decide (offset ≤ t ∧ phys_hist !! (S t) = None)) then (* full predicate *)
                  encoded_predicate_holds
-                   pred
+                   predFull
                    encS
                    msg.(msg_val)
                    ((default msg.(msg_store_view) (na_views !! ℓ)), msg.(msg_persisted_after_view), ∅)
                else (* read predicate *)
                  encoded_predicate_holds
-                   pred
+                   predRead
                    encS
                    msg.(msg_val)
                    ((default msg.(msg_store_view) (na_views !! ℓ)), msg.(msg_persisted_after_view), ∅)
@@ -196,6 +197,8 @@ Section state_interpretation.
         ⌜ dom predicates_read = dom bumpers ⌝ ∗
       "%PersBumperDoms" ∷
         ⌜ dom predicates_pers = dom bumpers ⌝ ∗
+
+      (* Yixuan: I'm trying the alternative model where we simply remember that protocols exist for all locations *)
 
       (* TODO: add back protocol knowledges *)
       (* (* The predicate holds after a crash for the bumped state. *) *)

@@ -152,6 +152,23 @@ Section wp.
     iApply "impl". done. iAssumption.
   Qed.
 
+  Lemma wp_fold_at e st E (Φ : val → dProp Σ) TV1 :
+    (WP e @ st; E {{ Φ }}) TV1 -∗
+    (∀ TV2, ⌜ TV1 ⊑ TV2 ⌝ -∗ validV (store_view TV2) -∗
+      WP e `at` TV2 @ st; E
+        {{ res,
+          let '(v `at` TV3)%V := res
+          in ⌜ TV2 ⊑ TV3 ⌝ ∗ validV (store_view TV3) ∗ Φ v TV3 }}).
+  Proof.
+    iStartProof (iProp _).
+    iIntros "impl".
+    rewrite wp_eq /wp_def wpc_eq /wpc_def /=.
+
+    iIntros (TV2 incl2) "#val".
+    iApply program_logic.crash_weakestpre.wpc_wp.
+    iSpecialize ("impl" $! TV2 with "[//] [#$]").
+    iApply "impl".
+  Qed.
 End wp.
 
 Section wp_rules.

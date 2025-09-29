@@ -1221,4 +1221,68 @@ Section extra_state_interp.
     iIntros (?) "[$ $]". done.
   Qed.
 
+  Lemma wp_extra_state_interp_inv (e : expr) `{!AtomicBase StronglyAtomic e}
+        TV s E (Φ : thread_val → iProp Σ) :
+    to_val e = None →
+    (∀ σ1 g1 κ e2 σ2 g2 efs, prim_step (e `at` TV) σ1 g1 κ e2 σ2 g2 efs → efs = []) →
+    WP e `at` TV @ s; E {{ Φ }} -∗
+    (let
+      ex : extraStateInterp Σ := {| extra_state_interp := True |}
+    in
+      (@extra_state_interp _ extra) -∗
+      WP (e `at` TV) @ s; E {{ v, Φ v ∗ (@extra_state_interp _ extra) }}).
+  Proof.
+    iIntros (eq nofork) "H".
+
+    rewrite !wp_eq /wp_def.
+    rewrite !wpc_eq /wpc_def.
+    setoid_rewrite wpc0_unfold. rewrite /wpc_pre.
+    iIntros "extra" (?).
+    iSplit; last first.
+    { iIntros.
+      iApply step_fupd_extra.step_fupd2N_inner_later; auto. }
+
+    rewrite /= /thread_to_val. rewrite eq /=.
+    iIntros (???????) "[interp _]". iIntros.
+    iDestruct ("H" $! mj) as "[H _]".
+    iSpecialize ("H" with "[$interp $extra] [] [$]"). 
+    { by iExistsN. }
+    iMod "H".
+    iModIntro.
+    iApply (step_fupd_extra.step_fupd2N_wand with "H").
+    iNext.
+    iIntros "[$ A]".
+    iIntros (???? step).
+
+    iMod ("A" $! _ _ _ _ step) as "([interp extra] & Q & C & AB)".
+
+    epose proof (atomic (a := StronglyAtomic) _ _ _ _ _ _ _ step) as [val toValE2].
+    apply thread_of_to_val in toValE2.
+    simpl.
+    subst.
+
+    (* iEval (rewrite right_id) in "A". *)
+    iMod (wpc0_value_inv_option _ _ _ _ _ _ _ _ [] _ with "C Q")
+      as "(Φ & global)".
+    simpl.
+    iFrame.
+    iModIntro.
+    simpl in *.
+
+    apply nofork in step. subst.
+
+    rewrite /= right_id.
+    rewrite wpc0_unfold /wpc_pre.
+    iFrame.
+    iSplit. { iIntros. iFrame. done. }
+    iIntros.
+    iApply step_fupd_extra.step_fupd2N_inner_later; first done; first done.
+    iModIntro.
+    iFrame.
+    by iExistsN.
+    (* TODO: what? *)
+    Unshelve.
+    refine 0.
+  Qed.
+
 End extra_state_interp.

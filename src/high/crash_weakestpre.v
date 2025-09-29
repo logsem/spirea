@@ -12,7 +12,7 @@ From self.high Require Export dprop generational_resources monpred_simpl state_i
 From self.high.modalities Require Import nextgen.
 
 Section wpc.
-  Context `{!nvmBaseG Σ Ω, !nvmHighG Σ Ω, !PerennialG Σ}.
+  Context `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω, !PerennialG Σ}.
 
   Set Default Proof Using "Type*".
 
