@@ -17,7 +17,7 @@ From self.high.lib Require Import abstract_state.
 
 From iris.bi.lib Require Import fractional.
 From self.nextgen Require Import nextgen_promises.
-From self.high Require Import generational_resources.
+From self.high Require Export generational_resources.
 
 (* For some reason [iris.algebra.view.view] always triumph the in-house definition. *)
 From self.algebra Require Export view.

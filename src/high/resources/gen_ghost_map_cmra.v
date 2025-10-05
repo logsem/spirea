@@ -21,7 +21,7 @@ Definition predicatesR Σ := gmap_viewR loc (predicateR Σ).
 Notation predicates_inG Σ Ω := (genInDepsG Σ Ω (predicatesR Σ) [#crashed_atR]).
 
 Section ownership.
-  Context `{!nvmBaseG Σ Ω, !predicates_inG Σ Ω}.
+  Context `{!nvmBaseGS Σ Ω, !predicates_inG Σ Ω}.
   Implicit Type (OCV: view) (PRs: gmap loc (predicateR Σ)) (PR: predicateR Σ).
 
   Definition drop_OCV OCV ℓ PR :=

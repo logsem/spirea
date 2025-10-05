@@ -1,110 +1,31 @@
 From iris.proofmode Require Import proofmode monpred.
 From iris_named_props Require Import named_props.
-From self Require Export extra ipm_tactics solve_view_le.
 
-From self.high Require Export dprop.
-From self.base Require Import generational_resources primitive_laws.
-From self.high Require Import
-  generational_resources wrappers crash_weakestpre monpred_simpl modalities protocol locations weakestpre.
-From self.high.lib Require Import abstract_state.
+From self Require Import extra solve_view_le.
 
 From self.lang Require Import syntax tactics lemmas.
+
+From self.base Require Import generational_resources primitive_laws.
+
+From self.high Require Import wrappers monpred_simpl protocol locations crash_weakestpre weakestpre.
+From self.high.modalities Require Import post_fence_sync_advanced.
+From self.high.lib Require Import abstract_state.
+
 From self Require Export lang.
-
-Section post_fence_sync.
-  Context `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω, !PerennialG Σ}.
-  Implicit Types (ℓ : loc).
-  (* For every location we [flush], we will keep the follow tuple,
-   * - [ℓ], the location
-   * - [σ], the abstract state we flush,
-   * - [σ_xchg], the "exchange" state we want to extract resources from,
-   * - [seen ℓ σ_xchg], so that we have the necessary view,
-   * and we also keep enough resource to make three consecutive exchanges/updates with
-   * the protocol in the future and obtain final post condition [R] (when we [flush_sync]),
-   * - [<obj> p_read σ v -∗ □ <obj> P], for getting some basic facts about the physical value,
-   * - [P -∗ <obj> (p_pers σ_old v_old ==∗ <obj> Q ∗ p_pers σ v)] roughly, for the persistent state update,
-   * - [Q -∗ <obj> (p_read σ_xchg v_xchg ==∗ R ∗ p_read σ_xchg v_xchg)] for the read only exchange. *)
-  
-  Definition exchange_3 `{AbstractState ST} ℓ (σ_xchg: ST) (prot: LocationProtocol ST) Q: dProp Σ :=
-    ∀ v_xchg, <obj> (prot.(p_read) σ_xchg v_xchg ==∗ Q ∗ prot.(p_read) σ_xchg v_xchg).
-
-  (* TODO: include the other case as well *)
-  Definition exchange_2 `{AbstractState ST} ℓ (σ_xchg σ: ST) v (prot: LocationProtocol ST) Q: dProp Σ :=
-    ∀ σ_old v_old,
-    <obj> ((⌜ σ_old ⊑ σ ⌝ -∗ prot.(p_pers) σ_old v_old ==∗
-           prot.(p_pers) σ v ∗ exchange_3 ℓ σ_xchg prot Q) ∧
-           (⌜ σ ⊑ σ_old ⌝ -∗ prot.(p_pers) σ_old v_old ==∗
-           prot.(p_pers) σ_old v_old ∗ exchange_3 ℓ σ_xchg prot Q)).
-
-  Definition exchange_1 `{AbstractState ST} ℓ (σ_xchg σ: ST) (prot: LocationProtocol ST) Q: dProp Σ :=
-    ∀ v,
-    <obj> (prot.(p_read) σ v -∗ prot.(p_read) σ v ∗ exchange_2 ℓ σ_xchg σ v prot Q).
-
-  Record FlushInfo := MkFlushInfo {
-    fi_ℓ: loc;
-    fi_ST: Type;
-    fi_ST_eqdec :> EqDecision fi_ST;
-    fi_ST_countable :> Countable fi_ST;
-    fi_ST_is_abstract :> AbstractState fi_ST;
-    fi_prot: LocationProtocol fi_ST;
-    fi_prot_conds :> ProtocolConditions fi_prot;
-    fi_σ: fi_ST;
-    fi_σ_xchg: fi_ST;
-    fi_post: dProp Σ
-  }.
-
-  #[local] Definition internal_flush_lb `{AbstractState ST} ℓ (prot: LocationProtocol ST) (s : ST) : dProp Σ :=
-    ∃ (t : nat) offset,
-      "#lbBase" ∷ lb_base ℓ prot offset t s ∗
-      (* this assertion is only ever to be used internally, we can safely assert over
-       *  about buffer views. *)
-      "%haveBV" ∷ have_thread_view (∅, ∅, {[ ℓ := MaxNat (t - offset) ]}).
-
-  Program Definition post_fence_sync'
-    (P : dProp Σ) : dProp Σ :=
-    MonPred (λ TV,
-      ∃ (fi_list: list FlushInfo),
-        ([∗ list] fi ∈ fi_list,
-           ⎡ is_at_loc fi.(fi_ℓ) ⎤ ∗
-           know_protocol fi.(fi_ℓ) fi.(fi_prot) ∗
-           (* this can probably be promoted to [flush_lb], but doens't seem necessary? *)
-           internal_flush_lb fi.(fi_ℓ) fi.(fi_prot) fi.(fi_σ) ∗
-           seen_state fi.(fi_ℓ) fi.(fi_prot) fi.(fi_σ_xchg) ∗
-           exchange_1 fi.(fi_ℓ) fi.(fi_σ_xchg) fi.(fi_σ) fi.(fi_prot) fi.(fi_post))
-          TV ∗
-        ((persisted (buffer_view TV)) -∗
-         (([∗ list] fi ∈ fi_list, fi.(fi_post)) -∗ P)
-           (store_view TV, (flush_view TV ⊔ buffer_view TV), buffer_view TV))
-      )%I _.
-  Next Obligation.
-    intros P. intros [[??]?] [[??]?] [[??]?]. simpl.
-    assert (g0 ⊔ g1 ⊑ g3 ⊔ g4). { solve_proper. }
-    iIntros "(%fi_list & Hfi & P)".
-    iExists fi_list.
-    iSplitL "Hfi".
-    - iApply monPred_mono; last done.
-      solve_view_le.
-    - iIntros "pers".
-      iPoseProof (persisted_anti_mono with "pers") as "pers";
-        (* use the special reasoning to figure out the view automatically. *)
-        last iSpecialize ("P" with "pers"); first done.
-      iApply monPred_mono; last done.
-      solve_view_le.
-  Qed.
-End post_fence_sync.
+From self.high Require Export dprop.
 
 Section weakestpre.
   Context `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω, !PerennialG Σ, AbstractState ST}.
   
   Implicit Types (ℓ : loc) (prot: LocationProtocol ST) (σ σ_e: ST) (P Q: dProp Σ).
-  Lemma wp_flush' ℓ prot `{!ProtocolConditions prot} σ_xchg σ st E Q:
+  Lemma wp_flush_xchg ℓ prot `{!ProtocolConditions prot} σ_xchg σ st E Q:
     {{{ ⎡ is_at_loc ℓ ⎤ ∗
         store_lb ℓ prot σ ∗
         seen_state ℓ prot σ_xchg ∗
         exchange_1 ℓ σ_xchg σ prot Q }}}
       Flush #ℓ @ st; E
     {{{ RET #();
-      post_fence_sync' (persist_lb ℓ prot σ ∗ Q)
+      <FS> (persist_lb ℓ prot σ ∗ Q)
     }}}.
   Proof.
     intros Φ.
@@ -219,10 +140,8 @@ End weakestpre.
 Section weakestpre.
   Context `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω, !PerennialG Σ}.
 
-  (* View summary:
-   * [SV PV BV]: the thead view before [fence_sync] *)
   Lemma wp_fence_sync' (st : stuckness) (E : coPset) (P : dProp Σ) :
-    {{{ post_fence_sync' P }}} FenceSync @ st; E {{{ RET #(); P }}}.
+    {{{ <FS> P }}} FenceSync @ st; E {{{ RET #(); P }}}.
   Proof.
     intros Φ.
     iModel.

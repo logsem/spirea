@@ -14,10 +14,10 @@ From self Require Import extra ipm_tactics solve_view_le.
 From self.base Require Import primitive_laws.
 From self.lang Require Import lang.
 From self.high Require Import monpred_simpl.
-From self.high Require Import dprop generational_resources wrappers protocol.
+From self.high Require Import dprop wrappers protocol.
 From self.high.lib Require Import abstract_state increasing_map.
 From self.high Require Export modalities.
-From self.high.resources Require Export bumpers auth_map_map abstract_history.
+From self.high.resources Require Import auth_map_map abstract_history.
 From self.high.modalities Require Export no_buffer no_flush if_rec or_lost nextgen nextgen_flush.
 
 Section points_to_at.
