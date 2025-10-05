@@ -115,9 +115,6 @@ Section state_interpretation.
       (* All the encoded orders *)
       "allOrders" ∷ own_all_preorders preorders_name orders ∗
 
-      (* the duplicable resource to connect with baseSpirea *)
-      "#globalPViewPersisted" ∷ persisted global_pview ∗
-
       (* the authoritative resource exposes to the program logic *)
       (* "globalPView" ∷ own pview_lb_name (● global_pview) ∗ *)
 
@@ -170,18 +167,18 @@ Section state_interpretation.
       (* persistent predicates for all locations *)
       "predsPersHold" ∷
         ([∗ map] ℓ ↦ phys_hist;abs_hist ∈ phys_hists;abs_hists,
-          ∃ pred_pers (t: nat) encS msg,
-            ⌜ predicates_pers !! ℓ = Some pred_pers ⌝ ∗
-            (* It seems like the timestamp in [persisted] assertion is before
-               offset, we need to add it here *)
-            ⌜ offsets_add offsets global_pview !! ℓ = Some t ∨ (global_pview !! ℓ = None ∧ offsets !! ℓ = Some t) ⌝ ∗
-            ⌜ abs_hist !! t = Some encS ⌝ ∗
+          ∃ encp_pers (t offset: nat) encσ msg,
+            ⌜ predicates_pers !! ℓ = Some encp_pers ⌝ ∗
+            ⌜ offsets !! ℓ = Some offset ⌝ ∗
+            ⌜ abs_hist !! t = Some encσ ⌝ ∗
             ⌜ phys_hist !! t = Some msg ⌝ ∗
-            encoded_predicate_holds
-              pred_pers
-              encS
-              msg.(msg_val)
-              ((default msg.(msg_store_view) (na_views !! ℓ)), msg.(msg_persisted_after_view), ∅)) ∗
+            (* if a location has never been [fence_sync]ed, it will not have any [persisted] knowledge,
+             * in which case we can always use [offset] *)
+            ⌜ Nat.add offset (global_pview !!0 ℓ) = t ⌝ ∗
+            (* It's easier to work with a per-location assertion. *)
+            default emp (persisted_loc ℓ <$> (max_nat_car <$> (global_pview !! ℓ))) ∗            
+            (* [p_pers] are objective anyway, might as well make it easy here. *)
+            encoded_predicate_holds encp_pers encσ msg.(msg_val) (∅, ∅, ∅)) ∗
 
       (** * Bump-back function *)
       (* We know about all the bumpers. *)

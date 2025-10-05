@@ -17,7 +17,7 @@ From self.high Require Import monpred_simpl.
 From self.high Require Import dprop generational_resources wrappers protocol.
 From self.high.lib Require Import abstract_state increasing_map.
 From self.high Require Export modalities.
-From self.high.resources Require Export bumpers preorders auth_map_map abstract_history.
+From self.high.resources Require Export bumpers auth_map_map abstract_history.
 From self.high.modalities Require Export no_buffer no_flush if_rec or_lost nextgen nextgen_flush.
 
 Section points_to_at.

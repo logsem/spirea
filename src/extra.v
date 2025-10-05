@@ -358,6 +358,54 @@ Lemma valid_to_agree_fmap `{Countable K} {B : ofe} (m : gmap K B) :
   ✓ (to_agree <$> m : gmapUR _ _).
 Proof. intros ℓ. rewrite lookup_fmap. by case (m !! ℓ). Qed.
 
+
+Section big_sepL.
+  Context {PROP : bi}.
+  Context `{BiAffine PROP} `{BiBUpd PROP}.
+  Context {A : Type}.
+  Implicit Types (k: nat) (l : list A) (Φ Ψ : nat → A → PROP).
+
+  Lemma big_sepL_impl_with_resource Φ Ψ l R:
+    R -∗
+    ([∗ list] k ↦ x ∈ l, Φ k x) -∗
+    □ (∀ k x, ⌜ l !! k = Some x ⌝ -∗ R -∗ Φ k x -∗ R ∗ Ψ k x) -∗
+    R ∗ [∗ list] k ↦ x ∈ l, Ψ k x.
+  Proof.
+    iIntros "R big #impl".
+    iInduction l as [ | x l' ] "IH" using rev_ind forall "impl".
+    - by iFrame.
+    - simpl.
+      iDestruct (big_sepL_snoc with "big") as "[big HΦ]".
+      rewrite big_sepL_snoc.
+      iDestruct ("impl" with "[%] [$] [$]") as "[R $]"; first by rewrite list_lookup_middle.
+      iDestruct ("IH" with "[$] [$] [impl]") as "$".
+      iModIntro.
+      iIntros (k x') "% R HΦ".
+      iApply ("impl" with "[%] [$] [$]").
+      by apply lookup_app_l_Some.
+  Qed.
+
+  Lemma big_sepL_fupd_with_resource Φ Ψ l R:
+    R -∗
+    ([∗ list] k ↦ x ∈ l, Φ k x) -∗
+    □ (∀ k x, ⌜ l !! k = Some x ⌝ -∗ R -∗ Φ k x ==∗ R ∗ Ψ k x) ==∗
+    R ∗ [∗ list] k ↦ x ∈ l, Ψ k x.
+  Proof.
+    iIntros "R big #impl".
+    iInduction l as [ | x l' ] "IH" using rev_ind forall "impl".
+    - by iFrame.
+    - simpl.
+      iDestruct (big_sepL_snoc with "big") as "[big HΦ]".
+      rewrite big_sepL_snoc.
+      iDestruct ("impl" with "[%] [$] [$]") as ">[R $]"; first by rewrite list_lookup_middle.
+      iDestruct ("IH" with "[$] [$] [impl]") as "$".
+      iModIntro.
+      iIntros (k x') "% R HΦ".
+      iApply ("impl" with "[%] [$] [$]").
+      by apply lookup_app_l_Some.
+  Qed.
+End big_sepL.
+
 Section big_sepM.
   Context {PROP : bi}.
   (* Context `{BiAffine PROP}. *)
