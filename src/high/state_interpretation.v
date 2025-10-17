@@ -8,8 +8,10 @@ From self.high.lib Require Import increasing_map.
 From self.nextgen Require Import nextgen_promises.
 From self.base Require Import primitive_laws generational_resources.
 From self.high Require Export dprop predicates generational_resources wrappers.
-
+From self.high.modalities Require Import nextgen_flush.
 From self.lang Require Import lang.
+
+Set Default Proof Using "Type*".
 
 (* Convert a message to a thread_view corresponding to what is stored in the
 message. *)
@@ -68,6 +70,71 @@ Section state_interpretation.
 
   Implicit Types (TV : thread_view).
 
+  Definition encoded_full_read_predicates_hold ℓ (abs_hist: gmap time positive) (phys_hist: gmap time message) (na_views: gmap loc view) (offsets: gmap loc nat) (predicates_full predicates_read: gmap loc enc_predicate) : iProp Σ :=
+    ∃ encp_full encp_read offset,
+      ⌜predicates_full !! ℓ = Some encp_full ⌝ ∗
+      ⌜predicates_read !! ℓ = Some encp_read ⌝ ∗
+      ⌜ offsets !! ℓ = Some offset ⌝ ∗
+      (* The predicate holds for "exclusive-write" message in the history. *)
+      ([∗ map] t ↦ msg; encS ∈ phys_hist; abs_hist,
+         if (decide (offset ≤ t ∧ phys_hist !! (S t) = None)) then (* full predicate *)
+           encoded_predicate_holds
+             encp_full
+             encS
+             msg.(msg_val)
+                   ((default msg.(msg_store_view) (na_views !! ℓ)), msg.(msg_persisted_after_view), ∅)
+         else (* read predicate *)
+           encoded_predicate_holds
+             encp_read
+             encS
+             msg.(msg_val)
+                   ((default msg.(msg_store_view) (na_views !! ℓ)), msg.(msg_persisted_after_view), ∅)).
+
+  Lemma encoded_full_read_predicates_hold_equiv ℓ abs_hist phys_hist na_views na_views' offsets offsets' predicates_full predicates_full' predicates_read predicates_read':
+    na_views !! ℓ = na_views' !! ℓ →
+    offsets !! ℓ = offsets' !! ℓ →
+    predicates_full !! ℓ = predicates_full' !! ℓ →
+    predicates_read !! ℓ = predicates_read' !! ℓ →
+    encoded_full_read_predicates_hold ℓ abs_hist phys_hist na_views offsets predicates_full predicates_read -∗
+    encoded_full_read_predicates_hold ℓ abs_hist phys_hist na_views' offsets' predicates_full' predicates_read'.
+  Proof.
+    iIntros (eq1 eq2 eq3 eq4) "(% & % & % & % & % & % & H)".
+    iExists encp_full, encp_read, offset.
+    rewrite -eq1 -eq2 -eq3 -eq4.
+    iFrame "%".
+    iFrame.
+  Qed.
+
+  Definition encoded_pers_predicate_holds
+    ℓ (abs_hist: gmap time positive) (phys_hist: gmap time message)
+    (global_pview: view) (offsets: gmap loc nat) (predicates_pers: gmap loc enc_predicate): iProp Σ :=
+    ∃ encp_pers (t offset: nat) encσ msg,
+            ⌜ predicates_pers !! ℓ = Some encp_pers ⌝ ∗
+            ⌜ offsets !! ℓ = Some offset ⌝ ∗
+            ⌜ abs_hist !! t = Some encσ ⌝ ∗
+            ⌜ phys_hist !! t = Some msg ⌝ ∗
+            (* if a location has never been [fence_sync]ed, it will not have any [persisted] knowledge,
+             * in which case we can always use [offset] *)
+            ⌜ Nat.add offset (global_pview !!0 ℓ) = t ⌝ ∗
+            (* It's easier to work with a per-location assertion. *)
+            default emp (persisted_loc ℓ <$> (max_nat_car <$> (global_pview !! ℓ))) ∗            
+            (* [p_pers] are objective anyway, might as well make it easy here. *)
+            encoded_predicate_holds encp_pers encσ msg.(msg_val) (∅, ∅, ∅).
+
+  Lemma encoded_pers_predicate_holds_equiv ℓ abs_hist phys_hist offsets offsets' global_pview global_pview' predicates_pers predicates_pers':
+    global_pview !! ℓ = global_pview' !! ℓ →
+    offsets !! ℓ = offsets' !! ℓ →
+    predicates_pers !! ℓ = predicates_pers' !! ℓ →
+    encoded_pers_predicate_holds ℓ abs_hist phys_hist global_pview offsets predicates_pers -∗
+    encoded_pers_predicate_holds ℓ abs_hist phys_hist global_pview' offsets' predicates_pers'.
+  Proof.
+    iIntros (eq1 eq2 eq3) "(%encp_pers & %t & %offset & %encσ & %msg & % & % & % & % & % & Hpview & H)".
+    iExists encp_pers, t, offset, encσ, msg.
+    rewrite /lookup_zero -eq1 -eq2 -eq3.
+    iFrame "%".
+    iFrame.
+  Qed.
+  
   (* Definition pred_post_crash_implication {ST} *)
   (*            (ϕ : ST → val → dProp Σ) bumper : dProp Σ := *)
   (*   □ ∀ s v, ϕ s v -∗ <PCF> ϕ (bumper s) v. *)
@@ -90,17 +157,21 @@ Section state_interpretation.
       (offsets : gmap loc nat)
       (na_views : gmap loc view),
       (* We keep the points-to predicates to ensure that we know that the keys
-      in the abstract history correspond to the physical history. This ensures
-      that at a crash we know that the value recovered after a crash has a
-      corresponding abstract value.
-       * TODO: attempt to simplify this part by using [↦fh]. *)
+       * in the abstract history correspond to the physical history. This ensures
+       * that at a crash we know that the value recovered after a crash has a
+       * corresponding abstract value. *)
       "ptsMap" ∷ ([∗ map] ℓ ↦ hist ∈ phys_hists, ℓ ↦fh hist) ∗
-      "offsets" ∷ crashed_at_offset (MaxNat <$> offsets) ∗
+      "offsets" ∷ offset_auth offsets ∗
+      (* For the abstract history map, we need a trivial copy of [rely_self] everytime
+       * we insert a new location.
+       * This should be obtained from [crashed_at_tok] from base logic. *)
+      "#crashedRely" ∷ (∃ OPV, rely_self crashed_at_name (crashed_at_pred OPV)) ∗
+      
       (* Yixuan: I revived this assertion because we no longer have [oldViewsDiscarded],
        * which was used to infer the domains of two maps. *)
       "%offsetsDom" ∷ ⌜ dom phys_hists = dom offsets ⌝ ∗
 
-      "physHist" ∷ auth_map_map_auth phy_history_name phys_hists ∗
+      "physHists" ∷ auth_map_map_auth phy_history_name phys_hists ∗
 
       (* Ownership over the full knowledge of the abstract history of _all_
       locations. *)
@@ -144,41 +215,13 @@ Section state_interpretation.
       (* The full/read predicates hold for all locations. *)
       "predsFullReadHold" ∷
         ([∗ map] ℓ ↦ phys_hist;abs_hist ∈ phys_hists;abs_hists,
-          ∃ predFull predRead offset,
-            ⌜predicates_full !! ℓ = Some predFull ⌝ ∗
-            ⌜predicates_read !! ℓ = Some predRead ⌝ ∗
-            ⌜ offsets !! ℓ = Some offset ⌝ ∗
-            (* The predicate holds for "exclusive-write" message in the history. *)
-            ([∗ map] t ↦ msg; encS ∈ phys_hist; abs_hist,
-               if (decide (offset ≤ t ∧ phys_hist !! (S t) = None)) then (* full predicate *)
-                 encoded_predicate_holds
-                   predFull
-                   encS
-                   msg.(msg_val)
-                   ((default msg.(msg_store_view) (na_views !! ℓ)), msg.(msg_persisted_after_view), ∅)
-               else (* read predicate *)
-                 encoded_predicate_holds
-                   predRead
-                   encS
-                   msg.(msg_val)
-                   ((default msg.(msg_store_view) (na_views !! ℓ)), msg.(msg_persisted_after_view), ∅)
-        )) ∗
+          encoded_full_read_predicates_hold ℓ abs_hist phys_hist na_views offsets predicates_full predicates_read
+        ) ∗
 
       (* persistent predicates for all locations *)
       "predsPersHold" ∷
         ([∗ map] ℓ ↦ phys_hist;abs_hist ∈ phys_hists;abs_hists,
-          ∃ encp_pers (t offset: nat) encσ msg,
-            ⌜ predicates_pers !! ℓ = Some encp_pers ⌝ ∗
-            ⌜ offsets !! ℓ = Some offset ⌝ ∗
-            ⌜ abs_hist !! t = Some encσ ⌝ ∗
-            ⌜ phys_hist !! t = Some msg ⌝ ∗
-            (* if a location has never been [fence_sync]ed, it will not have any [persisted] knowledge,
-             * in which case we can always use [offset] *)
-            ⌜ Nat.add offset (global_pview !!0 ℓ) = t ⌝ ∗
-            (* It's easier to work with a per-location assertion. *)
-            default emp (persisted_loc ℓ <$> (max_nat_car <$> (global_pview !! ℓ))) ∗            
-            (* [p_pers] are objective anyway, might as well make it easy here. *)
-            encoded_predicate_holds encp_pers encσ msg.(msg_val) (∅, ∅, ∅)) ∗
+          encoded_pers_predicate_holds ℓ abs_hist phys_hist global_pview offsets predicates_pers) ∗
 
       (** * Bump-back function *)
       (* We know about all the bumpers. *)
@@ -220,12 +263,13 @@ Section state_interpretation.
       (*                           ∃ P_full' P_pers', pred_full e_c' v_c ≡ Some P_full' ∗ pred_pers e_c' v_c ≡ Some P_pers' ∗ *)
       (*                                              (post_crash_flush (P_full' ∗ P_pers': dPropO Σ)) (TV, hG))))) ∗ *)
 
-      (* "#predReadPostCrash" ∷ ([∗ map] ℓ ↦ pred_read; bump ∈ predicates_read; bumpers, *)
-      (*   ∀ e e' v TV hG, □ (⌜ bump e = Some e' ⌝ -∗ encoded_predicate_holds pred_read e v (TV, hG) -∗ *)
-      (*                      ∃ (P: dPropO Σ), pred_read e' v ≡ Some P ∗ (post_crash_flush (P: dProp Σ)) (TV, hG))) ∗ *)
+      "#predReadNextgen" ∷ ([∗ map] ℓ ↦ pred_read; bumper ∈ predicates_read; bumpers,
+        ∀ e e' v TV, ■ (⌜ bumper e = Some e' ⌝ -∗ encoded_predicate_holds pred_read e v TV -∗
+                        ∃ (P: dPropO Σ), pred_read e' v ≡ Some P ∗ (nextgen_flush (P: dProp Σ)) TV)) ∗
 
-      (* "#predFullReadSplit" ∷ ([∗ map] ℓ ↦ pred_full; pred_read ∈ predicates_full; predicates_read, *)
-      (*   ∀ e v i, □ (encoded_predicate_holds pred_full e v i -∗ encoded_predicate_holds pred_read e v i)) ∗ *)
+      (* we don't need the other half for [p_full] restoration during recovery. *)
+      "#predFullReadSplit" ∷ ([∗ map] ℓ ↦ pred_full; pred_read ∈ predicates_full; predicates_read,
+        ∀ e v TV, ■ (encoded_predicate_holds pred_full e v TV -∗ encoded_predicate_holds pred_read e v TV)) ∗
 
       (* Bumpers map valid input to valid output. *)
       "%bumperBumpToValid" ∷

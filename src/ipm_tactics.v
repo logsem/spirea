@@ -31,3 +31,31 @@ Tactic Notation "iFrameF" constr(Hs) :=
   iSplitL Hs; first iFrame Hs.
 
 Tactic Notation "iExistsN" := repeat iExists _.
+
+(* works like [iFrameNamed], but only process the first conjunction. *)
+Ltac iFrameNamedF :=
+  repeat lazymatch goal with
+    | [ |- environments.envs_entails _ (bi_sep ?g _) ] =>
+        match g with
+        | context[named ?p ?P] =>
+            let pat := intro_patterns.intro_pat.parse_one p in
+            lazymatch pat with
+            | intro_patterns.IIdent (INamed ?name) => iFrameF name
+            | intro_patterns.IIntuitionistic (intro_patterns.IIdent (INamed ?name)) => iFrameF name
+            | intro_patterns.IPure (intro_patterns.IGallinaNamed ?name) => iSplitPure; first done
+            end
+        end
+    end.
+
+Tactic Notation "pull_right" uconstr(pat) :=
+  do ? [ rewrite [(pat ∗ _)%I]bi.sep_comm
+       | rewrite [(_ ∗ _ ∗ pat)%I]bi.sep_assoc].
+
+Tactic Notation "pull_left" uconstr(pat) :=
+  do ? [ rewrite [(_ ∗ pat)%I]bi.sep_comm
+       | rewrite -[((pat ∗ _) ∗ _)%I]bi.sep_assoc
+       | rewrite [(_ ∗ pat ∗ _)%I]bi.sep_assoc
+       | rewrite [(▷ (pat ∗ _))%I]bi.later_sep].
+
+Ltac distrib_later :=
+  do ? [ rewrite [(▷ (_ ∗ _))%I]bi.later_sep].

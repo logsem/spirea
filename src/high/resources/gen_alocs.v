@@ -37,16 +37,14 @@ Section gen_alocs.
   Context `{!nvmBaseGS Σ Ω} `{!gen_alocsR_inG Σ Ω}.
 
   Definition gen_alocs_auth γ ℓs: iProp Σ :=
-    ∃ OCV,
-      "own_auth" ∷ gen_own γ (● ℓs) ∗
-      "#crashed" ∷ crashed_at_offset OCV ∗
-      "#rely" ∷ rely γ [#crashed_at_name] gen_alocs_rel (λ _, true).
+    "own_auth" ∷ gen_own γ (● ℓs) ∗
+    "#rely" ∷ rely γ [#crashed_at_name] gen_alocs_rel (λ _, true) ∗
+    "#crashed" ∷ ∃ OCV, crashed_at_offset OCV.
 
   Definition gen_alocs_frag γ ℓs: iProp Σ :=
-    ∃ OCV,
-      "own_frag" ∷ gen_own γ (◯ ℓs) ∗
-      "#crashed" ∷ crashed_at_offset OCV ∗
-      "#rely" ∷ rely γ [#crashed_at_name] gen_alocs_rel (λ _, true).
+    "own_frag" ∷ gen_own γ (◯ ℓs) ∗
+    "#rely" ∷ rely γ [#crashed_at_name] gen_alocs_rel (λ _, true) ∗
+    "#crashed" ∷ ∃ OCV, crashed_at_offset OCV.
 
   Instance gen_alocs_auth_into_nextgen {γ} ℓs:
     IntoNextgen
@@ -57,6 +55,7 @@ Section gen_alocs.
   Proof using Type.
     rewrite /IntoNextgen.
     iNamed 1.
+    iDestruct "crashed" as (OCV) "crashed".
     iModIntro.
     iDestruct ("own_auth") as (t) "[#picked own_auth]".
     iDestruct "rely" as "(rely & (%t' & %tC & (%R & _) & picked' & pickedC))".
@@ -67,10 +66,8 @@ Section gen_alocs.
     iDestruct "own_auth" as "[own_auth _]".
     iDestruct "crashed" as (??) "[pickedC' #crashed_at]".
     iPickedInAgree "pickedC pickedC'".
-    iFrame "#".
-    iExists _.
-    iFrame.
-    iExists OCV.
+    iFrame "∗#".
+    iExists _, _.
     iApply "crashed_at".
   Qed.
 
@@ -83,6 +80,7 @@ Section gen_alocs.
   Proof using Type.
     rewrite /IntoNextgen.
     iNamed 1.
+    iDestruct "crashed" as (OCV) "crashed".
     iModIntro.
     iDestruct ("own_frag") as (t) "[#picked own_frag]".
     iDestruct "rely" as "(rely & (%t' & %tC & (%R & _) & picked' & pickedC))".
@@ -92,11 +90,24 @@ Section gen_alocs.
     rewrite fmap_auth_frag /drop_OCV_locs.
     iDestruct "crashed" as (??) "[pickedC' #crashed_at]".
     iPickedInAgree "pickedC pickedC'".
-    iFrame "#".
-    iExists _.
-    iFrame.
-    iExists OCV.
+    iFrame "∗#".
+    iExists _, _.
     iApply "crashed_at".
+  Qed.
+
+  Lemma gen_alocs_update {γ} locs ℓ :
+    gen_alocs_auth γ locs ==∗ gen_alocs_auth γ (locs ∪ {[ ℓ ]}) ∗ gen_alocs_frag γ {[ ℓ ]}.
+  Proof.
+    iNamed 1.
+    iDestruct (@gen_own_update with "own_auth") as ">[auth frag]".
+    { apply auth_update_alloc. apply gset_local_update.
+      apply (union_subseteq_r {[ ℓ ]}). }
+    rewrite /gen_alocs_auth /gen_alocs_frag.
+    iFrame "#".
+    iEval (rewrite -gset_op) in "frag". iDestruct "frag" as "[$ _]".
+    rewrite (comm (∪)).
+    iFrame.
+    done.
   Qed.
 End gen_alocs.
 

@@ -826,16 +826,3 @@ Proof.
   iDestruct ("wand2" with "[$]") as "[? ?]".
   iFrame.
 Qed.
-
-Tactic Notation "pull_right" uconstr(pat) :=
-  do ? [ rewrite [(pat ∗ _)%I]bi.sep_comm
-       | rewrite [(_ ∗ _ ∗ pat)%I]bi.sep_assoc].
-
-Tactic Notation "pull_left" uconstr(pat) :=
-  do ? [ rewrite [(_ ∗ pat)%I]bi.sep_comm
-       | rewrite -[((pat ∗ _) ∗ _)%I]bi.sep_assoc
-       | rewrite [(_ ∗ pat ∗ _)%I]bi.sep_assoc
-       | rewrite [(▷ (pat ∗ _))%I]bi.later_sep].
-
-Ltac distrib_later :=
-  do ? [ rewrite [(▷ (_ ∗ _))%I]bi.later_sep].

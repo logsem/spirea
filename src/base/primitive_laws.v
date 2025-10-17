@@ -715,6 +715,71 @@ Section lifting.
       done.
   Qed.
 
+  Lemma wp_load_acquire_alt OCV SV PV BV ℓ q (h : history) s E :
+    {{{ crashed_at_offset OCV ∗ ℓ ↦fh{q} h ∗ validV SV }}}
+      !_AT #ℓ `at` (SV, PV, BV) @ s; E
+    {{{ t v SV2 PV2 _P, RET v `at` (SV ⊔ SV2, PV, BV ⊔ PV2);
+        ⌜ h !! t = Some (Msg v SV2 PV2 _P) ⌝ ∗
+        ⌜ Nat.add (SV !!0 ℓ) (OCV !!0 ℓ) ≤ t ⌝ ∗
+        validV (SV ⊔ SV2) ∗
+        ℓ ↦fh{q} h }}}.
+  Proof.
+    set hist := (drop_prefix h (OCV !!0 ℓ)).
+    iIntros (Φ) "(#offsets & ℓPts & Hval) HΦ".
+    iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
+    iIntros ([??] [] ns mj D κ κs k) "[interp extra]". iNamed "interp".
+    iIntros "? !>".
+    simpl in *.
+    subst g.
+    (* The time at the view is smaller than the time in the lub view (which is
+    the time of the most recent message *)
+    iNamed "store_view_auth".
+    iDestruct (gen_own_auth_frag_leq with "Hval store_view_at") as %Vincl.
+    (* From the points-to predicate we know that [hist] is in the heap at ℓ. *)
+    iAssert ⌜ OCV0 = OCV ⌝%I as %->.
+    { iAssert (crashed_at_offset OCV0)%I as "#crashed_at_offset"; first by iExists _.
+      iDestruct (crashed_at_offset_agree with "offsets crashed_at_offset") as %->.
+      done. }
+    
+    iDestruct (fmapsto_heap_valid with "Hσ ℓPts") as %Hlook'.
+    assert (store_drop_prefix OCV full_hist !! ℓ = Some hist) as Hlook.
+    { rewrite store_drop_prefix_alt Hlook' /= //. }
+
+    iSplit.
+    - (* We must show that the load can take some step. To do this we must use
+      the points-to predicate and fact that the view is valid. *)
+      rewrite /head_reducible.
+      (* We need to show that there is _some_ message that the load could read.
+      It could certainly read the most recent message. *)
+      pose proof (history_lookup_lub_valid _ _ _ Hlook)
+        as [[msgv msgSV msgP] Hmsgeq]; first done.
+      (* The time at the view is smaller than the time in the lub view (which is
+      the time of the most recent message *)
+      iExists [], _, _, _, _. simpl. iPureIntro.
+      eapply impure_step.
+      * constructor.
+      * econstructor; last by apply view_lt_lt.
+        + done.
+        + rewrite Hmsgeq. done.
+    - iNext. iIntros (e2 σ2 [] efs Hstep).
+      whack_global.
+      simpl in *. inv_impure_thread_step. iSplitR=>//.
+      iMod (gen_own_update with "store_view_at") as "[store_view_at valid']".
+      { apply (auth_update_dfrac_alloc _ _ (SV ⋅ MV)).
+        rewrite -subseteq_view_incl.
+        apply view_lub_le; first done.
+        eapply message_included_in_max_view; done. }
+      iFrame. iModIntro.
+      iDestruct ("HΦ" $! (t + (OCV !!0 ℓ)) v MV MP _ with "[$ℓPts $valid']") as "$".
+      { iPureIntro.
+        split; last lia.
+        rewrite -drop_prefix_lookup //. }
+      iExists OV, OCV, full_hist.
+      simpl.
+      iFrame "∗#".
+      done.
+  Qed.
+
   Lemma wp_store v SV PV BV ℓ (hist : history) s E :
     {{{ ℓ ↦h hist ∗ validV SV }}}
       (#ℓ <-_NA v) `at` (SV, PV, BV) @ s; E
@@ -975,6 +1040,146 @@ Section lifting.
         done.
   Qed.
 
+  Lemma wp_cmpxchg_alt ℓ h (v_i v_t : val) SV FV BV OCV s E :
+    ⌜ ∀ (t : nat) (msg : message),
+      Nat.add (OCV !!0 ℓ) (SV !!0 ℓ) ≤ t → h !! t = Some msg → vals_compare_safe v_i (msg_val msg) ⌝ -∗
+    {{{ ℓ ↦fh h ∗ validV SV ∗ crashed_at_offset OCV }}}
+      CmpXchg #ℓ v_i v_t `at` (SV, FV, BV) @ s; E
+    {{{ t v SVm FVm _PVm SV3 b, RET (v, #b) `at` (SV3, FV, BV ⊔ FVm);
+      ⌜ Nat.add (OCV !!0 ℓ) (SV !!0 ℓ) ≤ t ⌝ ∗
+      validV SV3 ∗
+      ⌜ h !! t = Some (Msg v SVm FVm _PVm) ⌝ ∗
+      ⌜ h !! (t + 1)%nat = None ⌝ ∗
+      ( (* Success *)
+        ⌜ b = true ⌝ ∗
+        ⌜ v = v_i ⌝ ∗
+        ⌜ SV3 = <[ ℓ := MaxNat (t - (OCV !!0 ℓ) + 1) ]>(SV ⊔ SVm) ⌝ ∗
+        ℓ ↦fh <[ (t + 1) := Msg v_t SV3 (FV ⊔ FVm) (FV ⊔ FVm) ]>h
+        ∨
+        (* Failure *)
+        ⌜ b = false ⌝ ∗ ⌜ SV3 = SV ⊔ SVm ⌝ ∗ ℓ ↦fh h)
+    }}}.
+  Proof.
+    set hist := (drop_prefix h (OCV !!0 ℓ)).
+    iIntros (safe).
+    iIntros "!>" (Φ) "(ℓPts & Hval & #offset) HΦ".
+    iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
+    iIntros ([??] [] ns mj D κ κs k) "[interp extra] ? !>". iNamed "interp".
+    simpl in *.
+    subst g.
+    (* From the points-to predicate we know that [hist] is in the heap at ℓ. *)
+    iAssert (crashed_at_offset OCV0)%I as "crashed_at_offset"; first by iExists _.
+    iDestruct (crashed_at_offset_agree with "offset crashed_at_offset") as %<-.
+    iNamed "store_view_auth".
+    iDestruct (gen_own_auth_frag_leq with "Hval store_view_at") as %Vincl.
+    iDestruct (fmapsto_heap_valid with "Hσ ℓPts") as %Hlook'.
+    iSplit.
+    - rewrite /head_reducible.
+      (* We need to show that there is _some_ message that the CmpXchg could
+       * read. It could certainly read the most recent message. *)
+      assert (store_drop_prefix OCV full_hist !! ℓ = Some hist) as Hlook.
+      { rewrite store_drop_prefix_alt Hlook' /= //. }
+      pose proof (history_lookup_lub_valid _ _ _ Hlook)
+        as [[msgv msgSV msgP] Hmsgeq]; first done.
+      pose proof (history_lookup_lub_succ _ _ _ Hlook) as lookNone.
+      destruct (decide (msgv = v_i)) as [->|neq].
+      { iExists [], _, _, _, _. iPureIntro. simpl.
+        eapply impure_step.
+        * apply CmpXchgSuccS.
+        * eapply (MStepRMW _ _ _ _ _ _ _ (max_view (store_drop_prefix OCV full_hist) !!0 ℓ)); try done.
+          + f_equiv. done.
+          + intros ??? lookSome.
+            rewrite drop_prefix_lookup_Some in lookSome.
+            apply (safe (t' + (OCV !!0 ℓ))); last done.
+            lia. }
+      { iExists [], _, _, _, _. iPureIntro. simpl.
+        eapply impure_step.
+        * apply CmpXchgFailS. apply neq.
+        * eapply MStepRMWFail; try done.
+          + f_equiv. done.
+          + intros ??? lookSome.
+            rewrite drop_prefix_lookup_Some in lookSome.
+            apply (safe (t' + (OCV !!0 ℓ))); last done.
+            lia. }
+    - iNext. iIntros (e2 σ2 [] efs Hstep).
+      whack_global.
+      simpl in *. inv_impure_thread_step.
+      * assert (h0 = hist) as ->.
+        (* H8: store_drop_prefix OCV full_hist !! ℓ = Some h0 *)
+        { rewrite store_drop_prefix_alt Hlook' /= in H8. simplify_eq. done. }
+        iSplitR=>//.
+        assert (ℓ ∈ dom full_hist) as elemOf.
+        { by apply elem_of_dom_2 in Hlook'. }
+        (* assert (hist = drop_prefix h (OCV !!0 ℓ)) as drop_eq. *)
+        (* { rewrite store_drop_prefix_alt Hlook' /= in Hlook. *)
+        (*   by simplify_eq. } *)
+        iMod (fmapsto_heap_update with "Hσ ℓPts") as "[Hσ ℓPts]".
+        (* iEval (rewrite <- drop_prefix_insert) in "ℓPts". *)
+        (* iEval (rewrite <- drop_eq) in "ℓPts". *)
+        assert (MV ⊑ max_view (store_drop_prefix OCV full_hist)) as incl2 by
+          by eapply valid_heap_msg_lookup.
+        iMod (gen_own_update with "store_view_at") as "[store_view_at mvView]".
+        { apply auth_frac.auth_frac_update_core_id; last apply incl2. apply _. }
+        iPoseProof (gen_own_op_2 with "Hval mvView") as "Hval".
+        rewrite -auth_frag_op.
+        iMod (auth_both_max_view_insert with "[$] [$]")
+          as "[store_view_at Hval]"; [done|].
+        (* rewrite -?(insert_store_drop_prefix _ _ _ h); try assumption. *)
+        iDestruct ("HΦ" $! (t + (OCV !!0 ℓ)) with "[ℓPts $Hval]") as "$".
+        { replace (t + (OCV !!0 ℓ) + 1) with (t + 1 + (OCV !!0 ℓ)) by lia.
+          iSplit; first (iPureIntro; lia).
+          iSplit; first rewrite -drop_prefix_lookup_Some //.
+          iSplit; first rewrite -drop_prefix_lookup //.
+          iLeft.
+          iSplit; first done.
+          iSplit; first done.
+          iSplit.
+          { iPureIntro.
+            f_equiv; last done.
+            f_equiv. lia. }
+          done. }
+        iModIntro.
+        iFrame "extra".
+        iExists _, _, _.
+        iFrame "∗#".
+        iSplit.
+        { iPureIntro.
+          simpl.
+          erewrite <- insert_store_drop_prefix; done. }
+        iSplit.
+        { iPureIntro.
+          simpl.
+          (* erewrite insert_store_drop_prefix; try eassumption. *)
+          apply hist_inv_insert_msg; try done.
+          apply max_view_incl_insert; first done.
+          apply view_lub_le; done. }
+        iPureIntro.
+        simpl.
+        rewrite dom_insert_L.
+        set_solver.
+      * assert (h0 = hist) as ->.
+        (* H11: store_drop_prefix OCV full_hist !! ℓ = Some h0 *)
+        { rewrite store_drop_prefix_alt Hlook' /= in H11. simplify_eq. done. }
+        iSplitR=>//.
+        iMod (gen_own_update with "store_view_at") as "[store_view_at valid']".
+        { apply (auth_update_dfrac_alloc _ _ (SV ⋅ MV)).
+          rewrite -subseteq_view_incl.
+          apply view_lub_le; first done.
+          eapply message_included_in_max_view; done. }
+        iFrame. iModIntro.
+        iDestruct ("HΦ" with "[ℓPts $valid']") as "$".
+        { replace (t + (OCV !!0 ℓ) + 1) with (t + 1 + (OCV !!0 ℓ)) by lia.
+          iSplit; first (iPureIntro; lia).
+          iSplit; first rewrite -drop_prefix_lookup_Some //.
+          iSplit; first rewrite -drop_prefix_lookup //.
+          iRight.
+          by iFrame. }
+        iExists OV, OCV, full_hist.
+        simpl.
+        iFrame "#∗".
+        done.
+  Qed.
+  
   (* Lemma valid_heap *)
 
   (* Lemma wp_faa  *)

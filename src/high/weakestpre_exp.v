@@ -14,6 +14,8 @@ From self.high.lib Require Import abstract_state.
 From self Require Export lang.
 From self.high Require Export dprop.
 
+Set Default Proof Using "Type*".
+
 Section weakestpre.
   Context `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω, !PerennialG Σ, AbstractState ST}.
   
@@ -47,7 +49,7 @@ Section weakestpre.
     iNamed 1.
 
     (* offset lookup *)
-    iDestruct (offset_loc_crashed_at_agree with "[$] [$]") as %offsetLook.
+    iDestruct (offset_loc_offset_auth_agree with "offset offsets") as %offsetLook.
     
     (* lookup [msg_xchg] early for for [wp_flush] *)
     iAssert ⌜ ∃ pHist, phys_hists !! ℓ = Some pHist ∧ pHist !! t_xchg = Some msg_xchg ⌝%I as %[pHist [HphysHistLook HpHistLookXchg]].
@@ -220,14 +222,7 @@ Section weakestpre.
       (* remove duplicate offset *)
       iDestruct (offset_loc_agree with "offset offsetXchg") as %->. iClear "offsetXchg".
       (* also obtain offset lookup equality *)
-      iAssert ⌜ offsets !! fi.(fi_ℓ) = Some offset ⌝%I with "[offsets]" as "%".
-      {  iDestruct "offset" as (OCV) "[offsets' %Heq]". 
-        iDestruct (crashed_at_offset_agree with "offsets offsets'") as "%".
-        iPureIntro.
-        simplify_map_eq.
-        rewrite lookup_fmap_Some in Heq.
-        destruct Heq as [? [? ?]].
-        by simplify_eq. }
+      iDestruct (offset_loc_offset_auth_agree with "offset offsets") as %offsetLook.
       (* [ℓ] is atomic location. *)
       iPoseProof (location_sets_singleton_included with "[$] [$]") as "%isAtLoc".
       (* lookup [msg_xchg] *)
@@ -262,6 +257,7 @@ Section weakestpre.
       iFrameNamed.
       simplify_map_eq.
 
+      rewrite /encoded_full_read_predicates_hold.
       (* since we are atomic, remove all [na_views] references *)
       assert (na_views !! fi.(fi_ℓ) = None) as ->.
       { rewrite -not_elem_of_dom. set_solver. }
@@ -452,6 +448,8 @@ Section weakestpre.
     rewrite /interp.
     iDestruct "predsP" as (global_pview') "[%histPViewDoms predsPersHold]".
     iExistsN.
+    (* TODO: for some reason [predReadNextgen]'s [<NGF>] modality is unfolded. *)
+    rewrite /nextgen_flush /=.
     iFrameNamed.
   Qed.
 End weakestpre.

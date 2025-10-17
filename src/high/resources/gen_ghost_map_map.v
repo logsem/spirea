@@ -14,6 +14,8 @@ From self.lang Require Import lang.
 
 From self.high.resources Require Import gen_ghost_map.
 
+Set Default Proof Using "Type*".
+
 (* the following sections is mostly adapted from the [ghost_map_map.v] file. *)
 (* major simplification: I'm removing the second ghost resource about fractions,
  * since I believe it's obsolete after nextgen update. *)
@@ -149,7 +151,7 @@ Section lemmas.
     iFrame "∗#".
     done.
   Qed.
-
+  
   (* since the new [ghost_map_map] depends on bumpers for nextgen behavior,
    * its allocation now requires knowledge of bumpers at the allocated entries. *)
 
@@ -260,16 +262,16 @@ Section lemmas.
   Qed.
 
   (* Insert a new entry at the top level *)
-  Lemma full_map_insert OPV γ m k1 bumper mi :
+  Lemma full_map_insert γ m k1 bumper mi :
     m !! k1 = None →
-    rely_self crashed_at_name (crashed_at_pred OPV) -∗
+    (∃ OPV, rely_self crashed_at_name (crashed_at_pred OPV)) -∗
     k1 ↪[γbumper, loc_map_rel]□ bumper -∗
     full_map γbumper γ (DfracOwn 1) m ==∗
       full_map γbumper γ (DfracOwn 1) (<[k1 := mi]> m) ∗
       full_entry γbumper γ k1 (DfracOwn 1) mi ∗
       [∗ map] k2 ↦ v ∈ mi, frag_entry γbumper γ k1 k2 v.
   Proof.
-    iIntros (?) "#rely_self #bumper".
+    iIntros (?) "[%OPV #rely_self] #bumper".
     rewrite /full_map /full_entry.
     iDestruct 1 as (gnames) "[auth map]".
     iDestruct (big_sepM2_dom with "map") as %domEq.

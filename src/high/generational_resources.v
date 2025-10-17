@@ -45,6 +45,7 @@ Class nvmHighGS Σ Ω `{!nvmBaseGS Σ Ω} := NvmHighG {
   locsG :> gen_alocsR_inG Σ Ω;
   exclusive_locs_name : gname;
   shared_locs_name : gname;
+  new_locs_name : gname;
   nvm_bumpersG :> ghost_mapGpreS loc (positive → option positive) Σ Ω;
   bumpers_name : gname;
 }.

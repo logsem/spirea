@@ -50,7 +50,7 @@ Class ProtocolConditions `{AbstractState ST, nvmHighGS} (prot : LocationProtocol
     ∀ s v, Objective (prot.(p_pers) s v);
   full_read_split :
     forall s v, prot.(p_full) s v ⊣⊢ prot.(p_read) s v ∗ (prot.(p_read) s v -∗ prot.(p_full) s v);
-  pred_full_post_crash :
+  pred_full_nextgen :
     ⊢ ∀ s_p v_p, prot.(p_pers) s_p v_p -∗
       (* first case: we crash exactly at [s] *)
       (∀ s v, prot.(p_full) s v -∗ <NGF> prot.(p_full) (prot.(p_bumper) s) v ∗ prot.(p_pers) (prot.(p_bumper) s) v) ∧

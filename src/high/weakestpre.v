@@ -287,7 +287,7 @@ Section wp_rules.
     iDestruct (big_sepM2_dom with "predsFullReadHold") as %domEq2.
     assert (is_Some (phys_hists !! ℓ)) as [physHist ?].
     { apply elem_of_dom. rewrite domEq2 domEq. apply elem_of_dom. naive_solver. }
-    iDestruct (offset_loc_crashed_at_agree with "offset offsets") as %?.
+    iDestruct (offset_loc_offset_auth_agree with "offset offsets") as %?.
     iDestruct (big_sepM_lookup_acc with "ptsMap") as "[pts ptsMap]".
     { naive_solver. }
 
@@ -343,7 +343,7 @@ Section wp_rules.
             rewrite lookup_singleton. done. }
           lia. }
     iExistsN.
-    iFrame "#∗%".
+    iFrameNamed.
   Qed.
 
   Lemma wp_flush_na ℓ prot s q ss st E :

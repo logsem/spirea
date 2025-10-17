@@ -24,47 +24,6 @@ From self.algebra Require Export view.
 
 Set Default Proof Using "Type*".
 
-Section BaseLifting.
-  Context `{nvmBaseGS}.
-
-  Definition offset_loc ℓ (t : nat) : iProp Σ :=
-    ∃ OCV, crashed_at_offset OCV ∗ ⌜ OCV !! ℓ = Some $ MaxNat t ⌝.
-
-  Lemma offset_loc_agree ℓ t1 t2 :
-    offset_loc ℓ t1 -∗
-    offset_loc ℓ t2 -∗
-    ⌜ t1 = t2 ⌝.
-  Proof.
-    rewrite /offset_loc.
-    iIntros "(% & ? & %) (% & ? & %)".
-    iDestruct (crashed_at_offset_agree with "[$] [$]") as "%".
-    by simplify_map_eq.
-  Qed.
-
-  Lemma offset_loc_crashed_at_agree ℓ t OCV :
-    offset_loc ℓ t -∗
-    crashed_at_offset (MaxNat <$> OCV) -∗
-    ⌜ OCV !! ℓ = Some $ t ⌝.
-  Proof.
-    iIntros "(%OCV' & offset1 & %look) offset2".
-    iDestruct (crashed_at_offset_agree with "offset1 offset2") as "->".
-    rewrite lookup_fmap in look.
-    destruct (OCV !! ℓ) eqn:Heqn; simpl in look; by simplify_eq.
-  Qed.
-
-  (* (* although the offset never decreases and thus a stronger lemma should be correct, *)
-  (*  * the way [crashed_at_trans] is defined right now doesn't guarantee that. *) *)
-  (* Global Instance offset_loc_into_nextgen ℓ t: *)
-  (*   IntoNextgen *)
-  (*   (offset_loc ℓ t) *)
-  (*   (∃ t', offset_loc ℓ t'). *)
-  (* Proof. *)
-  (*   rewrite /IntoNextgen. *)
-  (*   iIntros "offset !>". *)
-  (*   iDestruct "offset" as (OCV) "[(%OV & %trans & picked & offset) %]". *)
-
-End BaseLifting.
-
 Section location_sets.
   Context `{nvmHighGS}.
   Implicit Types (locs : gset loc) (ℓ : loc).
@@ -91,10 +50,95 @@ Section location_sets.
     iNamed 1.
     iPoseProof (gen_own_mono _ _ (◯ {[ ℓ ]}) with "own_frag") as "own_frag".
     { apply auth_frag_mono. set_solver. }
-    iExists OCV.
     iFrame "∗#".
   Qed.
 End location_sets.
+
+(* We need a different [offset], that allows us to insert [0] at new locations. *)
+Section offset_loc.
+  Context `{nvmHighGS}.
+
+  Definition offset_auth (offsets: gmap loc nat): iProp Σ :=
+    ∃ (OCV: view) (new_locs: gset loc),
+      "#crashed" ∷ crashed_at_offset OCV ∗
+      "newLocs" ∷ gen_alocs_auth new_locs_name new_locs ∗
+      "%HLookupZero" ∷ ⌜ ∀ (ℓ: loc), OCV !!0 ℓ = default 0 (offsets !! ℓ) ⌝ ∗
+      "%HNewOffsets" ∷ ⌜ ∀ (ℓ: loc), ℓ ∈ new_locs → ℓ ∈ dom offsets ⌝ ∗
+      "%HOCVDom" ∷ ⌜ dom OCV ⊆ dom offsets ⌝.
+
+  Definition offset_loc ℓ (t: nat): iProp Σ :=
+    ∃ OCV, crashed_at_offset OCV ∗
+           (gen_alocs_frag new_locs_name {[ ℓ ]} ∗ ⌜ OCV !!0 ℓ = t ⌝).
+  
+  Lemma offset_loc_agree ℓ t1 t2 :
+    offset_loc ℓ t1 -∗
+    offset_loc ℓ t2 -∗
+    ⌜ t1 = t2 ⌝.
+  Proof.
+    rewrite /offset_loc.
+    iIntros "(%OCV & crash & [new_locs_frag %look])".
+    iIntros "(%OCV' & crash' & [new_locs_frag' %look'])".
+    iDestruct (crashed_at_offset_agree with "[$] [$]") as "->".
+    iPureIntro.
+    congruence.
+  Qed.
+
+  Lemma offset_loc_offset_auth_agree ℓ t offsets :
+    offset_loc ℓ t -∗
+    offset_auth offsets -∗
+    ⌜ offsets !! ℓ = Some t ⌝.
+  Proof.
+    iIntros "(%OCV & crash & [new_locs_frag %look])". iNamed 1.
+    iDestruct (crashed_at_offset_agree with "crash crashed") as "<-".
+    iDestruct (location_sets_singleton_included with "[$] [$]") as "%Hdom".
+    iPureIntro.
+    specialize (HLookupZero ℓ).
+    rewrite look /lookup_zero in HLookupZero.
+    destruct (offsets !! ℓ) eqn:?; simpl in HLookupZero.
+    - congruence.
+    - apply HNewOffsets, elem_of_dom in Hdom as [? ?].
+      congruence.
+  Qed.
+
+  Lemma offset_auth_insert offsets ℓ:
+    ℓ ∉ dom offsets →
+    offset_auth offsets ==∗
+    offset_auth (<[ ℓ := 0 ]> offsets) ∗ offset_loc ℓ 0.
+  Proof.
+    iIntros (Hdom). iNamed 1.
+    iMod (gen_alocs_update new_locs ℓ with "newLocs") as "[newLocs frag]".
+    iModIntro.
+    assert (ℓ ∉ dom OCV) by set_solver.
+    iSplitL "newLocs".
+    - iExists _, _.
+      iFrame "∗#".
+      iPureIntro; split; last split.
+      + intros ℓ'.
+        destruct (decide (ℓ = ℓ')) as [ <- | ].
+        * rewrite lookup_insert lookup_zero_None_zero //.
+          by apply not_elem_of_dom.
+        * rewrite lookup_insert_ne //.
+      + set_solver.
+      + set_solver.
+    - iExists _.
+      iFrame "#".
+      iFrame.
+      rewrite lookup_zero_None_zero //.
+      by apply not_elem_of_dom.
+  Qed.
+
+  (* (* although the offset never decreases and thus a stronger lemma should be correct, *)
+  (*  * the way [crashed_at_trans] is defined right now doesn't guarantee that. *) *)
+  (* Global Instance offset_loc_into_nextgen ℓ t: *)
+  (*   IntoNextgen *)
+  (*   (offset_loc ℓ t) *)
+  (*   (∃ t', offset_loc ℓ t'). *)
+  (* Proof. *)
+  (*   rewrite /IntoNextgen. *)
+  (*   iIntros "offset !>". *)
+  (*   iDestruct "offset" as (OCV) "[(%OV & %trans & picked & offset) %]". *)
+
+End offset_loc.
 
 Section preorders.
   Context `{nvmHighGS}.
