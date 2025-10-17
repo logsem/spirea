@@ -56,10 +56,11 @@ Class ProtocolConditions `{AbstractState ST, nvmHighGS} (prot : LocationProtocol
       (∀ s v, prot.(p_full) s v -∗ <NGF> prot.(p_full) (prot.(p_bumper) s) v ∗ prot.(p_pers) (prot.(p_bumper) s) v) ∧
       (* second case: we crash later than [s_p] (included) but before [s] (excluded) *)
       (∀ s v s_c v_c,
-         (* we need to extract the objective facts from the full predicate *)
-         ∃ P, (<obj> (prot.(p_full) s v -∗ <obj> P)) ∗
-              (P -∗ prot.(p_read) s_c v_c -∗ ⌜ s_p ⊑ s_c ⌝ -∗ ⌜ s_c ⊑ s ⌝ -∗
-              <NGF> prot.(p_full) (prot.(p_bumper) s_c) v_c ∗ prot.(p_pers) (prot.(p_bumper) s_c) v_c));
+         (* We cannot take subjective resource from [p_full],
+          * but we can take subjective resource from [p_read]. *)
+         (prot.(p_full) s v -∗
+          <obj> (prot.(p_read) s_c v_c -∗ ⌜ s_p ⊑ s_c ⌝ -∗ ⌜ s_c ⊑ s ⌝ -∗
+                 <NGF> prot.(p_full) (prot.(p_bumper) s_c) v_c ∗ prot.(p_pers) (prot.(p_bumper) s_c) v_c)));
   pred_read_nextgen :
     ⊢ ∀ s v, prot.(p_read) s v -∗ <NGF> prot.(p_read) (prot.(p_bumper) s) v
 }.

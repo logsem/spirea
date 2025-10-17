@@ -25,7 +25,7 @@ Qed.
 
 Class IntoNGFlush `{!nvmBaseGS Σ Ω}
       (P : dProp Σ) (Q : dProp Σ) :=
-  into_nextgen_flushed : P ⊢ nextgen_flush (Σ := Σ) Q.
+  into_nextgen_flushed : P ⊢ nextgen_flush Q.
 
 Arguments IntoNGFlush {_ _ _} _%I _%I.
 
@@ -94,7 +94,7 @@ Section nextgen_persisted.
     iApply monPred_mono; done.
   Qed.
 
-  Global Instance nextgen_flush_proper :
+  #[global] Instance nextgen_flush_proper :
     Proper ((⊣⊢) ==> (⊣⊢)) (nextgen_flush).
   Proof.
     intros ?? eq.
@@ -122,7 +122,7 @@ Section nextgen_persisted.
   Definition modality_nextgen_flush :=
     Modality _ modality_nextgen_flush_mixin.
 
-  Global Instance from_modal_nextgen_flush P :
+  #[global] Instance from_modal_nextgen_flush P :
     FromModal True (modality_nextgen_flush) (<NGF> P) (<NGF> P) P.
   Proof. by rewrite /FromModal. Qed.
 

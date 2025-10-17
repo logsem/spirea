@@ -267,104 +267,92 @@ Section wp_at_alloc.
     iSplitPure; first set_solver.
     iSplitPure; first set_solver.
     iSplitPure; first set_solver.
-    (* predPostCrash *)
-    (* iSplit. { *)
-    (*   iApply (big_sepM2_insert_2 with "[]"). *)
-    (*   - iExists _, _, _. *)
-    (*     rewrite ?lookup_insert. *)
-    (*     do 3 (iSplitPure; first done). *)
-    (*     iModIntro. iIntros (????) "(%P_pers & #eqPers & persHolds)". *)
-    (*     iSplit. *)
-    (*     + iIntros (???) "(%P_full & #eqFull & fullHolds) %bumperEq". *)
-    (*       apply encode_bumper_Some_decode in bumperEq. *)
-    (*       destruct bumperEq as (s3 & bumperEq & bumperEq'). *)
-    (*       iEval (rewrite /encode_predicate). *)
-    (*       rewrite -bumperEq'. *)
-    (*       rewrite decode_encode. *)
-    (*       iExists _, _. *)
-    (*       iSplit. { iPureIntro. simpl. reflexivity. } *)
-    (*       iSplit. { iPureIntro. simpl. reflexivity. } *)
-    (*       iDestruct (encode_predicate_decode with "eqPers") as (s4) "%s5DecodeEq". *)
-    (*       iPoseProof (encode_predicate_extract with "eqPers persHolds") as "predPers". *)
-    (*       { done. } *)
-    (*       iPoseProof (encode_predicate_extract with "eqFull fullHolds") as "predFull". *)
-    (*       { done. } *)
-    (*       iPoseProof (pred_full_post_crash with "predPers") as "[PostCrash _]". *)
-    (*       by iApply "PostCrash". *)
-    (*     + iIntros (??????) "#eqFull". *)
-    (*       iDestruct (encode_predicate_decode with "eqPers") as (s4) "%s4DecodeEq". *)
-    (*       iPoseProof (encode_predicate_extract with "eqPers persHolds") as "predPers". *)
-    (*       { done. } *)
-    (*       iDestruct (encode_predicate_decode with "eqFull") as (s5) "%s5DecodeEq". *)
-    (*       iPoseProof (pred_full_post_crash with "predPers") as "[_ PostCrash]". *)
-    (*       (* we need to instantiate the universal, but we cannot find the *)
-    (*          instance for [s_c], because we don't know whether [decode e_c] *)
-    (*          yields anything, not until after we instantiate [s_c]. but we can *)
-    (*          get around it by case distinction. *) *)
-    (*       destruct (@decode ST _ _ e_c) as [s3 | ] eqn:Heqn. *)
-    (*       * iDestruct ("PostCrash" $! s5 v_f s3 v_c) as (P_obj) "[objImpl PostCrash]". *)
-    (*         iExists P_obj. *)
-    (*         iSplitL "objImpl". { *)
-    (*           (* monPred_simpl. *) *)
-    (*           iIntros (?). *)
-    (*           rewrite monPred_at_wand. *)
-    (*           iIntros (view') "% fullHolds". *)
-    (*           iPoseProof (encode_predicate_extract with "eqFull fullHolds") as "predFull". *)
-    (*           { done. } *)
-    (*           iSpecialize ("objImpl" $! view' with "predFull"). *)
-    (*           iFrame. *)
-    (*         } *)
-    (*         iIntros "objHolds %bumperEq %order1 %order2 (%P_read & #eqRead & readHolds)". *)
-    (*         iSpecialize ("PostCrash" with "objHolds"). *)
-    (*         apply encode_bumper_Some_decode in bumperEq. *)
-    (*         destruct bumperEq as (s3' & bumperEq & bumperEq'). *)
-    (*         iEval (rewrite /encode_predicate). *)
-    (*         rewrite -bumperEq'. *)
-    (*         rewrite decode_encode. *)
-    (*         simplify_eq. *)
-    (*         iPoseProof (encode_predicate_extract with "eqRead readHolds") as "predRead". *)
-    (*         { done. } *)
-    (*         iPoseProof (monPred_wand_force with "PostCrash") as "PostCrash". *)
-    (*         iSpecialize ("PostCrash" with "predRead"). *)
-    (*         iExists _, _. *)
-    (*         iSplit. { iPureIntro. simpl. reflexivity. } *)
-    (*         iSplit. { iPureIntro. simpl. reflexivity. } *)
-    (*         rewrite encode_relation_decode_iff in order1; [ | done | done ]. *)
-    (*         rewrite encode_relation_decode_iff in order2; [ | done | done ]. *)
-    (*         iApply "PostCrash"; iPureIntro; destruct order1; simplify_eq; done. *)
-    (*       * (* this is the spurious case, we will see that once we get hold of *)
-    (*            [encode_bumper], we will just feed some random [ST] *) *)
-    (*         iDestruct ("PostCrash" $! s5 v_f s4 v_c) as (P_obj) "[objImpl PostCrash]". *)
-    (*         iExists P_obj. *)
-    (*         iSplitL "objImpl". { *)
-    (*           (* monPred_simpl. *) *)
-    (*           iIntros (?). *)
-    (*           rewrite monPred_at_wand. *)
-    (*           iIntros (view') "% fullHolds". *)
-    (*           iPoseProof (encode_predicate_extract with "eqFull fullHolds") as "predFull". *)
-    (*           { done. } *)
-    (*           iSpecialize ("objImpl" $! view' with "predFull"). *)
-    (*           iFrame. *)
-    (*         } *)
-    (*         iIntros "_ %bumperEq". *)
-    (*         apply encode_bumper_Some_decode in bumperEq. *)
-    (*         destruct bumperEq as (s3' & bumperEq & bumperEq'). *)
-    (*         rewrite Heqn in bumperEq. *)
-    (*         discriminate. *)
-    (*   - iApply (big_sepM2_impl with "predFullPostCrash"). *)
-    (*     iIntros "!> %ℓ' %pred_full %bumper %predFullLook %bumperLook *)
-    (*              (%pred_read & %pred_pers & %order & *)
-    (*               %predReadLook & %predPersLook & %orderLook & PostCrash)". *)
-    (*     iExists pred_read, pred_pers, order. *)
-    (*     assert (ℓ' ∈ dom abs_hists). { *)
-    (*       apply elem_of_dom_2 in bumperLook. *)
-    (*       congruence. *)
-    (*     } *)
-    (*     assert (ℓ ≠ ℓ') by congruence. *)
-    (*     do ? (rewrite lookup_insert_ne; last done). *)
-    (*     do 3 (iSplitPure; first done). *)
-    (*     iApply "PostCrash". *)
-    (* } *)
+    (* [full_nextgen] *)
+    iSplit. {
+      iApply (big_sepM2_insert_2 with "[]").
+      - iExists _, _, _.
+        rewrite ?lookup_insert.
+        do 3 (iSplitPure; first done).
+        iApply (plainly_intro emp); last done.
+        iIntros (????) "(%P_pers & #eqPers & persHolds)".
+        iSplit.
+        + iIntros (???) "(%P_full & #eqFull & fullHolds) %bumperEq".
+          apply encode_bumper_Some_decode in bumperEq.
+          destruct bumperEq as (s3 & bumperEq & bumperEq').
+          iEval (rewrite /encode_predicate).
+          rewrite -bumperEq'.
+          rewrite decode_encode.
+          iExists _, _.
+          iSplit. { iPureIntro. simpl. reflexivity. }
+          iSplit. { iPureIntro. simpl. reflexivity. }
+          iDestruct (encode_predicate_decode with "eqPers") as (s4) "%s5DecodeEq".
+          iPoseProof (encode_predicate_extract with "eqPers persHolds") as "predPers".
+          { done. }
+          iPoseProof (encode_predicate_extract with "eqFull fullHolds") as "predFull".
+          { done. }
+          iPoseProof (pred_full_nextgen with "predPers") as "[NGF _]".
+          by iApply "NGF".
+        + iIntros (???????) "#eqFull".
+          iDestruct (encode_predicate_decode with "eqPers") as (s4) "%s4DecodeEq".
+          iPoseProof (encode_predicate_extract with "eqPers persHolds") as "predPers".
+          { done. }
+          iDestruct (encode_predicate_decode with "eqFull") as (s5) "%s5DecodeEq".
+          iEval (rewrite (objective_at _ _ TV_f)) in "predPers".
+          iPoseProof (pred_full_nextgen with "predPers") as "[_ NGF]".
+          (* we need to instantiate the universal, but we cannot find the *)
+          (* instance for [s_c], because we don't know whether [decode e_c] *)
+          (* yields anything, not until after we instantiate [s_c]. but we can *)
+          (* get around it by case distinction. *)
+          destruct (@decode ST _ _ encσ_c) as [s3 | ] eqn:Heqn.
+          * iDestruct ("NGF" $! s5 v_f s3 v_c) as "NGF".
+            iIntros "fullHolds".
+            iPoseProof (encode_predicate_extract with "eqFull fullHolds") as "predFull".
+            { done. }
+            iSpecialize ("NGF" with "predFull").
+            iEval (rewrite (objective_at _ _ TV) monPred_objectively_elim) in "NGF".
+            iIntros "%bumperEq %order1 %order2 (%P_read & #eqRead & readHolds)".
+            apply encode_bumper_Some_decode in bumperEq.
+            destruct bumperEq as (s3' & bumperEq & bumperEq').
+            iEval (rewrite /encode_predicate).
+            rewrite -bumperEq'.
+            rewrite decode_encode.
+            simplify_eq.
+            iPoseProof (encode_predicate_extract with "eqRead readHolds") as "predRead".
+            { done. }
+            iPoseProof (monPred_wand_force with "NGF") as "NGF".
+            iSpecialize ("NGF" with "predRead").
+            iExists _, _.
+            iSplit. { iPureIntro. simpl. reflexivity. }
+            iSplit. { iPureIntro. simpl. reflexivity. }
+            rewrite encode_relation_decode_iff in order1; [ | done | done ].
+            rewrite encode_relation_decode_iff in order2; [ | done | done ].
+            iApply "NGF"; iPureIntro; destruct order1; simplify_eq; done.
+          * (* this is the spurious case, we will see that once we get hold of *)
+            (* [encode_bumper], we will just feed some random [ST] *)
+            iDestruct ("NGF" $! s5 v_f s4 v_c) as "NGF".
+            iIntros "fullHolds".
+            iPoseProof (encode_predicate_extract with "eqFull fullHolds") as "predFull".
+            { done. }
+            iSpecialize ("NGF" with "predFull").
+            iIntros "%bumperEq".
+            apply encode_bumper_Some_decode in bumperEq.
+            destruct bumperEq as (s3' & bumperEq & bumperEq').
+            rewrite Heqn in bumperEq.
+            discriminate.
+      - iApply (big_sepM2_impl with "predFullNextgen").
+        iIntros "!> %ℓ' %order %bumper %orderLook %bumperLook
+                 (%pred_full & %pred_read & %pred_pers &
+                  %predFullLook & %predReadLook & %predPersLook & PostCrash)".
+        iExists pred_full, pred_read, pred_pers.
+        assert (ℓ' ∈ dom abs_hists). {
+          apply elem_of_dom_2 in bumperLook.
+          congruence.
+        }
+        assert (ℓ ≠ ℓ') by congruence.
+        do ? (rewrite lookup_insert_ne; last done).
+        do 3 (iSplitPure; first done).
+        iApply "PostCrash".
+    }
     (* [read_nextgen] *)
     iSplit. {
       iApply (big_sepM2_insert_2 with "[] predReadNextgen").

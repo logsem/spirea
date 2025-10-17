@@ -238,30 +238,30 @@ Section state_interpretation.
       "%PersBumperDoms" ∷
         ⌜ dom predicates_pers = dom bumpers ⌝ ∗
 
-      (* Yixuan: I'm trying the alternative model where we simply remember that protocols exist for all locations *)
-
-      (* TODO: add back protocol knowledges *)
-      (* (* The predicate holds after a crash for the bumped state. *) *)
-      (* "#predFullPostCrash" ∷ ([∗ map] ℓ ↦ pred_full; bump ∈ predicates_full; bumpers, *)
-      (*   ∃ pred_read pred_pers order, *)
-      (*   ⌜ predicates_read !! ℓ = Some pred_read ⌝ ∗ *)
-      (*   ⌜ predicates_pers !! ℓ = Some pred_pers ⌝ ∗ *)
-      (*   ⌜ orders !! ℓ = Some order ⌝ ∗ *)
-      (*   □ (∀ e_p v_p (hG : nvmDeltaG) TV, *)
-      (*     encoded_predicate_holds pred_pers e_p v_p (TV, hG) -∗ *)
-      (*     (* first case: crash at [e_f] *) *)
-      (*     (∀ e_f e_f' v_f, encoded_predicate_holds pred_full e_f v_f (TV, hG) -∗ ⌜ bump e_f = Some e_f' ⌝ -∗ *)
-      (*              ∃ P_full' P_pers', pred_full e_f' v_f ≡ Some P_full' ∗ pred_pers e_f' v_f ≡ Some P_pers' ∗ *)
-      (*                                 (post_crash_flush (P_full' ∗ P_pers': dPropO Σ)) (TV, hG)) ∧ *)
-      (*     (* second case: crash at [e_c ⊏ e_f] *) *)
-      (*     (∀ e_f e_c e_c' v_f v_c (P_full: dPropO Σ), *)
-      (*        pred_full e_f v_f ≡ Some P_full -∗ *)
-      (*        ∃ P_obj: dProp Σ, (<obj> (P_full -∗ <obj> P_obj)) (TV, hG) ∗ *)
-      (*                          (P_obj (TV, hG) -∗ *)
-      (*                           ⌜ bump e_c = Some e_c' ⌝ -∗ ⌜ order e_p e_c ∨ e_p = e_c ⌝ -∗ ⌜ order e_c e_f ⌝ -∗ *)
-      (*                           encoded_predicate_holds pred_read e_c v_c (TV, hG) -∗ *)
-      (*                           ∃ P_full' P_pers', pred_full e_c' v_c ≡ Some P_full' ∗ pred_pers e_c' v_c ≡ Some P_pers' ∗ *)
-      (*                                              (post_crash_flush (P_full' ∗ P_pers': dPropO Σ)) (TV, hG))))) ∗ *)
+      (* The predicate holds after a crash for the bumped state. *)
+      "#predFullNextgen" ∷ ([∗ map] ℓ ↦ order; bump ∈ orders; bumpers,
+        ∃ encp_full encp_read encp_pers,
+        ⌜ predicates_full !! ℓ = Some encp_full ⌝ ∗
+        ⌜ predicates_read !! ℓ = Some encp_read ⌝ ∗
+        ⌜ predicates_pers !! ℓ = Some encp_pers ⌝ ∗
+        ■ (∀ encσ_p v_p TV,
+             encoded_predicate_holds encp_pers encσ_p v_p TV -∗
+             (* first case: crash at [encσ_f] *)
+             (∀ encσ_f encσ_f' v_f,
+                encoded_predicate_holds encp_full encσ_f v_f TV -∗
+                ⌜ bump encσ_f = Some encσ_f' ⌝ -∗
+                ∃ P_full' P_pers', encp_full encσ_f' v_f ≡ Some P_full' ∗ encp_pers encσ_f' v_f ≡ Some P_pers' ∗
+                                   (nextgen_flush (P_full' ∗ P_pers': dPropO Σ)) TV) ∧
+             (* second case: crash at [encσ_c ⊏ encσ_f] *)
+             (∀ encσ_f encσ_c encσ_c' v_f v_c (P_full: dPropO Σ) TV_f,
+                encp_full encσ_f v_f ≡ Some P_full -∗
+                P_full TV_f -∗
+                ⌜ bump encσ_c = Some encσ_c' ⌝ -∗
+                ⌜ order encσ_p encσ_c ∨ encσ_p = encσ_c ⌝ -∗
+                ⌜ order encσ_c encσ_f ⌝ -∗
+                encoded_predicate_holds encp_read encσ_c v_c TV -∗
+                ∃ P_full' P_pers', encp_full encσ_c' v_c ≡ Some P_full' ∗ encp_pers encσ_c' v_c ≡ Some P_pers' ∗
+                                   (nextgen_flush (P_full' ∗ P_pers': dPropO Σ)) TV))) ∗
 
       "#predReadNextgen" ∷ ([∗ map] ℓ ↦ pred_read; bumper ∈ predicates_read; bumpers,
         ∀ e e' v TV, ■ (⌜ bumper e = Some e' ⌝ -∗ encoded_predicate_holds pred_read e v TV -∗
