@@ -337,12 +337,11 @@ Section wpr.
   Qed.
 
   (* Given the state interpretations _before_ a crash we reestablish the *)
-(*   interpretations _after_ a crash. *)
-  (*  (Hinv : invGS Σ)  *)
+  (* interpretations _after_ a crash. *)
+  (* (Hinv : invGS Σ)  *)
   Lemma nvm_reinit `{!nvmBaseG Σ Ω, !nvmHighG Σ Ω, !PerennialG Σ} n σ σ':
     crash_step σ σ' →
     state_interp σ n ⊢ |==> ⚡==> |==>
-    validV ∅ ∗
     (▷ interp) ∗
     nvm_heap_ctx σ'.
   Proof.

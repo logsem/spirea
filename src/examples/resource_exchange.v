@@ -585,7 +585,7 @@ Section Proof.
               iFrame.
               iExists _. iFrame "#".
               done.
-            + iDestruct (gen_own_valid_2 with "frag frag'") as %[contra _]%gmap_view_frag_op_valid.
+            + iDestruct (gen_own_valid_2 with "frag frag'") as %[]%gmap_view_frag_op_valid.
               done.
           - iIntros (?) "[ops_token $]".
             iDestruct (token_to_rely with "ops_token") as "#rely".

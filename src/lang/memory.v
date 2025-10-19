@@ -341,11 +341,14 @@ Section memory.
 
   (* The crash step is different from the other steps in that it does not depend
   on any current thread. We therefore define it as a separate type. *)
-  Inductive crash_step : mem_config → mem_config → Prop :=
-  | MCrashStep σ PV CV :
+  Inductive CV_crash_step (CV: view): mem_config → mem_config → Prop :=
+  | MCVCrashStep σ PV :
      PV ⊑ CV →
      consistent_cut CV σ →
-     crash_step (σ, PV) (slice_of_store CV σ, view_to_zero CV).
+     CV_crash_step CV (σ, PV) (slice_of_store CV σ, view_to_zero CV).
+  
+  Definition crash_step m1 m2 : Prop :=
+    ∃ CV, CV_crash_step CV m1 m2.
 
   (* It is always possible to allocate a section of memory. *)
   Lemma alloc_fresh v (len : nat) a σ p SV FV BV :
