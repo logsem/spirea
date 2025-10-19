@@ -35,7 +35,7 @@ Section wp_at.
    * [Q3]: the failure postcondition outside of fence.
    * [abs_hist'], [phys_hist']: observed history form the [mapsto_at] assertion.
    * [abs_hist], [phys_hist]: complete history from [interp]. *)
-  Lemma wp_cmpxchg_at Q1 Q2 Q3 (P R: ST → dProp Σ) σs σ_i σ_t ℓ prot `{!ProtocolConditions prot} v_i v_t st E :
+  Lemma wp_cmpxchg_at Q1 Q2 Q3 (P R: ST → dProp Σ) σs σ_i ℓ prot `{!ProtocolConditions prot} v_i v_t st E :
     {{{
       ℓ ↦_AT^{prot} (σs ++ [σ_i]) ∗
       (∀ σ_l v_l σ_p v_p,
@@ -44,6 +44,7 @@ Section wp_at.
         ((▷ prot.(p_read) σ_l v_l) -∗ ⌜ vals_compare_safe v_i v_l ⌝) ∗
         (( (* in case of success *)
             ⌜ v_l = v_i ⌝ -∗
+            ∃ σ_t,
             (* The state we write fits in the history. *)
             <obj> (prot.(p_full) σ_l v_l -∗ ⌜ σ_l ⊑ σ_t ⌝) ∗
             (∀ σ_n v_n, ⌜ σ_l ⊑ σ_n ⌝ -∗ prot.(p_full) σ_l v_l -∗
@@ -56,14 +57,14 @@ Section wp_at.
             (* Extract from the location we load. *)
             <obj> (prot.(p_full) σ_l v_l ∗ P σ_p -∗ prot.(p_read) σ_l v_l ∗ R σ_l) ∗
             (* Establish the invariant for the value we store. *)
-            (R σ_l ==∗ prot.(p_full) σ_t v_t ∗ <obj> P σ_p ∗ Q1 σ_l))
+            (R σ_l ==∗ prot.(p_full) σ_t v_t ∗ <obj> P σ_p ∗ Q1 σ_l σ_t))
          ∧ (* in case of failure *)
            ((<obj> (prot.(p_full) σ_l v_l -∗ prot.(p_full) σ_l v_l ∗ Q2 σ_l)) ∗ Q3)
         ))
     }}}
       CmpXchg #ℓ v_i v_t @ st; E
-    {{{ v b σ_l, RET (v, #b);
-      (⌜ b = true ⌝ ∗ <fence> Q1 σ_l ∗ ℓ ↦_AT^{prot} ((σs ++ [σ_i]) ++ [σ_t]) ∗ seen_state ℓ prot σ_l) ∨
+    {{{ v b σ_l σ_t, RET (v, #b);
+      (⌜ b = true ⌝ ∗ <fence> Q1 σ_l σ_t ∗ ℓ ↦_AT^{prot} ((σs ++ [σ_i]) ++ [σ_t]) ∗ seen_state ℓ prot σ_l) ∨
       (⌜ b = false ⌝ ∗ ⌜ σ_i ⊑ σ_l ⌝ ∗ ℓ ↦_AT^{prot} (σs ++ [σ_i]) ∗ <fence> (Q2 σ_l) ∗ Q3)
     }}}.
   Proof.
@@ -181,7 +182,7 @@ Section wp_at.
 
       iDestruct ("impl" $! _ _ σ_p (msg_val msg_p)) as "impl".
       iDestruct ("impl" $! orderRelated) as "[_ [impl _]]".
-      iDestruct ("impl" with "[//]") as "(above & below & P_acc & impl1 & impl2)".
+      iDestruct ("impl" with "[//]") as (σ_t) "(above & below & P_acc & impl1 & impl2)".
       rewrite ?monPred_at_objectively.
       iDestruct ("above" with "[$]") as "%above".
 
@@ -393,7 +394,7 @@ Section wp_at.
 
       Opaque mapsto_at seen_state.
       
-      iSpecialize ("Φpost" $! _ true σ_l).
+      iSpecialize ("Φpost" $! _ true σ_l σ_t).
       iEval (monPred_simpl) in "Φpost".
       iApply "Φpost".
       { iPureIntro. solve_view_le. }
@@ -510,7 +511,7 @@ Section wp_at.
 
       iSplitPure. { repeat split; try done; apply view_le_l. }
 
-      iSpecialize ("Φpost" $! _ false σ_l).
+      iSpecialize ("Φpost" $! _ false σ_l _).
       iEval (monPred_simpl) in "Φpost".
       iApply "Φpost".
 

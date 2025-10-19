@@ -299,7 +299,7 @@ Section wp_at.
       iSplitPure; first done.
       (* [PersBumpersDoms] *)
       iSplitPure; first done.
-      (* iFrameF "predFullPostCrash". *)
+      iSplit; first iAssumption.
       iSplit; first iAssumption.
       iSplit; first iAssumption.
       iFrame (bumperBumpToValid).
@@ -335,6 +335,7 @@ Section wp_at.
       (* We re-establish [interp]. *)
       iExistsN.
       iFrameNamedF.
+      iSplit; first iAssumption.
       iSplit; first iAssumption.
       iSplit; first iAssumption.
       iFrame "bumperSome".

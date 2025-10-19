@@ -244,24 +244,25 @@ Section state_interpretation.
         ⌜ predicates_full !! ℓ = Some encp_full ⌝ ∗
         ⌜ predicates_read !! ℓ = Some encp_read ⌝ ∗
         ⌜ predicates_pers !! ℓ = Some encp_pers ⌝ ∗
-        ■ (∀ encσ_p v_p TV,
-             encoded_predicate_holds encp_pers encσ_p v_p TV -∗
+        ■ (∀ encσ_p v_p encσ_f v_f MsgV_f,
+             ⌜ order encσ_p encσ_f ∨ encσ_p = encσ_f ⌝ -∗
+             encoded_predicate_holds encp_pers encσ_p v_p (∅, ∅, ∅) -∗
+             encoded_predicate_holds encp_full encσ_f v_f MsgV_f -∗
              (* first case: crash at [encσ_f] *)
-             (∀ encσ_f encσ_f' v_f,
-                encoded_predicate_holds encp_full encσ_f v_f TV -∗
-                ⌜ bump encσ_f = Some encσ_f' ⌝ -∗
-                ∃ P_full' P_pers', encp_full encσ_f' v_f ≡ Some P_full' ∗ encp_pers encσ_f' v_f ≡ Some P_pers' ∗
-                                   (nextgen_flush (P_full' ∗ P_pers': dPropO Σ)) TV) ∧
+             (∀ encσ_f',
+                ⌜ bump encσ_f = Some encσ_f' ⌝ ==∗
+                ∃ P_full' P_pers',
+                  encp_full encσ_f' v_f ≡ Some P_full' ∗ encp_pers encσ_f' v_f ≡ Some P_pers' ∗
+                  (nextgen_flush (P_full' ∗ P_pers': dPropO Σ)) MsgV_f) ∧
              (* second case: crash at [encσ_c ⊏ encσ_f] *)
-             (∀ encσ_f encσ_c encσ_c' v_f v_c (P_full: dPropO Σ) TV_f,
-                encp_full encσ_f v_f ≡ Some P_full -∗
-                P_full TV_f -∗
+             (∀ encσ_c encσ_c' v_c MsgV_c,
                 ⌜ bump encσ_c = Some encσ_c' ⌝ -∗
                 ⌜ order encσ_p encσ_c ∨ encσ_p = encσ_c ⌝ -∗
                 ⌜ order encσ_c encσ_f ⌝ -∗
-                encoded_predicate_holds encp_read encσ_c v_c TV -∗
-                ∃ P_full' P_pers', encp_full encσ_c' v_c ≡ Some P_full' ∗ encp_pers encσ_c' v_c ≡ Some P_pers' ∗
-                                   (nextgen_flush (P_full' ∗ P_pers': dPropO Σ)) TV))) ∗
+                encoded_predicate_holds encp_read encσ_c v_c MsgV_c ==∗
+                ∃ P_full' P_pers',
+                  encp_full encσ_c' v_c ≡ Some P_full' ∗ encp_pers encσ_c' v_c ≡ Some P_pers' ∗
+                  (nextgen_flush (P_full' ∗ P_pers': dPropO Σ)) MsgV_c))) ∗
 
       "#predReadNextgen" ∷ ([∗ map] ℓ ↦ pred_read; bumper ∈ predicates_read; bumpers,
         ∀ e e' v TV, ■ (⌜ bumper e = Some e' ⌝ -∗ encoded_predicate_holds pred_read e v TV -∗

@@ -7,19 +7,18 @@ From self.base Require Import generational_resources.
 From self.high Require Import dprop.
 From self.nextgen Require Export nextgen_promises.
 
-Definition nextgen `{!nvmBaseGS Σ Ω} (P: dProp Σ): dProp Σ := MonPred (λ TV, ⚡==> P (∅, ∅, ∅))%I _.
+Set Default Proof Using "Type*".
 
-Class IntoNextgen `{!nvmBaseGS Σ Ω} (P Q : dProp Σ) :=
+Definition nextgen `{Ω: !gGenCmras Σ} (P: dProp Σ): dProp Σ := MonPred (λ TV, ⚡==> P (∅, ∅, ∅))%I _.
+
+Class IntoNextgen `{Ω: !gGenCmras Σ} (P Q : dProp Σ) :=
   into_nextgen : P ⊢ nextgen Q.
-Global Arguments IntoNextgen {_ _ _} _%I _%I.
-Global Arguments into_nextgen {_ _ _} _%I _%I.
-Global Hint Mode IntoNextgen + + + + - : typeclass_instances.
+Global Arguments IntoNextgen {_ _} _%I _%I.
+Global Arguments into_nextgen {_ _} _%I _%I.
+Global Hint Mode IntoNextgen + + + - : typeclass_instances.
 
 Section Modality.
-  Context `{!nvmBaseGS Σ Ω}.
-
-  Set Default Proof Using "Type*".
-
+  Context `{Ω: !gGenCmras Σ}.
   Implicit Types (P Q: dProp Σ).
 
   Lemma nextgen_mono (P Q: dProp Σ) :
@@ -81,7 +80,7 @@ Section Modality.
   Qed.
 
   Lemma modality_nextgen_mixin :
-    modality_mixin (@nextgen _ _ _)
+    modality_mixin (@nextgen _ _)
       (MIEnvTransform IntoNextgen) (MIEnvTransform IntoNextgen).
   Proof.
     split; simpl; split_and?.
@@ -267,3 +266,7 @@ Section nextgen_derived.
   (* Qed. *)
 
 End nextgen_derived.
+
+Notation base_IntoNextgen := (nextgen_promises_model.IntoNextgen).
+Notation base_nextgen := (nextgen_promises_model.nextgen).
+Opaque nextgen.

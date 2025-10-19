@@ -274,67 +274,59 @@ Section wp_at_alloc.
         rewrite ?lookup_insert.
         do 3 (iSplitPure; first done).
         iApply (plainly_intro emp); last done.
-        iIntros (????) "(%P_pers & #eqPers & persHolds)".
+        iIntros (_ ?????) "%HorderPF (%P_pers & #eqPers & persHolds) (%P_full & #eqFull & fullHolds)".
+        iDestruct (encode_predicate_decode with "eqPers") as (σ_p) "%Hdecodeσ_p".
+        iDestruct (encode_predicate_decode with "eqFull") as (σ_f) "%Hdecodeσ_f".
+        iPoseProof (encode_predicate_extract with "eqPers persHolds") as "predPers".
+        { done. }
+        iPoseProof (encode_predicate_extract with "eqFull fullHolds") as "predFull".
+        { done. }
+        iDestruct ((pred_full_nextgen) $! MsgV_f σ_p v_p σ_f v_f) as "impl".
+        iEval (rewrite ?monPred_wand_force) in "impl".
+        iDestruct ("impl" with "[%] [predPers] predFull") as "NGF".
+        { destruct HorderPF; last by simplify_eq.
+          eapply encode_relation_decode_iff_1; done. }
+        { iApply (objective_at with "predPers"). }
         iSplit.
-        + iIntros (???) "(%P_full & #eqFull & fullHolds) %bumperEq".
+        + iDestruct "NGF" as "[>NGF _]".
+          iIntros (?) "%bumperEq".
           apply encode_bumper_Some_decode in bumperEq.
-          destruct bumperEq as (s3 & bumperEq & bumperEq').
+          destruct bumperEq as (σ_f' & bumperEq & bumperEq').
+          simplify_eq.
           iEval (rewrite /encode_predicate).
-          rewrite -bumperEq'.
           rewrite decode_encode.
+          iModIntro.
           iExists _, _.
           iSplit. { iPureIntro. simpl. reflexivity. }
           iSplit. { iPureIntro. simpl. reflexivity. }
-          iDestruct (encode_predicate_decode with "eqPers") as (s4) "%s5DecodeEq".
-          iPoseProof (encode_predicate_extract with "eqPers persHolds") as "predPers".
-          { done. }
-          iPoseProof (encode_predicate_extract with "eqFull fullHolds") as "predFull".
-          { done. }
-          iPoseProof (pred_full_nextgen with "predPers") as "[NGF _]".
-          by iApply "NGF".
-        + iIntros (???????) "#eqFull".
-          iDestruct (encode_predicate_decode with "eqPers") as (s4) "%s4DecodeEq".
-          iPoseProof (encode_predicate_extract with "eqPers persHolds") as "predPers".
-          { done. }
-          iDestruct (encode_predicate_decode with "eqFull") as (s5) "%s5DecodeEq".
-          iEval (rewrite (objective_at _ _ TV_f)) in "predPers".
-          iPoseProof (pred_full_nextgen with "predPers") as "[_ NGF]".
+          iAssumption.
+        + iIntros (???? bumperEq HorderPC HorderCF) "(%P_read & #eqRead & readHolds)".
+          iDestruct "NGF" as "[_ NGF]".
           (* we need to instantiate the universal, but we cannot find the *)
           (* instance for [s_c], because we don't know whether [decode e_c] *)
           (* yields anything, not until after we instantiate [s_c]. but we can *)
           (* get around it by case distinction. *)
-          destruct (@decode ST _ _ encσ_c) as [s3 | ] eqn:Heqn.
-          * iDestruct ("NGF" $! s5 v_f s3 v_c) as "NGF".
-            iIntros "fullHolds".
-            iPoseProof (encode_predicate_extract with "eqFull fullHolds") as "predFull".
+          destruct (@decode ST _ _ encσ_c) as [ σ_c | ] eqn:Heqn.
+          * iPoseProof (encode_predicate_extract with "eqRead readHolds") as "predRead".
             { done. }
-            iSpecialize ("NGF" with "predFull").
-            iEval (rewrite (objective_at _ _ TV) monPred_objectively_elim) in "NGF".
-            iIntros "%bumperEq %order1 %order2 (%P_read & #eqRead & readHolds)".
+            iDestruct ("NGF" $! σ_c v_c) as "NGF".
+            iEval (rewrite monPred_at_objectively) in "NGF".
+            iMod ("NGF" with "predRead [%] [%]") as "NGF".
+            { destruct HorderPC; last by simplify_eq.
+              eapply encode_relation_decode_iff_1; done. }
+            { eapply encode_relation_decode_iff_1; done. }
+            iModIntro.
             apply encode_bumper_Some_decode in bumperEq.
-            destruct bumperEq as (s3' & bumperEq & bumperEq').
-            iEval (rewrite /encode_predicate).
-            rewrite -bumperEq'.
-            rewrite decode_encode.
+            destruct bumperEq as (σ_c' & bumperEq & bumperEq').
             simplify_eq.
-            iPoseProof (encode_predicate_extract with "eqRead readHolds") as "predRead".
-            { done. }
-            iPoseProof (monPred_wand_force with "NGF") as "NGF".
-            iSpecialize ("NGF" with "predRead").
+            iEval (rewrite /encode_predicate).
+            rewrite decode_encode.
             iExists _, _.
             iSplit. { iPureIntro. simpl. reflexivity. }
             iSplit. { iPureIntro. simpl. reflexivity. }
-            rewrite encode_relation_decode_iff in order1; [ | done | done ].
-            rewrite encode_relation_decode_iff in order2; [ | done | done ].
-            iApply "NGF"; iPureIntro; destruct order1; simplify_eq; done.
+            iAssumption.
           * (* this is the spurious case, we will see that once we get hold of *)
             (* [encode_bumper], we will just feed some random [ST] *)
-            iDestruct ("NGF" $! s5 v_f s4 v_c) as "NGF".
-            iIntros "fullHolds".
-            iPoseProof (encode_predicate_extract with "eqFull fullHolds") as "predFull".
-            { done. }
-            iSpecialize ("NGF" with "predFull").
-            iIntros "%bumperEq".
             apply encode_bumper_Some_decode in bumperEq.
             destruct bumperEq as (s3' & bumperEq & bumperEq').
             rewrite Heqn in bumperEq.
@@ -396,6 +388,8 @@ Section wp_at_alloc.
     apply map_Forall_singleton.
     rewrite encode_bumper_encode.
     done.
+    (* For some reason, during proof the [ProtocolConditoins prot] can not be found? *)
+    Unshelve. all: done.
   Qed.
 
   Lemma wp_alloc_at v s prot `{!ProtocolConditions prot} st E :

@@ -10,14 +10,14 @@ From Perennial.program_logic Require Export language ectx_language ectxi_languag
 
 From self.base Require Import class_instances primitive_laws.
 From self.lang Require Export notation tactics.
-From self.high Require Import resources crash_weakestpre weakestpre lifted_modalities.
+From self.high Require Import generational_resources crash_weakestpre weakestpre.
 
 Set Default Proof Using "Type".
 Import uPred.
 
 Implicit Types (e : expr).
 
-Lemma tac_wp_expr_eval `{!nvmG Σ} Δ s E Φ e e' : (∀ (e'':=e'), e = e'') →
+Lemma tac_wp_expr_eval `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω, PerennialG Σ} Δ s E Φ e e' : (∀ (e'':=e'), e = e'') →
   envs_entails Δ (WP e' @ s; E {{ Φ }}) → envs_entails Δ (WP e @ s; E {{ Φ }}).
 Proof. by intros ->. Qed.
 
@@ -46,7 +46,7 @@ Proof.
   - done.
 Qed.
 
-Lemma tac_wp_pure `{!nvmG Σ} Δ Δ' s E K e1 e2 φ n Φ :
+Lemma tac_wp_pure `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω, PerennialG Σ} Δ Δ' s E K e1 e2 φ n Φ :
   (∀ TV, PureExec φ n (ThreadState e1 TV) (ThreadState e2 TV)) →
   (* PureExecBase φ n e1 e2 → *)
   φ →
@@ -59,7 +59,7 @@ Proof.
   pose proof @pure_exec_fill.
   rewrite HΔ'. rewrite -wp_pure_step_later //.
 Qed.
-Lemma tac_wp_pure_no_later `{!nvmG Σ} Δ s E K e1 e2 φ n Φ :
+Lemma tac_wp_pure_no_later `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω, PerennialG Σ} Δ s E K e1 e2 φ n Φ :
   (∀ TV, PureExec φ n (ThreadState e1 TV) (ThreadState e2 TV)) →
   φ →
   envs_entails Δ (WP (fill K e2) @ s; E {{ Φ }}) →
@@ -72,15 +72,15 @@ Proof.
   iIntros "$".
 Qed.
 
-Lemma tac_wp_value_nofupd `{!nvmG Σ} Δ s E Φ v :
+Lemma tac_wp_value_nofupd `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω, PerennialG Σ} Δ s E Φ v :
   envs_entails Δ (Φ v) → envs_entails Δ (WP (Val v) @ s; E {{ Φ }}).
 Proof. rewrite envs_entails_unseal=> ->. apply wp_value. Qed.
 (* Lemma tac_twp_value_nofupd `{!nvmBaseFixedG Σ} Δ s E Φ v :
   envs_entails Δ (Φ v) → envs_entails Δ (WP (Val v) @ s; E [{ Φ }]).
 Proof. rewrite envs_entails_unseal=> ->. by apply twp_value. Qed. *)
 
-Lemma tac_wp_value `{!nvmG Σ} Δ s E (Φ : val → dPropI Σ) v :
-  envs_entails Δ (|NC={E}=> Φ v) → envs_entails Δ (WP (Val v) @ s; E {{ Φ }}).
+Lemma tac_wp_value `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω, PerennialG Σ} Δ s E (Φ : val → dPropI Σ) v :
+  envs_entails Δ (|={E}=> Φ v) → envs_entails Δ (WP (Val v) @ s; E {{ Φ }}).
 Proof.
   rewrite envs_entails_unseal=> ->. rewrite wp_value_fupd. done.
 Qed.
@@ -238,7 +238,7 @@ Tactic Notation "wp_inj" := wp_pure (InjL _) || wp_pure (InjR _).
 Tactic Notation "wp_pair" := wp_pure (Pair _ _).
 Tactic Notation "wp_closure" := wp_pure (Rec _ _ _).
 
-Lemma tac_wp_bind `{!nvmG Σ} K Δ s E Φ e f :
+Lemma tac_wp_bind `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω, PerennialG Σ} K Δ s E Φ e f :
   f = (λ e, fill K e) → (* as an eta expanded hypothesis so that we can `simpl` it *)
   envs_entails Δ (WP e @ s; E {{ v, WP f (Val v) @ s; E {{ Φ }} }})%I →
   envs_entails Δ (WP fill K e @ s; E {{ Φ }}).

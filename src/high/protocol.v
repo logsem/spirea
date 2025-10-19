@@ -10,9 +10,9 @@ From self.high.modalities Require Import no_buffer nextgen_flush nextgen if_rec.
 From self.lang Require Import lang.
 
 (* A handy alias for the type of location predicates. *)
-Definition loc_pred `{nvmHighGS} ST `{AbstractState ST} := ST → val → dProp Σ.
+Definition loc_pred `{!nvmBaseGS Σ Ω} ST `{AbstractState ST} := ST → val → dProp Σ.
 
-Definition loc_predO `{nvmHighGS} ST := ST -d> val -d> dPropO Σ.
+Definition loc_predO `{!nvmBaseGS Σ Ω} ST := ST -d> val -d> dPropO Σ.
 
 (* A protocol consists of
   - A predicate [p_inv] that holds for each write and corresponding state of the
@@ -20,26 +20,25 @@ Definition loc_predO `{nvmHighGS} ST := ST -d> val -d> dPropO Σ.
   - A function [bumper] that specifies how the state of a location changes
     after a crash. *)
 
-Record LocationProtocol ST `{AbstractState ST, nvmHighGS} := MkProt {
+Record LocationProtocol ST `{AbstractState ST, !nvmBaseGS Σ Ω} := MkProt {
   p_full : loc_pred ST;
   p_read : loc_pred ST;
   p_pers : loc_pred ST;
   p_bumper : ST → ST;
 }.
 
-Global Arguments MkProt   {_ _ _ _ _ _ _ _} _%I _.
-
-Global Arguments p_full   {ST _ _ _ _ _ _ _} _.
-Global Arguments p_read   {ST _ _ _ _ _ _ _} _.
-Global Arguments p_pers   {ST _ _ _ _ _ _ _} _.
-Global Arguments p_bumper {ST _ _ _ _ _ _ _} _ _.
+Global Arguments MkProt   {_ _ _ _ _ _ _} _%I _.
+Global Arguments p_full   {ST _ _ _ _ _ _} _.
+Global Arguments p_read   {ST _ _ _ _ _ _} _.
+Global Arguments p_pers   {ST _ _ _ _ _ _} _.
+Global Arguments p_bumper {ST _ _ _ _ _ _} _ _.
 
 (* Type class collection the properties that a protocol should have.
 
 Note: The fields are ordered by "difficulty" in the sense of how difficult these
 conditions usually are to show.  *)
 
-Class ProtocolConditions `{AbstractState ST, nvmHighGS} (prot : LocationProtocol ST) := {
+Class ProtocolConditions `{AbstractState ST, !nvmBaseGS Σ Ω} (prot : LocationProtocol ST) := {
   bumper_mono :
     Proper ((⊑@{ST}) ==> (⊑))%signature (prot.(p_bumper));
   full_nobuf :>
@@ -51,21 +50,20 @@ Class ProtocolConditions `{AbstractState ST, nvmHighGS} (prot : LocationProtocol
   full_read_split :
     forall s v, prot.(p_full) s v ⊣⊢ prot.(p_read) s v ∗ (prot.(p_read) s v -∗ prot.(p_full) s v);
   pred_full_nextgen :
-    ⊢ ∀ s_p v_p, prot.(p_pers) s_p v_p -∗
+    ⊢ ∀ σ_p v_p σ_f v_f, ⌜ σ_p ⊑ σ_f ⌝ -∗ prot.(p_pers) σ_p v_p -∗ prot.(p_full) σ_f v_f -∗
       (* first case: we crash exactly at [s] *)
-      (∀ s v, prot.(p_full) s v -∗ <NGF> prot.(p_full) (prot.(p_bumper) s) v ∗ prot.(p_pers) (prot.(p_bumper) s) v) ∧
+      (|==> <NGF> prot.(p_full) (prot.(p_bumper) σ_f) v_f ∗ prot.(p_pers) (prot.(p_bumper) σ_f) v_f) ∧
       (* second case: we crash later than [s_p] (included) but before [s] (excluded) *)
-      (∀ s v s_c v_c,
+      (∀ σ_c v_c,
          (* We cannot take subjective resource from [p_full],
           * but we can take subjective resource from [p_read]. *)
-         (prot.(p_full) s v -∗
-          <obj> (prot.(p_read) s_c v_c -∗ ⌜ s_p ⊑ s_c ⌝ -∗ ⌜ s_c ⊑ s ⌝ -∗
-                 <NGF> prot.(p_full) (prot.(p_bumper) s_c) v_c ∗ prot.(p_pers) (prot.(p_bumper) s_c) v_c)));
+         <obj> (prot.(p_read) σ_c v_c -∗ ⌜ σ_p ⊑ σ_c ⌝ -∗ ⌜ σ_c ⊑ σ_f ⌝ ==∗
+                <NGF> prot.(p_full) (prot.(p_bumper) σ_c) v_c ∗ prot.(p_pers) (prot.(p_bumper) σ_c) v_c));
   pred_read_nextgen :
     ⊢ ∀ s v, prot.(p_read) s v -∗ <NGF> prot.(p_read) (prot.(p_bumper) s) v
 }.
 
-#[global] Hint Mode ProtocolConditions + + + + + + + + ! : typeclass_instances.
+#[global] Hint Mode ProtocolConditions + + + + + + + ! : typeclass_instances.
 
 Existing Instance full_nobuf.
 Existing Instance read_nobuf.
