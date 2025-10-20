@@ -83,11 +83,11 @@ Class extraStateInterp Σ := {
 }.
 
 Global Program Instance Perennial_irisGS
-       `{!PerennialG Σ, extraStateInterp Σ, Ω : gGenCmras Σ} :
+       `{!PerennialG Σ, extraStateInterp Σ, Ω : gGenCmras Σ, !nvmBaseGS Σ Ω} :
   Perennial.program_logic.crash_weakestpre.irisGS nvm_lang Σ Ω := {
   iris_invGS := P_invGS;
   global_state_interp g ns mj D _ :=
-      (∃ ns' mj' D', ⌜ ns = ns' ∧ mj = mj' ∧ D = D' ⌝)%I;
+      (validV ∅ ∗ ∃ ns' mj' D', ⌜ ns = ns' ∧ mj = mj' ∧ D = D' ⌝)%I;
     (* (@crash_borrow_ginv _ P_invGS _ _ ∗ *)
     (*  cred_interp ns ∗ *)
     (*  ⌜(/ 2 < mj ≤ 1) ⌝%Qp ∗ *)
@@ -97,7 +97,8 @@ Global Program Instance Perennial_irisGS
   step_count_next := (λ n, 10 * (n + 1))%nat;
   }.
 Next Obligation.
-  iIntros.
+  intros.
+  iIntros "[$ ?]".
   by iExistsN.
   (* intros (**). iIntros "($ & ? & $)". *)
   (* by iMod (cred_interp_incr with "[$]") as "($ & _)". *)
@@ -1363,7 +1364,7 @@ Section extra_state_interp.
     iIntros (?).
     iSplit; last first.
     { iIntros.
-      iApply step_fupd_extra.step_fupd2N_inner_later; auto. }
+      iApply step_fupd_extra.step_fupd2N_inner_later; auto. iFrame "#". }
 
     rewrite /= /thread_to_val. rewrite eq /=.
     iIntros (???????) "[interp extra]". iIntros.
@@ -1445,7 +1446,7 @@ Section extra_state_interp.
     iIntros "extra" (?).
     iSplit; last first.
     { iIntros.
-      iApply step_fupd_extra.step_fupd2N_inner_later; auto. }
+      iApply step_fupd_extra.step_fupd2N_inner_later; auto. iFrame "#". }
 
     rewrite /= /thread_to_val. rewrite eq /=.
     iIntros (???????) "[interp _]". iIntros.
@@ -1487,7 +1488,7 @@ Section extra_state_interp.
     by iExistsN.
     (* TODO: what? *)
     Unshelve.
-    refine 0.
+    - refine 0.
+    - refine ().
   Qed.
-
 End extra_state_interp.

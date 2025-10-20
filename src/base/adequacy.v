@@ -22,8 +22,8 @@ Set Default Proof Using "Type".
  * [credit_preG Σ]: the resources for a second set of later credits, also not being used at all. *)
 Class Perennial_preG Σ Ω := {
   P_invGpreS :> wsat.invGS.invGpreS Σ;
-  P_ngInvG :> ngInvG Σ Ω;
   P_preG_credit :> credit_preG Σ;
+  P_ngInvG :> ngInvG Σ Ω;
 }.
 
 Definition Build_credit_G Σ `{!Perennial_preG Σ Ω} (cred_names: cr_names): creditGS Σ :=
@@ -71,7 +71,7 @@ Section base_adequacy.
     (* { rewrite /crash_borrow_ginv. iApply (inv_alloc _). iNext. eauto. } *)
 
     iMod (nvm_heap_ctx_alloc σ PV)
-      as (nvm_base_GS) "(interp & pts & validV & crashedAt & pers)"; first done.
+      as (nvm_base_GS) "(interp & pts & #validV & crashedAt & pers)"; first done.
 
     set (PG := Build_PerennialG Σ Hinv (Build_credit_G Σ name_credit)).
 
@@ -88,6 +88,7 @@ Section base_adequacy.
     iSplitR.
     { iApply "H2". }
     iFrame.
+    iFrame "#".
     by iExistsN.
     Unshelve. refine 0.
   Qed.
@@ -156,7 +157,13 @@ Section base_adequacy.
     apply (base_recv_adequacy_simpl Σ Ω); first done.
     iIntros (Hheap HP) "fmapsto #persisted".
     iPoseProof (hyp with "fmapsto persisted") as "[WPC recover]".
-    iApply (idempotence_wpr with "WPC recover"). 
-    iIntros. rewrite /extra_state_interp /=. by repeat iModIntro.
+    iApply (idempotence_wpr with "WPC [recover]").
+    - iIntros. rewrite /extra_state_interp /=. by repeat iModIntro.
+    - iApply (plainly_mono with "recover").
+      iIntros "Hwpc Φc".
+      iSpecialize ("Hwpc" with "Φc").
+      iModIntro.
+      iModIntro.
+      by iIntros "_".
   Qed.
 End base_adequacy.

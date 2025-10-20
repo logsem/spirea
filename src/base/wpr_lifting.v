@@ -58,7 +58,7 @@ Section wpr.
       s E1 e e_rec Φ Φinv Φr Φc :
     ⊢ WPC e @ s; E1 {{ Φ }} {{ Φc }} -∗
     (* TODO: have an expert double check this modality *)
-    ■ (Φc -∗ ▷ ⚡==> (Φinv ∧ WPC e_rec @ s ; E1 {{ Φr }} {{ Φc }})) -∗
+    ■ (Φc -∗ ▷ ⚡==> validV ∅ -∗ (Φinv ∧ WPC e_rec @ s ; E1 {{ Φr }} {{ Φc }})) -∗
       wpr s E1 e e_rec Φ Φinv Φr.
   Proof.
     iIntros "Hwpc #Hidemp".
@@ -69,20 +69,29 @@ Section wpr.
     iApply (plainly_mono with "[$]").
     iIntros "Hidemp" (σ_pre_crash g σ_post_crash Hcrash ns mj D κs ?) "ϕc".
     (* iMod (NC_alloc_strong) as (γcrash) "HNC". *)
+    iIntros "[interp extra] #g".
     iSpecialize ("Hidemp" with "ϕc").
     (* rewrite eq. *)
-    iIntros "[interp extra] g".
     (* iMod (nvm_heap_reinit_alt _ _ _ _ γcrash _ Hcrash with "interp Hidemp") *)
     (*   as (hnames) "(%cEq & map & interp' & idemp)". *)
     destruct Hcrash as [CV Hcrash].
     iDestruct (heap_ctx_next_generation _ _ _ Hcrash with "interp") as ">[HCV interp]".
     iDestruct (extra_state_nextgen with "extra HCV") as ">extra"; first done.
     do 3 iModIntro. iMod "interp". iMod "extra".
-    iAssert (global_state_interp g (step_count_next ns) mj D κs)%I as "$". { by iExistsN. }
+    iAssert (|==> validV ∅ ∗ nvm_heap_ctx σ_post_crash)%I with "[interp]" as ">[#? interp]".
+    { rewrite /nvm_heap_ctx.
+      iDestruct "interp" as (???) "[[store_view_auth ?] ?]".
+      rewrite /named_props.named.
+      iDestruct (gen_own_update with "store_view_auth") as ">[? $]".
+      { by apply auth_update_alloc. }
+      iModIntro. iExistsN.
+      iFrame. }
+    iAssert (global_state_interp g (step_count_next ns) mj D κs)%I as "$". { iFrame "#". by iExistsN. }
     (* iMod (global_state_interp_le (Λ := nvm_lang) _ _ () _ _ κs with "[$]") as "$"; *)
     (*   first (rewrite /step_count_next; simpl; lia). *)
     iModIntro.
     rewrite /state_interp //=.
     iFrame.
+    by iApply "Hidemp".
   Qed.
 End wpr.

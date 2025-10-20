@@ -75,7 +75,7 @@ Section wpc.
   Global Existing Instance wp'.
   Lemma wp_eq : wp = @wp_def.
   Proof. rewrite -wp_aux.(seal_eq) //. Qed.
-
+  
   Lemma wpc_bind K s E1 (e : expr) Φ Φc :
     WPC e @ s; E1 {{ v, WPC fill K (of_val v) @ s; E1 {{ Φ }} {{ Φc }} }}
                      {{ Φc }}
