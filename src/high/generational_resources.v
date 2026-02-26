@@ -34,7 +34,7 @@ Class nvmHighGS Σ Ω `{!nvmBaseGS Σ Ω} := NvmHighG {
   abs_historiesG :> ghost_map_mapGpreS loc time positive Σ Ω;
   abs_history_name : gname;
   (* resharing [phy_history] for atomic locations *)
-  phy_historiesG :> auth_map_mapR_inG Σ Ω (leibnizO message);
+  phy_historiesG :> auth_map_mapR_inG (leibnizO message) Σ Ω;
   phy_history_name : gname;
   non_atomic_views :> ghost_mapGpreS loc view Σ Ω;
   non_atomic_views_gname : gname;

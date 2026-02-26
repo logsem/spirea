@@ -59,7 +59,7 @@ Section wp_at.
       encoded_predicate_holds encp_pers encσ msg.(msg_val) (∅, ∅, ∅).
   
   Definition loc_info ℓ prot encp_full encp_read encp_pers phys_hists phys_hist abs_hist offset pview : iProp Σ :=
-    "physHists" ∷ auth_map_map_auth phy_history_name phys_hists ∗
+    "physHists" ∷ auth_map_map_auth histories_rel phy_history_name phys_hists ∗
     "%physHistsLook" ∷ ⌜ phys_hists !! ℓ = Some phys_hist ⌝ ∗
     "%domEq" ∷ ⌜ dom phys_hist = dom abs_hist ⌝ ∗
     "%increasing" ∷ ⌜ increasing_map (encode_relation (⊑@{ST})) abs_hist ⌝ ∗
@@ -82,18 +82,18 @@ Section wp_at.
       ⌜ phys_hist !! t = None ⌝ -∗
       ⌜ msg_store_view msg !!0 ℓ = t - offset ⌝ -∗
       ⌜ msg_persist_view msg = msg_persisted_after_view msg ⌝ -∗
-      auth_map_map_auth phy_history_name phys_hists -∗
+      auth_map_map_auth histories_rel phy_history_name phys_hists -∗
       at_encoded_full_read_predicates_hold (<[ t := encσ ]>abs_hist) (<[ t := msg ]>phys_hist) offset encp_full encp_read -∗
       at_encoded_pers_predicate_holds ℓ (<[ t := encσ ]> abs_hist) (<[ t := msg ]>phys_hist) pview offset encp_pers -∗
       know_full_encoded_history_loc ℓ 1 abs_hist -∗
       ⌜ increasing_map (encode_relation (⊑@{ST})) (<[ t := encσ ]>abs_hist) ⌝ -∗
       ℓ ↦fh (<[t := msg ]> phys_hist) ==∗
       know_frag_history_loc ℓ t σ ∗
-      auth_map_map_frag_singleton phy_history_name ℓ t msg ∗
+      auth_map_map_frag_singleton histories_rel phy_history_name ℓ t msg ∗
       interp.
 
   Definition lookup_impl ℓ encp_full encp_read encp_pers phys_hists phys_hist abs_hist offset pview: iProp Σ :=
-    auth_map_map_auth phy_history_name phys_hists -∗
+    auth_map_map_auth histories_rel phy_history_name phys_hists -∗
     at_encoded_full_read_predicates_hold abs_hist phys_hist offset encp_full encp_read -∗
     at_encoded_pers_predicate_holds ℓ abs_hist phys_hist pview offset encp_pers -∗
     know_full_encoded_history_loc ℓ 1 abs_hist -∗
@@ -230,7 +230,7 @@ Section wp_at.
         assert (encσ_p = encσ_p') as <- by (by simplify_map_eq).
         iFrame.
         rewrite ?lookup_insert_ne //. }
-      iMod (auth_map_map_insert with "physHists") as "(physHists & _ & physHistFrag)"; [try done|try done|].
+      iMod (auth_map_map_insert with "physHists") as "(physHists & physHistFrag)"; [try done|try done|].
 
       iDestruct (big_sepM2_insert_delete with "[$ordered2 $order]") as "ordered3".
       rewrite (insert_id orders). (* last congruence. *)

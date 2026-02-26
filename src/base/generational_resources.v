@@ -623,7 +623,9 @@ Section heap.
    * in the ghost resource, while [mapsto] only assert over the current generation
    * history *)
   Definition fmapsto (ℓ: loc) (dq: dfrac) (h_full: leibnizO history): iProp Σ :=
-    gen_own heap_name (gmap_view_frag ℓ dq h_full).
+    gen_own heap_name (gmap_view_frag ℓ dq h_full) ∗
+    rely heap_name [#crashed_at_name] heap_rel (λ _, true) ∗
+    ∃ OCV, crashed_at_offset OCV.
 
   Definition mapsto (ℓ: loc) (dq: dfrac) (h: leibnizO history): iProp Σ :=
     ∃ OCV (h_full: leibnizO history),
@@ -756,7 +758,7 @@ Section heap.
   Lemma fmapsto_heap_valid heap ℓ dq h_full:
     own_auth_heap heap -∗ fmapsto ℓ dq h_full -∗ ⌜ heap !! ℓ = Some h_full ⌝.
   Proof.
-    iIntros "heap fmapsto".
+    iIntros "heap [fmapsto _]".
     iNamed "heap".
     iDestruct (gen_own_valid_2 with "own_auth fmapsto") as %[_ [_ look]]%gmap_view_both_dfrac_valid_L.
     done.
@@ -785,10 +787,9 @@ Section heap.
     iNamed 1.
     iMod (gen_own_update with "own_auth") as "[own_auth frag]".
     { eapply (gmap_view.gmap_view_alloc _ _ (DfracOwn 1)); [ apply Hσl | done ]. }
-    iFrame.
+    iFrame "∗#".
     iModIntro.
-    iExists _.
-    iFrame "#".
+    iSplit; by iExists _.
   Qed.
 
   Lemma heap_alloc_big_fmapsto σ σ' :
@@ -811,12 +812,12 @@ Section heap.
     own_auth_heap (<[ℓ:=h_full2]>σ) ∗ fmapsto ℓ (DfracOwn 1) h_full2.
   Proof.
     iNamed 1.
-    iIntros "fmapsto".
+    iIntros "[fmapsto _]".
     iMod (gen_own_update_2 with "own_auth fmapsto") as "[$ $]".
     { apply gmap_view_update. }
     iModIntro.
-    iExists _.
-    iFrame "#".
+    iFrame "∗#".
+    iSplit; by iExists _.
   Qed.
 
   Lemma mapsto_heap_update OCV σ ℓ h1 h_full2:
@@ -837,7 +838,7 @@ Section heap.
   Lemma fmapsto_valid_2 ℓ dq1 dq2 h1 h2 :
     fmapsto ℓ dq1 h1 -∗ fmapsto ℓ dq2 h2 -∗ ⌜✓ (dq1 ⋅ dq2) ∧ h1 = h2 ⌝.
   Proof.
-    iIntros "H1 H2".
+    iIntros "[H1 _] [H2 _]".
     iDestruct (gen_own_valid_2 with "H1 H2") as %[? ?]%gmap_view_frag_op_valid_L.
     done.
   Qed.
@@ -859,7 +860,7 @@ Section heap.
   Proof.
     iNamed 1.
     iModIntro.
-    iDestruct ("crashed") as (? tC) "(pickedC & ?)".
+    iDestruct "crashed" as (? tC) "(pickedC & ?)".
     iDestruct "rely" as "(rely & (%tH & % & (%rel & _) & pickedH & pickedC'))".
     iPickedInAgree "pickedC pickedC'".
     iDestruct "own_auth" as (tH') "(pickedH' & own_auth)".
@@ -878,6 +879,65 @@ Section heap.
   #[global]
   Instance into_nextgen_own_auth_heap heap : IntoNextgen _ _ :=
     own_auth_heap_nextgen heap.
+  
+  #[local] Instance fmapsto_nextgen ℓ dq hist:
+    IntoNextgen
+    (fmapsto ℓ dq hist) 
+    (∃ OCV, crashed_at_offset OCV ∗
+            match (drop_above_hist OCV ℓ hist) with
+            | Some hist => fmapsto ℓ dq hist
+            | None => emp
+            end).
+  Proof.
+    rewrite /IntoNextgen.
+    iIntros "(pts & rely & [%OCV offsets])".
+    iModIntro.
+    iDestruct "offsets" as (? tC) "(pickedC & ?)".
+    iDestruct "rely" as "(rely & (%tH & % & (%rel & _) & pickedH & pickedC'))".
+    iPickedInAgree "pickedC pickedC'".
+    iDestruct "pts" as (tH') "[pickedH' pts]".
+    iPickedInAgree "pickedH pickedH'".
+    destruct rel as (OCV2 & -> & ->).
+    iExists OCV2.
+    iSplit; first by iExists _.
+    rewrite /drop_above_hist.
+    destruct (OCV2 !! ℓ) as [[t] | ] eqn:Heq; rewrite Heq /=; last done.
+    iFrame.
+    iSplit; last by iExists _, _.
+    iApply (gen_own_mono with "pts").
+    unfold map_entry_lift_gmap_view, gMapTrans_frag_lift, map_trans_frag_lift, fmap_view, fmap_pair. simpl.
+    unfold gmap_view_frag, view_frag.
+    rewrite -(insert_empty _ (dq, to_agree hist)).
+    erewrite map_imap_insert_Some;
+      first rewrite map_imap_empty insert_empty //.
+    rewrite agree_option_map_to_agree /drop_above_hist Heq /=.
+    done.
+  Qed.
+  
+  (* TODO: have a single location instance. *)
+  #[global] Instance big_fmapsto_nextgen hists:
+    IntoNextgen
+    ([∗map] ℓ ↦ hist ∈ hists, fmapsto ℓ (DfracOwn 1) hist) 
+    (∀ OCV, crashed_at_offset OCV -∗ [∗map] ℓ ↦ hist ∈ (drop_above_map OCV hists), fmapsto ℓ (DfracOwn 1) hist).
+  Proof.
+    rewrite /IntoNextgen.
+    iIntros "ptsMap".
+    iPoseProof (big_sepM_impl _ (λ _ _, ⚡==> _)%I with "ptsMap []") as "ptsMap".
+    { iIntros "!>" (???) "fmapsto".
+      iModIntro.
+      iAccu. }
+    iPoseProof (nextgen_big_sepM with "ptsMap") as "ptsMap".
+    iModIntro.
+    iIntros (OCV) "#offsets".
+    iPoseProof (big_sepM_impl_dom_subseteq _ _ hists (drop_above_map OCV hists) with "ptsMap []") as "[$ _]".
+    { rewrite /drop_above_map.
+      apply dom_imap_subseteq. }
+    iIntros "!>" (ℓ hist hist' Hlook Hlook') "(%OCV' & #offsets' & pts)".
+    iDestruct (crashed_at_offset_agree with "offsets offsets'") as %<-.
+    rewrite /drop_above_map map_lookup_imap Hlook /= in Hlook'.
+    rewrite Hlook'.
+    done.
+  Qed.
 End heap.
 
 Notation "l ↦fh{ dq } v" := (fmapsto l dq (v%V))
@@ -992,8 +1052,8 @@ Qed.
  * have it under the nextgen modality. *)
 Lemma heap_ctx_next_generation `{!nvmBaseGS Σ Ω} CV σ1 σ2 :
   CV_crash_step CV σ1 σ2 →
-  nvm_heap_ctx σ1 ⊢ |==> (∃ OCV, crashed_at_offset OCV ∗ picked_out crashed_at_name (crashed_at_trans (OCV `view_add` CV))) ∗
-                         ⚡==> |==> nvm_heap_ctx σ2.
+  nvm_heap_ctx σ1 ⊢ |==> ∃ OCV, crashed_at_offset OCV ∗ picked_out crashed_at_name (crashed_at_trans (OCV `view_add` CV)) ∗
+                         ⚡==> |==> persisted (view_to_zero (OCV `view_add` CV)) ∗ nvm_heap_ctx σ2.
 Proof.
   intros [store PV pIncl cut].
   unfold nvm_heap_ctx. simpl.
@@ -1002,18 +1062,32 @@ Proof.
          with "crashed crashed_at_tok") as "[picked_out crashed']".
   { f_equiv. done. }
   iModIntro.
-  iSplit.
-  { iExists OCV. iFrame. by iExists _. }
+  iExists OCV. iFrame. iSplit; first by iExists _.
   iPoseProof (store_view_nextgen _ (max_view (slice_of_store CV store)) with "[$]") as "store_view_auth".
   iModIntro.
   iMod "store_view_auth".
   iDestruct "crashed'" as "(#crashed' & crashed_at_tok & pickedC)".
   iMod (crashed_at_tok_strengthen _ (OCV `view_add` CV) with "crashed_at_tok") as "tok".
   { f_equiv. done. }
+  iDestruct "pers" as "(% & pers & pickedC')".
+  iDestruct (gen_picked_in_agree with "pickedC' pickedC") as %eq.
+  apply crashed_at_trans_inj in eq.
+  subst OCV2.
+  iMod (persisted_auth_grow_both _ (OCV `view_add` CV) with "pers") as "[pers #persisted]".
+  { done. }
   iModIntro.
   set (OCV2 := OCV `view_add` CV).
   iDestruct ("Hσ") as (?) "[(% & crashed'') Hσ]".
   iDestruct (crashed_at_both_agree with "crashed'' crashed'") as "[-> ->]".
+  iSplit.
+  { iExists OCV2, OCV2, OCV2.
+    iSplit; first (iPureIntro; apply view_sub_greater; done).
+    iSplit; first by iExists _.
+    iSplit; first done.
+    iSplit; first done.
+    iDestruct "pers" as "[? $]".
+    iPoseProof (token_to_rely with "tok") as "#rely".
+    iPoseProof (rely_to_rely_self with "rely") as "$". }
   iExists OCV, OCV2, _.
   iFrame "Hσ store_view_auth".
   apply view_le_dom_subseteq in pIncl.
@@ -1027,10 +1101,6 @@ Proof.
   rewrite -(assoc view_add).
   rewrite view_add_view_zero.
   iFrame "tok".
-  iDestruct "pers" as "(% & pers & pickedC')".
-  iDestruct (gen_picked_in_agree with "pickedC' pickedC") as %eq.
-  apply crashed_at_trans_inj in eq.
-  rewrite eq.
   iFrame "pers".
   iPureIntro.
   rewrite /OCV2.

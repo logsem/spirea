@@ -171,14 +171,14 @@ Section state_interpretation.
        * which was used to infer the domains of two maps. *)
       "%offsetsDom" ∷ ⌜ dom phys_hists = dom offsets ⌝ ∗
 
-      "physHists" ∷ auth_map_map_auth phy_history_name phys_hists ∗
+      "physHists" ∷ auth_map_map_auth histories_rel phy_history_name phys_hists ∗
 
       (* Ownership over the full knowledge of the abstract history of _all_
       locations. *)
       "history" ∷ full_map bumpers_name abs_history_name (DfracOwn 1) abs_hists ∗
       "#historyFragments" ∷
-        ([∗ map] k1 ↦ mi ∈ abs_hists,
-          [∗ map] k2 ↦ v ∈ mi, frag_entry bumpers_name abs_history_name k1 k2 v) ∗
+        ([∗ map] ℓ ↦ abs_hist ∈ abs_hists,
+          [∗ map] t ↦ encσ ∈ abs_hist, frag_entry bumpers_name abs_history_name ℓ t encσ) ∗
       (* Knowledge of all the predicates. *)
       "full_predicates" ∷ own_all_full_preds (DfracOwn 1) predicates_full ∗
       "read_predicates" ∷ own_all_read_preds (DfracOwn 1) predicates_read ∗
@@ -197,7 +197,7 @@ Section state_interpretation.
 
       (* Non-atomic locations. *)
       "%naViewsDom" ∷ ⌜ dom na_views = na_locs ⌝ ∗ (* NOTE: If this equality persists we could remove na_locs *)
-      "naView" ∷ ghost_map_auth non_atomic_views_gname loc_map_rel (DfracOwn 1) na_views ∗
+      "naView" ∷ ghost_map_auth non_atomic_views_gname na_views_rel (DfracOwn 1) na_views ∗
 
       (* Atomic locations. *)
       "%mapShared" ∷ ⌜ shared_locs_inv (restrict at_locs (map_zip_with drop_prefix phys_hists offsets)) ⌝ ∗

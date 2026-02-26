@@ -53,8 +53,10 @@ Section wp_at_alloc.
       done.
   Qed.
   
-  Lemma interp_insert_loc_at ℓ prot `{!ProtocolConditions prot} s SV PV BV v :
+  Lemma interp_insert_loc_at ℓ OCV prot `{!ProtocolConditions prot} s SV PV BV v :
+    ℓ ∉ dom OCV →
     SV !!0 ℓ = 0 →
+    crashed_at_offset OCV -∗
     interp -∗
     p_full prot s v (SV, PV, BV) -∗
     p_pers prot s v (SV, PV, BV) -∗
@@ -62,7 +64,7 @@ Section wp_at_alloc.
     ℓ ↦fh initial_history AT SV PV v ==∗
     (ℓ ↦_AT^{prot} [s]) (SV, PV, BV) ∗ interp.
   Proof.
-    iIntros (svLook).
+    iIntros (domOCV svLook) "crashed_at".
     iNamed 1.
     iIntros "predFull predPers pts".
 
@@ -89,10 +91,12 @@ Section wp_at_alloc.
 
     (** We update ghost state. **)
     (* add offset to offsets *)
-    iMod (offset_auth_insert with "offsets") as "[offsets #offset]".
-    { apply not_elem_of_dom. done. }
+    iMod (offset_auth_insert with "crashed_at offsets") as "[offsets #offset]".
+    { done. } { apply not_elem_of_dom. done. }
     (* Allocate new physical history for the location. *)
-    iMod (auth_map_map_insert_top _ _ _ (initial_history AT SV PV v) with "physHists") as "[physHists #physHistFrag]".
+    (* Definition initial_history (a : memory_access) SV FV v : history := *)
+    (*   {[0 := Msg v (view_access a SV) (view_access a FV) FV]}. *)
+    iMod (auth_map_map_insert_top _ _ _ _ 0 (Msg v (view_access AT SV) (view_access AT PV) PV) with "physHists") as "[physHists #physHistFrag]".
     { done. }
 
     (* Add the predicate for the location. *)
@@ -416,8 +420,14 @@ Section wp_at_alloc.
     simpl.
     iFrame "val".
     destruct TV as [[??]?].
-    iMod (interp_insert_loc_at ℓ prot _ _ _ BV with "interp [ϕ_full] [ϕ_pers] pts")
-      as "(pts & interp)"; first done.
+    iAssert (∃ OCV, crashed_at_offset OCV ∗ ⌜ ℓ ∉ dom OCV ⌝)%I with "[crashedAt']" as (OCV) "[#crashed_at %domOCV]".
+    { iNamed "crashedAt'".
+      iExists _.
+      iSplit; first by iExists _.
+      rewrite -(view_sub_dom_eq _ OV).
+      by simplify_eq. }
+    iMod (interp_insert_loc_at ℓ OCV prot _ _ _ BV with "crashed_at interp [ϕ_full] [ϕ_pers] pts")
+      as "(pts & interp)"; [done | done | | | ].
     { iApply monPred_mono; last iApply "ϕ_full". solve_view_le. }
     { iApply monPred_mono; last iApply "ϕ_pers". solve_view_le. }
     iModIntro.

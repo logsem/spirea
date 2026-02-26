@@ -46,7 +46,7 @@ Section gen_alocs.
     "#rely" ∷ rely γ [#crashed_at_name] gen_alocs_rel (λ _, true) ∗
     "#crashed" ∷ ∃ OCV, crashed_at_offset OCV.
 
-  Instance gen_alocs_auth_into_nextgen {γ} ℓs:
+  #[global] Instance gen_alocs_auth_into_nextgen {γ} ℓs:
     IntoNextgen
       (gen_alocs_auth γ ℓs)
       (∃ OCV,
@@ -71,7 +71,7 @@ Section gen_alocs.
     iApply "crashed_at".
   Qed.
 
-  Instance gen_alocs_frag_into_nextgen {γ} ℓs:
+  #[global] Instance gen_alocs_frag_into_nextgen {γ} ℓs:
     IntoNextgen
       (gen_alocs_frag γ ℓs)
       (∃ OCV,

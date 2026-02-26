@@ -309,7 +309,7 @@ Section wp_at.
 
       (* Before we close [interp], we need to obtain the knowledge about [σ_l]
        * and [msg_l] for [seen_state]. *)
-      iMod (auth_map_map_lookup _ _ _ t_l with "physHists") as "[physHists #know_msg_l]".
+      iMod (auth_map_map_lookup _ _ _ _ t_l with "physHists") as "[physHists #know_msg_l]".
       { done. } { done. }
       iAssert (know_frag_history_loc ℓ t_l σ_l)%I as "#know_σ_l".
       { rewrite /know_frag_history_loc /frag_entry_unenc.

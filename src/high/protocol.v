@@ -104,9 +104,13 @@ Section protocol.
     know_protocol ℓ prot -∗ <NG> if_rec ℓ (know_protocol ℓ prot).
   Proof.
     iNamed 1.
+    iPoseProof (ghost_map_elem_into_nextgen_ifrec with "knowPreorder") as "?".
+    iPoseProof (ghost_map_elem_into_nextgen_ifrec with "[]") as "?".
+    { iDestruct "knowBumper" as "[? $]". }
     iModIntro.
-    iDestruct "knowBumper" as "[% ?]".
+    iDestruct "knowBumper" as "[% _]".
     rewrite -?if_rec_lift_if_rec.
+    
     iModIntro. iFrame "#%".
   Qed.
 

@@ -75,9 +75,12 @@ Section wpr.
     (* iMod (nvm_heap_reinit_alt _ _ _ _ γcrash _ Hcrash with "interp Hidemp") *)
     (*   as (hnames) "(%cEq & map & interp' & idemp)". *)
     destruct Hcrash as [CV Hcrash].
-    iDestruct (heap_ctx_next_generation _ _ _ Hcrash with "interp") as ">[HCV interp]".
-    iDestruct (extra_state_nextgen with "extra HCV") as ">extra"; first done.
-    do 3 iModIntro. iMod "interp". iMod "extra".
+    iDestruct (heap_ctx_next_generation _ _ _ Hcrash with "interp") as ">(%OCV & HCV & picked_out & interp)".
+    iDestruct (extra_state_nextgen with "extra [picked_out HCV]") as ">extra"; first done.
+    { iExists _. iFrame. }
+    do 3 iModIntro.
+    iDestruct "interp" as ">[persisted interp]".
+    iMod "extra".
     iAssert (|==> validV ∅ ∗ nvm_heap_ctx σ_post_crash)%I with "[interp]" as ">[#? interp]".
     { rewrite /nvm_heap_ctx.
       iDestruct "interp" as (???) "[[store_view_auth ?] ?]".

@@ -59,12 +59,10 @@ Section offset_loc.
   Context `{nvmHighGS}.
 
   Definition offset_auth (offsets: gmap loc nat): iProp Σ :=
-    ∃ (OCV: view) (new_locs: gset loc),
+    ∃ (OCV: view),
       "#crashed" ∷ crashed_at_offset OCV ∗
-      "newLocs" ∷ gen_alocs_auth new_locs_name new_locs ∗
-      "%HLookupZero" ∷ ⌜ ∀ (ℓ: loc), OCV !!0 ℓ = default 0 (offsets !! ℓ) ⌝ ∗
-      "%HNewOffsets" ∷ ⌜ ∀ (ℓ: loc), ℓ ∈ new_locs → ℓ ∈ dom offsets ⌝ ∗
-      "%HOCVDom" ∷ ⌜ dom OCV ⊆ dom offsets ⌝.
+      "newLocs" ∷ gen_alocs_auth new_locs_name (dom offsets) ∗
+      "%HLookup" ∷ ⌜ ∀ (ℓ: loc), ℓ ∈ dom offsets → offsets !! ℓ = Some (OCV !!0 ℓ) ⌝.
 
   Definition offset_loc ℓ (t: nat): iProp Σ :=
     ∃ OCV, crashed_at_offset OCV ∗
@@ -92,34 +90,36 @@ Section offset_loc.
     iDestruct (crashed_at_offset_agree with "crash crashed") as "<-".
     iDestruct (location_sets_singleton_included with "[$] [$]") as "%Hdom".
     iPureIntro.
-    specialize (HLookupZero ℓ).
-    rewrite look /lookup_zero in HLookupZero.
-    destruct (offsets !! ℓ) eqn:?; simpl in HLookupZero.
-    - congruence.
-    - apply HNewOffsets, elem_of_dom in Hdom as [? ?].
-      congruence.
+    specialize (HLookup ℓ Hdom).
+    rewrite look /lookup_zero in HLookup.
+    done.
   Qed.
 
-  Lemma offset_auth_insert offsets ℓ:
+  Lemma offset_auth_insert OCV offsets ℓ:
+    ℓ ∉ dom OCV →
     ℓ ∉ dom offsets →
+    crashed_at_offset OCV -∗
     offset_auth offsets ==∗
     offset_auth (<[ ℓ := 0 ]> offsets) ∗ offset_loc ℓ 0.
   Proof.
-    iIntros (Hdom). iNamed 1.
-    iMod (gen_alocs_update new_locs ℓ with "newLocs") as "[newLocs frag]".
+    iIntros (HOCVdom Hoffsetsdom) "crashed'". iNamed 1.
+    iDestruct (crashed_at_offset_agree with "crashed crashed'") as %->.
+    iMod (gen_alocs_update (dom offsets) ℓ with "newLocs") as "[newLocs frag]".
     iModIntro.
-    assert (ℓ ∉ dom OCV) by set_solver.
     iSplitL "newLocs".
-    - iExists _, _.
+    - iExists _.
+      rewrite dom_insert_L.
+      replace ({[ℓ]} ∪ dom offsets) with (dom offsets ∪ {[ℓ]}); last by set_solver.
       iFrame "∗#".
-      iPureIntro; split; last split.
-      + intros ℓ'.
-        destruct (decide (ℓ = ℓ')) as [ <- | ].
-        * rewrite lookup_insert lookup_zero_None_zero //.
-          by apply not_elem_of_dom.
-        * rewrite lookup_insert_ne //.
-      + set_solver.
-      + set_solver.
+      iPureIntro.
+      intros ℓ'.
+      destruct (decide (ℓ = ℓ')) as [ <- | ].
+      * rewrite lookup_insert lookup_zero_None_zero //.
+        by apply not_elem_of_dom.
+      * rewrite lookup_insert_ne //.
+        intros.
+        apply HLookup.
+        set_solver.
     - iExists _.
       iFrame "#".
       iFrame.
@@ -137,6 +137,31 @@ Section offset_loc.
   (*   rewrite /IntoNextgen. *)
   (*   iIntros "offset !>". *)
   (*   iDestruct "offset" as (OCV) "[(%OV & %trans & picked & offset) %]". *)
+
+  Lemma offset_auth_picked_out OCV' offsets:
+    picked_out crashed_at_name (crashed_at_trans (OCV')) -∗
+    offset_auth offsets -∗
+    ⚡==> offset_auth $ max_nat_car <$> restrict (dom offsets) OCV'.
+  Proof.
+    iIntros "#picked". iNamed 1. iModIntro.
+    iDestruct "newLocs" as (OCV'') "[newLocs #picked']".
+    iDestruct (gen_picked_in_agree with "picked picked'") as %eq.
+    iDestruct ("crashed") as (OV' t) "[picked'' crashed]".
+    iPickedInAgree "picked picked''".
+    simpl.
+    simplify_eq.
+    iExists OCV''.
+    iSplit; first by iExists _.
+    iSplitL "newLocs".
+    { rewrite dom_fmap_L restrict_dom_L //. }
+    iPureIntro.
+    intros ℓ look. rewrite lookup_fmap.
+    rewrite dom_fmap_L restrict_dom_L in look.
+    rewrite restrict_lookup_elem_of; last set_solver.
+    rewrite /lookup_zero.
+    assert (ℓ ∈ dom OCV'') as [? ->]%elem_of_dom by set_solver.
+    done.
+  Qed.
 
 End offset_loc.
 
@@ -305,7 +330,7 @@ Section Histories.
     frag_entry bumpers_name abs_history_name ℓ t e.
 
   Definition know_phys_hist_msg ℓ t msg : iProp Σ :=
-    auth_map_map_frag_singleton phy_history_name ℓ t msg.
+    auth_map_map_frag_singleton histories_rel phy_history_name ℓ t msg.
 
   Context `{Countable ST}.
 
@@ -342,4 +367,5 @@ Section Histories.
     AsFractional (know_full_history_loc ℓ q abs_hist)
       (λ q, know_full_history_loc ℓ q abs_hist) q.
   Proof. apply _. Qed.
+  
 End Histories.

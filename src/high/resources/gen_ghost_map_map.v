@@ -53,18 +53,18 @@ Section definitions.
       ghost_map_auth γ loc_map_rel dq gnames ∗
         ([∗ map] k1 ↦ γm;mi ∈ gnames;m,
            ∃ bumper, k1 ↪[γbumper, loc_map_rel]□ bumper ∗
-                     ghost_map_auth γm (hist_map_rel k1 bumper) (dfrac_div_2 dq) mi).
+                     ghost_map_auth γm (per_loc_map_rel k1 bumper) (dfrac_div_2 dq) mi).
 
   (* Ownership over the entire history for a single key. *)
   Definition full_entry γ k1 dq mi : iProp Σ :=
     ∃ γm bumper, k1 ↪[γ, loc_map_rel]□ γm ∗
                  k1 ↪[γbumper, loc_map_rel]□ bumper ∗
-                 ghost_map_auth γm (hist_map_rel k1 bumper) (dfrac_div_2 dq) mi.
+                 ghost_map_auth γm (per_loc_map_rel k1 bumper) (dfrac_div_2 dq) mi.
 
   Definition frag_entry γ k1 k2 v : iProp Σ :=
     ∃ γm bumper, k1 ↪[γ, loc_map_rel]□ γm ∗
                     k1 ↪[γbumper, loc_map_rel]□ bumper ∗
-                    k2 ↪[γm, hist_map_rel k1 bumper]□ v.
+                    k2 ↪[γm, per_loc_map_rel k1 bumper]□ v.
 End definitions.
 
 Section lemmas.
@@ -160,13 +160,13 @@ Section lemmas.
     ∃ gnames,
       ([∗ map] k1 ↦ γm;mi ∈ gnames;m,
          ∃ bumper, k1 ↪[γbumper, loc_map_rel]□ bumper ∗
-                   ghost_map_auth γm (hist_map_rel k1 bumper) (dfrac_div_2 (DfracOwn 1)) mi) ∗
+                   ghost_map_auth γm (per_loc_map_rel k1 bumper) (dfrac_div_2 (DfracOwn 1)) mi) ∗
       ([∗ map] k1 ↦ γm;mi ∈ gnames;m,
          ∃ bumper, k1 ↪[γbumper, loc_map_rel]□ bumper ∗
-                   ghost_map_auth γm (hist_map_rel k1 bumper) (dfrac_div_2 (DfracOwn 1)) mi) ∗
+                   ghost_map_auth γm (per_loc_map_rel k1 bumper) (dfrac_div_2 (DfracOwn 1)) mi) ∗
       ([∗ map] k1 ↦ γm;mi ∈ gnames;m,
          ∃ bumper, k1 ↪[γbumper, loc_map_rel]□ bumper ∗
-                   ([∗ map] k2 ↦ v ∈ mi, k2 ↪[γm, hist_map_rel k1 bumper]□ v)).
+                   ([∗ map] k2 ↦ v ∈ mi, k2 ↪[γm, per_loc_map_rel k1 bumper]□ v)).
   Proof.
   Admitted.
 
@@ -278,7 +278,7 @@ Section lemmas.
     (* extract [crashed_at_offset] from existing resource *)
     iDestruct (ghost_map_auth_crashed_at_offset with "auth") as (OCV) "#crashed_at_offset".
     (* Allocate the ghost state for the entry. *)
-    iMod (ghost_map_alloc_persistent OPV OCV (hist_map_rel k1 bumper) mi with "[#$] [#$]") as (γm) "[authI pts2]".
+    iMod (ghost_map_alloc_persistent OPV OCV (per_loc_map_rel k1 bumper) mi with "[#$] [#$]") as (γm) "[authI pts2]".
     iEval (rewrite -Qp.half_half -dfrac_op_own ghost_map_auth_fractional) in "authI".
     replace (DfracOwn (1 / 2)) with (dfrac_div_2 (DfracOwn 1)); last done.
     iDestruct "authI" as "[authI authI']".
@@ -348,6 +348,315 @@ Section lemmas.
     naive_solver.
   Qed.
 End lemmas.
+
+Section Nextgen.
+  Notation K1 := loc.
+  Notation K2 := nat.
+  Notation V := positive.
+  Context `{!nvmBaseGS Σ Ω, !ghost_map_mapGpreS K1 K2 V Σ Ω}.
+  Context `{!ghost_mapGpreS loc (V → option V) Σ Ω}. 
+  Implicit Types (OCV: view) (bumper: V → option V)
+                 (abs_hists: gmap K1 (gmap K2 V)) (abs_hist: gmap K2 V)
+                 (ℓ: K1) (t: K2) (v: V).
+
+  Variable (bumpers: gmap K1 (V → option V)) (γbumper γ: gname).
+  (* It's difficult to enforce [ℓ ∈ dom bumpers], we take the easy path. *)
+  Definition per_loc_trans OCV ℓ abs_hist: option (gmap K2 V) :=
+    match bumpers !! ℓ with
+    | Some bump => Some (drop_bump_map ℓ bump OCV abs_hist)
+    | None => None
+    end.
+  
+  (* we combine the [drop_OCV] and [drop_above_bump] transformers. *)
+  Definition abs_hist_trans OCV (abs_hists: gmap K1 (gmap K2 V)): gmap K1 (gmap K2 V) :=
+    restrict (dom OCV) $ map_imap (per_loc_trans OCV) abs_hists.
+
+  Lemma dom_abs_hist_trans OCV abs_hists:
+    dom abs_hists ⊆ dom bumpers →
+    dom (abs_hist_trans OCV abs_hists) = dom OCV ∩ dom abs_hists.
+  Proof.
+    intros.
+    rewrite /abs_hist_trans restrict_dom_L.
+    f_equal.
+    apply dom_imap_L.
+    intros ℓ. split.
+    - rewrite elem_of_dom => [[abs_hist absHistsLook]].
+      eexists.
+      split; first done.
+      rewrite /per_loc_trans.
+      destruct (bumpers !! ℓ) eqn:Heq; first done.
+      rewrite -not_elem_of_dom in Heq.
+      apply elem_of_dom_2 in absHistsLook.
+      set_solver.
+    - intros (abs_hist & look & _).
+      apply elem_of_dom.
+      by eexists.
+  Qed.
+  
+  Lemma restrict_abs_hist_trans (X: gset loc) OCV abs_hists:
+    restrict X (abs_hist_trans OCV abs_hists) =
+    abs_hist_trans OCV (restrict X abs_hists).
+  Proof.
+    apply map_eq.
+    intros ℓ.
+    rewrite /abs_hist_trans.
+    destruct (decide (ℓ ∈ X)); destruct (decide (ℓ ∈ dom OCV)).
+    - rewrite ?restrict_lookup_elem_of // ?map_lookup_imap /=.
+      rewrite restrict_lookup_elem_of //.
+    - rewrite (restrict_lookup_elem_of _ X) //.
+      rewrite !(restrict_lookup_not_elem_of _ (dom OCV)) //.
+    - rewrite (restrict_lookup_not_elem_of _ X) //.
+      rewrite ?(restrict_lookup_elem_of _ (dom OCV)) //.
+      rewrite map_lookup_imap.
+      rewrite (restrict_lookup_not_elem_of _ X) //.
+    - rewrite ?restrict_lookup_not_elem_of //.
+  Qed.
+  
+  (* Since we need to have some notion of global bumpers, it's difficult to make it
+   * work with the [IntoNextgen] typeclass. *)
+  Lemma full_map_nextgen dq1 dq2 abs_hists:
+    full_map γbumper γ dq1 abs_hists -∗
+    ghost_map_auth γbumper loc_map_rel dq2 bumpers -∗
+    ghost_map_auth γbumper loc_map_rel dq2 bumpers ∗
+    ⚡==> ∀ OCV, crashed_at_offset OCV -∗ full_map γbumper γ dq1 (abs_hist_trans OCV abs_hists).
+  Proof.
+    iIntros "(%gnames & gnames_auth & abs_hists_auth) bumpers".
+    iDestruct (big_sepM2_dom with "abs_hists_auth") as %domEq.
+    iAssert ⌜ map_Forall (λ ℓ _, is_Some (bumpers !! ℓ)) gnames ⌝%I as %domBumpers.
+    { rewrite -big_sepM_pure.
+      iPoseProof (bi.exist_intro abs_hists with "abs_hists_auth") as "map".
+      rewrite -big_sepM_exist_r.
+      iDestruct (big_sepM_impl_dom_subseteq_with_resource with "bumpers map []") as "(? & $ & ?)".
+      { done. }
+      iIntros "!>" (ℓ γm γm' ??) "allBumpers (% & %bumper & #knowBumper & _)".
+      simplify_map_eq.
+      iDestruct (ghost_map_lookup with "allBumpers knowBumper") as %bumperLook.
+      iFrame. iPureIntro.
+      by eexists. }
+    iPoseProof (big_sepM2_impl_dom_subseteq_with_resource _
+                  (λ ℓ gname abs_hist,
+                     ⚡==> ∃ bump, 
+                         ⌜ bumpers !! ℓ = Some bump ⌝ ∗
+                         ∀ OCV, crashed_at_offset OCV -∗ ⌜ ℓ ∈ dom OCV ⌝ -∗
+                                ℓ ↪[γbumper,loc_map_rel]□ bump ∗
+                                ghost_map_auth gname (per_loc_map_rel ℓ bump) (dfrac_div_2 dq1) (drop_bump_map ℓ bump OCV abs_hist))%I
+                  gnames abs_hists gnames abs_hists with "bumpers abs_hists_auth []")
+      as "[$ abs_hists_auth]"; [ done | done | | ].
+    - iIntros "!>" (ℓ gname abs_hist gname' abs_hist' ????) "allBumpers entry".
+      simplify_map_eq.
+      iDestruct "entry" as "(%bump & #knowBumper & fullEntry)".
+      iDestruct (ghost_map_lookup with "allBumpers knowBumper") as %bumperLook.
+      iFrame "allBumpers".
+      iModIntro.
+      iExists bump. iSplit; first done.
+      iIntros (?) "#offset domOCV".
+      iSpecialize ("knowBumper" with "offset domOCV").
+      iSpecialize ("fullEntry" with "offset").
+      iFrame.
+    - iDestruct (big_sepM2_alt with "abs_hists_auth") as (_) "abs_hists_auth".
+      rewrite nextgen_big_sepM.
+      iIntros "!>" (OCV) "#offset".
+      iSpecialize ("gnames_auth" with "offset").
+      iExists (restrict (dom OCV) gnames).
+      iFrame.
+      rewrite big_sepM2_alt.
+      iSplit; first iPureIntro.
+      + rewrite /abs_hist_trans /per_loc_trans.
+        rewrite ?restrict_dom_L.
+        f_equal.
+        rewrite -dom_eq_alt_L.
+        intros ℓ.
+        rewrite map_lookup_imap.
+        destruct (gnames !! ℓ) eqn:Heq.
+        * pose proof (map_Forall_lookup_1 _ _ ℓ _ domBumpers Heq) as [bumper bumperLook].
+          assert (is_Some (abs_hists !! ℓ)) as [? ->].
+          { rewrite -elem_of_dom -domEq elem_of_dom. by eexists. }
+          simpl.
+          rewrite bumperLook /=.
+          split; intros; by eexists.
+        * assert (abs_hists !! ℓ = None) as ->.
+          { rewrite -not_elem_of_dom -domEq not_elem_of_dom //. }
+          simpl.
+          split; intros []; congruence.
+      + iDestruct (big_sepM_impl_dom_subseteq _ _ _
+                     (map_zip (restrict (dom OCV) gnames) (abs_hist_trans OCV abs_hists))
+                    with "abs_hists_auth []") as "[$ _]".
+        { etrans; first apply dom_map_zip_with_fst.
+          rewrite dom_map_zip_with.
+          rewrite restrict_dom_L domEq.
+          set_solver. }
+        iIntros "!>" (ℓ [γm abs_hist] [γm' abs_hist'] [? absHistLook]%map_lookup_zip_Some [gnameLook' absHistLook']%map_lookup_zip_Some).
+        simpl in *.
+        iIntros "(%bumper & %bumperLook & entry)".
+        assert (ℓ ∈ dom OCV).
+        { apply elem_of_dom_2 in gnameLook'.
+          rewrite restrict_dom_L in gnameLook'.
+          set_solver. }
+        iDestruct ("entry" with "offset [%]") as "[knowBumper entry]"; first done.
+        rewrite /abs_hist_trans restrict_lookup_elem_of // map_lookup_imap absHistLook /= in absHistLook'.
+        rewrite /per_loc_trans bumperLook in absHistLook'.
+        rewrite restrict_lookup_elem_of // in gnameLook'.
+        simplify_map_eq.
+        iExists bumper.
+        iFrame.
+  Qed.
+
+  Lemma full_entry_nextgen ℓ dq1 dq2 abs_hist:
+    full_entry γbumper γ ℓ dq1 abs_hist -∗
+    ghost_map_auth γbumper loc_map_rel dq2 bumpers -∗
+    ghost_map_auth γbumper loc_map_rel dq2 bumpers ∗
+    ⚡==> ∀ OCV, crashed_at_offset OCV -∗ ⌜ ℓ ∈ dom OCV ⌝ -∗
+                 match per_loc_trans OCV ℓ abs_hist with
+                 | Some abs_hist' => full_entry γbumper γ ℓ dq1 abs_hist'
+                 | None => emp
+                 end.
+  Proof.
+    iIntros "(%γm & %bump & #knowGname & #knowBumper & fullEntry) allBumpers".
+    iDestruct (ghost_map_lookup with "allBumpers knowBumper") as %bumperLook.
+    rewrite /per_loc_trans.
+    rewrite bumperLook.
+    iFrame "allBumpers".
+    iModIntro.
+    iIntros (?) "#offset %domOCV".
+    iSpecialize ("knowGname" with "offset [//]").
+    iSpecialize ("knowBumper" with "offset [//]").
+    iSpecialize ("fullEntry" with "offset").
+    rewrite /full_entry.
+    iExists _, _. iFrame "∗#".
+  Qed.
+
+  Lemma all_loc_full_entry_nextgen abs_hists dq1 dq2:
+    dom abs_hists ⊆ dom bumpers →
+    ([∗ map] ℓ ↦ abs_hist ∈ abs_hists, full_entry γbumper γ ℓ dq1 abs_hist) -∗
+    ghost_map_auth γbumper loc_map_rel dq2 bumpers -∗
+    ghost_map_auth γbumper loc_map_rel dq2 bumpers ∗
+    ⚡==> ∀ OCV, crashed_at_offset OCV -∗
+                 ([∗ map] ℓ ↦ abs_hist ∈ (abs_hist_trans OCV abs_hists), full_entry γbumper γ ℓ dq1 abs_hist).
+  Proof.
+    iIntros (incl) "all_entries allBumpers".
+    iDestruct (big_sepM_impl_dom_subseteq_with_resource _ _ _ abs_hists abs_hists with "allBumpers all_entries []") as "($ & all_entries & _)".
+    { done. }
+    - iIntros "!>" (ℓ abs_hist abs_hist' ? ?) "allBumpers entries".
+      simplify_map_eq.
+      assert (is_Some (bumpers !! ℓ)) as [bumper bumperLook].
+      { rewrite -elem_of_dom.
+        pose proof (elem_of_subseteq (dom abs_hists) (dom bumpers)) as [HelemOf _].
+        apply HelemOf; first done.
+        apply elem_of_dom. by eexists. }
+      iDestruct (full_entry_nextgen with "entries allBumpers") as "[$ entry]".
+      iAccu.
+    - simpl.
+      rewrite nextgen_big_sepM.
+      iModIntro.
+      iIntros (?) "#offset".
+      iDestruct (big_sepM_impl_dom_subseteq _ _ _ (abs_hist_trans OCV abs_hists) with "all_entries []") as "[$ _]".
+      { rewrite /abs_hist_trans restrict_dom_L.
+        etrans; first apply intersection_subseteq_r.
+        etrans; first apply dom_imap_subseteq.
+        done. }
+      rewrite /abs_hist_trans.
+      iIntros "!>" (ℓ abs_hist abs_hist' absHistsLook absHistsLook') "entries".
+      destruct (decide (ℓ ∈ dom OCV)); last rewrite restrict_lookup_not_elem_of // in absHistsLook'.
+      iSpecialize ("entries" with "offset [//]").
+      rewrite /abs_hist_trans restrict_lookup_elem_of // map_lookup_imap absHistsLook /= in absHistsLook'.
+      by rewrite absHistsLook'.
+  Qed.
+
+  Lemma frag_entry_nextgen ℓ t v bumper dq:
+    bumpers !! ℓ = Some bumper →
+    frag_entry γbumper γ ℓ t v -∗
+    ghost_map_auth γbumper loc_map_rel dq bumpers -∗
+    ghost_map_auth γbumper loc_map_rel dq bumpers ∗
+    ⚡==> ∀ OCV, crashed_at_offset OCV -∗ ⌜ ℓ ∈ dom OCV ⌝ -∗
+                 match drop_above_bump ℓ bumper OCV t v with
+                 | Some v' => frag_entry γbumper γ ℓ t v'
+                 | None => emp
+                 end.
+  Proof.
+    iIntros (bumperLook) "(%γm & %bumper' & #knowGname & #knowBumper & entry) allBumpers".
+    iDestruct (ghost_map_lookup with "allBumpers knowBumper") as %bumperLook'.
+    iFrame "allBumpers".
+    simplify_map_eq.
+    iModIntro.
+    iIntros (?) "#offset %domOCV".
+    iSpecialize ("knowGname" with "offset [//]").
+    iSpecialize ("knowBumper" with "offset [//]").
+    iSpecialize ("entry" with "offset").
+    destruct (drop_above_bump ℓ bumper OCV t v); last done.
+    iExists _, _. iFrame "∗#".
+  Qed.
+
+  Lemma per_loc_frag_entry_nextgen ℓ abs_hist bumper dq:
+    bumpers !! ℓ = Some bumper →
+    ([∗ map] t ↦ encσ ∈ abs_hist, frag_entry γbumper γ ℓ t encσ) -∗
+    ghost_map_auth γbumper loc_map_rel dq bumpers -∗
+    ghost_map_auth γbumper loc_map_rel dq bumpers ∗
+    ⚡==> ∀ OCV, crashed_at_offset OCV -∗ ⌜ ℓ ∈ dom OCV ⌝ -∗
+                 match per_loc_trans OCV ℓ abs_hist with
+                 | Some abs_hist' => ([∗ map] t ↦ encσ ∈ abs_hist', frag_entry γbumper γ ℓ t encσ)
+                 | None => emp
+                 end.
+  Proof.
+    iIntros (bumperLook) "entries allBumpers".
+    iDestruct (big_sepM_impl_dom_subseteq_with_resource _ _ _ abs_hist abs_hist with "allBumpers entries []") as "($ & entries & _)".
+    { done. }
+    - iIntros "!>" (t v v' ? ?) "allBumpers entry".
+      simplify_map_eq.
+      iDestruct (frag_entry_nextgen with "entry allBumpers") as "[$ entry]"; first done.
+      iAccu.
+    - simpl.
+      rewrite nextgen_big_sepM.
+      iModIntro.
+      iIntros (?) "#offset %domOCV".
+      rewrite /per_loc_trans bumperLook.
+      iDestruct (big_sepM_impl_dom_subseteq _ _ _ (drop_bump_map ℓ bumper OCV abs_hist) with "entries []") as "[$ _]".
+      { rewrite /drop_bump_map.
+        etrans; first apply dom_imap_subseteq.
+        done. }
+      rewrite /drop_bump_map /drop_above_bump.
+      iIntros "!>" (t v v' absHistLook absHistLook') "entry".
+      iSpecialize ("entry" with "offset [//]").
+      rewrite map_lookup_imap absHistLook /= in absHistLook'.
+      destruct (decide _); last done.
+      by rewrite absHistLook'.
+  Qed.
+
+  Lemma all_loc_frag_entry_nextgen abs_hists dq:
+    dom abs_hists = dom bumpers →
+    ([∗ map] ℓ ↦ abs_hist ∈ abs_hists,
+       [∗ map] t ↦ encσ ∈ abs_hist, frag_entry γbumper γ ℓ t encσ) -∗
+    ghost_map_auth γbumper loc_map_rel dq bumpers -∗
+    ghost_map_auth γbumper loc_map_rel dq bumpers ∗
+    ⚡==> ∀ OCV, crashed_at_offset OCV -∗
+                 ([∗ map] ℓ ↦ abs_hist ∈ abs_hist_trans OCV abs_hists,
+                    [∗ map] t ↦ encσ ∈ abs_hist, frag_entry γbumper γ ℓ t encσ).
+  Proof.
+    iIntros (domEq) "all_entries allBumpers".
+    iDestruct (big_sepM_impl_dom_subseteq_with_resource _ _ _ abs_hists abs_hists with "allBumpers all_entries []") as "($ & all_entries & _)".
+    { done. }
+    - iIntros "!>" (ℓ abs_hist abs_hist' ? ?) "allBumpers entries".
+      simplify_map_eq.
+      assert (is_Some (bumpers !! ℓ)) as [bumper bumperLook].
+      { rewrite -elem_of_dom -domEq elem_of_dom. by eexists. }
+      iDestruct (per_loc_frag_entry_nextgen with "entries allBumpers") as "[$ entry]"; first done.
+      iAccu.
+    - simpl.
+      rewrite nextgen_big_sepM.
+      iModIntro.
+      iIntros (?) "#offset".
+      iDestruct (big_sepM_impl_dom_subseteq _ _ _ (abs_hist_trans OCV abs_hists) with "all_entries []") as "[$ _]".
+      { rewrite /abs_hist_trans restrict_dom_L.
+        etrans; first apply intersection_subseteq_r.
+        etrans; first apply dom_imap_subseteq.
+        done. }
+      rewrite /abs_hist_trans.
+      iIntros "!>" (ℓ abs_hist abs_hist' absHistsLook absHistsLook') "entries".
+      destruct (decide (ℓ ∈ dom OCV)); last rewrite restrict_lookup_not_elem_of // in absHistsLook'.
+      iSpecialize ("entries" with "offset [//]").
+      rewrite /abs_hist_trans restrict_lookup_elem_of // map_lookup_imap absHistsLook /= in absHistsLook'.
+      by rewrite absHistsLook'.
+  Qed.
+End Nextgen.
 
 Opaque full_map.
 Opaque full_entry.
