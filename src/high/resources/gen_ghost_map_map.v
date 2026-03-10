@@ -35,7 +35,7 @@ Section definitions.
   Notation K1 := loc.
   Notation K2 := nat.
 
-  Context `{!nvmBaseGS Σ Ω, !ghost_map_mapGpreS K1 K2 V Σ Ω}.
+  Context `{!nvmBaseGS Σ Ω, !ghost_map_mapGpreS K1 K2 V Σ Ω, Inhabited V}.
   Implicit Types (m : gmap K1 (gmap K2 V)).
   Implicit Types (mi : gmap K2 V).
   Implicit Types (dq: dfrac) (γ: gname) (bumper: V → option V).
@@ -154,8 +154,9 @@ Section lemmas.
   
   (* since the new [ghost_map_map] depends on bumpers for nextgen behavior,
    * its allocation now requires knowledge of bumpers at the allocated entries. *)
-
-  Local Lemma full_entry_alloc_big m :
+  Local Lemma full_entry_alloc_big {OCV OPV} m :
+    crashed_at_offset OCV -∗
+    rely_self crashed_at_name (crashed_at_pred OPV) -∗
     ([∗set] k1 ∈ dom m, ∃ bumper, k1 ↪[γbumper, loc_map_rel]□ bumper) ==∗
     ∃ gnames,
       ([∗ map] k1 ↦ γm;mi ∈ gnames;m,
@@ -168,8 +169,33 @@ Section lemmas.
          ∃ bumper, k1 ↪[γbumper, loc_map_rel]□ bumper ∗
                    ([∗ map] k2 ↦ v ∈ mi, k2 ↪[γm, per_loc_map_rel k1 bumper]□ v)).
   Proof.
-  Admitted.
-
+    setoid_rewrite <- big_sepM2_sep. setoid_rewrite <- big_sepM2_sep.
+    induction m as [|k1 mi m ? IH] using map_ind.
+    - naive_solver.
+    - iIntros "#crashed_at #crashed_rely bumpers".
+      assert (k1 ∉ dom m) by by apply not_elem_of_dom.
+      rewrite dom_insert_L big_sepS_insert //.
+      iDestruct "bumpers" as "#[[%bumper bumper] bumpers]".
+      iMod (IH with "crashed_at crashed_rely bumpers") as (gnames) "M".
+      iDestruct (big_sepM2_dom with "M") as %domEq.
+      iMod (ghost_map_alloc_persistent
+              OPV OCV (per_loc_map_rel k1 bumper) mi with "crashed_at crashed_rely") as (γ1) "[auth discard]".
+      iExists (<[ k1 := γ1 ]> gnames).
+      iModIntro.
+      rewrite big_sepM2_insert; try done.
+      2: { apply not_elem_of_dom. rewrite domEq. apply not_elem_of_dom. done. }
+      iFrame.
+      
+      iEval (rewrite -Qp.half_half ghost_map_auth_fractional) in "auth".
+      iDestruct "auth" as "[auth1 auth2]".
+      iSplitL "auth1".
+      { iExists bumper. iFrame "∗#". }
+      iSplitL "auth2".
+      { iExists bumper. iFrame "∗#". }
+      iExists bumper.
+      iFrame "∗#".
+  Qed.
+  
   Lemma full_map_alloc OPV OCV m :
     ([∗set] k1 ∈ dom m, ∃ bumper, k1 ↪[γbumper, loc_map_rel]□ bumper) -∗
     crashed_at_offset OCV -∗
@@ -180,7 +206,7 @@ Section lemmas.
   Proof.
     rewrite /full_map /full_entry.
     iIntros "#bumpers #crashed_at_offset #rely_self".
-    iMod (full_entry_alloc_big m with "bumpers") as (gnames) "(M1 & M2 & F)".
+    iMod (full_entry_alloc_big m with "[#$] [#$] bumpers") as (gnames) "(M1 & M2 & F)".
     iMod (ghost_map_alloc_persistent OPV OCV loc_map_rel gnames with "[#$] [#$]") as (γ) "[H1 #ptsMap]".
     iExists γ.
     rewrite bi.sep_exist_r.
@@ -621,6 +647,29 @@ Section Nextgen.
       by rewrite absHistLook'.
   Qed.
 
+  (* This version uses per-location bumper knowledge *)
+  Lemma frag_entry_local_nextgen ℓ t v bumper:
+    frag_entry γbumper γ ℓ t v -∗
+    ℓ ↪[γbumper, loc_map_rel]□ bumper -∗
+    ⚡==> ∀ OCV, crashed_at_offset OCV -∗ ⌜ ℓ ∈ dom OCV ⌝ -∗
+                 match drop_above_bump ℓ bumper OCV t v with
+                 | Some v' => frag_entry γbumper γ ℓ t v'
+                 | None => emp
+                 end.
+  Proof.
+    iIntros "(%γm & %bumper' & #knowGname & #knowBumper & entry) #knowBumper'".
+    iDestruct (ghost_map_elem_agree with "knowBumper knowBumper'") as %->.
+    iClear "knowBumper'".
+    simplify_map_eq.
+    iModIntro.
+    iIntros (?) "#offset %domOCV".
+    iSpecialize ("knowGname" with "offset [//]").
+    iSpecialize ("knowBumper" with "offset [//]").
+    iSpecialize ("entry" with "offset").
+    destruct (drop_above_bump ℓ bumper OCV t v); last done.
+    iExists _, _. iFrame "∗#".
+  Qed.
+  
   Lemma all_loc_frag_entry_nextgen abs_hists dq:
     dom abs_hists = dom bumpers →
     ([∗ map] ℓ ↦ abs_hist ∈ abs_hists,

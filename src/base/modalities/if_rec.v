@@ -5,7 +5,6 @@ From iris.base_logic Require Import iprop.
 From iris_named_props Require Import named_props.
 
 From self.base Require Import primitive_laws generational_resources.
-
 From self.algebra Require Import view.
 
 (* The predicate [P] holds for [ℓ] or [ℓ] has been lost. *)

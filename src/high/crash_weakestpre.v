@@ -191,6 +191,18 @@ Section wpc.
     iApply (wpc_strong_mono with "[$] [-]"); auto.
   Qed.
 
+  Lemma fupd_wpc s E1 e Φ Φc:
+    (|={E1}=> WPC e @ s; E1 {{ Φ }} {{ Φc }}) ⊢ WPC e @ s; E1 {{ Φ }} {{ Φc }}.
+  Proof.
+    rewrite wpc_eq /wpc_def /=.
+    iModel.
+    monPred_simpl. simpl.
+    iIntros "wpc".
+    iIntros (TV1 ?) "conj".
+    iApply fupd_wpc.
+    iApply "wpc"; done.
+  Qed.
+
   (* Lemma ncfupd_wpc s E1 e Φ Φc `{!ViewObjective Φc} : *)
   (*   (cfupd E1 Φc) ∧ (|NC={E1}=> WPC e @ s; E1 {{ Φ }} {{ Φc }}) ⊢ *)
   (*   WPC e @ s; E1 {{ Φ }} {{ Φc }}. *)

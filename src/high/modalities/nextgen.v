@@ -1,24 +1,33 @@
 (** This file defines the lifted [nextgen] modality for [monPred] *)
+
 From iris.proofmode Require Import proofmode.
 
 From self.high.lib Require Import abstract_state.
 
 From self.base Require Import generational_resources.
-From self.high Require Import dprop.
+From self.high Require Import dprop generational_resources wrappers.
 From self.nextgen Require Export nextgen_promises.
 
 Set Default Proof Using "Type*".
 
-Definition nextgen `{Ω: !gGenCmras Σ} (P: dProp Σ): dProp Σ := MonPred (λ TV, ⚡==> P (∅, ∅, ∅))%I _.
+Definition crashed_in_impl OCV `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω}: iProp Σ :=
+  [∗ map] ℓ ↦ t ∈ OCV,
+    □ (∀ (ST: Type) (_ : EqDecision ST) (_ : Countable ST) (_ : AbstractState ST) (bumper: ST → ST),
+         know_preorder_loc ℓ (abs_state_relation (ST := ST)) -∗
+         know_bumper ℓ bumper -∗
+         ∃ (σ: ST), know_frag_history_loc ℓ (max_nat_car t) σ).
 
-Class IntoNextgen `{Ω: !gGenCmras Σ} (P Q : dProp Σ) :=
+Program Definition nextgen `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω} (P: dProp Σ): dProp Σ :=
+  MonPred (λ TV, ⚡==> ∀ OCV, crashed_at_offset OCV -∗ crashed_in_impl OCV -∗ P (∅, ∅, ∅))%I _.
+
+Class IntoNextgen `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω} (P Q : dProp Σ) :=
   into_nextgen : P ⊢ nextgen Q.
-Global Arguments IntoNextgen {_ _} _%I _%I.
-Global Arguments into_nextgen {_ _} _%I _%I.
-Global Hint Mode IntoNextgen + + + - : typeclass_instances.
+Global Arguments IntoNextgen {_ _ _ _} _%I _%I.
+Global Arguments into_nextgen {_ _ _ _} _%I _%I.
+Global Hint Mode IntoNextgen + + + + + - : typeclass_instances.
 
 Section Modality.
-  Context `{Ω: !gGenCmras Σ}.
+  Context `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω}.
   Implicit Types (P Q: dProp Σ).
 
   Lemma nextgen_mono (P Q: dProp Σ) :
@@ -28,7 +37,9 @@ Section Modality.
     iStartProof (iProp _); iIntros (?).
     simpl.
     iApply nextgen_mono.
+    iIntros "H % #? #?".
     iApply Hi.
+    by iApply "H".
   Qed.
 
   Global Instance nextgen_mono' :
@@ -47,9 +58,10 @@ Section Modality.
     iStartProof (iProp _); iIntros (?).
     rewrite Hi.
     simpl.
+    iIntros "#H !> % #? #?".
     rewrite monPred_at_intuitionistically.
-    rewrite 2!bi.intuitionistically_into_persistently.
-    iApply nextgen_intuitionistically_2.
+    iModIntro.
+    by iApply "H".
   Qed.
 
   Lemma nextgen_and P Q:
@@ -57,17 +69,20 @@ Section Modality.
   Proof.
     intros.
     iStartProof (iProp _); iIntros (?). simpl.
-    rewrite monPred_at_and.
     rewrite nextgen_and_1.
-    naive_solver.
+    iIntros "H !> % #? #?".
+    iSplit.
+    - iDestruct "H" as "[H _]".
+      by iApply "H".
+    - iDestruct "H" as "[_ H]".
+      by iApply "H".
   Qed.
 
   Lemma nextgen_emp:
     emp ⊢ nextgen emp.
   Proof.
     iStartProof (iProp _); iIntros (?). simpl.
-    rewrite monPred_at_emp.
-    iApply nextgen_emp_2.
+    by iIntros "_ !> % _ _".
   Qed.
 
   Lemma nextgen_sep P Q:
@@ -75,12 +90,15 @@ Section Modality.
   Proof.
     iStartProof (iProp _). iIntros (TV).
     simpl.
-    rewrite monPred_at_sep.
-    iApply nextgen_sep_2.
+    rewrite nextgen_sep_2.
+    iIntros "H !> % #? #?".
+    iDestruct "H" as "[P Q]".
+    iSplitL "P"; first by iApply "P".
+    by iApply "Q".
   Qed.
 
   Lemma modality_nextgen_mixin :
-    modality_mixin (@nextgen _ _)
+    modality_mixin (@nextgen _ _ _ _)
       (MIEnvTransform IntoNextgen) (MIEnvTransform IntoNextgen).
   Proof.
     split; simpl; split_and?.
@@ -105,8 +123,15 @@ Section Modality.
     intros Hi.
     iStartProof (iProp _); iIntros (?). simpl.
     rewrite Hi.
-    rewrite monPred_at_embed.
-    naive_solver.
+    iIntros "H !> % _ _".
+    done.
+  Qed.
+
+  Global Instance post_crash_objective P : Objective (nextgen P)%I.
+  Proof.
+    iIntros (??) "P".
+    iModIntro.
+    done.
   Qed.
 End Modality.
 
@@ -114,7 +139,7 @@ Notation "'<NG>' P" := (nextgen P)
   (at level 200, right associativity) : bi_scope.
 
 Section IntoNextgen.
-  Context `{!nvmBaseGS Σ Ω}.
+  Context `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω}.
 
   (* Arguments IntoNextgen {_} {_} {_} _%I hi%I. *)
 
@@ -204,10 +229,6 @@ Section IntoNextgen.
     iIntros (Hc) "H". iDestruct "H" as (?) "HΦ". iPoseProof (Hc with "[$]") as "HΦ".
     iApply (nextgen_mono with "HΦ"). auto.
   Qed.
-
-  (* Global Instance embed_into_crash P : *)
-  (*   IntoNextgen (⎡ P ⎤%I) (λ _, ⎡ P ⎤%I). *)
-  (* Proof. rewrite /IntoNextgen. iIntros "P". by iApply post_crash_embed_nodep. Qed. *)
 End IntoNextgen.
 
 Section nextgen_derived.

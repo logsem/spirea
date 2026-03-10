@@ -43,7 +43,7 @@ Section wp_at.
         ⌜ σ_i ⊑ σ_l ⌝ -∗
         ((▷ prot.(p_read) σ_l v_l) -∗ ⌜ vals_compare_safe v_i v_l ⌝) ∗
         (( (* in case of success *)
-            ⌜ v_l = v_i ⌝ -∗
+            ⌜ v_l = v_i ⌝ -∗  
             ∃ σ_t,
             (* The state we write fits in the history. *)
             <obj> (prot.(p_full) σ_l v_l -∗ ⌜ σ_l ⊑ σ_t ⌝) ∗
@@ -57,14 +57,14 @@ Section wp_at.
             (* Extract from the location we load. *)
             <obj> (prot.(p_full) σ_l v_l ∗ P σ_p -∗ prot.(p_read) σ_l v_l ∗ R σ_l) ∗
             (* Establish the invariant for the value we store. *)
-            (R σ_l ==∗ prot.(p_full) σ_t v_t ∗ <obj> P σ_p ∗ Q1 σ_l σ_t))
+            (seen_state ℓ σ_l -∗ R σ_l ==∗ prot.(p_full) σ_t v_t ∗ <obj> P σ_p ∗ Q1 σ_l σ_t))
          ∧ (* in case of failure *)
            ((<obj> (prot.(p_full) σ_l v_l -∗ prot.(p_full) σ_l v_l ∗ Q2 σ_l)) ∗ Q3)
         ))
     }}}
       CmpXchg #ℓ v_i v_t @ st; E
     {{{ v b σ_l σ_t, RET (v, #b);
-      (⌜ b = true ⌝ ∗ <fence> Q1 σ_l σ_t ∗ ℓ ↦_AT^{prot} ((σs ++ [σ_i]) ++ [σ_t]) ∗ seen_state ℓ prot σ_l) ∨
+      (⌜ b = true ⌝ ∗ <fence> Q1 σ_l σ_t ∗ ℓ ↦_AT^{prot} ((σs ++ [σ_i]) ++ [σ_t])) ∨
       (⌜ b = false ⌝ ∗ ⌜ σ_i ⊑ σ_l ⌝ ∗ ℓ ↦_AT^{prot} (σs ++ [σ_i]) ∗ <fence> (Q2 σ_l) ∗ Q3)
     }}}.
   Proof.
@@ -120,7 +120,7 @@ Section wp_at.
 
       eassert _ as  temp. { eapply (read_atomic_location t_i t_l (OCV !!0 ℓ)); (done || lia). }
       destruct temp as (σ_l & encσ_l & ? & ? & ? & <- & orderRelated).
-
+      
       iDestruct ("impl" $! _ v_l _ _ orderRelated) as "(safe & _)".
       iEval (monPred_simpl) in "safe".
       iEval (setoid_rewrite monPred_at_pure) in "safe".
@@ -182,6 +182,7 @@ Section wp_at.
 
       iDestruct ("impl" $! _ _ σ_p (msg_val msg_p)) as "impl".
       iDestruct ("impl" $! orderRelated) as "[_ [impl _]]".
+
       iDestruct ("impl" with "[//]") as (σ_t) "(above & below & P_acc & impl1 & impl2)".
       rewrite ?monPred_at_objectively.
       iDestruct ("above" with "[$]") as "%above".
@@ -298,8 +299,29 @@ Section wp_at.
         solve_view_le. }
 
       iEval (monPred_simpl) in "impl2".
-      iDestruct ("impl2" $! (view_l ⊔ TV) with "[] [R]") as "> (predF & P & Q)".
+      (* collect information for [seen_state]. *)
+      iMod (auth_map_map_lookup _ _ _ _ t_l with "physHists") as "[physHists #know_msg_l]".
+      { done. } { done. }
+      iAssert (know_frag_history_loc ℓ t_l σ_l)%I as "#know_σ_l".
+      { rewrite /know_frag_history_loc /frag_entry_unenc.
+        iExists encσ_l.
+        iPoseProof (big_sepM_lookup _ _ t_l with "frags") as "$"; done. }
+      
+      iDestruct ("impl2" $! (view_l ⊔ TV) with "[] [] [R]") as "> (predF & P & Q)".
       { iPureIntro. apply thread_view_le_r. }
+      { iExists _, (OCV !!0 ℓ), (Msg v_l SV_l FV_l FV_l).
+        destruct (TV) as [[??]?].
+        iFrameF "know_σ_l".
+        iFrameF "offset".
+        iSplitPure.
+        { simpl.
+          rewrite lookup_zero_lub.
+          lia. }
+        iFrameF "know_msg_l".
+        iPureIntro.
+        subst view_l.
+        simpl.
+        solve_view_le. }
       { iApply monPred_mono; last iApply "R". apply thread_view_le_l. }
 
       (* we recover [P_pers] from the objective fragment *)
@@ -307,14 +329,6 @@ Section wp_at.
       iEval (rewrite monPred_at_objectively) in "P".
       iDestruct ("P_acc" with "[//] P") as "predP".
 
-      (* Before we close [interp], we need to obtain the knowledge about [σ_l]
-       * and [msg_l] for [seen_state]. *)
-      iMod (auth_map_map_lookup _ _ _ _ t_l with "physHists") as "[physHists #know_msg_l]".
-      { done. } { done. }
-      iAssert (know_frag_history_loc ℓ t_l σ_l)%I as "#know_σ_l".
-      { rewrite /know_frag_history_loc /frag_entry_unenc.
-        iExists encσ_l.
-        iPoseProof (big_sepM_lookup _ _ t_l with "frags") as "$"; done. }
       iMod ("reins" $! (t_l + 1) σ_t
         with "[%] [//] [//] [] [] physHists [predFullReadRest predR predF] [pview predP] fullHist [//] pts")
           as "(#frag & #physHistFrag & $)".
@@ -355,6 +369,7 @@ Section wp_at.
           lia. }
         { destruct TV as [[? ?] ?].
           iDestruct (into_no_buffer_at with "predF") as "predF".
+          { apply full_nobuf. }
           destruct (decide _).
           - iApply (predicate_holds_phi with "predFullEquiv"); first reflexivity.
             iApply (monPred_mono with "predF").
@@ -413,67 +428,53 @@ Section wp_at.
         - apply view_lub_le; solve_view_le.
         - simpl_view. solve_view_le. }
       (* [mapsto_at] *)
-      iSplitL.
-      { iExists _, _, _, (t_l + 1). iExistsN.
-        iSplitPure. { rewrite last_snoc. reflexivity. }
-        iSplitPure. { eapply map_sequence_insert_snoc; try done. lia. }
-        iSplitPure.
-        { eapply map_sequence_insert_snoc; last done; first lia.
-          eapply map_no_later_dom; last apply nolater.
-          done. }
+      iExists _, _, _, (t_l + 1). iExistsN.
+      iSplitPure. { rewrite last_snoc. reflexivity. }
+      iSplitPure. { eapply map_sequence_insert_snoc; try done. lia. }
+      iSplitPure.
+      { eapply map_sequence_insert_snoc; last done; first lia.
+        eapply map_no_later_dom; last apply nolater.
+        done. }
 
-        iSplitPure.
-        { eapply map_no_later_insert; last done. lia. }
-        iSplitPure.
-        { rewrite 2!dom_insert_L. rewrite absPhysHistDomEq. done. }
-        simpl.
-        iFrameF "isAtLoc".
-        rewrite big_sepM_insert. 2: { apply nolater. lia. }
-                               rewrite big_sepM_insert.
-        2: {
-          eapply map_dom_eq_lookup_None; first done.
-          apply nolater. lia. }
-        rewrite -know_protocol_unfold.
-        iFrameF "locationProtocol".
-        iSplitPure.
-        { apply: increasing_map_insert_last; try done. lia.
-          etrans; done. }
-        iSplit.
-        (* { iFrame "frag absHist". } *)
-        { simpl. rewrite monPred_at_sep. simpl. iFrame "frag".
-          rewrite -monPred_at_big_sepM.
-          iApply objective_at.
-          rewrite monPred_at_big_sepM.
-          iEval (rewrite monPred_at_big_sepM).
-          simpl.
-          iFrame "absHist". }
-        iFrame "offset".
-        iSplit; last first.
-        { simpl. iPureIntro.
-          rewrite lookup_zero_insert.
-          lia. }
-        simpl.
-
-        iSplit.
-        { simpl. iFrame "physHistFrag". solve_view_le. }
-        rewrite -?monPred_at_big_sepM.
-        iApply monPred_mono; last iApply "physHist".
-        etrans; first apply incl.
-        etrans; first apply incl2.
-        repeat split; solve_view_le. }
-      iExists _, (OCV !!0 ℓ), (Msg v_l SV_l FV_l FV_l).
-      iSplit; last first.
-      { iFrameF "know_msg_l".
-        iPureIntro.
-        simpl.
-        solve_view_le. }
-      iFrameF "locationProtocol".
-      iFrameF "know_σ_l".
-      iFrameF "offset".
-      iPureIntro.
+      iSplitPure.
+      { eapply map_no_later_insert; last done. lia. }
+      iSplitPure.
+      { rewrite 2!dom_insert_L. rewrite absPhysHistDomEq. done. }
       simpl.
-      rewrite lookup_zero_insert.
-      lia.
+      iFrameF "isAtLoc".
+      rewrite big_sepM_insert. 2: { apply nolater. lia. }
+                             rewrite big_sepM_insert.
+      2: {
+        eapply map_dom_eq_lookup_None; first done.
+        apply nolater. lia. }
+      rewrite -know_protocol_unfold.
+      iFrameF "locationProtocol".
+      iSplitPure.
+      { apply: increasing_map_insert_last; try done. lia.
+        etrans; done. }
+      iSplit.
+      (* { iFrame "frag absHist". } *)
+      { simpl. rewrite monPred_at_sep. simpl. iFrame "frag".
+        rewrite -monPred_at_big_sepM.
+        iApply objective_at.
+        rewrite monPred_at_big_sepM.
+        iEval (rewrite monPred_at_big_sepM).
+        simpl.
+        iFrame "absHist". }
+      iFrame "offset".
+      iSplit; last first.
+      { simpl. iPureIntro.
+        rewrite lookup_zero_insert.
+        lia. }
+      simpl.
+
+      iSplit.
+      { simpl. iFrame "physHistFrag". solve_view_le. }
+      rewrite -?monPred_at_big_sepM.
+      iApply monPred_mono; last iApply "physHist".
+      etrans; first apply incl.
+      etrans; first apply incl2.
+      repeat split; solve_view_le.
     - (* failure *)
       iDestruct "H" as "(-> & -> & pts)".
       iDestruct "reins" as "[_ reins]".
@@ -558,42 +559,50 @@ Section wp_at.
       Unshelve. all: done.
   Qed.
 
-    (* (** [Q1] is the resource we want to extract in case of success and and [Q2] is *)
-  (* the resource we want to extract in case of failure. *) *)
-  (* Lemma wp_cas_at Q1 Q2 Q3 ℓ prot `{!ProtocolConditions prot} ss s_i *)
-  (*     (v_i v_t : val) R s_t st E : *)
-  (*   {{{ *)
-  (*     ℓ ↦_AT^{prot} (ss ++ [s_i]) ∗ *)
-  (*     (∀ s_l v_l, ⌜ s_i ⊑ s_l ⌝ -∗ *)
-  (*       ((▷ prot.(p_inv) s_l v_l) -∗ ⌜ vals_compare_safe v_i v_l ⌝) ∗ *)
-  (*       (((* in case of success *) *)
-  (*         (* The state we write fits in the history. *) *)
-  (*         ⌜ s_l ⊑ s_t ⌝ ∗ *)
-  (*         (∀ s_n v_n, ⌜ s_l ⊑ s_n ⌝ -∗ prot.(p_inv) s_l v_l -∗ *)
-  (*           prot.(p_inv) s_n v_n -∗ ⌜ s_t ⊑ s_n ⌝) ∗ *)
-  (*         (* Extract from the location we load. *) *)
-  (*         (<obj> (prot.(p_inv) s_l v_l -∗ prot.(p_inv) s_l v_l ∗ R s_l)) ∗ *)
-  (*         (* Establish the invariant for the value we store. *) *)
-  (*         (R s_l -∗ prot.(p_inv) s_t v_t ∗ Q1 s_l)) *)
-  (*       ∧ (* in case of failure *) *)
-  (*         ((<obj> (prot.(p_inv) s_l v_l -∗ prot.(p_inv) s_l v_l ∗ Q2 s_l)) ∗ Q3) *)
-  (*       )) *)
-  (*   }}} *)
-  (*     CAS #ℓ v_i v_t @ st; E *)
-  (*   {{{ b s_l, RET #b; *)
-  (*     (⌜ b = true ⌝ ∗ <fence> Q1 s_l ∗ ℓ ↦_AT^{prot} ((ss ++ [s_i]) ++ [s_t])) ∨ *)
-  (*     (⌜ b = false ⌝ ∗ ⌜ s_i ⊑ s_l ⌝ ∗ ℓ ↦_AT^{prot} (ss ++ [s_i]) ∗ <fence> (Q2 s_l) ∗ Q3) *)
-  (*   }}}. *)
-  (* Proof. *)
-  (*   intros Φ. *)
-  (*   iIntros "H Φpost". *)
-  (*   iApply (wp_bind ([SndCtx])). *)
-  (*   iApply (wp_cmpxchg_at with "H"). *)
-  (*   iIntros "!>" (v b s_l) "disj /=". *)
-  (*   iApply wp_pure_step_later; first done. *)
-  (*   iNext. *)
-  (*   iApply wp_value. *)
-  (*   iApply "Φpost". *)
-  (*   iApply "disj". *)
-  (* Qed. *)
+  (** [Q1] is the resource we want to extract in case of success and and [Q2] is *)
+  (** the resource we want to extract in case of failure. *)
+  Lemma wp_cas_at Q1 Q2 Q3 (P R: ST → dProp Σ) σs σ_i ℓ prot `{!ProtocolConditions prot} v_i v_t st E :
+    {{{
+      ℓ ↦_AT^{prot} (σs ++ [σ_i]) ∗
+      (∀ σ_l v_l σ_p v_p,
+        (* we know that we won't read older state than [σ_i] *)
+        ⌜ σ_i ⊑ σ_l ⌝ -∗
+        ((▷ prot.(p_read) σ_l v_l) -∗ ⌜ vals_compare_safe v_i v_l ⌝) ∗
+        (( (* in case of success *)
+            ⌜ v_l = v_i ⌝ -∗
+            ∃ σ_t,
+            (* The state we write fits in the history. *)
+            <obj> (prot.(p_full) σ_l v_l -∗ ⌜ σ_l ⊑ σ_t ⌝) ∗
+            (∀ σ_n v_n, ⌜ σ_l ⊑ σ_n ⌝ -∗ prot.(p_full) σ_l v_l -∗
+                        prot.(p_full) σ_n v_n ∨
+                        (prot.(p_read) σ_n v_n ∧
+                        ∃ σ_n' v_n', ⌜ σ_n ⊑ σ_n' ⌝ ∗ prot.(p_full) σ_n' v_n') -∗
+                        ⌜ σ_t ⊑ σ_n ⌝) ∗
+            (* Extract the objective knowledge from [p_pers] *)
+            <obj> (prot.(p_pers) σ_p v_p -∗ <obj> P σ_p ∗ (P σ_p -∗ prot.(p_pers) σ_p v_p)) ∗
+            (* Extract from the location we load. *)
+            <obj> (prot.(p_full) σ_l v_l ∗ P σ_p -∗ prot.(p_read) σ_l v_l ∗ R σ_l) ∗
+            (* Establish the invariant for the value we store. *)
+            (seen_state ℓ σ_l -∗ R σ_l ==∗ prot.(p_full) σ_t v_t ∗ <obj> P σ_p ∗ Q1 σ_l σ_t))
+         ∧ (* in case of failure *)
+           ((<obj> (prot.(p_full) σ_l v_l -∗ prot.(p_full) σ_l v_l ∗ Q2 σ_l)) ∗ Q3)
+        ))
+    }}}
+      CAS #ℓ v_i v_t @ st; E
+    {{{ b σ_l σ_t, RET #b;
+      (⌜ b = true ⌝ ∗ <fence> Q1 σ_l σ_t ∗ ℓ ↦_AT^{prot} ((σs ++ [σ_i]) ++ [σ_t])) ∨
+      (⌜ b = false ⌝ ∗ ⌜ σ_i ⊑ σ_l ⌝ ∗ ℓ ↦_AT^{prot} (σs ++ [σ_i]) ∗ <fence> (Q2 σ_l) ∗ Q3)
+    }}}.
+  Proof.
+    intros Φ.
+    iIntros "H Φpost".
+    iApply (wp_bind ([SndCtx])).
+    iApply (wp_cmpxchg_at with "H").
+    iIntros "!>" (v b σ_l σ_t) "disj /=".
+    iApply wp_pure_step_later; first done.
+    iNext.
+    iApply wp_value.
+    iApply "Φpost".
+    iApply "disj".
+  Qed.
 End wp_at.

@@ -17,12 +17,14 @@ From self.high.lib Require Import abstract_state.
 
 From iris.bi.lib Require Import fractional.
 From self.nextgen Require Import nextgen_promises.
-From self.high Require Export generational_resources.
+From self.high Require Export generational_resources if_rec dprop.
 
 (* For some reason [iris.algebra.view.view] always triumph the in-house definition. *)
 From self.algebra Require Export view.
 
 Set Default Proof Using "Type*".
+
+#[local] Notation BIN := nextgen_promises_model.IntoNextgen.  
 
 Section location_sets.
   Context `{nvmHighGS}.
@@ -127,17 +129,31 @@ Section offset_loc.
       by apply not_elem_of_dom.
   Qed.
 
-  (* (* although the offset never decreases and thus a stronger lemma should be correct, *)
-  (*  * the way [crashed_at_trans] is defined right now doesn't guarantee that. *) *)
-  (* Global Instance offset_loc_into_nextgen ℓ t: *)
-  (*   IntoNextgen *)
-  (*   (offset_loc ℓ t) *)
-  (*   (∃ t', offset_loc ℓ t'). *)
-  (* Proof. *)
-  (*   rewrite /IntoNextgen. *)
-  (*   iIntros "offset !>". *)
-  (*   iDestruct "offset" as (OCV) "[(%OV & %trans & picked & offset) %]". *)
-
+  (* although the offset never decreases and thus a stronger lemma should be correct, *)
+  (*  * the way [crashed_at_trans] is defined right now doesn't guarantee that. *)
+  #[global] Instance offset_loc_into_nextgen ℓ t:
+    BIN
+    (offset_loc ℓ t)
+    (base_if_rec ℓ (∃ t', offset_loc ℓ t')).
+  Proof.
+    rewrite /BIN.
+    iIntros "offset !>".
+    iDestruct "offset" as (OCV) "((%OV & %trans & picked & offset) & (%OCV' & newLocs & picked') & %)".
+    iIntros (OCV'' ?) "#crashed #persisted".
+    iExists _.
+    rewrite /offset_loc.
+    iExists OCV''.
+    iSplit; first done.
+    iSplit; last done.
+    iPickedInAgree "picked' picked".
+    simpl.
+    iDestruct "crashed" as (OV') "crashed".
+    iDestruct (crashed_at_both_agree with "crashed offset") as "[-> ->]".
+    assert (ℓ ∈ dom OCV') by (by apply elem_of_dom).
+    iEval (replace ({[ℓ]}) with ({[ℓ]} ∩ dom OCV') by set_solver).
+    done.
+  Qed.
+    
   Lemma offset_auth_picked_out OCV' offsets:
     picked_out crashed_at_name (crashed_at_trans (OCV')) -∗
     offset_auth offsets -∗
@@ -196,6 +212,8 @@ Section preorders.
     iDestruct (ghost_map_lookup with "auth frag") as "%".
     iPureIntro. congruence.
   Qed.
+
+  
 End preorders.
 
 (* Pure facts about bumpers *)
@@ -286,7 +304,7 @@ Section NAView.
   Context `{nvmHighGS}.
 
   Definition know_na_view ℓ q (SV : view) : iProp Σ :=
-    ℓ ↪[non_atomic_views_gname, loc_map_rel]{#q} SV%I.
+    ℓ ↪[non_atomic_views_gname, na_views_rel]{#q} SV%I.
 
   Lemma know_na_view_agree ℓ p q V V' :
     know_na_view ℓ q V -∗
@@ -308,17 +326,6 @@ End NAView.
 
 (* so that iDestruct will prioritize fractional lemma over splitting [gen_own] *)
 #[global] Opaque know_na_view.
-
-(* TODO: replace this definition with [picked_in] of abstract history *)
-Section crashed_in.
-  Context `{nvmHighGS}.
-  Context `{Countable ST}.
-
-  (* [crashed_in ℓ s] means location [ℓ] crashed in (latest) abstract state [s]
-   * (before applying bumper). *)
-  Definition crashed_in ℓ (s : ST) : iProp Σ :=
-    ∃ es, ⌜ decode es = Some s ⌝ ∗ ℓ ↪[crashed_in_name, loc_map_rel]□ es.
-End crashed_in.
 
 Section Histories.
   Context `{nvmHighGS}.
@@ -367,5 +374,58 @@ Section Histories.
     AsFractional (know_full_history_loc ℓ q abs_hist)
       (λ q, know_full_history_loc ℓ q abs_hist) q.
   Proof. apply _. Qed.
-  
 End Histories.
+
+(* TODO: replace this definition with [picked_in] of abstract history *)
+Section crashed_in.
+  Context `{nvmHighGS}.
+  Context `{Countable ST}.
+
+  (* [crashed_in ℓ s] means location [ℓ] crashed in (latest) abstract state [s]
+   * (before applying bumper). *)
+  Definition crashed_in_internal ℓ (s : ST) : iProp Σ :=
+    ∃ es, ⌜ decode es = Some s ⌝ ∗ ℓ ↪[crashed_in_name, crashed_in_rel]□ es.
+End crashed_in.
+
+Section NextgenLemmas.
+  Context `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω, !PerennialG Σ}.
+  Context `{AbstractState ST}.
+
+  #[global] Instance know_bumper_nextgen ℓ (bumper: ST → ST):
+    BIN
+      (know_bumper ℓ bumper)
+      (base_if_rec ℓ (know_bumper ℓ bumper)).
+  Proof.
+    rewrite /BIN.
+    iIntros "[%bumpValid #bumper]".
+    iPoseProof (ghost_map_elem_into_nextgen_ifrec with "bumper") as "#bumper'".
+    iModIntro.
+    iModIntro.
+    iSplit; done.
+  Qed.
+
+  (* Lemma frag_history_nextgen ℓ t offset bumper (σ : ST) : *)
+  (*   ⎡ know_preorder_loc ℓ (abs_state_relation (ST := ST)) ⎤ -∗ *)
+  (*   ⎡ offset_loc ℓ offset ⎤ -∗ *)
+  (*   ⎡ know_bumper ℓ bumper ⎤ -∗ *)
+  (*   ⎡ know_frag_history_loc ℓ t σ ⎤ -∗ *)
+  (*   <NG> if_rec ℓ (∃ σC CV tC v, *)
+  (*              ⌜ CV !! ℓ = Some (MaxNat tC) ⌝ ∗ *)
+  (*              ⎡ crashed_at CV ⎤ ∗ *)
+  (*              ⎡ crashed_in ℓ σC ⎤ ∗ *)
+  (*              ⎡ know_frag_history_loc ℓ (offset + tC) (bumper σC) ⎤ ∗ *)
+  (*              ⎡ know_phys_hist_msg ℓ (offset + tC) (memory.Msg v ∅ ∅ ∅) ⎤ ∗ *)
+  (*              (⌜ t ≤ offset + tC ⌝ -∗ *)
+  (*               ⌜ σ ⊑ σC ⌝ ∗ ⎡ know_frag_history_loc ℓ t (bumper σ) ⎤)). *)
+  (* Proof. *)
+  (*   iIntros "preOrder #offset #bumper fragHist". *)
+  (*   iPoseProof (ghost_map_elem_into_nextgen_ifrec with "preOrder") as "preOrder". *)
+  (*   rewrite /know_frag_history_loc /frag_entry_unenc. *)
+  (*   iDestruct "fragHist" as (encσ Hdecodeσ) "frag_hist_entry". *)
+  (*   iPoseProof (frag_entry_local_nextgen with "frag_hist_entry [bumper]") as "frag_hist_entry". *)
+  (*   { iDestruct "bumper" as "[? $]". } *)
+  (*   iModIntro. *)
+  (*   rewrite -?if_rec_lift_if_rec. *)
+  (*   iModIntro. *)
+  (* Abort. *)
+End NextgenLemmas.

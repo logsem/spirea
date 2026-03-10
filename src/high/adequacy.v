@@ -36,16 +36,8 @@ Section high_adequacy.
     persisted PV ==∗
     ∃ (_: nvmHighGS Σ Ω), extra_state_interp.
   Admitted.
-
-    Lemma extra_state_nextgen `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω, !PerennialG Σ} CV σ1 σ2:
-      CV_crash_step CV σ1 σ2 →
-      extra_state_interp -∗
-      (∃ OCV, crashed_at_offset OCV ∗ picked_out crashed_at_name (crashed_at_trans (OCV `view_add` CV))) -∗
-          |==> ▷ ⚡==> |==> extra_state_interp.
-    Admitted.
   
-  (* ends missing proofs. *)
-      
+  (* ends missing proofs. *)    
   Theorem high_recv_adequacy Σ Ω `{!nvmBaseGpreS Σ Ω, !nvmHighGpreS Σ Ω, !Perennial_preG Σ Ω}
     s e r σ PV g φ φr φinv Φinv :
     valid_heap σ →
@@ -167,7 +159,7 @@ Section high_adequacy.
     iIntros (Hheap Hhigh HP) "#validV #persisted".
     iPoseProof (hyp with "validV persisted") as "[WPC recover]".
     iApply wpr_strong_mono.
-    - iApply (idempotence_wpr _ _ _ _ _ True%I).
+    - iApply (idempotence_wpr _ _ _ _ _).
       + done.
       + done.
       + iApply (plainly_mono with "recover").
@@ -178,7 +170,6 @@ Section high_adequacy.
         iModIntro.
         rewrite /nextgen.nextgen /=.
         iModIntro.
-        iSplit; last done.
         done.
     - iApply (plainly_intro True); last done.
       iIntros (_).

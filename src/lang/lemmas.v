@@ -325,3 +325,50 @@ Proof.
     simpl in *.
     destruct x; try done.
 Qed.
+
+
+Lemma prim_step_faa_no_fork ℓ (v : val) SV PV BV
+  (σ1 : state nvm_lang) (g1 : global_state nvm_lang) (κ : list (language.observation nvm_lang))
+  (e2 : language.expr nvm_lang) (σ2 : state nvm_lang) (g2 : global_state nvm_lang)
+  (efs : list (language.expr nvm_lang)) :
+  prim_step (FAA #ℓ v `at` (SV, PV, BV)) σ1 g1 κ e2 σ2 g2 efs → efs = [].
+Proof.
+  intros [Ki [??] [??] ? ? step].
+  subst.
+  simpl in *.
+  induction Ki using rev_ind.
+  { simpl in *. subst. inv_impure_thread_step; try done.
+    rewrite list_fmap_singleton.
+    subst.
+    congruence. }
+  move: H.
+  rewrite fill_app.
+  simpl.
+  destruct x; try done.
+  - simpl.
+    rewrite /thread_fill_item.
+    simpl.
+    inversion 1.
+    simpl in *.
+    rewrite -nvm_fill_fill in H1.
+    simpl in *.
+    destruct Ki using rev_ind; try done.
+    { simpl in *. subst. inv_impure_thread_step; try done. }
+    simpl in *.
+    rewrite fill_app in H1.
+    simpl in *.
+    destruct x; try done.
+  - simpl.
+    rewrite /thread_fill_item.
+    simpl.
+    inversion 1.
+    simpl in *.
+    rewrite -nvm_fill_fill in H2.
+    simpl in *.
+    destruct Ki using rev_ind; try done.
+    { simpl in *. subst. inv_impure_thread_step; try done. }
+    simpl in *.
+    rewrite fill_app in H2.
+    simpl in *.
+    destruct x; try done.
+Qed.

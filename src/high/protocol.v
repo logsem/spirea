@@ -9,6 +9,8 @@ From self.high.modalities Require Import no_buffer nextgen_flush nextgen if_rec.
 
 From self.lang Require Import lang.
 
+Set Default Proof Using "Type*".
+
 (* A handy alias for the type of location predicates. *)
 Definition loc_pred `{!nvmBaseGS Σ Ω} ST `{AbstractState ST} := ST → val → dProp Σ.
 
@@ -27,18 +29,18 @@ Record LocationProtocol ST `{AbstractState ST, !nvmBaseGS Σ Ω} := MkProt {
   p_bumper : ST → ST;
 }.
 
-Global Arguments MkProt   {_ _ _ _ _ _ _} _%I _.
-Global Arguments p_full   {ST _ _ _ _ _ _} _.
-Global Arguments p_read   {ST _ _ _ _ _ _} _.
-Global Arguments p_pers   {ST _ _ _ _ _ _} _.
-Global Arguments p_bumper {ST _ _ _ _ _ _} _ _.
+#[global] Arguments MkProt   {ST _ _ _ _ _ _} _%I _%I _%I _.
+#[global] Arguments p_full   {ST _ _ _ _ _ _} _%I.
+#[global] Arguments p_read   {ST _ _ _ _ _ _} _%I.
+#[global] Arguments p_pers   {ST _ _ _ _ _ _} _%I.
+#[global] Arguments p_bumper {ST _ _ _ _ _ _} _ _.
 
 (* Type class collection the properties that a protocol should have.
 
 Note: The fields are ordered by "difficulty" in the sense of how difficult these
 conditions usually are to show.  *)
 
-Class ProtocolConditions `{AbstractState ST, !nvmBaseGS Σ Ω} (prot : LocationProtocol ST) := {
+Class ProtocolConditions `{AbstractState ST, !nvmBaseGS Σ Ω, !nvmHighGS Σ Ω} (prot : LocationProtocol ST) := {
   bumper_mono :
     Proper ((⊑@{ST}) ==> (⊑))%signature (prot.(p_bumper));
   full_nobuf :>
@@ -63,7 +65,7 @@ Class ProtocolConditions `{AbstractState ST, !nvmBaseGS Σ Ω} (prot : LocationP
     ⊢ ∀ s v, prot.(p_read) s v -∗ <NGF> prot.(p_read) (prot.(p_bumper) s) v
 }.
 
-#[global] Hint Mode ProtocolConditions + + + + + + + ! : typeclass_instances.
+#[global] Hint Mode ProtocolConditions + + + + + + + + ! : typeclass_instances.
 
 Existing Instance full_nobuf.
 Existing Instance read_nobuf.
@@ -114,7 +116,7 @@ Section protocol.
     iModIntro. iFrame "#%".
   Qed.
 
-  Global Instance know_protocol_into_nextgen ℓ prot :
+  #[global] Instance know_protocol_into_nextgen ℓ prot :
     IntoNextgen
       (know_protocol ℓ prot)
       (if_rec ℓ (know_protocol ℓ prot)).
@@ -140,7 +142,7 @@ Section protocol.
      "#knowBumper" ∷  know_bumper ℓ (p_bumper prot)).
   Proof. rewrite /know_protocol !monPred_at_sep !monPred_at_embed //. Qed.
 
-  Global Instance know_protocol_buffer_free ℓ prot :
+  #[global] Instance know_protocol_buffer_free ℓ prot :
     BufferFree (know_protocol ℓ prot).
   Proof. apply _. Qed.
 
@@ -157,7 +159,7 @@ Section protocol.
     done.
   Qed.
 
-  Global Instance know_protocol_contractive ℓ bumper :
+  #[global] Instance know_protocol_contractive ℓ bumper :
     Contractive (λ (invs : (prodO (prodO (loc_predO ST) (loc_predO ST)) (loc_predO ST))),
                       let '(full, read, pers) := invs in
                       (know_protocol ℓ (MkProt full read pers bumper))).

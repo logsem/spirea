@@ -847,7 +847,7 @@ Section rules_with_deps.
   Context {n : nat} {DS : ivec n cmra}
     `{gs : ∀ (i : fin n), genInSelfG Σ Ω (DS !!! i)}
     `{g : !genInDepsG Σ Ω A DS}.
-
+  
   Program Definition make_pia (γs : ivec n gname) deps_preds
       (R_2 : rel_over DS A) (P_2 : pred_over A)
       (R_to_P : ∀ ts t, huncurry R_2 ts t → P_2 t)
@@ -1158,7 +1158,7 @@ Section rules_with_deps.
     iCombine "O1 O2" as "H".
     iApply gen_own_valid. iApply "H".
   Qed.
-
+  
   Lemma rely_to_rely_self γ γs R P :
     rely γ γs R P ⊢ rely_self γ P.
   Proof. iNamed 1. iExists _, _, _, _. iFrame "relyPromise". Qed.
@@ -2144,6 +2144,54 @@ Section rules_with_deps.
     rely_self_nextgen γ P.
 
 End rules_with_deps.
+
+Section big_op_lemmas.
+  Context {n : nat} {DS : ivec n cmra} {A: ucmra}
+    `{gs : ∀ (i : fin n), genInSelfG Σ Ω (DS !!! i)}
+    `{gD : !genInDepsG Σ Ω A DS}.
+  (* some big_op lemmas *)
+  Global Instance own_cmra_sep_homomorphism γ :
+    WeakMonoidHomomorphism op uPred_sep (≡) (gen_own (i := genInDepsG_gen gD) γ).
+  Proof. split; try apply _. apply gen_own_op. Qed.
+
+  Lemma big_opL_gen_own {B} γ (f : nat → B → A) (l : list B) :
+    l ≠ [] →
+    gen_own γ ([^op list] k↦x ∈ l, f k x) ⊣⊢ [∗ list] k↦x ∈ l, gen_own γ (f k x).
+  Proof. apply (big_opL_commute1 _). Qed.
+  Lemma big_opM_gen_own `{Countable K} {B} γ (g : K → B → A) (m : gmap K B) :
+    m ≠ ∅ →
+    gen_own γ ([^op map] k↦x ∈ m, g k x) ⊣⊢ [∗ map] k↦x ∈ m, gen_own γ (g k x).
+  Proof. apply (big_opM_commute1 _). Qed.
+  Lemma big_opS_gen_own `{Countable B} γ (g : B → A) (X : gset B) :
+    X ≠ ∅ →
+    gen_own γ ([^op set] x ∈ X, g x) ⊣⊢ [∗ set] x ∈ X, gen_own γ (g x).
+  Proof. apply (big_opS_commute1 _). Qed.
+  Lemma big_opMS_gen_own `{Countable B} γ (g : B → A) (X : gmultiset B) :
+    X ≠ ∅ →
+    gen_own γ ([^op mset] x ∈ X, g x) ⊣⊢ [∗ mset] x ∈ X, gen_own γ (g x).
+  Proof. apply (big_opMS_commute1 _). Qed.
+
+  Global Instance own_cmra_sep_entails_homomorphism γ :
+    MonoidHomomorphism op uPred_sep (⊢) (gen_own (i := genInDepsG_gen gD) γ).
+  Proof.
+    split; [split|]; try apply _.
+    - intros. by rewrite gen_own_op.
+    - apply (affine _).
+  Qed.
+  
+  Lemma big_opL_gen_own_1 {B} γ (f : nat → B → A) (l : list B) :
+    gen_own γ ([^op list] k↦x ∈ l, f k x) ⊢ [∗ list] k↦x ∈ l, gen_own γ (f k x).
+  Proof. apply (big_opL_commute _). Qed.
+  Lemma big_opM_gen_own_1 `{Countable K} {B} γ (g : K → B → A) (m : gmap K B) :
+    gen_own γ ([^op map] k↦x ∈ m, g k x) ⊢ [∗ map] k↦x ∈ m, gen_own γ (g k x).
+  Proof. apply (big_opM_commute _). Qed.
+  Lemma big_opS_gen_own_1 `{Countable B} γ (g : B → A) (X : gset B) :
+    gen_own γ ([^op set] x ∈ X, g x) ⊢ [∗ set] x ∈ X, gen_own γ (g x).
+  Proof. apply (big_opS_commute _). Qed.
+  Lemma big_opMS_gen_own_1 `{Countable B} γ (g : B → A) (X : gmultiset B) :
+    gen_own γ ([^op mset] x ∈ X, g x) ⊢ [∗ mset] x ∈ X, gen_own γ (g x).
+  Proof. apply (big_opMS_commute _). Qed.
+End big_op_lemmas.
 
 Instance genInSelfG_empty Σ Ω :
   ∀ i : fin 0, genInSelfG Σ Ω ([#] !!! i).

@@ -47,18 +47,20 @@ Section wpr.
     - by iDestruct "Himpl" as "(_ & _ & $)".
   Qed.
 
+  Variable (crashed_in_impl: view.view → iProp Σ).
+  
   (* Is this the only thing I need to prove for high spirea (other than views of course)? *)
   Hypothesis extra_state_nextgen: ∀ CV σ1 σ2,
     CV_crash_step CV σ1 σ2 →
     extra_state_interp -∗
     (∃ OCV, crashed_at_offset OCV ∗ picked_out crashed_at_name (crashed_at_trans (OCV `view_add` CV))) -∗
-    |==> ▷ ⚡==> |==> extra_state_interp.
+    |==> ▷ ⚡==> |==> extra_state_interp ∗ (∃ OCV, crashed_in_impl OCV).
 
   Lemma idempotence_wpr
       s E1 e e_rec Φ Φinv Φr Φc :
     ⊢ WPC e @ s; E1 {{ Φ }} {{ Φc }} -∗
     (* TODO: have an expert double check this modality *)
-    ■ (Φc -∗ ▷ ⚡==> validV ∅ -∗ (Φinv ∧ WPC e_rec @ s ; E1 {{ Φr }} {{ Φc }})) -∗
+    ■ (Φc -∗ ▷ ⚡==> ∀ OCV, crashed_in_impl OCV -∗ validV ∅ -∗ (Φinv ∧ WPC e_rec @ s ; E1 {{ Φr }} {{ Φc }})) -∗
       wpr s E1 e e_rec Φ Φinv Φr.
   Proof.
     iIntros "Hwpc #Hidemp".
@@ -80,7 +82,7 @@ Section wpr.
     { iExists _. iFrame. }
     do 3 iModIntro.
     iDestruct "interp" as ">[persisted interp]".
-    iMod "extra".
+    iDestruct "extra" as ">[extra impl]".
     iAssert (|==> validV ∅ ∗ nvm_heap_ctx σ_post_crash)%I with "[interp]" as ">[#? interp]".
     { rewrite /nvm_heap_ctx.
       iDestruct "interp" as (???) "[[store_view_auth ?] ?]".
@@ -95,6 +97,7 @@ Section wpr.
     iModIntro.
     rewrite /state_interp //=.
     iFrame.
-    by iApply "Hidemp".
+    iDestruct "impl" as (?) "impl".
+    by iApply ("Hidemp" with "impl").
   Qed.
 End wpr.

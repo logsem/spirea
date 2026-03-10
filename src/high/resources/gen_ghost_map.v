@@ -121,6 +121,16 @@ Section current_gen_ghost_map_lemmas.
     iFrame "∗#".
   Qed.
 
+  Lemma ghost_map_update {γ R m k v} w :
+    ghost_map_auth γ R (DfracOwn 1) m -∗ k ↪[γ, R] v ==∗ ghost_map_auth γ R (DfracOwn 1) (<[k := w]> m) ∗ k ↪[γ, R] w.
+  Proof.
+    iNamed 1.
+    iIntros "[own_elem _]".
+    iMod (gen_own_update_2 with "own_auth own_elem") as "[$ $]".
+    { apply: gmap_view_update. }
+    by iFrame "#".
+  Qed.
+
   Lemma ghost_map_insert_persist {γ R m} k v :
     m !! k = None →
     ghost_map_auth γ R (DfracOwn 1) m ==∗ ghost_map_auth γ R (DfracOwn 1) (<[k := v]> m) ∗ k ↪[γ, R]□ v.
@@ -248,8 +258,9 @@ Section current_gen_ghost_map_lemmas.
     iSplit; first by iExists _.
     (* TODO: need [gen_own] and [big_op] commute lemma *)
     rewrite /ghost_map_elem.
-    replace (gen_own γ ([^ op map] k ↦ v ∈ m, (gmap_view_frag (V:= leibnizO V) k dq v))) with
-      ([∗map] k ↦ v ∈ m, gen_own γ (gmap_view_frag (V:= leibnizO V) k dq v))%I; last admit.
+    rewrite big_opM_gen_own_1.
+    (* replace (gen_own γ ([^ op map] k ↦ v ∈ m, (gmap_view_frag (V:= leibnizO V) k dq v))) with *)
+    (*   ([∗map] k ↦ v ∈ m, gen_own γ (gmap_view_frag (V:= leibnizO V) k dq v))%I; last admit. *)
     iApply (big_sepM_impl with "frag").
     iIntros "!>" (k v ?) "$".
     iFrame "#".
@@ -302,6 +313,16 @@ Section loc_map_lemmas.
         tC = crashed_at_trans OCV ∧
         t = map_entry_lift_gmap_view (V := leibnizO V) $ drop_OCV OCV.
 
+  #[global] Instance drop_OCV_maptrans OCV: MapTrans (V := leibnizO V) (drop_OCV OCV).
+  Proof.
+    split; last solve_proper.
+    rewrite /drop_OCV; intros; destruct (decide _); done.
+  Qed.
+
+  Lemma loc_map_cmra_morphism OCV:
+    CmraMorphism (map_entry_lift_gmap_view (V := leibnizO V) (drop_OCV OCV)).
+  Proof. apply _. Qed.
+  
   Lemma map_imap_drop_OCV_restrict OCV m:
     map_imap (drop_OCV OCV) m = restrict (dom OCV) m.
   Proof.
@@ -417,6 +438,16 @@ Section na_views_lemmas.
         tC = crashed_at_trans OCV ∧
         t = map_entry_lift_gmap_view (V := leibnizO V) $ drop_OCV_clear OCV.
 
+  #[global] Instance drop_OCV_clear_maptrans OCV: MapTrans (V := leibnizO V) (drop_OCV_clear OCV).
+  Proof.
+    split; last solve_proper.
+    rewrite /drop_OCV_clear; intros; destruct (decide _); done.
+  Qed.
+
+  Lemma na_views_map_cmra_morphism OCV:
+    CmraMorphism (map_entry_lift_gmap_view (V := leibnizO V) (drop_OCV_clear OCV)).
+  Proof. apply _. Qed.
+  
   Lemma map_imap_drop_OCV_clear_restrict OCV m:
     map_imap (drop_OCV_clear OCV) m = const ∅ <$> restrict (dom OCV) m.
   Proof.
@@ -509,17 +540,21 @@ End na_views_lemmas.
  * the transformer is roughly [(drop_above k <$> bumper v)] *)
 Section per_location_map_lemmas.
   Notation K := nat.
+  
   (* we are fixed for one location and assumes its bumper. *)
-  Context `{V: Type, !nvmBaseGS Σ Ω, !ghost_mapGpreS K V Σ Ω}.
+  Context `{V: Type, !nvmBaseGS Σ Ω, !ghost_mapGpreS K V Σ Ω, !Inhabited V}.
   Variable (ℓ: loc) (bumper: V → option V).
   Implicit Type (v: V) (OCV: view) (hist: gmap K V).
   (* we first define the transformer based on the whole map
    * [!!0] should be fine here since in case of location is lost, we will allocate a new gname
    * in the outer map, and forget about this inner map completely.
    * old definition for reference: 
-   * [Definition new_hist OCV hist := omap bumper (drop_above (OCV !!0 ℓ) hist).] *)
+   * [Definition new_hist OCV hist := omap bumper (drop_above (OCV !!0 ℓ) hist).] *)  
+  (* We need this [safe_bumper] due to the technicality of [gmap_view] transformers.
+   * in [ghost_map_map] we can prove that this is not necessary. *)
+  Definition safe_bumper v: option V := Some (default inhabitant (bumper v)).
   Definition drop_above_bump OCV t v: option V :=
-    if decide (t ≤ OCV !!0 ℓ) then bumper v else None.
+    if decide (t ≤ OCV !!0 ℓ) then safe_bumper v else None.
 
   Definition per_loc_map_rel: ghost_map_relyT nat V :=
     λ tC t,
@@ -527,6 +562,16 @@ Section per_location_map_lemmas.
         tC = crashed_at_trans OCV ∧
         t = map_entry_lift_gmap_view (V := leibnizO V) $ drop_above_bump OCV.
 
+  #[global] Instance drop_above_bump_maptrans OCV: MapTrans (V := leibnizO V) (drop_above_bump OCV).
+  Proof.
+    split; last solve_proper.
+    rewrite /drop_above_bump; intros; destruct (decide _); try done.
+  Qed.
+
+  Lemma per_loc_map_cmra_morphism OCV:
+    CmraMorphism (map_entry_lift_gmap_view (V := leibnizO V) (drop_above_bump OCV)).
+  Proof. apply _. Qed.
+  
   Definition drop_bump_map OCV hist: gmap K V :=
     map_imap (drop_above_bump OCV) hist.
   
@@ -572,14 +617,17 @@ Section per_location_map_lemmas.
     erewrite map_imap_insert_Some;
       first rewrite map_imap_empty insert_empty //.
     move: H.
-    rewrite agree_option_map_to_agree /drop_above_bump.
+    rewrite agree_option_map_to_agree /drop_above_bump /safe_bumper.
     destruct (decide _); last done.
-    destruct (bumper v); last done.
-    intros.
-    simpl.
-    by simplify_eq.
+    destruct (bumper v); simpl.
+    - intros.
+      simpl.
+      by simplify_eq.
+    - intros.
+      simpl.
+      by simplify_eq.
   Qed.
-  
+
   #[global] Instance per_loc_map_elem_into_nextgen γ t dq v:
     IntoNextgen
       (ghost_map_elem γ per_loc_map_rel t dq v)
@@ -613,3 +661,73 @@ Section per_location_map_lemmas.
     done.
   Qed.
 End per_location_map_lemmas.
+
+(* [crashed_in] behaves more like one-generation resources: it cannot move into next generation.
+ * Thus we choose the most convenient posssible definition. *)
+Section crashed_in_map.
+  Context `{V: Type, !nvmBaseGS Σ Ω, !ghost_mapGpreS loc V Σ Ω} (γ: gname).
+  Implicit Type (v: V) (OCV: view) (m: gmap loc V).
+  
+  Definition erase (ℓ: loc) (v: V): option V :=
+    None.
+
+  #[global] Instance erase_maptrans: MapTrans (V := leibnizO V) erase.
+  Proof.
+    split; last solve_proper.
+    intros. done.
+  Qed.
+
+  Lemma crashed_in_map_cmra_morphism:
+    CmraMorphism (map_entry_lift_gmap_view (V := leibnizO V) erase).
+  Proof. apply _. Qed.
+
+  (* we could have avoided the [crashed_at] dependency altogether, but it doesn't really hurt. *)
+  Definition crashed_in_rel: ghost_map_relyT loc V :=
+    λ tC t, t = map_entry_lift_gmap_view (V := leibnizO V) erase.
+
+  Lemma crashed_in_map_empty m1:
+    map_imap (erase) m1 = ∅.
+  Proof.
+    rewrite /erase.
+    apply map_eq => ℓ.
+    rewrite map_lookup_imap /=.
+    destruct (m1 !! ℓ); done.
+  Qed.
+
+  Definition crashed_at_auth m: iProp Σ := 
+    "map_auth" ∷ ghost_map_auth γ crashed_in_rel (DfracOwn 1) m ∗
+    "map_discards" ∷ [∗ map] ℓ ↦ v ∈ m, ℓ ↪[γ, crashed_in_rel]□ v.
+
+  Lemma nextgen_bupd_crashed_in {OCV m__old} m__new:
+    picked_out crashed_at_name (crashed_at_trans OCV) -∗
+    crashed_at_auth m__old -∗
+    ⚡==> |==> crashed_at_auth m__new ∗
+               [∗ map] ℓ ↦ v ∈ m__new, ℓ ↪[γ, crashed_in_rel]□ v.
+  Proof.
+    iIntros "pickedC".
+    iNamed 1. iNamed "map_auth".
+    iModIntro.
+    iDestruct "rely" as "[rely (%t & % & [-> _] & picked & _)]".
+    iDestruct "own_auth" as (t') "[picked' own_auth]".
+    iDestruct "crashed" as (OV OCV' tC') "[pickedC' own_crashed]".
+    iPickedInAgree "picked picked'".
+    iPickedInAgree "pickedC pickedC'".
+    simpl.
+    iAssert (∃ OCV, crashed_at_offset OCV)%I with "[own_crashed]" as "#crashed".
+    { by iExists _, _. }
+    rewrite map_entry_lift_gmap_view_auth crashed_in_map_empty.
+    iMod (gen_own_update with "own_auth") as "[own_auth own_frag]".
+    { apply: (gmap_view_alloc_big (V:=leibnizO V) _ m__new (DfracOwn 1)).
+      - apply map_disjoint_empty_r.
+      - done. }
+    rewrite (right_id _ (∪)).
+    iFrame "own_auth rely crashed".
+    rewrite -big_sepM_sep.
+    rewrite big_opM_gen_own_1 -big_sepM_bupd.
+    iApply (big_sepM_impl with "own_frag").
+    iIntros "!>" (ℓ v ?) "gen_own".
+    iMod (gen_own_update with "gen_own") as "discard"; first apply gmap_view_frag_persist.
+    iDestruct "discard" as "#discard".
+    by iFrame "#".
+  Qed.
+End crashed_in_map.

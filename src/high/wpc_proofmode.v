@@ -1,20 +1,19 @@
 From iris.proofmode Require Import coq_tactics reduction.
 From iris.proofmode Require Export tactics.
-From Perennial.program_logic Require Export weakestpre.
 From Perennial.program_logic Require Import atomic.
 From Perennial.Helpers Require Export ipm NamedProps ProofCaching.
 
 From self Require Import ipm_tactics.
 From self.lang Require Import lang tactics.
-From self.base Require Import primitive_laws wpc_proofmode.
-From self.high Require Import lifted_modalities crash_weakestpre proofmode.
+From self.base Require Import primitive_laws class_instances.
+From self.high Require Import generational_resources crash_weakestpre.
 
 Set Default Proof Using "Type".
 
 Import uPred.
 
-Lemma wpc_fork `{!nvmG Σ} s E1 e
-      (Φ : val → dProp Σ) (Φc : dProp Σ) `{!ViewObjective Φc} :
+Lemma wpc_fork `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω, PerennialG Σ} s E1 e
+      (Φ : val → dProp Σ) (Φc : dProp Σ) `{!Objective Φc} :
   ▷ WPC e @ s; ⊤ {{ _, True }} {{ True }} -∗
   (Φc ∧ ▷ Φ (LitV LitUnit)) -∗
   WPC (Fork e) @ s; E1 {{ Φ }} {{ Φc }}.
@@ -23,7 +22,7 @@ Proof.
   iModel.
   simpl.
   iIntros "WP".
-  introsIndex ? ?.
+  iIntros (??).
   iIntros "Φ".
   simpl.
   iIntros (TV' incl) "#val".
@@ -32,15 +31,15 @@ Proof.
     iSpecialize ("WP" $! TV' with "[%] val"). { etrans; done. }
     iApply (program_logic.crash_weakestpre.wpc_mono with "WP"); naive_solver. }
   iSplit.
-  - iApply view_objective_at. iDestruct "Φ" as "[$ _]".
+  - iApply objective_at. iDestruct "Φ" as "[$ _]".
   - iNext. iFrame "∗#". iPureGoal; first done.
     iDestruct "Φ" as "[_ Φ]".
     iApply monPred_mono; last iApply "Φ".
-    split; done.
+    done.
 Qed.
 
 Lemma tac_wpc_expr_eval
-      `{!nvmG Σ} Δ (s : stuckness) E1 Φ (Φc : dProp Σ) e e' :
+      `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω, PerennialG Σ} Δ (s : stuckness) E1 Φ (Φc : dProp Σ) e e' :
   (∀ (e'':=e'), e = e'') →
   envs_entails Δ (WPC e' @ s; E1 {{ Φ }} {{ Φc }}) → envs_entails Δ (WPC e @ s; E1 {{ Φ }} {{ Φc }}).
 Proof. by intros ->. Qed.
@@ -66,7 +65,7 @@ Tactic Notation "wpc_expr_eval" tactic(t) :=
 
 (* XXX: this caches the wrong thing as compared to the old version *)
 Lemma tac_wpc_pure_ctx
-      `{!nvmG Σ} Δ Δ' s E1 K e1 e2 φ Φ Φc `{!ViewObjective Φc} :
+      `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω, PerennialG Σ} Δ Δ' s E1 K e1 e2 φ Φ Φc `{!Objective Φc} :
   PureExecBase φ 1 e1 e2 →
   φ →
   MaybeIntoLaterNEnvs 1 Δ Δ' →
@@ -81,8 +80,8 @@ Proof.
   rewrite HΔ' //.
 Qed.
 
-Lemma tac_wpc_pure_no_later_ctx `{!nvmG Σ}
-      Δ s E1 K e1 e2 φ Φ Φc `{!ViewObjective Φc} :
+Lemma tac_wpc_pure_no_later_ctx `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω, PerennialG Σ}
+      Δ s E1 K e1 e2 φ Φ Φc `{!Objective Φc} :
   PureExecBase φ 1 e1 e2 →
   φ →
   envs_entails Δ Φc →
@@ -98,8 +97,8 @@ Proof.
     iApply HΔ'; iAssumption.
 Qed.
 
-Lemma tac_wpc_value `{!nvmG Σ} Δ s E1 Φ Φc `{!ViewObjective Φc} v :
-  envs_entails Δ (|NC={E1}=> Φ v) →
+Lemma tac_wpc_value `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω, PerennialG Σ} Δ s E1 Φ Φc `{!Objective Φc} v :
+  envs_entails Δ (|={E1}=> Φ v) →
   envs_entails Δ Φc →
   envs_entails Δ (WPC (Val v) @ s; E1 {{ Φ }} {{ Φc }}).
 Proof.
@@ -108,8 +107,8 @@ Proof.
   - rewrite H1. eauto.
   - rewrite H2. iIntros. iModIntro; auto.
 Qed.
-Lemma tac_wpc_value_fupd `{!nvmG Σ} Δ s E1 Φ Φc `{!ViewObjective Φc} v :
-  envs_entails Δ (|NC={E1}=> Φ v) →
+Lemma tac_wpc_value_fupd `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω, PerennialG Σ} Δ s E1 Φ Φc `{!Objective Φc} v :
+  envs_entails Δ (|={E1}=> Φ v) →
   envs_entails Δ Φc →
   envs_entails Δ (WPC (Val v) @ s; E1 {{ v, |={E1}=> Φ v }} {{ Φc }})%I.
 Proof.
@@ -118,7 +117,7 @@ Proof.
   - rewrite H1. iIntros ">?". auto.
   - rewrite H2. iIntros. iModIntro; auto.
 Qed.
-Lemma tac_wpc_value_noncfupd `{!nvmG Σ} Δ s E1 Φ Φc `{!ViewObjective Φc} v :
+Lemma tac_wpc_value_noncfupd `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω, PerennialG Σ} Δ s E1 Φ Φc `{!Objective Φc} v :
   envs_entails Δ (Φ v) →
   envs_entails Δ Φc →
   envs_entails Δ (WPC (Val v) @ s; E1 {{ Φ }} {{ Φc }}).
@@ -183,7 +182,7 @@ Tactic Notation "wpc_pure_later" tactic3(filter) "as" simple_intropattern(H) :=
       filter e';
       first [ eapply (tac_wpc_pure_ctx _ _ _ _ K e');
       [tc_solve                       (* PureExec *)
-      |tc_solve                       (* ViewObjective Φc *)
+      |tc_solve                       (* Objective Φc *)
       |try solve_vals_compare_safe    (* The pure condition for PureExec -- handles trivial goals, including [vals_compare_safe] *)
       |tc_solve                       (* IntoLaters *)
       | try (apply H)                 (* crash condition, try to re-use existing proof *)
@@ -203,7 +202,7 @@ Tactic Notation "wpc_pure_no_later" tactic3(filter) "as" simple_intropattern(H) 
       filter e';
       first [ eapply (tac_wpc_pure_no_later_ctx _ _ _ K e');
       [tc_solve                       (* PureExec *)
-      |tc_solve                       (* ViewObjective Φc *)
+      |tc_solve                       (* Objective Φc *)
       |try solve_vals_compare_safe    (* The pure condition for PureExec -- handles trivial goals, including [vals_compare_safe] *)
       | try (apply H)                 (* crash condition, try to re-use existing proof *)
       | first [ intros H || intros _]; wpc_finish H (* new goal *)
@@ -237,6 +236,28 @@ Ltac crash_case :=
         end
       end.
 
+
+(** Hack to work around ltac parsing idiosyncracies: make 2nd argument an open_constr *)
+Tactic Notation "open_unify" constr(e1) open_constr(e2) :=
+  unify e1 e2.
+
+(* This needs to detect all things that [wp_pures] should reduce. *)
+Ltac wp_pure_filter e' :=
+  (* For Beta-redices, we do *syntactic* matching only, to avoid unfolding
+     definitions. This matches the treatment for [pure_beta] via [AsRecV]. *)
+  first [ lazymatch e' with (App (Val (RecV _ _ _)) (Val _)) => idtac end
+        | open_unify e' (rec: _ _ := _)%E
+        | open_unify e' (InjL (Val _))
+        | open_unify e' (InjR (Val _))
+        | open_unify e' (Val _, Val _)%E
+        | open_unify e' (Fst (Val _))
+        | open_unify e' (Snd (Val _))
+        | open_unify e' (if: (Val _) then _ else _)%E
+        | open_unify e' (Case (Val _) _ _)
+        | open_unify e' (UnOp _ (Val _))
+        | open_unify e' (BinOp _ (Val _) (Val _))].
+
+
 Tactic Notation "wpc_pure1" simple_intropattern(H) :=
   iStartProof;
   wpc_pure_smart wp_pure_filter as H.
@@ -251,14 +272,14 @@ Ltac wpc_pures :=
   end.
 
 Lemma tac_wpc_bind
-      `{!nvmG Σ} K Δ s E1 Φ Φc e f :
+      `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω, PerennialG Σ} K Δ s E1 Φ Φc e f :
   f = (λ e, fill K e) → (* as an eta expanded hypothesis so that we can `simpl` it *)
   envs_entails Δ (WPC e @ s; E1 {{ v, WPC f (Val v) @ s; E1 {{ Φ }} {{ Φc }} }} {{ Φc }})%I →
   envs_entails Δ (WPC fill K e @ s; E1 {{ Φ }} {{ Φc }}).
 Proof. rewrite envs_entails_unseal=> -> ->. by apply: wpc_bind. Qed.
 
 Lemma tac_wpc_wp_frame
-      `{!nvmG Σ} Δ d js s E1 e (Φ : _ -> dProp Σ) (Φc : dProp Σ) `{!ViewObjective Φc} :
+      `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω, PerennialG Σ} Δ d js s E1 e (Φ : _ -> dProp Σ) (Φc : dProp Σ) `{!Objective Φc} :
   match envs_split d js Δ with
   | Some (Δ1, Δ2) => envs_entails Δ1 Φc ∧
                      envs_entails Δ2 (WP e @ s; E1
@@ -287,8 +308,8 @@ Qed.
 (* combines using [wpc_frame Hs] with [iFromCache], simultaneously framing and
    proving the crash condition using a cache *)
 Lemma tac_wpc_wp_frame_cache
-      `{!nvmG Σ} (Φc: dProp Σ) i (* name of cache *) (c: cache Φc%I)
-      Δ stk E1 e (Φ: _ → dProp Σ) `{!ViewObjective Φc} :
+      `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω, PG: PerennialG Σ} (Φc: dProp Σ) i (* name of cache *) (c: cache Φc%I)
+      Δ stk E1 e (Φ: _ → dProp Σ) `{!Objective Φc} :
   envs_lookup i Δ = Some (true, cached c) →
   match envs_split Left c.(cache_names) Δ with
   | Some (Δ1, Δ2) =>

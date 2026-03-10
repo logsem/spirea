@@ -60,6 +60,12 @@ Section post_fence_sync.
        *  about buffer views. *)
       "%haveBV" ∷ have_thread_view (∅, ∅, {[ ℓ := MaxNat (t - offset) ]}).
 
+  (* Definition seen_state_post_fence `{AbstractState ST} ℓ (prot: LocationProtocol ST) (s : ST) : dProp Σ := *)
+  (*   ∃ (t offset : nat) (msg: message), *)
+  (*     "#knowFragHist" ∷ lb_base ℓ prot offset t s ∗ *)
+  (*     "#knowPhysMsg" ∷ ⎡ know_phys_hist_msg ℓ t msg ⎤ ∗ *)
+  (*     "#haveMsg" ∷ have_msg_post_fence msg. *)
+  
   Program Definition post_fence_sync_advanced
     (P : dProp Σ) : dProp Σ :=
     MonPred (λ TV,
@@ -69,7 +75,7 @@ Section post_fence_sync.
            know_protocol fi.(fi_ℓ) fi.(fi_prot) ∗
            (* this can probably be promoted to [flush_lb], but doens't seem necessary? *)
            internal_flush_lb fi.(fi_ℓ) fi.(fi_prot) fi.(fi_σ) ∗
-           seen_state fi.(fi_ℓ) fi.(fi_prot) fi.(fi_σ_xchg) ∗
+           seen_state_post_fence (EqDecision0 := fi.(fi_ST_eqdec)) (H0 := fi.(fi_ST_countable)) fi.(fi_ℓ) fi.(fi_σ_xchg) ∗
            exchange_1 fi.(fi_ℓ) fi.(fi_σ_xchg) fi.(fi_σ) fi.(fi_prot) fi.(fi_post))
           TV ∗
         ((persisted (buffer_view TV)) -∗

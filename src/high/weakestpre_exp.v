@@ -23,7 +23,7 @@ Section weakestpre.
   Lemma wp_flush_xchg ℓ prot `{!ProtocolConditions prot} σ_xchg σ st E Q:
     {{{ ⎡ is_at_loc ℓ ⎤ ∗
         store_lb ℓ prot σ ∗
-        seen_state ℓ prot σ_xchg ∗
+        <fence> seen_state ℓ σ_xchg ∗
         exchange_1 ℓ σ_xchg σ prot Q }}}
       Flush #ℓ @ st; E
     {{{ RET #();
@@ -32,9 +32,11 @@ Section weakestpre.
   Proof.
     intros Φ.
     iModel.
-    iIntros "(#isAtLoc & #storeLb & #seen & exchange)".
-    iNamed "seen". rename a into t_xchg. rename a0 into offset. rename a1 into msg_xchg. 
-    iDestruct "lbBase" as "(_ & fragHistXchg & #offsetXchg & %tSLeXchg)".
+    iIntros "(#isAtLoc & #storeLb & seen & exchange)".
+    iDestruct (seen_state_post_fence_seen_state_post_fence with "seen") as
+      (t_xchg offset msg_xchg) "(#fragHistXchg & #offsetXchg & %tSLeXchg & #knowPhysMsg' & #haveMsg)".
+    iClear "seen". 
+    (* iDestruct "lbBase" as "(_ & fragHistXchg & #offsetXchg & %tSLeXchg)". *)
     iNamed "storeLb". rename a into t. rename a0 into offset'.
     iNamed "lbBase".
     iDestruct "tSLe" as %tSLe.
@@ -53,7 +55,7 @@ Section weakestpre.
     
     (* lookup [msg_xchg] early for for [wp_flush] *)
     iAssert ⌜ ∃ pHist, phys_hists !! ℓ = Some pHist ∧ pHist !! t_xchg = Some msg_xchg ⌝%I as %[pHist [HphysHistLook HpHistLookXchg]].
-    { iPoseProof (auth_map_map_auth_frag with "[$] [$knowPhysMsg]") as "$". }
+    { iPoseProof (auth_map_map_auth_frag with "[$] [$knowPhysMsg']") as "$". }
     
     (* obtain mapsto assertion from [interp] to apply base Spirea [wp_flush]. *)
     iDestruct (big_sepM_lookup_acc with "ptsMap") as "[pts ptsMap]".
@@ -209,8 +211,8 @@ Section weakestpre.
     { iNamedAccu. }
     { iIntros "!>" (k fi HfiLook). iNamed 1.
       iIntros "(#isAtLoc & #knowProtocol & #flushLb & #seen & exchange)".
-      iNamed "seen". rename a into t_xchg. rename a0 into offset. rename a1 into msg_xchg.
-      iDestruct "lbBase" as "(_ & fragHistXchg & #offsetXchg & %tSLeXchg)".
+      iDestruct "seen" as
+      (t_xchg offset msg_xchg) "(#fragHistXchg & #offsetXchg & %tSLeXchg & #knowPhysMsg' & #haveMsg)".
       iNamed "flushLb". rename a into t. rename a0 into offset'.
       destruct haveBV as [_ haveBV].
       iNamed "lbBase".
@@ -228,7 +230,7 @@ Section weakestpre.
       (* lookup [msg_xchg] *)
       iAssert ⌜ ∃ pHist, phys_hists !! fi.(fi_ℓ) = Some pHist ∧ pHist !! t_xchg = Some msg_xchg ⌝%I
           as %[pHist [HphysHistLook HpHistLookXchg]].
-      { iPoseProof (auth_map_map_auth_frag with "[$] [$knowPhysMsg]") as "$". }
+      { iPoseProof (auth_map_map_auth_frag with "[$] [$knowPhysMsg']") as "$". }
       (* lookup [σ_xchg] *)
       iAssert ⌜ ∃ aHist encσ_xchg, abs_hists !! fi.(fi_ℓ) = Some aHist ∧ aHist !! t_xchg = Some encσ_xchg ∧ decode encσ_xchg = Some fi.(fi_σ_xchg) ⌝%I
           as %(aHist & encσ_xchg & HabsHistLook & HaHistLookXchg & HdecodeXchg).
