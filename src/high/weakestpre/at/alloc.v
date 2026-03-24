@@ -130,10 +130,8 @@ Section wp_at_alloc.
     (* Add the allocated location to the set of atomic locations. *)
     iMod (gen_alocs_update _ ℓ with "atLocs") as "[atLocs #isAtLoc]".
 
-    iAssert (know_protocol ℓ prot (SV, PV, BV)) as "#prot".
+    iAssert  (know_protocol ℓ prot)%I as "#prot".
     { rewrite /know_protocol.
-      iEval (monPred_simpl).
-      rewrite !monPred_at_embed.
       iFrame "knowFullPred knowReadPred knowPersPred knowBumper knowOrder". }
 
     iModIntro.
@@ -149,7 +147,7 @@ Section wp_at_alloc.
       iSplit; first iAssumption.
       iSplitPure. { apply increasing_map_singleton. }
       iEval (rewrite 2!big_sepM_singleton).
-      iDestruct (frag_history_equiv with "fragHist") as "$".
+      iDestruct (know_frag_history_loc_decode with "fragHist") as "$".
       iFrame "physHistFrag".
       simpl.
       iSplitPure; first done.

@@ -24,8 +24,6 @@ From self.algebra Require Export view.
 
 Set Default Proof Using "Type*".
 
-#[local] Notation BIN := nextgen_promises_model.IntoNextgen.  
-
 Section location_sets.
   Context `{nvmHighGS}.
   Implicit Types (locs : gset loc) (ℓ : loc).
@@ -68,7 +66,7 @@ Section offset_loc.
 
   Definition offset_loc ℓ (t: nat): iProp Σ :=
     ∃ OCV, crashed_at_offset OCV ∗
-           (gen_alocs_frag new_locs_name {[ ℓ ]} ∗ ⌜ OCV !!0 ℓ = t ⌝).
+           gen_alocs_frag new_locs_name {[ ℓ ]} ∗ ⌜ OCV !!0 ℓ = t ⌝.
   
   Lemma offset_loc_agree ℓ t1 t2 :
     offset_loc ℓ t1 -∗
@@ -76,8 +74,8 @@ Section offset_loc.
     ⌜ t1 = t2 ⌝.
   Proof.
     rewrite /offset_loc.
-    iIntros "(%OCV & crash & [new_locs_frag %look])".
-    iIntros "(%OCV' & crash' & [new_locs_frag' %look'])".
+    iIntros "(%OCV & crash & new_locs_frag & %look)".
+    iIntros "(%OCV' & crash' & new_locs_frag' & %look')".
     iDestruct (crashed_at_offset_agree with "[$] [$]") as "->".
     iPureIntro.
     congruence.
@@ -88,7 +86,7 @@ Section offset_loc.
     offset_auth offsets -∗
     ⌜ offsets !! ℓ = Some t ⌝.
   Proof.
-    iIntros "(%OCV & crash & [new_locs_frag %look])". iNamed 1.
+    iIntros "(%OCV & crash & new_locs_frag & %look)". iNamed 1.
     iDestruct (crashed_at_offset_agree with "crash crashed") as "<-".
     iDestruct (location_sets_singleton_included with "[$] [$]") as "%Hdom".
     iPureIntro.
@@ -97,6 +95,16 @@ Section offset_loc.
     done.
   Qed.
 
+  Lemma offset_loc_crashed_at_offset_agree ℓ t OCV:
+    offset_loc ℓ t -∗
+    crashed_at_offset OCV -∗
+    ⌜ OCV !!0 ℓ = t ⌝.
+  Proof.
+    iIntros "(% & ? & _ & %) ?".
+    iDestruct (crashed_at_offset_agree with "[$] [$]") as %->.
+    done.
+  Qed.
+  
   Lemma offset_auth_insert OCV offsets ℓ:
     ℓ ∉ dom OCV →
     ℓ ∉ dom offsets →
@@ -129,45 +137,51 @@ Section offset_loc.
       by apply not_elem_of_dom.
   Qed.
 
-  (* although the offset never decreases and thus a stronger lemma should be correct, *)
-  (*  * the way [crashed_at_trans] is defined right now doesn't guarantee that. *)
   #[global] Instance offset_loc_into_nextgen ℓ t:
-    BIN
+    IntoNextgen
     (offset_loc ℓ t)
-    (base_if_rec ℓ (∃ t', offset_loc ℓ t')).
+    (base_if_rec ℓ (∃ tC, offset_loc ℓ tC ∗ ∀ OV OCV, crashed_at_both OV OCV -∗ ⌜ OV !!0 ℓ = t ⌝ ∗ ⌜ OCV !! ℓ = Some (MaxNat tC) ⌝)).
   Proof.
-    rewrite /BIN.
+    rewrite /IntoNextgen.
     iIntros "offset !>".
     iDestruct "offset" as (OCV) "((%OV & %trans & picked & offset) & (%OCV' & newLocs & picked') & %)".
-    iIntros (OCV'' ?) "#crashed #persisted".
+    iIntros (OCV'' HOCVLook) "#crashed #persisted".
     iExists _.
     rewrite /offset_loc.
-    iExists OCV''.
-    iSplit; first done.
-    iSplit; last done.
     iPickedInAgree "picked' picked".
     simpl.
     iDestruct "crashed" as (OV') "crashed".
-    iDestruct (crashed_at_both_agree with "crashed offset") as "[-> ->]".
-    assert (ℓ ∈ dom OCV') by (by apply elem_of_dom).
-    iEval (replace ({[ℓ]}) with ({[ℓ]} ∩ dom OCV') by set_solver).
-    done.
+    iDestruct (crashed_at_both_agree with "crashed offset") as "[-> ->]".  
+    iSplit.
+    - iExists OCV'.
+      iSplit; first by iExists _.
+      iSplit; last done.
+      assert (ℓ ∈ dom OCV') by (by apply elem_of_dom).
+      iEval (replace ({[ℓ]}) with ({[ℓ]} ∩ dom OCV') by set_solver).
+      done.
+    - iIntros (??) "crashed'".
+      iDestruct (crashed_at_both_agree with "crashed crashed'") as %[ <- <- ].
+      simplify_eq.
+      iSplit; first done.
+      iPureIntro.
+      rewrite /lookup_zero.
+      destruct HOCVLook as [[?] HOCVLook].
+      rewrite ?HOCVLook //.
   Qed.
-    
-  Lemma offset_auth_picked_out OCV' offsets:
+
+  Lemma offset_auth_picked_out (OCV': view) offsets:
     picked_out crashed_at_name (crashed_at_trans (OCV')) -∗
     offset_auth offsets -∗
     ⚡==> offset_auth $ max_nat_car <$> restrict (dom offsets) OCV'.
   Proof.
     iIntros "#picked". iNamed 1. iModIntro.
-    iDestruct "newLocs" as (OCV'') "[newLocs #picked']".
-    iDestruct (gen_picked_in_agree with "picked picked'") as %eq.
     iDestruct ("crashed") as (OV' t) "[picked'' crashed]".
     iPickedInAgree "picked picked''".
-    simpl.
-    simplify_eq.
-    iExists OCV''.
-    iSplit; first by iExists _.
+    iAssert (crashed_at_offset OCV')%I as "OCV'".
+    { by iExists _. }
+    iSpecialize ("newLocs" with "OCV'").
+    iExists OCV'.
+    iSplit; first done.
     iSplitL "newLocs".
     { rewrite dom_fmap_L restrict_dom_L //. }
     iPureIntro.
@@ -175,7 +189,7 @@ Section offset_loc.
     rewrite dom_fmap_L restrict_dom_L in look.
     rewrite restrict_lookup_elem_of; last set_solver.
     rewrite /lookup_zero.
-    assert (ℓ ∈ dom OCV'') as [? ->]%elem_of_dom by set_solver.
+    assert (ℓ ∈ dom OCV') as [? ->]%elem_of_dom by set_solver.
     done.
   Qed.
 
@@ -188,17 +202,17 @@ Section preorders.
   Context `{Countable ST}.
 
   Definition own_all_preorders γ preorders :=
-    ghost_map_auth γ loc_map_rel (DfracOwn 1) preorders.
+    ghost_map_auth γ drop_OCV (DfracOwn 1) preorders.
 
   Definition own_know_preorder_loc γ ℓ (preorder : relation2 ST) : iProp Σ :=
-    ℓ ↪[γ, loc_map_rel]□ encode_relation preorder.
+    ℓ ↪[γ, drop_OCV]□ encode_relation preorder.
 
   Definition know_preorder_loc ℓ (preorder : relation2 ST) : iProp Σ :=
     own_know_preorder_loc preorders_name ℓ preorder.
 
   Lemma own_all_preorders_gname_alloc (preorders : gmap loc (relation2 positive)) :
     ⊢ |==> ∃ γ,
-      own_all_preorders γ preorders ∗ ([∗ map] ℓ ↦ p ∈ preorders, ℓ ↪[γ, loc_map_rel]□ p).
+      own_all_preorders γ preorders ∗ ([∗ map] ℓ ↦ p ∈ preorders, ℓ ↪[γ, drop_OCV]□ p).
   Proof.
   Admitted.
 
@@ -212,8 +226,6 @@ Section preorders.
     iDestruct (ghost_map_lookup with "auth frag") as "%".
     iPureIntro. congruence.
   Qed.
-
-  
 End preorders.
 
 (* Pure facts about bumpers *)
@@ -248,51 +260,46 @@ Section bumpers.
   Qed.
 End bumpers.
 
-Section own_encoded_bumpers.
-  Context `{nvmHighGS}.
+Section own_bumpers.
+  Context `{nvmHighGS} `{AbstractState ST}.
 
-  Definition own_all_bumpers γ (encoded_bumpers: gmap loc (positive → option positive)) :=
-    ghost_map_auth γ loc_map_rel (DfracOwn 1) encoded_bumpers.
+  Definition own_all_bumpers γ (encoded_bumpers: gmap loc (positive → option positive)): iProp Σ :=
+    ghost_map_auth γ drop_OCV (DfracOwn 1) encoded_bumpers.
 
   (* TODO: *)
   Lemma own_all_bumpers_alloc bumpers :
     ⊢ |==> ∃ γ, own_all_bumpers γ bumpers ∗
-                ([∗ map] ℓ ↦ bumper ∈ bumpers, ℓ ↪[γ, loc_map_rel]□ bumper).
+                ([∗ map] ℓ ↦ bumper ∈ bumpers, ℓ ↪[γ, drop_OCV]□ bumper).
   Proof. Admitted.
-
-End own_encoded_bumpers.
-
-Section own_bumpers.
-  Context `{nvmHighGS} `{AbstractState ST}.
-
-  Definition own_know_bumper γ (ℓ : loc) (bumper : ST → ST) : iProp Σ :=
-    let encodedBumper := encode_bumper bumper
-    in ⌜∀ s1 s2, s1 ⊑ s2 → bumper s1 ⊑ bumper s2⌝ ∗
-       ℓ ↪[γ, loc_map_rel]□ encodedBumper.
+  
 
   Definition know_bumper ℓ (bumper : ST → ST) : iProp Σ :=
-    own_know_bumper bumpers_name ℓ bumper.
+    let encodedBumper := encode_bumper bumper
+    in ⌜∀ s1 s2, s1 ⊑ s2 → bumper s1 ⊑ bumper s2⌝ ∗
+       ℓ ↪[bumpers_name, drop_OCV]□ encodedBumper.
 
   Lemma own_all_bumpers_persist γ encoded_bumpers :
     own_all_bumpers γ encoded_bumpers ==∗
-    ghost_map_auth γ loc_map_rel DfracDiscarded encoded_bumpers.
-  Proof. apply ghost_map_auth_persist. Qed.
+    ghost_map_auth γ drop_OCV DfracDiscarded encoded_bumpers.
+  Proof. by iApply ghost_map_auth_persist. Qed.
 
-  Lemma own_all_bumpers_insert (bumpers : gmap loc _) ℓ γ (bumper : ST → ST)
+  Lemma own_all_bumpers_insert (bumpers : gmap loc _) ℓ (bumper : ST → ST)
         `{!Proper ((⊑@{ST}) ==> (⊑))%signature bumper} :
     bumpers !! ℓ = None →
-    own_all_bumpers γ bumpers ==∗
-    own_all_bumpers γ (<[ℓ := encode_bumper bumper]>bumpers) ∗ own_know_bumper γ ℓ bumper.
+    own_all_bumpers bumpers_name bumpers ==∗
+    own_all_bumpers bumpers_name (<[ℓ := encode_bumper bumper]>bumpers) ∗ know_bumper ℓ bumper.
   Proof.
-    rewrite /own_all_bumpers /own_know_bumper. iIntros (look) "A".
-    iMod (ghost_map_insert_persist with "A") as "[$ $]"; done.
+    rewrite /own_all_bumpers. iIntros (look) "auth".
+    iMod (ghost_map_insert_persist with "auth") as "[$ #bumper]"; first done.
+    iFrame "bumper".
+    done.
   Qed.
 
   Definition bumperO := leibnizO (positive → option positive).
 
-  Lemma bumpers_lookup γ ℓ encoded_bumpers bumper :
-    own_all_bumpers γ encoded_bumpers -∗
-    own_know_bumper γ ℓ bumper -∗
+  Lemma bumpers_lookup ℓ encoded_bumpers bumper :
+    own_all_bumpers bumpers_name encoded_bumpers -∗
+    know_bumper ℓ bumper -∗
     ⌜ encoded_bumpers !! ℓ = Some (encode_bumper bumper) ⌝.
   Proof.
     iIntros "A [mono F]".
@@ -304,7 +311,7 @@ Section NAView.
   Context `{nvmHighGS}.
 
   Definition know_na_view ℓ q (SV : view) : iProp Σ :=
-    ℓ ↪[non_atomic_views_gname, na_views_rel]{#q} SV%I.
+    ℓ ↪[non_atomic_views_gname, drop_OCV_clear]{#q} SV%I.
 
   Lemma know_na_view_agree ℓ p q V V' :
     know_na_view ℓ q V -∗
@@ -323,48 +330,45 @@ Section NAView.
       (λ q, know_na_view ℓ q V) q.
   Proof. apply _. Qed.
 End NAView.
-
 (* so that iDestruct will prioritize fractional lemma over splitting [gen_own] *)
 #[global] Opaque know_na_view.
 
+Definition new_hist t (bumper : positive → option positive) (hist : gmap time positive) :=
+  omap bumper (map_extra.drop_above t hist).
+
 Section Histories.
   Context `{nvmHighGS}.
+  Implicit Types (q: Qp) (ℓ: loc)
+    (enc_abs_hist : gmap time positive)
+    (abs_hists : gmap loc (gmap time positive)).
 
+  Definition know_phys_hist_msg ℓ t msg : iProp Σ :=
+    auth_map_map_frag_singleton histories_rel phy_history_name ℓ t msg.
+  
+  (** The encoded version of history assertions. *)
   Definition know_full_encoded_history_loc ℓ q enc_abs_hist : iProp Σ :=
-    history_full_entry_encoded bumpers_name abs_history_name ℓ q enc_abs_hist.
+    full_entry bumpers_name abs_history_name ℓ (DfracOwn q) enc_abs_hist.
 
   Definition know_frag_encoded_history_loc ℓ t e : iProp Σ :=
     frag_entry bumpers_name abs_history_name ℓ t e.
 
-  Definition know_phys_hist_msg ℓ t msg : iProp Σ :=
-    auth_map_map_frag_singleton histories_rel phy_history_name ℓ t msg.
-
   Context `{Countable ST}.
+  Implicit Types (abs_hist : gmap time ST).
 
-  Definition know_full_history_loc `{Countable ST}
-             ℓ q (abs_hist : gmap time ST) : iProp Σ :=
-    full_entry_unenc bumpers_name abs_history_name ℓ q abs_hist.
+  (** The decoded version of history assertions. *)
+  Definition know_full_history_loc ℓ q abs_hist : iProp Σ :=
+    full_entry bumpers_name abs_history_name ℓ (DfracOwn q) (encode <$> abs_hist).
 
-  Definition know_frag_history_loc `{Countable ST} ℓ t (s : ST) : iProp Σ :=
-    frag_entry_unenc bumpers_name abs_history_name ℓ t s.
-
-  Lemma know_full_entry_frag_entry_unenc ℓ q abs_hist t s :
-    know_full_history_loc ℓ q abs_hist -∗
-    know_frag_history_loc ℓ t s -∗
-    ⌜ abs_hist !! t = Some s ⌝.
-  Proof.
-    rewrite /know_full_history_loc.
-    rewrite /know_frag_history_loc.
-    iApply full_entry_frag_entry_unenc.
-  Qed.
-
-  Lemma know_full_history_loc_agree ℓ p q (abs_hist1 abs_hist2 : gmap nat ST) :
-    know_full_history_loc ℓ p abs_hist1 -∗
-    know_full_history_loc ℓ q abs_hist2 -∗
-    ⌜ abs_hist1 = abs_hist2 ⌝.
-  Proof.
-    iApply full_entry_unenc_agree.
-  Qed.
+  (* In this definition we store that decoding the stored encoded histry is
+  equal to our abstract history. This is weaker than strogin the other way
+  around, namely that encoding our history is equal to the stored encoded
+  history. Storing this weaker fact makes the definition easier to show. This is
+  important for the load lemma where, when we load some state and we want to
+  return [store_lb] for the returned state. At that point we can conclude that
+  decoding the encoding gives a result but not that the encoding is an encoding
+  of some state. *)
+  Definition know_frag_history_loc `{Countable ST} ℓ t (σ : ST) : iProp Σ :=
+    ∃ eσ, ⌜ decode eσ = Some σ ⌝ ∗ frag_entry bumpers_name abs_history_name ℓ t eσ.
 
   Global Instance know_full_history_loc_fractional ℓ (abs_hist : gmap nat ST) :
     Fractional (λ q, know_full_history_loc ℓ q abs_hist).
@@ -374,6 +378,139 @@ Section Histories.
     AsFractional (know_full_history_loc ℓ q abs_hist)
       (λ q, know_full_history_loc ℓ q abs_hist) q.
   Proof. apply _. Qed.
+
+  (** Lemmas above history assertions. *)
+  Lemma know_full_history_loc_agree ℓ p q abs_hist1 abs_hist2 :
+    know_full_history_loc ℓ p abs_hist1 -∗
+    know_full_history_loc ℓ q abs_hist2 -∗
+    ⌜ abs_hist1 = abs_hist2 ⌝.
+  Proof.
+    iIntros "[A _]". iIntros "[B _]".
+    iDestruct (full_entry_agree with "A B") as %<-%(inj _). done.
+  Qed.
+
+  Lemma know_full_history_loc_encode ℓ q abs_hist :
+    know_full_history_loc ℓ q abs_hist ⊣⊢
+      know_full_encoded_history_loc ℓ q (encode <$> abs_hist).
+  Proof. done. Qed.
+
+  Lemma know_frag_history_loc_decode ℓ t s :
+    know_frag_encoded_history_loc ℓ t (encode s) -∗
+    know_frag_history_loc ℓ t s.
+  Proof. iIntros "H". iExists _. iFrame. rewrite decode_encode. done. Qed.
+
+  Lemma full_map_frag_singleton_agreee dq ℓ t (s : ST) hists :
+    full_map bumpers_name abs_history_name dq hists -∗
+    know_frag_history_loc ℓ t s -∗
+    ⌜∃ hist enc,
+      hists !! ℓ = Some hist ∧ hist !! t = Some enc ∧ decode enc = Some s⌝.
+  Proof.
+    iIntros "H1 (% & % & H2)".
+    iDestruct (full_map_frag_entry with "H1 H2") as %(mi & EQ & hq).
+    iPureIntro. eexists _, _. split_and!; done.
+  Qed.
+
+  Lemma know_full_encoded_history_lookup q ℓ enc_abs_hist t (s : ST) :
+    know_full_encoded_history_loc ℓ q enc_abs_hist -∗
+    know_frag_history_loc ℓ t s -∗
+    ⌜∃ enc,
+        enc_abs_hist !! t = Some enc ∧ decode enc = Some s⌝.
+  Proof.
+    rewrite /know_full_encoded_history_loc.
+    iIntros "H1 (% & % & H2)".
+    iDestruct (full_entry_frag_entry with "H1 H2") as %look.
+    iPureIntro. eexists _. split_and!; done.
+  Qed.
+
+  Lemma know_full_encoded_history_lookup_big q ℓ full_enc_hist hist :
+    know_full_encoded_history_loc ℓ q full_enc_hist -∗
+    ([∗ map] t↦s ∈ hist, know_frag_history_loc ℓ t s) -∗
+    ⌜ ∃ enc_hist,
+      enc_hist ⊆ full_enc_hist ∧
+      dom hist = dom enc_hist ∧
+      omap decode enc_hist = hist ∧
+      (* The last conjunc here is "bonus" and can be removed unless users of *)
+(*        * the lemma make use of it. *)
+      map_Forall (λ k enc, ∃ s, decode enc = Some s ∧
+                                hist !! k = Some s) enc_hist ⌝.
+  Proof.
+    iIntros "F M".
+    rewrite /know_frag_history_loc.
+    iDestruct (big_sepM_exist_r with "M") as (hist_enc) "M".
+    iDestruct (full_entry_lookup_big _ _ _ _ _ hist_enc with "F [M]") as %sub.
+    { iApply big_sepM_forall.
+      iIntros (???).
+      iDestruct (big_sepM2_lookup_r with "M") as (???) "$"; first done. }
+    iExists hist_enc.
+    iSplit; first done.
+    iDestruct (big_sepM2_dom with "M") as %domeq.
+    iSplit; first done.
+    iSplit.
+    { rewrite map_eq_iff. iIntros (t).
+      rewrite lookup_omap. destruct (hist_enc !! t) eqn:look.
+      - iDestruct (big_sepM2_lookup_r with "M") as (?  look2 ?) "hih"; first done.
+        rewrite look2. done.
+      - iPureIntro. simpl. symmetry.
+        eapply map_dom_eq_lookup_None; done. }
+    iIntros (?? look).
+    iDestruct (big_sepM2_lookup_r with "M") as (???) "hih"; first done.
+    iExists x1. done.
+  Qed.
+
+  Lemma know_frag_history_singleton_agreee ℓ t s1 s2 :
+    know_frag_history_loc ℓ t s1 -∗
+    know_frag_history_loc ℓ t s2 -∗
+    ⌜ s1 = s2 ⌝.
+  Proof.
+    iDestruct 1 as (enc deq) "K".
+    iDestruct 1 as (enc' deq') "K'".
+    iDestruct (frag_entry_agree with "K K'") as %<-.
+    iPureIntro. congruence.
+  Qed.
+
+  Lemma know_full_history_lookup ℓ q abs_hist t s :
+    know_full_history_loc ℓ q abs_hist -∗
+    know_frag_history_loc ℓ t s -∗
+    ⌜ abs_hist !! t = Some s ⌝.
+  Proof.
+    iIntros "A B".
+    iDestruct ("B") as (e decEq) "B".
+    iDestruct (full_entry_frag_entry with "A B") as %look.
+    apply lookup_fmap_Some in look as (s' & encEq & look).
+    assert (s = s') as <-.
+    { rewrite -encEq decode_encode in decEq. by inversion decEq. }
+    done.
+  Qed.
+
+  (** nextgen instances *)
+
+  Definition lastgen_know_frag_history_loc `{Countable ST} ℓ t (σ : ST) : iProp Σ :=
+    ∃ eσ, ⌜ decode eσ = Some σ ⌝ ∗ lastgen_frag_entry abs_history_name ℓ t eσ.
+  
+  Context `{!AbstractState ST}.
+  #[global] Instance know_frag_history_loc_into_nextgen ℓ t (σ: ST):
+    IntoNextgen
+      (know_frag_history_loc ℓ t σ)
+      (lastgen_know_frag_history_loc ℓ t σ ∗
+       ∀ OCV (bumper: ST → ST), ⌜ ℓ ∈ dom OCV ∧ t ≤ OCV !!0 ℓ ⌝ -∗
+                                crashed_at_offset OCV -∗
+                                know_bumper ℓ bumper -∗
+                                know_frag_history_loc ℓ t (bumper σ)).
+  Proof.
+    rewrite /IntoNextgen.
+    iIntros "(%eσ & %Hdecode & frag)".
+    iModIntro.
+    iDestruct "frag" as "[lastgen_frag frag]".
+    iSplitL "lastgen_frag".
+    { iExists _. by iFrame. }
+    iIntros (OCV bumper [? ?]) "OCV [% bumper]".
+    iSpecialize ("frag" with "OCV [//] bumper").
+    rewrite /drop_above_bump decide_True; last done.
+    rewrite /encode_bumper /safe_bumper Hdecode /=.
+    iExists _. iFrame.
+    iPureIntro.
+    apply decode_encode.
+  Qed.
 End Histories.
 
 (* TODO: replace this definition with [picked_in] of abstract history *)
@@ -383,8 +520,8 @@ Section crashed_in.
 
   (* [crashed_in ℓ s] means location [ℓ] crashed in (latest) abstract state [s]
    * (before applying bumper). *)
-  Definition crashed_in_internal ℓ (s : ST) : iProp Σ :=
-    ∃ es, ⌜ decode es = Some s ⌝ ∗ ℓ ↪[crashed_in_name, crashed_in_rel]□ es.
+  Definition crashed_in_loc (ℓ: loc) (σ : ST) : iProp Σ :=
+    ∃ eσ OCV, crashed_at_offset OCV ∗ ⌜ decode eσ = Some σ ⌝ ∗ lastgen_frag_entry abs_history_name ℓ (OCV !!0 ℓ) eσ.
 End crashed_in.
 
 Section NextgenLemmas.
@@ -392,14 +529,15 @@ Section NextgenLemmas.
   Context `{AbstractState ST}.
 
   #[global] Instance know_bumper_nextgen ℓ (bumper: ST → ST):
-    BIN
+    IntoNextgen
       (know_bumper ℓ bumper)
       (base_if_rec ℓ (know_bumper ℓ bumper)).
   Proof.
-    rewrite /BIN.
+    rewrite /IntoNextgen.
     iIntros "[%bumpValid #bumper]".
     iPoseProof (ghost_map_elem_into_nextgen_ifrec with "bumper") as "#bumper'".
     iModIntro.
+    iDestruct "bumper'" as "[_ ?]".
     iModIntro.
     iSplit; done.
   Qed.
@@ -420,7 +558,7 @@ Section NextgenLemmas.
   (* Proof. *)
   (*   iIntros "preOrder #offset #bumper fragHist". *)
   (*   iPoseProof (ghost_map_elem_into_nextgen_ifrec with "preOrder") as "preOrder". *)
-  (*   rewrite /know_frag_history_loc /frag_entry_unenc. *)
+  (*   rewrite /know_frag_history_loc /know_frag_history_loc. *)
   (*   iDestruct "fragHist" as (encσ Hdecodeσ) "frag_hist_entry". *)
   (*   iPoseProof (frag_entry_local_nextgen with "frag_hist_entry [bumper]") as "frag_hist_entry". *)
   (*   { iDestruct "bumper" as "[? $]". } *)

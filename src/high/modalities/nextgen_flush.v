@@ -44,7 +44,7 @@ Section nextgen_persisted.
     rewrite /nextgen.
     simpl.
     iModIntro.
-    iIntros (?) "#? #?".
+    iIntros "#?".
     iIntros (CV TV') "% not_lost".
     iApply monPred_mono; first done.
     iApply "P"; done.
@@ -62,10 +62,10 @@ Section nextgen_persisted.
     iIntros "(HP & HQ)".
     rewrite /nextgen_flush //=.
     iModIntro.
-    iIntros (?) "#? #?".
+    iIntros "#?".
     iIntros (CV TV') "% #not_lost".
-    iDestruct ("HP" $! OCV with "[#$] [#$]") as "HP".
-    iDestruct ("HQ" $! OCV with "[#$] [#$]") as "HQ".
+    iDestruct ("HP" with "[#$]") as "HP".
+    iDestruct ("HQ" with "[#$]") as "HQ".
     iDestruct ("HP" $! CV with "[$]") as "HP".
     iDestruct ("HQ" $! CV with "[$]") as "HQ".
     iSplitL "HP"; iApply monPred_mono; done.
@@ -76,12 +76,12 @@ Section nextgen_persisted.
   Proof.
     iModel.
     rewrite /nextgen_flush //=.
-    iIntros "[HP | HQ]"; iIntros "!>" (?) "#? #?"; iIntros (CV TV') "% #not_lost".
-    - iDestruct ("HP" $! OCV with "[#$] [#$]") as "HP".
+    iIntros "[HP | HQ]"; iIntros "!> #?"; iIntros (CV TV') "% #not_lost".
+    - iDestruct ("HP" with "[#$]") as "HP".
       iDestruct ("HP" $! CV with "[$]") as "HP".
       iLeft.
       iApply monPred_mono; done.
-    - iDestruct ("HQ" $! OCV with "[#$] [#$]") as "HQ".
+    - iDestruct ("HQ" with "[#$]") as "HQ".
       iDestruct ("HQ" $! CV with "[$]") as "HQ".
       iRight.
       iApply monPred_mono; done.
@@ -94,8 +94,8 @@ Section nextgen_persisted.
     iModel.
     rewrite /nextgen_flush //=.
     iApply nextgen_promises_model.nextgen_mono.
-    iIntros "HP % #? #?" (CV TV') "% #not_lost".
-    iDestruct ("HP" $! OCV with "[#$] [#$]") as "HP".
+    iIntros "HP #?" (CV TV') "% #not_lost".
+    iDestruct ("HP" with "[#$]") as "HP".
     iDestruct ("HP" $! CV with "[$]") as "HP".
     iApply mono.
     iApply monPred_mono; done.
@@ -126,9 +126,9 @@ Section nextgen_persisted.
     iModIntro.
     rewrite -bi.intuitionistically_into_persistently.
     iDestruct "P" as "#P".
-    iIntros (?) "#? #?".
+    iIntros "#?".
     iIntros (CV TV' ?) "(% & #? & #?)".
-    iSpecialize ("P" $! OCV with "[#$] [#$]").
+    iSpecialize ("P" with "[#$]").
     iSpecialize ("P" $! CV with "[]").
     { by iFrame "#". }
     iModIntro.
@@ -141,13 +141,13 @@ Section nextgen_persisted.
     iModel.
     rewrite /nextgen_flush /=.
     rewrite nextgen_and_1.
-    iIntros "HPQ"; iIntros "!>" (?) "#? #?"; iIntros (CV TV') "% #not_lost".
+    iIntros "HPQ"; iIntros "!> #?"; iIntros (CV TV') "% #not_lost".
     iSplit.
     - iDestruct "HPQ" as "[HP _]".
-      iDestruct ("HP" $! OCV with "[#$] [#$]") as "HP".
+      iDestruct ("HP" with "[#$]") as "HP".
       iDestruct ("HP" $! CV with "[$]") as "$".
     - iDestruct "HPQ" as "[_ HQ]".
-      iDestruct ("HQ" $! OCV with "[#$] [#$]") as "HQ".
+      iDestruct ("HQ" with "[#$]") as "HQ".
       iDestruct ("HQ" $! CV with "[$]") as "$".
   Qed.
 
@@ -177,7 +177,7 @@ Section nextgen_persisted.
       ∃ CV t', ⌜CV !! ℓ = Some (MaxNat t') ∧ t ≤ t'⌝ ∗ ⎡ crashed_at CV ⎤.
   Proof.
     iModel. iIntros "le". simpl.
-    iIntros "!>" (?) "#? #?".
+    iIntros "!> #?".
     iIntros (CV TV') "% (% & #? & #?)".
     destruct (TV) as [[??]?].
     iDestruct "le" as %[[? le] ?].

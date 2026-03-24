@@ -453,7 +453,6 @@ Section big_sepM.
   Lemma big_sepM_thread_resource_2 Φ m R :
     R -∗ ([∗ map] k↦x ∈ m, Φ k x) -∗ R ∗ ([∗ map] k↦x ∈ m, R -∗ R ∗ Φ k x).
   Proof. iIntros "??". iApply big_sepM_thread_resource. iFrame. Qed.
-
 End big_sepM.
 
 Lemma big_sepM_impl_dom_subseteq_with_resource {PROP : bi} `{Countable K} {A B : Type}
@@ -721,6 +720,15 @@ Section big_sepM2.
     - iSplitR ""; by iIntros (?).
     - iSplitL ""; by iIntros (?).
   Qed.
+  
+  Lemma big_sepM2_impl_persist `{!BiAffine PROP} m1 m2 P Φ `{!Persistent P}:
+    ([∗ map] k ↦ x1; x2 ∈ m1; m2, P -∗ Φ k x1 x2) ⊢ (P -∗ [∗ map] k ↦ x1; x2 ∈ m1; m2, Φ k x1 x2).
+  Proof.
+    iIntros "impl #P".
+    iApply (big_sepM2_impl with "impl").
+    iIntros "!>" (?????) "impl".
+    by iApply "impl".
+  Qed.
 
   (* Could be upstreamed. *)
   Lemma monPred_at_big_sepM2 {I : biIndex} `{Countable K}
@@ -744,7 +752,6 @@ Section big_sepM2.
     rewrite monPred_at_big_sepL.
     done.
   Qed.
-
 End big_sepM2.
 
 Lemma big_sepM_exist_l {PROP : bi} {K A B} `{Countable K}

@@ -236,7 +236,7 @@ Section wp_at.
       { apply (inj Some). rewrite -physHistsLook. done. }
       done. }
 
-    iDestruct (history_full_entry_frag_lookup_big with "fullHist absHist")
+    iDestruct (know_full_encoded_history_lookup_big with "fullHist absHist")
       as %(encAbsHist & subset & domEq2 & eqeq & map).
 
     (* We add this to prevent Coq from trying to use [highExtraStateInterp]. *)
@@ -258,7 +258,7 @@ Section wp_at.
     assert (abs_hist !! tS = Some s).
     { rewrite -lastEq. eapply map_sequence_lookup_hi; done. }
     iDestruct (big_sepM_lookup with "absHist") as "hist"; first done.
-    iDestruct (history_full_entry_frag_lookup with "fullHist hist")
+    iDestruct (know_full_encoded_history_lookup with "fullHist hist")
       as %(enc & lookTS & decodeEnc).
 
     rewrite <- pure_sep_l; last solve_view_le.

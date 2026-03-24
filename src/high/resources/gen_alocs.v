@@ -49,26 +49,29 @@ Section gen_alocs.
   #[global] Instance gen_alocs_auth_into_nextgen {γ} ℓs:
     IntoNextgen
       (gen_alocs_auth γ ℓs)
-      (∃ OCV,
-          gen_alocs_auth γ (ℓs ∩ dom OCV) ∗
-          picked_in crashed_at_name (crashed_at_trans OCV)).
+      (∀ OCV,
+         crashed_at_offset OCV -∗
+         gen_alocs_auth γ (ℓs ∩ dom OCV)).
   Proof using Type.
     rewrite /IntoNextgen.
     iNamed 1.
-    iDestruct "crashed" as (OCV) "crashed".
     iModIntro.
-    iDestruct ("own_auth") as (t) "[#picked own_auth]".
-    iDestruct "rely" as "(rely & (%t' & %tC & (%R & _) & picked' & pickedC))".
-    iPickedInAgree "picked picked'".
-    destruct R as (OCV' & -> & ->).
-    iExists OCV'.
-    rewrite fmap_auth_auth /drop_OCV_locs.
-    iDestruct "own_auth" as "[own_auth _]".
-    iDestruct "crashed" as (??) "[pickedC' #crashed_at]".
+    iDestruct "crashed" as (OV OCV' tC) "[pickedC crashed]".
+    iDestruct "rely" as "[rely (%tH & %tC' & [% _] & pickedH & pickedC')]".
+    iDestruct "own_auth" as (tH') "[#pickedH' own_auth]".
     iPickedInAgree "pickedC pickedC'".
-    iFrame "∗#".
-    iExists _, _.
-    iApply "crashed_at".
+    iPickedInAgree "pickedH pickedH'".
+    destruct H as (OCV'' & -> & ->).
+    iIntros (?) "offset".
+    simpl.
+    iAssert ⌜ OCV = OCV'' ⌝%I as %<-.
+    { iNamed "offset".
+      iDestruct (crashed_at_both_agree with "offset crashed") as %[-> ->].
+      done. }
+    rewrite fmap_auth_auth /drop_OCV_locs.
+    iDestruct "own_auth" as "[$ _]".
+    iFrame "#".
+    by iExists _.
   Qed.
 
   #[global] Instance gen_alocs_frag_into_nextgen {γ} ℓs:

@@ -101,10 +101,10 @@ Section wp_at.
     interp.
 
   (* Get all information inside [interp] related to the location [ℓ]. *)
-  Lemma interp_get_at_loc ℓ prot offset TV :
+  Lemma interp_get_at_loc ℓ prot offset:
     interp -∗
     is_at_loc ℓ -∗
-    know_protocol ℓ prot TV -∗
+    know_protocol ℓ prot -∗
     offset_loc ℓ offset -∗
     ∃ phys_hists phys_hist (abs_hist : gmap nat positive) encp_full encp_read encp_pers pview,
       loc_info ℓ prot encp_full encp_read encp_pers phys_hists phys_hist abs_hist offset pview ∗
@@ -113,7 +113,6 @@ Section wp_at.
   Proof.
     iNamed 1.
     iIntros "isAt".
-    rewrite know_protocol_unfold.
     iNamed 1.
     iIntros "offset".
     iDestruct (own_all_full_preds_pred with "full_predicates knowFullPred")
@@ -241,7 +240,7 @@ Section wp_at.
       iDestruct (bumpers_lookup with "allBumpers knowBumper") as %bumpersLook.
 
       iModIntro.
-      iSplit; first (iApply frag_history_equiv; rewrite -Hencodeσ; iFrame "histFrag").
+      iSplit; first (iApply know_frag_history_loc_decode; rewrite -Hencodeσ; iFrame "histFrag").
       iFrameF "physHistFrag".
       (* We re-establish [interp]. *)
       iExistsN.

@@ -25,7 +25,7 @@ Section ownership.
   Implicit Type (OCV: view) (PRs: gmap loc (predicateR Σ)) (PR: predicateR Σ).
 
   (* TODO: both this definition and the lemma below are duplicates *)
-  Definition drop_OCV OCV ℓ PR :=
+  #[local] Definition drop_OCV OCV ℓ PR :=
     if (decide (ℓ ∈ dom OCV)) then Some PR else None.
 
   Definition predicates_relyT := rel_over [#crashed_atR] (predicatesR Σ).
@@ -61,26 +61,30 @@ Section ownership.
   Global Instance own_all_preds_auth_into_nextgen γ dq PRs:
     IntoNextgen
       (own_all_preds_ra γ dq PRs)
-      (∃ OCV,
-          own_all_preds_ra γ dq (restrict (dom OCV) PRs) ∗
-          picked_in crashed_at_name (crashed_at_trans OCV)).
+      (∀ OCV,
+         crashed_at_offset OCV -∗
+          own_all_preds_ra γ dq (restrict (dom OCV) PRs)).
   Proof.
     rewrite /IntoNextgen.
     iNamed 1.
     iModIntro.
-    iDestruct ("own_auth") as (t) "[#picked own_auth]".
-    iDestruct "rely" as "(rely & (%t' & %tC & (%R & _) & picked' & pickedC))".
-    iPickedInAgree "picked picked'".
-    destruct R as (OCV' & -> & ->).
-    iExists OCV'.
+    iDestruct "crashed_at_offset" as (OV OCV' tC) "[pickedC crashed]".
+    iDestruct "rely" as "[rely (%tH & %tC' & [% _] & pickedH & pickedC')]".
+    iDestruct "own_auth" as (tH') "[#pickedH' own_auth]".
+    iPickedInAgree "pickedC pickedC'".
+    iPickedInAgree "pickedH pickedH'".
+    destruct H as (OCV'' & -> & ->).
+    iIntros (?) "offset".
+    simpl.
+    iAssert ⌜ OCV = OCV'' ⌝%I as %<-.
+    { iNamed "offset".
+      iDestruct (crashed_at_both_agree with "offset crashed") as %[-> ->].
+      done. }
     rewrite fmap_auth_auth.
     iDestruct "own_auth" as "[own_auth _]".
     rewrite map_imap_drop_OCV_restrict.
     iFrame "∗#".
-    iDestruct "crashed_at_offset" as (OCV ??) "[pickedC' #crashed_at_offset]".
-    iPickedInAgree "pickedC pickedC'".
-    iEval (simpl) in "crashed_at_offset".
-    iExists _, _. done.
+    iExists _. done.
   Qed.
 
   Global Instance ghost_map_elem_into_nextgen γ k PR:

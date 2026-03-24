@@ -72,7 +72,7 @@ Section post_fence_sync.
       ∃ (fi_list: list FlushInfo),
         ([∗ list] fi ∈ fi_list,
            ⎡ is_at_loc fi.(fi_ℓ) ⎤ ∗
-           know_protocol fi.(fi_ℓ) fi.(fi_prot) ∗
+           ⎡ know_protocol fi.(fi_ℓ) fi.(fi_prot) ⎤ ∗
            (* this can probably be promoted to [flush_lb], but doens't seem necessary? *)
            internal_flush_lb fi.(fi_ℓ) fi.(fi_prot) fi.(fi_σ) ∗
            seen_state_post_fence (EqDecision0 := fi.(fi_ST_eqdec)) (H0 := fi.(fi_ST_countable)) fi.(fi_ℓ) fi.(fi_σ_xchg) ∗

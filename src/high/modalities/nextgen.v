@@ -10,21 +10,49 @@ From self.nextgen Require Export nextgen_promises.
 
 Set Default Proof Using "Type*".
 
-Definition crashed_in_impl OCV `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω}: iProp Σ :=
-  [∗ map] ℓ ↦ t ∈ OCV,
-    □ (∀ (ST: Type) (_ : EqDecision ST) (_ : Countable ST) (_ : AbstractState ST) (bumper: ST → ST),
-         know_preorder_loc ℓ (abs_state_relation (ST := ST)) -∗
-         know_bumper ℓ bumper -∗
-         ∃ (σ: ST), know_frag_history_loc ℓ (max_nat_car t) σ).
+Section lastgen_predicates.
+  Context `{AbstractState ST} `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω}.
+  
+  Definition lastgen_know_preorder_loc ℓ (preorder : extra.relation2 ST) : iProp Σ :=
+    lastgen_ghost_map_elem preorders_name ℓ DfracDiscarded (encode_relation.encode_relation preorder).
+
+  
+  Definition lastgen_know_bumper (ℓ : loc) (bumper : ST → ST) : iProp Σ :=
+    let encodedBumper := encode_bumper bumper
+    in ⌜∀ s1 s2, s1 ⊑ s2 → bumper s1 ⊑ bumper s2⌝ ∗
+                 lastgen_ghost_map_elem bumpers_name ℓ DfracDiscarded encodedBumper.
+End lastgen_predicates.
+
+Definition frag_history_at_crash `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω}: iProp Σ :=
+  □ (∀ ℓ t
+       (ST: Type) (_ : EqDecision ST) (_ : Countable ST) (_ : abstract_state.AbstractState ST)
+       (bumper: ST → ST) (σ: ST),
+       ∀ OV OCV, crashed_at_both OV OCV -∗
+                 ⌜ ℓ ∈ dom OCV ⌝ -∗
+                 lastgen_know_preorder_loc ℓ (abstract_state.abs_state_relation (ST := ST)) -∗
+                 lastgen_know_bumper ℓ bumper -∗
+                 lastgen_know_frag_history_loc ℓ t σ -∗
+                 ⌜ t - (OV !!0 ℓ) ≤ (OCV !!0 ℓ) - (OV !!0 ℓ) ⌝ -∗
+                 (* TODO: this knowledge should really be part of the [crashed_at] rely *)
+                 ⌜ OV !!0 ℓ ≤ OCV !!0 ℓ ⌝ ∗
+                 ∃ (σ_c: ST), ⌜ σ ⊑ σ_c ⌝ ∗ crashed_in_loc ℓ σ_c ∗ know_frag_history_loc ℓ (OCV !!0 ℓ) (bumper σ_c)).
+
+(* Definition crashed_in_impl OCV `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω}: iProp Σ := *)
+(*   [∗ map] ℓ ↦ t ∈ OCV, *)
+(*     □ (∀ (ST: Type) (_ : EqDecision ST) (_ : Countable ST) (_ : AbstractState ST) (bumper: ST → ST), *)
+(*          know_preorder_loc ℓ (abs_state_relation (ST := ST)) -∗ *)
+(*          know_bumper ℓ bumper -∗ *)
+(*          ∃ (σ: ST), crashed_in_loc ℓ σ ∗ know_frag_history_loc ℓ (max_nat_car t) (bumper σ)). *)
 
 Program Definition nextgen `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω} (P: dProp Σ): dProp Σ :=
-  MonPred (λ TV, ⚡==> ∀ OCV, crashed_at_offset OCV -∗ crashed_in_impl OCV -∗ P (∅, ∅, ∅))%I _.
+  MonPred (λ TV, ⚡==> frag_history_at_crash -∗ P (∅, ∅, ∅))%I _.
 
 Class IntoNextgen `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω} (P Q : dProp Σ) :=
   into_nextgen : P ⊢ nextgen Q.
 Global Arguments IntoNextgen {_ _ _ _} _%I _%I.
 Global Arguments into_nextgen {_ _ _ _} _%I _%I.
 Global Hint Mode IntoNextgen + + + + + - : typeclass_instances.
+
 
 Section Modality.
   Context `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω}.
@@ -37,7 +65,7 @@ Section Modality.
     iStartProof (iProp _); iIntros (?).
     simpl.
     iApply nextgen_mono.
-    iIntros "H % #? #?".
+    iIntros "H #?".
     iApply Hi.
     by iApply "H".
   Qed.
@@ -58,7 +86,7 @@ Section Modality.
     iStartProof (iProp _); iIntros (?).
     rewrite Hi.
     simpl.
-    iIntros "#H !> % #? #?".
+    iIntros "#H !> #?".
     rewrite monPred_at_intuitionistically.
     iModIntro.
     by iApply "H".
@@ -70,7 +98,7 @@ Section Modality.
     intros.
     iStartProof (iProp _); iIntros (?). simpl.
     rewrite nextgen_and_1.
-    iIntros "H !> % #? #?".
+    iIntros "H !> #?".
     iSplit.
     - iDestruct "H" as "[H _]".
       by iApply "H".
@@ -82,7 +110,7 @@ Section Modality.
     emp ⊢ nextgen emp.
   Proof.
     iStartProof (iProp _); iIntros (?). simpl.
-    by iIntros "_ !> % _ _".
+    by iIntros "_ !> _".
   Qed.
 
   Lemma nextgen_sep P Q:
@@ -91,7 +119,7 @@ Section Modality.
     iStartProof (iProp _). iIntros (TV).
     simpl.
     rewrite nextgen_sep_2.
-    iIntros "H !> % #? #?".
+    iIntros "H !> #?".
     iDestruct "H" as "[P Q]".
     iSplitL "P"; first by iApply "P".
     by iApply "Q".
@@ -123,7 +151,7 @@ Section Modality.
     intros Hi.
     iStartProof (iProp _); iIntros (?). simpl.
     rewrite Hi.
-    iIntros "H !> % _ _".
+    iIntros "H !> _".
     done.
   Qed.
 

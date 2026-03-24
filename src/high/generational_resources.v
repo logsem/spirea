@@ -22,7 +22,7 @@ From self.lang Require Import lang.
 
 From self.base Require Export generational_resources.
 From self.high.resources Require Export
-  gen_ghost_map gen_ghost_map_map gen_alocs gen_predicates auth_map_map abstract_history.
+  gen_ghost_map gen_ghost_map_map gen_alocs gen_predicates auth_map_map.
 
 From self.algebra Require Import view.
 

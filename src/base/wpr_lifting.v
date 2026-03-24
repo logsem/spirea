@@ -47,20 +47,20 @@ Section wpr.
     - by iDestruct "Himpl" as "(_ & _ & $)".
   Qed.
 
-  Variable (crashed_in_impl: view.view → iProp Σ).
+  Variable (frag_history_at_crash: iProp Σ).
   
   (* Is this the only thing I need to prove for high spirea (other than views of course)? *)
   Hypothesis extra_state_nextgen: ∀ CV σ1 σ2,
     CV_crash_step CV σ1 σ2 →
+    nvm_heap_ctx σ1 -∗
     extra_state_interp -∗
-    (∃ OCV, crashed_at_offset OCV ∗ picked_out crashed_at_name (crashed_at_trans (OCV `view_add` CV))) -∗
-    |==> ▷ ⚡==> |==> extra_state_interp ∗ (∃ OCV, crashed_in_impl OCV).
+    |==> ▷ ⚡==> |==> frag_history_at_crash ∗ nvm_heap_ctx σ2 ∗ extra_state_interp.
 
   Lemma idempotence_wpr
       s E1 e e_rec Φ Φinv Φr Φc :
     ⊢ WPC e @ s; E1 {{ Φ }} {{ Φc }} -∗
     (* TODO: have an expert double check this modality *)
-    ■ (Φc -∗ ▷ ⚡==> ∀ OCV, crashed_in_impl OCV -∗ validV ∅ -∗ (Φinv ∧ WPC e_rec @ s ; E1 {{ Φr }} {{ Φc }})) -∗
+    ■ (Φc -∗ ▷ (⚡==> frag_history_at_crash -∗ validV ∅ -∗ (Φinv ∧ WPC e_rec @ s ; E1 {{ Φr }} {{ Φc }}))) -∗
       wpr s E1 e e_rec Φ Φinv Φr.
   Proof.
     iIntros "Hwpc #Hidemp".
@@ -77,12 +77,12 @@ Section wpr.
     (* iMod (nvm_heap_reinit_alt _ _ _ _ γcrash _ Hcrash with "interp Hidemp") *)
     (*   as (hnames) "(%cEq & map & interp' & idemp)". *)
     destruct Hcrash as [CV Hcrash].
-    iDestruct (heap_ctx_next_generation _ _ _ Hcrash with "interp") as ">(%OCV & HCV & picked_out & interp)".
-    iDestruct (extra_state_nextgen with "extra [picked_out HCV]") as ">extra"; first done.
-    { iExists _. iFrame. }
+    (* iDestruct (heap_ctx_next_generation _ _ _ Hcrash with "interp") as ">(%OCV & HCV & picked_out & interp)". *)
+    iDestruct (extra_state_nextgen with "interp extra") as ">extra"; first done.
+    (* { iExists _. iFrame. } *)
     do 3 iModIntro.
-    iDestruct "interp" as ">[persisted interp]".
-    iDestruct "extra" as ">[extra impl]".
+    iDestruct "extra" as ">(Hfrag & interp & extra)".
+    (* iDestruct "interp" as ">[persisted interp]". *)
     iAssert (|==> validV ∅ ∗ nvm_heap_ctx σ_post_crash)%I with "[interp]" as ">[#? interp]".
     { rewrite /nvm_heap_ctx.
       iDestruct "interp" as (???) "[[store_view_auth ?] ?]".
@@ -97,7 +97,6 @@ Section wpr.
     iModIntro.
     rewrite /state_interp //=.
     iFrame.
-    iDestruct "impl" as (?) "impl".
-    by iApply ("Hidemp" with "impl").
+    by iApply ("Hidemp" with "Hfrag").
   Qed.
 End wpr.

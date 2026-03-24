@@ -108,7 +108,7 @@ Section wp_at.
     iDestruct (big_sepM_lookup with "absHist") as "hist"; first done.
 
     (* rewrite /know_frag_history_loc_d lift_d_at. *)
-    iDestruct (history_full_entry_frag_lookup with "fullHist hist") as %look'.
+    iDestruct (know_full_encoded_history_lookup with "fullHist hist") as %look'.
     destruct look' as (e_i & absHistLook' & hip).
     assert (is_Some (physHist !! t_i)) as [vI physHistLook].
     { rewrite -elem_of_dom domEq elem_of_dom. done. }

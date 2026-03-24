@@ -12,9 +12,9 @@ From self.lang Require Import lang.
 Set Default Proof Using "Type*".
 
 (* A handy alias for the type of location predicates. *)
-Definition loc_pred `{!nvmBaseGS Σ Ω} ST `{AbstractState ST} := ST → val → dProp Σ.
+Definition loc_pred `{nvmHighGS} ST `{AbstractState ST} := ST → val → dProp Σ.
 
-Definition loc_predO `{!nvmBaseGS Σ Ω} ST := ST -d> val -d> dPropO Σ.
+Definition loc_predO `{nvmHighGS} ST := ST -d> val -d> dPropO Σ.
 
 (* A protocol consists of
   - A predicate [p_inv] that holds for each write and corresponding state of the
@@ -22,25 +22,25 @@ Definition loc_predO `{!nvmBaseGS Σ Ω} ST := ST -d> val -d> dPropO Σ.
   - A function [bumper] that specifies how the state of a location changes
     after a crash. *)
 
-Record LocationProtocol ST `{AbstractState ST, !nvmBaseGS Σ Ω} := MkProt {
+Record LocationProtocol ST `{AbstractState ST, nvmHighGS} := MkProt {
   p_full : loc_pred ST;
   p_read : loc_pred ST;
   p_pers : loc_pred ST;
   p_bumper : ST → ST;
 }.
 
-#[global] Arguments MkProt   {ST _ _ _ _ _ _} _%I _%I _%I _.
-#[global] Arguments p_full   {ST _ _ _ _ _ _} _%I.
-#[global] Arguments p_read   {ST _ _ _ _ _ _} _%I.
-#[global] Arguments p_pers   {ST _ _ _ _ _ _} _%I.
-#[global] Arguments p_bumper {ST _ _ _ _ _ _} _ _.
+#[global] Arguments MkProt   {ST _ _ _ _ _ _ _} _%I _%I _%I _.
+#[global] Arguments p_full   {ST _ _ _ _ _ _ _} _.
+#[global] Arguments p_read   {ST _ _ _ _ _ _ _} _.
+#[global] Arguments p_pers   {ST _ _ _ _ _ _ _} _.
+#[global] Arguments p_bumper {ST _ _ _ _ _ _ _} _ _.
 
 (* Type class collection the properties that a protocol should have.
 
 Note: The fields are ordered by "difficulty" in the sense of how difficult these
 conditions usually are to show.  *)
 
-Class ProtocolConditions `{AbstractState ST, !nvmBaseGS Σ Ω, !nvmHighGS Σ Ω} (prot : LocationProtocol ST) := {
+Class ProtocolConditions `{AbstractState ST, nvmHighGS} (prot : LocationProtocol ST) := {
   bumper_mono :
     Proper ((⊑@{ST}) ==> (⊑))%signature (prot.(p_bumper));
   full_nobuf :>
@@ -53,7 +53,7 @@ Class ProtocolConditions `{AbstractState ST, !nvmBaseGS Σ Ω, !nvmHighGS Σ Ω}
     forall s v, prot.(p_full) s v ⊣⊢ prot.(p_read) s v ∗ (prot.(p_read) s v -∗ prot.(p_full) s v);
   pred_full_nextgen :
     ⊢ ∀ σ_p v_p σ_f v_f, ⌜ σ_p ⊑ σ_f ⌝ -∗ prot.(p_pers) σ_p v_p -∗ prot.(p_full) σ_f v_f -∗
-      (* first case: we crash exactly at [s] *)
+      (* first case: we crash exactly at [σ_f] *)
       (|==> <NGF> prot.(p_full) (prot.(p_bumper) σ_f) v_f ∗ prot.(p_pers) (prot.(p_bumper) σ_f) v_f) ∧
       (* second case: we crash later than [s_p] (included) but before [s] (excluded) *)
       (∀ σ_c v_c,
@@ -75,12 +75,12 @@ Existing Instance bumper_mono.
 (** [know_protocol] represents the knowledge that a location is associated with a
 specific protocol. It's defined simply using more "primitive" assertions. *)
 Definition know_protocol `{AbstractState ST, nvmHighGS}
-           ℓ (prot : LocationProtocol ST) : dProp Σ :=
-  "#knowFullPred" ∷ ⎡ know_full_pred ℓ prot.(p_full) ⎤ ∗
-  "#knowReadPred" ∷ ⎡ know_read_pred ℓ prot.(p_read) ⎤ ∗
-  "#knowPersPred" ∷ ⎡ know_pers_pred ℓ prot.(p_pers) ⎤ ∗
-  "#knowPreorder" ∷ ⎡ know_preorder_loc ℓ (⊑@{ST}) ⎤ ∗
-  "#knowBumper" ∷ ⎡ know_bumper ℓ prot.(p_bumper) ⎤.
+           ℓ (prot : LocationProtocol ST) : iProp Σ :=
+  "#knowFullPred" ∷  know_full_pred ℓ prot.(p_full)  ∗
+  "#knowReadPred" ∷  know_read_pred ℓ prot.(p_read)  ∗
+  "#knowPersPred" ∷  know_pers_pred ℓ prot.(p_pers)  ∗
+  "#knowPreorder" ∷  know_preorder_loc ℓ (⊑@{ST})  ∗
+  "#knowBumper" ∷  know_bumper ℓ prot.(p_bumper) .
 
 Lemma encode_bumper_bump_mono `{AbstractState ST}
       (bumper : ST → ST) `{!Proper ((⊑@{ST}) ==> (⊑))%signature bumper}
@@ -101,63 +101,68 @@ Section protocol.
   Context `{nvmHighGS, AbstractState ST}.
 
   Implicit Types (prot : LocationProtocol ST).
-
+  
   Lemma nextgen_know_protocol ℓ prot :
-    know_protocol ℓ prot -∗ <NG> if_rec ℓ (know_protocol ℓ prot).
+    know_protocol ℓ prot -∗
+    ⚡==> base_if_rec ℓ (lastgen_know_bumper ℓ prot.(p_bumper) ∗ lastgen_know_preorder_loc ℓ (⊑@{ST}) ∗ know_protocol ℓ prot).
   Proof.
     iNamed 1.
-    iPoseProof (ghost_map_elem_into_nextgen_ifrec with "knowPreorder") as "?".
-    iPoseProof (ghost_map_elem_into_nextgen_ifrec with "[]") as "?".
+    iPoseProof (ghost_map_elem_into_nextgen_ifrec with "knowPreorder") as "knowPreorder'".
+    iPoseProof (ghost_map_elem_into_nextgen_ifrec with "[]") as "knowBumper'".
     { iDestruct "knowBumper" as "[? $]". }
-    iModIntro.
     iDestruct "knowBumper" as "[% _]".
+    iModIntro.
+    iDestruct "knowBumper'" as "[$ knowBumper']".
+    iDestruct "knowPreorder'" as "[$ knowPreorder']".
     rewrite -?if_rec_lift_if_rec.
     
     iModIntro. iFrame "#%".
   Qed.
 
   #[global] Instance know_protocol_into_nextgen ℓ prot :
-    IntoNextgen
-      (know_protocol ℓ prot)
-      (if_rec ℓ (know_protocol ℓ prot)).
+    base_IntoNextgen
+      ( know_protocol ℓ prot )
+      (base_if_rec ℓ (lastgen_know_bumper ℓ prot.(p_bumper) ∗ lastgen_know_preorder_loc ℓ (⊑@{ST}) ∗ know_protocol ℓ prot )).
   Proof.
-    rewrite /IntoNextgen. iIntros "P". by iApply nextgen_know_protocol.
+    rewrite /base_IntoNextgen.
+    iIntros "P".
+    by iApply nextgen_know_protocol.
   Qed.
 
-  Lemma know_protocol_extract ℓ prot :
-    know_protocol ℓ prot -∗
-      ⎡ know_full_pred ℓ prot.(p_full) ⎤ ∗
-      ⎡ know_read_pred ℓ prot.(p_read) ⎤ ∗
-      ⎡ know_pers_pred ℓ prot.(p_pers) ⎤ ∗
-      ⎡ know_preorder_loc ℓ (⊑@{ST}) ⎤ ∗
-      ⎡ know_bumper ℓ prot.(p_bumper) ⎤.
-  Proof. iNamed 1. iFrame "#". Qed.
+  (* Lemma know_protocol_extract ℓ prot : *)
+  (*   know_protocol ℓ prot -∗ *)
+  (*     ⎡ know_full_pred ℓ prot.(p_full) ⎤ ∗ *)
+  (*     ⎡ know_read_pred ℓ prot.(p_read) ⎤ ∗ *)
+  (*     ⎡ know_pers_pred ℓ prot.(p_pers) ⎤ ∗ *)
+  (*     ⎡ know_preorder_loc ℓ (⊑@{ST}) ⎤ ∗ *)
+  (*     ⎡ know_bumper ℓ prot.(p_bumper) ⎤. *)
+  (* Proof. iNamed 1. iFrame "#". Qed. *)
 
-  Lemma know_protocol_unfold ℓ prot TV :
-    know_protocol ℓ prot TV ⊣⊢
-    ("#knowFullPred" ∷ know_full_pred ℓ (p_full prot) ∗
-     "#knowReadPred" ∷ know_read_pred ℓ (p_read prot) ∗
-     "#knowPersPred" ∷ know_pers_pred ℓ (p_pers prot) ∗
-     "#knowPreorder" ∷ know_preorder_loc ℓ (⊑@{ST}) ∗
-     "#knowBumper" ∷  know_bumper ℓ (p_bumper prot)).
-  Proof. rewrite /know_protocol !monPred_at_sep !monPred_at_embed //. Qed.
+  (* Lemma know_protocol_unfold ℓ prot TV : *)
+  (*   know_protocol ℓ prot TV ⊣⊢ *)
+  (*   ("#knowFullPred" ∷ know_full_pred ℓ (p_full prot) ∗ *)
+  (*    "#knowReadPred" ∷ know_read_pred ℓ (p_read prot) ∗ *)
+  (*    "#knowPersPred" ∷ know_pers_pred ℓ (p_pers prot) ∗ *)
+  (*    "#knowPreorder" ∷ know_preorder_loc ℓ (⊑@{ST}) ∗ *)
+  (*    "#knowBumper" ∷  know_bumper ℓ (p_bumper prot)). *)
+  (* Proof. rewrite /know_protocol !monPred_at_sep !monPred_at_embed //. Qed. *)
 
-  #[global] Instance know_protocol_buffer_free ℓ prot :
-    BufferFree (know_protocol ℓ prot).
-  Proof. apply _. Qed.
+  (* #[global] Instance know_protocol_buffer_free ℓ prot : *)
+  (*   BufferFree (know_protocol ℓ prot). *)
+  (* Proof. apply _. Qed. *)
 
-  Lemma know_protocol_at ℓ prot TV :
-    (know_protocol ℓ prot) TV ⊣⊢
-      know_full_pred ℓ prot.(p_full) ∗
-      know_read_pred ℓ prot.(p_read) ∗
-      know_pers_pred ℓ prot.(p_pers) ∗
-      know_preorder_loc ℓ (⊑@{ST}) ∗
-      know_bumper ℓ prot.(p_bumper).
-  Proof.
-    rewrite /know_protocol. rewrite !monPred_at_sep.
-    simpl. rewrite !monPred_at_embed.
-    done.
-  Qed.
+  (* Lemma know_protocol_at ℓ prot TV : *)
+  (*   (know_protocol ℓ prot) TV ⊣⊢ *)
+  (*     know_full_pred ℓ prot.(p_full) ∗ *)
+  (*     know_read_pred ℓ prot.(p_read) ∗ *)
+  (*     know_pers_pred ℓ prot.(p_pers) ∗ *)
+  (*     know_preorder_loc ℓ (⊑@{ST}) ∗ *)
+  (*     know_bumper ℓ prot.(p_bumper). *)
+  (* Proof. *)
+  (*   rewrite /know_protocol. rewrite !monPred_at_sep. *)
+  (*   simpl. rewrite !monPred_at_embed. *)
+  (*   done. *)
+  (* Qed. *)
 
   #[global] Instance know_protocol_contractive ℓ bumper :
     Contractive (λ (invs : (prodO (prodO (loc_predO ST) (loc_predO ST)) (loc_predO ST))),

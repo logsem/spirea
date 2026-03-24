@@ -169,7 +169,8 @@ Section high_adequacy.
         rewrite ?monPred_at_later.
         iModIntro.
         rewrite /nextgen.nextgen /=.
-        iModIntro.
+        iIntros "!> #Hfrag".
+        iSpecialize ("Hwpc" with "Hfrag").
         done.
     - iApply (plainly_intro True); last done.
       iIntros (_).

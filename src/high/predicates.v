@@ -443,15 +443,13 @@ Section encoded_predicate.
   Global Instance own_all_preds_auth_into_nextgen γ dq preds:
     IntoNextgen
       (own_all_preds γ dq preds)
-      (∃ OCV,
-          own_all_preds γ dq (extra.restrict (dom OCV) preds) ∗
-          picked_in crashed_at_name (crashed_at_trans OCV)).
+      (∀ OCV,
+         crashed_at_offset OCV -∗
+         own_all_preds γ dq (extra.restrict (dom OCV) preds)).
   Proof.
     rewrite /IntoNextgen.
-    iIntros "own !>".
-    iDestruct "own" as (OCV) "[own picked]".
-    iExists OCV.
-    iFrame.
+    iIntros "own !>" (OCV) "OCV".
+    iSpecialize ("own" with "OCV").
     rewrite /own_all_preds /restrict map_filter_fmap //.
   Qed.
 

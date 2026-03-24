@@ -106,7 +106,7 @@ Section wp_at.
     rewrite ?monPred_at_big_sepM.
     iDestruct (big_sepM_lookup with "absHist") as "hist"; first done.
     iEval (rewrite monPred_at_embed) in "hist".
-    iDestruct (history_full_entry_frag_lookup with "fullHist hist")
+    iDestruct (know_full_encoded_history_lookup with "fullHist hist")
       as %(encσ_i & Hlookσ_i & Hdecodeσ_i).
 
     iApply (wp_cmpxchg_alt with "[#] [$offsets $pts $val]").
@@ -303,7 +303,7 @@ Section wp_at.
       iMod (auth_map_map_lookup _ _ _ _ t_l with "physHists") as "[physHists #know_msg_l]".
       { done. } { done. }
       iAssert (know_frag_history_loc ℓ t_l σ_l)%I as "#know_σ_l".
-      { rewrite /know_frag_history_loc /frag_entry_unenc.
+      { rewrite /know_frag_history_loc.
         iExists encσ_l.
         iPoseProof (big_sepM_lookup _ _ t_l with "frags") as "$"; done. }
       
@@ -369,7 +369,6 @@ Section wp_at.
           lia. }
         { destruct TV as [[? ?] ?].
           iDestruct (into_no_buffer_at with "predF") as "predF".
-          { apply full_nobuf. }
           destruct (decide _).
           - iApply (predicate_holds_phi with "predFullEquiv"); first reflexivity.
             iApply (monPred_mono with "predF").
@@ -447,7 +446,6 @@ Section wp_at.
       2: {
         eapply map_dom_eq_lookup_None; first done.
         apply nolater. lia. }
-      rewrite -know_protocol_unfold.
       iFrameF "locationProtocol".
       iSplitPure.
       { apply: increasing_map_insert_last; try done. lia.

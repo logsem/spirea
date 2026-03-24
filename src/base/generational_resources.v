@@ -604,6 +604,18 @@ Section heap.
   Definition drop_above_map (OCV : view) heap :=
     map_imap (drop_above_hist OCV) heap.
 
+  Lemma dom_drop_above_map OCV heap:
+    dom (drop_above_map OCV heap) = dom OCV ∩ dom heap.
+  Proof.
+    rewrite set_eq.
+    intros ℓ.
+    rewrite elem_of_intersection /drop_above_map ?elem_of_dom map_lookup_imap.
+    destruct (heap !! ℓ); rewrite /drop_above_hist /=; destruct (OCV !! ℓ); simpl;
+      try done;
+      split; try (by intros ?%is_Some_None); try (by intros [?%is_Some_None ?]).
+    by intros [_ ?%is_Some_None].
+  Qed.
+
   Definition heap_rel : rel_over [#crashed_atR] (heapR) :=
     λ tC tP, ∃ OCV,
       tC = crashed_at_trans OCV ∧
