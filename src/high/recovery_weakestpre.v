@@ -333,7 +333,7 @@ Section wpr.
       { rewrite -elem_of_dom -domPhysHistAbsHist elem_of_dom. by eexists. }
 
       (* we extract the predicate held at crash timestamp. *)
-      iPoseProof (big_sepM2_delete _ _ _ t_c msg_c encσ_c with "predFR") as "[predFR predFRRest]".
+      iPoseProof (big_sepM2_delete _ _ _ t_c msg_c encσ_c with "predFR") as "[predC predFRRest]".
       { done. } { done. }
       
       (* we know that [encσ_p ⊑ encσ_c] always holds. *)
@@ -361,15 +361,235 @@ Section wpr.
       { done. }
       destruct (phys_hist !! S t_c) as [msgSC | ] eqn:msgSCLook.
       - (* the crash timestamp is not exclusive, we need to apply the second case of [predFullNextgen] *)
-        admit.
+        rewrite decide_False; last (rewrite not_and_l; right; done).
+        clear OCVLook0'.
+        simplify_map_eq.
+
+        (* for this case, we also need to extract the "max-timestamp" so that we have a [p_full] *)
+
+        pose t_f := (max_msg phys_hist).
+        assert (phys_hist !! S t_f = None) by rewrite -Nat.add_1_r lookup_max_msg_succ //.
+        assert (t_c ≠ t_f) by (intro; simplify_map_eq).
+        assert (t_c ≤ t_f).
+        { apply max_list_elem_of_le.
+          apply elem_of_elements.
+          by apply elem_of_dom. }
+        assert (OCV !!0 ℓ ≤ t_f) by lia.
+        assert (t_f ∈ dom phys_hist) as [msg_f msgFLook]%elem_of_dom.
+        { rewrite /t_f /max_msg.
+          apply elem_of_elements.
+          apply max_list_elem_of.
+          eapply elem_of_not_nil, elem_of_elements.
+          by apply elem_of_dom. }
+        assert (t_f ∈ dom abs_hist) as [encσ_f encσFLook]%elem_of_dom.
+        { rewrite -domPhysHistAbsHist elem_of_dom //. }
+        iDestruct (big_sepM2_delete _ _ _ t_f with "predFRRest") as "[predF predFRRest]".
+        { rewrite lookup_delete_ne //. }
+        { rewrite lookup_delete_ne //. }
+        rewrite decide_True; last done.
+        
+        (* Similarly, we know that [encσ_p ⊑ encσ_f] always holds. *)
+        iAssert ⌜ order encσ_p encσ_f ∨ encσ_p = encσ_f ⌝%I as %orderPF.
+        { iLeft.
+          iDestruct (big_sepM2_lookup _ _ _ ℓ with "ordered") as %incrMap.
+          { done. } { done. }
+          iPureIntro.
+          eapply (incrMap _); try done.
+          rewrite [OCV' !!0 ℓ]/lookup_zero OCVLook' /= in pViewLb.
+          lia. }
+
+        (* We also know [encσ_c ⊑ encσ_f] "strictly". *)
+        iAssert ⌜ order encσ_c encσ_f ⌝%I as %orderCF.
+        { iDestruct (big_sepM2_lookup _ _ _ ℓ with "ordered") as %incrMap.
+          { done. } { done. }
+          iPureIntro.
+          eapply (incrMap _); try done.
+          lia. }
+        
+        iDestruct (plainly_elim with "nextgen") as "NG".
+        iDestruct ("NG" with "[%] predP predF") as "[_ fullNG]"; first done.
+        iDestruct ("fullNG" with "[//] [//] [//] predC") as ">(%P_full' & %P_pers' & #PFullEquiv' & #PPersEquiv' & fullNG)".
+
+        (* apply [readNextgen] for the rest of the assertions *)
+        iDestruct (big_sepM2_impl_dom_subseteq _
+                     (λ t msg_r encσ_r, ⚡==> (persisted (view_to_zero OCV') ∗ crashed_at CV ∗ frag_history_at_crash) -∗
+                                        encoded_predicate_holds encp_read encσ_r
+                                          (msg_val msg_r)
+                                          (∅, ∅, ∅))%I
+                     _ _ (delete t_c $ discard_msg_views <$> drop_above t_c phys_hist) (delete t_c $ drop_bump_map ℓ bumper OCV' abs_hist)
+                     with "predFRRest []") as "predFRRest".
+        { rewrite delete_commute ?dom_delete dom_fmap /drop_above.
+          apply difference_mono_r.
+          rewrite elem_of_subseteq.
+          intros t [? [look ?]%map_filter_lookup_Some]%elem_of_dom.
+          rewrite elem_of_difference.
+          split; first by apply elem_of_dom.
+          rewrite elem_of_singleton.
+          lia. }
+        { rewrite !dom_delete_L.
+          by f_equiv. }
+        { iIntros "!>" (t msg_r encσ_r msg_r' encσ_r' [? [? msgRLook]%lookup_delete_Some]%lookup_delete_Some [_ [? encσRLook]%lookup_delete_Some]%lookup_delete_Some [? msgRLook']%lookup_delete_Some [_ encσRLook']%lookup_delete_Some) "predR".
+          assert (msg_r' = discard_msg_views msg_r) as ->.
+          { apply lookup_fmap_Some in msgRLook' as (? & <- & msgRLook').
+            f_equiv.
+            apply map_filter_lookup_Some_1_1 in msgRLook'.
+            by simplify_map_eq. }
+          assert (t ≤ t_c).
+          { apply lookup_fmap_Some in msgRLook' as (? & _ & msgRLook').
+            by apply map_filter_lookup_Some_1_2 in msgRLook'. }
+          iAssert ⌜ Some encσ_r' = bumper encσ_r ⌝%I as %bumperSomeR.
+          { rewrite map_lookup_imap encσRLook /= /drop_above_bump in encσRLook'.
+            destruct (decide _); last done.
+            rewrite /safe_bumper in encσRLook'.
+            iDestruct (big_sepM2_lookup _ _ _ ℓ with "bumperSome") as %bumperSomeR.
+            { done. } { done. }
+            iPureIntro.
+            move: encσRLook'.
+            eapply map_Forall_lookup_1 in bumperSomeR as [? -> ]; last done.
+            done. }
+          iAssert (encoded_predicate_holds encp_read encσ_r (msg_val msg_r)
+                     (default (msg_store_view msg_r) (na_views !! ℓ), msg_persisted_after_view msg_r, ∅))%I with "[predR]" as "predR".
+          { destruct (decide _); last done.
+            iDestruct (big_sepM2_lookup with "predFullReadSplit") as "split".
+            { done. } { done. }
+            iDestruct ("split" with "predR") as "$". }
+          iDestruct (big_sepM2_lookup _ _ _ ℓ with "predReadNextgen") as "nextgen'".
+          { done. } { done. }
+          iDestruct ("nextgen'" $! encσ_r encσ_r' with "[//] predR") as (P) "[#encpReadEquiv' ReadNG]".
+          iModIntro.
+          iIntros "#(persisted & CV & frag_impl)".
+          iSpecialize ("ReadNG" with "frag_impl").
+          iDestruct (big_sepM2_lookup _ _ _ ℓ with "oldViewsDiscarded") as %discarded.
+          { done. } { done. }
+          iSpecialize ("ReadNG" $! CV with "[]").
+          (* [<NGF>] header *)
+          { simpl.
+            iFrame "CV".
+            assert (msg_persisted_after_view msg_r ⊑ CV).
+            { (* we need a different proof for messages from older generation. *)
+              destruct (decide (t < OCV !!0 ℓ)).
+              - rewrite -(discarded t _ ltac:(done) ltac:(done)) /=.
+                solve_view_le.
+              - eapply consistent_cut_extract.
+                +  done.
+                + done.
+                + apply (map_Forall_lookup_1 _ phys_hists ℓ phys_hist) in physHistsEq; last done.
+                  rewrite -physHistsEq //.
+                + rewrite drop_prefix_lookup.
+                  erewrite Nat.sub_add; first done.
+                  lia.
+                + rewrite PeanoNat.Nat.le_sub_le_add_l.
+                  subst OCV'.
+                  replace t_c' with (CV !!0 ℓ) by (rewrite /lookup_zero tCLook' //).
+                  rewrite -view_add_lookup_zero /lookup_zero OCVLook' /=.
+                  done. }
+            iSplitPure; first done.
+            iApply persisted_weak; last done.
+            f_equiv.
+            rewrite /OCV'.
+            replace (msg_persisted_after_view msg_r) with (∅ `view_add` msg_persisted_after_view msg_r)
+                                                          by apply view_add_empty.
+            f_equiv; solve_view_le. }
+          iExists P.
+          iFrame "∗#".}
+        rewrite nextgen_big_sepM2.
+        iIntros "!>!> #(CV & persisted & frag_impl)".
+
+        (* restore [p_full] and [p_pers] *)
+        iSpecialize ("fullNG" with "frag_impl").
+        iDestruct ("fullNG" $! CV with "[]") as "[F P]".
+        (* [<NGF>] header *)
+        { simpl.
+          iFrame "CV".
+          assert (msg_persisted_after_view msg_c ⊑ CV).
+          { eapply consistent_cut_extract.
+            +  done.
+            + done.
+            + apply (map_Forall_lookup_1 _ phys_hists ℓ phys_hist) in physHistsEq; last done.
+              rewrite -physHistsEq //.
+            + rewrite drop_prefix_lookup.
+              erewrite Nat.sub_add; first done.
+              lia.
+            + rewrite PeanoNat.Nat.le_sub_le_add_l.
+              subst OCV'.
+              replace t_c' with (CV !!0 ℓ) by (rewrite /lookup_zero tCLook' //).
+              rewrite -view_add_lookup_zero /lookup_zero OCVLook' /=.
+              done. }
+          iSplitPure; first done.
+          iApply persisted_weak; last done.
+          f_equiv.
+          rewrite /OCV'.
+          replace (msg_persisted_after_view msg_c) with (∅ `view_add` msg_persisted_after_view msg_c)
+                                                        by apply view_add_empty.
+          f_equiv; solve_view_le. }
+        iSplitL "F predFRRest".
+        + iExists encp_full, encp_read, t_c.
+          iSplitPure; first rewrite restrict_lookup_elem_of //.
+          iSplitPure; first rewrite restrict_lookup_elem_of //.
+          iSplitPure.
+          { subst offsets'.
+            rewrite lookup_fmap restrict_lookup_elem_of; first rewrite OCVLook' //.
+            rewrite elem_of_dom //. }
+          iApply (big_sepM2_delete _ _ _ t_c with "[F predFRRest]").
+          { rewrite lookup_fmap (map_filter_lookup_Some_2 _ _ _ msg_c) //. }
+          { rewrite map_lookup_imap encσCLook /= /drop_above_bump decide_True //.
+            rewrite /lookup_zero.
+            by simplify_map_eq. }
+          iSplitL "F"; first rewrite decide_True.
+          * iExists P_full'.
+            simpl.
+            rewrite bumperSome.
+            iFrame "PFullEquiv'".
+            iApply (monPred_mono with "F").
+            solve_view_le.
+          * split; first done.
+            rewrite lookup_fmap fmap_None /drop_above.
+            apply map_filter_lookup_None_2.
+            right.
+            lia.
+          * iApply (big_sepM2_impl with "predFRRest").
+            iIntros "!>" (t msg_r encσ_r [? msgRLook]%lookup_delete_Some [_ encσRLook]%lookup_delete_Some) "predR".
+            iSpecialize ("predR" with "[$]").
+            assert (t ≤ t_c).
+            { apply lookup_fmap_Some in msgRLook as (? & _ & msgRLook).
+              by apply map_filter_lookup_Some_1_2 in msgRLook. }
+            rewrite decide_False; last (rewrite not_and_l; left; lia).
+            iApply (encoded_predicate_holds_mono with "predR").
+            solve_view_le.
+        + iExists encp_pers, t_c, t_c, encσ_c', (discard_msg_views msg_c).
+          iSplitPure; first rewrite restrict_lookup_elem_of //.
+          iSplitPure.
+          { subst offsets'.
+            rewrite lookup_fmap restrict_lookup_elem_of; first rewrite OCVLook' //.
+            rewrite elem_of_dom //. }
+          iSplitPure.
+          { rewrite map_lookup_imap encσCLook /= /drop_above_bump decide_True //.
+            - rewrite /safe_bumper bumperSome //.
+            - rewrite /lookup_zero.
+              by simplify_map_eq. }
+          iSplitPure.
+          { rewrite lookup_fmap (map_filter_lookup_Some_2 _ _ _ msg_c) //. }
+          rewrite assoc.
+          iSplitR.
+          * rewrite /lookup_zero.
+            rewrite ?restrict_lookup_elem_of //.
+            rewrite /view_to_zero lookup_fmap.
+            destruct (global_pview !! ℓ); last done.
+            simpl.
+            iSplitPure; first done.
+            iApply persisted_persisted_loc; last done.
+            by eapply view_to_zero_lookup.
+          * iExists P_pers'.
+            iFrame "∗#".
       - (* the crash timestamp is exclusive, we can apply the first case of [predFullNextgen]. *)
         rewrite decide_True; last done.
         clear OCVLook0'.
         simplify_map_eq.
         iDestruct (plainly_elim with "nextgen") as "NG".
-        iDestruct ("NG" with "[//] predP predFR") as "[fullNG _]".
+        iDestruct ("NG" with "[//] predP predC") as "[fullNG _]".
         iDestruct ("fullNG" with "[//]") as ">(%P_full' & %P_pers' & #PFullEquiv' & #PPersEquiv' & fullNG)".
-        
+
+        (* apply [readNextgen] for the rest of the assertions *)
         iDestruct (big_sepM2_impl_dom_subseteq _
                      (λ t msg_r encσ_r, ⚡==> (persisted (view_to_zero OCV') ∗ crashed_at CV ∗ frag_history_at_crash) -∗
                                         encoded_predicate_holds encp_read encσ_r
@@ -785,16 +1005,108 @@ Section wpr.
         move: absHistsLook absHistsLook'.
         rewrite ?restrict_lookup_elem_of //; last set_solver.
         congruence. }
-    iSplit; first admit. (* [ordered] *)
+    (* [ordered] *)
+    iSplit.
+    { iApply big_sepM2_intro.
+      { setoid_rewrite <- elem_of_dom.
+        apply set_eq.
+        rewrite dom_abs_hist_trans; last set_solver.
+        rewrite restrict_dom_L.
+        set_solver. }
+      iIntros "!>" (ℓ newHist order ih [ordersLook ?]%restrict_lookup_Some).
+      rewrite /abs_hist_trans restrict_lookup_elem_of // map_lookup_imap /per_loc_trans in ih.
+      apply bind_Some in ih as (hist & ? & look).
+      assert (ℓ ∈ dom abs_hists) by by apply elem_of_dom.
+      assert (ℓ ∈ dom bumpers) as [ bumper bumperLook ]%elem_of_dom by set_solver.
+      rewrite bumperLook in look.
+      simplify_map_eq.
+      iDestruct (big_sepM2_lookup with "ordered") as %incr; [done|done| ].
+      iDestruct (big_sepM2_lookup with "bumpMono") as %mono; [done|done| ].
+      iDestruct (big_sepM2_lookup with "bumperSome") as %bump; [done|done| ].
+      iPureIntro.
+
+      intros ?????.
+      rewrite /drop_bump_map ?map_lookup_imap /drop_above_map /drop_above_bump /safe_bumper.
+      intros (eσ1 & ? & ?)%bind_Some (eσ2 & ? & ?)%bind_Some.
+      do 2 (destruct (decide _); last done).
+      rewrite map_Forall_lookup in bump.
+      pose proof (bump i _ ltac:(done)) as [ ? ? ].
+      pose proof (bump j _ ltac:(done)) as [ ? ? ].
+      simplify_map_eq.
+      eapply mono; [done | done |].
+      eapply incr; [ |done|done].
+      lia. }
     (* [histPViewDoms] *)
     iSplitPure.
     { rewrite dom_abs_hist_trans; last set_solver.
       rewrite restrict_dom_L /view_to_zero dom_fmap_L.
       set_solver. }
     iSplitL "predsFullReadHold"; first rewrite map_imap_drop_OCV_clear_restrict //.
-    
-    
-    
+    (* [bumpMono] *)
+    iSplit.
+    { iApply (big_sepM2_impl_subseteq with "bumpMono").
+      { apply restrict_subseteq. }
+      { apply restrict_subseteq. }
+      rewrite 2!restrict_dom_L.
+      set_solver. }
+    (* three [BumpersDom] *)
+    rewrite !restrict_dom_L.
+    do 3 (iSplitPure; first set_solver).
+    (* [predFullNextgen] *)
+    iSplit.
+    { iApply (big_sepM2_impl_dom_subseteq with "predFullNextgen").
+      { rewrite restrict_dom_L. set_solver. }
+      { rewrite 2!restrict_dom_L. set_solver. }
+      iIntros "!>" (ℓ bumper offset bumper' offset' ? ? [? ?]%restrict_lookup_Some [? ?]%restrict_lookup_Some) "(%encp_full & %encp_read & %encp_pers & % & % & % & H)".
+      simplify_map_eq.
+      iExists encp_full, encp_read, encp_pers.
+      rewrite ?restrict_lookup_elem_of //.
+      do 3 (iSplitPure; first done).
+      done. }
+    (* [predReadNextgen] *)
+    iSplit.
+    { iApply (big_sepM2_impl_dom_subseteq with "predReadNextgen").
+      { rewrite restrict_dom_L. set_solver. }
+      { rewrite 2!restrict_dom_L. set_solver. }
+      iIntros "!>" (ℓ ? ? ? ? ? ? [? ?]%restrict_lookup_Some [? ?]%restrict_lookup_Some) "H".
+      by simplify_map_eq. }
+    (* [predFullReadSplit] *)
+    iSplit.
+    { iApply (big_sepM2_impl_dom_subseteq with "predFullReadSplit").
+      { rewrite restrict_dom_L. set_solver. }
+      { rewrite 2!restrict_dom_L. set_solver. }
+      iIntros "!>" (ℓ ? ? ? ? ? ? [? ?]%restrict_lookup_Some [? ?]%restrict_lookup_Some) "H".
+      by simplify_map_eq. }
+    (* [bumperBumpToValid] *)
+    iSplitPure.
+    { eapply map_Forall_subseteq; last done.
+      apply restrict_subseteq. }
+    (* [bumperSome] *)
+    iApply big_sepM2_forall.
+    iSplitPure.
+    { apply dom_eq_alt_L.
+      rewrite dom_abs_hist_trans; last set_solver.
+      rewrite restrict_dom_L.
+      set_solver. }
+    iIntros (ℓ hist bumper look [look2 ?]%restrict_lookup_Some).
+    rewrite /abs_hist_trans restrict_lookup_elem_of // map_lookup_imap /per_loc_trans look2 in look.
+    apply bind_Some in look as (origHist & ? & look).
+    simplify_map_eq.
+    iDestruct (big_sepM2_lookup with "bumperSome") as %bump; [done|done|].
+    iPureIntro.
+    apply map_Forall_lookup.
+    intros t eσ.
+    rewrite /drop_bump_map ?map_lookup_imap /drop_above_map /drop_above_bump /safe_bumper.
+    intros (? & ? & ?)%bind_Some.
+    destruct (decide _); last done.
+    simplify_map_eq.
+    rewrite map_Forall_lookup in bump.
+    destruct (bump t _ ltac:(done)) as [ ? ? ].
+    simplify_map_eq.
+    rewrite map_Forall_lookup in bumperBumpToValid.
+    eapply bumperBumpToValid; done.
+  Qed.
+  
   Lemma idempotence_wpr
       s E1 e e_rec Φ Φr Φc:
     ⊢ validV (store_view e.(ts_view)) -∗
