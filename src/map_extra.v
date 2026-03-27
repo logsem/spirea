@@ -1,8 +1,10 @@
 (* Various constructions and lemmas about maps. *)
 
 From stdpp Require Import countable numbers gmap fin_maps list.
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import ltac_tactics.
 From self Require Import extra.
+
+Set Default Proof Using "Type*".
 
 Section lemmas.
   Context `{FinMapDom K M D}.
@@ -104,13 +106,13 @@ Section map_sequence.
     (* We destruct [xs] to handle the special case where the list is a singleton. *)
     destruct xs as [|x2 xs].
     - intros [mLook ->] ? ?.
-      apply elem_of_list_singleton.
+      apply list_elem_of_singleton.
       assert (t = hi) as -> by lia.
       congruence.
     - intros (mLook & lo' & ? & between & slice) ? ?.
       assert (lo = t ∨ lo < t) as [eq | gt] by lia.
-      * simplify_eq. apply elem_of_list_here.
-      * apply elem_of_list_further.
+      * simplify_eq. apply list_elem_of_here.
+      * apply list_elem_of_further.
         assert (t < lo' ∨ lo' ≤ t) as [lt | ge] by lia.
         { assert (m !! t = None) by (apply between; lia). congruence. }
         eapply IH; [apply slice | lia | done].
@@ -199,7 +201,7 @@ Section map_sequence.
       assert (lo' ≤ hi) by (by eapply map_sequence_lt).
       split. { symmetry. apply eq. lia. }
       exists lo'. split; first apply le.
-      split. { intros ? ?. rewrite -eq. apply between. lia. lia. }
+      split. { intros ? ?. rewrite -eq; last lia. apply between. lia. }
       apply IH.
       + intros ??. apply eq. lia.
       + done.
@@ -215,7 +217,7 @@ Section map_sequence.
     eapply map_sequence_snoc.
     split_and!.
     - done.
-    - apply lookup_insert.
+    - apply lookup_insert_eq.
     - intros ??.
       rewrite lookup_insert_ne; last lia.
       apply nolater. lia.
@@ -348,7 +350,7 @@ Section map_sequence.
 
   Lemma map_sequence_singleton t (x : A) :
     map_sequence {[ t := x ]} t t [x].
-  Proof. simpl. split; last done. apply lookup_singleton. Qed.
+  Proof. simpl. split; last done. apply lookup_singleton_eq. Qed.
 
   Lemma map_sequence_is_singleton m t xs :
     map_sequence m t t xs → ∃ x, xs = [x].
@@ -573,7 +575,7 @@ Section drop_above.
     t1 ≤ t2 → drop_above t2 m !! t1 = m !! t1.
   Proof.
     intros le.
-    rewrite map_filter_lookup.
+    rewrite map_lookup_filter.
     destruct (m !! t1); last done. simpl.
     rewrite option_guard_True; done.
   Qed.
@@ -585,7 +587,7 @@ Section drop_above.
   Lemma drop_above_lookup_gt m t1 t2 :
     t1 < t2 → drop_above t1 m !! t2 = None.
   Proof.
-    intros gt. apply map_filter_lookup_None.
+    intros gt. apply map_lookup_filter_None.
     right. intros ??. lia.
   Qed.
 
@@ -602,7 +604,7 @@ Proof.
   rewrite !set_eq.
   setoid_rewrite elem_of_dom. unfold is_Some.
   intros eq. rewrite /drop_above.
-  setoid_rewrite map_filter_lookup_Some.
+  setoid_rewrite map_lookup_filter_Some.
   naive_solver.
 Qed.
 

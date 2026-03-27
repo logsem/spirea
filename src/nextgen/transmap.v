@@ -116,7 +116,7 @@ Section transmap.
     assert (eq' = eq_refl) as ->.
     { rewrite (proof_irrel eq' eq_refl). done. }
     simpl.
-    apply lookup_singleton.
+    apply lookup_singleton_eq.
   Qed.
 
   Definition transmap_singleton_dom_index_eq idx γ f :
@@ -196,7 +196,7 @@ Section transmap_insert.
     assert (eq = eq_refl) as ->.
     { rewrite (proof_irrel eq eq_refl). done. }
     simpl.
-    rewrite lookup_insert. done.
+    rewrite lookup_insert_eq. done.
   Qed.
 
   Lemma transmap_insert_lookup_ne transmap id1 γ1 t id2 γ2 :

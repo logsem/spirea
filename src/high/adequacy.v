@@ -1,4 +1,4 @@
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import ltac_tactics.
 From iris.algebra Require Import auth.
 
 

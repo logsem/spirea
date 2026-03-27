@@ -1,5 +1,5 @@
 From stdpp Require Export namespaces.
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import ltac_tactics.
 From iris.algebra Require Import gmap.
 From self.nextgen Require Import nextgen_promises_ng.
 From Perennial.base_logic.lib Require Export fancy_updates crash_token.

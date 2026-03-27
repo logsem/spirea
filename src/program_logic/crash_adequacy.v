@@ -1,13 +1,14 @@
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import ltac_tactics.
 From iris.algebra Require Import gmap auth agree gset coPset.
-From Perennial.base_logic.lib Require Import wsat.
-From Perennial.program_logic Require Export weakestpre.
-From Perennial.program_logic Require Export step_fupd_extra language crash_lang.
+From PerennialNG.base_logic.lib Require Import wsat.
+From PerennialNG.program_logic Require Export weakestpre.
+From PerennialNG.program_logic Require Export step_fupd_extra.
+From Perennial.program_logic Require Export language crash_lang.
 
 Set Default Proof Using "Type".
 
 From self.program_logic Require Export crash_weakestpre.
-(* From Perennial.program_logic Require Export language. *)
+(* From PerennialNG.program_logic Require Export language. *)
 
 Import uPred.
 Import language.
@@ -73,12 +74,12 @@ Proof.
   - iExists e2', (t2' ++ efs). iModIntro. iSplitR; first by eauto.
     iMod (wpc_step with "Hσ Hg He Hlc") as "H"; first done. iModIntro.
     iApply (step_fupd2N_wand with "H"). iIntros ">(Hσ & Hg & He2 & Hefs) !>".
-    rewrite Nat.add_comm app_length. by iFrame.
+    rewrite Nat.add_comm length_app. by iFrame.
   - iExists e, (t1' ++ e2' :: t2' ++ efs); iSplitR; first eauto.
     iDestruct "Ht" as "(Ht1 & He1 & Ht2)".
     iModIntro. iMod (wpc_step with "Hσ Hg He1 Hlc") as "H"; first done. iModIntro.
     iApply (step_fupd2N_wand with "H"). iIntros ">(Hσ & Hg & He2 & Hefs) !>".
-    rewrite !app_length /= !app_length.
+    rewrite !length_app /= !length_app.
     replace (length t1' + S (length t2' + length efs))
       with (length efs + (length t1' + S (length t2'))) by lia. by iFrame.
 Qed.
@@ -207,7 +208,7 @@ Proof.
   iMod (wptp_steps with "Hσ Hg He Ht Hlc1") as "Hwp"; first done.
   iModIntro. iApply (step_fupd2N_wand with "Hwp").
   iMod 1 as (e2' t2' ?) "(Hσ & Hg & Hwp & Ht)"; simplify_eq/=.
-  apply elem_of_cons in Hel as [<-|(t1''&t2''&->)%elem_of_list_split].
+  apply elem_of_cons in Hel as [<-|(t1''&t2''&->)%list_elem_of_split].
   - iPoseProof (wpc_safe with "Hσ Hg Hwp Hlc2") as "H".
     iMod "H". eauto.
   - iDestruct "Ht" as "(_ & He' & _)".

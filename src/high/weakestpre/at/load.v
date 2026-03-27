@@ -118,7 +118,7 @@ Section wp_at.
     - inversion 1.
     - intros t2 ???? IH.
       destruct (decide (t = t2)) as [->|ne].
-      * rewrite lookup_insert.
+      * rewrite lookup_insert_eq.
         inversion 1.
         apply thread_view_le_l.
       * rewrite lookup_insert_ne; last done.

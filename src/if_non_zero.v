@@ -2,7 +2,7 @@ From iris.bi Require Import fractional.
 From Coq Require Import QArith Qcanon.
 From iris.algebra Require Import agree.
 From iris.bi Require Import fractional.
-From iris.proofmode Require Import reduction monpred tactics.
+From iris.proofmode Require Import reduction monpred ltac_tactics.
 
 From self Require Import extra.
 From self.base Require Import primitive_laws.
@@ -185,7 +185,7 @@ Section if_non_zero.
     2: { iFrame "Q". iFrame "HQ". iFrame "HP". }
     { done. }
     iFrame.
-    iExists _, _. iFrame. iPureIntro.
+    iPureIntro.
     rewrite Qcplus_assoc.
     rewrite (Qcplus_comm _ p').
     rewrite -Qcplus_assoc.

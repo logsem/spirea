@@ -331,7 +331,7 @@ Section Proof.
         iModIntro.
         iSplitL; last (iSplit; [by iModIntro | done]).
         rewrite /prot /p_full /=.
-        rewrite app_length /= Nat.add_1_r last_snoc.
+        rewrite length_app /= Nat.add_1_r last_snoc.
         by iFrame.
       - iSplit; last done.
         iModIntro.
@@ -403,13 +403,13 @@ Section Proof.
           iModIntro.
           iSplitL "ops_auth". 
           + rewrite /prot /p_full /=.
-            rewrite app_length /= Nat.add_1_r last_snoc.
+            rewrite length_app /= Nat.add_1_r last_snoc.
             by iFrame.
           + iFrame.
             iSplit; first by iModIntro.
             iSplit; first done.
             iPureIntro.
-            rewrite app_length /=.
+            rewrite length_app /=.
             lia.
         - iSplit; last done.
           iModIntro.

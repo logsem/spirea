@@ -1,12 +1,15 @@
 (* A collection of a few fairly general constructions and lemmas. *)
 
+From self Require Export options.
 From stdpp Require Import countable numbers gmap fin_maps list.
 From iris.bi Require Import big_op monpred.
 From iris.algebra Require Import cmra updates gmap agree big_op auth.
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import proofmode ltac_tactics.
 Import interface.bi derived_laws.bi derived_laws_later.bi.
 
 From iris.bi Require Import derived_laws_later.
+
+Set Default Proof Using "Type*".
 
 (* We define our own relation. Workaround for universe issues in stdpp and Iris. *)
 Definition relation2 A := A -> A -> Prop.
@@ -31,7 +34,7 @@ Proof.
   intros le.
   apply singleton_included_l.
   exists a'.
-  split. - by rewrite lookup_insert. - apply Some_included. right. done.
+  split. - by rewrite lookup_insert_eq. - apply Some_included. right. done.
 Qed.
 
 Lemma singleton_included_look {A : cmra} `{Countable K} (m : gmap K A) (k : K) (a b : A) :
@@ -40,7 +43,7 @@ Proof.
   intros L incl.
   apply singleton_included_l.
   eexists b. rewrite L. split; first reflexivity.
-  by apply Some_included_2.
+  apply Some_included_2. by right.
 Qed.
 
 Lemma map_Forall_subseteq `{Countable K} {A} (m1 m2 : gmap K A) (P : K → A → Prop) :
@@ -60,7 +63,7 @@ Lemma map_Forall_singleton `{FinMap K M} {A} (j : K) (y : A) (P : K → A → Pr
 Proof.
   split; intros HP.
   - by intros i x [-> ->]%lookup_singleton_Some.
-  - apply HP, lookup_singleton.
+  - apply HP, lookup_singleton_eq.
 Qed.
 
 Lemma map_Forall_singleton' `{FinMap K M} {A} (j : K) (y : A) (P : K → A → Prop) :
@@ -69,7 +72,7 @@ Lemma map_Forall_singleton' `{FinMap K M} {A} (j : K) (y : A) (P : K → A → P
 Proof.
   split; intros HP.
   - by intros i x [-> ->]%lookup_singleton_Some.
-  - apply HP, lookup_singleton.
+  - apply HP, lookup_singleton_eq.
 Qed.
 
 Lemma option_not_included_None {A : cmra} (x : A) : ¬ (Some x ≼ None).
@@ -187,25 +190,25 @@ Section restrict.
   Proof.
     intros elem.
     destruct (m !! k) eqn:look.
-    - by apply map_filter_lookup_Some.
-    - apply map_filter_lookup_None. by left.
+    - by apply map_lookup_filter_Some.
+    - apply map_lookup_filter_None. by left.
   Qed.
 
   Lemma restrict_lookup_not_elem_of k s m :
     k ∉ s → restrict s m !! k = None.
   Proof.
     intros elem.
-    apply map_filter_lookup_None.
+    apply map_lookup_filter_None.
     right. intros ??. done.
   Qed.
 
   Lemma restrict_lookup_None_lookup k s m :
     m !! k = None → restrict s m !! k = None.
-  Proof. intros elem. apply map_filter_lookup_None. left. done. Qed.
+  Proof. intros elem. apply map_lookup_filter_None. left. done. Qed.
 
   Lemma restrict_lookup_Some (s : D) (m : M A) (k : K) (x : A) :
     restrict s m !! k = Some x ↔ (m !! k = Some x) ∧ k ∈ s.
-  Proof. by rewrite map_filter_lookup_Some. Qed.
+  Proof. by rewrite map_lookup_filter_Some. Qed.
 
   Lemma restrict_lookup_Some_2 (s : D) (m : M A) (k : K) (x : A) :
     m !! k = Some x → k ∈ s → restrict s m !! k = Some x.
@@ -239,7 +242,7 @@ Section restrict_set.
   Qed.
 
   Lemma restrict_empty (m : M A) : restrict (D := D) ∅ m = ∅.
-  Proof. apply map_filter_empty_iff. intros ???. set_solver. Qed.
+  Proof. apply map_empty_filter. intros ???. set_solver. Qed.
 
   Lemma restrict_insert_union k s v m :
     restrict ({[k]} ∪ s) (<[k := v]>m) = <[k:= v]>(restrict s m).
@@ -247,7 +250,7 @@ Section restrict_set.
     rewrite restrict_insert; last set_solver.
     apply map_eq. intros l.
     case (decide (k = l)); intros eq.
-    - subst. by rewrite !lookup_insert.
+    - subst. by rewrite !lookup_insert_eq.
     - rewrite !lookup_insert_ne; try apply eq.
       eapply restrict_lookup_union_eq.
       set_solver.
@@ -296,18 +299,18 @@ Section restrict_dom.
   Proof.
     rewrite /restrict. apply map_eq. intros i.
     destruct (filter (λ '(k, _), k ∈ s1 ∪ s2) m !! i) eqn:look.
-    - apply map_filter_lookup_Some in look as [ha elem].
+    - apply map_lookup_filter_Some in look as [ha elem].
       destruct (decide (i ∈ s1)).
-      + apply lookup_union_Some_l. apply map_filter_lookup_Some. naive_solver.
+      + apply lookup_union_Some_l. apply map_lookup_filter_Some. naive_solver.
       + apply lookup_union_Some_raw. right.
         split.
-        * apply map_filter_lookup_None_2. right. intros _ _. done.
-        * apply map_filter_lookup_Some_2; first done. set_solver.
-    - apply map_filter_lookup_None in look as [look|notElem].
+        * apply map_lookup_filter_None_2. right. intros _ _. done.
+        * apply map_lookup_filter_Some_2; first done. set_solver.
+    - apply map_lookup_filter_None in look as [look|notElem].
       + apply lookup_union_None.
-        split; apply map_filter_lookup_None_2; by left.
+        split; apply map_lookup_filter_None_2; by left.
       + apply lookup_union_None.
-        split; apply map_filter_lookup_None; right; set_solver.
+        split; apply map_lookup_filter_None; right; set_solver.
   Qed.
 
   Lemma disjoint_weaken s1 s1' s2 s2' :
@@ -557,10 +560,10 @@ Section big_sepM2.
           rewrite -dom in Hlook.
           set_solver. }
         rewrite big_sepM2_delete; try done.
-        2: { apply lookup_insert. }
+        2: { apply lookup_insert_eq. }
         f_equiv.
         + apply exist_intro.
-        + rewrite delete_insert; last done. apply exist_intro.
+        + rewrite delete_insert_id; last done. apply exist_intro.
   Qed.
 
   (* Lemma big_sepM2_thread_resource Φ m1 m2 R : *)
@@ -595,10 +598,10 @@ Section big_sepM2.
     iDestruct (big_sepM_impl_dom_subseteq_with_resource with "R sep []")
       as "(A & $ & C)".
     { rewrite 2!dom_map_zip_with. rewrite -domEq -impl. set_solver. }
-    iIntros "!>" (k [??] [??] [l1 l2]%map_lookup_zip_Some [l3 l4]%map_lookup_zip_Some) "R phi".
-    simpl in *.
-    iApply ("impl" with "[//] [//] [//] [//] R phi").
-    iFrame.
+    - iIntros "!>" (k [??] [??] [l1 l2]%map_lookup_zip_Some [l3 l4]%map_lookup_zip_Some) "R phi".
+      simpl in *.
+      iApply ("impl" with "[//] [//] [//] [//] R phi").
+    - iFrame.
   Qed.
 
   (* This could be upstreamed but we'd need to drop the affine requirement and
@@ -812,7 +815,7 @@ Proof.
   - iModIntro.
     iIntros (???) "%Hlookup % ?".
     iApply singleton; last done.
-    + pose proof (lookup_delete m1 k0).
+    + pose proof (lookup_delete_eq m1 k0).
       congruence.
     + apply elem_of_dom_2 in Hlookup.
       set_solver.

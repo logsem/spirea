@@ -1,5 +1,5 @@
 From iris.bi Require Import lib.fractional.
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import ltac_tactics.
 
 From self.base Require Import primitive_laws.
 From self.lang Require Import lang.

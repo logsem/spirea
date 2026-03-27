@@ -1,5 +1,5 @@
-From iris.proofmode Require Import tactics.
-From Perennial.program_logic Require Import crash_weakestpre.
+From iris.proofmode Require Import ltac_tactics.
+From PerennialNG.program_logic Require Import crash_weakestpre.
 From self.base Require Export primitive_laws class_instances post_crash_modality.
 From self.algebra Require Import view.
 From self.base Require Import proofmode wpc_proofmode wpr_lifting.
@@ -58,7 +58,7 @@ Section simple_assignment.
       2: { congruence. }
       iDestruct "H" as (tn ?? histLook ?) "pts".
       destruct (decide (tn = t)) as [->|neq].
-      - rewrite lookup_insert in histLook.
+      - rewrite lookup_insert_eq in histLook.
         inversion histLook.
         simpl.
         iRight. iFrame.

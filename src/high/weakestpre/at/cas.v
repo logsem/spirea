@@ -109,6 +109,8 @@ Section wp_at.
     iDestruct (know_full_encoded_history_lookup with "fullHist hist")
       as %(encσ_i & Hlookσ_i & Hdecodeσ_i).
 
+    (* FIXME: so that [iFrame] cannot peek into [fmapsto] definition *)
+    Opaque fmapsto.
     iApply (wp_cmpxchg_alt with "[#] [$offsets $pts $val]").
     (* [val_safe_compare] proof *)
     { iIntros (t_l [v_l SV_l PV_l BV_l] leT physHistLook).
@@ -168,7 +170,7 @@ Section wp_at.
 
       (* [σ_p] *)
       iDestruct "predPersHolds" as (t_p encσ_p msg_p ? ? ?) "[pview predP]".
-      iAssert (⌜ ∃ σ_p, decode encσ_p = Some σ_p ⌝)%I as (σ_p) "%Hdecodeσ_p". {
+      iAssert ⌜ ∃ σ_p: ST, decode encσ_p = Some σ_p ⌝%I as (σ_p) "%Hdecodeσ_p". {
         iDestruct "predP" as (pred_pers) "[#eqP _]".
         iEval (rewrite discrete_fun_equivI) in "predPersEquiv".
         iSpecialize ("predPersEquiv" $! encσ_p).
@@ -188,7 +190,7 @@ Section wp_at.
       iDestruct ("above" with "[$]") as "%above".
 
       iAssert 
-        ⌜increasing_map (encode_relation sqsubseteq) (<[(t_l + 1)%nat := encode σ_t]> abs_hist)⌝%I as %incri.
+        ⌜increasing_map (encode_relation (A := ST) abs_state_relation) (<[(t_l + 1)%nat := encode σ_t]> abs_hist)⌝%I as %incri.
       {
         iApply (bi.pure_mono).
         { apply
@@ -350,7 +352,7 @@ Section wp_at.
           assert (t ≠ t_l). {
             intro eq.
             simplify_eq.
-            rewrite lookup_delete // in look1. }
+            rewrite lookup_delete_eq // in look1. }
           destruct (decide _); destruct (decide _); naive_solver. }
         
         (* We now insert [predR]. *)
@@ -387,7 +389,7 @@ Section wp_at.
         iApply (big_sepM2_impl with "[$]").
         iIntros (t msg encσ msgLook encSLook) "!> H".
         destruct (decide (t = t_l)) as [ -> | neq ].
-        - rewrite ?Nat.add_1_r lookup_insert.
+        - rewrite ?Nat.add_1_r lookup_insert_eq.
           rewrite ?decide_False; naive_solver.
         - rewrite lookup_insert_ne; last lia.
           destruct (decide _); destruct (decide _); naive_solver. }
@@ -399,7 +401,7 @@ Section wp_at.
           (* TODO: make this hypothesis named. *)
           rewrite H10 // in H4. }
         rewrite ?lookup_insert_ne //.
-        iFrame "∗".
+        iFrame "pview".
         repeat (iSplitPure; first done).
         by iApply (predicate_holds_phi_decode_2 with "[//] predP"). }
       iModIntro.
@@ -448,7 +450,7 @@ Section wp_at.
         apply nolater. lia. }
       iFrameF "locationProtocol".
       iSplitPure.
-      { apply: increasing_map_insert_last; try done. lia.
+      { apply: increasing_map_insert_last; try done; first lia.
         etrans; done. }
       iSplit.
       (* { iFrame "frag absHist". } *)
@@ -504,7 +506,7 @@ Section wp_at.
       iDestruct ("impl" $! _ with "[%] predF") as "[predF Q2]"; first solve_view_le.
       
       iSpecialize ("predFullReadHolds" with "[predF]").
-      { iApply predicate_holds_phi_decode; done. }
+      { iApply (predicate_holds_phi_decode (ST := ST)); done. }
 
       iDestruct ("reins" with "[$] [$] [$] [$] [$]") as "$".
 

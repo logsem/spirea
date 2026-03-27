@@ -1,8 +1,8 @@
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import ltac_tactics.
 From iris.algebra Require Import gmap auth agree gset coPset.
-From Perennial.Helpers Require Import ipm.
-From Perennial.base_logic.lib Require Import wsat.
-From Perennial.program_logic Require Export weakestpre.
+From PerennialNG.Helpers Require Import ipm.
+From PerennialNG.base_logic.lib Require Import wsat.
+From PerennialNG.program_logic Require Export weakestpre.
 From Perennial.program_logic Require Export crash_lang.
 Import uPred.
 
@@ -507,16 +507,16 @@ End recovery_adequacy.
 (* Qed. *)
 
 Lemma bupd_laterN_plain_interweave {PROP : bi}
-    `{BiBUpd PROP} `{BiPlainly PROP} `{BiBUpdPlainly PROP}
-    (P : PROP) (n : nat) `{!Plain P} :
+    `{BiBUpd PROP} `{BiSbi : Sbi PROP} {_: BiBUpdSbi PROP}
+    (P : PROP) (n : nat) `{!Plain P} `{!Absorbing P} :
   Nat.iter n (λ P, |==> ▷ P) P ⊢ ▷^n P.
 Proof.
   iIntros "Hn". iInduction n as [|n] "IH"; first done.
-  simpl. iMod "Hn". iNext. iApply "IH". iFrame.
+  simpl. iApply bupd_elim. iMod "Hn". iModIntro. iNext. iApply "IH". iFrame.
 Qed.
 
 Lemma interweave_iter_intro {PROP : bi}
-    `{BiBUpd PROP} `{BiPlainly PROP} `{BiBUpdPlainly PROP}
+    `{BiBUpd PROP}
     (P : PROP) (n : nat) :
   P ⊢ Nat.iter n (λ P, |==> ▷ P) P.
 Proof.
@@ -525,7 +525,7 @@ Proof.
 Qed.
 
 Lemma interweave_iter_weaken {PROP : bi}
-    `{BiBUpd PROP} `{BiPlainly PROP} `{BiBUpdPlainly PROP}
+    `{BiBUpd PROP}
     (P : PROP) (n1 n2 : nat) :
   n1 <= n2 ->
   Nat.iter n1 (λ P, |==> ▷ P) P ⊢ Nat.iter n2 (λ P, |==> ▷ P) P.
@@ -545,7 +545,7 @@ forall (n1 Hle).
 Qed.
 
 Lemma laterN_weaken {PROP : bi}
-    `{BiBUpd PROP} `{BiPlainly PROP} `{BiBUpdPlainly PROP}
+    `{BiBUpd PROP}
     (P : PROP) (n1 n2 : nat) :
   n1 <= n2 ->
   ▷^n1 P ⊢ ▷^n2 P.
@@ -1031,7 +1031,7 @@ Lemma step_fupdN_fresh_soundness {Λ Σ} {Ω : gGenCmras Σ}
      (* (Hpf1: inv_inG = Hinvpre) *)
      (* (Hpf1: lcGS_inG = lcGpreS_inG) *), ⊢ |={⊤}=>
     ∃ (HI : irisGS Λ Σ Ω)
-      (Hpf1: iris_invGS = Hi)
+      (Hpf1: crash_weakestpre.iris_invGS = Hi)
       (Hpf2 : num_laters_per_step = f) (Hpf2: step_count_next = g),
       (|={⊤}=> step_fupdN_fresh ncurr ns (
        £ (k1 + k2) -∗ ||={⊤|⊤,∅|∅}=> ||▷=>^k1 ||={∅|∅,∅|∅}=> ||▷=>^k2 ⌜φ⌝))%I) →
@@ -1043,12 +1043,12 @@ Proof.
   assert (∃ MAX, step2 <= MAX) as [MAX HMAX];[eauto|].
   set (stepb := steps_sum_base k1 k2 MAX).
   set (step1 := ((length ns * steps_sum_layer stepih 2 MAX) + S stepb)).
-  apply (pure_soundness (M := iResUR Σ)).
+  apply (pure_soundness (PROP := uPredI (iResUR Σ))).
   apply (laterN_soundness _ step1).
   iMod (lc_alloc MAX) as (C Hlceq) "[H● Hlc]".
   iMod wsat_alloc as (Hw ? Hpre) "[Hw HE]".
   rewrite H in Hlceq. rewrite H.
-  iApply bupd_plain.
+  iApply bupd_elim.
   iDestruct (Hiter _) as "H". clear Hiter.
   rewrite /step1 -PeanoNat.Nat.add_succ_comm.
   iDestruct (fupd_to_bupd_res_credit ⊤ ⊤ ⊤ with "[$H● $Hw HE] Hlc H") as ">>H'".
@@ -1164,7 +1164,7 @@ Corollary wp_recv_adequacy_inv Σ {Ω : gGenCmras Σ} Λ CS
          (fork_post : val Λ → iProp Σ) Hpf1a Hpf1b
          Φinv,
         let HI :=
-          Perennial.program_logic.crash_weakestpre.IrisGS Λ Σ Ω Hinv global_stateI
+          crash_weakestpre.IrisGS Λ Σ Ω Hinv global_stateI
             fork_post f1 f2 Hpf1a Hpf1b in
         let HI2 := IrisGS Λ Σ Ω HI stateI in
        ■ (∀ σ nt, stateI σ nt -∗ |={⊤, ∅}=> ⌜ φinv σ ⌝) ∗ (* φinv for initial gen. *)
@@ -1187,7 +1187,7 @@ Proof.
   iMod (Hwp Hinv κs) as (stateI global_stateI fork_post Hpf1a Hpf1b) "H".
   iDestruct "H" as (Φinv) "(#Hinv1&#Hinv2&Hσ&Hg&H)".
   iModIntro.
-  set (HI := Perennial.program_logic.crash_weakestpre.IrisGS
+  set (HI := crash_weakestpre.IrisGS
     Λ Σ Ω Hinv (global_stateI) (fork_post) f1 f2 Hpf1a Hpf1b).
   set (HI2 := IrisGS Λ Σ Ω HI stateI).
   iExists HI2.
@@ -1207,14 +1207,14 @@ Proof.
   iMod "H" as (v2 ??) "(Hσ&Hg&Hv&Hfpost)".
   destruct stat.
   - iDestruct "Hv" as "(Hv&#Hinv)".
-    rewrite ?ncfupd_eq /ncfupd_def.
+    (* rewrite ?ncfupd_eq /ncfupd_def. *)
     iMod ("Hinv" with "[$]") as "Hp".
     iApply fupd2_mask_intro; [done..|]. iIntros "_".
     iApply step_fupd2N_later.
     repeat iModIntro. iSplit; last done.
     iIntros (v2' ? Heq). subst. inversion Heq; subst.
     rewrite to_of_val. naive_solver.
-  - rewrite ?ncfupd_eq /ncfupd_def.
+  - (* rewrite ?ncfupd_eq /ncfupd_def. *)
     iMod ("Hinv1" with "[$]") as "Hp".
     iApply fupd2_mask_intro; [done..|]. iIntros "_".
     iApply step_fupd2N_later.
@@ -1232,7 +1232,7 @@ Proof.
   iMod (Hwp Hinv κs) as (stateI global_stateI fork_post Hpf1a Hpf1b) "H".
   iDestruct "H" as (Φinv) "(#Hinv1&#Hinv2&Hσ&Hg&H)".
   iModIntro.
-  set (HI := Perennial.program_logic.crash_weakestpre.IrisGS
+  set (HI := crash_weakestpre.IrisGS
     Λ Σ Ω Hinv (global_stateI) (fork_post) f1 f2 Hpf1a Hpf1b).
   set (HI2 := IrisGS Λ Σ Ω HI stateI).
   iExists HI2.

@@ -3,7 +3,7 @@ From stdpp Require Import finite.
 
 From iris.algebra Require Import functions gmap agree excl csum max_prefix_list.
 From iris.algebra.lib Require Import mono_list.
-From iris.proofmode Require Import classes tactics.
+From iris.proofmode Require Import classes ltac_tactics.
 From iris.base_logic.lib Require Export iprop own invariants.
 From iris.prelude Require Import options.
 

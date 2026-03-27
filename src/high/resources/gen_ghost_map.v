@@ -6,12 +6,12 @@
 From Equations Require Import Equations.
 From iris.algebra Require Import gmap_view view.
 From iris.bi.lib Require Import fractional.
-From iris.proofmode Require Import classes tactics.
+From iris.proofmode Require Import classes ltac_tactics.
 From iris_named_props Require Import named_props.
-From nextgen Require Import cmra_morphism_extra gmap_view_transformation.
+From nextgen Require Import cmra_morphism_extra.
 
 From self Require Import extra map_extra.
-From self.nextgen Require Import hvec nextgen_promises.
+From self.nextgen Require Import hvec nextgen_promises gmap_view_transformation.
 From self.algebra Require Import view.
 From self.base Require Import generational_resources.
 From self.base.modalities Require Import if_rec.
@@ -24,7 +24,7 @@ Notation iris_view := iris.algebra.view.view.
 
 
 (* typeclasses *)
-Definition ghost_mapR (K: Type) (V: Type) `{!EqDecision K, !Countable K}: cmra := prodR (gmap_viewUR K (leibnizO V)) (gmap_viewUR K (leibnizO V)).
+Definition ghost_mapR (K: Type) (V: Type) `{!EqDecision K, !Countable K}: cmra := prodR (gmap_viewUR K (agreeR (leibnizO V))) (gmap_viewUR K (agreeR (leibnizO V))).
 Class ghost_mapGpreS (K: Type) (V: Type) `{!EqDecision K, !Countable K} (Σ: gFunctors) (Ω: gGenCmras Σ) `{!crashed_atGpreS Σ Ω} := {
   ghost_mapGpreS_ghost_map :: genInDepsG Σ Ω (ghost_mapR K V) [#crashed_atR];
 }.
@@ -66,7 +66,7 @@ Section transformers.
     - intros [? [auth frag]].
       rewrite /ghost_map_trans 2!pair_pcore /=.
       f_equiv.
-      pose proof (@cmra_morphism_pcore _ _ _ (map_entry_trans_cmra_morphism OCV)).
+      pose proof (@cmra_morphism_pcore _ _ _ _ (map_entry_trans_cmra_morphism OCV)).
       specialize H with (View auth frag).
       rewrite /= view.view_pcore_eq in H.
       inversion H.
@@ -84,8 +84,7 @@ Section transformers.
   Definition ghost_map_rel: ghost_map_relyT :=
     λ tC t,
       ∃ OCV,
-        tC = crashed_at_trans OCV ∧
-        t = ghost_map_trans OCV.
+        tC = crashed_at_trans OCV ∧ t = ghost_map_trans OCV.
 End transformers.
 
 Arguments ghost_map_trans {_ _ _ _} _ _.
@@ -100,20 +99,20 @@ Section assertions.
   Context (γ: gname) (map_entry_trans: view → K → V → option (leibnizO V)) `{Hmaptrans: !∀ OCV, MapTrans (V := leibnizO V) (map_entry_trans OCV)}.
   
   Definition ghost_map_auth dq m: iProp Σ :=
-    "own_auth" ∷ gen_own γ (ε, gmap_view_auth (V := leibnizO V) dq m) ∗
+    "own_auth" ∷ gen_own γ (ε, gmap_view_auth (V := agreeR (leibnizO V)) dq (to_agree <$> m)) ∗
     "#rely" ∷ rely (g := ghost_mapGpreS_ghost_map) γ [#crashed_at_name] (ghost_map_rel map_entry_trans) True_pred ∗
     "#crashed" ∷ ∃ OCV, crashed_at_offset OCV.
 
   Definition ghost_map_elem k dq v: iProp Σ :=
-    "own_elem" ∷ gen_own γ (ε, gmap_view_frag (V:= leibnizO V) k dq v) ∗
+    "own_elem" ∷ gen_own γ (ε, gmap_view_frag (V:= agreeR (leibnizO V)) k dq (to_agree v)) ∗
     "#rely" ∷ rely γ [#crashed_at_name] (ghost_map_rel map_entry_trans) True_pred ∗
     "#crashed" ∷ ∃ OCV, crashed_at_offset OCV.
 
   Definition lastgen_ghost_map_auth dq m: iProp Σ :=
-    gen_own γ (gmap_view_auth (V := leibnizO V) dq m, ε).
+    gen_own γ (gmap_view_auth (V := agreeR (leibnizO V)) dq (to_agree <$> m), ε).
 
   Definition lastgen_ghost_map_elem k dq v: iProp Σ :=
-    gen_own γ (gmap_view_frag (V:= leibnizO V) k dq v, ε).
+    gen_own γ (gmap_view_frag (V:= agreeR (leibnizO V)) k dq (to_agree v), ε).
 End assertions.
 
 Arguments ghost_map_auth {_ _ _ _ _ _ _ _} _ _ _ _.
@@ -148,12 +147,13 @@ Section current_gen_ghost_map_lemmas.
     intros p q.
     apply bi.equiv_entails_2.
     - iNamed 1.
+      rewrite -(agree_idemp (A := leibnizO V) (to_agree v)).
       iDestruct "own_elem" as "[p q]".
       iSplitL "p"; iFrame "∗#".
     - iIntros "[[p $] [q _]]".
       iDestruct (gen_own_op_2 with "p q") as "pq".
       rewrite -?pair_op.
-      rewrite -gmap_view_frag_op dfrac_op_own.
+      rewrite -gmap_view_frag_op dfrac_op_own agree_idemp.
       done.
   Qed.
 
@@ -201,10 +201,11 @@ Section current_gen_ghost_map_lemmas.
     iNamed 1.
     iMod (gen_own_update _ (ε, _) (ε, _) with "own_auth") as "[? ?]".
     { apply prod_update_r.
-      apply:gmap_view_alloc; [ done | done | ].
-      apply dfrac_valid_own_1. }
+      apply (gmap_view_alloc (V := agreeR $ leibnizO V) _ k (DfracOwn 1) (to_agree v)); [ | done | done ].
+      rewrite lookup_fmap Hm //. }
     iModIntro.
     iFrame "∗#".
+    rewrite fmap_insert //.
   Qed.
 
   Lemma ghost_map_update {γ m k v} w :
@@ -213,7 +214,7 @@ Section current_gen_ghost_map_lemmas.
     iNamed 1.
     iIntros "[own_elem _]".
     iMod (gen_own_update_2 with "own_auth own_elem") as "[$ $]".
-    { apply prod_update_r. apply: gmap_view_update. }
+    { apply prod_update_r. rewrite fmap_insert. apply: gmap_view_replace. done. }
     by iFrame "#".
   Qed.
 
@@ -232,8 +233,11 @@ Section current_gen_ghost_map_lemmas.
     iNamed 1.
     iIntros "[own_elem _]".
     iDestruct (gen_own_valid_2 with "own_auth own_elem") as
-      %[_ [?[??]]%gmap_view_both_dfrac_valid_L]%pair_valid.
-    done.
+      %[_ (av' & _ & _ & Hav' & _ & Hincl)%gmap_view_both_dfrac_valid_discrete_total]%pair_valid.
+    iPureIntro.
+    apply lookup_fmap_Some in Hav' as [v' [<- Hv']].
+    apply (to_agree_included_L (SI:=natSI) (A:=leibnizO V)) in Hincl.
+    by rewrite Hincl.
   Qed.
 
   Lemma ghost_map_lookup_big {γ dp dq m} m0 :
@@ -263,8 +267,9 @@ Section current_gen_ghost_map_lemmas.
   Proof.
     iNamed 1.
     iIntros "[own_auth' _]".
-    iDestruct (gen_own_valid_2 with "own_auth own_auth'") as %[_ [??]%gmap_view_auth_dfrac_op_valid_L]%pair_valid.
-    done.
+    iDestruct (gen_own_valid_2 with "own_auth own_auth'") as %[_ [? ?%(map_fmap_equiv_inj _
+      (to_agree_inj (A:=(leibnizO _))))]%gmap_view_auth_dfrac_op_valid]%pair_valid.
+    by fold_leibniz.
   Qed.
 
   Lemma ghost_map_auth_agree γ dq1 dq2 m1 m2 :
@@ -288,7 +293,7 @@ Section current_gen_ghost_map_lemmas.
     iNamed 1.
     iIntros "[own_elem' _]".
     iDestruct (gen_own_valid_2 with "own_elem own_elem'") as %[_ [? Hag]%gmap_view_frag_op_valid]%pair_valid.
-    done.
+    rewrite to_agree_op_valid_L in Hag. done.
   Qed.
 
   Lemma ghost_map_elem_agree k γ dq1 dq2 v1 v2 :
@@ -300,18 +305,18 @@ Section current_gen_ghost_map_lemmas.
   Qed.
   (* TODO: allocation lemmas *)
   Lemma big_op_pair_unit_l (m: gmap K V) dq:
-    (ε: gmap_viewUR K (leibnizO V), [^ op map] k↦v ∈ m, gmap_view_frag (V := leibnizO V) k dq v) ≡
-    [^ op map] k↦v ∈ m, ((ε: gmap_viewUR K (leibnizO V), gmap_view_frag (V := leibnizO V) k dq v): ghost_mapR K V).
+    (ε: gmap_viewUR K (agreeR (leibnizO V)), [^ op map] k↦v ∈ (to_agree <$> m), gmap_view_frag (V := agreeR (leibnizO V)) k dq v) ≡
+    [^ op map] k↦v ∈ (to_agree <$> m), ((ε: gmap_viewUR K (agreeR (leibnizO V)), gmap_view_frag (V := agreeR (leibnizO V)) k dq v): ghost_mapR K V).
   Proof.
     induction m using map_ind.
     - rewrite ?big_opM_empty //.
-    - rewrite ?big_opM_insert //.
+    - rewrite fmap_insert ?big_opM_insert ?lookup_fmap ?H0 //.
       rewrite pair_op_2.
       f_equiv.
       done.
   Qed.
-  
-  Lemma ghost_map_alloc OPV OCV m dq :
+
+  Lemma ghost_map_alloc `{∀OCV, MapTrans (V := leibnizO V) (t OCV)} OPV OCV m dq :
     ✓ dq →
     (* this precondition means that we can only allocate in the context of [wp]. *)
     crashed_at_offset OCV -∗
@@ -321,7 +326,7 @@ Section current_gen_ghost_map_lemmas.
     iIntros (?) "#crashed_at_offset #rely_self".
     iMod (own_gen_alloc
                   (DS := [#crashed_atR])
-                  (ε, gmap_view_auth (V:=leibnizO V) (DfracOwn 1) ∅)
+                  (ε, gmap_view_auth (V:=agreeR (leibnizO V)) (DfracOwn 1) ∅)
                   [#crashed_at_name]
                   [##_] with "[]") as (γ) "[auth tok]".
     { apply pair_valid. split; first apply ucmra_unit_valid. apply gmap_view_auth_valid. }
@@ -330,9 +335,10 @@ Section current_gen_ghost_map_lemmas.
       iAssumption. }
     iExists γ.
     iMod (gen_own_update _ (ε, _) (ε, _) with "auth") as "[auth frag]".
-    { apply prod_update_r. apply: (gmap_view_alloc_big (V:=leibnizO V) _ m dq).
+    { apply prod_update_r. apply: (gmap_view_alloc_big (V:= agreeR (leibnizO V)) _ (to_agree <$> m) dq).
       - apply map_disjoint_empty_r.
-      - done. }
+      - done.
+      - by apply map_Forall_fmap. }
     iMod (token_strengthen_promise
             (DS := [#crashed_atR])
             _ [#_] [##_] _ (ghost_map_rel t) _ True_pred
@@ -347,21 +353,26 @@ Section current_gen_ghost_map_lemmas.
     (* TODO: this subgoal requires me to prove that for any transformer picked for
      * [crashed_atR], there exists a transformer for the map that satisfy [R].
      * this can only be proven given specific [R]. I should move this lemma around. *)
-    { admit. }
+    { intros ts crashedPred.
+      dependent elimination ts as [hcons tC hnil].
+      destruct crashedPred as ((OCV2 & ? & ->) & _).
+      exists (ghost_map_trans t OCV2).
+      split; first apply _.
+      simpl.
+      exists OCV2. done. }
     iDestruct (token_to_rely with "tok") as "#rely".
     iModIntro.
     rewrite (right_id _ (∪)).
     iFrame "auth #".
-    iSplit; first by iExists _.
     rewrite /ghost_map_elem.
     rewrite big_op_pair_unit_l big_opM_gen_own_1.
+    rewrite big_sepM_fmap.
     iApply (big_sepM_impl with "frag").
     iIntros "!>" (k v ?) "$".
     iFrame "#".
-    by iExists _.
   Admitted.
   
-  Lemma ghost_map_alloc_persistent OPV OCV m :
+  Lemma ghost_map_alloc_persistent `{∀ OCV, MapTrans (V := leibnizO V) (t OCV)} OPV OCV m :
     crashed_at_offset OCV -∗
     rely_self crashed_at_name (crashed_at_pred OPV) ==∗
     ∃ γ, ghost_map_auth γ t (DfracOwn 1) m ∗ [∗ map] k ↦ v ∈ m, k ↪[γ, t]□ v.
@@ -419,8 +430,14 @@ Section last_gen_ghost_map_lemmas.
   Proof.
     iIntros "own_auth own_elem".
     iDestruct (gen_own_valid_2 with "own_auth own_elem") as
-      %[[?[??]]%gmap_view_both_dfrac_valid_L _]%pair_valid.
-    done.
+      %[(av' & _ & _ & Hav' & _ & Hincl)%gmap_view_both_dfrac_valid_discrete_total _]%pair_valid.
+    iPureIntro.
+    apply lookup_fmap_Some in Hav' as [v' [<- Hv']].
+    (* FIXME: Why do we need [(SI:=natSI) (A:=leibnizO V)]
+    https://gitlab.mpi-sws.org/iris/stdpp/-/merge_requests/555 seems to resolve
+    the problem? *)
+    apply (to_agree_included_L (SI:=natSI) (A:=leibnizO V)) in Hincl.
+    by rewrite Hincl.
   Qed.
   
   Lemma lastgen_ghost_map_lookup_big {γ dp dq m} m0 :
@@ -440,8 +457,8 @@ Section last_gen_ghost_map_lemmas.
     ⌜✓ (dq1 ⋅ dq2) ∧ v1 = v2⌝.
   Proof.
     iIntros "own_elem own_elem'".
-    iDestruct (gen_own_valid_2 with "own_elem own_elem'") as %[[? ?]%gmap_view_frag_op_valid _]%pair_valid.
-    done.
+    iDestruct (gen_own_valid_2 with "own_elem own_elem'") as %[[? Hag]%gmap_view_frag_op_valid _]%pair_valid.
+    rewrite to_agree_op_valid_L in Hag. done.
   Qed.
   
   Lemma lastgen_ghost_map_elem_agree k γ dq1 dq2 v1 v2 :
@@ -458,8 +475,9 @@ Section last_gen_ghost_map_lemmas.
     lastgen_ghost_map_auth γ dq1 m1 -∗ lastgen_ghost_map_auth γ dq2 m2 -∗ ⌜✓ (dq1 ⋅ dq2) ∧ m1 = m2⌝.
   Proof.
     iIntros "own_auth own_auth'".
-    iDestruct (gen_own_valid_2 with "own_auth own_auth'") as %[[??]%gmap_view_auth_dfrac_op_valid_L _]%pair_valid.
-    done.
+    iDestruct (gen_own_valid_2 with "own_auth own_auth'") as %[[? ?%(map_fmap_equiv_inj _
+      (to_agree_inj (A:=(leibnizO _))))]%gmap_view_auth_dfrac_op_valid _]%pair_valid.
+    by fold_leibniz.
   Qed.
   
   Lemma lastgen_ghost_map_auth_agree γ dq1 dq2 m1 m2 :
@@ -470,14 +488,6 @@ Section last_gen_ghost_map_lemmas.
     done.
   Qed.
 End last_gen_ghost_map_lemmas.
-
-Lemma map_entry_lift_gmap_view_auth `{K: Type, !EqDecision K, !Countable K, V: Type} dq m map_entry :
-  (map_entry_lift_gmap_view (K := K) (V := leibnizO V) map_entry (gmap_view_auth dq m)) =
-  (gmap_view_auth dq (map_imap map_entry m)).
-Proof.
-  unfold map_entry_lift_gmap_view, fmap_view, fmap_pair. simpl.
-  rewrite agree_map_to_agree. done.
-Qed.
 
 (* [loc_map]s are ghost maps that simply drop or preserve entries based on the key and
  * *)
@@ -513,17 +523,11 @@ Section loc_map_lemmas.
 
   Lemma elem_of_drop_OCV_gmap_view_frag OCV ℓ dq v :
     ℓ ∈ dom OCV →
-    (map_entry_lift_gmap_view (V := leibnizO V) (drop_OCV OCV) (gmap_view_frag (V := leibnizO V) ℓ dq v)) =
-    (gmap_view_frag (V:= leibnizO V) ℓ dq v).
+    (map_entry_lift_gmap_view (V := leibnizO V) (drop_OCV OCV) (gmap_view_frag (V := agreeR (leibnizO V)) ℓ dq (to_agree v))) =
+    (gmap_view_frag (V:= agreeR (leibnizO V)) ℓ dq (to_agree v)).
   Proof.
     intros.
-    unfold map_entry_lift_gmap_view, gMapTrans_frag_lift, map_trans_frag_lift, fmap_view, fmap_pair. simpl.
-    unfold gmap_view_frag, view_frag.
-    f_equal.
-    rewrite -{1}insert_empty.
-    erewrite map_imap_insert_Some;
-      first rewrite map_imap_empty insert_empty //.
-    rewrite agree_option_map_to_agree /drop_OCV decide_True //.
+    rewrite map_entry_lift_gmap_view_frag /drop_OCV decide_True //.
   Qed.
 
   Context `{!nvmBaseGS Σ Ω, !ghost_mapGpreS loc V Σ Ω}.
@@ -593,9 +597,6 @@ Section loc_map_lemmas.
     iDestruct "crashed" as (??) "[pickedC' #crashed_at']".
     iPickedInAgree "pickedC pickedC'".
     iFrame "∗#".
-    iIntros.
-    iExists _, _.
-    iApply "crashed_at'".
   Qed.
   
   Lemma ghost_map_elem_into_nextgen_ifrec γ ℓ dq v:
@@ -645,17 +646,11 @@ Section na_views_lemmas.
 
   Lemma elem_of_drop_OCV_clear_gmap_view_frag OCV ℓ dq v :
     ℓ ∈ dom OCV →
-    (map_entry_lift_gmap_view (V := leibnizO V) (drop_OCV_clear OCV) (gmap_view_frag (V := leibnizO V) ℓ dq v)) =
-    (gmap_view_frag (V:= leibnizO V) ℓ dq ∅).
+    (map_entry_lift_gmap_view (V := leibnizO V) (drop_OCV_clear OCV) (gmap_view_frag (V := agreeR (leibnizO V)) ℓ dq (to_agree v))) =
+    (gmap_view_frag (V:= agreeR (leibnizO V)) ℓ dq (to_agree ∅)).
   Proof.
     intros.
-    unfold map_entry_lift_gmap_view, gMapTrans_frag_lift, map_trans_frag_lift, fmap_view, fmap_pair. simpl.
-    unfold gmap_view_frag, view_frag.
-    f_equal.
-    rewrite -{1}insert_empty.
-    erewrite map_imap_insert_Some;
-      first rewrite map_imap_empty insert_empty //.
-    rewrite agree_option_map_to_agree /drop_OCV_clear decide_True //.
+    rewrite map_entry_lift_gmap_view_frag /drop_OCV_clear decide_True //.
   Qed.
   
   #[global] Instance na_views_auth_into_nextgen γ dq m:
@@ -718,9 +713,6 @@ Section na_views_lemmas.
     iDestruct "crashed" as (??) "[pickedC' #crashed_at']".
     iPickedInAgree "pickedC pickedC'".
     iFrame "∗#".
-    iIntros.
-    iExists _, _.
-    iApply "crashed_at'".
   Qed.
 End na_views_lemmas.
 
@@ -791,8 +783,8 @@ Section per_location_map_lemmas.
 
   Lemma elem_of_drop_above_bump_gmap_view_frag OCV t dq v v' :
     drop_above_bump OCV t v = Some v' →
-    (map_entry_lift_gmap_view (V := leibnizO V) (drop_above_bump OCV) (gmap_view_frag (V := leibnizO V) t dq v)) =
-    (gmap_view_frag (V:= leibnizO V) t dq v').
+    (map_entry_lift_gmap_view (V := leibnizO V) (drop_above_bump OCV) (gmap_view_frag (V := agreeR (leibnizO V)) t dq (to_agree v))) =
+    (gmap_view_frag (V:= agreeR (leibnizO V)) t dq (to_agree v')).
   Proof.
     intros H.
     unfold map_entry_lift_gmap_view, gMapTrans_frag_lift, map_trans_frag_lift, fmap_view, fmap_pair. simpl.

@@ -1,9 +1,8 @@
 From Equations Require Import Equations.
 From iris.algebra Require Import gmap_view.
 From iris.bi.lib Require Import fractional.
-From iris.proofmode Require Import classes tactics.
+From iris.proofmode Require Import classes ltac_tactics.
 From iris_named_props Require Import named_props.
-From nextgen Require Import cmra_morphism_extra gmap_view_transformation.
 
 From self Require Import extra map_extra.
 From self.nextgen Require Import hvec nextgen_promises.
@@ -261,7 +260,6 @@ Section lemmas.
       { iExists bumper. iFrame "∗#". }
       iSplitL "auth2".
       { iExists bumper. iFrame "∗#". }
-      iExists bumper.
       iFrame "∗#".
   Qed.
   
@@ -289,7 +287,7 @@ Section lemmas.
       iIntros "!>" (k ? ???) "(%bumper & #bumper & auth)".
       iExists bumper.
       iFrame "∗#".
-      iDestruct (big_sepM_lookup with "ptsMap") as "$"; first done.
+      iDestruct (big_sepM_lookup with "ptsMap") as "[$ [$ _]]"; first done.
     - rewrite /frag_entry.
       iApply big_sepM_forall. iIntros (???).
       iApply big_sepM_forall. iIntros (???).
@@ -387,11 +385,11 @@ Section lemmas.
       iSplitL "auth"; first iFrame.
       iSplitR "map"; last iFrame.
       iExists bumper.
-      iFrame "∗#". }
+      iFrame "∗#". iDestruct "bumper" as "[$ [$ _]]". }
     iSplit.
-    { iExists _, _. iFrame "∗#". }
+    { iExists _, _. iFrame "∗#". iDestruct "bumper" as "[$ [$ _]]". }
     iApply (big_sepM_impl with "pts2").
-    { iIntros "!>" (???) "pts2". iExists _, _. iFrame "∗#". }
+    { iIntros "!>" (???) "pts2". iExists _, _. iFrame "∗#". iDestruct "bumper" as "[$ [$ _]]". }
   Qed.
 
   Lemma full_map_full_entry_insert γ m k1 k2 v mi :
@@ -417,7 +415,7 @@ Section lemmas.
     iEval (rewrite -Qp.half_half -dfrac_op_own ghost_map_auth_fractional) in "authI".
     replace (DfracOwn (1 / 2)) with (dfrac_div_2 (DfracOwn 1)); last done.
     iDestruct "authI" as "[authI authI']".
-    iDestruct (big_sepM2_insert_delete with "[map authI']") as "map".
+    iDestruct (big_sepM2_insert_delete _ gnames with "[map authI']") as "map".
     { iFrame. iExists bumper. iFrame "∗#". }
     rewrite (insert_id gnames); last done.
     iModIntro.

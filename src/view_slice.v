@@ -198,13 +198,13 @@ Section drop_prefix.
     drop_prefix h t !! k = h !! (k + t).
   Proof.
     rewrite /drop_prefix.
-    apply (map_fold_ind (λ mr h, mr !! k = h !! (k + t))); first done.
+    apply (map_fold_weak_ind (λ mr h, mr !! k = h !! (k + t))); first done.
     intros ????? IH.
     destruct (decide (i = k + t)) as [eq|neq].
     - rewrite decide_True; last lia.
       rewrite -eq.
       assert (i - t = k) as -> by lia.
-      rewrite !lookup_insert.
+      rewrite !lookup_insert_eq.
       done.
     - rewrite lookup_insert_ne; last done. rewrite -IH.
       destruct (decide (t ≤ i)); last done.
@@ -233,7 +233,7 @@ Section drop_prefix.
   Proof.
     apply map_eq. intros i. rewrite drop_prefix_lookup.
     destruct (decide (i = t2)) as [->|neq].
-    - rewrite !lookup_insert. done.
+    - rewrite !lookup_insert_eq. done.
     - rewrite lookup_insert_ne; last congruence.
       rewrite lookup_insert_ne; last lia.
       apply drop_prefix_lookup.
@@ -244,7 +244,7 @@ Section drop_prefix.
    t = 0 ∧ m !! (t + x) = Some a.
   Proof.
     intros look%drop_prefix_lookup_Some.
-    apply map_filter_lookup_Some in look as (? & ?).
+    apply map_lookup_filter_Some in look as (? & ?).
     split; [lia | done].
   Qed.
 

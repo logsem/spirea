@@ -2,7 +2,7 @@
 
 From stdpp Require Export binders strings.
 From stdpp Require Import countable.
-From iris.algebra Require Import ofe.
+From iris.algebra Require Import ofe stepindex_finite.
 From iris.heap_lang Require Import locations.
 
 Module syntax.

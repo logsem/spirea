@@ -2,9 +2,8 @@
 From Equations Require Import Equations.
 From iris.algebra Require Import gset.
 From iris.bi.lib Require Import fractional.
-From iris.proofmode Require Import classes tactics.
+From iris.proofmode Require Import classes ltac_tactics.
 From iris_named_props Require Import named_props.
-From nextgen Require Import cmra_morphism_extra gmap_view_transformation.
 
 From self Require Import extra map_extra.
 From self.nextgen Require Import hvec nextgen_promises.
@@ -71,7 +70,6 @@ Section gen_alocs.
     rewrite fmap_auth_auth /drop_OCV_locs.
     iDestruct "own_auth" as "[$ _]".
     iFrame "#".
-    by iExists _.
   Qed.
 
   #[global] Instance gen_alocs_frag_into_nextgen {γ} ℓs:
@@ -94,9 +92,7 @@ Section gen_alocs.
     iDestruct "crashed" as (??) "[pickedC' #crashed_at]".
     iPickedInAgree "pickedC pickedC'".
     iFrame "∗#".
-    iExists _, _.
-    iApply "crashed_at".
-  Qed.
+    Qed.
 
   Lemma gen_alocs_update {γ} locs ℓ :
     gen_alocs_auth γ locs ==∗ gen_alocs_auth γ (locs ∪ {[ ℓ ]}) ∗ gen_alocs_frag γ {[ ℓ ]}.

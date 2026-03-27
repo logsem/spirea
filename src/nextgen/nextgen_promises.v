@@ -6,7 +6,7 @@ From stdpp Require Import finite.
 
 From iris.algebra Require Import functions gmap agree excl csum max_prefix_list.
 From iris.algebra.lib Require Import mono_list.
-From iris.proofmode Require Import classes tactics.
+From iris.proofmode Require Import classes ltac_tactics.
 From iris.base_logic.lib Require Export iprop own.
 From iris.base_logic.lib Require Import invariants.
 From iris.prelude Require Import options.
@@ -19,7 +19,7 @@ From self.high Require Import increasing_map.
 From self.nextgen Require Export types omega generational_cmra transmap
   promise nextgen_promises_model gen_ing.
 
-From Coq.Logic Require Import Eqdep. (* Import UIP axiom. *)
+From Stdlib.Logic Require Import Eqdep. (* Import UIP axiom. *)
 
 Import EqNotations. (* Get the [rew] notation. *)
 Import uPred.
@@ -210,7 +210,7 @@ Lemma discrete_fun_singleton_map_included {Σ} {i : gid Σ} {A : cmra} eq (γ : 
 Proof.
   intros incl.
   apply discrete_fun_singleton_included.
-  apply singleton_mono.
+  apply singleton_included_mono.
   apply: cmra_morphism_monotone.
   destruct eq.
   apply incl.
@@ -356,9 +356,10 @@ Proof.
   dependent elimination ts. (* as [vcons t ts']. *)
   specialize (IH DS' (λ n, gs (FS n)) deps_ids' (λ n, genInDepsG_eqs (FS n))).
   specialize (IH γs' h (λ n, o (FS n))).
-  iAssert (
-    (∀ idx : fin n0, picked_out (γs' !!! idx) (hvec_lookup_fmap h idx))%I
-  ) as "outs'".
+  (* FIXME: I don't know what part of the dependent typing system broke,
+   * but I found a funny workaraound. *)
+  set (outs' := (∀ idx, picked_out _ _)%I) in IH.
+  iAssert ( outs' ) as "outs'".
   { iIntros (i). iSpecialize ("outs" $! (FS i)). iApply "outs". }
   iPoseProof (IH with "outs'") as (trans val transLook) "OP".
   iSpecialize ("outs" $! 0%fin).
@@ -603,7 +604,7 @@ Section nextgen_assertion_rules.
       rewrite map_lookup_imap.
       destruct (decide (γ = γ2)) as [<- | neqγ].
       2: { rewrite !lookup_singleton_ne; done. }
-      rewrite 2!lookup_singleton.
+      rewrite 2!lookup_singleton_eq.
       simpl.
       f_equiv.
       f_equiv.
@@ -951,7 +952,7 @@ Section rules_with_deps.
     eexists _.
     split; last done.
     intros pi elm eq.
-    apply (elem_of_list_fmap_1 pi_γ) in elm.
+    apply (list_elem_of_fmap_2 pi_γ) in elm.
     simplify_eq. congruence.
   Qed.
 
@@ -1233,7 +1234,8 @@ Section rules_with_deps.
         eapply promise_has_deps_mono; last apply allDeps.
         unfold lookup_fmap_Ocs.
         intros ???.
-        rewrite True_pred_rew_lookup_fmap_rew.
+        (* Gemini told me this fix. *)
+        rewrite /preds_for_genInG True_pred_rew_lookup_fmap_rew.
         apply rew_True_pred. }
     unfold own_promises.
     rewrite big_sepL_cons.
@@ -1241,8 +1243,8 @@ Section rules_with_deps.
     iApply own_promise_info_own; first done.
     iExists (True_rel :: nil).
     iExists (True_pred :: nil).
-    iFrame.
-    iPureIntro. apply pred_prefix_list_for'_True.
+    iFrame "B2 OD".
+    iPureIntro. apply: pred_prefix_list_for'_True.
   Qed.
 
   Lemma gen_token_split γ :
@@ -1301,10 +1303,10 @@ Section rules_with_deps.
     apply promises_wf_lookup_at in look as (i & look & deps); last done.
     destruct (deps idx) as (piSat & elm & ? & ? & ?).
     simplify_eq.
-    apply elem_of_list_lookup_1 in elm as (o & elm).
+    apply list_elem_of_lookup_1 in elm as (o & elm).
     rewrite lookup_drop in elm.
     edestruct (promises_wf_unique _ _ wf pi2 piSat) as [<-|diff]; try done.
-    { eapply elem_of_list_lookup_2.
+    { eapply list_elem_of_lookup_2.
       apply elm. }
     2: { destruct diff as [neq|neq]; congruence. }
     exists i, (S i + o).
@@ -1332,7 +1334,7 @@ Section rules_with_deps.
       apply Nat.le_exists_sub in le as (j' & eq & _).
       rewrite (comm (Nat.add)) in eq.
       simplify_eq.
-      eapply elem_of_list_lookup_2.
+      eapply list_elem_of_lookup_2.
       rewrite lookup_tail.
       done. }
     split; first done.

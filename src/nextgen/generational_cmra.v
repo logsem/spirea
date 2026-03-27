@@ -1,6 +1,6 @@
-From iris.algebra Require Import functions gmap agree excl csum max_prefix_list.
+From iris.algebra Require Import functions gmap agree excl csum max_prefix_list stepindex_finite.
 From iris.algebra.lib Require Import mono_list.
-From iris.proofmode Require Import classes tactics.
+From iris.proofmode Require Import classes ltac_tactics.
 From nextgen Require Import cmra_morphism_extra.
 From nextgen Require Import gen_single_shot gen_nc.
 
@@ -107,7 +107,7 @@ Section cmra.
           (? & ? & ? & ? & ? & ?) (? & ? & ? & ? & ? & ?).
         split_and!; etrans; done.
     - intros ?? [??????] [??????] (? & ? & ? & ? & ? & ?) ?. simpl in *.
-      split_and!; eapply dist_lt; done.
+      split_and!; eapply dist_le; done.
   Qed.
   Canonical Structure generational_cmraO := Ofe (generational_cmra A DS) generational_cmra_ofe_mixin.
 
@@ -208,19 +208,19 @@ Section cmra.
       unfold valid, gen_cmra_valid_instance, validN, gen_cmra_validN_instance.
       simpl. rewrite 6!cmra_valid_validN.
       naive_solver.
-    - intros ? [??????].
+    - intros ?? [??????].
       unfold validN, gen_cmra_validN_instance. simpl.
-      intros H; split_and!; apply cmra_validN_S, H.
+      intros H ?; split_and!; (apply (cmra_validN_le n0); [ apply H | done ]).
     - intros [??????] [??????] [??????].
       rewrite 4!gen_cmra_op_eq.
       rewrite 6!assoc. done.
     - intros [??????] [??????]. rewrite 2!gen_cmra_op_eq.
       split_and!; simpl; apply: comm.
     - intros [??????]. rewrite gen_cmra_op_eq. simpl.
-      split_and!; simpl; apply cmra_core_l.
+      split_and!; simpl; try apply: cmra_core_l.
     - intros [??????].
       rewrite gen_cmra_core_eq.
-      split_and!; simpl; apply cmra_core_idemp.
+      split_and!; simpl; apply: cmra_core_idemp.
     - intros [??????] [??????].
       rewrite gen_cmra_core_eq.
       rewrite -2!gen_cmra_incl_mono.
@@ -357,9 +357,12 @@ Section upred.
     ✓ (MkGen (A := A) (DS := DS) a b c d e f)
     ⊣⊢@{uPred M} ✓ a ∧ ✓ b ∧ ✓ c ∧ ✓ d ∧ ✓ e ∧ ✓ f.
   Proof.
-    uPred.unseal. done.
+    rewrite /internal_cmra_valid /si_pure /si_emp_valid /sbi_si_pure /sbi_si_emp_valid.
+    uPred.unseal.
+    siProp.unseal.
+    uPred_primitive.unseal.
+    done.
   Qed.
-
 End upred.
 
 Section lemmas.
@@ -614,7 +617,7 @@ End lemmas.
 Lemma generational_cmraR_transp {A1 A2 n1 n2} {DS1 : ivec n1 cmra} {DS2 : ivec n2 cmra}
     (eq_n : n1 = n2) :
   A1 = A2 →
-  DS1 = rew <- eq_n in DS2 →
+  DS1 = rew <- [λ x, ivec x cmra] eq_n in DS2 →
   generational_cmraR A1 DS1 = generational_cmraR A2 DS2.
 Proof. revert eq_n. intros -> -> ->. done. Defined.
 

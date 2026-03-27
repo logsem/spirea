@@ -1,9 +1,9 @@
 From iris.algebra Require Import auth.
 From iris.bi Require Import fractional.
-From iris.proofmode Require Import reduction monpred tactics.
+From iris.proofmode Require Import reduction monpred ltac_tactics.
 
-From Perennial.Helpers Require Import ipm NamedProps.
-From Perennial.program_logic Require Import recovery_weakestpre.
+From PerennialNG.Helpers Require Import ipm NamedProps.
+From PerennialNG.program_logic Require Import recovery_weakestpre.
 
 From self Require Import extra ipm_tactics if_non_zero map_extra.
 From self.algebra Require Import ghost_map ghost_map_map.
@@ -384,9 +384,9 @@ Section post_crash_interact.
     rewrite /new_hist. rewrite /drop_above.
     apply map_eq. intros t'.
     rewrite lookup_omap.
-    rewrite map_filter_lookup.
+    rewrite filter_map_lookup.
     rewrite !lookup_fmap.
-    rewrite map_filter_lookup.
+    rewrite filter_map_lookup.
     destruct (abs_hist !! t'); simpl; last done.
     destruct (decide (t' ≤ t)).
     - rewrite !option_guard_True; try done.
@@ -1337,7 +1337,7 @@ Typeclasses Opaque post_crash_flush.
 
 From iris.bi Require Import bi.
 Import bi.
-From iris.proofmode Require Import tactics environments intro_patterns monpred.
+From iris.proofmode Require Import ltac_tactics environments intro_patterns monpred.
 
 Section intuit_to_spatial.
   Context {PROP : bi}.

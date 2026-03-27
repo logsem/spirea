@@ -1,9 +1,9 @@
 From stdpp Require Export namespaces.
 From iris.algebra Require Import gmap.
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import ltac_tactics.
 From self.nextgen Require Import nextgen_promises_ng.
-From Perennial.base_logic.lib Require Export fancy_updates fupd_level.
-From Perennial.base_logic.lib Require Import wsat.
+From PerennialNG.base_logic.lib Require Export fancy_updates fupd_level.
+From PerennialNG.base_logic.lib Require Import wsat.
 From iris.prelude Require Import options.
 Import uPred.
 
@@ -63,9 +63,10 @@ Section inv.
   Proof.
     exists (coPpick (MaybeEn1 (↑ N) ∖gset_to_coPset E)).
     rewrite -elem_of_gset_to_coPset (comm and) -elem_of_difference.
-    apply coPpick_elem_of=> Hfin.
-    eapply (MaybeEn_infinite _ (nclose_infinite N)), (difference_finite_inv _ _), Hfin.
-    apply gset_to_coPset_finite.
+    apply coPpick_elem_of=> Hempty.
+    eapply (MaybeEn_infinite _ (nclose_not_finite N)), (difference_finite_inv _ _).
+    { apply gset_to_coPset_finite. }
+    erewrite Hempty. apply empty_finite.
   Qed.
 
   Lemma own_inv_alloc0 N E P : ▷ P -∗ inv_condition P -∗ |0={E}=> own_inv N P.
@@ -216,7 +217,7 @@ Section inv.
     iMod ("HinvQ" with "[%]") as "[$ HcloseQ]"; first set_solver.
     iMod (fupd_level_mask_subseteq (E ∖ ↑N)) as "Hclose"; first set_solver.
     iIntros "!> [HP HQ]".
-    iMod "Hclose" as %_. iMod ("HcloseQ" with "HQ") as %_. by iApply "HcloseP".
+    iMod "Hclose" as % _. iMod ("HcloseQ" with "HQ") as % _. by iApply "HcloseP".
   Qed.
 
   Lemma inv_combine_dup_l N P Q :
@@ -226,7 +227,7 @@ Section inv.
     rewrite inv_eq. iIntros "#HPdup #HinvP #HinvQ !>" (E ?).
     iMod ("HinvP" with "[//]") as "[HP HcloseP]".
     iDestruct ("HPdup" with "HP") as "[$ HP]".
-    iMod ("HcloseP" with "HP") as %_.
+    iMod ("HcloseP" with "HP") as % _.
     iMod ("HinvQ" with "[//]") as "[$ HcloseQ]".
     iIntros "!> [HP HQ]". by iApply "HcloseQ".
   Qed.

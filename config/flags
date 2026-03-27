@@ -1,0 +1,24 @@
+# Specification for custom Rocq compilation flags (turns into `-arg` values in `_RocqProject`).
+# Syntax:
+# - One flag per line with no leading/trailing blanks.
+# - Empty lines and lines starting with '#' are ignored.
+
+# Perennial-disabled warnings
+-w
+-ssr-search-moved
+-w
++deprecated-hint-without-locality
+-w
+-deprecated-instance-without-locality
+-w
+-future-coercion-class-field
+-w
++deprecated-hint-rewrite-without-locality
+-w
+-deprecated-field-instance-without-locality
+-w
++deprecated-tactic-notation
+
+# Iris-disabled warnings
+-w
+-notation-overridden,-redundant-canonical-projection,-deprecated-typeclasses-transparency-without-locality

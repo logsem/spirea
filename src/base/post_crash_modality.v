@@ -2,10 +2,10 @@
 From Coq Require Import QArith Qcanon.
 From iris.algebra Require Import agree.
 From iris.bi Require Import fractional.
-From iris.proofmode Require Import reduction monpred tactics.
+From iris.proofmode Require Import reduction monpred ltac_tactics.
 
-From Perennial.program_logic Require Export crash_lang.
-From Perennial.Helpers Require Import ipm NamedProps.
+From PerennialNG.program_logic Require Export crash_lang.
+From PerennialNG.Helpers Require Import ipm NamedProps.
 
 From self Require Import extra if_non_zero.
 From self.lang Require Import lang.
@@ -347,7 +347,7 @@ Section post_crash_prop.
     - iDestruct "B" as (t msg look') "(pts & #rec' & hihi)".
       iExists t, msg. iFrame "%#∗".
       pose proof (view_le_look _ _ _ _ look incl) as [t' [RVlook ho]].
-      iDestruct (recovered_look_eq with "rec rec'") as "<-"; [done|apply lookup_singleton|].
+      iDestruct (recovered_look_eq with "rec rec'") as "<-"; [done|apply lookup_singleton_eq|].
       done.
     - pose proof (view_le_look _ _ _ _ look incl) as [t' [RVlook ho]].
       iExFalso. iApply "B".

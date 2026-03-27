@@ -1,10 +1,9 @@
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import ltac_tactics.
 From iris.bi.lib Require Import fractional.
 (* From iris.base_logic.lib Require Export gen_heap. (* proph_map. *) *)
 
-(* From Perennial.program_logic Require Import ectx_lifting. *)
-(* From Perennial.program_logic Require Export ectx_language weakestpre lifting. *)
-From Perennial.program_logic Require crash_weakestpre.
+(* From PerennialNG.program_logic Require Import ectx_lifting. *)
+(* From PerennialNG.program_logic Require Export ectx_language weakestpre lifting. *)
 From self.program_logic Require Export ectx_lifting crash_weakestpre.
 From self.base Require Import generational_resources class_instances.
 From self.nextgen Require Import nextgen_promises.
@@ -65,8 +64,8 @@ Proof.
 Qed.
 
 (* prefer perennial definitions around invariants *)
-Notation invGS := Perennial.base_logic.lib.wsat.invGS.invGS.
-Notation inv := Perennial.base_logic.lib.invariants.inv.
+Notation invGS := PerennialNG.base_logic.lib.wsat.invGS.invGS.
+Notation inv := PerennialNG.base_logic.lib.invariants.inv.
 
 Definition borrowN := nroot .@ "borrow".
 Definition crash_borrow_ginv_number : nat := 6%nat.
@@ -84,7 +83,7 @@ Class extraStateInterp Σ := {
 
 Global Program Instance Perennial_irisGS
        `{!PerennialG Σ, extraStateInterp Σ, Ω : gGenCmras Σ, !nvmBaseGS Σ Ω} :
-  Perennial.program_logic.crash_weakestpre.irisGS nvm_lang Σ Ω := {
+  crash_weakestpre.irisGS nvm_lang Σ Ω := {
   iris_invGS := P_invGS;
   global_state_interp g ns mj D _ :=
       (validV ∅ ∗ ∃ ns' mj' D', ⌜ ns = ns' ∧ mj = mj' ∧ D = D' ⌝)%I;
@@ -176,9 +175,9 @@ Section max_view.
     rewrite lookup_included. intros ℓ'.
     rewrite !lookup_fmap.
     destruct (decide (ℓ = ℓ')).
-    * subst. rewrite !lookup_insert. simpl.
+    * subst. rewrite !lookup_insert_eq. simpl.
       apply Some_included_2.
-      apply max_nat_included. simpl.
+      right. apply max_nat_included. simpl.
       rewrite max_msg_insert.
       lia.
     * rewrite !lookup_insert_ne; [|done|done].
@@ -223,22 +222,22 @@ Section max_view.
     intros look ℓ'.
     rewrite !lookup_fmap.
     destruct (decide (ℓ = ℓ')).
-    * subst. rewrite lookup_insert. rewrite look. simpl.
+    * subst. rewrite lookup_insert_eq. rewrite look. simpl.
       apply Some_included_2.
-      apply max_nat_included. simpl.
+      right. apply max_nat_included. simpl.
       apply max_msg_le_insert.
     * rewrite lookup_insert_ne; done.
   Qed.
 
   (***** Lemmas about ownership over [max_view]. *)
 
-  Lemma max_view_lookup_insert ℓ t msg hist (heap : store) :
+  Lemma max_view_lookup_insert_eq ℓ t msg hist (heap : store) :
     ∃ t', max_view (<[ℓ := <[t := msg]> hist]> heap) !! ℓ = Some (MaxNat t') ∧ t ≤ t'.
   Proof.
     rewrite /max_view.
     rewrite fmap_insert.
     rewrite lookup_fmap.
-    rewrite lookup_insert.
+    rewrite lookup_insert_eq.
     eexists _.
     simpl.
     split; first reflexivity.
@@ -278,7 +277,7 @@ Section persisted.
   Proof.
     intros le.
     rewrite /persisted_loc. iApply persisted_weak. rewrite singleton_included.
-    right. apply max_nat_included. done.
+    apply Some_included. right. apply max_nat_included. done.
   Qed.
 
   Lemma persisted_persisted_loc PV ℓ t :
@@ -447,7 +446,7 @@ Section lifting.
     apply map_Forall_union; first done. split.
     - intros ? ? (j & w & ? & Hjl & eq & mo)%heap_array_lookup.
       rewrite eq.
-      split. { rewrite lookup_singleton. naive_solver. }
+      split. { rewrite lookup_singleton_eq. naive_solver. }
       apply map_Forall_singleton. simpl.
       destruct a.
       * apply view_empty_least.
@@ -462,10 +461,12 @@ Section lifting.
       done.
   Qed.
 
+  (* some of the implicit arguments are giving me trouble. *)
   Ltac whack_global :=
-    iMod (global_state_interp_le (Λ := nvm_lang) _ _ () _ _ _ with "[$]") as "$";
-      first (rewrite /step_count_next; simpl; lia).
-
+    iPoseProof (global_state_interp_le (Λ := nvm_lang) _ _ ()) as "impl";
+    last iMod ("impl" with "[$]") as "$";
+    first (rewrite /step_count_next; simpl; lia).
+  
   Lemma wp_fork s E (e : expr) TV (Φ : thread_val → iProp Σ) :
     ▷ WP (ThreadState e TV) @ s; ⊤ {{ _, True }} -∗
     ▷ Φ (ThreadVal (LitV LitUnit) TV) -∗
@@ -475,7 +476,7 @@ Section lifting.
     iApply (wp_lift_atomic_head_step (Φ := Φ)); first done.
     iIntros (σ1 [] mj D ns κ κs n) "Hσ Hg !>".
     iPureGoal.
-    { rewrite /head_reducible.
+    { rewrite /base_reducible.
       destruct TV as [[SV FV] BV].
       eexists [], _, _, _, _. simpl.
       constructor. constructor. }
@@ -521,7 +522,7 @@ Section lifting.
     iIntros (Hn Φ) "Hval HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
     iIntros ([σ PV] [] ns mj D κ κs k) "[interp extra]". iNamed "interp".
-    iIntros "? !>".
+    iIntros "Hg !>".
     simpl in *. subst σ.
     iAssert (crashed_at_offset OCV)%I as "#crashed_at_offset"; first by iExists _.
     (* The time at the view is smaller than the time in the lub view (which is *)
@@ -530,7 +531,7 @@ Section lifting.
     iDestruct (gen_own_auth_frag_leq with "Hval store_view_at") as %Vincl.
     iSplit.
     - (* We must show that [ref v] is can take some step. *)
-       rewrite /head_reducible.
+       rewrite /base_reducible.
        (* destruct TV as [[sv pv] bv]. *)
        iExists [], _, _, _, _. simpl. iPureIntro.
        eapply impure_step.
@@ -543,7 +544,7 @@ Section lifting.
       iSplitR=>//.
       assert ((heap_array ℓ a SV FV (replicate (Z.to_nat n) v)) ##ₘ store_drop_prefix OCV full_hist) as Hdisj.
       { apply heap_array_map_disjoint.
-        rewrite replicate_length. assumption. }
+        rewrite length_replicate. assumption. }
       rewrite map_disjoint_dom in Hdisj.
       rewrite dom_store_drop_prefix -map_disjoint_dom in Hdisj.
       (* We now update the [gen_heap] ghost state to include the allocated location. *)
@@ -552,7 +553,7 @@ Section lifting.
       simpl.
       iMod (store_view_alloc_big with "store_view_at") as "$".
       { apply heap_array_map_disjoint.
-        rewrite replicate_length. assumption. }
+        rewrite length_replicate. assumption. }
       iModIntro.
       rewrite -!assoc.
       simpl.
@@ -632,7 +633,7 @@ Section lifting.
     iSplit.
     - (* We must show that the load can take some step. To do this we must use
          the points-to predicate and fact that the view is valid. *)
-      rewrite /head_reducible.
+      rewrite /base_reducible.
       (* We need to show that there is _some_ message that the load could read.
       It could certainly read the most recent message. *)
       pose proof (history_lookup_lub_valid _ _ _ Hlook) as [msg Hmsgeq]; first done.
@@ -656,7 +657,7 @@ Section lifting.
       destruct H10 as [x [<- ?]].
       iDestruct ("HΦ" with "[$ℓPts //]") as "$".
       iModIntro.
-      iExists OV, OCV, full_hist.
+      iExists OV.
       simpl.
       iFrame "#∗".
       done.
@@ -692,7 +693,7 @@ Section lifting.
     iSplit.
     - (* We must show that the load can take some step. To do this we must use
       the points-to predicate and fact that the view is valid. *)
-      rewrite /head_reducible.
+      rewrite /base_reducible.
       (* We need to show that there is _some_ message that the load could read.
       It could certainly read the most recent message. *)
       pose proof (history_lookup_lub_valid _ _ _ Hlook)
@@ -717,7 +718,7 @@ Section lifting.
       { iPureIntro.
         split; last lia.
         rewrite -drop_prefix_lookup //. }
-      iExists OV, OCV, full_hist.
+      iExists OV.
       simpl.
       iFrame "∗#".
       done.
@@ -748,7 +749,7 @@ Section lifting.
     iSplit.
     - (* We must show that the load can take some step. To do this we must use
       the points-to predicate and fact that the view is valid. *)
-      rewrite /head_reducible.
+      rewrite /base_reducible.
       (* We need to show that there is _some_ message that the load could read.
       It could certainly read the most recent message. *)
       pose proof (history_lookup_lub_valid _ _ _ Hlook)
@@ -771,7 +772,7 @@ Section lifting.
         eapply message_included_in_max_view; done. }
       iFrame. iModIntro.
       iDestruct ("HΦ" $! t v MV MP _ with "[$ℓPts $valid' //]") as "$".
-      iExists OV, OCV, full_hist.
+      iExists OV.
       simpl.
       iFrame "#∗".
       done.
@@ -810,7 +811,7 @@ Section lifting.
     iSplit.
     - (* We must show that the load can take some step. To do this we must use
       the points-to predicate and fact that the view is valid. *)
-      rewrite /head_reducible.
+      rewrite /base_reducible.
       (* We need to show that there is _some_ message that the load could read.
       It could certainly read the most recent message. *)
       pose proof (history_lookup_lub_valid _ _ _ Hlook)
@@ -836,7 +837,7 @@ Section lifting.
       { iPureIntro.
         split; last lia.
         rewrite -drop_prefix_lookup //. }
-      iExists OV, OCV, full_hist.
+      iExists OV.
       simpl.
       iFrame "∗#".
       done.
@@ -863,7 +864,7 @@ Section lifting.
     iSplit.
     - (* We must show that the load can take some step. To do this we must use
          the points-to predicate and fact that the view is valid. *)
-      rewrite /head_reducible.
+      rewrite /base_reducible.
       (* We need to show that there is _some_ message that the load could read.
       It could certainly read the most recent message. *)
       pose proof (history_lookup_lub_succ _ _ _ Hlook) as lookNone.
@@ -946,7 +947,7 @@ Section lifting.
     iSplit.
     - (* We must show that the load can take some step. To do this we must use
          the points-to predicate and fact that the view is valid. *)
-      rewrite /head_reducible.
+      rewrite /base_reducible.
       (* We need to show that there is _some_ message that the load could read.
       It could certainly read the most recent message. *)
       pose proof (history_lookup_lub_succ _ _ _ Hlook) as lookNone.
@@ -1026,7 +1027,7 @@ Section lifting.
     iSplit.
     - (* We must show that the load can take some step. To do this we must use
          the points-to predicate and fact that the view is valid. *)
-      rewrite /head_reducible.
+      rewrite /base_reducible.
       (* We need to show that there is _some_ message that the load could read.
       It could certainly read the most recent message. *)
       pose proof (history_lookup_lub_succ _ _ _ Hlook) as lookNone.
@@ -1106,7 +1107,7 @@ Section lifting.
     iSplit.
     - (* We must show that the load can take some step. To do this we must use
          the points-to predicate and fact that the view is valid. *)
-      rewrite /head_reducible.
+      rewrite /base_reducible.
       (* We need to show that there is _some_ message that the load could read.
       It could certainly read the most recent message. *)
       pose proof (history_lookup_lub_succ _ _ _ Hlook) as lookNone.
@@ -1194,7 +1195,7 @@ Section lifting.
     iDestruct (gen_own_auth_frag_leq with "Hval store_view_at") as %Vincl.
     iDestruct (mapsto_heap_valid with "crashed_at_offset Hσ ℓPts") as %Hlook.
     iSplit.
-    - rewrite /head_reducible.
+    - rewrite /base_reducible.
       (* We need to show that there is _some_ message that the CmpXchg could
        * read. It could certainly read the most recent message. *)
       pose proof (history_lookup_lub_valid _ _ _ Hlook)
@@ -1270,7 +1271,7 @@ Section lifting.
           iSplit; first done.
           iRight.
           by iFrame. }
-        iExists OV, OCV, full_hist.
+        iExists OV.
         simpl.
         iFrame "#∗".
         done.
@@ -1310,7 +1311,7 @@ Section lifting.
     iDestruct (gen_own_auth_frag_leq with "Hval store_view_at") as %Vincl.
     iDestruct (fmapsto_heap_valid with "Hσ ℓPts") as %Hlook'.
     iSplit.
-    - rewrite /head_reducible.
+    - rewrite /base_reducible.
       (* We need to show that there is _some_ message that the CmpXchg could
        * read. It could certainly read the most recent message. *)
       assert (store_drop_prefix OCV full_hist !! ℓ = Some hist) as Hlook.
@@ -1410,7 +1411,7 @@ Section lifting.
           iSplit; first rewrite -drop_prefix_lookup //.
           iRight.
           by iFrame. }
-        iExists OV, OCV, full_hist.
+        iExists OV.
         simpl.
         iFrame "#∗".
         done.
@@ -1447,7 +1448,7 @@ Section lifting.
     iDestruct (gen_own_auth_frag_leq with "Hval store_view_at") as %Vincl.
     iDestruct (fmapsto_heap_valid with "Hσ ℓPts") as %Hlook'.
     iSplit.
-    - rewrite /head_reducible.
+    - rewrite /base_reducible.
       (* We need to show that there is _some_ message that the CmpXchg could
        * read. It could certainly read the most recent message. *)
       assert (store_drop_prefix OCV full_hist !! ℓ = Some hist) as Hlook.
@@ -1536,7 +1537,7 @@ Section lifting.
     (* From the points-to predicate we know that [hist] is in the heap at ℓ. *)
     iDestruct (mapsto_heap_valid with "[$] Hσ pts") as %Hlook.
     iSplit.
-    - rewrite /head_reducible.
+    - rewrite /base_reducible.
        iExists [], _, _, _, _. simpl. iPureIntro.
        eapply impure_step; by econstructor; done.
     - iNext. iIntros (e2 σ2 [] efs Hstep).
@@ -1562,7 +1563,7 @@ Section lifting.
     (* From the points-to predicate we know that [hist] is in the heap at ℓ. *)
     iDestruct (fmapsto_heap_valid with "[$] [$]") as %Hlook.
     iSplit.
-    - rewrite /head_reducible.
+    - rewrite /base_reducible.
        iExists [], _, _, _, _. simpl. iPureIntro.
        eapply impure_step; by econstructor; done.
     - iNext. iIntros (e2 σ2 [] efs Hstep).
@@ -1585,7 +1586,7 @@ Section lifting.
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
     iIntros ([??] [] ns mj D κ κs k). iNamed 1. iIntros "Ht /= !>".
     iSplit.
-    - rewrite /head_reducible.
+    - rewrite /base_reducible.
        iExists [], _, _, _, _. simpl. iPureIntro.
        eapply impure_step; by econstructor; done.
     - iNext. iIntros (e2 σ2 [] efs Hstep).
@@ -1608,7 +1609,7 @@ Section lifting.
     subst g.
     iIntros "? /= !>".
     iSplit.
-    - rewrite /head_reducible.
+    - rewrite /base_reducible.
        iExists [], _, _, _, _. simpl. iPureIntro.
        eapply impure_step; by econstructor; done.
     - iNext. iIntros (e2 σ2 [] efs Hstep).

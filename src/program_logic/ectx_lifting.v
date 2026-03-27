@@ -1,5 +1,5 @@
 (** Some derived lemmas for ectx-based languages *)
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import ltac_tactics.
 From Perennial.program_logic Require Export ectx_language.
 From self.program_logic Require Import lifting crash_weakestpre.
 From iris.prelude Require Import options.
@@ -12,16 +12,16 @@ Implicit Types P : iProp Σ.
 Implicit Types Φ : val Λ → iProp Σ.
 Implicit Types v : val Λ.
 Implicit Types e : expr Λ.
-Local Hint Resolve head_prim_reducible head_reducible_prim_step : core.
+Local Hint Resolve base_prim_reducible base_reducible_prim_step : core.
 Local Definition reducible_not_val_inhabitant e := reducible_not_val e inhabitant.
 Local Hint Resolve reducible_not_val_inhabitant : core.
-Local Hint Resolve head_stuck_stuck : core.
+Local Hint Resolve base_stuck_stuck : core.
 
 Lemma wp_lift_atomic_head_step {s E Φ} e1 :
   to_val e1 = None →
   (∀ σ1 g1 ns mj D κ κs nt, state_interp σ1 nt -∗ global_state_interp g1 ns mj D (κ ++ κs) ={E}=∗
-    ⌜head_reducible e1 σ1 g1⌝ ∗
-    ▷ ∀ e2 σ2 g2 efs, ⌜head_step e1 σ1 g1 κ e2 σ2 g2 efs⌝ ={E}=∗
+    ⌜base_reducible e1 σ1 g1⌝ ∗
+    ▷ ∀ e2 σ2 g2 efs, ⌜base_step e1 σ1 g1 κ e2 σ2 g2 efs⌝ ={E}=∗
       state_interp σ2 (length efs + nt) ∗
       global_state_interp g2 (step_count_next ns) mj D κs ∗
       from_option Φ False (to_val e2) ∗
@@ -38,8 +38,8 @@ Qed.
 Lemma wp_lift_atomic_head_step_no_fork {s E Φ} e1 :
   to_val e1 = None →
   (∀ σ1 g1 ns mj D κ κs nt, state_interp σ1 nt -∗ global_state_interp g1 ns mj D (κ ++ κs) ={E}=∗
-    ⌜head_reducible e1 σ1 g1⌝ ∗
-    ▷ ∀ e2 σ2 g2 efs, ⌜head_step e1 σ1 g1 κ e2 σ2 g2 efs⌝ ={E}=∗
+    ⌜base_reducible e1 σ1 g1⌝ ∗
+    ▷ ∀ e2 σ2 g2 efs, ⌜base_step e1 σ1 g1 κ e2 σ2 g2 efs⌝ ={E}=∗
       ⌜efs = []⌝ ∗ state_interp σ2 nt ∗ global_state_interp g2 (step_count_next ns) mj D κs ∗
       from_option Φ False (to_val e2))
   ⊢ WP e1 @ s; E {{ Φ }}.

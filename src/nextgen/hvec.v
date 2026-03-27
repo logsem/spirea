@@ -1,5 +1,6 @@
 From Equations Require Import Equations.
 
+From self Require Export options.
 From stdpp Require Import tactics fin vector.
 
 Import EqNotations. (* Get the [rew] notation. *)

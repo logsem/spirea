@@ -2,7 +2,7 @@ From iris.proofmode Require Import proofmode.
 From iris_named_props Require Import named_props.
 
 (* From iris.algebra Require Import agree auth gset. *)
-(* From Perennial.base_logic.lib Require Export ncfupd. *)
+(* From PerennialNG.base_logic.lib Require Export ncfupd. *)
 From self.program_logic Require crash_weakestpre.
 
 From self Require Import extra.
@@ -161,7 +161,7 @@ Section wpc.
       iSpecialize ("conj" $! _).
       monPred_simpl.
       iSpecialize ("conj" $! _ with "[%] phi").
-      { etrans. eassumption. eassumption. }
+      { etrans; eassumption. }
       iMod "conj" as "conj".
       iModIntro.
       iFrame "∗%".

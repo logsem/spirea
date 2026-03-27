@@ -1,5 +1,5 @@
 From stdpp Require Import gmap.
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import ltac_tactics.
 
 From self Require Export extra map_extra.
 
@@ -72,7 +72,7 @@ Section increasing_map.
     intros t1 t2 s1 s2 lt.
     destruct (decide (t_i = t1)) as [eq1|neq1];
       destruct (decide (t_i = t2)) as [eq2|neq2];
-      subst; rewrite ?lookup_insert; rewrite ?lookup_insert_ne; try done.
+      subst; rewrite ?lookup_insert_eq; rewrite ?lookup_insert_ne; try done.
     - lia.
     - intros [= ->] ?.
       eapply after; done.
@@ -99,13 +99,13 @@ Section increasing_map.
       destruct (decide (t_t = t2)) as [eq2|neq2].
     - lia.
     - subst.
-      rewrite lookup_insert.
+      rewrite lookup_insert_eq.
       rewrite lookup_insert_ne; last done.
       intros [= ->] ?.
       eapply par; [done | lia].
     - rewrite <- eq2 in *.
       rewrite lookup_insert_ne; last done.
-      rewrite lookup_insert.
+      rewrite lookup_insert_eq.
       intros look2 [= ->].
       pose proof (Nat.lt_total t_i t1) as [lt2|[?|?]].
       * eapply par; done.
@@ -147,13 +147,13 @@ Section increasing_map.
       destruct (decide ((t_i + 1) = t2)) as [eq2|neq2].
     - lia.
     - subst.
-      rewrite lookup_insert.
+      rewrite lookup_insert_eq.
       rewrite lookup_insert_ne; last done.
       intros [= ->] ?.
       eapply tLe; [done | lia].
     - subst.
       rewrite lookup_insert_ne; last done.
-      rewrite lookup_insert.
+      rewrite lookup_insert_eq.
       intros look2 [= <-].
       assert (t1 = t_i ∨ t1 < t_i) as [<-|ho] by lia.
       * simplify_eq. done.
@@ -179,7 +179,7 @@ Section increasing_map.
     increasing_map R (filter P m).
   Proof.
     intros incr.
-    intros ????? [??]%map_filter_lookup_Some [??]%map_filter_lookup_Some.
+    intros ????? [??]%map_lookup_filter_Some [??]%map_lookup_filter_Some.
     eapply incr; done.
   Qed.
 

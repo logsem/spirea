@@ -97,7 +97,7 @@ Section consistent_cut.
     destruct (cut ℓ _ cvLook) as (? & ? & ? & ? & map).
     apply (map t2 msg).
     rewrite /drop_above.
-    apply map_filter_lookup_Some.
+    apply map_lookup_filter_Some.
     naive_solver.
   Qed.
 

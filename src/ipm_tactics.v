@@ -1,4 +1,4 @@
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import ltac_tactics.
 From iris_named_props Require Import named_props.
 
 Lemma pure_sep_l `{BiAffine PROP} (φ : Prop) (P : PROP) : φ → P ⊢ ⌜φ⌝ ∗ P.
@@ -25,10 +25,10 @@ first conjunct in the goal with the assumption. The key reason to use this
 tactic is that it can be much faster than the normal [iFrame] if the goal is
 large. *)
 Tactic Notation "iFrameF" "(" constr(t1) ")" :=
-  iSplit; first iFramePure t1.
+  iSplit; first by _iFramePure t1.
 
 Tactic Notation "iFrameF" constr(Hs) :=
-  iSplitL Hs; first iFrame Hs.
+  iSplitL Hs; first by iFrame Hs.
 
 Tactic Notation "iExistsN" := repeat iExists _.
 

@@ -1,0 +1,18 @@
+opam-version: "2.0"
+version: "dev"
+
+synopsis: "A Mechanized Concurrent Separation Logic for Weak Persistent Memory"
+
+depends: [
+  "rocq-core" {>= "8.19"}
+  "rocq-iris" {= "4.5.0"}
+  "rocq-iris-heap-lang" {= "4.5.0"}
+  "rocq-equations"
+  "rocq-iris-nextgen"
+  "iris-named-props"
+]
+
+pin-depends: [
+  ["iris-named-props.dev"  "git+https://github.com/tchajed/iris-named-props#aef7fd0d3550d0da9e545f76dae0c50a6fa7e273"]
+  ["rocq-iris-nextgen.dev" "file:///home/luke/Projects/iris-nextgen"]
+]

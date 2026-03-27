@@ -5,12 +5,12 @@ base language. In other words, all the tactics for working with goals that are
 This file is based on the wpc proofmode in Perennial. *)
 
 From iris.proofmode Require Import coq_tactics reduction.
-From iris.proofmode Require Export tactics.
+From iris.proofmode Require Export ltac_tactics.
 
-From Perennial.program_logic Require Export weakestpre.
-From Perennial.program_logic Require Import atomic.
-From Perennial.program_logic Require Export crash_weakestpre staged_invariant.
-From Perennial.Helpers Require Export ipm NamedProps ProofCaching.
+From PerennialNG.program_logic Require Export weakestpre.
+From PerennialNG.program_logic Require Import atomic.
+From PerennialNG.program_logic Require Export crash_weakestpre staged_invariant.
+From PerennialNG.Helpers Require Export ipm NamedProps ProofCaching.
 
 From self Require Import ipm_tactics.
 From self.base Require Import proofmode.

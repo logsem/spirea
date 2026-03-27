@@ -36,7 +36,7 @@ Section location_sets.
   Lemma location_sets_singleton_included {γ} locs ℓ :
     gen_alocs_auth γ locs -∗ gen_alocs_frag γ {[ ℓ ]} -∗ ⌜ ℓ ∈ locs ⌝.
   Proof.
-    iNamed 1. iNamed 1.
+    iNamed 1. iDestruct 1 as "(own_frag & _)".
     iDestruct (gen_own_valid_2 with "own_auth own_frag")
       as %[V%gset_included _]%auth_both_valid_discrete.
     rewrite elem_of_subseteq_singleton.
@@ -124,15 +124,13 @@ Section offset_loc.
       iPureIntro.
       intros ℓ'.
       destruct (decide (ℓ = ℓ')) as [ <- | ].
-      * rewrite lookup_insert lookup_zero_None_zero //.
+      * rewrite lookup_insert_eq lookup_zero_None_zero //.
         by apply not_elem_of_dom.
       * rewrite lookup_insert_ne //.
         intros.
         apply HLookup.
         set_solver.
-    - iExists _.
-      iFrame "#".
-      iFrame.
+    - iFrame.
       rewrite lookup_zero_None_zero //.
       by apply not_elem_of_dom.
   Qed.

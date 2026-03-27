@@ -251,7 +251,7 @@ Section wp_at.
         iIntros (t msg encS physHistLook'' absHistLook'') "!> H".
         destruct (decide (OCV !!0 ℓ ≤ t ∧ physHist !! S t = None)) as [ [] | no ].
         - destruct (decide (S t = t_t)) as [ <- | ?].
-          + rewrite lookup_insert.
+          + rewrite lookup_insert_eq.
             rewrite decide_False; last naive_solver.
             iSpecialize ("predFullReadSplit" with "H").
             iFrame.

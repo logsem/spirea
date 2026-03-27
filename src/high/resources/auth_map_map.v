@@ -22,7 +22,9 @@ Section auth_map_map.
   Variable (R: rel_over [#crashed_atR] (auth_map_mapR A)).
   Implicit Types (m : gmap loc (gmap time A)).
 
-  Definition agree_uncurry_map m: gmap (loc * time) (agreeR A) := to_agree <$> (gmap_uncurry m).
+  Notation map_uncurry := (map_uncurry (M1 := gmap loc) (M2 := gmap time) (M12 := gmap (loc * time))).
+  
+  Definition agree_uncurry_map m: gmap (loc * time) (agreeR A) := to_agree <$> (map_uncurry m).
   
   Definition auth_map_map_auth γ m: iProp Σ :=
     "own_auth" ∷ gen_own γ (● agree_uncurry_map m) ∗
@@ -51,44 +53,44 @@ Section auth_map_map.
     iApply (gen_own_update with "N").
     apply: auth_update_dfrac_alloc.
     eapply singleton_included_look.
-    { rewrite /agree_uncurry_map lookup_fmap lookup_gmap_uncurry mLook /= hLook. reflexivity. }
+    { rewrite /agree_uncurry_map lookup_fmap lookup_map_uncurry mLook /= hLook. reflexivity. }
     done.
   Qed.
 
-  Lemma insert_gmap_uncurry_None k1 k2 v m:
+  Lemma insert_map_uncurry_None k1 k2 v m:
     m !! k1 = None ->
-    gmap_uncurry (<[k1:={[k2 := v]}]> m) = <[ (k1, k2) := v ]> (gmap_uncurry m).
+    map_uncurry (<[k1:={[k2 := v]}]> m) = <[ (k1, k2) := v ]> (map_uncurry m).
   Proof.
     intros look.
     apply map_eq.
     intros [ℓ t].
     destruct (decide (ℓ = k1)) as [ <- | ]; destruct (decide (t = k2)) as [ <- |  ];
-      rewrite lookup_gmap_uncurry ?lookup_insert /=.
-    - rewrite lookup_singleton //.
+      rewrite lookup_map_uncurry ?lookup_insert_eq /=.
+    - rewrite lookup_singleton_eq //.
     - rewrite ?lookup_insert_ne; try congruence.
-      rewrite lookup_gmap_uncurry look //.
+      rewrite lookup_map_uncurry look //.
     - rewrite ?lookup_insert_ne /=; try congruence.
-      rewrite lookup_gmap_uncurry //.
+      rewrite lookup_map_uncurry //.
     - rewrite ?lookup_insert_ne /=; try congruence.
-      rewrite lookup_gmap_uncurry //.
+      rewrite lookup_map_uncurry //.
   Qed.
 
-  Lemma insert_gmap_uncurry_Some k1 k2 v m h:
+  Lemma insert_map_uncurry_Some k1 k2 v m h:
     m !! k1 = Some h ->
-    gmap_uncurry (<[k1:=<[k2 := v]> h]> m) = <[ (k1, k2) := v ]> (gmap_uncurry m).
+    map_uncurry (<[k1:=<[k2 := v]> h]> m) = <[ (k1, k2) := v ]> (map_uncurry m).
   Proof.
     intros look.
     apply map_eq.
     intros [ℓ t].
     destruct (decide (ℓ = k1)) as [ <- | ]; destruct (decide (t = k2)) as [ <- |  ];
-      rewrite lookup_gmap_uncurry ?lookup_insert /=.
-    - rewrite lookup_insert //.
+      rewrite lookup_map_uncurry ?lookup_insert_eq /=.
+    - rewrite lookup_insert_eq //.
     - rewrite ?lookup_insert_ne; try congruence.
-      rewrite lookup_gmap_uncurry look //.
+      rewrite lookup_map_uncurry look //.
     - rewrite ?lookup_insert_ne /=; try congruence.
-      rewrite lookup_gmap_uncurry //.
+      rewrite lookup_map_uncurry //.
     - rewrite ?lookup_insert_ne /=; try congruence.
-      rewrite lookup_gmap_uncurry //.
+      rewrite lookup_map_uncurry //.
   Qed.
 
   Lemma auth_map_map_insert_top `{!LeibnizEquiv A} γ m ℓ t a :
@@ -103,10 +105,10 @@ Section auth_map_map.
     iApply (gen_own_update with "auth").
     apply auth_update_alloc.
     rewrite /agree_uncurry_map.
-    rewrite insert_gmap_uncurry_None; last done.
+    rewrite insert_map_uncurry_None; last done.
     rewrite fmap_insert.
     apply alloc_local_update.
-    - rewrite lookup_fmap lookup_gmap_uncurry look. done.
+    - rewrite lookup_fmap lookup_map_uncurry look. done.
     - done.
   Qed.
 
@@ -124,10 +126,10 @@ Section auth_map_map.
     iApply (gen_own_update with "auth").
     apply auth_update_alloc.
     rewrite /agree_uncurry_map.
-    rewrite insert_gmap_uncurry_Some; last done.
+    rewrite insert_map_uncurry_Some; last done.
     rewrite fmap_insert.
     apply alloc_local_update.
-    - rewrite lookup_fmap lookup_gmap_uncurry look1 /= look2. done.
+    - rewrite lookup_fmap lookup_map_uncurry look1 /= look2. done.
     - done.
   Qed.
 
@@ -143,7 +145,7 @@ Section auth_map_map.
     iPureIntro.
     apply auth_both_dfrac_valid_discrete in V as (_ & incl & _).
     apply singleton_included_l in incl as (a' & look & sub%Some_included_total).
-    rewrite /agree_uncurry_map lookup_fmap lookup_gmap_uncurry in look.
+    rewrite /agree_uncurry_map lookup_fmap lookup_map_uncurry in look.
     rewrite ?Some_included_total in sub.
     destruct (m !! ℓ) as [h | ]; simpl in look.
     - exists h.
@@ -180,7 +182,7 @@ Section auth_map_map.
   (*   done. *)
   (* Qed. *)
 
-  (* Lemma auth_map_map_frag_lookup_singleton `{!LeibnizEquiv A} γ m ℓ h t a : *)
+  (* Lemma auth_map_map_frag_lookup_singleton_eq `{!LeibnizEquiv A} γ m ℓ h t a : *)
   (*   m !! ℓ = Some h → *)
   (*   h !! t = Some a → *)
   (*   auth_map_map_frag γ m -∗ *)
@@ -213,7 +215,7 @@ Section auth_map_map.
   Proof.
     iIntros (mLook hLook) "[O _] [F _]".
     iDestruct (gen_own_valid_2 with "O F") as %[(? & look & incl)%singleton_included_l _]%auth_both_valid_discrete.
-    rewrite /agree_uncurry_map lookup_fmap lookup_gmap_uncurry in look.
+    rewrite /agree_uncurry_map lookup_fmap lookup_map_uncurry in look.
     rewrite ?Some_included_total in incl.
     rewrite mLook /= hLook in look.
     apply fmap_Some_equiv in look as [v [look' equiv]].
@@ -231,6 +233,36 @@ Section history.
   Definition drop_above_map_uncurry (OCV: view.view):
     (auth_map_mapR (leibnizO message) → auth_map_mapR (leibnizO message)) :=
     fmap_auth (map_imap (λ '(ℓ, t) a, if decide (ℓ ∈ dom OCV ∧ t ≤ OCV !!0 ℓ) then Some $ agree_map discard_msg_views a else None)).
+
+  #[global] Instance drop_above_map_uncurry_cmra_morphism OCV:
+    CmraMorphism (drop_above_map_uncurry OCV).
+  Proof.
+    rewrite /drop_above_map_uncurry.
+    apply @fmap_auth_gentrans.
+    constructor.
+    - apply gmap_view_transformation.gmap_map_imap_ne. intros [] ?. solve_proper.
+    - intros n m Hm [ℓ t].
+      rewrite map_lookup_imap.
+      destruct (m !! (ℓ, t)) eqn:Heq; rewrite Heq /= //.
+      destruct (decide _); last done.
+      apply Some_validN, cmra_morphism_validN; first apply _.
+      specialize (Hm (ℓ, t)).
+      rewrite Heq // in Hm.
+    - intros m.
+      rewrite !cmra_pcore_core /=.
+      f_equiv.
+      intros [ℓ t].
+      rewrite map_lookup_imap /= ?lookup_core map_lookup_imap.
+      destruct (m !! (ℓ, t)) eqn:Heq; rewrite Heq /= //.
+      destruct (decide _); done.
+    - intros m1 m2 [ℓ t].
+      rewrite lookup_op ?map_lookup_imap lookup_op.
+      destruct (m1 !! (ℓ, t)) eqn:Heq1;
+        destruct (m2 !! (ℓ, t)) eqn:Heq2;
+        rewrite Heq1 Heq2 /= //;
+          destruct (decide _); try done.
+      rewrite -Some_op cmra_morphism_op //.
+  Qed.
 
   Definition histories_rel: rel_over [#crashed_atR] (auth_map_mapR (leibnizO message)) :=
     λ tC tH, ∃ OCV,
@@ -266,7 +298,7 @@ Section history.
     rewrite auth_auth_included.
     rewrite map_equiv_iff.
     intros [ℓ t].
-    rewrite /agree_uncurry_map /drop_above_map map_lookup_imap ?lookup_fmap ?lookup_gmap_uncurry /= map_lookup_imap /=.
+    rewrite /agree_uncurry_map /drop_above_map map_lookup_imap ?lookup_fmap ?lookup_map_uncurry /= map_lookup_imap /=.
     destruct (histories !! ℓ) as [h | ] eqn:Heq1; rewrite ?Heq1 /=; last done.
     rewrite /drop_above_hist.
     destruct (OCV !! ℓ) as [[tC] | ] eqn:Heqn2; rewrite ?Heqn2 /=.

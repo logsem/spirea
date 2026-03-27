@@ -176,7 +176,7 @@ Section excl_list.
     iModIntro.
     iExists v.
     iSplit; first rewrite last_snoc //.
-    rewrite app_length /= PeanoNat.Nat.add_sub.
+    rewrite length_app /= PeanoNat.Nat.add_sub.
     done.
   Qed.
 
@@ -192,7 +192,7 @@ Section excl_list.
     (∀ k, k < length l1 → l1 !! k = l2 !! k) → l1 `prefix_of` l2.
   Proof.
     induction l1 using rev_ind; intros look; first by eexists.
-    rewrite app_length /= in look.
+    rewrite length_app /= in look.
     assert (l1 `prefix_of` l2) as [l2' ->].
     { apply IHl1.
       intros.

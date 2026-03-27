@@ -1,7 +1,7 @@
 From iris.bi Require Import lib.fractional.
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import ltac_tactics.
 
-From Perennial.program_logic Require Import staged_invariant.
+From PerennialNG.program_logic Require Import staged_invariant.
 
 From self.base Require Import primitive_laws.
 From self.lang Require Import lang.

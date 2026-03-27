@@ -1,19 +1,19 @@
 From iris.algebra Require Import gmap auth agree gset coPset excl csum.
-From Perennial.program_logic Require Import language.
+From PerennialNG.program_logic Require Import language.
 From self.program_logic Require Import staged_invariant.
-(* From Perennial.goose_lang Require Import crash_modality lifting wpr_lifting. *)
-(* From Perennial.goose_lang Require Import wpc_proofmode. *)
-From iris.proofmode Require Import tactics.
-From Perennial.base_logic.lib Require Import saved_prop frac_coPset.
-From Perennial.Helpers Require Import Qextra.
+(* From PerennialNG.goose_lang Require Import crash_modality lifting wpr_lifting. *)
+(* From PerennialNG.goose_lang Require Import wpc_proofmode. *)
+From iris.proofmode Require Import ltac_tactics.
+From PerennialNG.base_logic.lib Require Import saved_prop frac_coPset.
+From PerennialNG.Helpers Require Import Qextra.
 
-(* From Perennial.program_logic Require Import language. *)
+(* From PerennialNG.program_logic Require Import language. *)
 From self.lang Require Import lang.
 From self.base Require Import primitive_laws wpr_lifting.
 From self.base Require Import cred_frag.
 From self.base Require Import primitive_laws generational_resources.
 From self.nextgen Require Import omega nextgen_inv_promises.
-From Perennial.program_logic Require Import language.
+From PerennialNG.program_logic Require Import language.
 
 Section frac_coPset_prop.
   Context {Σ : gFunctors}.

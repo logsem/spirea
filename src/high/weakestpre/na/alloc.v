@@ -149,13 +149,13 @@ Section wp_na.
       iFrame "offset".
       simpl.
       iSplitPure; first apply increasing_map_singleton.
-      iSplitPure; first apply lookup_singleton.
+      iSplitPure; first apply lookup_singleton_eq.
       iSplitPure; first apply map_no_later_singleton.
       iSplit.
       { iExists _.
         iFrame "fragHist".
         rewrite decode_encode. done. }
-      iSplitPure; first (split; [apply lookup_singleton | reflexivity]).
+      iSplitPure; first (split; [apply lookup_singleton_eq | reflexivity]).
       iSplitPure; first repeat split; auto using view_empty_least.
       iSplitPure; first lia.
       iSplitPure; first lia.
@@ -203,7 +203,7 @@ Section wp_na.
     { iApply (big_sepM2_insert with "[predFull predsFullReadHold]").
       { done. } { done. }
       iSplitL "predFull".
-      - iExistsN. rewrite ?lookup_insert.
+      - iExistsN. rewrite ?lookup_insert_eq.
         iSplitPure; first done.
         iSplitPure; first done.
         iSplitPure; first done.
@@ -232,10 +232,10 @@ Section wp_na.
     { iApply (big_sepM2_insert with "[predPers predsPersHold]").
       { done. } { done. }
       iSplitL "predPers".
-      - iExistsN. rewrite ?lookup_insert.
+      - iExistsN. rewrite ?lookup_insert_eq.
         iSplitPure; first done.
         iSplitPure; first done.
-        iSplitPure; first apply lookup_singleton.
+        iSplitPure; first apply lookup_singleton_eq.
         iSplitPure; first done.
         iSplitPure.
         { rewrite /lookup_zero not_elem_of_dom_1 //. set_solver. }
@@ -264,7 +264,7 @@ Section wp_na.
     iSplit. {
       iApply (big_sepM2_insert_2 with "[]").
       - iExists _, _, _.
-        rewrite ?lookup_insert.
+        rewrite ?lookup_insert_eq.
         do 3 (iSplitPure; first done).
         iApply (plainly_intro emp); last done.
         iIntros (_ ?????) "%HorderPF (%P_pers & #eqPers & persHolds) (%P_full & #eqFull & fullHolds)".

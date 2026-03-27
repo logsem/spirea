@@ -1,7 +1,7 @@
-Require Import Qcanon ssreflect.
+From Stdlib Require Import Qcanon ssreflect.
 From stdpp Require Import numbers.
-Require Import Psatz.
-Require Import QArith.
+From Stdlib Require Import Psatz.
+From Stdlib Require Import QArith.
 Local Open Scope Q_scope.
 
 (*
@@ -65,10 +65,10 @@ Proof.
   rewrite Qp.div_2. done.
 Qed.
 
-Require Import Lqa.
-Require Import Lra.
-Require Import QArith.
-Require Import Reals.
+From Stdlib Require Import Lqa.
+From Stdlib Require Import Lra.
+From Stdlib Require Import QArith.
+From Stdlib Require Import Reals.
 
 Lemma rhelper1 (q : R) :
   (/ 2 < q)%R →
@@ -108,7 +108,7 @@ Proof.
     split; lra.
 Qed.
 
-  Require Import Lqa.
+From Stdlib Require Import Lqa.
 
 Lemma Q_plus_inv_2_gt_1_split q:
   ((/2  < q)%Q → ∃ q1 q2, 0 < q1 ∧ 0 < q2 ∧ Qred (q1 + q2)%Q = Qred (/2) ∧ 1 < q + q1)%Q.

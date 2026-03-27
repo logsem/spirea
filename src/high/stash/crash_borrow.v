@@ -1,5 +1,5 @@
-From Perennial.program_logic Require Import staged_invariant.
-(* From Perennial.goose_lang Require Import crash_borrow. *)
+From PerennialNG.program_logic Require Import staged_invariant.
+(* From PerennialNG.goose_lang Require Import crash_borrow. *)
 
 From self.base Require Import primitive_laws crash_borrow.
 From self.high Require Import proofmode wpc_proofmode.

@@ -209,7 +209,7 @@ Section wp_at_alloc.
     { iApply (big_sepM2_insert with "[predFull predsFullReadHold]").
       { done. } { done. }
       iSplitL "predFull".
-      - iExistsN. rewrite ?lookup_insert.
+      - iExistsN. rewrite ?lookup_insert_eq.
         iSplitPure; first done.
         iSplitPure; first done.
         iSplitPure; first done.
@@ -241,10 +241,10 @@ Section wp_at_alloc.
     { iApply (big_sepM2_insert with "[predPers predsPersHold]").
       { done. } { done. }
       iSplitL "predPers".
-      - iExistsN. rewrite ?lookup_insert.
+      - iExistsN. rewrite ?lookup_insert_eq.
         iSplitPure; first done.
         iSplitPure; first done.
-        iSplitPure; first apply lookup_singleton.
+        iSplitPure; first apply lookup_singleton_eq.
         iSplitPure; first done.
         iSplitPure.
         { rewrite /lookup_zero not_elem_of_dom_1 //. set_solver. }
@@ -273,7 +273,7 @@ Section wp_at_alloc.
     iSplit. {
       iApply (big_sepM2_insert_2 with "[]").
       - iExists _, _, _.
-        rewrite ?lookup_insert.
+        rewrite ?lookup_insert_eq.
         do 3 (iSplitPure; first done).
         iApply (plainly_intro emp); last done.
         iIntros (_ ?????) "%HorderPF (%P_pers & #eqPers & persHolds) (%P_full & #eqFull & fullHolds)".

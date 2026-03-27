@@ -358,7 +358,7 @@ Section wp_at.
       iApply (big_sepM2_impl with "[$]").
       iIntros (t msg encσ msgLook encSLook) "!> H".
       destruct (decide (t = t_l)) as [ -> | neq ].
-      - rewrite ?Nat.add_1_r lookup_insert.
+      - rewrite ?Nat.add_1_r lookup_insert_eq.
         rewrite ?decide_False; naive_solver.
       - rewrite lookup_insert_ne; last lia.
         destruct (decide _); destruct (decide _); naive_solver. }

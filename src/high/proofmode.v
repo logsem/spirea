@@ -4,9 +4,9 @@ Is is an adaptation of the tactics for HeapLang. *)
 
 From iris.proofmode Require Import coq_tactics reduction.
 From iris.proofmode Require Export environments.
-From Perennial.Helpers Require Export ipm.
+From PerennialNG.Helpers Require Export ipm.
 
-From Perennial.program_logic Require Export language ectx_language ectxi_language.
+From PerennialNG.program_logic Require Export language ectx_language ectxi_language.
 
 From self.base Require Import class_instances primitive_laws.
 From self.lang Require Export notation tactics.

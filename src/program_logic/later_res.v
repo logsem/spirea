@@ -1,7 +1,7 @@
-From iris.proofmode Require Import base tactics classes.
-From Perennial.Helpers Require Import ipm.
-From Perennial.base_logic Require Export invariants.
-(* From Perennial.program_logic Require Import weakestpre. *)
+From iris.proofmode Require Import base ltac_tactics classes.
+From PerennialNG.Helpers Require Import ipm.
+From PerennialNG.base_logic Require Export invariants.
+(* From PerennialNG.program_logic Require Import weakestpre. *)
 From self.program_logic Require Import crash_weakestpre.
 Set Default Proof Using "Type".
 

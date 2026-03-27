@@ -1,4 +1,4 @@
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import ltac_tactics.
 From iris.bi Require Import bi.
 From iris.bi Require Import derived_laws.
 From iris.base_logic Require Import iprop.

@@ -1,4 +1,4 @@
-From iris.proofmode Require Import reduction monpred tactics.
+From iris.proofmode Require Import reduction monpred ltac_tactics.
 
 From self.base Require Import primitive_laws.
 From self.high Require Import generational_resources abstract_state_instances protocol.

@@ -1,4 +1,4 @@
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import ltac_tactics.
 
 From self.base Require Import primitive_laws.
 From self.lang Require Import lang.
@@ -282,9 +282,9 @@ Proof.
   simplify_eq.
 
   (* Simplify things. *)
-  rewrite lookup_insert in look.
+  rewrite lookup_insert_eq in look.
   rewrite lookup_insert_ne in look'; last done.
-  rewrite lookup_insert in look'.
+  rewrite lookup_insert_eq in look'.
   simplify_eq /=.
   rewrite big_sepM2_insert; try (apply lookup_singleton_ne; done).
   rewrite big_sepM2_singleton.

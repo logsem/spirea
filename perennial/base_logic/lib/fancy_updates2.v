@@ -1,10 +1,10 @@
 From stdpp Require Export coPset.
 From stdpp Require Import namespaces.
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import ltac_tactics.
 From iris.algebra Require Import gmap auth agree gset coPset.
 From self.nextgen Require Import nextgen_promises_ng.
 From Perennial.base_logic.lib Require Export own.
-From Perennial.base_logic.lib Require Import wsat fancy_updates.
+From PerennialNG.base_logic.lib Require Import wsat fancy_updates.
 From iris.prelude Require Import options.
 Export invGS.
 Import uPred le_upd.
@@ -361,4 +361,5 @@ Proof.
   { iApply (ownE_weaken with "HE"). set_solver. }
   iPoseProof (except_0_into_later with "H'") as "H'".
   iApply (le_upd.le_upd_later with "Hone"). iNext. done.
+  Unshelve. apply _.
 Qed.

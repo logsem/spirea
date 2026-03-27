@@ -1,10 +1,10 @@
 (* This is the recovery weakestpre from Perennial updated to use the nextgen
  * modality. *)
 
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import ltac_tactics.
 From iris.algebra Require Import gmap auth agree gset coPset.
-From Perennial.base_logic.lib Require Import wsat.
-(* From Perennial.program_logic Require Export weakestpre. *)
+From PerennialNG.base_logic.lib Require Import wsat.
+(* From PerennialNG.program_logic Require Export weakestpre. *)
 From Perennial.program_logic Require Export crash_lang.
 Import uPred.
 

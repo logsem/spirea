@@ -3,7 +3,7 @@ lattice. We use the lattice notation from stdpp. *)
 
 From stdpp Require Import tactics countable numbers gmap.
 From iris.heap_lang Require Export locations.
-From iris.algebra Require Export gmap numbers.
+From iris.algebra Require Export gmap numbers stepindex_finite.
 
 From self Require Import extra.
 
@@ -40,11 +40,11 @@ Infix "`view_add`" := view_add (at level 50, left associativity).
 Lemma subseteq_view_incl V W : (V ⊑ W) = (V ≼ W).
 Proof. done. Qed.
 
-Global Instance subseteq_view_assoc : Assoc (=) (join_view).
-Proof. apply _. Qed.
+Global Instance join_view_assoc : Assoc (=) (join_view).
+Proof. rewrite /join_view => x y z. apply leibniz_equiv. rewrite assoc //. Qed.
 
-Global Instance subseteq_view_comm : Comm (=) (join_view).
-Proof. apply _. Qed.
+Global Instance join_view_comm : Comm (=) (join_view).
+Proof. rewrite /join_view => x y. apply leibniz_equiv. rewrite comm //. Qed.
 
 Global Instance join_mono : Proper ((⊑@{view}) ==> (⊑) ==> (⊑)) (⊔).
 Proof. solve_proper. Qed.
@@ -54,7 +54,7 @@ Proof. apply _. Qed.
 
 (* A view is always valid. *)
 Lemma view_valid V : ✓ V.
-Proof. intros k. case (V !! k); done. Qed.
+Proof. intros k. destruct (V !! k) eqn:Heqn; rewrite Heqn //. Qed.
 
 Instance view_join_bot_l : LeftId (=) (∅ : view) (⊔).
 Proof.
@@ -84,10 +84,10 @@ Lemma view_lookup_zero_empty ℓ : ((∅ : view) !!0 ℓ) = 0.
 Proof. rewrite /lookup_zero. by rewrite lookup_empty. Qed.
 
 Lemma lookup_zero_singleton ℓ t : ({[ ℓ := MaxNat t ]} : view) !!0 ℓ = t.
-Proof. rewrite /lookup_zero. rewrite lookup_singleton. done. Qed.
+Proof. rewrite /lookup_zero. rewrite lookup_singleton_eq. done. Qed.
 
 Lemma lookup_zero_insert ℓ t (V : view) : (<[ℓ := MaxNat t]>V) !!0 ℓ = t.
-Proof. rewrite /lookup_zero. rewrite lookup_insert. done. Qed.
+Proof. rewrite /lookup_zero. rewrite lookup_insert_eq //. Qed.
 
 Lemma view_empty_least V : ∅ ⊑ V.
 Proof.
@@ -194,10 +194,10 @@ Lemma view_le_r V W : V ⊑ W ⊔ V.
 Proof. rewrite comm. apply view_le_l. Qed.
 
 Lemma view_le_lub_l V W U : V ⊑ W → V ⊑ W ⊔ U.
-Proof. intros H. etrans. apply H. apply view_le_l. Qed.
+Proof. intros H. etrans; first apply H. apply view_le_l. Qed.
 
 Lemma view_le_lub_r V W U : V ⊑ W → V ⊑ U ⊔ W.
-Proof. intros H. etrans. apply H. apply view_le_r. Qed.
+Proof. intros H. etrans; first apply H. apply view_le_r. Qed.
 
 (* NOTE: Perhaps this lema could be an instance of some [Proper] thing. *)
 Lemma view_lub_le V V' W :
@@ -220,9 +220,9 @@ Proof.
   rewrite lookup_included.
   intros ℓ'.
   destruct (decide (ℓ = ℓ')).
-  - subst. rewrite lookup_insert.
+  - subst. rewrite lookup_insert_eq.
     destruct (V !! ℓ') as [[m]|] eqn:eq; simpl.
-    * rewrite eq. simpl in *. apply Some_included_2. apply max_nat_included. done.
+    * rewrite eq. simpl in *. apply Some_included_2. right. apply max_nat_included. done.
     * rewrite eq.
       replace (None) with (ε : option max_nat); last done.
       apply ucmra_unit_least.
@@ -242,8 +242,8 @@ Proof.
   apply map_eq. intros ℓ'.
   rewrite lookup_op.
   destruct (decide (ℓ = ℓ')).
-  - subst. rewrite lookup_singleton.
-    rewrite lookup_insert.
+  - subst. rewrite lookup_singleton_eq.
+    rewrite lookup_insert_eq.
     destruct (V !! ℓ') as [[m]|] eqn:eq; rewrite eq; last done.
     rewrite -Some_op. rewrite max_nat_op.
     f_equiv. f_equiv. simpl in le. lia.
@@ -261,7 +261,7 @@ Proof.
   split.
   - rewrite subseteq_view_incl lookup_included.
     intros H. specialize H with ℓ.
-    move: H. rewrite lookup_singleton.
+    move: H. rewrite lookup_singleton_eq.
     destruct (V !! ℓ) as [[t']|] eqn:eq; rewrite eq; intros H.
     + exists t'. split; first done. by apply Some_MaxNat_included.
     + by apply option_not_included_None in H.
@@ -514,7 +514,7 @@ Qed. *)
 (* Proof. intros f g ? X Y. set_unfold; naive_solver. Qed. *)
 
 #[export] Hint Rewrite (insert_empty (M := gmap loc) (A := max_nat)) : view_simpl.
-#[export] Hint Rewrite (lookup_singleton (M := gmap loc) (A := max_nat)) : view_simpl.
+#[export] Hint Rewrite (lookup_singleton_eq (M := gmap loc) (A := max_nat)) : view_simpl.
 #[export] Hint Rewrite (view_lookup_zero_empty) : view_simpl.
 #[export] Hint Rewrite (left_id ∅ (⊔)) : view_simpl.
 #[export] Hint Rewrite (right_id ∅ (⊔)) : view_simpl.

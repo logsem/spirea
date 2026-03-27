@@ -1,6 +1,6 @@
 From iris.bi Require Import derived_laws.
 From iris.base_logic Require Import base_logic.
-From iris.proofmode Require Import base tactics classes.
+From iris.proofmode Require Import base ltac_tactics classes.
 
 From self.algebra Require Import view.
 From self.lang Require Import memory.

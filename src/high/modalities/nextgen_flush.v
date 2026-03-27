@@ -19,6 +19,8 @@ Program Definition nextgen_flush `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω} (P : dPro
 Next Obligation.
   intros ????????.
   apply nextgen_mono.
+  do 6 f_equiv; first solve_proper.
+  iApply persisted_weak.
   solve_proper.
 Qed.
 

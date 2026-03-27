@@ -3,7 +3,7 @@ high-level logic. *)
 From iris.bi Require Import lib.fractional.
 From iris.base_logic.lib Require Import own.
 From iris.algebra Require Import gset gmap excl auth.
-From iris.proofmode Require Import reduction monpred tactics.
+From iris.proofmode Require Import reduction monpred ltac_tactics.
 From iris_named_props Require Import named_props.
 
 From self Require Import extra.

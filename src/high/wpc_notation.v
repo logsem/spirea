@@ -1,8 +1,7 @@
 From iris.algebra Require Import gmap auth agree gset coPset excl csum.
-From Perennial.program_logic Require Import staged_invariant post_expr.
 From self.program_logic Require Import crash_weakestpre.
-From Perennial.base_logic.lib Require Import saved_prop.
-From Perennial.Helpers Require Import Qextra.
+From PerennialNG.base_logic.lib Require Import saved_prop.
+From PerennialNG.Helpers Require Import Qextra.
 
 (* Notation: copied from iris bi/weakestpre.v *)
 Class Wpc (Λ : language) (PROP A : Type) :=

@@ -160,7 +160,7 @@ Section dependency_relation_extra.
     pred_prefix_list_for' (rels ++ (R_2 :: nil)) (preds ++ (P_2 :: nil)) R_2 P_2.
   Proof.
     rewrite /pred_prefix_list_for'. rewrite /rel_prefix_list_for.
-    rewrite !app_length.
+    rewrite !length_app.
     intros ??? (-> & [??] & [??] & ?).
     rewrite !last_snoc.
     split_and!; try done; eapply increasing_list_snoc; done.
@@ -185,7 +185,7 @@ End dependency_relation_extra.
 
 Lemma rel_over_eq {n m A1 A2} {DS1 : ivec n cmra} {DS2 : ivec m cmra} (eq : n = m) :
   A1 = A2 →
-  DS1 = rew <- eq in DS2 →
+  DS1 = rew <- [λ x, ivec x cmra] eq in DS2 →
   rel_over DS1 A1 = rel_over DS2 A2.
 Proof. intros -> ->. destruct eq. done. Defined.
 

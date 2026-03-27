@@ -1,10 +1,10 @@
 From stdpp Require Export coPset.
 From stdpp Require Import namespaces.
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import ltac_tactics.
 From iris.algebra Require Import gmap auth agree gset coPset.
 From self.nextgen Require Import nextgen_promises_ng.
 From Perennial.base_logic.lib Require Export own.
-From Perennial.base_logic.lib Require Import wsat fancy_updates.
+From PerennialNG.base_logic.lib Require Import wsat fancy_updates.
 From iris.prelude Require Import options.
 Export invGS.
 Import uPred.
@@ -55,7 +55,7 @@ Proof.
   match goal with
   | [ |- ¬ set_finite ?X ] => cut ((↑ndc N n.@(2%positive)) ⊆ X)
   end.
-  { pose proof (nclose_infinite (ndc N n.@(2%positive))) as Hinf. intros => Hfalse.
+  { pose proof (nclose_not_finite (ndc N n.@(2%positive))) as Hinf. intros => Hfalse.
     apply Hinf. eapply set_finite_subseteq; eauto. }
   rewrite ndc_tail. solve_ndisj.
 Qed.
@@ -146,8 +146,8 @@ Proof.
   induction n1 as [|n1 IHn1] => n2 Hlt.
   - rewrite //= right_id. apply AE'_disj. lia.
   - rewrite //=.
-    feed pose proof (IHn1 n2); first lia.
-    feed pose proof (AE'_disj n2 (S n1)); first lia.
+    opose proof (IHn1 n2 _); first lia.
+    opose proof (AE'_disj n2 (S n1) _); first lia.
     set_solver.
 Qed.
 Lemma AE_full_mono n1 n2 : n1 ≤ n2 → AE_full n1 ⊆ AE_full n2.
@@ -290,7 +290,7 @@ Proof.
     rewrite -AE_eq. symmetry. eapply AE'_disj_lt_AE. lia.
   }
   intros Hfin. eapply set_finite_subseteq in Hfin; last eassumption.
-  eapply nclose_infinite; eauto.
+  eapply nclose_not_finite; eauto.
 Qed.
 
 Local Hint Extern 0 (AE_full _ ## MaybeEn1 _) => apply AE_full_MaybeEn_disj : core.

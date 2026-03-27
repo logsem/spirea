@@ -1,4 +1,4 @@
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import ltac_tactics.
 From iris.bi Require Import monpred.
 From iris.program_logic Require weakestpre.
 From iris.algebra Require Import gmap.
@@ -311,10 +311,10 @@ Section Bank.
         iMod (token_strengthen _ (map_prom (length s_l)) with "pers").
         { apply map_prom_strengthen.
           assert (length_eq: length s_l + length [@inl nat nat n] = length s_p + length k).
-          { rewrite -?app_length. by f_equiv. }
+          { rewrite -?length_app. by f_equiv. }
           simpl in length_eq.
           lia. }
-        rewrite app_length //=.
+        rewrite length_app //=.
         replace (_ + 1 - 1) with (length s_l) by lia.
         iMod (token_bupd_rely with "[$]") as "[? ?]".
         by iFrame.
@@ -323,7 +323,7 @@ Section Bank.
         iModIntro.
         iApply (rely_weaken with "rely").
         apply map_prom_strengthen.
-        rewrite ?app_length //=.
+        rewrite ?length_app //=.
         lia.
     }
     iIntros "!> post_fence_sync".

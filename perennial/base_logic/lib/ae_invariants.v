@@ -1,9 +1,9 @@
 From stdpp Require Export namespaces.
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import ltac_tactics.
 From iris.algebra Require Import gmap.
 From self.nextgen Require Import nextgen_promises_ng.
-From Perennial.base_logic.lib Require Export fancy_updates fupd_level.
-From Perennial.base_logic.lib Require Import wsat.
+From PerennialNG.base_logic.lib Require Export fancy_updates fupd_level.
+From PerennialNG.base_logic.lib Require Import wsat.
 From iris.prelude Require Import options.
 Import uPred.
 
@@ -106,9 +106,10 @@ Section ae_inv.
   Proof.
     exists (coPpick (AE_next_diff (S k) mj ∖gset_to_coPset E)).
     rewrite -elem_of_gset_to_coPset (comm and) -elem_of_difference.
-    apply coPpick_elem_of=> Hfin.
-    eapply AE_next_diff_inf, (difference_finite_inv _ _), Hfin.
-    apply gset_to_coPset_finite.
+    apply coPpick_elem_of=> Hempty.
+    eapply AE_next_diff_inf, (difference_finite_inv _ _).
+    { apply gset_to_coPset_finite. }
+    erewrite Hempty. apply empty_finite.
   Qed.
 
   Lemma own_ae_inv_alloc_k E k mj P : ▷ P -∗ ae_inv_condition P -∗ |k,mj={E}=> own_ae_inv k mj P.

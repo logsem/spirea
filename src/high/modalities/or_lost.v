@@ -5,7 +5,7 @@
 
 (* From iris.bi Require Import fractional. *)
 
-(* From Perennial.Helpers Require Import ipm NamedProps. *)
+(* From PerennialNG.Helpers Require Import ipm NamedProps. *)
 
 (* From self Require Import extra ipm_tactics. *)
 (* From self.base Require Import primitive_laws generational_resources. *)

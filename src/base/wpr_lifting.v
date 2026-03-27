@@ -1,8 +1,8 @@
 From stdpp Require Import numbers.
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import ltac_tactics.
 From iris.algebra Require Import auth dfrac.
-(* From Perennial.base_logic.lib Require Import proph_map. *)
-(* From Perennial.program_logic Require Import recovery_weakestpre recovery_adequacy. *)
+(* From PerennialNG.base_logic.lib Require Import proph_map. *)
+(* From PerennialNG.program_logic Require Import recovery_weakestpre recovery_adequacy. *)
 From self.program_logic Require Import recovery_weakestpre recovery_adequacy.
 
 From self.nextgen Require Import omega.

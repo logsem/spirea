@@ -4,7 +4,7 @@
  * also supports a dynamic set of transformations through "promises". *)
 
 From iris.algebra Require Import functions gmap agree excl csum.
-From iris.proofmode Require Import classes tactics.
+From iris.proofmode Require Import classes ltac_tactics.
 From iris.base_logic.lib Require Export iprop own invariants.
 From iris.prelude Require Import options.
 
@@ -316,8 +316,8 @@ Proof.
           (own.inG_unfold (i := genInG_inG) (cmra_transport inG_prf a))
           _
       ).
-    - rewrite discrete_fun_lookup_singleton.
-      rewrite lookup_singleton.
+    - rewrite discrete_fun_lookup_singleton_eq.
+      rewrite lookup_singleton_eq.
       done.
     - apply genInG_gen_trans. }
   destruct HI as (t & proper & fGLook & valid & lookEq).
@@ -328,7 +328,7 @@ Proof.
   destruct (decide ((inG_id genInG_inG) = idx')) as [<-|neq]; last first.
   { rewrite discrete_fun_lookup_singleton_ne; try done.
     apply ucmra_unit_least. }
-  rewrite discrete_fun_lookup_singleton.
+  rewrite discrete_fun_lookup_singleton_eq.
   apply singleton_included_l.
   exists (own.inG_unfold (cmra_transport inG_prf (f a))).
   split; last done.
@@ -374,8 +374,8 @@ Proof.
           (own.inG_unfold (cmra_transport inG_prf a))
           _
       ).
-    - rewrite discrete_fun_lookup_singleton.
-      rewrite lookup_singleton.
+    - rewrite discrete_fun_lookup_singleton_eq.
+      rewrite lookup_singleton_eq.
       done.
     - simpl.
       apply genInG_gen_trans. }
@@ -397,7 +397,7 @@ Proof.
   destruct (decide ((inG_id genInG_inG) = idx')) as [<-|neq]; last first.
   { rewrite discrete_fun_lookup_singleton_ne; try done.
     apply ucmra_unit_least. }
-  rewrite discrete_fun_lookup_singleton.
+  rewrite discrete_fun_lookup_singleton_eq.
   apply singleton_included_l.
   eexists _.
   split; last done.
@@ -416,7 +416,7 @@ Lemma iRes_singleton_lookup_inG_id `{i : !inG Σ A} (a : A) (γ γ' : gname)
   γ = γ' ∧ b = own.inG_unfold (cmra_transport inG_prf a).
 Proof.
   rewrite /own.iRes_singleton.
-  rewrite discrete_fun_lookup_singleton.
+  rewrite discrete_fun_lookup_singleton_eq.
   rewrite lookup_singleton_Some.
   intros [??]. split; congruence.
 Qed.
@@ -483,7 +483,7 @@ Section pick_singleton_lemmas.
     assert (eq' = eq_refl) as ->.
     { rewrite (proof_irrel eq' eq_refl). done. }
     simpl.
-    apply lookup_singleton.
+    apply lookup_singleton_eq.
   Qed.
 
   Definition pick_singleton_dom_index_eq γ f :
@@ -567,7 +567,7 @@ Proof.
   rewrite /pick_singleton.
   rewrite /own.iRes_singleton.
   destruct (decide (i' = inG_id i)) as [->|].
-  - rewrite discrete_fun_lookup_singleton.
+  - rewrite discrete_fun_lookup_singleton_eq.
     rewrite dom_singleton.
     rewrite pick_singleton_dom_index_eq //.
   - rewrite pick_singleton_dom_index_neq //.

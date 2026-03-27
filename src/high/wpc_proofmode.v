@@ -1,7 +1,7 @@
 From iris.proofmode Require Import coq_tactics reduction.
-From iris.proofmode Require Export tactics.
-From Perennial.program_logic Require Import atomic.
-From Perennial.Helpers Require Export ipm NamedProps ProofCaching.
+From iris.proofmode Require Export ltac_tactics.
+From PerennialNG.program_logic Require Import atomic.
+From PerennialNG.Helpers Require Export ipm NamedProps ProofCaching.
 
 From self Require Import ipm_tactics.
 From self.lang Require Import lang tactics.

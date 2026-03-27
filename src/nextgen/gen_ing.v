@@ -56,7 +56,7 @@ Proof. symmetry. apply (genInG_gcd_n (genInG := i)). Defined.
  * right ids as specified in [Ω]. *)
 Class genInDepsG {n} (Σ : gFunctors) Ω (A : cmra) (DS : ivec n cmra)
     `{gs : ∀ (i : fin n), genInSelfG Σ Ω (DS !!! i)} := GenDepsInG {
-  genInDepsG_gen :> genInG Σ Ω A DS;
+  genInDepsG_gen :: genInG Σ Ω A DS;
   genInDepsG_eqs : ∀ i,
     genInSelfG_id (gs i) = Oids Ω (genInG_id genInDepsG_gen) !!! (rew genInG_gcd_n in i);
 }.

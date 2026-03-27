@@ -7,7 +7,7 @@
 From iris.bi Require Import lib.fractional.
 From iris.base_logic.lib Require Import own.
 From iris.algebra Require Import gset gmap excl auth.
-From iris.proofmode Require Import reduction monpred tactics.
+From iris.proofmode Require Import reduction monpred ltac_tactics.
 From iris_named_props Require Import named_props.
 
 From self Require Import extra ipm_tactics solve_view_le.
@@ -461,6 +461,7 @@ Section mapsto_at_lemmas.
     iDestruct "storeLb" as (t ?) "(_ & histFrag' & _)".
     iDestruct (know_full_history_lookup with "hist histFrag'") as %look.
     eassert _ as le. { eapply map_no_later_Some; done. }
+    iPureIntro.
     eapply increasing_map_increasing in incrMap; done.
   Qed.
 
@@ -611,7 +612,7 @@ Section mapsto_at_lemmas.
       by apply view_le_singleton in HPVCV as (? & ? & ?). }
 
     iAssert (persisted_loc ℓ 0)%I as "persisted_loc".
-    { iApply (persisted_persisted_loc with "[$]"). eapply view_to_zero_lookup, lookup_singleton. }
+    { iApply (persisted_persisted_loc with "persisted"). eapply view_to_zero_lookup, lookup_singleton_eq. }
     
     (* unpack all [base_if_rec] modalities *)
     iSpecialize ("offset" with "[//] OCV persisted_loc").
@@ -626,7 +627,7 @@ Section mapsto_at_lemmas.
     assert (tP - (OV !!0 ℓ) ≤ OCV !!0 ℓ - (OV !!0 ℓ)).
     { rewrite view_included in HPVCV.
       specialize (HPVCV ℓ).
-      rewrite lookup_singleton view_sub_lookup OCVLook Some_MaxNat_included /= in HPVCV.
+      rewrite lookup_singleton_eq view_sub_lookup OCVLook Some_MaxNat_included /= in HPVCV.
       done. }
     iClear "CVimpl".
     
@@ -667,28 +668,30 @@ Section mapsto_at_lemmas.
   #[global] Instance persist_lb_into_nextgen ℓ prot s : IntoNextgen _ _ :=
     nextgen_persist_lb ℓ prot s.
 
-  (* (* This lemma is commented out as it doesn't seem useful. *) *)
-  (* Lemma flush_lb_nextgen (ℓ : loc) prot (s : ST) : *)
-  (*   flush_lb ℓ prot s -∗ *)
-  (*   <NG> (if_rec ℓ (∃ (s' : ST), persist_lb ℓ prot s')). *)
-  (* Proof. *)
-  (*   iNamed 1. *)
-  (*   iNamed "lbBase". *)
-  (*   rewrite /persist_lb /lb_base. *)
-  (*   iModIntro. *)
-  (*   iDestruct (if_rec_is_persisted ℓ) as "pers". *)
-  (*   iModIntro. *)
-  (*   rewrite /persist_lb /lb_base. *)
-  (*   iDestruct "H" as (???) "(? & ? & ? & ?)". *)
-  (*   iExists _, 0. iFrame "#∗". *)
-  (*   iDestruct (have_SV_0) as "$". *)
-  (*   iDestruct (have_FV_0) as "$". *)
-  (*   post_crash_frag_history *)
-  (* Qed. *)
+  Lemma nextgen_flush_flush_lb (ℓ : loc) prot (s : ST) :
+    flush_lb ℓ prot s ⊢
+    <NGF> persist_lb ℓ prot (p_bumper prot s) ∗
+    ∃ s__pc, ⌜ s ⊑ s__pc ⌝ ∗ crashed_in prot ℓ s__pc.
+  Proof.
+  Admitted.
 
-  (* Global Instance flush_lb_into_crash ℓ prot s : IntoCrash _ _ := *)
-  (*   post_crash_flush_lb ℓ prot s. *)
+  #[global] Instance know_flush_into_crash ℓ prot (s : ST) :
+    IntoNGFlush (flush_lb ℓ prot s) _ := nextgen_flush_flush_lb ℓ prot s.
 
+  Lemma mapsto_at_store_lb ℓ prot ss s :
+    ℓ ↦_AT^{prot} (ss ++ [s]) ⊢ store_lb ℓ prot s.
+  Proof.
+    iNamed 1.
+    iExists tS, offset.
+    simplify_eq.
+    iFrame "#".
+    iDestruct (big_sepM_lookup with "absHist") as "frag".
+    { apply map_sequence_lookup_hi in slice.
+      rewrite last_snoc in slice.
+      done. }
+    iFrame "frag".
+  Qed.
+  
   (* TODO: restore this lemma *)
   (* Lemma post_crash_store_lb (ℓ : loc) prot (s : ST) : *)
   (*   store_lb ℓ prot s -∗ *)
@@ -819,78 +822,12 @@ Section mapsto_at_lemmas.
     iDestruct "pts" as (???) "(crashed & pts)".
     iExists s.
     iSplitPure.
-    { eapply elem_of_list_lookup_2.
+    { eapply list_elem_of_lookup_2.
       eapply prefix_lookup_Some; last done.
       erewrite <- last_lookup.
       apply last_snoc. }
     iDestruct (crashed_in_persist_lb with "[$]") as "#per".
   Abort. (* This should be true but is a bit annoying to show. *)
-
-  Lemma nextgen_flush_flush_lb (ℓ : loc) prot (s : ST) :
-    flush_lb ℓ prot s ⊢
-    <NGF> persist_lb ℓ prot (p_bumper prot s) ∗
-    ∃ s__pc, ⌜ s ⊑ s__pc ⌝ ∗ crashed_in prot ℓ s__pc.
-  Proof.
-  Admitted.
-    (* iNamed 1. iNamed "lbBase". *)
-    (* iNamed "locationProtocol". *)
-    (* iDestruct (post_crash_frag_history *)
-    (*   with "knowPreorder offset knowBumper knowFragHist") as "HI". *)
-    (* iDestruct (post_crash_know_bumper with "knowBumper") as "bumper". *)
-    (* iDestruct (post_crash_preorder with "knowPreorder") as "order". *)
-    (* iCrashIntro. *)
-    (* iAssert (_)%I with "[viewFact]" as "pers". *)
-    (* { iDestruct "viewFact" as "[pers | pers]". *)
-    (*   - iApply "pers". *)
-    (*   - iDestruct "pers" as "($ & (%CV & % & % & ?))". *)
-    (*     iExists _, _. iFrame. done. } *)
-    (* iDestruct "pers" as "(#persisted & (%CV & %t & (%cvLook & %le) & #crashed))". *)
-    (* iApply (if_rec_get with "crashed persisted"); first done. *)
-    (* iModIntro. *)
-
-    (* iDestruct "offset" as (???) "[crashed' offset]". *)
-    (* iDestruct (crashed_at_d_agree with "crashed crashed'") as %<-. *)
-    (* iClear "crashed'". *)
-    (* simplify_eq. *)
-    (* iDestruct "HI" as (?????) "(#crashed' & ? & #hist & ? & impl)". *)
-    (* iDestruct (crashed_at_d_agree with "crashed crashed'") as %<-. *)
-    (* iClear "crashed'". *)
-    (* simplify_eq. *)
-    (* iDestruct ("impl" with "[%]") as "[%incl ?]"; first lia. *)
-    (* iSplit. *)
-    (* - iExists _, _. *)
-    (*   iFrame "∗#". *)
-    (*   assert (tF - (offset + t) = 0) as -> by lia. *)
-    (*   iDestruct (have_SV_0) as "$". *)
-    (*   iDestruct (have_FV_0) as "$". *)
-    (*   iFrame "persisted". *)
-    (* - iExists sC. *)
-    (*   iFrame (incl). *)
-    (*   iExists _. iFrame "∗#". *)
-    (*   iSplit; last (iPureIntro; apply elem_of_dom; try naive_solver). *)
-    (*   iExists _, _. iFrame "∗#". *)
-    (*   replace (offset + t - (offset + t)) with 0 by lia. *)
-    (*   iFrame "persisted". *)
-    (*   iDestruct (have_SV_0) as "$". *)
-    (*   iDestruct (have_FV_0) as "$". *)
-  (* Qed. *)
-
-  #[global] Instance know_flush_into_crash ℓ prot (s : ST) :
-    IntoNGFlush (flush_lb ℓ prot s) _ := nextgen_flush_flush_lb ℓ prot s.
-
-  Lemma mapsto_at_store_lb ℓ prot ss s :
-    ℓ ↦_AT^{prot} (ss ++ [s]) ⊢ store_lb ℓ prot s.
-  Proof.
-    iNamed 1.
-    iExists tS, offset.
-    simplify_eq.
-    iFrame "#".
-    iDestruct (big_sepM_lookup with "absHist") as "frag".
-    { apply map_sequence_lookup_hi in slice.
-      rewrite last_snoc in slice.
-      done. }
-    iFrame "frag".
-  Qed.
 
   Lemma mapsto_at_increasing ℓ prot ss :
     ℓ ↦_AT^{prot} ss ⊢ ⌜ increasing_list (⊑) ss ⌝.
@@ -951,7 +888,7 @@ Section mapsto_at_lemmas.
   (*   iSplitPure; first by reflexivity. *)
   (*   iFrame "#∗". *)
   (*   iSplitPure. *)
-  (*   { split; first apply lookup_singleton. reflexivity. } *)
+  (*   { split; first apply lookup_singleton_eq. reflexivity. } *)
   (*   iSplitPure. *)
   (*   { apply map_sequence_singleton. } *)
   (*   iSplitPure. *)
@@ -1135,7 +1072,6 @@ Section mapsto_na_flushed.
       replace (length ss' - length ss') with 0 by lia.
       done. }
     iFrame.
-    iExists _. iFrame "pts".
     iSplitPure. { apply last_snoc. }
     iApply persist_lb_to_flush_lb.
     done.
@@ -1146,7 +1082,7 @@ Section mapsto_na_flushed.
     mapsto_na_flushed ℓ prot p s ∗ mapsto_na_flushed ℓ prot q s.
   Proof.
     iDestruct 1 as (ss last) "[[pts1 pts2] #flushLb]".
-    iSplitL "pts1"; iFrame "flushLb"; iExists ss; iFrame (last) "∗".
+    iSplitL "pts1"; iFrame "∗#%".
   Qed.
 End mapsto_na_flushed.
 

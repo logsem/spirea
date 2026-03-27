@@ -6,6 +6,11 @@ From iris.prelude Require Import options.
 
 From self.lang Require Export lang notation tactics.
 
+Class IntoVal {Λ} (e : Perennial.program_logic.language.expr Λ) (v : Perennial.program_logic.language.val Λ) :=
+    into_val : Perennial.program_logic.language.of_val v = e.
+
+Class AsVal {Λ} (e : Perennial.program_logic.language.expr Λ) := as_val : ∃ v, Perennial.program_logic.language.of_val v = e.
+
 (* [IntoVal] and [AsVal] for nvm_lang. *)
 Global Instance into_val_ts v TV : IntoVal (Val v `at` TV) (v `at` TV).
 Proof. done. Qed.
@@ -147,7 +152,7 @@ Section pure_exec.
     simpl; intros; inv_thread_step; repeat split_and; eauto using fmap_nil_inv.
     (* simpl; intros; inv_thread_step; eauto using fmap_nil_inv. *)
   Local Ltac solve_pure_exec :=
-    subst; intros ??; apply nsteps_once, (pure_head_step_pure_step (ThreadState _ _));
+    subst; intros ??; apply nsteps_once, (pure_base_step_pure_step (ThreadState _ _));
       constructor; [solve_exec_safe | solve_exec_puredet].
 
   Global Instance pure_recc f x (erec : expr) :

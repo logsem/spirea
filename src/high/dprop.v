@@ -2,7 +2,7 @@
 logic. *)
 
 From iris.bi Require Export monpred.
-From iris.proofmode Require Import monpred tactics.
+From iris.proofmode Require Import monpred ltac_tactics.
 From iris.base_logic.lib Require Import iprop.
 
 From self Require Export view memory.

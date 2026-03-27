@@ -11,17 +11,15 @@
 From Equations Require Import Equations.
 From iris.algebra Require Import gmap_view agree.
 From iris.base_logic.lib Require Export iprop own invariants.
-From iris.proofmode Require Import classes tactics.
+From iris.proofmode Require Import classes ltac_tactics.
 From iris_named_props Require Import named_props.
-From nextgen Require Import cmra_morphism_extra gmap_view_transformation.
+From nextgen Require Import cmra_morphism_extra.
 
 From self Require Import extra map_extra view_slice.
-From self.nextgen Require Import hvec nextgen_promises.
+From self.nextgen Require Import hvec nextgen_promises gmap_view_transformation.
 From self.algebra Require Import view.
 
 From self.lang Require Import lang.
-
-Set Default Proof Using "Type*".
 
 (* Names used:
  * - OV: The offset view, the sum of all crash views from prior generations, not including the very last one.
@@ -61,7 +59,7 @@ Class persistedGS (Σ: gFunctors) (Ω: gGenCmras Σ) `{!crashed_atGS Σ Ω} := P
 }.
 
 (* heap *)
-Definition heapR : cmra := gmap_viewR loc (leibnizO (gmap nat message)).
+Definition heapR : cmra := gmap_viewR loc (agreeR (leibnizO (gmap nat message))).
 Class heapGpreS (Σ: gFunctors) (Ω: gGenCmras Σ) `{!crashed_atGpreS Σ Ω} := {
    heapGpreS_heap :: genInDepsG Σ Ω heapR [#crashed_atR];
 }.
@@ -100,7 +98,7 @@ Proof.
   rewrite right_id left_id /fmap_pair agree_map_to_agree //.
 Qed.
 
-Definition drop_word s := substring (1 + findex 0 " " s) (String.length s) s.
+Definition drop_word s := String.substring (1 + String.findex 0 " " s) (String.length s) s.
 
 Tactic Notation "iPickedInAgree" constr(Hs) :=
   let na := eval vm_compute in (drop_word Hs) in
@@ -566,7 +564,6 @@ Section persisted.
       iSplit.
       { iPureIntro. rewrite -view_eq.
         apply view_sub_something. by trans OPV'. }
-      iSplit. { iExists _. iFrame "#". }
       iApply (gen_own_mono with "persLub").
       apply auth_frag_mono.
       by trans OPV'. }
@@ -578,7 +575,7 @@ Section persisted.
 End persisted.
 
 Definition gmap_view_genInG Σ Ω `{i : !genInDepsG Σ Ω crashed_atR [#] } :=
-  genInDepsG Σ Ω (gmap_viewR loc (leibnizO (gmap nat message))) [#crashed_atR].
+  genInDepsG Σ Ω (gmap_viewR loc (agreeR (leibnizO (gmap nat message)))) [#crashed_atR].
 
 (* Resources and transformation for the heap. *)
 
@@ -594,10 +591,24 @@ Section heap.
     (λ '(MaxNat t),
       discard_msg_views <$> drop_above t hist) <$> (OCV !! l).
 
+  Lemma discard_msg_views_idemp msg:
+    discard_msg_views (discard_msg_views msg) = discard_msg_views msg.
+  Proof. by destruct msg. Qed.
+
+  Lemma drop_above_idemp {V} (t: time) (hist: gmap time V):
+    drop_above t (drop_above t hist) = drop_above t hist.
+  Proof.
+    apply map_eq => t'.
+    rewrite /drop_above /= ?map_lookup_filter /=.
+    destruct (hist !! t'); simpl; last done.
+    destruct (guard (t' ≤ t)); done.
+  Qed.
+  
   #[export]
   Instance drop_above_hist_map_trans OCV: MapTrans (drop_above_hist OCV).
   Proof.
-    split; last solve_proper. unfold drop_above_hist.
+    split; last solve_proper.
+    unfold drop_above_hist.
     intros ℓ v1 ->%fmap_None v2. done.
   Qed.
 
@@ -623,7 +634,7 @@ Section heap.
 
   Definition own_auth_heap heap : iProp Σ :=
     ∃ OCV,
-      "own_auth" ∷ gen_own heap_name (gmap_view_auth (DfracOwn 1) heap) ∗
+      "own_auth" ∷ gen_own heap_name (gmap_view_auth (DfracOwn 1) (to_agree <$> heap)) ∗
       "#crashed" ∷ crashed_at_offset OCV ∗
       (* We only keep the rely as we never want to strengthen the promise and
        * never want to pick anything (the promise itself completely determines
@@ -635,7 +646,7 @@ Section heap.
    * in the ghost resource, while [mapsto] only assert over the current generation
    * history *)
   Definition fmapsto (ℓ: loc) (dq: dfrac) (h_full: leibnizO history): iProp Σ :=
-    gen_own heap_name (gmap_view_frag ℓ dq h_full) ∗
+    gen_own heap_name (gmap_view_frag ℓ dq (to_agree h_full)) ∗
     rely heap_name [#crashed_at_name] heap_rel (λ _, true) ∗
     ∃ OCV, crashed_at_offset OCV.
 
@@ -772,8 +783,10 @@ Section heap.
   Proof.
     iIntros "heap [fmapsto _]".
     iNamed "heap".
-    iDestruct (gen_own_valid_2 with "own_auth fmapsto") as %[_ [_ look]]%gmap_view_both_dfrac_valid_L.
-    done.
+    iDestruct (gen_own_valid_2 with "own_auth fmapsto") as %(av' & _ & _ & Hav' & _ & Hincl)%gmap_view_both_dfrac_valid_discrete_total.
+    apply lookup_fmap_Some in Hav' as [v' [<- Hv']].
+    apply (to_agree_included_L (SI:=natSI)) in Hincl.
+    by rewrite Hincl.
   Qed.
 
   Lemma mapsto_heap_valid OCV heap ℓ dq h:
@@ -785,7 +798,7 @@ Section heap.
     iIntros "crashed_at_offset' heap mapsto".
     iNamed "mapsto".
     iDestruct (crashed_at_offset_agree with "crashed_at_offset crashed_at_offset'") as "->".
-    iDestruct (fmapsto_heap_valid with "[$] [$]") as %look.
+    iDestruct (fmapsto_heap_valid with "heap [$]") as %look.
     iPureIntro.
     rewrite store_drop_prefix_alt look /=.
     by f_equiv.
@@ -798,10 +811,11 @@ Section heap.
     iIntros (Hσl).
     iNamed 1.
     iMod (gen_own_update with "own_auth") as "[own_auth frag]".
-    { eapply (gmap_view.gmap_view_alloc _ _ (DfracOwn 1)); [ apply Hσl | done ]. }
+    { eapply (gmap_view.gmap_view_alloc _ ℓ (DfracOwn 1) (to_agree h_full));
+      [ rewrite lookup_fmap Hσl // | done | done ]. }
     iFrame "∗#".
     iModIntro.
-    iSplit; by iExists _.
+    rewrite fmap_insert //. 
   Qed.
 
   Lemma heap_alloc_big_fmapsto σ σ' :
@@ -826,10 +840,9 @@ Section heap.
     iNamed 1.
     iIntros "[fmapsto _]".
     iMod (gen_own_update_2 with "own_auth fmapsto") as "[$ $]".
-    { apply gmap_view_update. }
+    { rewrite fmap_insert. apply: gmap_view_replace. done. }
     iModIntro.
     iFrame "∗#".
-    iSplit; by iExists _.
   Qed.
 
   Lemma mapsto_heap_update OCV σ ℓ h1 h_full2:
@@ -841,7 +854,7 @@ Section heap.
   Proof.
     iIntros "#crashed_at_offset' auth". iNamed 1.
     iDestruct (crashed_at_offset_agree with "crashed_at_offset crashed_at_offset'") as "->".
-    iMod (fmapsto_heap_update with "[$] [$]") as "[$ fmapsto]".
+    iMod (fmapsto_heap_update with "auth [$]") as "[$ fmapsto]".
     iExists _, _.
     iFrame.
     done.
@@ -851,17 +864,8 @@ Section heap.
     fmapsto ℓ dq1 h1 -∗ fmapsto ℓ dq2 h2 -∗ ⌜✓ (dq1 ⋅ dq2) ∧ h1 = h2 ⌝.
   Proof.
     iIntros "[H1 _] [H2 _]".
-    iDestruct (gen_own_valid_2 with "H1 H2") as %[? ?]%gmap_view_frag_op_valid_L.
+    iDestruct (gen_own_valid_2 with "H1 H2") as %[? Hag%to_agree_op_valid_L]%gmap_view_frag_op_valid.
     done.
-  Qed.
-
-  Lemma map_entry_lift_gmap_view_auth dq
-      (heap : gmap loc (leibnizO history)) map_entry :
-    (map_entry_lift_gmap_view map_entry (gmap_view_auth dq heap)) =
-    (gmap_view_auth dq (map_imap map_entry heap)).
-  Proof.
-    unfold map_entry_lift_gmap_view, fmap_view, fmap_pair. simpl.
-    rewrite agree_map_to_agree. done.
   Qed.
 
   Lemma own_auth_heap_nextgen heap :
@@ -880,12 +884,7 @@ Section heap.
     destruct rel as (OCV2 & -> & ->).
     iExists OCV2.
     iFrame "#".
-    iSplit.
-    { iExists _. iFrame "#". }
-    { iExists _.
-      iSplit. 2: { iExists _. iFrame "#". }
-      rewrite map_entry_lift_gmap_view_auth.
-      iFrame. }
+    rewrite map_entry_lift_gmap_view_auth //.
   Qed.
 
   #[global]
@@ -915,15 +914,7 @@ Section heap.
     rewrite /drop_above_hist.
     destruct (OCV2 !! ℓ) as [[t] | ] eqn:Heq; rewrite Heq /=; last done.
     iFrame.
-    iSplit; last by iExists _, _.
-    iApply (gen_own_mono with "pts").
-    unfold map_entry_lift_gmap_view, gMapTrans_frag_lift, map_trans_frag_lift, fmap_view, fmap_pair. simpl.
-    unfold gmap_view_frag, view_frag.
-    rewrite -(insert_empty _ (dq, to_agree hist)).
-    erewrite map_imap_insert_Some;
-      first rewrite map_imap_empty insert_empty //.
-    rewrite agree_option_map_to_agree /drop_above_hist Heq /=.
-    done.
+    rewrite map_entry_lift_gmap_view_frag Heq //.
   Qed.
   
   (* TODO: have a single location instance. *)
@@ -1272,7 +1263,6 @@ Section alloc.
     unfold own_auth_heap.
     iFrame.
     iDestruct (token_to_rely with "tok") as "$".
-    by iExists _, _.
   Qed.
 
   Lemma view_add_empty V: ∅ `view_add` V = V.

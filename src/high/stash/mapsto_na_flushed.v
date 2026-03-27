@@ -3,7 +3,7 @@
 The stack is implemented as a linked list. *)
 
 From iris.bi Require Import lib.fractional.
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import ltac_tactics.
 
 From self.high Require Import proofmode wpc_proofmode if_rec.
 From self.high Require Import dprop abstract_state_instances modalities

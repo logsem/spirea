@@ -1,19 +1,72 @@
 From iris.algebra Require Import auth agree excl csum.
-From Perennial.base_logic Require Import ae_invariants.
+From PerennialNG.base_logic Require Import ae_invariants.
 From iris.bi Require Export weakestpre.
-From iris.proofmode Require Import base tactics classes.
+From iris.proofmode Require Import base ltac_tactics classes.
 From self.nextgen Require Import nextgen_promises.
-From Perennial.base_logic Require Export invariants fupd_level fancy_updates2.
-From Perennial.program_logic Require Import step_fupd_extra ae_invariants_mutable.
-From Perennial.algebra Require Export own_discrete.
-From Perennial.base_logic.lib Require Export ncfupd.
-From Perennial.program_logic Require Export language cfupd.
+From PerennialNG.base_logic Require Export invariants fupd_level fancy_updates2.
+From PerennialNG.program_logic Require Import step_fupd_extra ae_invariants_mutable.
+From PerennialNG.algebra Require Export own_discrete.
+(* From PerennialNG.base_logic.lib Require Export ncfupd cfupd. *)
+From Perennial.program_logic Require Export language.
 From Perennial.program_logic Require ectx_language.
 From iris.prelude Require Import options.
 Import uPred.
 
 (* Some things we can reuse directly from Perennial's [wpc]. *)
-From Perennial.program_logic Require crash_weakestpre.
+(* From PerennialNG.program_logic Require crash_weakestpre. *)
+
+(* NOTE: I chose to include the necessary definition from Perennial's [wpc],
+ * since it's easier to update all the definitions and proofs surrounding [cfupd] and [ncfupd]. *)
+Module crash_weakestpre.
+  (** [irisGS] captures the parameters that remain the same throughout the
+  entire execution of the crashing or distributed system. It is a single fixed
+  global parameter, instantiated once all the way at the top in adequacy. *)
+  Class irisGS (Λ : language) (Σ : gFunctors) (Ω : gGenCmras Σ) := IrisGS {
+    #[global] iris_invGS :: invGS Σ;
+  
+    (** The global state interpretation is a whole-system invariant that should
+    hold in between each step of reduction. Here [global_state Λ] is the global
+    state, the [nat] is the number of steps already performed by the system, and
+    [list Λobservation] are the remaining observations.
+    The fracR and the coPset are relevant for crash borrows; also see later_res
+    and private_invariants *)
+    global_state_interp : global_state Λ → nat → fracR → coPset → list (observation Λ) → iProp Σ;
+  
+    (** A fixed postcondition for any forked-off thread. For most languages, e.g.
+    heap_lang, this will simply be [True]. However, it is useful if one wants to
+    keep track of resources precisely, as in e.g. Iron. *)
+    fork_post : val Λ → iProp Σ;
+  
+    (** Number of additional logical steps (i.e., later modality in the
+    definition of WP) per physical step, depending on the physical steps
+    counter. In addition to these steps, the definition of WP adds one
+    extra later per physical step to make sure that there is at least
+    one later for each physical step. *)
+    num_laters_per_step : nat → nat;
+  
+    (** Further inflate how many laters we generate per step. *)
+    step_count_next : nat → nat;
+  
+    (** When performing pure steps, the state interpretation needs to be
+    adapted for the change in the [ns] parameter.
+  
+    Note that we use an empty-mask fancy update here. We could also use
+    a basic update or a bare magic wand, the expressiveness of the
+    framework would be the same. If we removed the modality here, then
+    the client would have to include the modality it needs as part of
+    the definition of [global_state_interp]. Since adding the modality as part
+    of the definition [global_state_interp_mono] does not significantly
+    complicate the formalization in Iris, we prefer simplifying the
+    client. *)
+    global_state_interp_mono g ns q D κs:
+      global_state_interp g ns q D κs ={∅}=∗ global_state_interp g (S ns) q D κs;
+  
+    step_count_next_incr n : n ≤ step_count_next n
+  }.
+  Global Opaque iris_invGS.
+  Global Arguments global_state_interp : simpl never.
+  Global Arguments step_count_next : simpl never.
+End crash_weakestpre.
 
 (* Perennial's [irisGS] does not containt a state interpretation (unlike
  * [irisGS] in Iris). Instead they include the state interpretation in
@@ -23,9 +76,8 @@ From Perennial.program_logic Require crash_weakestpre.
  * create a type class that extends Perennial's [irisGS] with a state
  * interpretation. We extend Perennial's [irisGS] such that we don't have to
    * repeat all the fields here. *)
-
 Class irisGS (Λ : language) (Σ : gFunctors) (Ω : gGenCmras Σ) := IrisGS {
-  perennial_irisGS :> crash_weakestpre.irisGS Λ Σ Ω;
+  #[global] perennial_irisGS :: crash_weakestpre.irisGS Λ Σ Ω;
   (** The state interpretation is a per-machine invariant that should hold in
   between each step of reduction. Here [state Λ] is the per-machine state, and
   the [nat] is the number of forked-off threads (not the total number of threads,
@@ -44,6 +96,7 @@ Notation fork_post := (crash_weakestpre.fork_post).
 
 (* This definition is equal to Perennial's except that it uses our [irisGS] and
  * that we have erased the [NC] and [C] tokens. *)
+
 Definition wpc_pre `{!irisGS Λ Σ Ω} (s : stuckness) (mj: fracR)
     (wpc : coPset -d> expr Λ -d> (val Λ -d> iPropO Σ) -d> iPropO Σ -d> iPropO Σ) :
     coPset -d> expr Λ -d> (val Λ -d> iPropO Σ) -d> iPropO Σ -d> iPropO Σ := λ E1 e1 Φ Φc,
@@ -263,7 +316,6 @@ Proof.
   revert E1 e. induction (lt_wf n) as [n _ IH]=> E1 e Φ Ψ HΦ Φc Ψc HΦc.
   rewrite !wpc0_unfold /wpc_pre.
   (* FIXME: figure out a way to properly automate this proof *)
-  rewrite /cfupd.
   do 14 (apply step_fupd2N_ne || f_contractive || f_equiv); auto; last first.
   { repeat f_equiv. eauto. }
   (* 2: { repeat f_equiv. } *)
@@ -272,9 +324,9 @@ Proof.
   { simpl in IHk. by rewrite IHk. }
   f_equiv. f_contractive.
   do 12 f_equiv.
-  rewrite IH; [done|try lia| |].
-  - intros v. eapply dist_le; eauto. lia.
-  - eapply dist_le; eauto. lia.
+  rewrite IH; [done| done | |].
+  - intros v. eapply dist_lt; eauto.
+  - eapply dist_lt; eauto.
 Qed.
 
 Global Instance wpc_ne s E1 e n :
@@ -1145,7 +1197,7 @@ Lemma wpc_lift_step_fupd s E Φ Φc e1 :
   ∧ |={E}=> Φc)%I
  ⊢ WPC e1 @ s; E {{ Φ }} {{ Φc }}.
 Proof.
-  rewrite wpc_unfold /wpc_pre /cfupd=>->. iIntros "H".
+  rewrite wpc_unfold /wpc_pre =>->. iIntros "H".
   iIntros (mj).
   iSplit; last first.
   { iDestruct "H" as "(_&H)".
@@ -1525,7 +1577,7 @@ Qed.
 *)
 
 (* Some wp rules I need for lifting lemmas *)
-Lemma wp_value_fupd s E Φ e v : IntoVal e v → (|={E}=> Φ v) ⊢ WP e @ s; E {{ Φ }}.
+Lemma wp_value_fupd s E Φ e v : of_val v = e → (|={E}=> Φ v) ⊢ WP e @ s; E {{ Φ }}.
 Proof.
   intros <-. iIntros "HΦ".
   rewrite wp_eq /wp_def.
@@ -1533,8 +1585,8 @@ Proof.
   iMod "HΦ". iApply wpc_value'. eauto.
 Qed.
 Lemma wp_value' s E Φ v : Φ v ⊢ WP (of_val v) @ s; E {{ Φ }}.
-Proof. iIntros "H". iApply wp_value_fupd; auto. done. Qed.
-Lemma wp_value s E Φ e v : IntoVal e v → Φ v ⊢ WP e @ s; E {{ Φ }}.
+Proof. iIntros "H". iApply wp_value_fupd; auto. Qed.
+Lemma wp_value s E Φ e v : of_val v = e → Φ v ⊢ WP e @ s; E {{ Φ }}.
 Proof. intros <-. apply wp_value'. Qed.
 
 Global Instance wp_mono' s E e :
@@ -1791,16 +1843,16 @@ End proofmode_classes.
 Section wpc_ectx_lifting.
 Import ectx_language.
 Context {Λ : ectxLanguage} `{!irisGS Λ Σ Ω} {Hinh : Inhabited (state Λ)}.
-Hint Resolve head_prim_reducible head_reducible_prim_step : core.
+Hint Resolve base_prim_reducible base_reducible_prim_step : core.
 Local Definition reducible_not_val_inhabitant_state e := reducible_not_val e inhabitant.
 Hint Resolve reducible_not_val_inhabitant_state : core.
-Hint Resolve head_stuck_stuck : core.
+Hint Resolve base_stuck_stuck : core.
 
 Lemma wpc_lift_head_step_fupd s E Φ Φc e1 :
   to_val e1 = None →
   ((∀ σ1 g1 ns mj D κ κs nt, state_interp σ1 nt -∗ global_state_interp g1 ns mj D (κ ++ κs) -∗ |={E,∅}=> ▷
-    (⌜head_reducible e1 σ1 g1⌝ ∗
-    ∀ e2 σ2 g2 efs, ⌜head_step e1 σ1 g1 κ e2 σ2 g2 efs⌝ -∗ |={∅,E}=>
+    (⌜base_reducible e1 σ1 g1⌝ ∗
+    ∀ e2 σ2 g2 efs, ⌜base_step e1 σ1 g1 κ e2 σ2 g2 efs⌝ -∗ |={∅,E}=>
       (state_interp σ2 (length efs + nt) ∗
        global_state_interp g2 (step_count_next ns) mj D κs ∗
        WPC e2 @ s; E {{ Φ }} {{ Φc }} ∗
@@ -1819,8 +1871,8 @@ Qed.
 Lemma wpc_lift_head_step s E1 Φ Φc e1 :
   to_val e1 = None →
   ((∀ σ1 g1 ns mj D κ κs nt, state_interp σ1 nt -∗ global_state_interp g1 ns mj D (κ ++ κs) -∗ |={E1,∅}=> ▷
-    (⌜head_reducible e1 σ1 g1⌝ ∗
-     ∀ e2 σ2 g2 efs, ⌜head_step e1 σ1 g1 κ e2 σ2 g2 efs⌝ -∗ |={∅,E1}=>
+    (⌜base_reducible e1 σ1 g1⌝ ∗
+     ∀ e2 σ2 g2 efs, ⌜base_step e1 σ1 g1 κ e2 σ2 g2 efs⌝ -∗ |={∅,E1}=>
       state_interp σ2 (length efs + nt) ∗
       global_state_interp g2 (step_count_next ns) mj D κs ∗
       WPC e2 @ s; E1 {{ Φ }} {{ Φc }} ∗

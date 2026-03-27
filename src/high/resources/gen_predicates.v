@@ -3,12 +3,11 @@
 From Equations Require Import Equations.
 From iris.algebra Require Import gmap_view.
 From iris.bi.lib Require Import fractional.
-From iris.proofmode Require Import classes tactics.
+From iris.proofmode Require Import classes ltac_tactics.
 From iris_named_props Require Import named_props.
-From nextgen Require Import cmra_morphism_extra gmap_view_transformation.
 
 From self Require Import extra map_extra.
-From self.nextgen Require Import hvec nextgen_promises.
+From self.nextgen Require Import hvec nextgen_promises gmap_view_transformation.
 From self.algebra Require Import view.
 From self.base Require Import generational_resources.
 From self.base.modalities Require Import if_rec.
@@ -28,6 +27,16 @@ Section ownership.
   #[local] Definition drop_OCV OCV ℓ PR :=
     if (decide (ℓ ∈ dom OCV)) then Some PR else None.
 
+  #[local] Instance drop_OCV_maptrans OCV: MapTrans (V := predicateR Σ) (drop_OCV OCV).
+  Proof.
+    split; last solve_proper.
+    rewrite /drop_OCV; intros; destruct (decide _); done.
+  Qed.
+
+  #[global] Instance predicates_trans_cmra_morphism OCV:
+    CmraMorphism (map_entry_lift_gmap_view (drop_OCV OCV)).
+  Proof. apply _. Qed.
+  
   Definition predicates_relyT := rel_over [#crashed_atR] (predicatesR Σ).
 
   Definition predicates_rel: predicates_relyT :=
@@ -84,7 +93,6 @@ Section ownership.
     iDestruct "own_auth" as "[own_auth _]".
     rewrite map_imap_drop_OCV_restrict.
     iFrame "∗#".
-    iExists _. done.
   Qed.
 
   Global Instance ghost_map_elem_into_nextgen γ k PR:
@@ -112,7 +120,6 @@ Section ownership.
       first rewrite map_imap_empty insert_empty //;
         last rewrite /drop_OCV decide_True //.
     iFrame "∗#".
-    iExists _, _. done.
   Qed.
 End ownership.
 

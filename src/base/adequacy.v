@@ -1,11 +1,11 @@
 (* In this file we show adequacy of the recovery weakest precondition in the
 base logic. *)
 
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import ltac_tactics.
 From iris.algebra Require Import auth.
-(* From Perennial.base_logic.lib Require Import proph_map. *)
+(* From PerennialNG.base_logic.lib Require Import proph_map. *)
 From self.program_logic Require Import recovery_weakestpre recovery_adequacy.
-(* From Perennial.Helpers Require Import ipm. *)
+(* From PerennialNG.Helpers Require Import ipm. *)
 
 From self Require Import ipm_tactics.
 From self.base Require Import cred_frag.

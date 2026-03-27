@@ -1,23 +1,13 @@
 From iris.bi Require Export bi.
 From self.nextgen Require Import nextgen_promises_ng.
-From Perennial.base_logic Require Export base_logic own fupd_level.
+From PerennialNG.base_logic Require Export base_logic own fupd_level.
 From Perennial.Helpers Require Import ipm.
 From Perennial.algebra Require Import atleast big_sepL mlist.
 Set Default Proof Using "Type".
 
 Lemma uPred_cmra_valid_elim_alt {M: ucmra} (A: cmra) (a: A):
   (✓ a : uPred M) ⊢ ⌜ ✓{0} a ⌝.
-Proof.
-  split.
-  intros n x Hvalx Hvala.
-  move: Hvala. rewrite /bi_pure//=. uPred_primitive.unseal. red. simpl => Hval.
-  assert (uPred_holds (upred.uPred_cmra_valid_def a) O x).
-  { eapply uPred_mono; try eassumption.
-    { reflexivity. }
-    { lia. }
-  }
-  eauto.
-Qed.
+Proof. apply internal_cmra_valid_elim. Qed.
 
 Lemma cmra_op_discrete_internal {M: ucmra} {A: ucmra} (x1 x2: A) :
   Discrete x1 → Discrete x2 → (✓ (x1 ⋅ x2) ⊢ ⌜ Discrete (x1 ⋅ x2) ⌝ : uPred M).
@@ -49,7 +39,7 @@ Proof.
   split; last first.
   {
     split.
-    { rewrite /uPred_emp//=. uPred_primitive.unseal; eauto. econstructor. }
+    { rewrite /uPred_emp//=. uPred.unseal; eauto. econstructor. }
     { intros n'' w Hle2 Hvalwprod Hsat.
       destruct Hsat as (?&?&Heqw_split&Hown1&Hown2).
       move: Hown1. uPred_primitive.unseal. inversion 1 as (s&Heqs).
@@ -458,12 +448,12 @@ Section instances_iProp.
   Proof.
     intros ? Hli. assert (i ≤ length l) by eauto using lookup_lt_Some, Nat.lt_le_incl.
     rewrite -(take_drop_middle l i x) // big_sepL_app /=.
-    rewrite Nat.add_0_r take_length_le //.
+    rewrite Nat.add_0_r length_take_le //.
     rewrite assoc -!(comm _ (Φ _ _)) -assoc.
     iIntros "($&H1&H2)". iModIntro. iIntros (y).
-    rewrite insert_app_r_alt ?take_length_le //.
+    rewrite insert_app_r_alt ?length_take_le //.
     rewrite Nat.sub_diag /=. iIntros "H".
-    rewrite big_sepL_app /=. iFrame. rewrite Nat.add_0_r take_length_le; auto. iFrame.
+    rewrite big_sepL_app /=. iFrame. rewrite Nat.add_0_r length_take_le; auto. iFrame.
   Qed.
 
   Lemma big_sepL_lookup_acc_disc {A} (Φ: nat → A → iProp Σ) (l: list A) i x :
@@ -483,7 +473,7 @@ Section instances_iProp.
   Proof.
     intros Hdisc Hl1 Hl2. rewrite big_sepL2_alt. iIntros "(%&H)".
     rewrite {1}big_sepL_insert_acc_disc; last by rewrite lookup_zip_with; simplify_option_eq.
-    iDestruct "H" as "($&H)". iModIntro. iIntros. rewrite big_sepL2_alt !insert_length.
+    iDestruct "H" as "($&H)". iModIntro. iIntros. rewrite big_sepL2_alt !length_insert.
     iSplit; first done. rewrite -insert_zip_with. by iApply "H".
   Qed.
 

@@ -1,5 +1,5 @@
 From iris.algebra Require Import excl.
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import ltac_tactics.
 From iris.bi Require Import lib.fractional.
 
 From self Require Import map_extra.
@@ -85,13 +85,13 @@ Section spec.
     iIntros "(Hi & Hmap)".
     iSplitL "". { rewrite msg0. iIntros "[%eq H]". inversion eq. }
     rewrite -assoc.
-    iSplitL "". { rewrite lookup_insert. iIntros "[_ %eq]". inversion eq. }
+    iSplitL "". { rewrite lookup_insert_eq. iIntros "[_ %eq]". inversion eq. }
     iDestruct ("Hi" with "[//]") as "[$ $]".
     iApply (big_sepM_impl with "Hmap").
     iIntros "!>" (???).
     destruct (decide (k = t)) as [->|]; last first.
     { rewrite lookup_insert_ne; last lia. iIntros "$". }
-    rewrite lookup_insert.
+    rewrite lookup_insert_eq.
     iIntros "H [HA %eq]".
     inversion eq.
   Qed.

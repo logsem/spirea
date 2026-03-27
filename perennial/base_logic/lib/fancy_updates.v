@@ -1,21 +1,25 @@
 From stdpp Require Export coPset.
 From iris.algebra Require Import gmap auth agree gset coPset.
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import ltac_tactics.
 From self.nextgen Require Import nextgen_promises_ng nextgen_promises inv_ng.
 From Perennial.base_logic.lib Require Export own later_credits.
-From Perennial.base_logic.lib Require Import wsat.
+From PerennialNG.base_logic.lib Require Import wsat.
 From iris.prelude Require Import options.
 Export invGS.
 Import uPred le_upd.
+
+Arguments coPset.coPset_wf !_ / : simpl nomatch, assert.
+Arguments coPset.coPNode' : simpl never.
+Hint Resolve coPset.coPNode'_wf : core.
 
 (** * Suffix subsets *)
 Fixpoint coPset_suffixes_of_raw (p : positive) (E: coPset_raw) : coPset_raw :=
   match p with
   | 1 => E
-  | p~0 => coPNode' false (coPset_suffixes_of_raw p E) (coPLeaf false)
-  | p~1 => coPNode' false (coPLeaf false) (coPset_suffixes_of_raw p E)
+  | p~0 => coPset.coPNode' false (coPset_suffixes_of_raw p E) (coPLeaf false)
+  | p~1 => coPset.coPNode' false (coPLeaf false) (coPset_suffixes_of_raw p E)
   end%positive.
-Lemma coPset_suffixes_of_wf p E : coPset_wf E → coPset_wf (coPset_suffixes_of_raw p E).
+Lemma coPset_suffixes_of_wf p E : coPset.coPset_wf E → coPset.coPset_wf (coPset_suffixes_of_raw p E).
 Proof. induction p; simpl; eauto. Qed.
 Definition coPset_suffixes_of (p : positive) (E : coPset) : coPset :=
   coPset_suffixes_of_raw p (`E) ↾ coPset_suffixes_of_wf _ _ (proj2_sig E).
@@ -23,8 +27,8 @@ Lemma elem_coPset_suffixes_of p q E : p ∈ coPset_suffixes_of q E ↔ ∃ q', (
 Proof.
   unfold elem_of, coPset_elem_of; simpl; split.
   - revert p; induction q; intros [?|?|]; simpl;
-      rewrite ?coPset_elem_of_node; naive_solver.
-  - by intros [q' (->&Helem)]; induction q; simpl; rewrite ?coPset_elem_of_node.
+      rewrite ?coPset.coPset_elem_of_node; naive_solver.
+  - by intros [q' (->&Helem)]; induction q; simpl; rewrite ?coPset.coPset_elem_of_node.
 Qed.
 Lemma coPset_suffixes_of_top p :
   coPset_suffixes_of p ⊤ = coPset_suffixes p.
@@ -39,8 +43,8 @@ Definition coPset_inr (E: coPset) : coPset := coPset_suffixes_of (positives_flat
 Lemma coPset_suffixes_of_infinite p E:
   (¬ set_finite E) → (¬ set_finite (coPset_suffixes_of p E)).
 Proof.
-  rewrite ?coPset_finite_spec; simpl. intros Hsuff.
-  induction p; simpl; rewrite ?coPset_finite_node; rewrite ?andb_True //=; naive_solver.
+  rewrite ?coPset.coPset_finite_spec; simpl. intros Hsuff.
+  induction p; simpl; rewrite ?coPset.coPset_finite_node; rewrite ?andb_True //=; naive_solver.
 Qed.
 
 Lemma coPset_inl_inr_disj E1 E2 :
@@ -181,7 +185,7 @@ Proof.
   iApply (lc_fupd_elim_later with "Hf Hupd").
 Qed.
 
-(* Local Existing Instance inv_lcPreG. *)
+Local Existing Instance inv_lcPreG.
 (* Local Existing Instances ngLcGpreS_inG ngLcGS_inG. *)
 
 Lemma fupd_soundness `{!invGpreS Σ} `{Ω : gGenCmras Σ} `{!lcGpreS Σ} n E1 E2 (φ : Prop) :
@@ -200,6 +204,7 @@ Proof.
   { iApply (ownE_weaken with "HE"). set_solver. }
   iPoseProof (except_0_into_later with "H'") as "H'".
   iApply (le_upd.le_upd_later with "Hone"). iNext. done.
+  Unshelve. apply _. (* TODO: Sbi shelved *)
 Qed.
 
 Lemma step_fupdN_soundness `{!invGpreS Σ} `{Ω : gGenCmras Σ} `{!lcGpreS Σ} n φ :

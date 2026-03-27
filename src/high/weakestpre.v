@@ -47,7 +47,7 @@ Section wp.
   Proof. rewrite wp_eq /wp_def. iIntros "H". iApply wpc_bind. done. Qed.
 
   Lemma wp_value_fupd s E Φ e v :
-    IntoVal e v → (|={E}=> Φ v) ⊢ WP e @ s; E {{ Φ }}.
+    of_val v = e → (|={E}=> Φ v) ⊢ WP e @ s; E {{ Φ }}.
   Proof. intros <-. apply wp_value_fupd'. Qed.
 
   (* If the expression is a value then showing the postcondition for the value
@@ -149,7 +149,7 @@ Section wp.
     { rewrite monPred_at_pure //. }
 
     iApply program_logic.crash_weakestpre.wp_wpc.
-    iApply "impl". done. iAssumption.
+    iApply "impl"; first done. iAssumption.
   Qed.
 
   Lemma wp_fold_at e st E (Φ : val → dProp Σ) TV1 :
@@ -316,7 +316,7 @@ Section wp_rules.
         repeat split; try apply view_empty_least.
         apply view_le_lub_r. apply view_le_lub_l.
         apply view_le_singleton.
-        eexists _. rewrite lookup_singleton.
+        eexists _. rewrite lookup_singleton_eq.
         split; first reflexivity. done.
       - simpl.
         iIntros "#pers".
@@ -334,13 +334,13 @@ Section wp_rules.
         destruct (BV !! ℓ) as [[?]|] eqn:bvLook.
         * iApply (persisted_persisted_loc_weak with "pers").
           { apply lookup_join; last done.
-            rewrite lookup_singleton. done. }
+            rewrite lookup_singleton_eq. done. }
           lia.
         * iApply (persisted_persisted_loc_weak with "pers").
           { rewrite lookup_op.
             rewrite bvLook.
             rewrite right_id.
-            rewrite lookup_singleton. done. }
+            rewrite lookup_singleton_eq. done. }
           lia. }
     iExistsN.
     iFrameNamed.
@@ -421,7 +421,7 @@ Section wp_rules.
     rewrite monPred_at_wand.
     iApply "HΦ".
     - iPureIntro.
-      etrans. apply incl2. repeat split; try done.
+      etrans; first apply incl2. repeat split; try done.
       apply view_le_l.
     - iApply monPred_mono; last iApply "P".
       eassert ((sv, pv, bv) ⊑ _) as incl3.

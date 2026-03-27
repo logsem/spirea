@@ -1,7 +1,8 @@
 From iris.bi Require Export weakestpre.
-From iris.proofmode Require Import base tactics classes.
-From Perennial.base_logic.lib Require Export ncfupd.
-From Perennial.program_logic Require Export language crash_weakestpre.
+From iris.proofmode Require Import base ltac_tactics classes.
+(* From Perennial.base_logic.lib Require Export ncfupd. *)
+From Perennial.program_logic Require Export language.
+From self.program_logic Require Export crash_weakestpre.
 From iris.prelude Require Import options.
 Import uPred.
 
@@ -50,59 +51,57 @@ Proof. rewrite wp_value_fupd' //. Qed.
 
 Lemma wp_strong_mono s1 s2 E1 E2 e Φ Ψ :
   s1 ⊑ s2 → E1 ⊆ E2 →
-  WP e @ s1; E1 {{ Φ }} -∗ (∀ v, Φ v -∗ |NC={E2}=> Ψ v) -∗ WP e @ s2; E2 {{ Ψ }}.
+  WP e @ s1; E1 {{ Φ }} -∗ (∀ v, Φ v -∗ |={E2}=> Ψ v) -∗ WP e @ s2; E2 {{ Ψ }}.
 Proof.
   iIntros (? HE) "H HΦ". rewrite wp_eq.
   iApply (wpc_strong_mono with "H"); eauto.
 Qed.
 
-Lemma ncfupd_wp s E e Φ : (|NC={E}=> WP e @ s; E {{ Φ }}) ⊢ WP e @ s; E {{ Φ }}.
+Lemma ncfupd_wp s E e Φ : (|={E}=> WP e @ s; E {{ Φ }}) ⊢ WP e @ s; E {{ Φ }}.
 Proof.
-  iIntros "Hwp". rewrite wp_eq. iApply ncfupd_wpc.
-  iSplit; first by eauto. done.
+  iIntros "Hwp". rewrite wp_eq. iApply fupd_wpc.
+  done.
 Qed.
 Lemma fupd_wp s E e Φ : (|={E}=> (WP e @ s; E {{ Φ }})) ⊢ WP e @ s; E {{ Φ }}.
 Proof. iIntros "H". iApply ncfupd_wp. iMod "H". eauto. Qed.
-Lemma wp_ncfupd s E e Φ : WP e @ s; E {{ v, |NC={E}=> Φ v }} ⊢ WP e @ s; E {{ Φ }}.
+Lemma wp_ncfupd s E e Φ : WP e @ s; E {{ v, |={E}=> Φ v }} ⊢ WP e @ s; E {{ Φ }}.
 Proof. iIntros "H". iApply (wp_strong_mono s s E with "H"); auto. Qed.
 Lemma wp_fupd s E e Φ : WP e @ s; E {{ v, fupd E E (Φ v) }} ⊢ WP e @ s; E {{ Φ }}.
-Proof. iIntros "H". iApply (wp_strong_mono s s E with "H"); auto. by iIntros (v) ">H". Qed.
+Proof. iIntros "H". iApply (wp_strong_mono s s E with "H"); auto. Qed.
 
 Lemma wp_ncatomic s E1 E2 e Φ `{!Atomic StronglyAtomic e} :
-  (|NC={E1,E2}=> WP e @ s; E2 {{ v, |NC={E2,E1}=> Φ v }}) ⊢ WP e @ s; E1 {{ Φ }}.
+  (|={E1,E2}=> WP e @ s; E2 {{ v, |={E2,E1}=> Φ v }}) ⊢ WP e @ s; E1 {{ Φ }}.
 Proof.
   iIntros "H". rewrite wp_eq /wp_def !wpc_unfold /wpc_pre.
-  rewrite ncfupd_eq /ncfupd_def. iIntros (mj).
+  iIntros (mj).
   iSplit; last first.
   { iIntros. iApply step_fupd_extra.step_fupd2N_inner_later; [done|done|]. iNext; iFrame. }
   destruct (to_val e) as [v|] eqn:He.
-  { iIntros (q ????) "Hg HNC". iMod ("H" with "[$]") as "(H&HNC)".
+  { iIntros (????) "Hg".
     iDestruct ("H" $! mj) as "[H _]".
-    iMod ("H" with "[$] [$]") as "(H&Hg&HNC)". iMod ("H" with "[$]") as "(H&HNC)". by iFrame.
+    iMod ("H" with "[$]") as "H". iMod "H" as "[>$ $]". done. 
   }
-  iIntros (q σ1 g1 ns D κ κs nt) "Hσ Hg HNC Hlc".
-  iMod ("H" with "[$]") as "(H&HNC)".
+  iIntros (σ1 g1 ns D κ κs nt) "Hσ Hg Hlc".
   iDestruct ("H" $! mj) as "[H _]".
-  iMod ("H" $! _ σ1 with "Hσ Hg [$] [$]") as "H". iModIntro.
+  iMod ("H" $! σ1 with "Hσ Hg [$]") as "H".
   iApply (step_fupd_extra.step_fupd2N_wand with "H").
   iIntros "[% H]". iSplit; first done.
   iIntros (e2 σ2 g2 efs Hstep).
-  iMod ("H" with "[//]") as "($ & Hg & H & $ & HNC)".
+  iMod ("H" with "[//]") as "($ & Hg & H & $)".
   - destruct (atomic _ _ _ _ _ _ _ Hstep) as [v <-%of_to_val].
     iDestruct (wpc0_value_inv' with "H") as "H".
     rewrite to_of_val.
-    iMod ("H" with "[$] [$]") as "(H&Hg&HNC)".
-    iMod ("H" with "[$]") as "(H&HNC)".
+    iMod ("H" with "[$]") as "(H&Hg)".
+    iMod "H" as "H".
     iModIntro. iFrame. rewrite wpc0_unfold /wpc_pre.
     rewrite to_of_val /=. iSplit; last first.
     { iIntros. iApply step_fupd_extra.step_fupd2N_inner_later; [done|done|]. iNext; iFrame. }
-    iIntros (?????) "$ $". done.
+    iIntros (????) "$". done.
 Qed.
 Lemma wp_atomic s E1 E2 e Φ `{!Atomic StronglyAtomic e} :
   (|={E1,E2}=> WP e @ s; E2 {{ v, |={E2,E1}=> Φ v }}) ⊢ WP e @ s; E1 {{ Φ }}.
 Proof.
-  iIntros "H". iApply wp_ncatomic; auto. iMod "H". iModIntro. iApply (wp_strong_mono with "H"); eauto.
-  iIntros (?) "H". iModIntro. iMod "H". eauto.
+  iIntros "H". iApply wp_ncatomic; auto.
 Qed.
 
 (** In this stronger version of [wp_step_fupdN], the masks in the
@@ -131,12 +130,12 @@ Proof.
   iIntros (-> ?) "H". iIntros (mj).
   iSplit; last first.
   { iIntros. iApply step_fupd_extra.step_fupd2N_inner_later; [done|done|]. iNext; iFrame. }
-  iIntros (q σ1 g1 ns D κ κs nt) "Hσ Hg HNC Hlc".
+  iIntros (σ1 g1 ns D κ κs nt) "Hσ Hg Hlc".
   destruct (decide (n ≤ num_laters_per_step ns)) as [Hn|Hn]; first last.
   { iDestruct "H" as "[Hn _]". iMod ("Hn" with "Hσ Hg") as %?. lia. }
   iDestruct "H" as "[_ [>HP Hwp]]".
   iDestruct ("Hwp" $! mj) as "[Hwp _]".
-  iMod ("Hwp" with "Hσ Hg [$] [$]") as "H".
+  iMod ("Hwp" with "Hσ Hg [$]") as "H".
   iMod "HP". iModIntro.
   revert n Hn. generalize (num_laters_per_step ns)=>n0 n Hn.
   iInduction n as [|n] "IH" forall (n0 Hn).
@@ -147,7 +146,7 @@ Proof.
     { destruct (to_val _); eauto. }
     iSplit; last by auto.
     iIntros (v) "HΦ".
-    iApply (ncfupd_mask_mono); last by iMod ("HΦ" with "[$]").
+    iApply (fupd_mask_mono); last by iMod ("HΦ" with "[$]").
     { destruct (to_val _); eauto. }
   - destruct n0 as [|n0]; [lia|]=>/=.
     iMod "H".
@@ -205,16 +204,16 @@ Proof. by intros Φ Φ' ?; apply wp_mono. Qed.
 Lemma wp_value_fupd s E Φ e v : IntoVal e v → WP e @ s; E {{ Φ }} ⊣⊢ |NC={E}=> Φ v.
 Proof. intros <-. by apply wp_value_fupd'. Qed.
 *)
-Lemma wp_value_fupd s E Φ e v : IntoVal e v → (|NC={E}=> Φ v) ⊢ WP e @ s; E {{ Φ }}.
+Lemma wp_value_fupd s E Φ e v : of_val v = e → (|={E}=> Φ v) ⊢ WP e @ s; E {{ Φ }}.
 Proof.
   intros <-. iIntros "HΦ".
   rewrite wp_eq /wp_def.
-  iApply ncfupd_wpc. iSplit; first done.
+  iApply fupd_wpc.
   iMod "HΦ". iApply wpc_value'. eauto.
 Qed.
 Lemma wp_value' s E Φ v : Φ v ⊢ WP (of_val v) @ s; E {{ Φ }}.
-Proof. iIntros "H". iApply wp_value_fupd; auto. done. Qed.
-Lemma wp_value s E Φ e v : IntoVal e v → Φ v ⊢ WP e @ s; E {{ Φ }}.
+Proof. iIntros "H". iApply wp_value_fupd; auto. Qed.
+Lemma wp_value s E Φ e v : of_val v = e → Φ v ⊢ WP e @ s; E {{ Φ }}.
 Proof. intros <-. apply wp_value'. Qed.
 
 Lemma wp_frame_l s E e Φ R : R ∗ WP e @ s; E {{ Φ }} ⊢ WP e @ s; E {{ v, R ∗ Φ v }}.
@@ -340,10 +339,10 @@ Section proofmode_classes.
   Qed.
 
   Global Instance elim_modal_ncfupd_wp p s E e P Φ :
-    ElimModal True p false (|NC={E}=> P) P (WP e @ s; E {{ Φ }}) (WP e @ s; E {{ Φ }}).
+    ElimModal True p false (|={E}=> P) P (WP e @ s; E {{ Φ }}) (WP e @ s; E {{ Φ }}).
   Proof.
     by rewrite /ElimModal intuitionistically_if_elim
-      ncfupd_frame_r wand_elim_r ncfupd_wp.
+      fupd_frame_r wand_elim_r ncfupd_wp.
   Qed.
 
   Global Instance elim_modal_fupd_wp p s E e P Φ :
@@ -354,11 +353,11 @@ Section proofmode_classes.
   Qed.
 
   Global Instance elim_modal_ncfupd_wp_atomic p s E1 E2 e P Φ :
-    ElimModal (Atomic StronglyAtomic e) p false (|NC={E1,E2}=> P) P
-            (WP e @ s; E1 {{ Φ }}) (WP e @ s; E2 {{ v, |NC={E2,E1}=> Φ v }})%I | 100.
+    ElimModal (Atomic StronglyAtomic e) p false (|={E1,E2}=> P) P
+            (WP e @ s; E1 {{ Φ }}) (WP e @ s; E2 {{ v, |={E2,E1}=> Φ v }})%I | 100.
   Proof.
     intros ?. by rewrite /ElimModal intuitionistically_if_elim
-      ncfupd_frame_r wand_elim_r wp_ncatomic.
+      fupd_frame_r wand_elim_r wp_ncatomic.
   Qed.
 
   Global Instance elim_modal_fupd_wp_atomic p s E1 E2 e P Φ :
@@ -375,9 +374,9 @@ Section proofmode_classes.
   Proof. by rewrite /AddModal fupd_frame_r wand_elim_r fupd_wp. Qed.
 
   Global Instance elim_acc_ncfupd_wp {X} E1 E2 α β γ e s Φ :
-    ElimAcc (X:=X) (Atomic StronglyAtomic e) (ncfupd E1 E2) (ncfupd E2 E1)
+    ElimAcc (X:=X) (Atomic StronglyAtomic e) (fupd E1 E2) (fupd E2 E1)
             α β γ (WP e @ s; E1 {{ Φ }})
-            (λ x, WP e @ s; E2 {{ v, |NC={E2}=> β x ∗ (γ x -∗? Φ v) }})%I.
+            (λ x, WP e @ s; E2 {{ v, |={E2}=> β x ∗ (γ x -∗? Φ v) }})%I.
   Proof.
     iIntros (?) "Hinner >Hacc". iDestruct "Hacc" as (x) "[Hα Hclose]".
     iApply (wp_wand with "(Hinner Hα)").
@@ -396,9 +395,9 @@ Section proofmode_classes.
   Qed.
 
   Global Instance elim_acc_ncfupd_wp_nonatomic {X} E α β γ e s Φ :
-    ElimAcc (X:=X) True (ncfupd E E) (ncfupd E E)
+    ElimAcc (X:=X) True (fupd E E) (fupd E E)
             α β γ (WP e @ s; E {{ Φ }})
-            (λ x, WP e @ s; E {{ v, |NC={E}=> β x ∗ (γ x -∗? Φ v) }})%I.
+            (λ x, WP e @ s; E {{ v, |={E}=> β x ∗ (γ x -∗? Φ v) }})%I.
   Proof.
     rewrite /ElimAcc /accessor.
     iIntros (_) "Hinner >Hacc". iDestruct "Hacc" as (x) "[Hα Hclose]".

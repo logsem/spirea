@@ -1,7 +1,7 @@
 From iris.bi Require Import lib.fractional.
 From iris.base_logic.lib Require Import own.
 From iris.algebra Require Import gset gmap excl auth gmap_view.
-From iris.proofmode Require Import reduction monpred tactics.
+From iris.proofmode Require Import reduction monpred ltac_tactics.
 From iris_named_props Require Import named_props.
 
 From self Require Import extra.
@@ -11,7 +11,7 @@ From self.nextgen Require Import nextgen_promises.
 From self.high.lib Require Import abstract_state.
 
 From self.lang Require Import lang.
-From Perennial.base_logic.lib Require Import wsat.
+From PerennialNG.base_logic.lib Require Import wsat.
 
 Section predicates.
   Context `{nvmHighGS}.
@@ -52,7 +52,7 @@ Section predicates.
     unwrapped_pred_to_ra (encoded_pred_unwrap pred).
 
   Global Instance encoded_pred_unwrap_proper :
-    ∀ n, Proper (@dist enc_predicateO _ n ==> @dist predO _ n) encoded_pred_unwrap.
+    ∀ n, Proper (@dist _ enc_predicateO _ n ==> @dist _ predO _ n) encoded_pred_unwrap.
   Proof.
     intros ? p1 p2 eq.
     rewrite /encoded_pred_unwrap.
@@ -68,13 +68,13 @@ Section predicates.
   Qed.
 
   Global Instance pred_to_ra_ne :
-    ∀ n, Proper (@dist enc_predicateO _ n ==> dist n) pred_to_ra.
+    ∀ n, Proper (@dist _ enc_predicateO _ n ==> dist n) pred_to_ra.
   Proof.
     intros ??? eq.
     rewrite /pred_to_ra.
     rewrite /pred_to_ra.
     rewrite /unwrapped_pred_to_ra.
-    apply (@to_agree_ne (positive -d> val -d> laterO (optionO (thread_view -d> (iPropO Σ))))).
+    apply (@to_agree_ne _ (positive -d> val -d> laterO (optionO (thread_view -d> (iPropO Σ))))).
     intros ??.
     eassert (NonExpansive Next) as ne; last apply ne; first by apply _.
     apply encoded_pred_unwrap_proper in eq.
@@ -117,7 +117,7 @@ Section predicates.
     rewrite /pred_to_ra.
     rewrite /unwrapped_pred_to_ra.
     intros ??? dl.
-    apply (@to_agree_ne (positive -d> val -d> laterO (optionO (thread_view -d> (iPropO Σ))))).
+    apply (@to_agree_ne _ (positive -d> val -d> laterO (optionO (thread_view -d> (iPropO Σ))))).
     intros ??.
     destruct n. { apply: contractive_0. }
     apply (contractive_S Next).
@@ -248,15 +248,14 @@ Section predicates.
     iSpecialize ("eq" $! ℓ).
     rewrite lookup_fmap.
     rewrite lookup_op.
-    rewrite lookup_singleton.
+    rewrite lookup_singleton_eq.
     destruct (preds !! ℓ) as [o|] eqn:eq; rewrite eq; simpl.
     2: {
-      case (c !! ℓ); intros; iDestruct "eq" as %eq'; inversion eq'. }
+      case (c !! ℓ); intros; iDestruct "eq" as %eq'; rewrite Some_op_opM in eq'; inversion eq'. }
     iExists o.
     iSplit; first done.
-    case (c !! ℓ).
-    - intros ?.
-      rewrite -Some_op.
+    destruct (c !! ℓ) eqn:Heq; rewrite Heq.
+    - rewrite -Some_op.
       rewrite !option_equivI.
       rewrite wsat.agree_equiv_inclI.
       rewrite !discrete_fun_equivI. iIntros (state).
@@ -336,7 +335,6 @@ Section predicates.
     iEval (setoid_rewrite discrete_fun_equivI) in "eq".
     iEval (setoid_rewrite discrete_fun_equivI) in "eq".
     iSpecialize ("eq" $! (encode s) v).
-    Unshelve. 2: { done. } 2: { done. }
     rewrite /encode_predicate. rewrite decode_encode /=.
     done.
   Qed.

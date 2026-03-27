@@ -151,7 +151,7 @@ Section wp_na.
       (* [incrMap] *)
       iSplitPure. { apply: increasing_map_insert_last; eauto. }
       (* [lookupV] *)
-      iSplitPure. { rewrite lookup_insert. done. }
+      iSplitPure. { rewrite lookup_insert_eq. done. }
       (* [nolater] *)
       iSplitPure.
       { eapply map_no_later_insert; last done.
@@ -284,9 +284,9 @@ Section wp_na.
     iSplitL "phi"; last first.
     - iApply (big_sepM2_impl with "predFR").
       iIntros "!>" (t' msg_old encσ_old physHistLook absHistLook') "pred".
-      rewrite lookup_insert /=.
+      rewrite lookup_insert_eq /=.
       destruct (decide (tT = S t')) as [-> | ].
-      + rewrite lookup_insert.
+      + rewrite lookup_insert_eq.
         iEval (rewrite decide_False; last naive_solver).
         case: (decide _) => [ [? ?] | ?].
         * iDestruct ("split" with "pred") as "pred".

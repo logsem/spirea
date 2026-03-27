@@ -43,11 +43,11 @@ conditions usually are to show.  *)
 Class ProtocolConditions `{AbstractState ST, nvmHighGS} (prot : LocationProtocol ST) := {
   bumper_mono :
     Proper ((⊑@{ST}) ==> (⊑))%signature (prot.(p_bumper));
-  full_nobuf :>
+  full_nobuf ::
     ∀ s v, BufferFree (prot.(p_full) s v);
-  read_nobuf :>
+  read_nobuf ::
     ∀ s v, BufferFree (prot.(p_read) s v);
-  pers_obj :>
+  pers_obj ::
     ∀ s v, Objective (prot.(p_pers) s v);
   full_read_split :
     forall s v, prot.(p_full) s v ⊣⊢ prot.(p_read) s v ∗ (prot.(p_read) s v -∗ prot.(p_full) s v);

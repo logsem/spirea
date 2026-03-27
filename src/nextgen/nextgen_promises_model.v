@@ -10,7 +10,7 @@ From stdpp Require Import finite.
 
 From iris.algebra Require Import functions gmap agree excl csum max_prefix_list.
 From iris.algebra.lib Require Import mono_list.
-From iris.proofmode Require Import classes tactics.
+From iris.proofmode Require Import classes ltac_tactics.
 From iris.base_logic.lib Require Export iprop own.
 From iris.prelude Require Import options.
 
@@ -68,7 +68,7 @@ Qed.
 
 Lemma map_unfold_validI {Σ} {i : gid Σ} (a : R Σ i) :
   ✓ map_unfold a ⊢@{iPropI Σ} ✓ a.
-Proof. apply valid_entails=> n. apply map_unfold_validN. Qed.
+Proof. apply internal_cmra_valid_entails => n. apply map_unfold_validN. Qed.
 
 (** Transport an endo map on a camera along an equality in the camera. *)
 Definition cmra_map_transport {A B : cmra}
@@ -318,7 +318,7 @@ We need
       rewrite map_lookup_imap.
       destruct (decide (γ = γ2)) as [<- | neqγ].
       2: { rewrite !lookup_singleton_ne; done. }
-      rewrite 2!lookup_singleton.
+      rewrite 2!lookup_singleton_eq.
       simpl.
       f_equiv.
       f_equiv.
@@ -466,7 +466,7 @@ Section transmap.
     setoid_rewrite transmap_insert_lookup_ne.
     + apply rest.
     + eapply promises_lookup_at_None; done.
-    + apply elem_of_list_lookup_1 in elem as (? & look).
+    + apply list_elem_of_lookup_1 in elem as (? & look).
       specialize (
         promises_well_formed_lookup owf promises _ p2 WF look) as hasDeps2.
       specialize (hasDeps2 idx) as (p3 & look3 & eq & eq2 & ?).
@@ -841,9 +841,9 @@ Section own_promises_properties.
     length l2 ≤ length l1 → l1 `prefix_of` l2 → l2 = l1.
   Proof.
     intros len [[|a l] eq].
-    - rewrite -app_nil_end in eq. done.
+    - rewrite app_nil_r in eq. done.
     - assert (length l2 = length (l1 ++ a :: l)) by (rewrite eq; done).
-      rewrite app_length /= in H. lia.
+      rewrite length_app /= in H. lia.
   Qed.
 
   Lemma prefix_of_disj {A} (l1 l2 : list A) :
@@ -946,7 +946,7 @@ Section own_promises_properties.
     destruct (picks (pi_id pi) !! pi_γ pi) as [t|] eqn:look2; last naive_solver.
     iLeft.
     iDestruct ("picks" $! _ _ _ look2) as (??????? prefList) "picks".
-    apply elem_of_list_lookup_2 in look.
+    apply list_elem_of_lookup_2 in look.
     unfold own_promises.
     rewrite big_sepL_elem_of; last done.
     iDestruct "prs" as (?? (?&?&?&?)) "prs".
@@ -983,8 +983,8 @@ Section own_promises_properties.
     ([∗ list] x ∈ l, Φ x) ⊣⊢@{iProp Σ} (∀ x, ⌜x ∈ l⌝ → Φ x).
   Proof.
     intros ?. rewrite big_sepL_forall. iSplit.
-    - iIntros "H" (? [? elem]%elem_of_list_lookup_1). iApply "H". done.
-    - iIntros "H" (?? ?%elem_of_list_lookup_2). iApply "H". done.
+    - iIntros "H" (? [? elem]%list_elem_of_lookup_1). iApply "H". done.
+    - iIntros "H" (?? ?%list_elem_of_lookup_2). iApply "H". done.
   Qed.
 
   Lemma own_promises_merge prsL prsR :
@@ -1021,8 +1021,8 @@ End own_promises_properties.
 
 Class IntoNextgen `{Ω : gGenCmras Σ} (P : iProp Σ) (Q : iProp Σ) :=
   into_nextgen : P ⊢ ⚡==> Q.
-Global Arguments IntoNextgen  {_ _} _%I _%I.
-Global Arguments into_nextgen {_ _} _%I _%I.
+Global Arguments IntoNextgen  {_ _} _%_I _%_I.
+Global Arguments into_nextgen {_ _} _%_I _%_I.
 Global Hint Mode IntoNextgen + + + - : typeclass_instances.
 
 Section nextgen_structural_properties.
@@ -1359,7 +1359,7 @@ Section nextgen_structural_properties.
       iModIntro. done.
     - iIntros "Hl".
       iDestruct (big_sepL2_length with "Hl") as %Hlen.
-      rewrite app_length /= in Hlen.
+      rewrite length_app /= in Hlen.
       rewrite PeanoNat.Nat.add_1_r in Hlen.
       destruct l2 using rev_ind;try done;clear IHl2.
       iDestruct (big_sepL2_snoc with "Hl") as "[Hl1 Hl2]".

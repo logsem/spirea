@@ -3,7 +3,7 @@ nextgen modality, and allocates a promise that any nextgen pick is the
 identity transformation, to make later credits stable under the
 nextgen modality *)
 From iris.prelude Require Import options.
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import ltac_tactics.
 From iris.algebra Require Export auth numbers.
 From iris.base_logic.lib Require Import iprop own later_credits.
 

@@ -1,0 +1,10 @@
+# Search paths for all packages.
+# Each line should be of the form "<PACKAGE> <LOGICAL_PATH>",
+# where <PACKAGE> is the name of a directory that matches the
+# corresponding package name.
+
+# rename the custom built perennial to PerennialNG so that we can reuse upstream as much as possible
+perennial PerennialNG
+
+# TODO: rename logical path to Spirea in the future
+src self

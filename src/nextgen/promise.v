@@ -196,8 +196,8 @@ Section promise_info.
       - apply IH; done.
     * intros A.
       split.
-      - apply IH. intros pi ?. apply A. apply elem_of_list_further. done.
-      - destruct (A a) as [?|?]; first apply elem_of_list_here; naive_solver.
+      - apply IH. intros pi ?. apply A. apply list_elem_of_further. done.
+      - destruct (A a) as [?|?]; first apply list_elem_of_here; naive_solver.
   Qed.
 
   Definition res_trans_transport {id1 id2}
@@ -301,7 +301,7 @@ Section promise_info.
   Proof.
     intros hasDeps idx.
     destruct (hasDeps idx) as (p2 & ? & ?).
-    eauto using elem_of_list_further.
+    eauto using list_elem_of_further.
   Qed.
 
   Lemma promises_has_deps_weaken_app p prs1 prs2 wf :
@@ -351,7 +351,7 @@ Section promise_info.
     promises_has_deps pi promises (owf (pi_id pi)). (* We forget the different part for now. *)
   Proof.
     intros WF look.
-    revert dependent idx.
+    generalize dependent idx.
     induction promises as [ |?? IH]; first intros ? [=].
     destruct WF as [[? hasDeps] WF'].
     intros [ | idx].
@@ -361,7 +361,7 @@ Section promise_info.
     * intros look.
       intros d.
       destruct (IH WF' idx look d) as (? & ? & ?).
-      eauto using elem_of_list_further.
+      eauto using list_elem_of_further.
   Qed.
 
   Lemma promises_well_formed_lookup_index owf prs pi1 i :
@@ -383,7 +383,7 @@ Section promise_info.
     * assert (length prs' - i = 0) as eq by lia.
       rewrite eq in look. injection look as [= ->].
       specialize (deps idx) as (piSat & elm & sat).
-      apply elem_of_list_lookup_1 in elm as (j' & look).
+      apply list_elem_of_lookup_1 in elm as (j' & look).
       exists (length prs' - (S j')), piSat, (owf (pi1.(pi_id))).
       pose proof look as look'.
       apply lookup_lt_Some in look.
@@ -474,14 +474,14 @@ Section promise_info.
       * rewrite promises_lookup_at_cons.
         simpl.
         intros [= <-].
-        apply elem_of_list_here.
+        apply list_elem_of_here.
       * rewrite promises_lookup_at_cons_neq; last naive_solver.
         intros ?.
-        apply elem_of_list_further.
+        apply list_elem_of_further.
         apply IH. done.
     - rewrite promises_lookup_at_cons_neq; last naive_solver.
       intros ?.
-      apply elem_of_list_further.
+      apply list_elem_of_further.
       apply IH. done.
   Qed.
 
@@ -489,7 +489,7 @@ Section promise_info.
     promises_lookup_at prs id γ = Some pia →
     ∃ i, prs !! i = Some (MkPi id γ pia).
   Proof.
-    intros ?%promises_lookup_at_Some. apply elem_of_list_lookup_1. done.
+    intros ?%promises_lookup_at_Some. apply list_elem_of_lookup_1. done.
   Qed.
 
   Lemma promises_info_update_self pi pia :
@@ -540,7 +540,7 @@ Section promise_info.
     pi ∈ prs ∨ (pi = MkPi id γ pia ∧ ∃ pia', MkPi id γ pia' ∈ prs).
   Proof.
     unfold promises_list_update.
-    intros (pi' & -> & elm)%elem_of_list_fmap_2.
+    intros (pi' & -> & elm)%list_elem_of_fmap_1.
     rewrite promises_info_update_equation_1.
     rewrite promises_info_update_clause_1_equation_1.
     destruct (decide (pi'.(pi_id) = id)) as [<-|]; last naive_solver.
@@ -687,7 +687,7 @@ Section promise_info.
     intros wf look.
     eapply promises_elem_of; first done.
     destruct pi.
-    eapply elem_of_list_lookup_2.
+    eapply list_elem_of_lookup_2.
     apply look.
   Qed.
 
@@ -918,8 +918,8 @@ Section promise_info.
         (* promise_satisfy_dep pi piSat idx wf. *)
         promise_satisfy_dep pi piSat idx wf.
   Proof.
-    intros eq wf1 wf2 [[idx look]%elem_of_list_lookup_1 |
-                    [idx look]%elem_of_list_lookup_1].
+    intros eq wf1 wf2 [[idx look]%list_elem_of_lookup_1 |
+                    [idx look]%list_elem_of_lookup_1].
     - intros i.
       eapply promises_well_formed_lookup in wf1; last done.
       destruct (wf1 i) as (piSat & rest).
@@ -1115,7 +1115,7 @@ Section promise_info.
     split_and!.
     + apply promises_lookup_at_cons.
     + done.
-    + intros ??. apply elem_of_list_further. apply sub2. done.
+    + intros ??. apply list_elem_of_further. apply sub2. done.
     + apply promise_list_valid_restricted_merge_cons; try done.
       intros pia2 look2. simpl in look2.
       apply (promise_lookup_lookup owf) in look; last done.
@@ -1243,7 +1243,7 @@ Section promise_info.
     intros (? & look%promises_lookup_at_Some).
     apply elem_of_app.
     left.
-    apply elem_of_list_fmap.
+    apply list_elem_of_fmap.
     eexists _. split; last done. done.
   Qed.
 

@@ -1,7 +1,7 @@
 From iris.algebra Require Import auth agree excl csum.
 From Perennial.base_logic Require Import ae_invariants.
 From iris.bi Require Export weakestpre.
-From iris.proofmode Require Import base tactics classes.
+From iris.proofmode Require Import base ltac_tactics classes.
 From self.nextgen Require Import nextgen_promises_ng.
 From Perennial.base_logic Require Export invariants fancy_updates2.
 From Perennial.program_logic Require Import step_fupd_extra ae_invariants_mutable.

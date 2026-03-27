@@ -1,9 +1,9 @@
 From stdpp Require Export coPset.
 From iris.algebra Require Import gmap auth agree gset coPset list vector excl.
 From Perennial.algebra Require Import mlist.
-From iris.proofmode Require Import tactics.
-From self.nextgen Require Import nextgen_promises_ng.
-From Perennial.base_logic Require Export lib.own lib.later_credits.
+From iris.proofmode Require Import ltac_tactics.
+From self.nextgen Require Import nextgen_promises_ng inv_ng.
+From Perennial.base_logic.lib Require Export own later_credits.
 From iris.prelude Require Import options.
 
 (* An inductive grammar of "basic" BI expressions. *)
@@ -46,11 +46,11 @@ Module invGS.
                                     (prodR (agreeR (prodO (listO (laterO (iPropO Σ))) bi_schemaO))
                                            (optionR (prodR fracR (agreeR (listO (laterO (iPropO Σ))))))))).
   Class invGpreS (Σ : gFunctors) : Set := WsatPreG {
-    inv_inPreG :> inG Σ (invR Σ);
-    enabled_inPreG :> inG Σ coPset_disjR;
-    disabled_inPreG :> inG Σ (gset_disjR positive);
-    mlist_inPreG :> fmlistG (invariant_level_names) Σ;
-    inv_lcPreG :> lcGpreS Σ;
+    inv_inPreG :: inG Σ (invR Σ);
+    enabled_inPreG :: inG Σ coPset_disjR;
+    disabled_inPreG :: inG Σ (gset_disjR positive);
+    mlist_inPreG :: fmlistG (invariant_level_names) Σ;
+    inv_lcPreG :: lcGpreS Σ;
   }.
 
   (* Class invGenG (Σ : gFunctors) (Ω : gGenCmras Σ) : Set := WsatGen { *)
@@ -61,8 +61,8 @@ Module invGS.
   (* }. *)
                                                                
   Class invGS (Σ : gFunctors) : Set := WsatG {
-    inv_inG :> invGpreS Σ;
-    invGS_lc :> lcGS Σ;
+    inv_inG :: invGpreS Σ;
+    invGS_lc :: lcGS Σ;
     (* inv_gen :> invGenG Σ Ω; *)
     inv_list_name : gname;
     enabled_name : gname;
@@ -73,11 +73,11 @@ Module invGS.
     
   (* class for ng requirements over Ω *)
   Class ngInvG (Σ : gFunctors) Ω `{!invGpreS Σ} : Set := NgInvG {
-    ngInv_inG :> ngInG Σ Ω (invR Σ);
-    ngEnabled_inG :> ngInG Σ Ω coPset_disjR;
-    ngDisabled_inG :> ngInG Σ Ω (gset_disjR positive);
-    ngLc_inG :> ngLcGS Σ Ω;
-    ngMlist_inG :> ngFmlistG (invariant_level_names) Σ Ω
+    ngInv_inG :: ngInG Σ Ω (invR Σ);
+    ngEnabled_inG :: ngInG Σ Ω coPset_disjR;
+    ngDisabled_inG :: ngInG Σ Ω (gset_disjR positive);
+    ngLc_inG :: ngLcGS Σ Ω;
+    ngMlist_inG :: ngFmlistG (invariant_level_names) Σ Ω
   }.
   
   Definition invΣ : gFunctors :=
@@ -297,7 +297,7 @@ Proof.
       - apply Next_contractive; auto using dist_later_0.
       - apply Next_contractive.
         move: Hd; rewrite -!dist_later_S; inversion 1; subst; eauto. }
-    efeed pose proof (IHl1' l2') as Hagree; eauto.
+    opose proof (IHl1' l2' _ _) as Hagree; eauto.
     { destruct n; eauto using dist_later_0.
       move: Hd; rewrite -!dist_later_S; inversion 1; subst; eauto. }
     apply to_agree_injN in Hagree. eapply Hagree.
@@ -344,28 +344,19 @@ Lemma ownD_singleton_twice i : ownD {[i]} ∗ ownD {[i]} ⊢ False.
 Proof. rewrite ownD_disjoint. iIntros (?); set_solver. Qed.
 
 Lemma list_equivI_O {A: ofe} {M} (m1 m2: list A) : m1 ≡ m2 ⊣⊢@{uPredI M} ∀ i, m1 !! i ≡ m2 !! i.
-Proof.
-  uPred.unseal => //=.
-  split => n x Hval. split.
-  - intros ? Hequiv. apply list_dist_lookup; eauto.
-  - intros Hequiv. apply list_dist_lookup; eauto.
-Qed.
+Proof. apply list_equivI. Qed.
 Lemma list_equivI_1 {A: ofe} {M} (m1 m2: list A) : m1 ≡ m2 ⊢@{uPredI M} ∀ i, m1 !! i ≡ m2 !! i.
-Proof.
-  uPred.unseal => //=.
-  split => n x Hval Hequiv i. apply list_dist_lookup; eauto.
-Qed.
+Proof. rewrite list_equivI //. Qed.
 Lemma list_equivI_length {A: ofe} {M} (m1 m2: list A) : m1 ≡ m2 ⊢@{uPredI M} ⌜ length m1 = length m2 ⌝.
 Proof.
-  uPred.unseal => //=.
-  split => n x Hval Hequiv.
-  eapply (Forall2_length _ m1 m2 Hequiv).
+  sbi_unfold => n Hequiv.
+  apply (Forall2_length _ _ _ Hequiv).
 Qed.
 Lemma vec_equivI_1 {A: ofe} {M} {n} (m1 m2: vec A n) :
   m1 ≡ m2 ⊢@{uPredI M} ∀ i, vec_to_list m1 !! i ≡ vec_to_list m2 !! i.
 Proof.
-  uPred.unseal => //=.
-  split => ? x Hval Hequiv i. apply list_dist_lookup; eauto.
+  sbi_unfold => x //=.
+  apply list_dist_lookup.
 Qed.
 
 Lemma invariant_lookup_weak I {n} γ i sch (Ps: vec _ n) :
@@ -378,12 +369,12 @@ Proof.
   rewrite -own_op own_valid auth_both_validI /=. iIntros "[#HI #HvI]".
   iDestruct "HI" as (I') "HI". rewrite gmap_equivI gmap_validI.
   iSpecialize ("HI" $! i). iSpecialize ("HvI" $! i).
-  rewrite lookup_fmap lookup_op lookup_singleton option_equivI.
+  rewrite lookup_fmap lookup_op lookup_singleton_eq option_equivI.
   case: (I !! i)=> [[[Q sch'] Qmut]|] /=; [|case: (I' !! i)=> [Q'|] /=; by iExFalso].
   iExists Q, Qmut. (* iSplit; first done. *)
   iAssert (invariant_unfold sch' (list_to_vec Q) ≡ invariant_unfold sch Ps)%I as "Hequiv".
   { case: (I' !! i)=> [[Q' Qmut']|] //=.
-    - iRewrite "HI" in "HvI". rewrite option_validI prod_validI agree_validI.
+    - iRewrite "HI" in "HvI". rewrite option_validI prod_validI agree_op_invI.
       iDestruct "HvI" as "(HvI&_)". simpl.
       iRewrite -"HvI" in "HI". rewrite -pair_op agree_idemp prod_equivI.
       iDestruct "HI" as "($&_)".
@@ -395,7 +386,7 @@ Proof.
   { iDestruct "Hsch_equiv" as %Heq. iPureIntro. move:Heq => //=. congruence. }
   iDestruct (list_equivI_length with "Hequiv") as %Hlen.
   iSplit.
-  { iPureIntro. move: Hlen. rewrite ?fmap_length vec_to_list_to_vec //=. }
+  { iPureIntro. move: Hlen. rewrite ?length_fmap vec_to_list_to_vec //=. }
   rewrite list_equivI_1. iIntros (j).
   iSpecialize ("Hequiv" $! j).
   rewrite ?list_lookup_fmap vec_to_list_to_vec.
@@ -408,12 +399,12 @@ Qed.
 
 Lemma agree_equiv_inclI {M} {A: ofe} (a b: A) c : to_agree a ≡ to_agree b ⋅ c ⊢@{uPredI M} (b ≡ a).
 Proof.
-  uPred.unseal. split.
-  intros n ? Hx Heq. apply (to_agree_includedN n b a). exists c; eauto.
+  sbi_unfold => n Heq.
+  apply (to_agree_includedN n b a). exists c; eauto.
 Qed.
 
 Lemma agree_op_invI {M} {A : ofe} (x y : agree A): ✓ (x ⋅ y) ⊢@{uPredI M} x ≡ y.
-Proof. uPred.unseal. split. intros n ? Hx Heq. by apply agree_op_invN. Qed.
+Proof. apply agree_op_invI. Qed.
 
 Lemma invariant_lookup_strong I {n m} γ i q sch (Ps: vec _ n) (Ps_mut: vec _ m) :
   own γ (● (inv_cmra_fmap <$> I : gmap _ _)) ∗
@@ -423,16 +414,15 @@ Lemma invariant_lookup_strong I {n m} γ i q sch (Ps: vec _ n) (Ps_mut: vec _ m)
                ⌜ length Qs_mut = length Ps_mut ⌝ ∗
                ■ (∀ i, ▷ (Qs !! i ≡ vec_to_list Ps !! i)) ∗
                ■ (∀ i, ▷ (Qs_mut !! i ≡ vec_to_list Ps_mut !! i)).
-Proof.
-  rewrite -own_op own_valid auth_both_validI /=. iIntros "[#HI #HvI]".
+Proof.  rewrite -own_op own_valid auth_both_validI /=. iIntros "[#HI #HvI]".
   iDestruct "HI" as (I') "HI". rewrite gmap_equivI gmap_validI.
   iSpecialize ("HI" $! i). iSpecialize ("HvI" $! i).
-  rewrite lookup_fmap lookup_op lookup_singleton option_equivI.
+  rewrite lookup_fmap lookup_op lookup_singleton_eq option_equivI.
   case: (I !! i)=> [[[Q sch'] Qmut]|] /=; [|case: (I' !! i)=> [Q'|] /=; by iExFalso].
   iExists Q, Qmut. (* iSplit; first done. *)
   iAssert (invariant_unfold sch' (list_to_vec Q) ≡ invariant_unfold sch Ps)%I as "Hequiv".
   { case: (I' !! i)=> [[Q' Qmut']|] //=.
-    - iRewrite "HI" in "HvI". rewrite option_validI prod_validI agree_validI.
+    - iRewrite "HI" in "HvI". rewrite option_validI prod_validI agree_op_invI.
       iDestruct "HvI" as "(HvI&_)". simpl.
       iRewrite -"HvI" in "HI". rewrite -pair_op agree_idemp prod_equivI.
       iDestruct "HI" as "($&_)".
@@ -442,7 +432,7 @@ Proof.
   iAssert (inv_mut_unfold q (list_to_vec Qmut) ≡ inv_mut_unfold q Ps_mut)%I as "Hequiv_mut".
   {
     case: (I' !! i)=> [[Q' Qmut']|] //=.
-    - iRewrite "HI" in "HvI". rewrite option_validI prod_validI agree_validI.
+    - iRewrite "HI" in "HvI". rewrite option_validI prod_validI agree_op_invI.
       iDestruct "HvI" as "(HvI&_)". simpl.
       iRewrite -"HvI" in "HI". rewrite -pair_op agree_idemp prod_equivI //=.
       iDestruct "HI" as "(_&Hi)".
@@ -466,9 +456,9 @@ Proof.
   iDestruct (list_equivI_length with "Hequiv") as %Hlen.
   iDestruct (list_equivI_length with "Hequiv_mut") as %Hlen_mut.
   iSplit.
-  { iPureIntro. move: Hlen. rewrite ?fmap_length vec_to_list_to_vec //=. }
+  { iPureIntro. move: Hlen. rewrite ?length_fmap vec_to_list_to_vec //=. }
   iSplit.
-  { iPureIntro. move: Hlen_mut. rewrite ?fmap_length vec_to_list_to_vec //=. }
+  { iPureIntro. move: Hlen_mut. rewrite ?length_fmap vec_to_list_to_vec //=. }
   rewrite ?list_equivI_1.
   iSplitL "Hequiv HI".
   - iIntros (j).
@@ -488,7 +478,6 @@ Proof.
     rewrite ?HeqQ ?HeqP //=.
     { rewrite //= ?later_equivI //=. iApply later_plainly_1. iNext. by iRewrite "Hequiv_mut". }
 Qed.
-
 
 Lemma equivI_elim_own {A: cmra} `{Hin: inG Σ A} γ (a b: A):
   (a ≡ b) -∗ own γ a -∗ own γ b.
@@ -515,11 +504,11 @@ Proof.
     rewrite ?HeqQ ?HeqP //=.
     * rewrite later_equivI. iNext. by iRewrite "HPQ".
     * exfalso. apply lookup_ge_None_1 in HeqP. apply lookup_lt_Some in HeqQ.
-      rewrite ?vec_to_list_length in HeqQ HeqP. lia.
+      rewrite ?length_vec_to_list in HeqQ HeqP. lia.
     * exfalso. apply lookup_ge_None_1 in HeqQ. apply lookup_lt_Some in HeqP.
-      rewrite ?vec_to_list_length in HeqQ HeqP. lia. }
+      rewrite ?length_vec_to_list in HeqQ HeqP. lia. }
   iRewrite "Heq".
-  iExact "Hown". 
+  iExact "Hown".
 Qed.
 
 Lemma bi_schema_interp_ctx_later lvl sch (Qs Qs_mut Ps Ps_mut: list (iProp Σ)):
@@ -553,18 +542,18 @@ Proof.
     destruct (Qs !! _) as [|] eqn:Heq1; rewrite Heq1 => //=;
     destruct (Ps !! _) as [|] eqn:Heq2; rewrite Heq2 => //=;
     iIntros; rewrite option_equivI; auto; iNext.
-    * by iRewrite -"HPQ1".
+    * rewrite plainly_elim. by iRewrite -"HPQ1".
     * by rewrite plainly_elim.
-    * by iRewrite "HPQ1".
+    * rewrite plainly_elim. by iRewrite "HPQ1".
     * by rewrite plainly_elim.
   - match goal with | |- context [ (bi_later <$> _) !! ?n ] => iSpecialize ("HPQ2" $! n) end.
     iSplit; rewrite ?list_lookup_fmap;
     destruct (Qs_mut !! _) as [|] eqn:Heq1; rewrite Heq1 => //=;
     destruct (Ps_mut !! _) as [|] eqn:Heq2; rewrite Heq2 => //=;
     iIntros; rewrite option_equivI; auto; iNext.
-    * by iRewrite -"HPQ2".
+    * rewrite !plainly_elim. by iRewrite -"HPQ2".
     * iClear "HPQ1". by rewrite plainly_elim.
-    * by iRewrite "HPQ2".
+    * rewrite !plainly_elim. by iRewrite "HPQ2".
     * iClear "HPQ1". by rewrite plainly_elim.
 Qed.
 
@@ -628,10 +617,10 @@ Proof.
         iModIntro;iModIntro.
         iApply (bi_schema_interp_ctx_later with "[HPQ] [] [$]");auto.
         iModIntro. iIntros (i0) "!>".
-        by iRewrite ("HPQ" $! i0). }
+        rewrite plainly_elim. by iRewrite ("HPQ" $! i0). }
       iApply (bi_schema_interp_ctx_later with "[HPQ] [] [$]").
       - iIntros (i0). iClear "Hidx1 Hidx2".
-        iModIntro. iNext => //=. by iRewrite -("HPQ" $! i0).
+        iModIntro. iNext => //=. rewrite plainly_elim.  by iRewrite -("HPQ" $! i0).
       - iIntros (i0). auto.
     }
     iExists I. iSplitL "Hw".
@@ -645,9 +634,9 @@ Lemma gmap_validI_singleton `{Countable K} {A: cmra} {M: ucmra} (i: K) (a: A) :
   ✓ {[ i := a ]} ⊣⊢@{uPredI M} ✓ a.
 Proof.
   rewrite gmap_validI. iSplit.
-  - iIntros "H". iSpecialize ("H" $! i). rewrite lookup_singleton option_validI //=.
+  - iIntros "H". iSpecialize ("H" $! i). rewrite lookup_singleton_eq option_validI //=.
   - iIntros "Ha". iIntros (j). destruct (decide (i = j)).
-    * subst. rewrite lookup_singleton option_validI //=.
+    * subst. rewrite lookup_singleton_eq option_validI //=.
     * rewrite lookup_singleton_ne //=.
 Qed.
 
@@ -673,7 +662,7 @@ Proof.
   { iCombine "Hi_mut" "Hi" as "Hcombine".
     iDestruct (own_valid with "Hcombine") as "#Hval".
     rewrite auth_frag_validI gmap_validI_singleton prod_validI /=.
-    rewrite agree_validI. iDestruct "Hval" as "(Hval_agree&_)".
+    rewrite agree_op_invI. iDestruct "Hval" as "(Hval_agree&_)".
     iRewrite "Hval_agree" in "Hcombine".    
     rewrite agree_idemp right_id. eauto. }
   iDestruct (big_sepM_delete _ _ i with "HI") as "[[[#HPc' [HQ [HQmut ?]]]|$] HI]"; eauto.
@@ -692,8 +681,8 @@ Proof.
     iSplitL "HP".
     { by iApply (bi_schema_interp_ctx_later with "HPQ HPQ_mut"). }
     iApply (ownI_mut_later _ _ _ Ps_mut (list_to_vec Qs_mut)).
-    { rewrite -(vec_to_list_length Ps_mut). auto. }
-    { iIntros (j). rewrite vec_to_list_to_vec. iNext. by iRewrite ("HPQ_mut" $! j). }
+    { rewrite -(length_vec_to_list Ps_mut). auto. }
+    { iIntros (j). rewrite vec_to_list_to_vec. iNext. rewrite !plainly_elim. by iRewrite ("HPQ_mut" $! j). }
     iExists _, _. iFrame "Hidx2"; eauto.
 Qed.
 
@@ -716,7 +705,7 @@ Proof.
     iDestruct "Hval" as "(Hval&_)".
     iDestruct "Hval" as (I') "Heq".
     rewrite gmap_equivI. iSpecialize ("Heq" $! i). rewrite lookup_fmap Hlookup //=.
-    rewrite lookup_op lookup_singleton option_equivI.
+    rewrite lookup_op lookup_singleton_eq option_equivI.
     case: (I' !! i) => //=.
   }
   iExists QsI, schI, Qs_mutI.
@@ -741,7 +730,7 @@ Proof.
   apply auth_frag_proper => //=.
   intros j. rewrite lookup_op. destruct (decide (i = j)); last first.
   { rewrite ?lookup_singleton_ne //=. }
-  subst. rewrite ?lookup_singleton /=.
+  subst. rewrite ?lookup_singleton_eq /=.
   rewrite -Some_op -pair_op agree_idemp /inv_mut_unfold.
   rewrite -Some_op -pair_op agree_idemp.
   repeat f_equiv. by rewrite frac_op Qp.div_2.
@@ -756,7 +745,7 @@ Proof.
   apply auth_frag_proper => //=.
   intros j. rewrite lookup_op. destruct (decide (i = j)); last first.
   { rewrite ?lookup_singleton_ne //=. }
-  subst. rewrite ?lookup_singleton /=.
+  subst. rewrite ?lookup_singleton_eq /=.
   rewrite -Some_op -pair_op agree_idemp /inv_mut_unfold left_id //=.
 Qed.
 
@@ -773,15 +762,15 @@ Proof.
   iDestruct (own_valid with "Hown") as "Hval".
   rewrite auth_frag_validI gmap_validI.
   iSpecialize ("Hval" $! i).
-  rewrite lookup_singleton /= option_validI /= prod_validI /=.
+  rewrite lookup_singleton_eq /= option_validI /= prod_validI /=.
   iDestruct "Hval" as "(_&Hval)".
   rewrite option_validI /= prod_validI /=.
   iDestruct "Hval" as "(_&Hagree)".
-  rewrite agree_validI agree_equivI.
+  rewrite agree_op_invI agree_equivI.
   (* XXX: this pattern is repeated a few times in other proofs. prove a lemma *)
   iDestruct (list_equivI_length with "Hagree") as %Hlen.
   iSplitL "".
-  { iPureIntro. rewrite ?fmap_length ?vec_to_list_length //= in Hlen. }
+  { iPureIntro. rewrite ?length_fmap ?length_vec_to_list //= in Hlen. }
   rewrite ?list_equivI_1. iIntros (j). iSpecialize ("Hagree" $! j).
   rewrite ?list_lookup_fmap ?vec_to_list_to_vec.
   rewrite option_equivI.
@@ -805,7 +794,7 @@ Proof.
   iDestruct (own_valid with "Hown") as "#Hval".
   rewrite auth_frag_validI gmap_validI.
   iSpecialize ("Hval" $! i).
-  rewrite lookup_singleton /= option_validI /= prod_validI /=.
+  rewrite lookup_singleton_eq /= option_validI /= prod_validI /=.
   iDestruct "Hval" as "(Hval1&Hval2)".
   rewrite agree_op_invI. iRewrite -"Hval1" in "Hown".
   rewrite agree_idemp.
@@ -839,7 +828,7 @@ Proof.
   { iCombine "Hi" "Hi_mut" as "Hcombine".
     iDestruct (own_valid with "Hcombine") as "#Hval".
     rewrite auth_frag_validI gmap_validI_singleton prod_validI /=.
-    rewrite agree_validI. iDestruct "Hval" as "(Hval_agree&_)".
+    rewrite agree_op_invI. iDestruct "Hval" as "(Hval_agree&_)".
     iRewrite -"Hval_agree" in "Hcombine".
     rewrite agree_idemp left_id. eauto.
   }
@@ -990,7 +979,7 @@ Proof.
   - iModIntro; iExists []. rewrite ?right_id. by iFrame.
   - iMod ("IH" with "[$] [$]") as (l' Hlen) "(Hw&Hlist)".
     iMod (wsat_alloc_new_level with "[$] [$]") as (γ) "(Hlist&Hw)".
-    iExists (l' ++ [γ]). rewrite ?app_length //=.
+    iExists (l' ++ [γ]). rewrite ?length_app //=.
     rewrite app_assoc. iFrame.
     replace (length l + (length l' + 1)) with (S (length l + length l')) by lia; iFrame.
     iPureIntro. lia.
@@ -1004,7 +993,7 @@ Proof.
   iDestruct 1 as (l) "(Hw&Hlist)".
   iMod (wsat_alloc_new_levels l (n - length l) with "[$] [$]") as (l' Hlen) "(Hlist&Hw)".
   iDestruct (wsat_le_acc n with "[$]") as "($&Hclo)"; first auto.
-  { rewrite app_length. lia. }
+  { rewrite length_app. lia. }
   iIntros "!> Hw". iExists _. iFrame. by iApply "Hclo".
 Qed.
 
@@ -1098,11 +1087,10 @@ Proof.
         rewrite /ownI_mut.
         iDestruct "Hmut" as (l γs') "(Hfm & Hgen)".
         iModIntro.
-        iLeft. iFrame "∗ #". eauto.
+        iLeft. iFrame "∗ #".
       - do 2 iModIntro. iRight. auto. }
     do 2 iModIntro. rewrite /P.
-    iFrame. iExists _. iFrame.
-    iExists _. iFrame.
+    iFrame.
 Qed.
 
 (* #[global] *)
@@ -1136,7 +1124,7 @@ Proof.
   iExists iG, eq_refl, eq_refl.
   rewrite /ownE. iFrame "∗ #".
   replace γI with (inv_list_name) by eauto.
-  iExists [] => //=. iFrame. rewrite wsat_unfold //.
+  iModIntro. rewrite wsat_unfold //.
 Qed.
 
 Section schema_test_bupd.
@@ -1186,7 +1174,8 @@ Lemma ownI_bupd_factory_alloc lvl φ Q P :
 Proof.
   iIntros (?) "(Hw&(HQ&#Hfactory)&#Hcond)".
   iMod (ownI_alloc with "[$Hw HQ]") as (i) "(?&?&?&?)"; eauto; last first.
-  { iModIntro. iExists i. iFrame. iExists 1, (list_to_vec [Q]). iFrame. rewrite //=. }
+  { iModIntro. iExists i. iFrame. instantiate (1:= list_to_vec [Q]).
+    (try (iExists 1; iExists [#Q]; iSplit)) => //=. }
   repeat (rewrite ?bi_schema_interp_unfold //=).
   iFrame "∗ #".
   iModIntro. iIntros "[HQ _]".

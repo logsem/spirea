@@ -1,9 +1,9 @@
 (* Implementation of the recovery weakest precondition for NVMLang. *)
 
-From Coq Require Import QArith Qcanon.
+From Stdlib Require Import QArith Qcanon.
 
 From stdpp Require Import sets.
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import ltac_tactics.
 From iris.algebra Require Import gmap auth agree gset coPset.
 From iris_named_props Require Import named_props.
 From self.program_logic Require Import crash_weakestpre recovery_weakestpre recovery_adequacy.
@@ -210,7 +210,7 @@ Section wpr.
         apply view_add_mono; done. }
       rewrite view_included in incl'.
       specialize (incl' ℓ).
-      rewrite lookup_singleton in incl'.
+      rewrite lookup_singleton_eq in incl'.
       rewrite /view_add /view_sub map_lookup_imap /= lookup_merge /lookup_zero in incl'.
       move: incl'.
       destruct (OCV !! ℓ) as [[] | ] eqn:Heq1;
@@ -267,7 +267,7 @@ Section wpr.
         rewrite set_eq.
         intros t.
         rewrite ?elem_of_dom.
-        rewrite map_filter_lookup map_lookup_imap.
+        rewrite map_lookup_filter map_lookup_imap.
         apply (map_Forall_lookup_1 _ _ ℓ (phys_hist, abs_hist)) in domAbsHistPhysHist;
           last rewrite map_lookup_zip_Some //.
         simpl in domAbsHistPhysHist.
@@ -418,10 +418,10 @@ Section wpr.
                                           (∅, ∅, ∅))%I
                      _ _ (delete t_c $ discard_msg_views <$> drop_above t_c phys_hist) (delete t_c $ drop_bump_map ℓ bumper OCV' abs_hist)
                      with "predFRRest []") as "predFRRest".
-        { rewrite delete_commute ?dom_delete dom_fmap /drop_above.
+        { rewrite delete_delete ?dom_delete dom_fmap /drop_above.
           apply difference_mono_r.
           rewrite elem_of_subseteq.
-          intros t [? [look ?]%map_filter_lookup_Some]%elem_of_dom.
+          intros t [? [look ?]%map_lookup_filter_Some]%elem_of_dom.
           rewrite elem_of_difference.
           split; first by apply elem_of_dom.
           rewrite elem_of_singleton.
@@ -432,11 +432,11 @@ Section wpr.
           assert (msg_r' = discard_msg_views msg_r) as ->.
           { apply lookup_fmap_Some in msgRLook' as (? & <- & msgRLook').
             f_equiv.
-            apply map_filter_lookup_Some_1_1 in msgRLook'.
+            apply map_lookup_filter_Some_1_1 in msgRLook'.
             by simplify_map_eq. }
           assert (t ≤ t_c).
           { apply lookup_fmap_Some in msgRLook' as (? & _ & msgRLook').
-            by apply map_filter_lookup_Some_1_2 in msgRLook'. }
+            by apply map_lookup_filter_Some_1_2 in msgRLook'. }
           iAssert ⌜ Some encσ_r' = bumper encσ_r ⌝%I as %bumperSomeR.
           { rewrite map_lookup_imap encσRLook /= /drop_above_bump in encσRLook'.
             destruct (decide _); last done.
@@ -531,7 +531,7 @@ Section wpr.
             rewrite lookup_fmap restrict_lookup_elem_of; first rewrite OCVLook' //.
             rewrite elem_of_dom //. }
           iApply (big_sepM2_delete _ _ _ t_c with "[F predFRRest]").
-          { rewrite lookup_fmap (map_filter_lookup_Some_2 _ _ _ msg_c) //. }
+          { rewrite lookup_fmap (map_lookup_filter_Some_2 _ _ _ msg_c) //. }
           { rewrite map_lookup_imap encσCLook /= /drop_above_bump decide_True //.
             rewrite /lookup_zero.
             by simplify_map_eq. }
@@ -544,7 +544,7 @@ Section wpr.
             solve_view_le.
           * split; first done.
             rewrite lookup_fmap fmap_None /drop_above.
-            apply map_filter_lookup_None_2.
+            apply map_lookup_filter_None_2.
             right.
             lia.
           * iApply (big_sepM2_impl with "predFRRest").
@@ -552,7 +552,7 @@ Section wpr.
             iSpecialize ("predR" with "[$]").
             assert (t ≤ t_c).
             { apply lookup_fmap_Some in msgRLook as (? & _ & msgRLook).
-              by apply map_filter_lookup_Some_1_2 in msgRLook. }
+              by apply map_lookup_filter_Some_1_2 in msgRLook. }
             rewrite decide_False; last (rewrite not_and_l; left; lia).
             iApply (encoded_predicate_holds_mono with "predR").
             solve_view_le.
@@ -568,7 +568,7 @@ Section wpr.
             - rewrite /lookup_zero.
               by simplify_map_eq. }
           iSplitPure.
-          { rewrite lookup_fmap (map_filter_lookup_Some_2 _ _ _ msg_c) //. }
+          { rewrite lookup_fmap (map_lookup_filter_Some_2 _ _ _ msg_c) //. }
           rewrite assoc.
           iSplitR.
           * rewrite /lookup_zero.
@@ -605,11 +605,11 @@ Section wpr.
           assert (msg_r' = discard_msg_views msg_r) as ->.
           { apply lookup_fmap_Some in msgRLook' as (? & <- & msgRLook').
             f_equiv.
-            apply map_filter_lookup_Some_1_1 in msgRLook'.
+            apply map_lookup_filter_Some_1_1 in msgRLook'.
             by simplify_map_eq. }
           assert (t ≤ t_c).
           { apply lookup_fmap_Some in msgRLook' as (? & _ & msgRLook').
-            by apply map_filter_lookup_Some_1_2 in msgRLook'. }
+            by apply map_lookup_filter_Some_1_2 in msgRLook'. }
           iAssert ⌜ Some encσ_r' = bumper encσ_r ⌝%I as %bumperSomeR.
           { rewrite map_lookup_imap encσRLook /= /drop_above_bump in encσRLook'.
             destruct (decide _); last done.
@@ -704,7 +704,7 @@ Section wpr.
             rewrite lookup_fmap restrict_lookup_elem_of; first rewrite OCVLook' //.
             rewrite elem_of_dom //. }
           iApply (big_sepM2_delete _ _ _ t_c with "[F predFRRest]").
-          { rewrite lookup_fmap (map_filter_lookup_Some_2 _ _ _ msg_c) //. }
+          { rewrite lookup_fmap (map_lookup_filter_Some_2 _ _ _ msg_c) //. }
           { rewrite map_lookup_imap encσCLook /= /drop_above_bump decide_True //.
             rewrite /lookup_zero.
             by simplify_map_eq. }
@@ -717,7 +717,7 @@ Section wpr.
             solve_view_le.
           * split; first done.
             rewrite lookup_fmap fmap_None /drop_above.
-            apply map_filter_lookup_None_2.
+            apply map_lookup_filter_None_2.
             right.
             lia.
           * iApply (big_sepM2_impl with "predFRRest").
@@ -725,7 +725,7 @@ Section wpr.
             iSpecialize ("predR" with "[$]").
             assert (t ≤ t_c).
             { apply lookup_fmap_Some in msgRLook as (? & _ & msgRLook).
-              by apply map_filter_lookup_Some_1_2 in msgRLook. }
+              by apply map_lookup_filter_Some_1_2 in msgRLook. }
             rewrite decide_False; last (rewrite not_and_l; left; lia).
             iApply (encoded_predicate_holds_mono with "predR").
             solve_view_le.
@@ -741,7 +741,7 @@ Section wpr.
             - rewrite /lookup_zero.
               by simplify_map_eq. }
           iSplitPure.
-          { rewrite lookup_fmap (map_filter_lookup_Some_2 _ _ _ msg_c) //. }
+          { rewrite lookup_fmap (map_lookup_filter_Some_2 _ _ _ msg_c) //. }
           rewrite assoc.
           iSplitR.
           * rewrite /lookup_zero.

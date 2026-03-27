@@ -1,0 +1,64 @@
+# use NO_TEST=1 to skip the tests
+NO_TEST:=1
+
+# use MAKE_REF=1 to generate new reference files
+MAKE_REF:=
+
+# Only test reference output on known versions of Coq, to avoid blocking
+# Coq CI when they change the printing a little.
+# Need to make this a lazy variable (`=` instead of `:=`) since COQ_VERSION is only set later.
+COQ_REF=$(shell echo "$(COQ_VERSION)" | grep -E "^9\.(0|1)\." -q && echo 1)
+
+# Run tests interleaved with main build.  They have to be in the same target for this.
+real-all: $(if $(NO_TEST),,test)
+
+# the test suite
+TESTFILES:=
+DOCFILES:=
+# TESTFILES:=$(shell find tests -name "*.v")
+# DOCFILES:=$(shell find docs -name "*.v")
+NORMALIZER:=test-normalizer.sed
+
+test: $(TESTFILES:.v=.vo) $(DOCFILES:.v=.vo)
+.PHONY: test
+
+COQ_TEST=$(COQTOP) $(COQDEBUG) -batch -test-mode
+
+tests/.coqdeps.d: $(TESTFILES)
+	$(SHOW)'COQDEP TESTFILES'
+	$(HIDE)$(COQDEP) -dyndep var $(COQMF_COQLIBS_NOML) $^ $(redir_if_ok)
+# -include tests/.coqdeps.d
+docs/.coqdeps.d: $(DOCFILES)
+	$(SHOW)'COQDEP DOCFILES'
+	$(HIDE)$(COQDEP) -dyndep var $(COQMF_COQLIBS_NOML) $^ $(redir_if_ok)
+# -include docs/.coqdeps.d
+
+# Main test script (comments out-of-line because macOS otherwise barfs?!?)
+# - Determine reference file (`REF`).
+# - Print user-visible status line.
+# - unset env vars that change Coq's output
+# - Dump Coq output into a temporary file.
+# - Run `sed -i` on that file in a way that works on macOS.
+# - Either compare the result with the reference file, or move it over the reference file.
+# - Cleanup, and mark as done for make.
+$(TESTFILES:.v=.vo): %.vo: %.v $(if $(MAKE_REF),,%.ref) $(NORMALIZER)
+	$(HIDE)REF=$*".ref" && \
+	  echo "COQTEST$(if $(COQ_REF),$(if $(MAKE_REF), [make ref],), [ref ignored]) $< (ref: $$REF)" && \
+	  TMPFILE="$$(mktemp)" && \
+	  unset OCAMLRUNPARAM && \
+	  $(TIMER) $(COQ_TEST) $(COQFLAGS) $(COQLIBS) -load-vernac-source $< > "$$TMPFILE" && \
+	  sed -E -f $(NORMALIZER) "$$TMPFILE" > "$$TMPFILE".new && \
+	  mv "$$TMPFILE".new "$$TMPFILE" && \
+	  $(if $(COQ_REF),\
+	    $(if $(MAKE_REF),mv "$$TMPFILE" "$$REF",diff --strip-trailing-cr -u "$$REF" "$$TMPFILE"), \
+	    true \
+	  ) && \
+	  rm -f "$$TMPFILE" && \
+	  touch $@
+# Doctests are simpler because we do not check the output.
+$(DOCFILES:.v=.vo): %.vo: %.v
+	$(HIDE)echo "DOCTEST $<" && \
+	  TMPFILE="$$(mktemp)" && \
+	  unset OCAMLRUNPARAM && \
+	  $(TIMER) $(COQ_TEST) $(COQFLAGS) $(COQLIBS) -load-vernac-source $< > "$$TMPFILE" && \
+	  touch $@

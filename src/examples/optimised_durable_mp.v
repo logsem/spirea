@@ -1,9 +1,9 @@
 (* This is a variant of [durable_mp.v] where the flush and fence in the left
 thread is moved to the right thread. *)
 
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import ltac_tactics.
 From iris.algebra Require Import excl.
-From Perennial.program_logic Require Import staged_invariant.
+From PerennialNG.program_logic Require Import staged_invariant.
 
 From self.base Require Import primitive_laws.
 From self.lang Require Import lang.

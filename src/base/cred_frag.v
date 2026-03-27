@@ -1,4 +1,4 @@
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import ltac_tactics.
 From iris.algebra Require Import lib.frac_auth auth numbers gmap excl.
 From iris.base_logic.lib Require Import own.
 From Perennial.base_logic.lib Require Import frac_coPset.
@@ -9,13 +9,13 @@ Record cr_names := {
 }.
 
 Class credit_preG (Σ: gFunctors) := {
-  credit_preG_inG :> inG Σ (authR natUR);
-  frac_coPset_preG_inG :> inG Σ (frac_coPsetR);
+  credit_preG_inG :: inG Σ (authR natUR);
+  frac_coPset_preG_inG :: inG Σ (frac_coPsetR);
 }.
 
 Class creditGS (Σ: gFunctors) := {
-  credit_inG :> inG Σ (authR natUR);
-  frac_coPset_inG :> inG Σ (frac_coPsetR);
+  credit_inG :: inG Σ (authR natUR);
+  frac_coPset_inG :: inG Σ (frac_coPsetR);
   credit_cr_names : cr_names;
 }.
 

@@ -1,6 +1,6 @@
 From iris.algebra Require Import csum excl.
-From Perennial.base_logic.lib Require Import fancy_updates.
-From iris.proofmode Require Import tactics.
+From PerennialNG.base_logic.lib Require Import fancy_updates.
+From iris.proofmode Require Import ltac_tactics.
 From iris.bi Require Import fractional.
 From self.nextgen Require Import nextgen_promises.
 

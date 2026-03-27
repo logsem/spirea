@@ -1,7 +1,7 @@
 (* This file defines lemmas for cameras that do _not_ interact with the
  * [nextgen] modality and proves rules for these. *)
 
-From iris.proofmode Require Import classes tactics.
+From iris.proofmode Require Import classes ltac_tactics.
 From iris.base_logic.lib Require Export own.
 From iris.prelude Require Import options.
 

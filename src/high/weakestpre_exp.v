@@ -95,7 +95,7 @@ Section weakestpre.
           apply view_le_lub_l.
           apply view_le_singleton.
           eexists.
-          rewrite lookup_singleton.
+          rewrite lookup_singleton_eq.
           split; first done.
           lia. }
         iSplitR. (* [seen_state] *)
@@ -127,13 +127,13 @@ Section weakestpre.
         destruct (BV'' !! ℓ) as [[?]|] eqn:bvLook.
         * iApply (persisted_persisted_loc_weak with "persisted").
           { apply lookup_join; last done.
-            rewrite lookup_singleton. done. }
+            rewrite lookup_singleton_eq. done. }
           lia.
         * iApply (persisted_persisted_loc_weak with "persisted").
           { rewrite lookup_op.
             rewrite bvLook.
             rewrite right_id.
-            rewrite lookup_singleton. done. }
+            rewrite lookup_singleton_eq. done. }
           lia. }
     (* restore [interp] *)
     iExistsN.
@@ -400,7 +400,7 @@ Section weakestpre.
         + iExistsN.
           iFrame "∗#%".
           subst global_pview' t_p_old.
-          rewrite lookup_zero_lub lookup_op lookup_singleton lookup_zero_singleton -Nat.add_max_distr_l.
+          rewrite lookup_zero_lub lookup_op lookup_singleton_eq lookup_zero_singleton -Nat.add_max_distr_l.
           iSplitPure.
           * replace (offset + (t - offset)) with (t) by lia.
             apply Nat.max_r.

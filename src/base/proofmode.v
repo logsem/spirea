@@ -1,10 +1,10 @@
 From iris.proofmode Require Import coq_tactics reduction.
-From iris.proofmode Require Export tactics.
+From iris.proofmode Require Export ltac_tactics.
 (* From iris.heap_lang Require Export tactics derived_laws. *)
 (* From iris.heap_lang Require Import notation. *)
 (* From iris.prelude Require Import options. *)
 
-From Perennial.program_logic Require Export weakestpre.
+From PerennialNG.program_logic Require Export weakestpre.
 
 From self.nextgen Require Import omega.
 From self.base Require Export primitive_laws class_instances.

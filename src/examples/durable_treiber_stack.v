@@ -252,7 +252,7 @@ Section StackHist.
   (*       exists h', []. *)
   (*       done. *)
   (*     + apply last_Some in Hlast as [h' ->]. *)
-  (*       rewrite app_length /= in Hlength. *)
+  (*       rewrite length_app /= in Hlength. *)
   (*       assert (length h' ≤ n) as Hlength' by lia. *)
         
   (*     + rewrite last_None in Hlast. *)
