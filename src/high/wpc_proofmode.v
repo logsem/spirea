@@ -1,7 +1,6 @@
 From iris.proofmode Require Import coq_tactics reduction.
 From iris.proofmode Require Export ltac_tactics.
-From PerennialNG.program_logic Require Import atomic.
-From PerennialNG.Helpers Require Export ipm NamedProps ProofCaching.
+From Perennial.Helpers Require Export ipm NamedProps ProofCaching.
 
 From self Require Import ipm_tactics.
 From self.lang Require Import lang tactics.
@@ -137,8 +136,8 @@ Ltac wpc_expr_simpl := wpc_expr_eval simpl.
   here are bidirectional, so we never will make a goal unprovable. *)
 Ltac wpc_value_head :=
   lazymatch goal with
-  | |- envs_entails _ (wpc ?s ?E (Val _) (λ _, ncfupd ?E _ _) _) =>
-      eapply tac_wpc_value_noncfupd; [tc_solve| |]
+  (* | |- envs_entails _ (wpc ?s ?E (Val _) (λ _, ncfupd ?E _ _) _) => *)
+  (*     eapply tac_wpc_value_noncfupd; [tc_solve| |] *)
   | |- envs_entails _ (wpc ?s ?E (Val _) (λ _, wpc _ _ ?E _ _ _) _) =>
       eapply tac_wpc_value_noncfupd; [tc_solve| |]
   | |- envs_entails _ (wpc ?s ?E (Val _) (λ _, fupd ?E _ _) _) =>
@@ -376,7 +375,7 @@ Ltac wpc_frame_go pat d js :=
   ].
 
 Ltac wpc_frame_pat d pat :=
-  let js := (eval cbv in (INamed <$> words pat)) in
+  let js := (eval cbv in (INamed <$> String.words pat)) in
   wpc_frame_go pat d js.
 
 Tactic Notation "wpc_frame" constr(pat) := wpc_frame_pat base.Left pat.

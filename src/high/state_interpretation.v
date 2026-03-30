@@ -7,7 +7,9 @@ From self.high.lib Require Import increasing_map.
 
 From self.nextgen Require Import nextgen_promises.
 From self.base Require Import primitive_laws generational_resources.
-From self.high Require Export dprop predicates generational_resources wrappers.
+From self.high Require Export dprop predicates generational_resources.
+From self.high.resources Require Import
+  gen_ghost_map gen_ghost_map_map gen_alocs gen_predicates auth_map_map.
 From self.high.modalities Require Import nextgen_flush.
 From self.lang Require Import lang.
 
@@ -149,6 +151,8 @@ Section state_interpretation.
   precondition. We keep this in our crash weakest precondition ensuring that it
   holds before and after each step. **)
 
+  #[local] Existing Instance nvmHighGS_inG.
+  
   Definition interp : iProp Σ :=
     ∃ (phys_hists : gmap loc (gmap time message))
       (abs_hists : gmap loc (gmap time positive))

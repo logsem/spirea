@@ -3,7 +3,7 @@ From iris_named_props Require Import named_props.
 
 From self Require Import solve_view_le.
 From self.base Require Import generational_resources primitive_laws.
-From self.high Require Import wrappers protocol locations.
+From self.high Require Import protocol locations generational_resources modalities.
 From self.high.lib Require Import abstract_state.
 From self.high.modalities Require Import fence.
 
@@ -181,23 +181,3 @@ Section lemmas.
     iSpecialize ("P" with "[//] fi_post").
   Abort.
 End lemmas.
-
-Section Tests.
-  Context `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω, !PerennialG Σ, AbstractState ST}.
-  
-  Variables (ℓ : loc) (prot: LocationProtocol ST) (σ σ_xchg: ST) (P: iProp Σ) (Q: dProp Σ).
-
-  (* just need to make sure [P] survives until last exchange *)
-  Example embed_into_exchange_3:
-    ⎡ P ⎤ ⊢ exchange_1 ℓ σ σ_xchg prot Q.
-  Proof.
-    rewrite /exchange_1 /exchange_2 /exchange_3.
-    iIntros "P" (v) "!> $".
-    iIntros (σ_old v_old) "!>".
-    iSplit.
-    - admit.
-    - iIntros (?) "$ !>".
-      iIntros (v_xchg) "!> $".
-      iClear "P".
-  Abort.
-End Tests.

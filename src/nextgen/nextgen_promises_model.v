@@ -1260,6 +1260,16 @@ Section nextgen_structural_properties.
     intros ??. rewrite /IntoNextgen. iIntros "[? ?]". iModIntro. iFrame.
   Qed.
 
+  #[global]
+  Instance into_nextgen_disj P P' Q Q' :
+    IntoNextgen P P' → IntoNextgen Q Q' → IntoNextgen (P ∨ Q)%I (P' ∨ Q')%I.
+  Proof.
+    rewrite /IntoNextgen.
+    iIntros (Pi Qi) "[P|Q]"; rewrite ?Pi ?Qi; iModIntro.
+    - by iLeft.
+    - by iRight.
+  Qed.
+  
   Global Instance into_nextgen_exist {A} (Ψ Ψ' : A → _) :
     (∀ x : A, IntoNextgen (Ψ x) (Ψ' x)) →
     IntoNextgen (∃ x : A, Ψ x) (∃ x : A, Ψ' x).
@@ -1267,7 +1277,7 @@ Section nextgen_structural_properties.
     intros ?. unfold IntoNextgen. iIntros "(% & ?)".
     iModIntro. iExists x. done.
   Qed.
-
+  
   Lemma nextgen_forall {A} Ψ :
     (⚡==> (∀ a : A, Ψ a)) ⊣⊢ (∀ a : A, ⚡==> Ψ a).
   Proof.

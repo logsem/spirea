@@ -9,7 +9,7 @@ From self Require Export extra ipm_tactics solve_view_le.
 From self.high Require Export dprop.
 From self.base Require Import generational_resources primitive_laws.
 From self.high Require Import
-  generational_resources wrappers crash_weakestpre monpred_simpl modalities protocol locations.
+  generational_resources crash_weakestpre monpred_simpl modalities protocol locations.
 From self.high.lib Require Import abstract_state.
 
 From self.lang Require Import syntax tactics lemmas.
@@ -281,7 +281,7 @@ Section wp_rules.
 
     (* Get the points-to predicate. *)
     iNamed "locationProtocol".
-    iDestruct (ghost_map_lookup with "allOrders knowPreorder") as %look.
+    iDestruct (gen_ghost_map.ghost_map_lookup with "allOrders knowPreorder") as %look.
 
     iDestruct (big_sepM2_dom with "ordered") as %domEq.
     iDestruct (big_sepM2_dom with "predsFullReadHold") as %domEq2.

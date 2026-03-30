@@ -28,7 +28,7 @@ Class IntoNGFlush `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω}
       (P : dProp Σ) (Q : dProp Σ) :=
   into_nextgen_flushed : P ⊢ nextgen_flush Q.
 
-Arguments IntoNGFlush {_ _ _ _} _%I _%I.
+Arguments IntoNGFlush {_ _ _ _} _%_I _%_I.
 
 Notation "'<NGF>' P" :=
   (nextgen_flush P)

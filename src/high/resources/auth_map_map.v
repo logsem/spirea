@@ -1,3 +1,4 @@
+From Equations Require Import Equations.
 From iris.algebra Require Import auth gmap.
 From iris.base_logic.lib Require Import own.
 From iris.proofmode Require Import proofmode.
@@ -28,6 +29,7 @@ Section auth_map_map.
   
   Definition auth_map_map_auth γ m: iProp Σ :=
     "own_auth" ∷ gen_own γ (● agree_uncurry_map m) ∗
+    "own_frag" ∷ gen_own γ (◯ agree_uncurry_map m) ∗
     "#rely" ∷ rely (g := inG) γ [#crashed_at_name] R True_pred ∗
     "#crashed" ∷ ∃ OCV, crashed_at_offset OCV.
 
@@ -35,12 +37,6 @@ Section auth_map_map.
     "own_frag" ∷ gen_own γ (◯ {[ (ℓ, t) := to_agree a ]}) ∗
     "#rely" ∷ rely (g := inG) γ [#crashed_at_name] R True_pred ∗
     "#crashed" ∷ ∃ OCV, crashed_at_offset OCV.
-
-  (* TODO: allocation lemma *)
-  (* Lemma auth_map_map_alloc m : *)
-  (*   ⊢ |==> ∃ γ, auth_map_map_auth γ m ∗ auth_map_map_frag γ m. *)
-  (* Proof. *)
-  (* Admitted. *)
 
   Lemma auth_map_map_lookup `{!LeibnizEquiv A} γ m ℓ t h a :
     m !! ℓ = Some h →
@@ -100,16 +96,16 @@ Section auth_map_map.
     auth_map_map_frag_singleton γ ℓ t a.
   Proof.
     iIntros (look).
-    iIntros "(auth & #$ & #$)".
-    rewrite -gen_own_op.
-    iApply (gen_own_update with "auth").
-    apply auth_update_alloc.
-    rewrite /agree_uncurry_map.
-    rewrite insert_map_uncurry_None; last done.
-    rewrite fmap_insert.
-    apply alloc_local_update.
-    - rewrite lookup_fmap lookup_map_uncurry look. done.
-    - done.
+    iIntros "(auth & #frag & #$ & #$)".
+    rewrite /agree_uncurry_map insert_map_uncurry_None // fmap_insert.
+    iMod (gen_own_update with "auth") as "[$ frag']".
+    { apply auth_update_alloc.
+      apply alloc_local_update.
+      - rewrite lookup_fmap lookup_map_uncurry look. done.
+      - done. }
+    rewrite insert_empty insert_singleton_op ?auth_frag_op ?gen_own_op.
+    - iDestruct "frag'" as "#$". by iFrame "#".
+    - rewrite lookup_fmap lookup_map_uncurry look //.
   Qed.
 
   (* NOTE: The requirement on leibniz equiv may not be strictly necessary, but
@@ -121,16 +117,16 @@ Section auth_map_map.
     auth_map_map_auth γ (<[ℓ:=<[t:=a]> h]> m) ∗
     auth_map_map_frag_singleton γ ℓ t a.
   Proof.
-    iIntros (look1 look2) "(auth & #$ & #$)".
-    rewrite -gen_own_op.
-    iApply (gen_own_update with "auth").
-    apply auth_update_alloc.
-    rewrite /agree_uncurry_map.
-    rewrite insert_map_uncurry_Some; last done.
-    rewrite fmap_insert.
-    apply alloc_local_update.
-    - rewrite lookup_fmap lookup_map_uncurry look1 /= look2. done.
-    - done.
+    iIntros (look1 look2) "(auth & #frag & #$ & #$)".
+    rewrite /agree_uncurry_map insert_map_uncurry_Some // fmap_insert.
+    iMod (gen_own_update with "auth") as "[$ frag']".
+    { apply auth_update_alloc.
+      apply alloc_local_update.
+      - rewrite lookup_fmap lookup_map_uncurry look1 /= look2. done.
+      - done. }
+    rewrite insert_empty insert_singleton_op ?auth_frag_op ?gen_own_op.
+    - iDestruct "frag'" as "#$". by iFrame "#".
+    - rewrite lookup_fmap lookup_map_uncurry look1 /= look2 //.
   Qed.
 
   Lemma auth_map_map_auth_frag `{!OfeDiscrete A} `{!LeibnizEquiv A} γ m ℓ t a :
@@ -161,50 +157,20 @@ Section auth_map_map.
       congruence.
   Qed.
 
-  (* Lemma auth_map_map_frag_lookup `{!LeibnizEquiv A} γ m ℓ h : *)
-  (*   m !! ℓ = Some h → *)
-  (*   auth_map_map_frag γ m -∗ *)
-  (*   auth_map_map_frag γ {[ ℓ := h ]}. *)
-  (* Proof. *)
-  (*   iIntros (mLook). *)
-  (*   rewrite /auth_map_map_frag. *)
-  (*   rewrite /auth_map_map_frag_singleton. *)
-  (*   rewrite /auth_map_map_frag. *)
-  (*   iIntros "(F & $ & $)". *)
-  (*   iApply (gen_own_mono with "F"). *)
-  (*   simpl. *)
-  (*   apply auth_frag_mono. *)
-  (*   rewrite /fmap_fmap_to_agree. *)
-  (*   rewrite map_fmap_singleton. *)
-  (*   apply singleton_included_l. *)
-  (*   eexists _. *)
-  (*   split. { rewrite lookup_fmap. rewrite mLook. simpl. reflexivity. } *)
-  (*   done. *)
-  (* Qed. *)
-
-  (* Lemma auth_map_map_frag_lookup_singleton_eq `{!LeibnizEquiv A} γ m ℓ h t a : *)
-  (*   m !! ℓ = Some h → *)
-  (*   h !! t = Some a → *)
-  (*   auth_map_map_frag γ m -∗ *)
-  (*   auth_map_map_frag_singleton γ ℓ t a. *)
-  (* Proof. *)
-  (*   iIntros (mLook hLook) "(F & #$ & #$)". *)
-  (*   rewrite /auth_map_map_frag. *)
-  (*   rewrite /auth_map_map_frag_singleton. *)
-  (*   rewrite /auth_map_map_frag. *)
-  (*   iApply (gen_own_mono with "F"). *)
-  (*   simpl. *)
-  (*   apply auth_frag_mono. *)
-  (*   rewrite /fmap_fmap_to_agree. *)
-  (*   rewrite map_fmap_singleton. *)
-  (*   apply singleton_included_l. *)
-  (*   eexists _. *)
-  (*   split. { rewrite lookup_fmap. rewrite mLook. simpl. reflexivity. } *)
-  (*   apply Some_included_total. *)
-  (*   apply to_agree_fmap. *)
-  (*   apply map_singleton_subseteq_l. *)
-  (*   done. *)
-  (* Qed. *)
+  Lemma auth_map_map_auth_lookup_frag `{!LeibnizEquiv A} γ m ℓ h t a :
+    m !! ℓ = Some h →
+    h !! t = Some a →
+    auth_map_map_auth γ m -∗
+    auth_map_map_frag_singleton γ ℓ t a.
+  Proof.
+    intros mLook hLook.
+    iNamed 1.
+    iFrame "rely crashed".
+    iApply (gen_own_mono with "own_frag").
+    apply auth_frag_mono.
+    apply (singleton_included_look _ _ _ (to_agree a)); last done.
+    rewrite /agree_uncurry_map lookup_fmap lookup_map_uncurry mLook /= hLook //.
+  Qed.
 
   Lemma auth_map_map_lookup_agree `{!OfeDiscrete A} `{!LeibnizEquiv A} γ m ℓ h t a a' :
     m !! ℓ = Some h →
@@ -268,7 +234,48 @@ Section history.
     λ tC tH, ∃ OCV,
       tC = crashed_at_trans OCV ∧
       tH = drop_above_map_uncurry OCV.
-
+  
+  Lemma auth_map_map_alloc OCV OPV :
+    crashed_at_offset OCV -∗
+    rely_self crashed_at_name (crashed_at_pred OPV) ==∗
+    ∃ γ, auth_map_map_auth histories_rel γ ∅.
+  Proof.
+    iIntros "#crashed_at_offset #rely_self".
+    iMod (own_gen_alloc
+                  (DS := [#crashed_atR])
+                  (● agree_uncurry_map ∅ ⋅ ◯ agree_uncurry_map ∅)
+                  [#crashed_at_name]
+                  [##_] with "[]") as (γ) "[[$ $] tok]".
+    { by apply auth_both_valid. }
+    { iIntros (i').
+      dependent elimination i' as [0%fin].
+      iAssumption. }
+    iMod (token_strengthen_promise
+            (DS := [#crashed_atR])
+            _ [#_] [##_] _ histories_rel _ True_pred
+           with "[] tok") as "tok".
+    { intros ???. unfold True_rel. rewrite huncurry_curry. done. }
+    { done. }
+    { intros ts. dependent elimination ts. done. }
+    2: {
+      iIntros (i').
+      dependent elimination i' as [0%fin].
+      iApply "rely_self". }
+    (* TODO: this subgoal requires me to prove that for any transformer picked for
+     * [crashed_atR], there exists a transformer for the map that satisfy [R].
+     * this can only be proven given specific [R]. I should move this lemma around. *)
+    { intros ts crashedPred.
+      dependent elimination ts as [hcons tC hnil].
+      destruct crashedPred as ((OCV2 & ? & ->) & _).
+      exists (drop_above_map_uncurry OCV2).
+      split; first apply _.
+      simpl.
+      exists OCV2. done. }
+    iDestruct (token_to_rely with "tok") as "#rely".
+    iModIntro.
+    iFrame "#".
+  Qed.
+  
   #[global] Instance own_all_phys_histories_nextgen γ histories:
     IntoNextgen
       (auth_map_map_auth histories_rel γ histories)
@@ -281,8 +288,10 @@ Section history.
     iDestruct "crashed" as (OV OCV' tC) "[pickedC crashed]".
     iDestruct "rely" as "[rely (%tH & %tC' & [% _] & pickedH & pickedC')]".
     iDestruct "own_auth" as (tH') "[#pickedH' own_auth]".
+    iDestruct "own_frag" as (?) "[#pickedH'' own_frag]".
     iPickedInAgree "pickedC pickedC'".
     iPickedInAgree "pickedH pickedH'".
+    iPickedInAgree "pickedH pickedH''".
     destruct H as (OCV'' & -> & ->).
     iIntros (?) "offset".
     simpl.
@@ -292,31 +301,56 @@ Section history.
       done. }
     rewrite /auth_map_map_auth.
     iFrame "rely".
-    iSplit; last by iExists _, _.
+    iFrame.
+    iDestruct (gen_own_op_2 with "own_auth own_frag") as "own_auth".
+    rewrite -gen_own_op.
     iApply (gen_own_mono with "own_auth").
-    rewrite /drop_above_map_uncurry fmap_auth_auth.
-    rewrite auth_auth_included.
-    rewrite map_equiv_iff.
-    intros [ℓ t].
-    rewrite /agree_uncurry_map /drop_above_map map_lookup_imap ?lookup_fmap ?lookup_map_uncurry /= map_lookup_imap /=.
-    destruct (histories !! ℓ) as [h | ] eqn:Heq1; rewrite ?Heq1 /=; last done.
-    rewrite /drop_above_hist.
-    destruct (OCV !! ℓ) as [[tC] | ] eqn:Heqn2; rewrite ?Heqn2 /=.
-    - rewrite lookup_fmap.
-      destruct (decide (t ≤ tC)).
-      + rewrite map_extra.drop_above_lookup_le; last done.
-        destruct (h !! t) eqn:Heqn3; rewrite ?Heqn3 /=; last done.
-        rewrite decide_True ?agree_map_to_agree //.
-        split; first by eapply elem_of_dom_2.
-        rewrite /lookup_zero Heqn2 /= //.
-      + rewrite map_extra.drop_above_lookup_gt; last lia.
-        destruct (h !! t) eqn:Heqn3; rewrite ?Heqn3 /=; last done.
+    rewrite /drop_above_map_uncurry fmap_auth_auth fmap_auth_frag map_imap_empty /=.
+    rewrite auth_both_included.
+    split.
+    - rewrite map_equiv_iff.
+      intros [ℓ t].
+      rewrite /agree_uncurry_map /drop_above_map map_lookup_imap ?lookup_fmap ?lookup_map_uncurry /= map_lookup_imap /=.
+      destruct (histories !! ℓ) as [h | ] eqn:Heq1; rewrite ?Heq1 /=; last done.
+      rewrite /drop_above_hist.
+      destruct (OCV !! ℓ) as [[tC] | ] eqn:Heqn2; rewrite ?Heqn2 /=.
+      + rewrite lookup_fmap.
+        destruct (decide (t ≤ tC)).
+        * rewrite map_extra.drop_above_lookup_le; last done.
+          destruct (h !! t) eqn:Heqn3; rewrite ?Heqn3 /=; last done.
+          rewrite decide_True ?agree_map_to_agree //.
+          split; first by eapply elem_of_dom_2.
+          rewrite /lookup_zero Heqn2 /= //.
+        * rewrite map_extra.drop_above_lookup_gt; last lia.
+          destruct (h !! t) eqn:Heqn3; rewrite ?Heqn3 /=; last done.
+          rewrite decide_False //.
+          rewrite /lookup_zero Heqn2 /=.
+          lia.
+      + destruct (h !! t) eqn:Heqn3; rewrite ?Heqn3 /=; last done.
         rewrite decide_False //.
-        rewrite /lookup_zero Heqn2 /=.
-        lia.
-    - destruct (h !! t) eqn:Heqn3; rewrite ?Heqn3 /=; last done.
-      rewrite decide_False //.
-      rewrite -not_elem_of_dom in Heqn2.
-      set_solver.
+        rewrite -not_elem_of_dom in Heqn2.
+        set_solver.
+    - rewrite lookup_included.
+      intros [ℓ t].
+      rewrite /agree_uncurry_map /drop_above_map map_lookup_imap ?lookup_fmap ?lookup_map_uncurry /= map_lookup_imap /=.
+      destruct (histories !! ℓ) as [h | ] eqn:Heq1; rewrite ?Heq1 /=; last done.
+      rewrite /drop_above_hist.
+      destruct (OCV !! ℓ) as [[tC] | ] eqn:Heqn2; rewrite ?Heqn2 /=.
+      + rewrite lookup_fmap.
+        destruct (decide (t ≤ tC)).
+        * rewrite map_extra.drop_above_lookup_le; last done.
+          destruct (h !! t) eqn:Heqn3; rewrite ?Heqn3 /=; last done.
+          rewrite decide_True ?agree_map_to_agree //.
+          split; first by eapply elem_of_dom_2.
+          rewrite /lookup_zero Heqn2 /= //.
+        * rewrite map_extra.drop_above_lookup_gt; last lia.
+          destruct (h !! t) eqn:Heqn3; rewrite ?Heqn3 /=; last done.
+          rewrite decide_False //.
+          rewrite /lookup_zero Heqn2 /=.
+          lia.
+      + destruct (h !! t) eqn:Heqn3; rewrite ?Heqn3 /=; last done.
+        rewrite decide_False //.
+        rewrite -not_elem_of_dom in Heqn2.
+        set_solver.
   Qed.
 End history.

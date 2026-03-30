@@ -1,6 +1,6 @@
 From iris.proofmode Require Import ltac_tactics.
 From iris.algebra Require Import gmap auth agree gset coPset.
-From PerennialNG.Helpers Require Import ipm.
+From Perennial.Helpers Require Import ipm.
 From PerennialNG.base_logic.lib Require Import wsat.
 From PerennialNG.program_logic Require Export weakestpre.
 From Perennial.program_logic Require Export crash_lang.

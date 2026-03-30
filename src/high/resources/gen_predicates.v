@@ -1,61 +1,62 @@
-(* This file defines the resource to share the knowledge of protocol predicates. *)
-
-From Equations Require Import Equations.
-From iris.algebra Require Import gmap_view.
-From iris.bi.lib Require Import fractional.
+From iris.algebra Require Import gmap_view view.
+From iris.base_logic.lib Require Import iprop.
 From iris.proofmode Require Import classes ltac_tactics.
 From iris_named_props Require Import named_props.
 
-From self Require Import extra map_extra.
-From self.nextgen Require Import hvec nextgen_promises gmap_view_transformation.
-From self.algebra Require Import view.
-From self.base Require Import generational_resources.
-From self.base.modalities Require Import if_rec.
-
+From self Require Import extra.
 From self.lang Require Import lang.
+From self.algebra Require Import view.
+From self.nextgen Require Import nextgen_promises gmap_view_transformation.
+From self.base Require Import generational_resources if_rec.
+From self.high.resources Require Import gen_ghost_map_ofe.
 
-Definition predicateR Σ :=
-  agreeR (positive -d> val -d> laterO (optionO (thread_view -d> iPropO Σ))).
-Definition predicatesR Σ := authR (gmapUR loc (predicateR Σ)).
-Notation predicates_inG Σ Ω := (genInDepsG Σ Ω (predicatesR Σ) [#crashed_atR]).
+Definition predicateO Σ: ofe :=
+  positive -d> val -d> laterO (optionO (thread_view -d> iPropO Σ)).
 
-Section ownership.
-  Context `{!nvmBaseGS Σ Ω, !predicates_inG Σ Ω}.
-  Implicit Type (OCV: view) (PRs: gmap loc (predicateR Σ)) (PR: predicateR Σ).
+Class predicatesGpreS Σ Ω `{!nvmBaseGS Σ Ω} := {
+  predicatesGpreS_ghost_mapO :: ghost_mapOGpreS loc (predicateO Σ) Σ Ω
+}.
+Section predicates.
+  Context `{!nvmBaseGS Σ Ω, !predicatesGpreS Σ Ω}.
+  Implicit Type (OCV: view.view) (PRs: gmap loc (predicateO Σ)) (PR: predicateO Σ).
 
-  (* TODO: both this definition and the lemma below are duplicates *)
-  #[local] Definition drop_OCV OCV ℓ PR :=
-    if (decide (ℓ ∈ dom OCV)) then Some PR else None.
+  #[local] Definition drop_OCV OCV ℓ v: option (predicateO Σ) :=
+    if (decide (ℓ ∈ dom OCV)) then Some v else None.
 
-  #[local] Instance drop_OCV_maptrans OCV: MapTrans (V := predicateR Σ) (drop_OCV OCV).
+  #[global] Instance drop_OCV_maptrans OCV: MapTrans (drop_OCV OCV).
   Proof.
     split; last solve_proper.
     rewrite /drop_OCV; intros; destruct (decide _); done.
   Qed.
 
-  #[global] Instance predicates_trans_cmra_morphism OCV:
-    CmraMorphism (map_entry_lift_gmap_view (drop_OCV OCV)).
+  Lemma loc_map_cmra_morphism OCV:
+    CmraMorphism (ghost_mapO_trans drop_OCV OCV).
   Proof. apply _. Qed.
-  
-  Definition predicates_relyT := rel_over [#crashed_atR] (predicatesR Σ).
 
-  Definition predicates_rel: predicates_relyT :=
-    λ tC t,
-      ∃ OCV,
-        tC = crashed_at_trans OCV ∧
-        t = fmap_auth $ map_imap $ drop_OCV OCV.
-
+  (* We keep these assertions for backward compatibility. *)
   Definition own_all_preds_ra γ dq PRs: iProp Σ :=
-    "own_auth" ∷ gen_own γ (●{dq} PRs) ∗
-    "#rely" ∷ rely γ [#crashed_at_name] predicates_rel True_pred ∗
-    "#crashed_at_offset" ∷ ∃ OCV, crashed_at_offset OCV.
-
+    ghost_mapO_auth γ drop_OCV dq PRs.
+  
   Definition know_pred_ra γ ℓ PR: iProp Σ :=
-    "own_frag" ∷ gen_own γ (◯ {[ ℓ := PR ]}) ∗
-    "#rely" ∷ rely γ [#crashed_at_name] predicates_rel True_pred ∗
-    "#crashed_at_offset" ∷ ∃ OCV, crashed_at_offset OCV.
+    ghost_mapO_elem γ drop_OCV ℓ DfracDiscarded PR.
 
-  Lemma map_imap_drop_OCV_restrict OCV m:
+  Lemma preds_lookup γ dq PRs ℓ PR:
+    own_all_preds_ra γ dq PRs -∗ know_pred_ra γ ℓ PR -∗ PRs !! ℓ ≡ Some PR.
+  Proof. apply ghost_mapO_lookup. Qed.
+
+  Lemma preds_insert γ PRs ℓ PR:
+    PRs !! ℓ = None →
+    own_all_preds_ra γ (DfracOwn 1) PRs ==∗
+    own_all_preds_ra γ (DfracOwn 1) (<[ ℓ := PR]> PRs) ∗ know_pred_ra γ ℓ PR.
+  Proof. apply ghost_mapO_insert_persist. Qed.
+
+  Lemma pred_agree γ ℓ PR1 PR2:
+    know_pred_ra γ ℓ PR1 -∗
+    know_pred_ra γ ℓ PR2 -∗
+    PR1 ≡ PR2.
+  Proof. apply ghost_mapO_elem_agree. Qed.
+  
+  #[local] Lemma map_imap_drop_OCV_restrict OCV m:
     map_imap (drop_OCV OCV) m = restrict (dom OCV) m.
   Proof.
     apply map_eq => i.
@@ -67,7 +68,16 @@ Section ownership.
       by destruct (m !! i).
   Qed.
 
-  Global Instance own_all_preds_auth_into_nextgen γ dq PRs:
+  #[local] Lemma elem_of_drop_OCV_gmap_view_frag OCV ℓ dq v :
+    ℓ ∈ dom OCV →
+    (map_entry_lift_gmap_view (drop_OCV OCV) (gmap_view_frag ℓ dq (to_agree v))) =
+    (gmap_view_frag ℓ dq (to_agree v)).
+  Proof.
+    intros.
+    rewrite map_entry_lift_gmap_view_frag /drop_OCV decide_True //.
+  Qed.
+  
+  #[global] Instance own_all_preds_auth_into_nextgen γ dq PRs:
     IntoNextgen
       (own_all_preds_ra γ dq PRs)
       (∀ OCV,
@@ -77,51 +87,52 @@ Section ownership.
     rewrite /IntoNextgen.
     iNamed 1.
     iModIntro.
-    iDestruct "crashed_at_offset" as (OV OCV' tC) "[pickedC crashed]".
+    iDestruct "crashed" as (OV OCV' tC) "[pickedC crashed]".
     iDestruct "rely" as "[rely (%tH & %tC' & [% _] & pickedH & pickedC')]".
     iDestruct "own_auth" as (tH') "[#pickedH' own_auth]".
     iPickedInAgree "pickedC pickedC'".
     iPickedInAgree "pickedH pickedH'".
     destruct H as (OCV'' & -> & ->).
+    iEval (simpl) in "own_auth".
     iIntros (?) "offset".
     simpl.
     iAssert ⌜ OCV = OCV'' ⌝%I as %<-.
     { iNamed "offset".
       iDestruct (crashed_at_both_agree with "offset crashed") as %[-> ->].
       done. }
-    rewrite fmap_auth_auth.
-    iDestruct "own_auth" as "[own_auth _]".
+    rewrite /ghost_mapO_trans.
+    iFrame "rely".
+    iSplit; last by iExists _, _.
+    rewrite map_entry_lift_gmap_view_auth.
     rewrite map_imap_drop_OCV_restrict.
-    iFrame "∗#".
+    iFrame.
   Qed.
 
-  Global Instance ghost_map_elem_into_nextgen γ k PR:
+  #[global] Instance ghost_map_elem_into_nextgen γ k PR:
     IntoNextgen
       (know_pred_ra γ k PR)
       (if_rec k (know_pred_ra γ k PR)).
   Proof.
     rewrite /IntoNextgen.
     iNamed 1.
+    iDestruct "crashed" as (OCV) "crashed".
     iModIntro.
-    iDestruct "own_frag" as (t) "[#picked frag]".
+    iDestruct "own_elem" as (t) "[#picked elem]".
     iDestruct "rely" as "(rely & (%t' & %tC & (%R & _) & picked' & pickedC))".
     iPickedInAgree "picked picked'".
     destruct R as (OCV' & -> & ->).
-    iIntros (?) "%look [%OV crashed_at_both'] #persisted_loc".
-    iDestruct "crashed_at_offset" as (OCV'' ??) "[pickedC' #crashed_at_both]".
+    iIntros (OCV'' ?) "#crashed_at_offset _".
+    iAssert ⌜ OCV'' = OCV' ⌝%I as %->.
+    { iDestruct "crashed_at_offset" as (OV) "crashed_at_both".
+      iDestruct "crashed" as (??) "[pickedC' #crashed_at_both']".
+      iPickedInAgree "pickedC pickedC'".
+      iDestruct (crashed_at_both_agree with "crashed_at_both crashed_at_both'") as %[-> ->].
+      iPureIntro.
+      done. }
+    rewrite /ghost_mapO_trans elem_of_drop_OCV_gmap_view_frag; last rewrite elem_of_dom //.
+    iDestruct "crashed" as (??) "[pickedC' #crashed_at']".
     iPickedInAgree "pickedC pickedC'".
-    iDestruct (crashed_at_both_agree with "crashed_at_both crashed_at_both'") as %[-> ->].
-    rewrite -elem_of_dom in look.
-
-    rewrite fmap_auth_frag.
-    (* TODO: move to separate lemma *)
-    rewrite -{1}insert_empty.
-    erewrite map_imap_insert_Some;
-      first rewrite map_imap_empty insert_empty //;
-        last rewrite /drop_OCV decide_True //.
     iFrame "∗#".
   Qed.
-End ownership.
-
-Arguments predicateR {Σ}.
-Arguments predicatesR {Σ}.
+End predicates.
+Opaque own_all_preds_ra know_pred_ra.

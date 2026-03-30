@@ -4,6 +4,8 @@ From self Require Import extra.
 From self.algebra Require Import view.
 From self.high Require Import abstract_state.
 
+Set Default Proof Using "Type*".
+
 (** We define abstract state for some common types. *)
 
 (* Abstract state for booleans. *)
@@ -23,8 +25,8 @@ Proof. done. Qed.
 
 (* Abstract state for unit. *)
 
-Instance unit_abstract_state : AbstractState unit.
-Proof. esplit; apply _. Defined.
+Instance unit_abstract_state : AbstractState unit :=
+  { abs_state_relation := eq }.
 
 (** [option] abstract state. *)
 
@@ -78,8 +80,12 @@ Proof.
   intros [x]. reflexivity.
 Qed.
 
-Instance singl_abstract_state A `{Countable A} : AbstractState (singl A).
-Proof. esplit; apply _. Defined.
+Program Instance singl_abstract_state A `{Countable A} : AbstractState (singl A) :=
+  { abs_state_relation := λ _ _, True }.
+Next Obligation.
+  (* What? *)
+  split; split.
+Defined.
 
 (** Discrete abstract state (only reflexivity). *)
 
@@ -106,8 +112,8 @@ Section discrete_abstract_state.
     |}.
   Next Obligation. intros ??[?]. rewrite decode_encode. done. Qed.
 
-  Global Instance discrete_abstract_state `{Countable A} : AbstractState (discreteState A).
-  Proof. esplit; apply _. Defined.
+  #[global] Instance discrete_abstract_state `{Countable A} : AbstractState (discreteState A) :=
+    { abs_state_relation := eq }.
 
 End discrete_abstract_state.
 
@@ -160,6 +166,7 @@ End numbered_abstract_state.
 Section prod_abstract_state.
 
   Global Instance prod_abstract_state `{AbstractState A} `{AbstractState B} :
-    AbstractState (A * B) := {}.
+    AbstractState (A * B).
+  Proof. esplit. apply pair_preorder. Defined.
 
 End prod_abstract_state.

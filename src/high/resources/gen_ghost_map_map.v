@@ -11,16 +11,14 @@ From self.base Require Import generational_resources.
 
 From self.lang Require Import lang.
 
-From self.high.resources Require Import gen_ghost_map.
-
-Set Default Proof Using "Type*".
+From self.high.resources Require Export gen_ghost_map.
 
 (* the following sections is mostly adapted from the [ghost_map_map.v] file. *)
 (* major simplification: I'm removing the second ghost resource about fractions,
  * since I believe it's obsolete after nextgen update. *)
-Class ghost_map_mapGpreS (K1 K2 V: Type) Σ Ω `{Countable K1, Countable K2}  `{!crashed_atGpreS Σ Ω} := {
-    ghost_map_outer_GpreS :: ghost_mapGpreS K1 gname Σ Ω;
-    ghost_map_inner_GpreS :: ghost_mapGpreS K2 V Σ Ω;
+Class ghost_map_mapGpreS (K1 K2: Type) (V: Type) Σ Ω `{Countable K1, Countable K2} `{!crashed_atGpreS Σ Ω} `{!ghost_mapGpreS K1 (V → option V) Σ Ω} := {
+    ghost_map_map_outer_GpreS :: ghost_mapGpreS K1 gname Σ Ω;
+    ghost_map_map_inner_GpreS :: ghost_mapGpreS K2 V Σ Ω;
   }.
 
 Definition dfrac_div_2 (dq : dfrac) :=
@@ -33,14 +31,12 @@ Definition dfrac_div_2 (dq : dfrac) :=
 Section definitions.
   Notation K1 := loc.
   Notation K2 := nat.
-
-  Context `{!nvmBaseGS Σ Ω, !ghost_map_mapGpreS K1 K2 V Σ Ω, Inhabited V}.
+  
+  Context `{V: Type, !nvmBaseGS Σ Ω, !ghost_mapGpreS K1 (V → option V) Σ Ω, !ghost_map_mapGpreS K1 K2 V Σ Ω, Inhabited V}.
   Implicit Types (m : gmap K1 (gmap K2 V)).
   Implicit Types (mi : gmap K2 V).
-  Implicit Types (dq: dfrac) (γ: gname) (bumper: V → option V) (v: V).
+  Implicit Types (dq: dfrac) (γ γm: gname) (bumper: V → option V) (v: V).
 
-  (* TODO: make these two assumption into a typeclass *)
-  Context `{!ghost_mapGpreS loc (V → option V) Σ Ω}. (* ghost map for bumpers *)
   Variable (γbumper: gname).
   (* reminder to myself:
    * [k1] is location, [k2] is timestamp,
@@ -66,7 +62,6 @@ Section definitions.
                     k2 ↪[γm, drop_above_bump k1 bumper]□ v.
 
   (** The last generation map assertions *)
-  
   (* Ownership over the entire map. *)
   Definition lastgen_full_map γ dq m : iProp Σ :=
     ∃ (gnames : gmap loc gname),
@@ -75,11 +70,11 @@ Section definitions.
            lastgen_ghost_map_auth γm (dfrac_div_2 dq) mi).
 
   (* Ownership over the entire history for a single key. *)
-  Definition lastgen_full_entry γ k1 dq mi : iProp Σ :=
+  Definition lastgen_full_entry γ (k1: K1) dq mi : iProp Σ :=
     ∃ γm, lastgen_ghost_map_elem γ k1 DfracDiscarded γm ∗
           lastgen_ghost_map_auth γm (dfrac_div_2 dq) mi.
   
-  Definition lastgen_frag_entry γ k1 k2 v : iProp Σ :=
+  Definition lastgen_frag_entry γ (k1: K1) (k2: K2) v : iProp Σ :=
     ∃ γm, lastgen_ghost_map_elem γ k1 DfracDiscarded γm ∗
           lastgen_ghost_map_elem γm k2 DfracDiscarded v.
 End definitions.
@@ -88,13 +83,12 @@ End definitions.
  ** We are mostly interested in lookup and persist lemmas. *)
 Section lastgen_lemmas.
   Notation K1 := loc.
-  Notation K2 := nat.
-  Notation V := positive.
-  Context `{!nvmBaseGS Σ Ω, !ghost_map_mapGpreS K1 K2 V Σ Ω}.
+  Notation K2 := nat.  
+  Context `{V: Type, !nvmBaseGS Σ Ω, !ghost_mapGpreS K1 (V → option V) Σ Ω, !ghost_map_mapGpreS K1 K2 V Σ Ω, Inhabited V}.
   Implicit Types (m : gmap K1 (gmap K2 V)).
   Implicit Types (mi : gmap K2 V).
-  Implicit Types (dq: dfrac) (γ: gname) (bumper: V → option V).
-  Lemma lastgen_full_map_persist {γ} q m :
+  Implicit Types (dq: dfrac) (γ γm: gname) (bumper: V → option V) (v: V).
+Lemma lastgen_full_map_persist {γ} q m :
     lastgen_full_map γ (DfracOwn q) m ==∗ lastgen_full_map γ DfracDiscarded m.
   Proof.
     iDestruct 1 as (?) "[auth map]".
@@ -107,7 +101,7 @@ Section lastgen_lemmas.
     done.
   Qed.
 
-  Lemma lastgen_full_map_frag_entry γ k1 k2 dq1 m v :
+  Lemma lastgen_full_map_frag_entry γ (k1: K1) (k2: K2) dq1 m v :
     lastgen_full_map γ dq1 m -∗
     lastgen_frag_entry γ k1 k2 v -∗
     ∃ mi, ⌜ m !! k1 = Some mi ⌝ ∗ ⌜ mi !! k2 = Some v ⌝.
@@ -117,7 +111,7 @@ Section lastgen_lemmas.
     iDestruct (lastgen_ghost_map_lookup with "auth ptsγp") as %look.
     iDestruct (big_sepM2_lookup_l with "map") as (mi mLook) "authI"; first done.
     iExists mi.
-    iDestruct (lastgen_ghost_map_lookup with "authI ptsv") as %->.
+    iDestruct (lastgen_ghost_map_lookup with "authI ptsv") as %?.
     done.
   Qed.
 
@@ -133,19 +127,36 @@ Section lastgen_lemmas.
     iDestruct (lastgen_ghost_map_auth_agree with "authI authI'") as %->.
     done.
   Qed.
+
+  Lemma lastgen_full_entry_frag_entry γ k1 dq mi k2 v :
+    lastgen_full_entry γ k1 dq mi -∗
+    lastgen_frag_entry γ k1 k2 v -∗
+    ⌜ mi !! k2 = Some v ⌝.
+  Proof.
+    iDestruct 1 as (γm) "(pts & auth)". simpl.
+    iDestruct 1 as (γm') "(pts' & pts2)".
+    iDestruct (lastgen_ghost_map_elem_agree with "pts pts'") as %<-.
+    iDestruct (lastgen_ghost_map_lookup with "auth pts2") as "$".
+  Qed.
+  
+  Lemma lastgen_frag_entry_agree γ k1 k2 v v' :
+    lastgen_frag_entry γ k1 k2 v -∗ lastgen_frag_entry γ k1 k2 v' -∗ ⌜ v = v' ⌝.
+  Proof.
+    iDestruct 1 as (?) "[pts1 pts2]".
+    iDestruct 1 as (?) "[pts1' pts2']".
+    iDestruct (lastgen_ghost_map_elem_agree with "pts1 pts1'") as %<-.
+    iDestruct (lastgen_ghost_map_elem_agree with "pts2 pts2'") as %<-.
+    done.
+  Qed.
 End lastgen_lemmas.
 
 Section lemmas.
   Notation K1 := loc.
   Notation K2 := nat.
-  Notation V := positive.
-  Context `{!nvmBaseGS Σ Ω, !ghost_map_mapGpreS K1 K2 V Σ Ω}.
+  Context `{V: Type, !nvmBaseGS Σ Ω, !ghost_mapGpreS K1 (V → option V) Σ Ω, !ghost_map_mapGpreS K1 K2 V Σ Ω, Inhabited V}.
   Implicit Types (m : gmap K1 (gmap K2 V)).
   Implicit Types (mi : gmap K2 V).
-  Implicit Types (dq: dfrac) (γ: gname) (bumper: V → option V).
-
-  (* TODO: make these two assumption into a typeclass *)
-  Context `{!ghost_mapGpreS loc (V → option V) Σ Ω}. (* ghost map for bumpers *)
+  Implicit Types (dq: dfrac) (γ γm: gname) (bumper: V → option V) (v: V).
   Variable (γbumper: gname).
 
   Global Instance full_entry_fractional γ ℓ enc_abs_hist :
@@ -200,7 +211,7 @@ Section lemmas.
     iDestruct (big_sepM2_lookup_l with "map") as (mi mLook bumper') "[#bumper' authI]"; first done.
     iDestruct (ghost_map_elem_agree with "bumper bumper'") as %->.
     iExists mi.
-    iDestruct (ghost_map_lookup with "authI ptsv") as %->.
+    iDestruct (ghost_map_lookup with "authI ptsv") as %?.
     done.
   Qed.
 
@@ -246,8 +257,7 @@ Section lemmas.
       iDestruct "bumpers" as "#[[%bumper bumper] bumpers]".
       iMod (IH with "crashed_at crashed_rely bumpers") as (gnames) "M".
       iDestruct (big_sepM2_dom with "M") as %domEq.
-      iMod (ghost_map_alloc_persistent
-              (drop_above_bump k1 bumper) OPV OCV mi with "crashed_at crashed_rely") as (γ1) "[auth discard]".
+      iMod (ghost_map_alloc_persistent OPV OCV mi with "crashed_at crashed_rely") as (γ1) "[auth discard]".
       iExists (<[ k1 := γ1 ]> gnames).
       iModIntro.
       rewrite big_sepM2_insert; try done.
@@ -274,10 +284,9 @@ Section lemmas.
     rewrite /full_map /full_entry.
     iIntros "#bumpers #crashed_at_offset #rely_self".
     iMod (full_entry_alloc_big m with "[#$] [#$] bumpers") as (gnames) "(M1 & M2 & F)".
-    iMod (ghost_map_alloc_persistent drop_OCV OPV OCV gnames with "[#$] [#$]") as (γ) "[H1 #ptsMap]".
+    iMod (ghost_map_alloc_persistent OPV OCV gnames with "[#$] [#$]") as (γ) "[H1 #ptsMap]".
     iExists γ.
     rewrite bi.sep_exist_r.
-    iExists (gnames).
     iFrame.
     iModIntro.
     iSplit.
@@ -311,7 +320,7 @@ Section lemmas.
     iDestruct (ghost_map_auth_agree with "auth auth'") as %<-.
     iDestruct (big_sepM2_dom with "map") as %domEq1.
     iDestruct (big_sepM2_dom with "map'") as %domEq2.
-    rewrite map_eq_dom; last congruence.
+    rewrite map_eq_dom; last rewrite -domEq1 -domEq2 //.
     iIntros (k1 mi mi' m1Look m2Look).
     assert (is_Some (gnames !! k1)) as [γi gnamesLook].
     { apply elem_of_dom. rewrite domEq1. apply elem_of_dom. done. }
@@ -371,13 +380,13 @@ Section lemmas.
     (* extract [crashed_at_offset] from existing resource *)
     iDestruct (ghost_map_auth_crashed_at_offset with "auth") as (OCV) "#crashed_at_offset".
     (* Allocate the ghost state for the entry. *)
-    iMod (ghost_map_alloc_persistent (drop_above_bump k1 bumper) OPV OCV mi with "[#$] [#$]") as (γm) "[authI pts2]".
+    iMod (ghost_map_alloc_persistent OPV OCV mi with "[#$] [#$]") as (γm) "[authI pts2]".
     iEval (rewrite -Qp.half_half -dfrac_op_own ghost_map_auth_fractional) in "authI".
     replace (DfracOwn (1 / 2)) with (dfrac_div_2 (DfracOwn 1)); last done.
     iDestruct "authI" as "[authI authI']".
     assert (gnames !! k1 = None).
     { apply not_elem_of_dom. rewrite domEq. apply not_elem_of_dom. done. }
-    iMod (ghost_map_insert_persist _ k1 γm with "auth") as "[auth #pts]";
+    iMod (ghost_map_insert_persist k1 γm with "auth") as "[auth #pts]";
       first done.
     iModIntro. iSplitL "auth authI map".
     { iExists (<[k1 := _]> gnames).
@@ -410,7 +419,7 @@ Section lemmas.
     iDestruct (ghost_map_elem_agree with "bumper bumper'") as %<-.
     iCombine "authI authI'" as "authI".
     iEval (rewrite -ghost_map_auth_fractional Qp.half_half) in "authI".
-    iMod (ghost_map_insert_persist _ k2 v with "authI") as "[authI ptsI]";
+    iMod (ghost_map_insert_persist k2 v with "authI") as "[authI ptsI]";
       first done.
     iEval (rewrite -Qp.half_half -dfrac_op_own ghost_map_auth_fractional) in "authI".
     replace (DfracOwn (1 / 2)) with (dfrac_div_2 (DfracOwn 1)); last done.
@@ -445,14 +454,13 @@ End lemmas.
 Section Nextgen.
   Notation K1 := loc.
   Notation K2 := nat.
-  Notation V := positive.
-  Context `{!nvmBaseGS Σ Ω, !ghost_map_mapGpreS K1 K2 V Σ Ω}.
-  Context `{!ghost_mapGpreS loc (V → option V) Σ Ω}. 
-  Implicit Types (OCV: view) (bumper: V → option V)
-                 (abs_hists: gmap K1 (gmap K2 V)) (abs_hist: gmap K2 V)
-                 (ℓ: K1) (t: K2) (v: V).
+  Context `{V: Type, !nvmBaseGS Σ Ω, !ghost_mapGpreS K1 (V → option V) Σ Ω, !ghost_map_mapGpreS K1 K2 V Σ Ω, Inhabited V}.
+  Implicit Types (m : gmap K1 (gmap K2 V)).
+  Implicit Types (mi : gmap K2 V).
+  Implicit Types (dq: dfrac) (γ γm: gname) (bumper: V → option V) (v: V).
+  Implicit Types (OCV: view) (abs_hists: gmap K1 (gmap K2 V)) (abs_hist: gmap K2 V) (ℓ: K1) (t: K2).
 
-  Variable (bumpers: gmap K1 (V → option V)) (γbumper γ: gname).
+  Context {bumpers: gmap K1 (V → option V)} {γbumper γ: gname}.
   (* It's difficult to enforce [ℓ ∈ dom bumpers], we take the easy path. *)
   Definition per_loc_trans OCV ℓ abs_hist: option (gmap K2 V) :=
     match bumpers !! ℓ with
@@ -507,7 +515,6 @@ Section Nextgen.
   
   (* Since we need to have some notion of global bumpers, it's difficult to make it
    * work with the [IntoNextgen] typeclass. *)
-  (* TODO: last gen *)
   Lemma full_map_nextgen dq1 dq2 abs_hists:
     full_map γbumper γ dq1 abs_hists -∗
     ghost_map_auth γbumper drop_OCV dq2 bumpers -∗
@@ -527,17 +534,18 @@ Section Nextgen.
       { done. }
       iIntros "!>" (ℓ γm γm' ??) "allBumpers (% & %bumper & #knowBumper & _)".
       simplify_map_eq.
-      iDestruct (ghost_map_lookup with "allBumpers knowBumper") as %bumperLook.
+      iDestruct (ghost_map_lookup with "allBumpers [knowBumper]") as %bumperLook.
+      { iApply "knowBumper". }
       iFrame. iPureIntro.
       by eexists. }
     iPoseProof (big_sepM2_impl_dom_subseteq_with_resource _
                   (λ ℓ gname abs_hist,
-                     ⚡==> lastgen_ghost_map_auth gname (dfrac_div_2 dq1) abs_hist ∗
+                     ⚡==> lastgen_ghost_map_auth (V := leibnizO V) gname (dfrac_div_2 dq1) abs_hist ∗
                          ∃ bump, 
                          ⌜ bumpers !! ℓ = Some bump ⌝ ∗
                          ∀ OCV, crashed_at_offset OCV -∗ ⌜ ℓ ∈ dom OCV ⌝ -∗
                                 ℓ ↪[γbumper,drop_OCV]□ bump ∗
-                                ghost_map_auth gname (drop_above_bump ℓ bump) (dfrac_div_2 dq1) (drop_bump_map ℓ bump OCV abs_hist))%I
+                                ghost_map_auth (V := leibnizO V) gname (drop_above_bump ℓ bump) (dfrac_div_2 dq1) (drop_bump_map ℓ bump OCV abs_hist))%I
                   gnames abs_hists gnames abs_hists with "bumpers abs_hists_auth []")
       as "[$ abs_hists_auth]"; [ done | done | | ].
     - iIntros "!>" (ℓ gname abs_hist gname' abs_hist' ????) "allBumpers entry".
@@ -605,7 +613,7 @@ Section Nextgen.
         iExists bumper.
         iFrame.
   Qed.
-
+  
   Lemma full_entry_nextgen ℓ dq1 dq2 abs_hist:
     full_entry γbumper γ ℓ dq1 abs_hist -∗
     ghost_map_auth γbumper drop_OCV dq2 bumpers -∗
@@ -633,6 +641,28 @@ Section Nextgen.
     iExists _, _. iFrame "∗#".
   Qed.
 
+  Lemma full_entry_local_nextgen ℓ dq1 dq2 bumper abs_hist:
+    full_entry γbumper γ ℓ dq1 abs_hist -∗
+    ghost_map_elem γbumper drop_OCV ℓ dq2 bumper -∗
+    ⚡==> lastgen_full_entry γ ℓ dq1 abs_hist ∗
+    ∀ OCV, crashed_at_offset OCV -∗ ⌜ ℓ ∈ dom OCV ⌝ -∗
+           full_entry γbumper γ ℓ dq1 (drop_bump_map ℓ bumper OCV abs_hist).
+  Proof.
+    iIntros "(%γm & %bump & #knowGname & #knowBumper & fullEntry) knowBumper'".
+    iDestruct (ghost_map_elem_agree with "knowBumper knowBumper'") as %<-.
+    rewrite /per_loc_trans.
+    iModIntro.
+    iDestruct "knowGname" as "[$ knowGname]".
+    iDestruct "fullEntry" as "[$ fullEntry]".
+    iIntros (?) "#offset %domOCV".
+    iSpecialize ("knowGname" with "offset [//]").
+    iDestruct "knowBumper" as "[_ knowBumper]".
+    iSpecialize ("knowBumper" with "offset [//]").
+    iSpecialize ("fullEntry" with "offset").
+    rewrite /full_entry.
+    iExists _, _. iFrame "∗#".
+  Qed.
+  
   Lemma all_loc_full_entry_nextgen abs_hists dq1 dq2:
     dom abs_hists ⊆ dom bumpers →
     ([∗ map] ℓ ↦ abs_hist ∈ abs_hists, full_entry γbumper γ ℓ dq1 abs_hist) -∗
@@ -696,7 +726,7 @@ Section Nextgen.
     iDestruct "knowBumper" as "[_ knowBumper]".
     iSpecialize ("knowBumper" with "offset [//]").
     iSpecialize ("entry" with "offset").
-    destruct (drop_above_bump ℓ bumper OCV t v); last done.
+    destruct (drop_above_bump _ _ _ _); last done.
     iExists _, _. iFrame "∗#".
   Qed.
 
@@ -800,7 +830,7 @@ Section Nextgen.
     iDestruct (ghost_map_elem_agree with "knowBumper knowBumper'") as %->.
     iSpecialize ("knowGname" with "offset [//]").
     iSpecialize ("entry" with "offset").
-    destruct (drop_above_bump ℓ bumper OCV t v); last done.
+    destruct (drop_above_bump _ _ _ _); last done.
     iExists _, _. iFrame "∗#".
   Qed.
 
@@ -819,6 +849,8 @@ Section Nextgen.
     iApply frag_entry_local_nextgen.
   Qed.
 End Nextgen.
+
+Arguments abs_hist_trans {_ _} _ _ _.
 
 Opaque full_map.
 Opaque full_entry.

@@ -21,9 +21,9 @@ Set Default Proof Using "Type".
  * being used in high-level Spirea, but they are tied in Perennial's adequacy proof so very difficult to remove.
  * [credit_preG Σ]: the resources for a second set of later credits, also not being used at all. *)
 Class Perennial_preG Σ Ω := {
-  P_invGpreS :> wsat.invGS.invGpreS Σ;
-  P_preG_credit :> credit_preG Σ;
-  P_ngInvG :> ngInvG Σ Ω;
+  P_invGpreS :: wsat.invGS.invGpreS Σ;
+  P_preG_credit :: credit_preG Σ;
+  P_ngInvG :: ngInvG Σ Ω;
 }.
 
 Definition Build_credit_G Σ `{!Perennial_preG Σ Ω} (cred_names: cr_names): creditGS Σ :=
@@ -70,8 +70,11 @@ Section base_adequacy.
     (* iAssert (|={⊤}=> crash_borrow_ginv)%I with "[Hcred]" as ">#Hinv". *)
     (* { rewrite /crash_borrow_ginv. iApply (inv_alloc _). iNext. eauto. } *)
 
-    iMod (nvm_heap_ctx_alloc σ PV)
-      as (nvm_base_GS) "(interp & pts & #validV & crashedAt & pers)"; first done.
+    
+    (* FIXME: some kind of typeclass failure? *)
+    iPoseProof (nvm_heap_ctx_alloc σ PV) as "heap"; first done.
+    iMod "heap"
+      as (nvm_base_GS) "(interp & pts & #validV & crashedAt & pers)".
 
     set (PG := Build_PerennialG Σ Hinv (Build_credit_G Σ name_credit)).
 
@@ -157,13 +160,16 @@ Section base_adequacy.
     apply (base_recv_adequacy_simpl Σ Ω); first done.
     iIntros (Hheap HP) "fmapsto #persisted".
     iPoseProof (hyp with "fmapsto persisted") as "[WPC recover]".
-    iApply (idempotence_wpr with "WPC [recover]").
-    - iIntros. rewrite /extra_state_interp /=. by repeat iModIntro.
+    iApply (idempotence_wpr emp with "WPC [recover]").
+    - iIntros.
+      iMod (heap_ctx_next_generation with "[$]") as (?) "(_ & _ & heap)"; first done.
+      do 3 iModIntro.
+      by iMod "heap" as "[_ $]".
     - iApply (plainly_mono with "recover").
       iIntros "Hwpc Φc".
       iSpecialize ("Hwpc" with "Φc").
       iModIntro.
       iModIntro.
-      by iIntros "_".
+      by iIntros "_ _".
   Qed.
 End base_adequacy.

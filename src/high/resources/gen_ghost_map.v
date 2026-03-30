@@ -20,9 +20,6 @@ From self.lang Require Import lang.
 
 Set Default Proof Using "Type*".
 
-Notation iris_view := iris.algebra.view.view.
-
-
 (* typeclasses *)
 Definition ghost_mapR (K: Type) (V: Type) `{!EqDecision K, !Countable K}: cmra := prodR (gmap_viewUR K (agreeR (leibnizO V))) (gmap_viewUR K (agreeR (leibnizO V))).
 Class ghost_mapGpreS (K: Type) (V: Type) `{!EqDecision K, !Countable K} (Σ: gFunctors) (Ω: gGenCmras Σ) `{!crashed_atGpreS Σ Ω} := {
@@ -77,8 +74,6 @@ Section transformers.
       by rewrite cmra_morphism_op.
   Qed.
 
-  (* I don't define a [ghost_mapGS] because there are multiple resources
-   * using the same resource type. *)
   Definition ghost_map_relyT := rel_over [#crashed_atR] (ghost_mapR K V).
 
   Definition ghost_map_rel: ghost_map_relyT :=
@@ -86,6 +81,7 @@ Section transformers.
       ∃ OCV,
         tC = crashed_at_trans OCV ∧ t = ghost_map_trans OCV.
 End transformers.
+
 
 Arguments ghost_map_trans {_ _ _ _} _ _.
 Arguments ghost_map_rel {_ _ _ _} _.
@@ -124,13 +120,15 @@ Notation "k ↪[ γ , trans ] dq v" := (ghost_map_elem γ trans k dq v)
   (at level 20, γ at level 50, dq custom dfrac at level 1,
    format "k  ↪[ γ , trans ] dq  v") : bi_scope.
 
+Set Default Proof Using "Type".
+
 (* current generation ghost map lemmas *)
 Section current_gen_ghost_map_lemmas.
   Context `{Countable K, V: Type, !nvmBaseGS Σ Ω, !ghost_mapGpreS K V Σ Ω}.
   Implicit Types (k : K) (v : V) (dq : dfrac) (q : Qp) (m : gmap K V).
   (* select lemmas that is being used in Spirea repo. *)
 
-  Context (t: view → K → V → option (leibnizO V)).
+  Context {t: view → K → V → option (leibnizO V)}.
 
   Global Instance ghost_map_elem_timeless k γ dq v : Timeless (k ↪[γ, t]{dq} v).
   Proof. apply _. Qed.
@@ -370,7 +368,7 @@ Section current_gen_ghost_map_lemmas.
     iApply (big_sepM_impl with "frag").
     iIntros "!>" (k v ?) "$".
     iFrame "#".
-  Admitted.
+  Qed.
   
   Lemma ghost_map_alloc_persistent `{∀ OCV, MapTrans (V := leibnizO V) (t OCV)} OPV OCV m :
     crashed_at_offset OCV -∗
@@ -385,14 +383,8 @@ Section current_gen_ghost_map_lemmas.
     done.
   Qed.
 
-  (* TODO: merge this lemma with the other lemma with the same name in base spirea. *)
-  (* The following two lemmas make the two-level maps easier to work with. *)
   Lemma ghost_map_auth_crashed_at_offset γ dq m:
     ghost_map_auth γ t dq m -∗ ∃ OCV, crashed_at_offset OCV.
-  Proof. iNamed 1. iFrame "#". Qed.
-
-  Lemma ghost_map_elem_crashed_at_offset γ ℓ dq v:
-    ghost_map_elem γ t ℓ dq v -∗ ∃ OCV, crashed_at_offset OCV.
   Proof. iNamed 1. iFrame "#". Qed.
 End current_gen_ghost_map_lemmas.
 
@@ -723,7 +715,7 @@ Section per_location_map_lemmas.
   
   (* we are fixed for one location and assumes its bumper. *)
   Context `{V: Type, !nvmBaseGS Σ Ω, !ghost_mapGpreS K V Σ Ω, !Inhabited V}.
-  Variable (ℓ: loc) (bumper: V → option V).
+  Context (ℓ: loc) (bumper: V → option V).
   Implicit Type (v: V) (OCV: view) (hist: gmap K V).
   (* we first define the transformer based on the whole map
    * [!!0] should be fine here since in case of location is lost, we will allocate a new gname
@@ -841,73 +833,3 @@ Section per_location_map_lemmas.
     done.
   Qed.
 End per_location_map_lemmas.
-
-(* (* [crashed_in] behaves more like one-generation resources: it cannot move into next generation. *)
-(*  * Thus we choose the most convenient posssible definition. *) *)
-(* Section crashed_in_map. *)
-(*   Context `{V: Type, !nvmBaseGS Σ Ω, !ghost_mapGpreS loc V Σ Ω} (γ: gname). *)
-(*   Implicit Type (v: V) (OCV: view) (m: gmap loc V). *)
-  
-(*   Definition erase (ℓ: loc) (v: V): option V := *)
-(*     None. *)
-
-(*   #[global] Instance erase_maptrans: MapTrans (V := leibnizO V) erase. *)
-(*   Proof. *)
-(*     split; last solve_proper. *)
-(*     intros. done. *)
-(*   Qed. *)
-
-(*   Lemma crashed_in_map_cmra_morphism: *)
-(*     CmraMorphism (map_entry_lift_gmap_view (V := leibnizO V) erase). *)
-(*   Proof. apply _. Qed. *)
-
-(*   (* we could have avoided the [crashed_at] dependency altogether, but it doesn't really hurt. *) *)
-(*   Definition crashed_in_rel: ghost_map_relyT loc V := *)
-(*     λ tC t, t = map_entry_lift_gmap_view (V := leibnizO V) erase. *)
-
-(*   Lemma crashed_in_map_empty m1: *)
-(*     map_imap (erase) m1 = ∅. *)
-(*   Proof. *)
-(*     rewrite /erase. *)
-(*     apply map_eq => ℓ. *)
-(*     rewrite map_lookup_imap /=. *)
-(*     destruct (m1 !! ℓ); done. *)
-(*   Qed. *)
-
-(*   Definition crashed_at_auth m: iProp Σ :=  *)
-(*     "map_auth" ∷ ghost_map_auth γ crashed_in_rel (DfracOwn 1) m ∗ *)
-(*     "map_discards" ∷ [∗ map] ℓ ↦ v ∈ m, ℓ ↪[γ, crashed_in_rel]□ v. *)
-
-(*   Lemma nextgen_bupd_crashed_in {OCV m__old} m__new: *)
-(*     picked_out crashed_at_name (crashed_at_trans OCV) -∗ *)
-(*     crashed_at_auth m__old -∗ *)
-(*     ⚡==> |==> crashed_at_auth m__new ∗ *)
-(*                [∗ map] ℓ ↦ v ∈ m__new, ℓ ↪[γ, crashed_in_rel]□ v. *)
-(*   Proof. *)
-(*     iIntros "pickedC". *)
-(*     iNamed 1. iNamed "map_auth". *)
-(*     iModIntro. *)
-(*     iDestruct "rely" as "[rely (%t & % & [-> _] & picked & _)]". *)
-(*     iDestruct "own_auth" as (t') "[picked' own_auth]". *)
-(*     iDestruct "crashed" as (OV OCV' tC') "[pickedC' own_crashed]". *)
-(*     iPickedInAgree "picked picked'". *)
-(*     iPickedInAgree "pickedC pickedC'". *)
-(*     simpl. *)
-(*     iAssert (∃ OCV, crashed_at_offset OCV)%I with "[own_crashed]" as "#crashed". *)
-(*     { by iExists _, _. } *)
-(*     rewrite map_entry_lift_gmap_view_auth crashed_in_map_empty. *)
-(*     iMod (gen_own_update with "own_auth") as "[own_auth own_frag]". *)
-(*     { apply: (gmap_view_alloc_big (V:=leibnizO V) _ m__new (DfracOwn 1)). *)
-(*       - apply map_disjoint_empty_r. *)
-(*       - done. } *)
-(*     rewrite (right_id _ (∪)). *)
-(*     iFrame "own_auth rely crashed". *)
-(*     rewrite -big_sepM_sep. *)
-(*     rewrite big_opM_gen_own_1 -big_sepM_bupd. *)
-(*     iApply (big_sepM_impl with "own_frag"). *)
-(*     iIntros "!>" (ℓ v ?) "gen_own". *)
-(*     iMod (gen_own_update with "gen_own") as "discard"; first apply gmap_view_frag_persist. *)
-(*     iDestruct "discard" as "#discard". *)
-(*     by iFrame "#". *)
-(*   Qed. *)
-(* End crashed_in_map. *)

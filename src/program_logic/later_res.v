@@ -1,5 +1,5 @@
 From iris.proofmode Require Import base ltac_tactics classes.
-From PerennialNG.Helpers Require Import ipm.
+From Perennial.Helpers Require Import ipm.
 From PerennialNG.base_logic Require Export invariants.
 (* From PerennialNG.program_logic Require Import weakestpre. *)
 From self.program_logic Require Import crash_weakestpre.

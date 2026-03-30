@@ -1,6 +1,6 @@
 From iris.proofmode Require Import ltac_tactics.
 From iris.algebra Require Import auth.
-
+From iris_named_props Require Import named_props.
 
 From self Require Import ipm_tactics.
 From self.program_logic Require Import recovery_adequacy.
@@ -9,7 +9,8 @@ From self.high Require Import crash_weakestpre recovery_weakestpre generational_
 From self.high.modalities Require Import nextgen.
 From self.nextgen Require Import nextgen_promises.
 
-Set Default Proof Using "Type*".
+From self.high.resources Require Import
+  gen_ghost_map gen_ghost_map_ofe gen_ghost_map_map gen_alocs gen_predicates auth_map_map.
 
 (* I'm still not quite sure what's the proper way to handle these ghost resources,
  * For what I can see,
@@ -18,9 +19,9 @@ Set Default Proof Using "Type*".
  * being used in high-level Spirea, but they are tied in Perennial's adequacy proof so very difficult to remove.
  * [credit_preG Σ]: the resources for a second set of later credits, also not being used at all. *)
 Class Perennial_preG Σ Ω := {
-  P_invGpreS :> wsat.invGS.invGpreS Σ;
-  P_preG_credit :> credit_preG Σ;
-  P_ngInvG :> ngInvG Σ Ω;
+  P_invGpreS :: wsat.invGS.invGpreS Σ;
+  P_preG_credit :: credit_preG Σ;
+  P_ngInvG :: ngInvG Σ Ω;
 }.
 
 Definition Build_credit_G Σ `{!Perennial_preG Σ Ω} (cred_names: cr_names): creditGS Σ :=
@@ -28,17 +29,57 @@ Definition Build_credit_G Σ `{!Perennial_preG Σ Ω} (cred_names: cr_names): cr
 
 Section high_adequacy.
   (* begin missing proofs. *)
-  Variable (nvmHighGpreS: ∀ Σ, gGenCmras Σ → Type).
-  Lemma extra_state_interp_alloc `{!nvmHighGpreS Σ Ω, !nvmBaseGS Σ Ω} (σ: store) PV:
+  Lemma extra_state_interp_alloc `{baseG: !nvmBaseGS Σ Ω, preG: !nvmHighGpreS Σ Ω} (σ: store) PV:
     valid_heap σ →
     ([∗ map] l↦v ∈ σ, l ↦fh v) -∗
     crashed_at ∅ -∗
     persisted PV ==∗
     ∃ (_: nvmHighGS Σ Ω), extra_state_interp.
-  Admitted.
+  Proof.
+    iIntros (?) "_ #CV #PV".
+    iNamed "CV".
+    iAssert (crashed_at_offset OCV)%I as "#OCV".
+    { by iExists _. }
+    rewrite /extra_state_interp /highExtraStateInterp /interp.
+    iMod (gen_alocs_alloc ∅ OCV OPV  with "OCV rely") as (new_locs_name) "[newLocs _]".
+    iMod (auth_map_map_alloc OCV OPV with "OCV rely") as (phy_history_name) "physHists".
+    iMod (ghost_map_alloc (V := positive → option positive) OPV OCV ∅ (DfracOwn 1) with "OCV rely")
+      as (bumpers_name) "[allBumpers _]"; first done.
+    iMod (full_map_alloc bumpers_name OPV OCV ∅ with "[] OCV rely") as (abs_history_name) "[history _]".
+    { by rewrite big_sepS_empty. }
+    iMod (ghost_mapO_alloc (t := gen_predicates.drop_OCV) (V := predicateO Σ) OPV OCV ∅ (DfracOwn 1) with "OCV rely")
+      as (full_predicates_name) "[full_predicates _]"; first done.
+    iMod (ghost_mapO_alloc (t := gen_predicates.drop_OCV) (V := predicateO Σ) OPV OCV ∅ (DfracOwn 1) with "OCV rely")
+      as (read_predicates_name) "[read_predicates _]"; first done.
+    iMod (ghost_mapO_alloc (t := gen_predicates.drop_OCV) (V := predicateO Σ) OPV OCV ∅ (DfracOwn 1) with "OCV rely")
+      as (pers_predicates_name) "[pers_predicates _]"; first done.
+    iMod (ghost_map_alloc (V := extra.relation2 positive) OPV OCV ∅ (DfracOwn 1) with "OCV rely")
+      as (preorders_name) "[allOrders _]"; first done.
+    iMod (gen_alocs_alloc ∅ OCV OPV with "OCV rely") as (exclusive_locs_name) "[naLocs _]".
+    iMod (gen_alocs_alloc ∅ OCV OPV with "OCV rely") as (shared_locs_name) "[atLocs _]".
+    iMod (ghost_map_alloc (V := view.view) OPV OCV ∅ (DfracOwn 1) with "OCV rely")
+      as (non_atomic_views_gname) "[naView _]"; first done.
+    iModIntro.
+    iExists (NvmHighG Σ Ω baseG preG full_predicates_name read_predicates_name pers_predicates_name
+               abs_history_name phy_history_name non_atomic_views_gname
+               preorders_name exclusive_locs_name shared_locs_name new_locs_name bumpers_name).
+    rewrite /own_all_bumpers.
+    repeat (iExists ∅).
+    iFrameNamed.
+    rewrite ?big_sepM_empty ?big_sepM2_empty.
+    rewrite ?left_id.
+    iSplitL "newLocs".
+    { iExists OCV. iFrame "∗#". naive_solver. }
+    iSplit; first by iExists _.
+    repeat (iSplitPure; first (try (done || set_solver ))).
+    done.
+  Qed.
+
+  (* FIXME: this should be treated by the [solve_inG] equivalent for [Ω]. *)
+  Context (Build_nvmHighGpreS: ∀ Σ Ω (nvmBase: nvmBaseGS Σ Ω), nvmHighGpreS Σ Ω).
   
   (* ends missing proofs. *)    
-  Theorem high_recv_adequacy Σ Ω `{!nvmBaseGpreS Σ Ω, !nvmHighGpreS Σ Ω, !Perennial_preG Σ Ω}
+  Theorem high_recv_adequacy Σ Ω `{!nvmBaseGpreS Σ Ω, !Perennial_preG Σ Ω}
     s e r σ PV g φ φr φinv Φinv :
     valid_heap σ →
     (∀ `{!nvmBaseGS Σ Ω} `{!nvmHighGS Σ Ω} `{!PerennialG Σ},
@@ -52,12 +93,12 @@ Section high_adequacy.
           ■ (Φinv -∗ □ ∀ σ nt, state_interp σ nt -∗ |={⊤,∅}=> ⌜ φinv σ ⌝) ∗
           wpr s ⊤ e r (λ v, ⌜φ v⌝) Φinv (λ v, ⌜φr v⌝))) →
     recv_adequate (CS := nvm_crash_lang) s e r (σ, PV) g (λ v _ _, φ v) (λ v _ _, φr v) (λ σ _, φinv σ).
-  Proof.
+  Proof using Build_nvmHighGpreS.
     intros val Hwp.
     eapply (wp_recv_adequacy_inv _ _ _ _ _ _ _ _ _ _ _ _ _ _).
     (* eapply (wp_recv_adequacy_inv _ _ _ nvmBaseDeltaGO _ _ _ _ _ _ _ _ _ _). *)
     iIntros (? ?) "".
-
+    iStartProof.
     assert (∃ name_credit: cr_names, True) as [name_credit _].
     { by exists (Build_cr_names (xH) (xH)). }
     (* iMod (credit_name_init (crash_borrow_ginv_number)) as *)
@@ -66,9 +107,11 @@ Section high_adequacy.
     (* iAssert (|={⊤}=> crash_borrow_ginv)%I with "[Hcred]" as ">#Hinv". *)
     (* { rewrite /crash_borrow_ginv. iApply (inv_alloc _). iNext. eauto. } *)
 
-    iMod (nvm_heap_ctx_alloc σ PV)
-      as (nvm_base_GS) "(interp & pts & #validV & crashedAt & #pers)"; first done.
+    (* FIXME: some kind of typeclass failure? *)
+    iPoseProof (nvm_heap_ctx_alloc σ PV) as "heap"; first done.
+    iMod "heap" as (nvm_base_GS) "(interp & pts & #validV & crashedAt & #pers)".
 
+    set (highPreG := Build_nvmHighGpreS _ _ nvm_base_GS).
     set (PG := Build_PerennialG Σ Hinv (Build_credit_G Σ name_credit)).
 
     iMod (extra_state_interp_alloc σ PV with "[$] [$] [#$]") as (nvm_high_GS) "extra"; first done.
@@ -90,7 +133,6 @@ Section high_adequacy.
     by iExistsN.
     Unshelve.
     - refine 0.
-    - assumption.
   Qed.
 
   (* Similar to the [recv_adequate] in Perennial except that:
@@ -120,14 +162,14 @@ Section high_adequacy.
   Proof. intros [????]. split; try naive_solver. Qed.
 
   (* This is the simpler adequacy result. *)
-  Corollary high_recv_adequacy_simpl Σ Ω `{HbasePre : !nvmBaseGpreS Σ Ω, HhighPre: !nvmHighGpreS Σ Ω, hP: !Perennial_preG Σ Ω} s e r σ PV φ φr:
+  Corollary high_recv_adequacy_simpl Σ Ω `{HbasePre : !nvmBaseGpreS Σ Ω, hP: !Perennial_preG Σ Ω} s e r σ PV φ φr:
     valid_heap σ →
     (∀ `{Hheap: !nvmBaseGS Σ Ω, Hhigh: !nvmHighGS Σ Ω, HP: !PerennialG Σ},
       ⊢ validV ∅ -∗
         persisted PV -∗
         wpr s ⊤ e r (λ v, ⌜φ v⌝) True (λ v, ⌜φr v⌝)) →
     recv_adequate s e r (σ, PV) (λ v _, φ v) (λ v _, φr v).
-  Proof.
+  Proof using Build_nvmHighGpreS.
     intros val hyp.
     apply adequacy_impl.
     eapply (high_recv_adequacy Σ Ω); first done.
@@ -141,10 +183,9 @@ Section high_adequacy.
     { iIntros "!> ? !>". iIntros (? ?) "?".
       iApply fupd_mask_intro; naive_solver. }
     iFrame.
-    Unshelve. done.
   Qed.
 
-  Corollary base_recv_adequacy_simpl_crash_weakestpre Σ Ω `{hPre : !nvmBaseGpreS Σ Ω, HhighPre: !nvmHighGpreS Σ Ω, hP: !Perennial_preG Σ Ω} s (e r: expr) σ PV φ φc φr:
+  Corollary base_recv_adequacy_simpl_crash_weakestpre Σ Ω `{hPre : !nvmBaseGpreS Σ Ω, hP: !Perennial_preG Σ Ω} s (e r: expr) σ PV φ φc φr:
     valid_heap σ →
     (∀ `{Hheap: !nvmBaseGS Σ Ω, Hhigh: !nvmHighGS Σ Ω, HP: !PerennialG Σ},
       ⊢ validV ∅ -∗
@@ -153,9 +194,9 @@ Section high_adequacy.
         (* TODO: have an expert double check this modality *)
         ■ (φc -∗ ▷ <NG> (WPC r @ s; ⊤ {{ λ v, ⌜ φr v ⌝ }} {{ φc }})) ⊥) →
     recv_adequate s (e `at` ⊥) (r `at` ⊥) (σ, PV) (λ v _, φ v.(val_val)) (λ v _, φr v.(val_val)).
-  Proof.
+  Proof using Build_nvmHighGpreS.
     intros val hyp.
-    apply (high_recv_adequacy_simpl Σ Ω (HhighPre := HhighPre)); first done.
+    apply (high_recv_adequacy_simpl Σ Ω); first done.
     iIntros (Hheap Hhigh HP) "#validV #persisted".
     iPoseProof (hyp with "validV persisted") as "[WPC recover]".
     iApply wpr_strong_mono.

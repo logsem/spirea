@@ -4,7 +4,8 @@ From iris_named_props Require Import named_props.
 From self.high.lib Require Import abstract_state.
 From self Require Import encode_relation.
 
-From self.high Require Import dprop generational_resources modalities monpred_simpl predicates wrappers.
+From self.high Require Import dprop generational_resources modalities monpred_simpl predicates.
+From self.high.resources Require Import gen_ghost_map.
 From self.high.modalities Require Import no_buffer nextgen_flush nextgen if_rec.
 
 From self.lang Require Import lang.
@@ -101,6 +102,9 @@ Section protocol.
   Context `{nvmHighGS, AbstractState ST}.
 
   Implicit Types (prot : LocationProtocol ST).
+
+  #[local] Existing Instance nvmHighGS_inG.
+  #[local] Existing Instance nvmHighGpreS_bumpers.
   
   Lemma nextgen_know_protocol ℓ prot :
     know_protocol ℓ prot -∗
@@ -128,41 +132,6 @@ Section protocol.
     iIntros "P".
     by iApply nextgen_know_protocol.
   Qed.
-
-  (* Lemma know_protocol_extract ℓ prot : *)
-  (*   know_protocol ℓ prot -∗ *)
-  (*     ⎡ know_full_pred ℓ prot.(p_full) ⎤ ∗ *)
-  (*     ⎡ know_read_pred ℓ prot.(p_read) ⎤ ∗ *)
-  (*     ⎡ know_pers_pred ℓ prot.(p_pers) ⎤ ∗ *)
-  (*     ⎡ know_preorder_loc ℓ (⊑@{ST}) ⎤ ∗ *)
-  (*     ⎡ know_bumper ℓ prot.(p_bumper) ⎤. *)
-  (* Proof. iNamed 1. iFrame "#". Qed. *)
-
-  (* Lemma know_protocol_unfold ℓ prot TV : *)
-  (*   know_protocol ℓ prot TV ⊣⊢ *)
-  (*   ("#knowFullPred" ∷ know_full_pred ℓ (p_full prot) ∗ *)
-  (*    "#knowReadPred" ∷ know_read_pred ℓ (p_read prot) ∗ *)
-  (*    "#knowPersPred" ∷ know_pers_pred ℓ (p_pers prot) ∗ *)
-  (*    "#knowPreorder" ∷ know_preorder_loc ℓ (⊑@{ST}) ∗ *)
-  (*    "#knowBumper" ∷  know_bumper ℓ (p_bumper prot)). *)
-  (* Proof. rewrite /know_protocol !monPred_at_sep !monPred_at_embed //. Qed. *)
-
-  (* #[global] Instance know_protocol_buffer_free ℓ prot : *)
-  (*   BufferFree (know_protocol ℓ prot). *)
-  (* Proof. apply _. Qed. *)
-
-  (* Lemma know_protocol_at ℓ prot TV : *)
-  (*   (know_protocol ℓ prot) TV ⊣⊢ *)
-  (*     know_full_pred ℓ prot.(p_full) ∗ *)
-  (*     know_read_pred ℓ prot.(p_read) ∗ *)
-  (*     know_pers_pred ℓ prot.(p_pers) ∗ *)
-  (*     know_preorder_loc ℓ (⊑@{ST}) ∗ *)
-  (*     know_bumper ℓ prot.(p_bumper). *)
-  (* Proof. *)
-  (*   rewrite /know_protocol. rewrite !monPred_at_sep. *)
-  (*   simpl. rewrite !monPred_at_embed. *)
-  (*   done. *)
-  (* Qed. *)
 
   #[global] Instance know_protocol_contractive ℓ bumper :
     Contractive (λ (invs : (prodO (prodO (loc_predO ST) (loc_predO ST)) (loc_predO ST))),

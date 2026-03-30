@@ -1,6 +1,7 @@
 From iris.bi Require Export bi.
+From iris.base_logic Require Export base_logic lib.own.
 From self.nextgen Require Import nextgen_promises_ng.
-From PerennialNG.base_logic Require Export base_logic own fupd_level.
+From PerennialNG.base_logic Require Export fupd_level.
 From Perennial.Helpers Require Import ipm.
 From Perennial.algebra Require Import atleast big_sepL mlist.
 Set Default Proof Using "Type".

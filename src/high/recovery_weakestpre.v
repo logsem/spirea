@@ -8,10 +8,11 @@ From iris.algebra Require Import gmap auth agree gset coPset.
 From iris_named_props Require Import named_props.
 From self.program_logic Require Import crash_weakestpre recovery_weakestpre recovery_adequacy.
 
-From self.high Require Import dprop generational_resources wrappers protocol.
 From self Require Import view map_extra extra ipm_tactics if_non_zero view_slice solve_view_le.
 From self.base Require Import primitive_laws wpr_lifting.
-From self.high Require Import generational_resources crash_weakestpre.
+From self.high Require Import dprop protocol generational_resources crash_weakestpre.
+From self.high.resources Require Import
+  gen_ghost_map gen_ghost_map_map gen_alocs gen_predicates auth_map_map.
 From self.high.modalities Require Import nextgen.
 From self.nextgen Require Import nextgen_promises.
 
@@ -118,7 +119,7 @@ Section wpr.
     CV_crash_step CV σ1 σ2 →
     nvm_heap_ctx σ1 -∗
     extra_state_interp -∗
-    |==> ▷ ⚡==> |==> frag_history_at_crash ∗ nvm_heap_ctx σ2 ∗ extra_state_interp.
+    |==> ▷ ⚡==> |==> know_crash_frag_history_loc ∗ nvm_heap_ctx σ2 ∗ extra_state_interp.
   Proof.
     intros Hcrash.
     iIntros "heap".
@@ -226,7 +227,7 @@ Section wpr.
     
     (* obtain the assertions after crash. *)    
     iAssert (|==> ⚡==>
-             (crashed_at CV ∗ persisted (view_to_zero OCV') ∗ frag_history_at_crash) -∗
+             (crashed_at CV ∗ persisted (view_to_zero OCV') ∗ know_crash_frag_history_loc) -∗
              ([∗ map] ℓ ↦ phys_hist;abs_hist ∈ drop_above_map OCV' phys_hists;abs_hist_trans bumpers OCV' abs_hists,
                 encoded_full_read_predicates_hold ℓ abs_hist phys_hist (map_imap (drop_OCV_clear OCV') na_views) offsets'
                   (restrict (dom OCV') predicates_full) (restrict (dom OCV') predicates_read) ∗
@@ -412,7 +413,7 @@ Section wpr.
 
         (* apply [readNextgen] for the rest of the assertions *)
         iDestruct (big_sepM2_impl_dom_subseteq _
-                     (λ t msg_r encσ_r, ⚡==> (persisted (view_to_zero OCV') ∗ crashed_at CV ∗ frag_history_at_crash) -∗
+                     (λ t msg_r encσ_r, ⚡==> (persisted (view_to_zero OCV') ∗ crashed_at CV ∗ know_crash_frag_history_loc) -∗
                                         encoded_predicate_holds encp_read encσ_r
                                           (msg_val msg_r)
                                           (∅, ∅, ∅))%I
@@ -491,7 +492,7 @@ Section wpr.
                                                           by apply view_add_empty.
             f_equiv; solve_view_le. }
           iExists P.
-          iFrame "∗#".}
+          iFrame "∗#". }
         rewrite nextgen_big_sepM2.
         iIntros "!>!> #(CV & persisted & frag_impl)".
 
@@ -591,7 +592,7 @@ Section wpr.
 
         (* apply [readNextgen] for the rest of the assertions *)
         iDestruct (big_sepM2_impl_dom_subseteq _
-                     (λ t msg_r encσ_r, ⚡==> (persisted (view_to_zero OCV') ∗ crashed_at CV ∗ frag_history_at_crash) -∗
+                     (λ t msg_r encσ_r, ⚡==> (persisted (view_to_zero OCV') ∗ crashed_at CV ∗ know_crash_frag_history_loc) -∗
                                         encoded_predicate_holds encp_read encσ_r
                                           (msg_val msg_r)
                                           (∅, ∅, ∅))%I
@@ -664,7 +665,7 @@ Section wpr.
                                                           by apply view_add_empty.
             f_equiv; solve_view_le. }
           iExists P.
-          iFrame "∗#".}
+          iFrame "∗#". }
         rewrite nextgen_big_sepM2.
         iIntros "!>!> #(CV & persisted & frag_impl)".
 
@@ -779,13 +780,65 @@ Section wpr.
     iMod (lastgen_ghost_map_auth_persist with "last_all_orders") as "#last_all_orders".
     iMod (lastgen_full_map_persist with "last_history") as "#last_history".
 
+    iAssert (crashed_at_offset OCV')%I as "OCV'".
+    { by iExists _. }
+
+    iDestruct "naView" as "[_ naView]".
+    
+    Ltac solve_crashed_at hyps :=
+      match hyps with
+      | nil => idtac
+      | cons ?H ?hyps' => 
+          (* Try to apply your tactic to the head of the list *)
+          (iSpecialize (H with "OCV'")); 
+          solve_crashed_at hyps'
+      end.
+    
+    solve_crashed_at ["ptsMap"; "physHists"; "full_predicates"; "read_predicates"; "pers_predicates"; "naView";
+                      "allOrders"; "naLocs"; "atLocs"; "history"; "historyFragmentsNG"; "allBumpers"; "atLocsHistories"].
+
+    (* collect the physical message knowledges at crash. *)
+    iAssert ([∗ map] ℓ ↦ t_c ∈ OCV', ⌜ ℓ ∈ dom phys_hists ⌝ -∗ ∃ (v: val), know_phys_hist_msg ℓ (max_nat_car t_c) (Msg v ∅ ∅ ∅))%I as "#physMsgC".
+    { iApply big_sepM_forall.
+      iIntros (ℓ [t_c] OCVLook' [phys_hist pLook]%elem_of_dom).
+      destruct Hcrash as [store PV pIncl cut]. simpl in *.
+      (* we should be able to find a message exactly at [t_c]. *)
+      assert (is_Some (CV !! ℓ)) as [[t_c'] tCLook'].
+      { rewrite lookup_merge in OCVLook'.
+        destruct (OCV !! ℓ) eqn:Heqn; rewrite Heqn /= in OCVLook'.
+        + rewrite -elem_of_dom.
+          pose proof (elem_of_subseteq (dom PV) (dom CV)) as [Hsubset _].
+          specialize (Hsubset ltac:(apply view_le_dom_subseteq; done)).
+          apply Hsubset.
+          pose proof (elem_of_subseteq (dom OCV) (dom PV)) as [Hsubset' _].
+          apply Hsubset'; first done.
+          rewrite elem_of_dom. by eexists.
+        + destruct (CV !! ℓ); done. }
+      (* for the timestamp, we need to go through physical history first *)
+      assert (t_c ∈ dom phys_hist) as [msg physHistLook]%elem_of_dom.
+      { simpl in physHistsEq.
+        apply consistent_cut_valid_slice in cut as valid.
+        apply (valid_slice_lookup _ ℓ t_c' _ (drop_prefix phys_hist (OCV !!0 ℓ))) in valid; [ | done | ].
+        - rewrite drop_prefix_lookup in valid.
+          assert (t_c = OCV' !!0 ℓ) as ->.
+          { rewrite /lookup_zero. by simplify_map_eq. }
+          rewrite view_add_lookup_zero {2}/lookup_zero tCLook' /=.
+          rewrite elem_of_dom comm //.
+        - symmetry.
+          eapply (map_Forall_lookup_1 _ _ _ _ physHistsEq); done. }
+      iExists (msg.(msg_val)).
+      iDestruct (auth_map_map_auth_lookup_frag with "physHists") as "$".
+      - rewrite /drop_above_map map_lookup_imap pLook /=.
+        rewrite /drop_above_hist OCVLook' /= //.
+      - rewrite lookup_fmap /drop_above map_lookup_filter physHistLook /=.
+        rewrite option_guard_True; last lia.
+        done. }
     (* multiple places need [frag_history_at_crash] *)
-    iAssert (frag_history_at_crash)%I as "#frag_impl".
+    iAssert (know_crash_frag_history_loc)%I as "#frag_impl".
     { iIntros (??????????).
-      iDestruct ("historyFragmentsNG" with "[OVOCV]") as "#historyFragmentsNG".
-      { by iExists _. }
+      iDestruct "historyFragmentsNG" as "#historyFragmentsNG".
       iModIntro.
-      iIntros "OVOCV' %OCVLook' knowOrder knowBumper fragHist %".
+      iIntros "OVOCV' %OCVLook' knowOrder fragHist knowBumper".
       iDestruct (crashed_at_both_agree with "OVOCV OVOCV'") as %[ <- <- ].
       (* lookup bumper *)
       iDestruct "knowBumper" as "[% knowBumper]".
@@ -793,8 +846,10 @@ Section wpr.
       (* lookup (encoded) state *)
       pose (tC := OCV' !!0 ℓ).
       assert (ℓ ∈ dom bumpers) by (apply elem_of_dom; by eexists).
-        assert (ℓ ∈ dom phys_hists) as [phys_hist ?]%elem_of_dom by set_solver.
+      assert (ℓ ∈ dom phys_hists) as [phys_hist ?]%elem_of_dom by set_solver.
       assert (ℓ ∈ dom abs_hists) as [abs_hist ?]%elem_of_dom by set_solver.
+  
+      (* lookup [know_frag_history_loc ℓ tC] *)
       assert (∃ eσ_c, abs_hist !! tC = Some eσ_c)
         as (eσ_c & ?).
       { destruct Hcrash as [store PV pIncl cut]. simpl in *.
@@ -835,44 +890,67 @@ Section wpr.
       assert (OCV !!0 ℓ ≤ OCV' !!0 ℓ).
       { rewrite view_add_lookup_zero.
         lia. }
-      iSplit; first done.
-      assert (t ≤ OCV' !!0 ℓ) by (subst OCV'; lia).
-      (* lookup [bumperSome] *)
-      iDestruct (big_sepM2_lookup _ _ _ ℓ with "bumperSome") as %bumperSome.
-      { done. } { done. }
-      apply (map_Forall_lookup_1 _ _ tC eσ_c) in bumperSome as [eσ_c' bumperSome]; last done.
+      
       (* lookup order *)
       iDestruct (lastgen_ghost_map_lookup with "last_all_orders knowOrder") as %?.
       iDestruct (big_sepM2_lookup _ _ _ ℓ with "ordered") as %ordered.
       { done. } { done. }
+      
       (* lookup [σ] *)
       iDestruct "fragHist" as (eσ ?) "last_entry".
       iDestruct (lastgen_full_map_frag_entry with "[$] [$]") as %(? & ? & ?).
       simplify_map_eq.
-      assert (∃ σ_c, decode eσ_c = Some σ_c ∧ σ ⊑ σ_c) as (σ_c & ? & ?).
-      { destruct (decide (t = tC)) as [-> | ].
+
+      (* justify [σ_c] and ordering. *)
+      assert (∃ σ_c, decode (A := ST) eσ_c = Some σ_c ∧ (t ≤ tC → σ ⊑ σ_c)) as (σ_c & ? & Horder).
+      { destruct (decide (t = tC)) as [-> | ]; last destruct (decide (t < tC)) as [ ? | ? ].
         + exists σ. by simplify_map_eq.
-        + specialize (ordered t tC eσ eσ_c ltac:(lia) ltac:(done) ltac:(done)).
+        + specialize (ordered t tC eσ eσ_c ltac:(done) ltac:(done) ltac:(done)).
           apply encode_relation.encode_relation_inv in ordered as (σ' & σ_c & ? & ? & ?).
           exists σ_c.
-          by simplify_map_eq. }
+          by simplify_map_eq.
+        + specialize (ordered tC t eσ_c eσ ltac:(lia) ltac:(done) ltac:(done)).
+          apply encode_relation.encode_relation_inv in ordered as (σ_c & σ' & ? & ? & ?).
+          exists σ_c.
+          split; first by simplify_map_eq.
+          lia. }
+
+      (* lookup physical message *)
+      iDestruct (big_sepM_lookup _ _ ℓ (MaxNat tC) with "physMsgC") as "physMsg".
+      { subst OCV' tC.
+        rewrite /lookup_zero.
+        apply elem_of_dom in OCVLook' as [[?] ->].
+        done. }
+      iDestruct ("physMsg" with "[%]") as (v_c) "$".
+      { by apply elem_of_dom. }
       iExists σ_c.
-      iSplit; first done.
-      iSplit.
-      + iExists eσ_c, _.
+      iSplit. (* [crashed_in] *)
+      { iExists eσ_c, _.
         iSplit; first by iExists _.
+        iSplit; first done.
         iSplit; first done.
         iDestruct (big_sepM_lookup _ _ ℓ with "lastHistoryFragments") as "lastHist".
         { done. }
         iDestruct (big_sepM_lookup _ _ tC with "lastHist") as "crashFrag".
         { done. }
-        done.
-      + iExists eσ_c'.
+        done. }
+      iSplit. (* [know_frag_history_loc (bumper σ_c)] *)
+      { (* lookup [bumperSome] *)
+        iDestruct (big_sepM2_lookup _ _ _ ℓ with "bumperSome") as %bumperSome.
+        { done. } { done. }
+        apply (map_Forall_lookup_1 _ _ tC eσ_c) in bumperSome as [eσ_c' bumperSome]; last done.
+        iExists eσ_c'.
+        rewrite bumperSome.
         apply encode_bumper_Some_decode in bumperSome as (σ_c' & ? & ?).
         simplify_map_eq.
         rewrite decode_encode.
-        iSplit; first done.
-        done. }
+        iSplit; done. }
+      iPureIntro.
+      intros ?.
+      assert (t ≤ OCV' !!0 ℓ) by (subst OCV'; lia).
+      split; first done.
+      apply Horder.
+      lia. }
 
     iMod "heap" as "[#persisted heap]".
     
@@ -898,23 +976,6 @@ Section wpr.
     iDestruct (big_sepM2_sep with "predsHold") as "[predsFullReadHold predsPersHold]".
     (* [ |==> ] *)
     iModIntro.
-
-    iAssert (crashed_at_offset OCV')%I as "OCV'".
-    { by iExists _. }
-
-    iDestruct "naView" as "[_ naView]".
-    
-    Ltac solve_crashed_at hyps :=
-      match hyps with
-      | nil => idtac
-      | cons ?H ?hyps' => 
-          (* Try to apply your tactic to the head of the list *)
-          (iSpecialize (H with "OCV'")); 
-          solve_crashed_at hyps'
-      end.
-    
-    solve_crashed_at ["ptsMap"; "physHists"; "full_predicates"; "read_predicates"; "pers_predicates"; "naView";
-                      "allOrders"; "naLocs"; "atLocs"; "history"; "historyFragmentsNG"; "allBumpers"; "atLocsHistories"].
 
     iFrame "frag_impl heap".
     iExists (drop_above_map OCV' phys_hists), (abs_hist_trans bumpers OCV' abs_hists), (restrict (dom OCV') $ view_to_zero global_pview),
@@ -1117,7 +1178,7 @@ Section wpr.
   Proof.
     iIntros "#validV Hwpc #Hidemp".
     iApply (idempotence_wpr
-              (frag_history_at_crash)
+              (know_crash_frag_history_loc)
               extra_state_nextgen
               s E1 e (e_rec `at` ⊥) _ _ _ (Φc ⊥)
                             with "[Hwpc] [Hidemp]").

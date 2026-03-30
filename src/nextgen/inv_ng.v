@@ -2,7 +2,7 @@
 
 From iris.algebra Require Import gmap auth agree gset coPset list vector excl.
 From iris.base_logic Require Import lib.later_credits.
-From PerennialNG.Helpers Require Import ipm.
+From Perennial.Helpers Require Import ipm.
 From Perennial.algebra Require Import mlist.
 
 From self.nextgen Require Import nextgen_promises_ng.

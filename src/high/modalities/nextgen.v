@@ -5,37 +5,29 @@ From iris.proofmode Require Import proofmode.
 From self.high.lib Require Import abstract_state.
 
 From self.base Require Import generational_resources.
-From self.high Require Import dprop generational_resources wrappers.
+From self.high Require Import dprop generational_resources.
 From self.nextgen Require Export nextgen_promises.
 
 Set Default Proof Using "Type*".
 
-Section lastgen_predicates.
-  Context `{AbstractState ST} `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω}.
-  
-  Definition lastgen_know_preorder_loc ℓ (preorder : extra.relation2 ST) : iProp Σ :=
-    lastgen_ghost_map_elem preorders_name ℓ DfracDiscarded (encode_relation.encode_relation preorder).
-
-  
-  Definition lastgen_know_bumper (ℓ : loc) (bumper : ST → ST) : iProp Σ :=
-    let encodedBumper := encode_bumper bumper
-    in ⌜∀ s1 s2, s1 ⊑ s2 → bumper s1 ⊑ bumper s2⌝ ∗
-                 lastgen_ghost_map_elem bumpers_name ℓ DfracDiscarded encodedBumper.
-End lastgen_predicates.
-
-Definition frag_history_at_crash `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω}: iProp Σ :=
-  □ (∀ ℓ t
-       (ST: Type) (_ : EqDecision ST) (_ : Countable ST) (_ : abstract_state.AbstractState ST)
-       (bumper: ST → ST) (σ: ST),
-       ∀ OV OCV, crashed_at_both OV OCV -∗
-                 ⌜ ℓ ∈ dom OCV ⌝ -∗
-                 lastgen_know_preorder_loc ℓ (abstract_state.abs_state_relation (ST := ST)) -∗
-                 lastgen_know_bumper ℓ bumper -∗
-                 lastgen_know_frag_history_loc ℓ t σ -∗
-                 ⌜ t - (OV !!0 ℓ) ≤ (OCV !!0 ℓ) - (OV !!0 ℓ) ⌝ -∗
-                 (* TODO: this knowledge should really be part of the [crashed_at] rely *)
-                 ⌜ OV !!0 ℓ ≤ OCV !!0 ℓ ⌝ ∗
-                 ∃ (σ_c: ST), ⌜ σ ⊑ σ_c ⌝ ∗ crashed_in_loc ℓ σ_c ∗ know_frag_history_loc ℓ (OCV !!0 ℓ) (bumper σ_c)).
+(** Even with the nextgen modality, we still need some resources that is only
+ ** obtainable with a centralized view of the system.
+ ** NOTE: we need to know a state exist even though it might survive anyway.
+ ** This is used to obtain the decode/encode relation, which in turns tell us that
+ ** decoding the crash state will succeed. *)
+Definition know_crash_frag_history_loc `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω}: iProp Σ :=
+  □ (∀ ℓ t (ST: Type) (_ : EqDecision ST) (_ : Countable ST) (_ : abstract_state.AbstractState ST)
+       (bumper: ST → ST) (OV OCV: view.view) (σ: ST),
+       crashed_at_both OV OCV -∗ ⌜ ℓ ∈ dom OCV ⌝ -∗ (* that we know location [ℓ] survives *)
+       lastgen_know_preorder_loc ℓ (abstract_state.abs_state_relation (ST := ST)) -∗ (* and we know the preorder *)
+       lastgen_know_frag_history_loc ℓ t σ -∗ (* and we know a state exists. *)
+       lastgen_know_bumper ℓ bumper -∗ (* and we know the bumper *)
+       (* we know a crashed timestamp exists. *)
+       ∃ (σ_c: ST) v_c, crashed_in_loc ℓ σ_c ∗ know_frag_history_loc ℓ (OCV !!0 ℓ) (bumper σ_c) ∗
+                        know_phys_hist_msg ℓ (OCV !!0 ℓ) (Msg v_c ∅ ∅ ∅) ∗
+                        (* and any state we know are "persisted" will be ordered earlier than [σ_c] *)
+                        (* TODO: the first half of this knowledge should really be part of the [crashed_at] rely *)
+                        ⌜ t - (OV !!0 ℓ) ≤ (OCV !!0 ℓ) - (OV !!0 ℓ) → OV !!0 ℓ ≤ OCV !!0 ℓ ∧ σ ⊑ σ_c ⌝).
 
 (* Definition crashed_in_impl OCV `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω}: iProp Σ := *)
 (*   [∗ map] ℓ ↦ t ∈ OCV, *)
@@ -45,13 +37,13 @@ Definition frag_history_at_crash `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω}: iProp Σ
 (*          ∃ (σ: ST), crashed_in_loc ℓ σ ∗ know_frag_history_loc ℓ (max_nat_car t) (bumper σ)). *)
 
 Program Definition nextgen `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω} (P: dProp Σ): dProp Σ :=
-  MonPred (λ TV, ⚡==> frag_history_at_crash -∗ P (∅, ∅, ∅))%I _.
+  MonPred (λ TV, ⚡==> know_crash_frag_history_loc -∗ P (∅, ∅, ∅))%I _.
 
 Class IntoNextgen `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω} (P Q : dProp Σ) :=
   into_nextgen : P ⊢ nextgen Q.
-Global Arguments IntoNextgen {_ _ _ _} _%I _%I.
-Global Arguments into_nextgen {_ _ _ _} _%I _%I.
-Global Hint Mode IntoNextgen + + + + + - : typeclass_instances.
+#[global] Arguments IntoNextgen {_ _ _ _} _%_I _%_I.
+#[global] Arguments into_nextgen {_ _ _ _} _%_I _%_I.
+#[global] Hint Mode IntoNextgen + + + + + - : typeclass_instances.
 
 
 Section Modality.
@@ -70,14 +62,14 @@ Section Modality.
     by iApply "H".
   Qed.
 
-  Global Instance nextgen_mono' :
+  #[global] Instance nextgen_mono' :
     Proper ((⊢) ==> (⊢)) (nextgen).
   Proof. intros P Q. apply nextgen_mono. Qed.
 
-  (* Global Instance nextgen_ne : NonExpansive nextgen. *)
+  (* #[global] Instance nextgen_ne : NonExpansive nextgen. *)
   (* Proof.  solve_proper. Qed. *)
 
-  (* Global Instance nextgen_proper : Proper ((≡) ==> (≡)) nextgen := ne_proper _. *)
+  (* #[global] Instance nextgen_proper : Proper ((≡) ==> (≡)) nextgen := ne_proper _. *)
 
   Lemma nextgen_intuitionistic P Q:
     IntoNextgen P Q → □ P ⊢ nextgen (□ Q).
@@ -140,11 +132,11 @@ Section Modality.
   Definition modality_nextgen :=
     Modality _ modality_nextgen_mixin.
 
-  Global Instance from_modal_nextgen (P: dProp Σ) :
+  #[global] Instance from_modal_nextgen (P: dProp Σ) :
     FromModal True modality_nextgen (nextgen P) (nextgen P) P | 1.
   Proof. by rewrite /FromModal. Qed.
 
-  Global Instance into_nextgen_into_nextgen (P Q: iProp Σ) :
+  #[global] Instance into_nextgen_into_nextgen (P Q: iProp Σ) :
     nextgen_promises_model.IntoNextgen P Q → IntoNextgen ⎡ P ⎤ ⎡ Q ⎤.
   Proof.
     rewrite /IntoNextgen /IntoNextgen.
@@ -155,7 +147,7 @@ Section Modality.
     done.
   Qed.
 
-  Global Instance post_crash_objective P : Objective (nextgen P)%I.
+  #[global] Instance post_crash_objective P : Objective (nextgen P)%I.
   Proof.
     iIntros (??) "P".
     iModIntro.
@@ -171,7 +163,7 @@ Section IntoNextgen.
 
   (* Arguments IntoNextgen {_} {_} {_} _%I hi%I. *)
 
-  Global Instance sep_into_crash (P Q : dProp Σ) (P' Q' : dProp Σ) :
+  #[global] Instance into_nextgen_sep (P Q : dProp Σ) (P' Q' : dProp Σ) :
     IntoNextgen P P' →
     IntoNextgen Q Q' →
     IntoNextgen (P ∗ Q)%I (P' ∗ Q')%I.
@@ -183,11 +175,11 @@ Section IntoNextgen.
     iApply (nextgen_sep). iFrame.
   Qed.
 
-  Global Instance pure_into_crash (P : Prop) :
+  #[global] Instance into_nextgen_pure (P : Prop) :
     IntoNextgen (⌜ P ⌝) (⌜ P ⌝)%I.
   Proof. rewrite /IntoNextgen. iIntros "%". by iModIntro. Qed.
 
-  Lemma into_crash_proper P P' Q Q':
+  Lemma into_nextgen_proper P P' Q Q':
     IntoNextgen P Q →
     (P ⊣⊢ P') →
     (Q ⊣⊢ Q') →
@@ -200,56 +192,35 @@ Section IntoNextgen.
     intros. simpl. by rewrite Hwand2.
   Qed.
 
-  Global Instance big_sepM_into_crash `{Countable K} :
+  #[global] Instance into_nextgen_big_sepM `{Countable K} :
     ∀ (A : Type) Φ (Ψ : K → A → dProp Σ) (m : gmap K A),
     (∀ (k : K) (x : A), IntoNextgen (Φ k x) (Ψ k x)) →
     IntoNextgen ([∗ map] k↦x ∈ m, Φ k x)%I ([∗ map] k↦x ∈ m, Ψ k x)%I.
   Proof.
     intros. induction m using map_ind.
-    - eapply (into_crash_proper True%I _ True%I).
+    - eapply (into_nextgen_proper True%I _ True%I).
       * apply _.
       * rewrite big_sepM_empty. apply bi.True_emp.
       * intros. rewrite big_sepM_empty. apply bi.True_emp.
-    - eapply (into_crash_proper (Φ i x ∗ [∗ map] k↦x0 ∈ m, Φ k x0) _
+    - eapply (into_nextgen_proper (Φ i x ∗ [∗ map] k↦x0 ∈ m, Φ k x0) _
                                 ((Ψ i x ∗ [∗ map] k↦x0 ∈ m, Ψ k x0)%I)).
       * apply _.
       * rewrite big_sepM_insert //=.
       * intros. rewrite big_sepM_insert //=.
   Qed.
 
-  Tactic Notation "lift_into_nextgen" uconstr(lem) :=
-    rewrite /IntoNextgen; iIntros "P"; by iApply lem.
+  #[global] Instance into_nextgen_emp : IntoNextgen emp emp.
+  Proof. rewrite /IntoNextgen. by iIntros "_ !>". Qed.
 
-  Global Instance emp_into_crash : IntoNextgen emp emp.
-  Proof. lift_into_nextgen nextgen_emp. Qed.
+  #[global]
+  Instance into_nextgen_disj P P' Q Q' :
+    IntoNextgen P P' → IntoNextgen Q Q' → IntoNextgen (P ∨ Q)%I (P' ∨ Q')%I.
+  Proof.
+    rewrite /IntoNextgen.
+    iIntros (Pi Qi) "[ H | H ]"; rewrite ?Pi ?Qi; iApply (nextgen_mono with "H"); naive_solver.
+  Qed.
 
-  (* TODO: verify this is indeed impossible *)
-  (* Global Instance disj_into_crash (P Q : dProp Σ) (P' Q' : dProp Σ) : *)
-  (*   IntoNextgen P P' → IntoNextgen Q Q' → IntoNextgen (P ∨ Q)%I (P' ∨ Q')%I. *)
-  (* Proof. *)
-  (*   rewrite /IntoNextgen. *)
-  (*   iIntros (Pi Qi) "[P|Q]". *)
-  (*   - iDestruct (Pi with "P") as "P". *)
-  (*     iApply nextgen_disj. *)
-  (*     iLeft. *)
-  (*     iFrame. *)
-  (*   - iDestruct (Qi with "Q") as "Q". *)
-  (*     iApply post_crash_disj. *)
-  (*     iRight. *)
-  (*     iFrame. *)
-  (* Qed. *)
-
-  (* Global Instance later_into_crash_flush P P' : *)
-  (*   IntoNextgen P P' → *)
-  (*   IntoNextgen (▷ P) (▷ P'). *)
-  (* Proof. *)
-  (*   intros (?). *)
-  (*   rewrite /IntoNextgen. *)
-  (*   iModel. *)
-  (*   iIntros "H". *)
-  (* Qed. *)
-
-  Global Instance exist_into_crash {A} Φ Ψ:
+  #[global] Instance exist_into_crash {A} Φ Ψ:
     (∀ x : A, IntoNextgen (Φ x) (Ψ x)) →
     IntoNextgen (∃ x, Φ x)%I ((∃ x, Ψ x)%I).
   Proof.
@@ -279,9 +250,6 @@ Section nextgen_derived.
   (*   setoid_rewrite bi.sep_exist_r. *)
   (*   done. *)
   (* Qed. *)
-
-  (* Global Instance into_crash_persisted_loc_d ℓ t : *)
-  (*   IntoNextgen _ _ := post_crash_persisted_loc_d ℓ t. *)
 
   (* Lemma post_crash_know_frag_history_loc ℓ t (s : ST) : *)
   (*   ⎡ know_preorder_loc ℓ (⊑@{ST}) ∗ *)
