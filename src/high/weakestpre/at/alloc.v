@@ -9,7 +9,8 @@ From self.lang Require Import syntax tactics lemmas.
 From self.base Require Import generational_resources primitive_laws.
 
 From self.high Require Import monpred_simpl protocol locations crash_weakestpre weakestpre.
-From self.high.modalities Require Import post_fence_sync_advanced.
+From self.high.resources Require Import
+  gen_ghost_map gen_ghost_map_map gen_alocs gen_predicates auth_map_map.
 From self.high.lib Require Import abstract_state increasing_map.
 
 From self Require Export lang.
@@ -24,7 +25,7 @@ Section wp_at_alloc.
   Implicit Types (ℓ : loc) (σ : ST) (prot : LocationProtocol ST).
 
   (** * Shared points-to predicate *)
-
+  #[local] Existing Instance nvmHighGS_inG.
   Lemma msg_persisted_views_eq
         (ℓ : loc) (hists : gmap loc (gmap time (message * positive)))
         (hist : gmap time (message * positive)) (msg : message)
@@ -67,7 +68,7 @@ Section wp_at_alloc.
     iIntros (domOCV svLook) "crashed_at".
     iNamed 1.
     iIntros "predFull predPers pts".
-
+    iDestruct (big_sepM2_dom with "oldViewsDiscarded") as %offsetsDom.
     (* The new location is not in the existing [phys_hist]. *)
     destruct (phys_hists !! ℓ) eqn:physHistsLook.
     { assert (is_Some (offsets !! ℓ)) as (? & ?).
@@ -112,7 +113,7 @@ Section wp_at_alloc.
     
     (* Unlike Spirea 1.0, the abstract history now depends on knowing the bumper first. *)
     (* Add the bumper for the location. *)
-    iMod (own_all_bumpers_insert _ _ _ (prot.(p_bumper)) with "allBumpers")
+    iMod (own_all_bumpers_insert _ _ (prot.(p_bumper)) with "allBumpers")
       as "[allBumpers #knowBumper]".
     { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
     (* Allocate the abstract history for the location. *)
@@ -157,7 +158,13 @@ Section wp_at_alloc.
     iSplitL "ptsMap pts".
     { iDestruct (big_sepM_insert with "[pts $ptsMap]") as "$"; done. }
     iFrameNamedF.
-    iSplitPure; first set_solver.
+    (* [oldViewsDiscarded] *)
+    iSplit.
+    { rewrite big_sepM2_insert; try done.
+      iFrame "#".
+      iPureIntro.
+      lia. }
+    
     iFrameNamedF.
     iFrame "full_predicates read_predicates pers_predicates allOrders naLocs atLocs".
 
@@ -225,9 +232,9 @@ Section wp_at_alloc.
         simpl.
         rewrite lookup_singleton_ne; last done.
         destruct (decide _) as [ | contra ].
-        + iPoseProof (into_no_buffer_at with "predFull") as "predFull".
-          iApply (predicate_holds_phi_decode_2 with "[//] predFull").
-          apply decode_encode.
+        + iPoseProof (no_buffer.into_no_buffer_at with "predFull") as "predFull".
+          iApply (predicate_holds_phi_decode_2 with "[] predFull"); first apply decode_encode.
+          done.
         + exfalso.
           by apply contra.
       - iApply (big_sepM2_impl with "predsFullReadHold").
@@ -251,8 +258,8 @@ Section wp_at_alloc.
         iSplitL "".
         { rewrite not_elem_of_dom_1 /= //. set_solver. }
         iPoseProof (objective_at with "predPers") as "predPers".
-        iApply (predicate_holds_phi_decode_2 with "[//] predPers").
-        apply decode_encode.
+        iApply (predicate_holds_phi_decode_2 with "[] predPers"); first apply decode_encode.
+        done.
       - iApply (big_sepM2_impl with "predsPersHold").
         iIntros "!>" (ℓ' ????) "H".
         assert (ℓ ≠ ℓ') by congruence.
@@ -283,7 +290,8 @@ Section wp_at_alloc.
         { done. }
         iPoseProof (encode_predicate_extract with "eqFull fullHolds") as "predFull".
         { done. }
-        iDestruct ((pred_full_nextgen) $! MsgV_f σ_p v_p σ_f v_f) as "impl".
+        (* FIXME: why does typeclass resolution break here? *)
+        iDestruct (pred_full_nextgen (prot := prot) $! MsgV_f σ_p v_p σ_f v_f) as "impl".
         iEval (rewrite ?monPred_wand_force) in "impl".
         iDestruct ("impl" with "[%] [predPers] predFull") as "NGF".
         { destruct HorderPF; last by simplify_eq.

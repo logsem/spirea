@@ -2,37 +2,16 @@ From iris.proofmode Require Import proofmode.
 From iris_named_props Require Import named_props.
 
 From iris.bi Require Import monpred.
-From self.nextgen Require Import nextgen_promises.
-From self.base Require Import generational_resources primitive_laws.
 From self.high Require Import dprop generational_resources monpred_simpl.
-From self.high.modalities Require Import nextgen.
+From self.high.modalities Require Export nextgen.
 
 From self.algebra Require Import view.
 
-Program Definition nextgen_flush `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω} (P : dProp Σ) : dProp Σ :=
-  MonPred (λ TV,
-    (<NG> ∀ (CV : view),
-       ⌜ flush_view TV ⊑ CV ⌝ ∗
-       ⎡ persisted (view_to_zero (flush_view TV)) ⎤ ∗
-       ⎡ crashed_at CV ⎤ -∗
-       P) (∅, ∅, ∅))%I _.
-Next Obligation.
-  intros ????????.
-  apply nextgen_mono.
-  do 6 f_equiv; first solve_proper.
-  iApply persisted_weak.
-  solve_proper.
-Qed.
-
 Class IntoNGFlush `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω}
       (P : dProp Σ) (Q : dProp Σ) :=
-  into_nextgen_flushed : P ⊢ nextgen_flush Q.
+  into_nextgen_flushed : P ⊢ <NGF> Q.
 
 Arguments IntoNGFlush {_ _ _ _} _%_I _%_I.
-
-Notation "'<NGF>' P" :=
-  (nextgen_flush P)
-  (at level 200, right associativity) : bi_scope.
 
 Section nextgen_persisted.
   Context `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω}.

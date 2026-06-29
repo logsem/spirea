@@ -14,5 +14,5 @@ depends: [
 
 pin-depends: [
   ["iris-named-props.dev"  "git+https://github.com/tchajed/iris-named-props#aef7fd0d3550d0da9e545f76dae0c50a6fa7e273"]
-  ["rocq-iris-nextgen.dev" "file:///home/luke/Projects/iris-nextgen"]
+  ["rocq-iris-nextgen.dev" "git+https://github.com/logsem/iris-nextgen#dev"]
 ]

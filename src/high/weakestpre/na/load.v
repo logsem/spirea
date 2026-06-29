@@ -9,7 +9,7 @@ From self.lang Require Import syntax tactics lemmas.
 From self.base Require Import generational_resources primitive_laws.
 
 From self.high Require Import monpred_simpl protocol locations crash_weakestpre weakestpre.
-From self.high.modalities Require Import post_fence_sync_advanced.
+From self.high.modalities Require Import fence_sync_atomic.
 From self.high.lib Require Import abstract_state increasing_map.
 
 From self Require Export lang.
@@ -49,7 +49,7 @@ Section wp_na.
     { done. }
     { by apply prim_step_load_no_fork. }
     iNamed 1.
-    iDestruct (own_all_full_preds_pred with "full_predicates knowFullPred") as
+    iDestruct (own_all_preds_pred with "full_predicates knowFullPred") as
       (pred predsLook) "#predsEquiv".
     simpl.
     iDestruct (full_map_full_entry with "history [$]") as %absHistlook.
@@ -72,7 +72,7 @@ Section wp_na.
       iExists _.
       by iFrame "#". }
     
-    iApply (wp_load_alt (extra := {| extra_state_interp := True |}) with "[$crashed_at_offset $pts $val]").
+    iApply (wp_load_alt (extra := {| extra_state_interp := True |}) with "[$pts $crashed_at_offset $val]").
     iNext. iIntros (tT msg') "[pts (%look & %gt)]".
     simpl.
     iDestruct ("ptsMap" with "pts") as "ptsMap".
@@ -102,7 +102,7 @@ Section wp_na.
       rewrite eq in HI. inversion HI as [? [=]]. }
     clear lte HI.
 
-    iDestruct (auth_map_map_lookup_agree with "[$] [$]") as %eq.
+    iDestruct (auth_map_map_lookup_agree with "[$] physMsg") as %eq.
     { done. } { done. }
     subst.
 
@@ -157,7 +157,7 @@ Section wp_na.
       (* iPureGoal; first done. *)
       iSplitPure; first apply sLast.
       simpl.
-      iSplit. { iFrameNamed. }
+      iSplit. { rewrite /know_protocol. iFrameNamed. }
       iFrameNamed.
       iPureIntro. etrans; eassumption. }
     done.

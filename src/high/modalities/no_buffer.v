@@ -1,10 +1,8 @@
-From iris.proofmode Require Import ltac_tactics.
-From iris.bi Require Import bi.
-From iris.bi Require Import derived_laws.
-From iris.base_logic Require Import iprop.
+From iris.proofmode Require Import proofmode.
 
 From self Require Import solve_view_le.
-From self.high Require Import dprop generational_resources modalities.
+From self.high Require Import dprop.
+From self.high.modalities Require Export definitions.
 
 (* Class BufferFree {Σ} (P : dProp Σ) := buffer_free : P ⊢ <nobuf> P. *)
 (* Global Arguments BufferFree {_} _%I : simpl never. *)

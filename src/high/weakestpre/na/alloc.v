@@ -9,7 +9,7 @@ From self.lang Require Import syntax tactics lemmas.
 From self.base Require Import generational_resources primitive_laws.
 
 From self.high Require Import monpred_simpl protocol locations crash_weakestpre weakestpre.
-From self.high.modalities Require Import post_fence_sync_advanced.
+From self.high.modalities Require Import fence_sync_atomic.
 From self.high.lib Require Import abstract_state increasing_map.
 
 From self Require Export lang.
@@ -52,6 +52,7 @@ Section wp_na.
     simpl.
     iFrame "val".
     
+    iDestruct (big_sepM2_dom with "oldViewsDiscarded") as %offsetsDom.
     (* The new location is not in the existing [phys_hist]. *)
     destruct (phys_hists !! ℓ) eqn:physHistsLook.
     { assert (is_Some (offsets !! ℓ)) as (? & ?).
@@ -85,18 +86,18 @@ Section wp_na.
     { done. }
 
     (* Add the predicate to the ghost state of predicates. *)
-    iMod (own_all_preds_insert with "full_predicates") as "[full_predicates knowFullPred]".
+    iMod (own_all_preds_insert (ST := ST) with "full_predicates") as "[full_predicates knowFullPred]".
     { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
-    iMod (own_all_preds_insert with "read_predicates") as "[read_predicates knowReadPred]".
+    iMod (own_all_preds_insert (ST := ST) with "read_predicates") as "[read_predicates knowReadPred]".
     { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
-    iMod (own_all_preds_insert with "pers_predicates") as "[pers_predicates knowPersPred]".
+    iMod (own_all_preds_insert (ST := ST) with "pers_predicates") as "[pers_predicates knowPersPred]".
     { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
     (* add offset to offsets *)
     iMod (offset_auth_insert with "crashed_at offsets") as "[offsets #offset]".
     { done. } { apply not_elem_of_dom. done. }
 
     (* Allocate the abstract history for the location. *)
-    iMod (own_all_bumpers_insert _ _ _ (prot.(p_bumper)) with "allBumpers")
+    iMod (own_all_bumpers_insert _ _ (prot.(p_bumper)) with "allBumpers")
       as "[allBumpers #knowBumper]".
     { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
     iMod (full_map_insert _ _ _ _ _ {[0 := encode s]} with "crashedRely [knowBumper] history")
@@ -164,7 +165,12 @@ Section wp_na.
     iSplitL "ptsMap pts".
     { iDestruct (big_sepM_insert with "[pts $ptsMap]") as "$"; done. }
     iFrameNamedF.
-    iSplitPure; first set_solver.
+    (* [oldViewsDiscarded] *)
+    iSplit.
+    { rewrite big_sepM2_insert; try done.
+      iFrame "#".
+      iPureIntro.
+      lia. }
     iFrameNamedF.
     iFrame "full_predicates read_predicates pers_predicates allOrders naLocs atLocs".
     (* I couldn't figure out how to use [comm] typeclass. *)
@@ -213,8 +219,8 @@ Section wp_na.
         rewrite lookup_singleton_ne; last done.
         destruct (decide _) as [ | contra ].
         + destruct (TV) as [[??]?].
-          iPoseProof (into_no_buffer_at with "predFull") as "predFull".
-          iApply (predicate_holds_phi_decode_2 with "[%] [predFull]").
+          iPoseProof (no_buffer.into_no_buffer_at with "predFull") as "predFull".
+          iApply (predicate_holds_phi_decode_2 (ST := ST) with "[%] [predFull]").
           * apply decode_encode.
           * f_equal.
           * iApply (monPred_mono with "predFull").
@@ -242,8 +248,8 @@ Section wp_na.
         iSplitL "".
         { rewrite not_elem_of_dom_1 /= //. set_solver. }
         iPoseProof (objective_at with "predPers") as "predPers".
-        iApply (predicate_holds_phi_decode_2 with "[//] predPers").
-        apply decode_encode.
+        iApply (predicate_holds_phi_decode_2 with "[] predPers"); first apply decode_encode.
+        done.
       - iApply (big_sepM2_impl with "predsPersHold").
         iIntros "!>" (ℓ' ????) "H".
         assert (ℓ ≠ ℓ') by congruence.
@@ -274,7 +280,7 @@ Section wp_na.
         { done. }
         iPoseProof (encode_predicate_extract with "eqFull fullHolds") as "predFull".
         { done. }
-        iDestruct ((pred_full_nextgen) $! MsgV_f σ_p v_p σ_f v_f) as "impl".
+        iDestruct (pred_full_nextgen (prot := prot) $! MsgV_f σ_p v_p σ_f v_f) as "impl".
         iEval (rewrite ?monPred_wand_force) in "impl".
         iDestruct ("impl" with "[%] [predPers] predFull") as "NGF".
         { destruct HorderPF; last by simplify_eq.

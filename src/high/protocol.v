@@ -6,11 +6,8 @@ From self Require Import encode_relation.
 
 From self.high Require Import dprop generational_resources modalities monpred_simpl predicates.
 From self.high.resources Require Import gen_ghost_map.
-From self.high.modalities Require Import no_buffer nextgen_flush nextgen if_rec.
 
 From self.lang Require Import lang.
-
-Set Default Proof Using "Type*".
 
 (* A handy alias for the type of location predicates. *)
 Definition loc_pred `{nvmHighGS} ST `{AbstractState ST} := ST → val → dProp Σ.
@@ -30,7 +27,7 @@ Record LocationProtocol ST `{AbstractState ST, nvmHighGS} := MkProt {
   p_bumper : ST → ST;
 }.
 
-#[global] Arguments MkProt   {ST _ _ _ _ _ _ _} _%I _%I _%I _.
+#[global] Arguments MkProt   {ST _ _ _ _ _ _ _} _%_I _%_I _%_I _.
 #[global] Arguments p_full   {ST _ _ _ _ _ _ _} _.
 #[global] Arguments p_read   {ST _ _ _ _ _ _ _} _.
 #[global] Arguments p_pers   {ST _ _ _ _ _ _ _} _.

@@ -1,8 +1,11 @@
+(*** [<fence_sync_atomic>] *)
+(** Currently, this modality is treated differently from the rest because of its dependency
+ ** over protocol. It's possible in the future that we redefine the components to get rid of
+ ** protocol knowledge. *)
 From iris.proofmode Require Import proofmode monpred.
 From iris_named_props Require Import named_props.
 
 From self Require Import solve_view_le.
-From self.base Require Import generational_resources primitive_laws.
 From self.high Require Import protocol locations generational_resources modalities.
 From self.high.lib Require Import abstract_state.
 From self.high.modalities Require Import fence.
@@ -43,11 +46,11 @@ Section post_fence_sync.
   Record FlushInfo := MkFlushInfo {
     fi_ℓ: loc;
     fi_ST: Type;
-    fi_ST_eqdec :> EqDecision fi_ST;
-    fi_ST_countable :> Countable fi_ST;
-    fi_ST_is_abstract :> AbstractState fi_ST;
+    fi_ST_eqdec :: EqDecision fi_ST;
+    fi_ST_countable :: Countable fi_ST;
+    fi_ST_is_abstract :: AbstractState fi_ST;
     fi_prot: LocationProtocol fi_ST;
-    fi_prot_conds :> ProtocolConditions fi_prot;
+    fi_prot_conds :: ProtocolConditions fi_prot;
     fi_σ: fi_ST;
     fi_σ_xchg: fi_ST;
     fi_post: dProp Σ
@@ -66,7 +69,7 @@ Section post_fence_sync.
   (*     "#knowPhysMsg" ∷ ⎡ know_phys_hist_msg ℓ t msg ⎤ ∗ *)
   (*     "#haveMsg" ∷ have_msg_post_fence msg. *)
   
-  Program Definition post_fence_sync_advanced
+  Program Definition fence_sync_atomic
     (P : dProp Σ) : dProp Σ :=
     MonPred (λ TV,
       ∃ (fi_list: list FlushInfo),
@@ -100,7 +103,7 @@ Section post_fence_sync.
 End post_fence_sync.
 
 Notation "'<FS>' P" :=
-  (post_fence_sync_advanced P) (at level 20, right associativity) : bi_scope.
+  (fence_sync_atomic P) (at level 20, right associativity) : bi_scope.
 
 Section lemmas.
   Context `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω}.
@@ -117,7 +120,7 @@ Section lemmas.
     done.
   Qed.
 
-  Lemma post_fence_sync_advanced_mono P Q : (P ⊢ Q) → <FS> P ⊢ <FS> Q.
+  Lemma fence_sync_atomic_mono P Q : (P ⊢ Q) → <FS> P ⊢ <FS> Q.
   Proof.
     intros Hi. iModel. simpl.
     iIntros "(%fi_list & exchanges & P)".
@@ -126,7 +129,7 @@ Section lemmas.
     iFrame.
   Qed.
 
-  Lemma post_fence_sync_advanced_intro P : P ⊢ <FS> P.
+  Lemma fence_sync_atomic_intro P : P ⊢ <FS> P.
   Proof.
     iModel. destruct TV as [[??]?]. simpl.
     iIntros "P".
@@ -137,20 +140,20 @@ Section lemmas.
     iApply (monPred_mono with "P"). repeat split; auto using view_le_l.
   Qed.
 
-  Lemma post_fence_sync_advanced_emp : (emp : dProp Σ) ⊢ <FS> emp.
-  Proof. apply post_fence_sync_advanced_intro. Qed.
+  Lemma fence_sync_atomic_emp : (emp : dProp Σ) ⊢ <FS> emp.
+  Proof. apply fence_sync_atomic_intro. Qed.
 
   Lemma post_fence_sync_and P Q : <FS> (P ∧ Q) ⊣⊢ <FS> P ∧ <FS> Q.
   Proof.
   Abort.
 
   Lemma post_fece_sync_advanced_sep P Q:
-    post_fence_sync_advanced P ∗ post_fence_sync_advanced Q ⊢ (post_fence_sync_advanced (P ∗ Q)).
+    fence_sync_atomic P ∗ fence_sync_atomic Q ⊢ (fence_sync_atomic (P ∗ Q)).
   Proof.
     iModel.
     destruct TV as [[SV PV] BV].
     iIntros "[P Q]".
-    rewrite /post_fence_sync_advanced /=.
+    rewrite /fence_sync_atomic /=.
     iDestruct "P" as (P_list) "[P_exchanges Ppost]".
     iDestruct "Q" as (Q_list) "[Q_exchanges Qpost]".
     iExists (P_list ++ Q_list).
@@ -168,7 +171,7 @@ Section lemmas.
     { iPureIntro. solve_view_le. }
   Qed.
 
-  Lemma post_fence_sync_advanced_intuitionistically_2 P : □ <FS> P ⊢ <FS> □ P.
+  Lemma fence_sync_atomic_intuitionistically_2 P : □ <FS> P ⊢ <FS> □ P.
   Proof.
     iModel. simpl.
     iIntros "(%fi_list & #exchanges & #P)".

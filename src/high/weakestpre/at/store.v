@@ -9,7 +9,6 @@ From self.lang Require Import syntax tactics lemmas.
 From self.base Require Import generational_resources primitive_laws.
 
 From self.high Require Import monpred_simpl protocol locations crash_weakestpre weakestpre.
-From self.high.modalities Require Import post_fence_sync_advanced.
 From self.high.lib Require Import abstract_state increasing_map.
 From self.high.weakestpre.at Require Import prelude.
 
@@ -67,7 +66,7 @@ Section wp_at.
       iExists _.
       by iFrame "#". }
     rewrite /is_at_loc /offset_loc.
-    iDestruct (interp_get_at_loc with "interp isAtLoc [] offset")
+    iDestruct (interp_get_at_loc (ST := ST) with "interp isAtLoc [] offset")
       as (physHists physHist absHist predFull predRead predPers tP) "(R & [reins _])".
     { rewrite /know_protocol. iFrameNamed. }
     iNamed "R".
@@ -78,7 +77,7 @@ Section wp_at.
     iApply @wpc_fupd.
     iApply @program_logic.crash_weakestpre.wp_wpc.
 
-    iApply (wp_store_release_alt with "[$offsets $pts $val]").
+    iApply (wp_store_release_alt with "[$pts $offsets $val]").
     iIntros "!>" (t_t) "(%look & %gt & #valNew & pts)".
     simpl in gt.
     simpl in tSLe.
@@ -119,7 +118,7 @@ Section wp_at.
       [apply physHistLook | done | ].
 
     iAssert (
-      ⌜increasing_map (encode_relation sqsubseteq) (<[(t_t)%nat:=encode s_t]> absHist)⌝
+      ⌜increasing_map (encode_relation (A := ST) sqsubseteq) (<[(t_t)%nat:=encode s_t]> absHist)⌝
                       )%I as %incri.
     { iApply (bi.pure_mono).
       { apply
@@ -220,7 +219,7 @@ Section wp_at.
           iSplit.
           { iApply pred_encode_Some. done. }
           destruct TV as [[??]?].
-          iDestruct (into_no_buffer_at with "phi") as "phi".
+          iDestruct (no_buffer.into_no_buffer_at with "phi") as "phi".
           iApply monPred_mono; last iFrame.
           destruct TV' as [[??]?].
           repeat split; last done.
@@ -236,7 +235,7 @@ Section wp_at.
           iSplit.
           { iApply pred_encode_Some. done. }
           destruct TV as [[??]?].
-          iDestruct (into_no_buffer_at with "phi") as "phi".
+          iDestruct (no_buffer.into_no_buffer_at with "phi") as "phi".
           iApply monPred_mono; last iFrame.
           destruct TV' as [[??]?].
           repeat split; last done.
@@ -297,9 +296,8 @@ Section wp_at.
       2: {
         eapply map_dom_eq_lookup_None; first done.
         apply nolater. lia. }
-      rewrite -know_protocol_unfold.
-      iSplitL "".
-      { rewrite /know_protocol. iFrameNamed. }
+      iSplit; first (rewrite /know_protocol; iFrameNamed).
+      
       iSplitPure.
       { apply: increasing_map_insert_last; done. }
       iSplit.

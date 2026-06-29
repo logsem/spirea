@@ -1,46 +1,13 @@
 (** This file defines the lifted [nextgen] modality for [monPred] *)
-
 From iris.proofmode Require Import proofmode.
 
-From self.high.lib Require Import abstract_state.
-
-From self.base Require Import generational_resources.
 From self.high Require Import dprop generational_resources.
-From self.nextgen Require Export nextgen_promises.
+From self.high.modalities Require Export definitions.
 
 Set Default Proof Using "Type*".
 
-(** Even with the nextgen modality, we still need some resources that is only
- ** obtainable with a centralized view of the system.
- ** NOTE: we need to know a state exist even though it might survive anyway.
- ** This is used to obtain the decode/encode relation, which in turns tell us that
- ** decoding the crash state will succeed. *)
-Definition know_crash_frag_history_loc `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω}: iProp Σ :=
-  □ (∀ ℓ t (ST: Type) (_ : EqDecision ST) (_ : Countable ST) (_ : abstract_state.AbstractState ST)
-       (bumper: ST → ST) (OV OCV: view.view) (σ: ST),
-       crashed_at_both OV OCV -∗ ⌜ ℓ ∈ dom OCV ⌝ -∗ (* that we know location [ℓ] survives *)
-       lastgen_know_preorder_loc ℓ (abstract_state.abs_state_relation (ST := ST)) -∗ (* and we know the preorder *)
-       lastgen_know_frag_history_loc ℓ t σ -∗ (* and we know a state exists. *)
-       lastgen_know_bumper ℓ bumper -∗ (* and we know the bumper *)
-       (* we know a crashed timestamp exists. *)
-       ∃ (σ_c: ST) v_c, crashed_in_loc ℓ σ_c ∗ know_frag_history_loc ℓ (OCV !!0 ℓ) (bumper σ_c) ∗
-                        know_phys_hist_msg ℓ (OCV !!0 ℓ) (Msg v_c ∅ ∅ ∅) ∗
-                        (* and any state we know are "persisted" will be ordered earlier than [σ_c] *)
-                        (* TODO: the first half of this knowledge should really be part of the [crashed_at] rely *)
-                        ⌜ t - (OV !!0 ℓ) ≤ (OCV !!0 ℓ) - (OV !!0 ℓ) → OV !!0 ℓ ≤ OCV !!0 ℓ ∧ σ ⊑ σ_c ⌝).
-
-(* Definition crashed_in_impl OCV `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω}: iProp Σ := *)
-(*   [∗ map] ℓ ↦ t ∈ OCV, *)
-(*     □ (∀ (ST: Type) (_ : EqDecision ST) (_ : Countable ST) (_ : AbstractState ST) (bumper: ST → ST), *)
-(*          know_preorder_loc ℓ (abs_state_relation (ST := ST)) -∗ *)
-(*          know_bumper ℓ bumper -∗ *)
-(*          ∃ (σ: ST), crashed_in_loc ℓ σ ∗ know_frag_history_loc ℓ (max_nat_car t) (bumper σ)). *)
-
-Program Definition nextgen `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω} (P: dProp Σ): dProp Σ :=
-  MonPred (λ TV, ⚡==> know_crash_frag_history_loc -∗ P (∅, ∅, ∅))%I _.
-
 Class IntoNextgen `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω} (P Q : dProp Σ) :=
-  into_nextgen : P ⊢ nextgen Q.
+  into_nextgen : P ⊢ <NG> Q.
 #[global] Arguments IntoNextgen {_ _ _ _} _%_I _%_I.
 #[global] Arguments into_nextgen {_ _ _ _} _%_I _%_I.
 #[global] Hint Mode IntoNextgen + + + + + - : typeclass_instances.
@@ -154,9 +121,6 @@ Section Modality.
     done.
   Qed.
 End Modality.
-
-Notation "'<NG>' P" := (nextgen P)
-  (at level 200, right associativity) : bi_scope.
 
 Section IntoNextgen.
   Context `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω}.
@@ -283,7 +247,3 @@ Section nextgen_derived.
   (* Qed. *)
 
 End nextgen_derived.
-
-Notation base_IntoNextgen := (nextgen_promises_model.IntoNextgen).
-Notation base_nextgen := (nextgen_promises_model.nextgen).
-Opaque nextgen.

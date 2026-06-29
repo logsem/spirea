@@ -269,42 +269,6 @@ Section max_view.
   Qed.
 End max_view.
 
-Section persisted.
-  Context `{!nvmBaseGS Σ Ω}.
-
-  Lemma persisted_loc_weak ℓ t1 t2 :
-    t2 ≤ t1 → persisted_loc ℓ t1 -∗ persisted_loc ℓ t2.
-  Proof.
-    intros le.
-    rewrite /persisted_loc. iApply persisted_weak. rewrite singleton_included.
-    apply Some_included. right. apply max_nat_included. done.
-  Qed.
-
-  Lemma persisted_persisted_loc PV ℓ t :
-    PV !! ℓ = Some (MaxNat t) → persisted PV -∗ persisted_loc ℓ t.
-  Proof.
-    intros look.
-    apply persisted_weak.
-    rewrite singleton_included_l.
-    exists (MaxNat t).
-    split; last done.
-    rewrite look //.
-  Qed.
-
-  Lemma persisted_persisted_loc_weak PV ℓ t1 t2 :
-    PV !! ℓ = Some (MaxNat t2) →
-    t1 ≤ t2 →
-    persisted PV -∗
-    persisted_loc ℓ t1.
-  Proof.
-    intros look le.
-    iIntros "pers".
-    iApply persisted_loc_weak; first done.
-    iApply persisted_persisted_loc; done.
-  Qed.
-
-End persisted.
-
 Section lifting.
   Context `{!nvmBaseGS Σ Ω, extra : !extraStateInterp Σ, !PerennialG Σ}.
 

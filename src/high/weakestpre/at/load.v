@@ -8,8 +8,7 @@ From self.lang Require Import syntax tactics lemmas.
 
 From self.base Require Import generational_resources primitive_laws.
 
-From self.high Require Import monpred_simpl protocol locations crash_weakestpre weakestpre.
-From self.high.modalities Require Import post_fence_sync_advanced.
+From self.high Require Import monpred_simpl protocol locations crash_weakestpre weakestpre modalities.
 From self.high.lib Require Import abstract_state increasing_map.
 From self.high.weakestpre.at Require Import prelude.
 
@@ -114,7 +113,7 @@ Section wp_at.
     (msg_store_view msg, msg_persisted_after_view msg, ∅) ⊑ fold_views phys_hist.
   Proof.
     rewrite /fold_views. simpl.
-    apply (map_fold_ind (λ res phys_hist, phys_hist !! t = Some msg → _ ⊑ res)).
+    apply (map_fold_weak_ind (λ res phys_hist, phys_hist !! t = Some msg → _ ⊑ res)).
     - inversion 1.
     - intros t2 ???? IH.
       destruct (decide (t = t2)) as [->|ne].
@@ -142,7 +141,7 @@ Section wp_at.
     ([∗ list] s;v ∈ ss;(msg_val <$> ms), p_read prot s v) (fold_views phys_hist).
   Proof.
     iIntros (-> seqAbs seqPhys domEq) "#equiv P".
-    iDestruct (big_sepM2_impl_dom_subseteq _ _ _ _ phys_hist (omap decode encAbsHist) with "P []") as "P".
+    iDestruct (big_sepM2_impl_dom_subseteq _ _ _ _ phys_hist (omap decode (B := ST) encAbsHist) with "P []") as "P".
     { done. }
     { done. }
     { iIntros "!>" (t m es m2 s ? encLook ? look) "H".
@@ -215,7 +214,7 @@ Section wp_at.
       iExists _.
       by iFrame "#". }
     simpl.
-    iDestruct (interp_get_at_loc with "interp isAtLoc [] offset")
+    iDestruct (interp_get_at_loc (ST := ST) with "interp isAtLoc [] offset")
       as (phys_hists phys_hist' abs_hist' encp_full encp_read encp_pers pview) "(R & reins)".
     { rewrite /know_protocol. iFrameNamed. }
 
@@ -246,7 +245,7 @@ Section wp_at.
     iApply @program_logic.crash_weakestpre.wp_wpc.
 
     iApply (wp_load_acquire_alt (extra := {| extra_state_interp := True |})
-             with "[$offsets $pts $val]").
+             with "[$pts $offsets $val]").
     iIntros "!>" (tL vL SV' PV' _PV') "(%look & %gt & #val' & pts)".
 
     iFrame "val'".
@@ -397,7 +396,7 @@ Section wp_at.
       monPred_simpl.
       iApply "Φpost".
       { iPureIntro.
-        etrans. eassumption.
+        etrans; first eassumption.
         repeat split; try done; try apply view_le_l. }
       (* The thread view we started with [TV] is smaller than the view we ended
        * with. *)
@@ -414,11 +413,10 @@ Section wp_at.
         iFrameF (nolater).
         iFrameF (absPhysHistDomEq).
         iFrameF "isAtLoc".
-        iFrameNamedF.
-        { iAssumption. }
+        iSplit; first (rewrite /know_protocol; iFrameNamed).
         iEval (rewrite monPred_at_big_sepM).
         setoid_rewrite monPred_at_embed.
-        iFrameF "absHist".
+        iFrameNamedF.
         iSplit.
         { iApply (monPred_mono _ (TV)).
           { etrans; first apply incl.
@@ -572,7 +570,7 @@ Section wp_at.
       monPred_simpl.
       iApply "Φpost".
       { iPureIntro.
-        etrans. eassumption.
+        etrans; first eassumption.
         repeat split; try done; try apply view_le_l. }
       iLeft. iExists (sL).
       iSplitR "Q"; last first.
@@ -595,8 +593,7 @@ Section wp_at.
       2: {
         eapply map_dom_eq_lookup_None; first done.
         apply nolater. lia. }
-      iFrameNamedF.
-      { iAssumption. }
+      iSplit; first (rewrite /know_protocol; iFrameNamed).
       iSplitPure.
       { apply: increasing_map_insert_last; try done. lia. }
       rewrite monPred_at_sep.
@@ -627,7 +624,6 @@ Section wp_at.
       setoid_rewrite monPred_at_embed.
       simpl.
       iFrame "physHist".
-      Unshelve. done.
   Qed.
 
   Lemma wp_load_at_simple ℓ sI Q prot `{!ProtocolConditions prot} st E :

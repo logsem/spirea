@@ -9,7 +9,7 @@ From self.lang Require Import lang.
 
 From self.base Require Export generational_resources if_rec.
 From self.nextgen Require Import gen_ing nextgen_promises.
-From self.high.resources Require Import
+From self.high.resources Require Export
   gen_ghost_map gen_ghost_map_map gen_alocs gen_predicates auth_map_map.
 From self.high.lib Require Export bumpers abstract_state.
 From self.algebra Require Import view.

@@ -11,7 +11,7 @@ From self.lang Require Import syntax tactics lemmas.
 From self.base Require Import generational_resources primitive_laws.
 
 From self.high Require Import monpred_simpl protocol locations crash_weakestpre weakestpre.
-From self.high.modalities Require Import post_fence_sync_advanced.
+From self.high.modalities Require Import fence_sync_atomic.
 From self.high.lib Require Import abstract_state increasing_map.
 From self.high Require Import weakestpre_at weakestpre_exp proofmode.
 

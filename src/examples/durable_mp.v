@@ -8,25 +8,21 @@
    otherwise. Hence showing safety of the recovery code ensures that the
    intuitive property that we expect to hold does indeed hold. *)
 
-From Equations Require Import Equations.
-From iris.proofmode Require Import proofmode monpred coq_tactics.
-From iris.algebra Require Import gmap_view excl.
+From iris.proofmode Require Import proofmode.
+From iris.algebra Require Import excl.
 From iris_named_props Require Import named_props.
-From nextgen Require Import cmra_morphism_extra gmap_view_transformation.
+From self.nextgen Require Import nextgen_promises.
 
-From self Require Import extra solve_view_le encode_relation map_extra view_slice.
+(* For [PerennialG] *)
+From self.base Require Import primitive_laws.
+From self.high Require Import
+  generational_resources dprop protocol locations crash_weakestpre weakestpre wpc_proofmode modalities.
+From self.high.modalities Require Import fence_sync_atomic.
+From self.high.lib Require Import abstract_state abstract_state_instances protocols.
+From self.high Require Import weakestpre_at weakestpre_na.
 
-From self.lang Require Import syntax tactics lemmas.
 
-From self.base Require Import generational_resources primitive_laws.
-
-From self.high Require Import monpred_simpl protocol locations crash_weakestpre weakestpre wpc_proofmode.
-From self.high.modalities Require Import post_fence_sync_advanced.
-From self.high.lib Require Import abstract_state abstract_state_instances increasing_map protocols.
-From self.high Require Import weakestpre_at weakestpre_na weakestpre_exp proofmode.
-
-From self Require Export lang.
-From self.high Require Export dprop.
+From self.lang Require Import syntax notation tactics lemmas lang.
 
 Section program.
   Definition leftProg (y z : loc) : expr :=
@@ -90,9 +86,9 @@ Section proof.
   Qed.
 
   #[global] Instance token_nextgen γ:
-    IntoNextgen (token_pack γ) (token_pack γ).
+    nextgen.IntoNextgen (token_pack γ) (token_pack γ).
   Proof.
-    rewrite /IntoNextgen.
+    rewrite /nextgen.IntoNextgen.
     iIntros "[own rely]".
     iModIntro.
     iDestruct "own" as (t) "[picked own]".
@@ -128,7 +124,7 @@ Section proof.
   Proof. apply _. Qed.
   
   Definition x_pack: dProp Σ :=
-    (∃ ss, x ↦_{inv_x} (ss ++ [true])) ∗ flush_lb x inv_x true.
+    (∃ σs, x ↦_{inv_x} (σs ++ [true])) ∗ flush_lb x inv_x true.
 
   #[global] Instance x_pack_buffer_free:
     BufferFree (x_pack).
@@ -147,7 +143,7 @@ Section proof.
     iIntros "[[% xPts] #xFlush]".
     iModIntro.
     iDestruct "xFlush" as "[xPers (% & % & xCrashed)]".
-    assert (s__pc = true) as -> by done.
+    assert (σ__pc = true) as -> by done.
     iDestruct (crashed_in_if_rec inv_x with "[$] [$]") as (???) "[xCrashed' xPts]".
     iDestruct (crashed_in_agree with "[$] [$]") as "->".
     rewrite /p_bumper list_fmap_id /=.
@@ -261,7 +257,7 @@ Section proof.
   Ltac solve_cc := solve_left_cc.
     (* iSplit; *)
     (* iApply (crash_condition_impl with "xPer zPer xPts zPts"). *)
-
+  
   Lemma right_prog_spec s E1 :
     x ↦_{inv_x} [false] -∗
     y ↦_AT^{inv_y} [false] -∗
@@ -320,14 +316,14 @@ Section proof.
     iSplit; done.
   Qed.
 
-  Lemma prog_spec :
+  Lemma prog_spec s:
     token_pack γ__z ∗
     token_pack γ__x ∗
     x ↦_{inv_x} [false] ∗
     y ↦_AT^{inv_y} [false] ∗
     persist_lb z inv_z false ∗
     z ↦_{inv_z} [false] -∗
-    WPC prog x y z @ ⊤
+    WPC prog x y z @ s; ⊤
     {{ v, z ↦_{inv_z} [false; true] ∨ z ↦_{inv_z} [false] }}
     {{ <NG> crash_condition }}.
   Proof.
@@ -432,3 +428,60 @@ Section proof.
     - by wp_pures.
   Qed.
 End proof.
+
+From self.high Require Import adequacy monpred_simpl.
+
+Section fake_durable_mp_proof.
+  Context `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω, !PerennialG Σ, !tokenG Σ Ω}.
+  Context (x y z : loc) (γ__x γ__y γ__z : gname).
+
+  Lemma fake_prog_spec s:
+    ⊢ WPC
+      prog x y z @ s; ⊤ 
+    {{ _, z ↦_{ inv_z x γ__z} [false; true] ∨ z ↦_{ inv_z x γ__z} [false] }}
+    {{ <NG> crash_condition x z γ__z }}.
+   Admitted.
+  
+  (* FIXME: the difference being the crash condition. *)
+  Lemma fake_recovery_spec s:
+    crash_condition x z γ__z -∗
+    WPC recovery x z @ s; ⊤ {{ _, True }} {{ <NG> crash_condition x z γ__z }}.
+  Admitted.
+End fake_durable_mp_proof.
+
+Section closed_proof.
+  (* crude way to avoid typeclass confusion *)
+  Definition φ (v: val) := True.
+  Definition φc x z γ Σ Ω (tokenG: tokenG Σ Ω) (baseG: nvmBaseGS Σ Ω) (highG: nvmHighGS Σ Ω): dProp Σ := <NG> crash_condition x z γ.
+  Context (Σ: gFunctors) (Ω: gGenCmras Σ).
+  Context (baseGpreS: nvmBaseGpreS Σ Ω) (PpreGS: Perennial_preG Σ Ω).
+  (* realistically by [preG] *)
+  Context (build_tokenG: ∀ Σ Ω, tokenG Σ Ω).
+  Context (build_HighGpreS: ∀ Σ Ω (nvmbaseGS: nvmBaseGS Σ Ω), nvmHighGpreS Σ Ω).
+
+  Opaque crash_condition.
+  
+  Theorem durable_mp_safe (s: stuckness) (x y z: loc) (γ__x γ__y γ__z: gname):
+    recv_adequate s (prog x y z `at` ⊥) (recovery x z `at` ⊥) (∅, ∅) (λ v _, φ v.(val_val)) (λ v _, φ v.(val_val)).
+  Proof using PpreGS baseGpreS build_HighGpreS build_tokenG Σ Ω.
+    apply (base_recv_adequacy_simpl_crash_weakestpre _ _ _ (λ Σ Ω baseG highG, φc x z γ__z Σ Ω (build_tokenG Σ Ω) baseG highG)).
+    { done. }
+    rewrite /φ /=.
+    iIntros (???) "validV persisted".
+    iSplit.
+    - rewrite /φc.
+      iApply wpc_mono; last iApply fake_prog_spec; try done.
+      naive_solver.  
+    - iIntros "!>" (TV ?) "crash_cond !>".
+      simpl.
+      (* Why? *)
+      iModIntro.
+      iIntros "know".
+      iSpecialize ("crash_cond" with "know").
+      rewrite /φc.
+      iApply fake_recovery_spec; done.
+  Qed.
+End closed_proof.
+
+Print Assumptions view_to_zero_mono.
+Print Assumptions durable_mp_safe.

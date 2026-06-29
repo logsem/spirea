@@ -9,13 +9,11 @@ From self.lang Require Import syntax tactics lemmas.
 From self.base Require Import generational_resources primitive_laws.
 
 From self.high Require Import monpred_simpl protocol locations crash_weakestpre weakestpre.
-From self.high.modalities Require Import post_fence_sync_advanced.
+From self.high.modalities Require Import fence_sync_atomic.
 From self.high.lib Require Import abstract_state increasing_map.
 
 From self Require Export lang.
 From self.high Require Export dprop.
-
-Set Default Proof Using "Type*".
 
 Section wp_na.
   Context `{AbstractState ST}.
@@ -75,9 +73,10 @@ Section wp_na.
     iDestruct (full_map_full_entry with "history hist") as %absHistsLook.
 
     iDestruct (offset_loc_offset_auth_agree with "offset offsets") as %?.
+    iDestruct (big_sepM2_dom with "predsFullReadHold") as %domPhysHistEqAbsHist.
+    assert (is_Some (phys_hists !! ℓ)) as [physHist physHistsLook].
+    { rewrite -elem_of_dom domPhysHistEqAbsHist elem_of_dom. done. }
 
-    assert (is_Some (phys_hists !! ℓ)) as [physHist physHistsLook]
-                                            by by eapply map_dom_eq_lookup_Some.
     iDestruct (bumpers_lookup with "allBumpers knowBumper") as %bumpersLook.
 
     iDestruct (big_sepM_delete with "ptsMap") as "[pts ptsMap]"; first done.
@@ -87,7 +86,7 @@ Section wp_na.
       iExists _.
       by iFrame "#". }
 
-    iApply (wp_store_alt with "[$crashed_at_offset $pts $val]").
+    iApply (wp_store_alt with "[$pts $crashed_at_offset $val]").
     iIntros "!>" (tT) "(%look & %gt & #valNew & pts)".
     simpl in gt.
     
@@ -140,13 +139,13 @@ Section wp_na.
         solve_view_le. }
       iExists _, (tT), (OCV !!0 ℓ), _, _, _, _.
       iSplitPure. { rewrite last_snoc. reflexivity. }
-      iSplit. { iFrameNamed. }
+      iSplit. { rewrite /know_protocol. iFrameNamed. }
       iFrame "physHistFrag".
       rewrite /know_full_history_loc.
-      rewrite /full_entry_unenc.
-      rewrite /history_full_entry_encoded.
       iEval (rewrite -fmap_insert) in "hist".
       iFrame "hist".
+      (* FIXME: make all location knowledge opaque? *)
+      Opaque offset_loc is_na_loc persisted_loc.
       iFrame "∗#".
       (* [incrMap] *)
       iSplitPure. { apply: increasing_map_insert_last; eauto. }
@@ -161,11 +160,7 @@ Section wp_na.
       (* f_equiv. *)
       (* apply svInclSv'. } *)
       (* [histFrag] *)
-      iSplit.
-      { iExists _. iFrame "newHistFrag". by rewrite decode_encode. }
-      (* [knowSV] *)
-      iSplit.
-      { Transparent know_na_view. done. }
+      iSplit; first by rewrite decode_encode.
       (* [slice] *)
       iSplit. {
         iPureIntro. eapply map_sequence_insert_snoc; [|done|done].
@@ -176,28 +171,24 @@ Section wp_na.
         - done.
         - done.
         - apply view_empty_least. }
+      (* [offsetLe] *)
+      iSplitPure; first lia.
       (* [haveTSore] *)
-      iPureIntro. rewrite lookup_zero_insert. split; lia. }
+      iPureIntro. rewrite lookup_zero_insert. lia. }
     iExistsN.
     iFrame "physHists naView history
             full_predicates read_predicates pers_predicates
             allOrders naLocs atLocs allBumpers".
     iFrame "ptsMap crashedRely offsets".
-    (* [offsetsDom] *)
-    iSplitPure.
-    { rewrite dom_insert_L.
-      assert (ℓ ∈ dom phys_hists) by by apply elem_of_dom.
-      set_solver. }
-    (* (* [oldViewsDiscarded] *) *)
-    (* iSplit. *)
-    (* { iApply (big_sepM2_insert_2 with "[] oldViewsDiscarded"). *)
-    (*   iIntros (t2 ?). *)
-    (*   iDestruct (big_sepM2_lookup _ _ _ ℓ with "oldViewsDiscarded") as %hi; *)
-    (*     [done|done|]. *)
-    (*   destruct (decide (tT + offset = t2)) as [<-|neq]. *)
-    (*   - iIntros (?). lia. *)
-    (*   - rewrite lookup_insert_ne; last done. *)
-    (*     iPureIntro. apply hi. } *)
+    (* [oldViewsDiscarded] *)
+      iSplit.
+      { iEval (rewrite -(insert_id offsets ℓ (OCV !!0 ℓ) ltac:(done))).
+        iApply big_sepM2_update; [ done | done | done | ].
+        iPureIntro.
+        intros discarded t msg' ? Hlook.
+        destruct (decide (t = tT)); first lia.
+        rewrite lookup_insert_ne // in Hlook.
+        by eapply (discarded t msg'). }
     (* [historyFragments] *)
     iSplit.
     { erewrite <- (insert_id offsets); last done.
@@ -309,11 +300,11 @@ Section wp_na.
       + simplify_map_eq.
         destruct (TV) as [[??]?].
         destruct (TV') as [[??]?].
-        iDestruct (into_no_buffer_at with "phi") as "phi".
+        iDestruct (no_buffer.into_no_buffer_at with "phi") as "phi".
         rewrite -encoded_predicate_holds_mono.
-        iApply (predicate_holds_phi_decode_2 with "predFullEquiv phi"); first apply decode_encode.
-        split; last solve_view_le.
-        split; solve_view_le.
+        * iApply (predicate_holds_phi_decode_2 with "predFullEquiv phi"); first apply decode_encode.
+        * split; last solve_view_le.
+          split; solve_view_le.
       + split; first lia.
         rewrite lookup_insert_ne; last done.
         rewrite -not_elem_of_dom domEq not_elem_of_dom.

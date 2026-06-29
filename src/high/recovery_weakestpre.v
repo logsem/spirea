@@ -1196,7 +1196,7 @@ Section wpr.
     iApply (plainly_mono with "[$]").
     iIntros "Hidemp Φc".
     iSpecialize ("Hidemp" with "Φc").
-    rewrite /nextgen.nextgen /=.
+    rewrite /nextgen /=.
     iIntros "!> !> Hfrag".
     iSpecialize ("Hidemp" with "Hfrag").
     iIntros "validV".

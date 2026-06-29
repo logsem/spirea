@@ -4,9 +4,9 @@ Is is an adaptation of the tactics for HeapLang. *)
 
 From iris.proofmode Require Import coq_tactics reduction.
 From iris.proofmode Require Export environments.
-From PerennialNG.Helpers Require Export ipm.
+From Perennial.Helpers Require Export ipm.
 
-From PerennialNG.program_logic Require Export language ectx_language ectxi_language.
+From Perennial.program_logic Require Export language ectx_language ectxi_language.
 
 From self.base Require Import class_instances primitive_laws.
 From self.lang Require Export notation tactics.
@@ -82,7 +82,7 @@ Proof. rewrite envs_entails_unseal=> ->. by apply twp_value. Qed. *)
 Lemma tac_wp_value `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω, PerennialG Σ} Δ s E (Φ : val → dPropI Σ) v :
   envs_entails Δ (|={E}=> Φ v) → envs_entails Δ (WP (Val v) @ s; E {{ Φ }}).
 Proof.
-  rewrite envs_entails_unseal=> ->. rewrite wp_value_fupd. done.
+  rewrite envs_entails_unseal=> ->. rewrite wp_value_fupd; done.
 Qed.
 
 (** Simplify the goal if it is [WP] of a value.

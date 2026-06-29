@@ -10,7 +10,7 @@ From self.base Require Import primitive_laws class_instances.
 From self.base Require Import adequacy. (* To get [recv_adequace]. *)
 From self.high Require Import proofmode wpc_proofmode.
 From self.high Require Import dprop resources crash_weakestpre weakestpre
-     weakestpre_na recovery_weakestpre lifted_modalities modalities
+     recovery_weakestpre lifted_modalities modalities
      post_crash_modality protocol no_buffer abstract_state_instances locations protocol adequacy.
 From self.high.modalities Require Import fence.
 

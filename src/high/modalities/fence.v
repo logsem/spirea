@@ -1,10 +1,8 @@
-From iris.proofmode Require Import ltac_tactics.
-From iris.bi Require Import bi derived_laws.
-From iris.base_logic Require Import iprop.
+From iris.proofmode Require Import proofmode.
 
 From self Require Import solve_view_le.
-From self.base Require Import generational_resources.
-From self.high Require Import dprop modalities monpred_simpl.
+From self.high Require Import dprop generational_resources monpred_simpl.
+From self.high.modalities Require Export definitions.
 From self.high.modalities Require Import no_flush.
 
 Class IntoFence {Σ} (P: dProp Σ) (Q : dProp Σ) :=

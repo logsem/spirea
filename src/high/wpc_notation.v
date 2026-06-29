@@ -7,7 +7,7 @@ Arguments wpc {_ _ _ _} _ _ _%E _%I _%I.
 Instance: Params (@wpc) 9 := {}.
 
 (* Instance wpc' `{!irisGS Λ Σ, !generationGS Λ Σ} : Wpc Λ (iProp Σ) stuckness := wpc_aux.(unseal). *)
-Instance wpc' `{!irisGS Λ Σ Ω} : Wpc Λ (iProp Σ) stuckness :=
+#[export] Instance wpc' `{!irisGS Λ Σ Ω} : Wpc Λ (iProp Σ) stuckness :=
   crash_weakestpre.wpc.
 
 (** Notations for partial crash weakest preconditions *)

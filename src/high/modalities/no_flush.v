@@ -1,9 +1,7 @@
-From iris.proofmode Require Import ltac_tactics.
-From iris.bi Require Import bi.
-From iris.bi Require Import derived_laws.
-From iris.base_logic Require Import iprop.
+From iris.proofmode Require Import proofmode.
 
-From self.high Require Import dprop generational_resources modalities.
+From self.high Require Import dprop.
+From self.high.modalities Require Export definitions.
 
 Class IntoNoFlush {Σ} (P : dProp Σ) (Q : dProp Σ) :=
   into_no_flush : P ⊢ <noflush> Q.

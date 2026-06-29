@@ -22,14 +22,14 @@ src/high/lib/bumpers.v
 src/high/lib/increasing_map.v
 src/high/lib/protocols.v
 src/high/locations.v
+src/high/modalities/definitions.v
 src/high/modalities/fence.v
 src/high/modalities/if_rec.v
 src/high/modalities/nextgen_flush.v
 src/high/modalities/nextgen.v
 src/high/modalities/no_buffer.v
 src/high/modalities/no_flush.v
-src/high/modalities/or_lost.v
-src/high/modalities/post_fence_sync_advanced.v
+src/high/modalities/fence_sync_atomic.v
 src/high/modalities.v
 src/high/monpred_simpl.v
 src/high/predicates.v
@@ -48,14 +48,15 @@ src/high/weakestpre/at/faa.v
 src/high/weakestpre/at/load.v
 src/high/weakestpre/at/prelude.v
 src/high/weakestpre/at/store.v
+src/high/weakestpre/at/flush_fence.v
 src/high/weakestpre_at.v
-src/high/weakestpre_exp.v
 src/high/weakestpre/na/alloc.v
 src/high/weakestpre/na/load.v
 src/high/weakestpre/na/store.v
 src/high/weakestpre_na.v
 src/high/weakestpre.v
 src/high/wpc_notation.v
+src/high/proofmode.v
 src/high/wpc_proofmode.v
 src/if_non_zero.v
 src/ipm_tactics.v
@@ -90,6 +91,8 @@ src/program_logic/recovery_weakestpre.v
 src/solve_view_le.v
 src/view_slice.v
 
+src/examples/durable_mp.v
+
 ## PerennialNG
 perennial/base_logic/lib/wsat.v
 perennial/program_logic/weakestpre.v
@@ -109,7 +112,6 @@ perennial/program_logic/step_fupd_extra.v
 # src/examples/atomic_persists.v
 # src/examples/bank.v
 # src/examples/crash_lock.v
-# src/examples/durable_mp.v
 # src/examples/durable_ms_queue.v
 # src/examples/durable_treiber_stack.v
 # src/examples/epoch_persistency.v

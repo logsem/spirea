@@ -10,7 +10,6 @@ From self.lang Require Import syntax tactics lemmas.
 From self.base Require Import generational_resources primitive_laws.
 
 From self.high Require Import monpred_simpl protocol locations crash_weakestpre weakestpre.
-From self.high.modalities Require Import post_fence_sync_advanced.
 From self.high.lib Require Import abstract_state increasing_map.
 
 From self Require Export lang.
@@ -23,6 +22,8 @@ Section wp_at.
   Context `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω, PerennialG Σ}.
 
   Implicit Types (ℓ : loc) (σ : ST) (prot : LocationProtocol ST).
+
+  #[local] Existing Instance nvmHighGS_inG.
   
   (* These are specialized definitions for atomic locations. *)
   Definition at_encoded_full_read_predicates_hold
@@ -115,11 +116,11 @@ Section wp_at.
     iIntros "isAt".
     iNamed 1.
     iIntros "offset".
-    iDestruct (own_all_full_preds_pred with "full_predicates knowFullPred")
+    iDestruct (own_all_preds_pred with "full_predicates knowFullPred")
       as (encp_full encPFullLook) "#encPFullEquiv".
-    iDestruct (own_all_read_preds_pred with "read_predicates knowReadPred")
+    iDestruct (own_all_preds_pred with "read_predicates knowReadPred")
       as (encp_read encPReadLook) "#encPReadEquiv".
-    iDestruct (own_all_pers_preds_pred with "pers_predicates knowPersPred")
+    iDestruct (own_all_preds_pred with "pers_predicates knowPersPred")
       as (encp_pers ecpPPersLook) "#encPPersEquiv".
     (* iDestruct (full_map_frag_singleton_agreee with "history hist") *)
     (*   as %(absHist & enc & absHistLook & lookTS & decodeEnc). *)
@@ -245,7 +246,15 @@ Section wp_at.
       (* We re-establish [interp]. *)
       iExistsN.
       iFrameNamedF.
-      iSplitPure; first set_solver.
+      (* [oldViewsDiscarded] *)
+      iSplit.
+      { iEval (rewrite -(insert_id offsets ℓ offset ltac:(done))).
+        iApply big_sepM2_update; [ done | done | done | ].
+        iPureIntro.
+        intros discarded t msg' ? Hlook.
+        destruct (decide (t = t_i)); first lia.
+        rewrite lookup_insert_ne // in Hlook.
+        by eapply (discarded t msg'). }
       iFrameNamedF.
       iFrame "allOrders".
       iFrame "ordered3".
@@ -291,7 +300,7 @@ Section wp_at.
         iEval (setoid_rewrite (restrict_insert ℓ at_locs (<[t_i:=encσ]> abs_hist) abs_hists ℓSh)).
         iFrame. }
       (* [histPViewDoms] *)
-      iSplitPure. etrans; [ done | apply dom_insert_subseteq].
+      iSplitPure; first (etrans; [ done | apply dom_insert_subseteq]).
       (* [FullBumpersDoms] *)
       iSplitPure; first done.
       (* [ReadBumpersDoms] *)
@@ -334,11 +343,7 @@ Section wp_at.
       (* We re-establish [interp]. *)
       iExistsN.
       iFrameNamedF.
-      iSplit; first iAssumption.
-      iSplit; first iAssumption.
-      iSplit; first iAssumption.
-      iFrame "bumperSome".
-      done. }
+      iFrame "bumperSome". }
   Qed.
 
     Lemma read_atomic_location_no_inv t_i t_l (physHist : history) absHist vm SVm FVm

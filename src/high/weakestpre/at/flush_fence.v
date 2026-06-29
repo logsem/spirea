@@ -7,14 +7,12 @@ From self.lang Require Import syntax tactics lemmas.
 
 From self.base Require Import generational_resources primitive_laws.
 
-From self.high Require Import monpred_simpl protocol locations crash_weakestpre weakestpre.
-From self.high.modalities Require Import post_fence_sync_advanced.
+From self.high Require Import monpred_simpl protocol locations crash_weakestpre weakestpre modalities.
+From self.high.modalities Require Import fence_sync_atomic.
 From self.high.lib Require Import abstract_state.
 
 From self Require Export lang.
 From self.high Require Export dprop.
-
-Set Default Proof Using "Type*".
 
 Section weakestpre.
   Context `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω, !PerennialG Σ, AbstractState ST}.
@@ -55,7 +53,7 @@ Section weakestpre.
     
     (* lookup [msg_xchg] early for for [wp_flush] *)
     iAssert ⌜ ∃ pHist, phys_hists !! ℓ = Some pHist ∧ pHist !! t_xchg = Some msg_xchg ⌝%I as %[pHist [HphysHistLook HpHistLookXchg]].
-    { iPoseProof (auth_map_map_auth_frag with "[$] [$knowPhysMsg']") as "$". }
+    { iPoseProof (auth_map_map.auth_map_map_auth_frag with "[$] [$knowPhysMsg']") as "$". }
     
     (* obtain mapsto assertion from [interp] to apply base Spirea [wp_flush]. *)
     iDestruct (big_sepM_lookup_acc with "ptsMap") as "[pts ptsMap]".
@@ -180,9 +178,9 @@ Section weakestpre.
       iIntros "!>" (k fi ?). iNamed 1.
       iIntros "(_ & knowProtocol & _)".
       iNamed "knowProtocol".
-      iPoseProof (own_all_full_preds_pred with "[$] [$]") as (? ?) "#p_fullEquiv".
-      iPoseProof (own_all_read_preds_pred with "[$] [$]") as (? ?) "#p_readEquiv".
-      iPoseProof (own_all_pers_preds_pred with "[$] [$]") as (? ?) "#p_persEquiv".
+      iPoseProof (own_all_preds_pred with "full_predicates [$]") as (? ?) "#p_fullEquiv".
+      iPoseProof (own_all_preds_pred with "read_predicates [$]") as (? ?) "#p_readEquiv".
+      iPoseProof (own_all_preds_pred with "pers_predicates [$]") as (? ?) "#p_persEquiv".
       iFrame.
       iNext.
       iExistsN. iFrame "#%". }
@@ -230,20 +228,20 @@ Section weakestpre.
       (* lookup [msg_xchg] *)
       iAssert ⌜ ∃ pHist, phys_hists !! fi.(fi_ℓ) = Some pHist ∧ pHist !! t_xchg = Some msg_xchg ⌝%I
           as %[pHist [HphysHistLook HpHistLookXchg]].
-      { iPoseProof (auth_map_map_auth_frag with "[$] [$knowPhysMsg']") as "$". }
+      { iPoseProof (auth_map_map.auth_map_map_auth_frag with "[$] [$knowPhysMsg']") as "$". }
       (* lookup [σ_xchg] *)
       iAssert ⌜ ∃ aHist encσ_xchg, abs_hists !! fi.(fi_ℓ) = Some aHist ∧ aHist !! t_xchg = Some encσ_xchg ∧ decode encσ_xchg = Some fi.(fi_σ_xchg) ⌝%I
           as %(aHist & encσ_xchg & HabsHistLook & HaHistLookXchg & HdecodeXchg).
-      { iPoseProof (full_map_frag_singleton_agreee with "[$] [$fragHistXchg]") as "$". }
+      { iPoseProof (full_map_frag_singleton_agree with "[$] [$fragHistXchg]") as "$". }
       (* lookup [σ] *)
       iAssert ⌜ ∃ aHist encσ, abs_hists !! fi.(fi_ℓ) = Some aHist ∧ aHist !! t = Some encσ ∧ decode encσ = Some fi.(fi_σ) ⌝%I
           as %(aHist' & encσ & HabsHistLook' & HaHistLook & Hdecode).
-      { iPoseProof (full_map_frag_singleton_agreee with "[$] [$knowFragHist]") as "$". }
+      { iPoseProof (full_map_frag_singleton_agree with "[$] [$knowFragHist]") as "$". }
       (* extracts [ℓ] from order *)
       iDestruct (big_sepM2_dom with "ordered") as "%domOrders".
       assert (fi.(fi_ℓ) ∈ dom orders) as [enc_order HordersLook]%elem_of_dom.
       { set_solver. }
-      iDestruct (orders_lookup with "allOrders []") as "%HorderEncode"; first done.
+      iDestruct (orders_lookup (ST := fi.(fi_ST)) with "allOrders []") as "%HorderEncode"; first done.
       { iNamed "knowProtocol". iAssumption. }
       
       (* extract [ℓ] from [predsFR] *)
@@ -305,7 +303,7 @@ Section weakestpre.
       (* second exchange and update [global_pview] *)
       iEval (rewrite /exchange_2) in "exchange".
       (* look into [encoded_predicate_holds] to justify decoding of [encσ_p_old] *)
-      iAssert (⌜ ∃ σ_p_old, decode encσ_p_old = Some σ_p_old ⌝)%I as (σ_p_old) "%HdecodePOld".
+      iAssert (⌜ ∃ σ_p_old, decode (A := fi.(fi_ST)) encσ_p_old = Some σ_p_old ⌝)%I as (σ_p_old) "%HdecodePOld".
       { iDestruct "predP" as (PP) "[#eqP _]".
         iEval (rewrite discrete_fun_equivI) in "pPersEquiv".
         iSpecialize ("pPersEquiv" $! encσ_p_old).
@@ -330,7 +328,7 @@ Section weakestpre.
         { done. } { done. }
         destruct (decide (t_p_old ≤ t)).
         - iDestruct "exchange" as "[exchange _]".
-          iPoseProof (predicate_holds_phi_decode_1 _ with "[$pPersEquiv] [$]") as "pPers"; first done.
+          iPoseProof (predicate_holds_phi_decode_1 _ with "[$pPersEquiv] predP") as "pPers"; first done.
           Opaque exchange_3.
           iDestruct ("exchange" with "[] pPers") as ">[pPers exchange]".
           { destruct (decide (t_p_old = t)) as [ | ]; first by simplify_map_eq.
@@ -341,7 +339,7 @@ Section weakestpre.
           iFrame.
           done.
         - iDestruct "exchange" as "[_ exchange]".
-          iPoseProof (predicate_holds_phi_decode_1 _ with "[$pPersEquiv] [$]") as "pPers"; first done.
+          iPoseProof (predicate_holds_phi_decode_1 _ with "[$pPersEquiv] predP") as "pPers"; first done.
           Opaque exchange_3.
           iDestruct ("exchange" with "[] pPers") as ">[pPers exchange]".
           { specialize (Hinc t t_p_old _ _ ltac:(lia) ltac:(done) ltac:(done)).
@@ -362,7 +360,7 @@ Section weakestpre.
         iSpecialize ("exchange" $! msg_xchg.(msg_val)).
         subst predFR.
         destruct (decide _).
-        - iPoseProof (predicate_holds_phi_decode_1 with "[$pFullEquiv] [$]") as "pFull"; first done.
+        - iPoseProof (predicate_holds_phi_decode_1 with "[$pFullEquiv] predFR") as "pFull"; first done.
           (* why is typeclass not working? *)
           iPoseProof (fi.(fi_prot_conds).(full_read_split) with "pFull") as "[pRead pFullAcc]".
           iEval (monPred_simpl) in "exchange".
@@ -371,10 +369,10 @@ Section weakestpre.
           iPoseProof (predicate_holds_phi_decode_2 with "[$pFullEquiv] [$]") as "pFull"; first done.
           by iFrame.
           
-        - iPoseProof (predicate_holds_phi_decode_1 with "[$pReadEquiv] [$]") as "pRead"; first done.
+        - iPoseProof (predicate_holds_phi_decode_1 with "[$pReadEquiv] predFR") as "pRead"; first done.
           iEval (monPred_simpl) in "exchange".
           iDestruct ("exchange" with "pRead") as ">[Hfi_post pRead]".
-          iPoseProof (predicate_holds_phi_decode_2 with "[$pReadEquiv] [$]") as "pRead"; first done.
+          iPoseProof (predicate_holds_phi_decode_2 with "[$pReadEquiv] pRead") as "pRead"; first done.
           by iFrame. }
       iModIntro.
       (* deal with postcondition first *)

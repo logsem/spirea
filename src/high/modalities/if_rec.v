@@ -1,32 +1,7 @@
-(** The meaningful part of the definition of [if_rec] have been ported to base spirea.
- ** This file only contains [dProp] lifting definitions and lemmas. *)
-
 From iris.proofmode Require Import proofmode.
-From iris_named_props Require Import named_props.
 
-From iris.bi Require Import bi.
-From iris.bi Require Import derived_laws.
-From self.base Require Import generational_resources.
-From self.high Require Import dprop monpred_simpl.
-
-From self.base.modalities Require Import if_rec.
-From self.high.modalities Require Import or_lost.
-
-From self.algebra Require Import view.
-
-Notation base_if_rec := self.base.modalities.if_rec.if_rec.
-
-Set Default Proof Using "Type".
-
-(* The predicate [P] holds for [ℓ] or [ℓ] has been lost. *)
-(* I believe the [persisted_loc] component is unnecessary
- * (implied by CV, at least in the context of a valid state interpretation),
- * but in case it's necessary in some unforseen way, I'm keeping it for now. *)
-
-(* Yixuan: I'm moving to use [crashed_at_offset] instead of [crashed_at] as much as possible. *)
-Definition if_rec `{!nvmBaseGS Σ Ω} (ℓ : loc) (P : dProp Σ) : dProp Σ :=
-  ∀ (OCV : view),
-  ⌜ is_Some (OCV !! ℓ) ⌝ -∗ ⎡ crashed_at_offset OCV ⎤ -∗ ⎡ persisted_loc ℓ 0 ⎤ -∗ P.
+From self.high Require Import dprop generational_resources.
+From self.high.modalities Require Export definitions.
 
 Section lifting.
   Context `{nvmBaseGS}.

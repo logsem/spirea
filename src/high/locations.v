@@ -1,26 +1,17 @@
-(* Assertions for locations.
-
-  The assertions here are modeled usin the more resources defined in
-  [self.high.resources], etc.
- *)
-
-From iris.bi Require Import lib.fractional.
-From iris.base_logic.lib Require Import own.
 From iris.algebra Require Import gset gmap excl auth.
-From iris.proofmode Require Import reduction monpred ltac_tactics.
+From iris.bi.lib Require Import fractional.
+From iris.proofmode Require Import proofmode.
 From iris_named_props Require Import named_props.
 
 From self Require Import extra ipm_tactics solve_view_le.
-From self.base Require Import primitive_laws.
 From self.lang Require Import lang.
 From self.high Require Import monpred_simpl generational_resources dprop protocol modalities.
 From self.high.lib Require Import abstract_state increasing_map.
-From self.high.modalities Require Export no_buffer no_flush if_rec or_lost nextgen nextgen_flush.
 
 Section points_to_at.
   Context `{nvmHighGS, AbstractState ST}.
 
-  Implicit Types (ℓ : loc) (s : ST) (ss : list ST) (prot : LocationProtocol ST).
+  Implicit Types (ℓ : loc) (σ : ST) (σs : list ST) (prot : LocationProtocol ST).
 
   Lemma singleton_included_l' `{Countable K, CmraTotal A}
         (m : gmap K A) (i : K) x :
@@ -35,7 +26,7 @@ Section points_to_at.
   (* FIXME: Can [mapsto_na] use [lb_base]? *)
   Definition mapsto_na (ℓ : loc) prot (q : frac) (σs : list ST) : dProp Σ :=
     (∃ (tLo tHi offset : time) SV (abs_hist : gmap time ST) (msg : message) σ,
-      "%lastEq" ∷ ⌜ last σs = Some σ ⌝ ∗
+      "%lastEq" ∷ ⌜ list.last σs = Some σ ⌝ ∗
       "#locationProtocol" ∷ ⎡ know_protocol ℓ prot ⎤ ∗
       "%incrMap" ∷ ⌜ increasing_map (⊑@{ST}) abs_hist ⌝ ∗
       "#isNaLoc" ∷ ⎡ is_na_loc ℓ ⎤ ∗
@@ -142,7 +133,7 @@ Section points_to_at.
 
   Definition mapsto_at ℓ prot ss : dProp Σ :=
     (∃ (abs_hist : gmap time ST) (phys_hist : gmap time message) tLo tS offset s ms,
-        "%lastEq" ∷ ⌜ last ss = Some s ⌝ ∗ (* NOTE: Could we change this to non-empty? *)
+        "%lastEq" ∷ ⌜ list.last ss = Some s ⌝ ∗ (* NOTE: Could we change this to non-empty? *)
         "%slice" ∷ ⌜ map_sequence abs_hist tLo tS ss ⌝ ∗
         "%slicePhys" ∷ ⌜ map_sequence phys_hist tLo tS ms ⌝ ∗
         "%nolater" ∷ ⌜ map_no_later abs_hist tS ⌝ ∗
@@ -436,7 +427,7 @@ Section mapsto_at_lemmas.
   Qed.
 
   Lemma mapsto_na_last ℓ prot q ss :
-    mapsto_na ℓ prot q ss -∗ ⌜ ∃ s, last ss = Some s ⌝.
+    mapsto_na ℓ prot q ss -∗ ⌜ ∃ s, list.last ss = Some s ⌝.
   Proof.
     rewrite /mapsto_na.
     iNamed 1.
@@ -505,7 +496,7 @@ Section mapsto_at_lemmas.
   Qed.
 
   Lemma mapsto_na_persist_lb_last ℓ prot q σs σ `{!AntiSymm (=) (⊑@{ST})} :
-    last σs = Some σ →
+    list.last σs = Some σ →
     persist_lb ℓ prot σ -∗
     mapsto_na ℓ prot q σs -∗
     mapsto_na ℓ prot q [σ].
@@ -661,7 +652,7 @@ Section mapsto_at_lemmas.
       done.
   Qed.
   
-  #[global] Instance persist_lb_into_nextgen ℓ prot σ : IntoNextgen _ _ :=
+  #[global] Instance persist_lb_into_nextgen ℓ prot σ : nextgen.IntoNextgen _ _ :=
     nextgen_persist_lb ℓ prot σ.
 
   Lemma nextgen_flush_flush_lb (ℓ : loc) prot (σ: ST) :
@@ -928,7 +919,7 @@ Section mapsto_at_lemmas.
 
   #[global] Instance mapsto_na_into_nextgen ℓ `{!ProtocolConditions prot} q
       (σs : list ST) :
-    IntoNextgen _ _ :=
+    nextgen.IntoNextgen _ _ :=
     (post_crash_mapsto_na ℓ prot q σs).
   
   #[global] Instance mapsto_na_into_nextgen_flush ℓ `{!ProtocolConditions prot} q
@@ -1100,7 +1091,7 @@ Section mapsto_at_lemmas.
   (*   (* - *) *)
   (* Abort. *)
 
-  #[global] Instance mapsto_at_into_nextgen ℓ prot σs : IntoNextgen _ _ :=
+  #[global] Instance mapsto_at_into_nextgen ℓ prot σs : nextgen.IntoNextgen _ _ :=
     nextgen_mapsto_at_singleton ℓ prot σs.
 
   #[global] Instance mapsto_at_into_nextgen_flush ℓ prot σs : IntoNGFlush _ _ :=
@@ -1162,7 +1153,7 @@ Section mapsto_na_flushed.
   (* [location assertions] *)
   Definition mapsto_na_flushed ℓ prot q (σ: ST) : dProp Σ :=
   ∃ (σs : list ST),
-    "%lastEq" ∷ ⌜ last σs = Some σ ⌝ ∗
+    "%lastEq" ∷ ⌜ list.last σs = Some σ ⌝ ∗
     "pts" ∷ ℓ ↦_{prot}^{q} σs ∗
     "#flushLb" ∷ flush_lb ℓ prot σ.
 
@@ -1211,9 +1202,4 @@ Section mapsto_na_flushed.
   Qed.
 End mapsto_na_flushed.
 
-Opaque mapsto_na.
-Opaque mapsto_at.
-Opaque store_lb.
-Opaque flush_lb.
-Opaque persist_lb.
-Opaque crashed_in.
+Opaque mapsto_na mapsto_at store_lb flush_lb persist_lb crashed_in.

@@ -1,14 +1,13 @@
 From Equations Require Import Equations.
 From iris.algebra Require Import mono_list gmap_view.
 From iris_named_props Require Import named_props.
-From nextgen Require Import cmra_morphism_extra gmap_view_transformation.
-From self.nextgen Require Import hvec nextgen_promises.
+From self.nextgen Require Import hvec nextgen_promises gmap_view_transformation.
 From iris.proofmode Require Import proofmode.
 
 Set Default Proof Using "Type*".
 
 (* TODO: upstream this tactic. *)
-Definition drop_word s := substring (1 + findex 0 " " s) (String.length s) s.
+Definition drop_word s := String.substring (1 + String.findex 0 " " s) (String.length s) s.
 
 Tactic Notation "iPickedInAgree" constr(Hs) :=
   let na := eval vm_compute in (drop_word Hs) in
@@ -19,7 +18,7 @@ Tactic Notation "iPickedInAgree" constr(Hs) :=
  ** [list_auth γ l]: is the authoritative assertion, allowing growing the list,
  ** [list_elem γ l]: is the indivdual list element. *)
 Class excl_listG (V: ofe) (Σ: gFunctors) (Ω: gGenCmras Σ) := {
-  excl_listG_ghost_map_inG :: genInDepsG Σ Ω (gmap_viewUR nat (leibnizO V)) [#];
+  excl_listG_ghost_map_inG :: genInDepsG Σ Ω (gmap_viewUR nat (agreeR (leibnizO V))) [#];
 }.
 
 Section excl_list.
@@ -31,7 +30,7 @@ Section excl_list.
   Definition drop_above p n (v: leibnizO V): option V :=
     if decide (n ≤ p) then Some v else None.
 
-  Notation excl_listR := (gmap_viewR nat (leibnizO V)).
+  Notation excl_listR := (gmap_viewR nat (agreeR (leibnizO V))).
   
   #[export] Instance drop_above_maptrans p: MapTrans (drop_above p).
   Proof.
@@ -56,8 +55,8 @@ Section excl_list.
     λ t, ∃ n', n ≤ n' ∧ t = excl_list_trans n'.
   
   Definition list_auth γ l: iProp Σ :=
-    "auth" ∷ gen_own γ (gmap_view_auth (V := leibnizO V) (DfracOwn 1) (to_excl_list l)) ∗
-    "discards" ∷ ([∗ list] k ↦ v ∈ l, gen_own γ (gmap_view_frag (V:= leibnizO V) k DfracDiscarded v)).
+    "auth" ∷ gen_own γ (gmap_view_auth (V := agreeR (leibnizO V)) (DfracOwn 1) (to_agree <$> to_excl_list l)) ∗
+    "discards" ∷ ([∗ list] k ↦ v ∈ l, gen_own γ (gmap_view_frag (V:= agreeR (leibnizO V)) k DfracDiscarded (to_agree v))).
 
   Definition dfrac_excl := DfracOwn (1 / 2) ⋅ DfracOwn (1 / 2 / 2).
 
@@ -71,8 +70,8 @@ Section excl_list.
   Qed.
   
   Definition list_elem γ l: iProp Σ :=
-    "excl" ∷ (∃ v, ⌜ last l = Some v ⌝ ∗ gen_own γ (gmap_view_frag (V := leibnizO V) (length l - 1) (dfrac_excl) v)) ∗
-    "discards" ∷ ([∗ list] k ↦ v ∈ l, gen_own γ (gmap_view_frag (V:= leibnizO V) k DfracDiscarded v)).
+    "excl" ∷ (∃ v, ⌜ last l = Some v ⌝ ∗ gen_own γ (gmap_view_frag (V := agreeR (leibnizO V)) (length l - 1) (dfrac_excl) (to_agree v))) ∗
+    "discards" ∷ ([∗ list] k ↦ v ∈ l, gen_own γ (gmap_view_frag (V:= agreeR (leibnizO V)) k DfracDiscarded (to_agree v))).
 
   Definition list_token γ (n: nat) :=
     token γ [#] (excl_list_pred n) (excl_list_pred n).
@@ -163,8 +162,12 @@ Section excl_list.
   Proof.
     iNamed 1.
     iMod (gen_own_update with "auth") as "[$ frag]".
-    { rewrite to_excl_list_snoc. apply: (gmap_view_alloc _ _ (DfracOwn 1) v); last done.
-      rewrite lookup_map_seq_None. by right. }
+    { rewrite to_excl_list_snoc fmap_insert. apply: (gmap_view_alloc _ _ (DfracOwn 1) (to_agree v)); try done.
+      rewrite lookup_fmap /to_excl_list.
+      destruct (map_seq 0 l !! length l) eqn:Heq; last done.
+      rewrite lookup_map_seq_Some in Heq.
+      rewrite lookup_ge_None_2 // in Heq; last lia.
+      naive_solver. }
 
     iDestruct "frag" as "[frag_half [frag_qtr discard]]".
     iDestruct (gen_own_op with "[$frag_half $frag_qtr]") as "frag_excl".

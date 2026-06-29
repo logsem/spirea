@@ -9,7 +9,7 @@ Import interface.bi derived_laws.bi derived_laws_later.bi.
 
 From iris.bi Require Import derived_laws_later.
 
-Set Default Proof Using "Type*".
+Unset Default Proof Using.
 
 (* We define our own relation. Workaround for universe issues in stdpp and Iris. *)
 Definition relation2 A := A -> A -> Prop.

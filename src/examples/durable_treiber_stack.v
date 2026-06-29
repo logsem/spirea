@@ -16,8 +16,8 @@ From self.base Require Import generational_resources primitive_laws.
 
 From self.high.lib Require Import abstract_state abstract_state_instances increasing_map protocols.
 From self.high Require Import monpred_simpl protocol locations crash_weakestpre weakestpre.
-From self.high.modalities Require Import post_fence_sync_advanced.
-From self.high Require Import weakestpre_at weakestpre_na weakestpre_exp proofmode.
+From self.high.modalities Require Import fence_sync_atomic.
+From self.high Require Import weakestpre_at weakestpre_na proofmode.
 
 From self.examples.lib Require Import excl_list.
 

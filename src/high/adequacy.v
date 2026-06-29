@@ -2,10 +2,11 @@ From iris.proofmode Require Import ltac_tactics.
 From iris.algebra Require Import auth.
 From iris_named_props Require Import named_props.
 
-From self Require Import ipm_tactics.
+From self Require Import ipm_tactics extra.
 From self.program_logic Require Import recovery_adequacy.
 From self.base Require Import wpr_lifting primitive_laws generational_resources cred_frag.
-From self.high Require Import crash_weakestpre recovery_weakestpre generational_resources state_interpretation.
+From self.high Require Import
+  crash_weakestpre recovery_weakestpre generational_resources state_interpretation protocol locations.
 From self.high.modalities Require Import nextgen.
 From self.nextgen Require Import nextgen_promises.
 
@@ -28,20 +29,68 @@ Definition Build_credit_G Σ `{!Perennial_preG Σ Ω} (cred_names: cr_names): cr
   creditGS_update_pre Σ P_preG_credit cred_names.
 
 Section high_adequacy.
-  (* begin missing proofs. *)
-  Lemma extra_state_interp_alloc `{baseG: !nvmBaseGS Σ Ω, preG: !nvmHighGpreS Σ Ω} (σ: store) PV:
-    valid_heap σ →
-    ([∗ map] l↦v ∈ σ, l ↦fh v) -∗
-    crashed_at ∅ -∗
-    persisted PV ==∗
-    ∃ (_: nvmHighGS Σ Ω), extra_state_interp.
+  (* Turns [gmap loc val] to [gmap loc history] *)
+  Definition initial_heap (σ : gmap loc val) : store :=
+    (λ (v : val), {[ 0 := Msg v ∅ ∅ ∅ ]} : history ) <$> σ.
+  
+  Lemma valid_heap_initial_heap σ : valid_heap (initial_heap σ).
   Proof.
-    iIntros (?) "_ #CV #PV".
+    rewrite /valid_heap.
+    intros ℓ hist.
+    rewrite /initial_heap. simpl.
+    intros (v & <- & ?)%lookup_fmap_Some.
+    split. { done. }
+    intros ?? (<- & <-)%lookup_singleton_Some.
+    simpl.
+    apply view_le_lookup.
+    done.
+  Qed.
+  
+  (* For an adequacy lemma to be useful, we need to have some location known to both [e] and [r].
+   * All locations contains exactly one state [σ0], where both [p_full] and [p_pers] holds.
+   * TODO: we only support atomic locations for now. *)
+  (* Our protocol definition depends on [nvmHighGS], which we are going to build in
+   * [init_state_alloc]. Thus I make [nvmHighGS] an explicit argument. *)
+  Record LocInfo `{nvmBaseGS} {H: nvmHighGS Σ Ω} := MkLocInfo {
+    li_ℓ: loc;
+    li_ST: Type;
+    li_ST_eqdec :: EqDecision li_ST;
+    li_ST_countable :: Countable li_ST;
+    li_ST_is_abstract :: AbstractState li_ST;
+    li_prot: LocationProtocol li_ST;
+    li_prot_conds :: ProtocolConditions li_prot;
+    li_σ0: li_ST;
+  }.
+  Definition LocInfos `{nvmBaseGS} (H: nvmHighGS Σ Ω) := gmap loc (@LocInfo _ _ _ H).
+  
+  (* This is the pre-condition for a valid intial configuration. It provides the basic location assertions
+   * for the user to establish protocol predicates. *)
+  Definition valid_config `{nvmBaseGS}
+    (σ: gmap loc val)
+    (locinfos: ∀ H, LocInfos H) (H: nvmHighGS Σ Ω): dProp Σ :=
+    ([∗map] ℓ ↦ v; li ∈ σ; (locinfos H),
+       persist_lb ℓ li.(li_prot) li.(li_σ0) ∗ ℓ ↦_AT^{li.(li_prot)} [li.(li_σ0)]) ==∗
+    ([∗map] ℓ ↦ v; li ∈ σ; (locinfos H),
+       li.(li_prot).(p_full) li.(li_σ0) v ∗ li.(li_prot).(p_pers) li.(li_σ0) v).
+
+  (* This lemma that builds [nvmHighGS], allocates the heap, and collects the individual location assertions. *)
+  Lemma init_state_alloc `{baseG: !nvmBaseGS Σ Ω, preG: !nvmHighGpreS Σ Ω} (σ: gmap loc val) locinfos PV:
+    (∀ (H: nvmHighGS Σ Ω), dom (locinfos H) = dom σ) →
+    ([∗ map] l ↦ h ∈ initial_heap σ, l ↦fh h) -∗
+    crashed_at ∅ -∗
+    persisted PV -∗
+    (∀ (H: nvmHighGS Σ Ω), valid_config σ locinfos H) ⊥ ==∗
+    ∃ (H: nvmHighGS Σ Ω), extra_state_interp ∗
+                          ([∗map] ℓ ↦ v; li ∈ σ; (locinfos H),
+                             persist_lb ℓ li.(li_prot) li.(li_σ0) ∗ ℓ ↦_AT^{li.(li_prot)} [li.(li_σ0)]) ⊥.
+  Proof.
+    iIntros (Hdom) "heap #CV #PV config".
     iNamed "CV".
     iAssert (crashed_at_offset OCV)%I as "#OCV".
     { by iExists _. }
     rewrite /extra_state_interp /highExtraStateInterp /interp.
-    iMod (gen_alocs_alloc ∅ OCV OPV  with "OCV rely") as (new_locs_name) "[newLocs _]".
+    (* We choose to allocate in empty config, and use update to allocate new entries. *)
+    iMod (gen_alocs_alloc ∅ OCV OPV  with "OCV rely") as (new_locs_name) "[newLocs newLocsFrags]".
     iMod (auth_map_map_alloc OCV OPV with "OCV rely") as (phy_history_name) "physHists".
     iMod (ghost_map_alloc (V := positive → option positive) OPV OCV ∅ (DfracOwn 1) with "OCV rely")
       as (bumpers_name) "[allBumpers _]"; first done.
@@ -59,10 +108,27 @@ Section high_adequacy.
     iMod (gen_alocs_alloc ∅ OCV OPV with "OCV rely") as (shared_locs_name) "[atLocs _]".
     iMod (ghost_map_alloc (V := view.view) OPV OCV ∅ (DfracOwn 1) with "OCV rely")
       as (non_atomic_views_gname) "[naView _]"; first done.
+    set (H := NvmHighG Σ Ω baseG preG full_predicates_name read_predicates_name pers_predicates_name
+                abs_history_name phy_history_name non_atomic_views_gname
+                preorders_name exclusive_locs_name shared_locs_name new_locs_name bumpers_name).
+    iSpecialize ("config" $! H).
+    iEval (rewrite /valid_config monPred_at_wand) in "config".
+    iSpecialize ("config" $! (∅, ∅, ∅) with "[//]").
+    iEval (rewrite ?monPred_at_big_sepM2) in "config".
+    iDestruct (big_sepM2_impl_dom_subseteq_with_resource
+                 (λ _ _ _, True)%I _ σ (locinfos H) σ (locinfos H) with "[-config] [] []") as "[resources preconfig]";
+      last iSpecialize ("config" with "preconfig").
+    { done. } { set_solver. } { iNamedAccu. }
+    { rewrite big_sepM2_forall.
+      iSplit; last done.
+      iPureIntro.
+      intros ℓ.
+      rewrite -?elem_of_dom.
+      set_solver. }
+    { admit. }
+    iNamed "resources".
     iModIntro.
-    iExists (NvmHighG Σ Ω baseG preG full_predicates_name read_predicates_name pers_predicates_name
-               abs_history_name phy_history_name non_atomic_views_gname
-               preorders_name exclusive_locs_name shared_locs_name new_locs_name bumpers_name).
+    iExists H.
     rewrite /own_all_bumpers.
     repeat (iExists ∅).
     iFrameNamed.
@@ -88,7 +154,6 @@ Section high_adequacy.
         (* pre_borrowN n -∗ *)
         validV ∅ -∗
         persisted PV -∗ (
-          (* TODO: confirm these modalities *)
           ■ (∀ σ nt, state_interp σ nt -∗ |={⊤,∅}=> ⌜ φinv σ ⌝) ∗
           ■ (Φinv -∗ □ ∀ σ nt, state_interp σ nt -∗ |={⊤,∅}=> ⌜ φinv σ ⌝) ∗
           wpr s ⊤ e r (λ v, ⌜φ v⌝) Φinv (λ v, ⌜φr v⌝))) →
@@ -185,14 +250,15 @@ Section high_adequacy.
     iFrame.
   Qed.
 
-  Corollary base_recv_adequacy_simpl_crash_weakestpre Σ Ω `{hPre : !nvmBaseGpreS Σ Ω, hP: !Perennial_preG Σ Ω} s (e r: expr) σ PV φ φc φr:
+  Corollary base_recv_adequacy_simpl_crash_weakestpre Σ Ω (φc: ∀ Σ Ω (base: nvmBaseGS Σ Ω) (high: nvmHighGS Σ Ω), dProp Σ)
+    `{hPre : !nvmBaseGpreS Σ Ω, hP: !Perennial_preG Σ Ω} s (e r: expr) σ PV φ φr:
     valid_heap σ →
     (∀ `{Hheap: !nvmBaseGS Σ Ω, Hhigh: !nvmHighGS Σ Ω, HP: !PerennialG Σ},
       ⊢ validV ∅ -∗
         persisted PV -∗
-        (WPC e @ s; ⊤ {{ λ v, ⌜ φ v ⌝ }} {{ φc }} ⊥) ∗
+        (WPC e @ s; ⊤ {{ λ v, ⌜ φ v ⌝ }} {{ (φc Σ Ω Hheap Hhigh) }} ⊥) ∗
         (* TODO: have an expert double check this modality *)
-        ■ (φc -∗ ▷ <NG> (WPC r @ s; ⊤ {{ λ v, ⌜ φr v ⌝ }} {{ φc }})) ⊥) →
+        ■ ((φc Σ Ω Hheap Hhigh) -∗ ▷ <NG> (WPC r @ s; ⊤ {{ λ v, ⌜ φr v ⌝ }} {{ (φc Σ Ω Hheap Hhigh) }})) ⊥) →
     recv_adequate s (e `at` ⊥) (r `at` ⊥) (σ, PV) (λ v _, φ v.(val_val)) (λ v _, φr v.(val_val)).
   Proof using Build_nvmHighGpreS.
     intros val hyp.
@@ -209,7 +275,7 @@ Section high_adequacy.
         iSpecialize ("Hwpc" $! i with "[//] [$]").
         rewrite ?monPred_at_later.
         iModIntro.
-        rewrite /nextgen.nextgen /=.
+        rewrite /nextgen /=.
         iIntros "!> #Hfrag".
         iSpecialize ("Hwpc" with "Hfrag").
         done.
