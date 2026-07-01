@@ -1302,7 +1302,7 @@ Section alloc.
     rewrite /view_add lookup_merge lookup_empty /=.
     destruct (V !! i) as [[] | ]; done.
   Qed.
-  
+
   Lemma nvm_heap_ctx_alloc `{!nvmBaseGpreS Σ Ω} (σ: store) PV:
     valid_heap σ →
     ⊢ |==> ∃ (_: nvmBaseGS Σ Ω),
@@ -1310,11 +1310,12 @@ Section alloc.
       ([∗ map] l↦v ∈ σ, l ↦fh v) ∗
       validV ∅ ∗
       crashed_at ∅ ∗
+      crashed_at_offset ∅ ∗
       persisted PV.
   Proof.
     intros.
     iMod (store_view_alloc (max_view σ)) as (?) "[store_view_auth #ValidV]".
-    iMod (crashed_at_alloc ∅) as (CrashedAtGS0 crash_inG_eq) "[#? crashed_tok]".
+    iMod (crashed_at_alloc ∅) as (CrashedAtGS0 crash_inG_eq) "[#crashedBoth crashed_tok]".
     pose proof (@persisted_auth_alloc _ _ CrashedAtGS0) as Hpersist.
     rewrite @crash_inG_eq in Hpersist.
     iDestruct (token_to_rely with "crashed_tok") as "#rely".
@@ -1345,9 +1346,16 @@ Section alloc.
       iDestruct (token_to_rely with "crashed_tok") as "rely'".
       iDestruct (rely_to_rely_self with "rely'") as "$".
       iDestruct "persisted_auth" as "[_ $]". }
+    iAssert (crashed_at_offset ∅)%I as "$".
+    { iExists ∅. iFrame "crashedBoth". }
     iSplitR "fmapsto"; last by iFrame "#".
     iExists ∅, ∅, σ.
     iFrame "∗#%".
+    (* [crashed_at_offset ∅] (added to the conclusion) sits in the □ context and
+     * is greedily framed into [own_auth_heap]'s [crashed_at_offset] slot, so we
+     * frame the remaining [own_auth_heap] components explicitly. *)
+    iDestruct "own_auth_heap" as (OCV') "(own_auth & _ & heapRely)".
+    iFrame "own_auth heapRely".
     iSplit; last done.
     iPureIntro.
     rewrite /store_drop_prefix.

@@ -1167,27 +1167,22 @@ Section wpr.
     rewrite map_Forall_lookup in bumperBumpToValid.
     eapply bumperBumpToValid; done.
   Qed.
-  
+
   Lemma idempotence_wpr
-      s E1 e e_rec Φ Φr Φc:
-    ⊢ validV (store_view e.(ts_view)) -∗
-    (WPC e.(ts_expr) @ s; E1 {{ Φ }} {{ Φc }}) e.(ts_view)-∗
-    (* TODO: have an expert double check this modality *)
-    ■ ((Φc -∗ ▷ <NG> (WPC e_rec @ s ; E1 {{ Φr }} {{ Φc }})) ⊥) -∗
-      wpr s E1 e (e_rec `at` ⊥) (λ v, Φ v.(val_val) v.(val_view)) True%I (λ v, Φr v.(val_val) v.(val_view)).
+      s E (e e_rec: expr) (Φ Φr: val → dProp Σ) (Φc: dProp Σ):
+    ⊢ (WPC e @ s; E {{ Φ }} {{ Φc }}) ⊥ -∗
+      ■ ((Φc -∗ ▷ <NG> (WPC e_rec @ s ; E {{ Φr }} {{ Φc }})) ⊥) -∗
+      validV ∅ -∗ wpr s E (e `at` ⊥) (e_rec `at` ⊥) (λ v, Φ v.(val_val) v.(val_view)) True%I (λ v, Φr v.(val_val) v.(val_view)).
   Proof.
-    iIntros "#validV Hwpc #Hidemp".
+    iIntros "Hwpc #Hidemp #HvalidV".
     iApply (idempotence_wpr
               (know_crash_frag_history_loc)
               extra_state_nextgen
-              s E1 e (e_rec `at` ⊥) _ _ _ (Φc ⊥)
-                            with "[Hwpc] [Hidemp]").
+              s E (e `at` ⊥) (e_rec `at` ⊥) _ _ _ (Φc ⊥)
+             with "[Hwpc] [Hidemp]").
     { iClear "Hidemp".
       rewrite wpc_eq /wpc_def /wpc /=.
-      iSpecialize ("Hwpc" $! (e.(ts_view)) with "[//] [$]").
-      destruct e.
-      simpl.
-      (* Set Printing All. *)
+      iSpecialize ("Hwpc" $! ⊥ with "[//] [$]").
       iApply (program_logic.crash_weakestpre.wpc_mono' with "[] [] Hwpc").
       { iIntros ([v TV']) "(% & _ & $)". }
       { iIntros. iAccu. } }

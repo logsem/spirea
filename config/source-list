@@ -13,6 +13,7 @@ src/encode_relation.v
 src/extra.v
 src/options.v
 src/high/adequacy.v
+src/high/adequacy_alloc.v
 src/high/crash_weakestpre.v
 src/high/dprop.v
 src/high/generational_resources.v

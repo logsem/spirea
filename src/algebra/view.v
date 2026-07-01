@@ -521,5 +521,3 @@ Qed. *)
 #[export] Hint Rewrite (lookup_singleton_ne (A := max_nat)) using assumption : view_simpl. (* FIXME: This hint doesn't seem to work. *)
 
 Ltac simpl_view := autorewrite with view_simpl.
-
-Print Assumptions view_to_zero_mono.

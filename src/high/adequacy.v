@@ -2,11 +2,12 @@ From iris.proofmode Require Import ltac_tactics.
 From iris.algebra Require Import auth.
 From iris_named_props Require Import named_props.
 
-From self Require Import ipm_tactics extra.
+From self Require Import ipm_tactics extra view_slice encode_relation.
+From self.high.lib Require Import increasing_map.
 From self.program_logic Require Import recovery_adequacy.
 From self.base Require Import wpr_lifting primitive_laws generational_resources cred_frag.
 From self.high Require Import
-  crash_weakestpre recovery_weakestpre generational_resources state_interpretation protocol locations.
+  crash_weakestpre recovery_weakestpre generational_resources state_interpretation protocol locations adequacy_alloc.
 From self.high.modalities Require Import nextgen.
 From self.nextgen Require Import nextgen_promises.
 
@@ -28,11 +29,13 @@ Class Perennial_preG Σ Ω := {
 Definition Build_credit_G Σ `{!Perennial_preG Σ Ω} (cred_names: cr_names): creditGS Σ :=
   creditGS_update_pre Σ P_preG_credit cred_names.
 
+Notation LocInfos H := (gmap loc (@LocInfo _ _ _ H)).
+
 Section high_adequacy.
   (* Turns [gmap loc val] to [gmap loc history] *)
   Definition initial_heap (σ : gmap loc val) : store :=
     (λ (v : val), {[ 0 := Msg v ∅ ∅ ∅ ]} : history ) <$> σ.
-  
+
   Lemma valid_heap_initial_heap σ : valid_heap (initial_heap σ).
   Proof.
     rewrite /valid_heap.
@@ -45,50 +48,27 @@ Section high_adequacy.
     apply view_le_lookup.
     done.
   Qed.
-  
-  (* For an adequacy lemma to be useful, we need to have some location known to both [e] and [r].
-   * All locations contains exactly one state [σ0], where both [p_full] and [p_pers] holds.
-   * TODO: we only support atomic locations for now. *)
-  (* Our protocol definition depends on [nvmHighGS], which we are going to build in
-   * [init_state_alloc]. Thus I make [nvmHighGS] an explicit argument. *)
-  Record LocInfo `{nvmBaseGS} {H: nvmHighGS Σ Ω} := MkLocInfo {
-    li_ℓ: loc;
-    li_ST: Type;
-    li_ST_eqdec :: EqDecision li_ST;
-    li_ST_countable :: Countable li_ST;
-    li_ST_is_abstract :: AbstractState li_ST;
-    li_prot: LocationProtocol li_ST;
-    li_prot_conds :: ProtocolConditions li_prot;
-    li_σ0: li_ST;
-  }.
-  Definition LocInfos `{nvmBaseGS} (H: nvmHighGS Σ Ω) := gmap loc (@LocInfo _ _ _ H).
-  
-  (* This is the pre-condition for a valid intial configuration. It provides the basic location assertions
-   * for the user to establish protocol predicates. *)
-  Definition valid_config `{nvmBaseGS}
-    (σ: gmap loc val)
-    (locinfos: ∀ H, LocInfos H) (H: nvmHighGS Σ Ω): dProp Σ :=
-    ([∗map] ℓ ↦ v; li ∈ σ; (locinfos H),
-       persist_lb ℓ li.(li_prot) li.(li_σ0) ∗ ℓ ↦_AT^{li.(li_prot)} [li.(li_σ0)]) ==∗
-    ([∗map] ℓ ↦ v; li ∈ σ; (locinfos H),
-       li.(li_prot).(p_full) li.(li_σ0) v ∗ li.(li_prot).(p_pers) li.(li_σ0) v).
 
   (* This lemma that builds [nvmHighGS], allocates the heap, and collects the individual location assertions. *)
-  Lemma init_state_alloc `{baseG: !nvmBaseGS Σ Ω, preG: !nvmHighGpreS Σ Ω} (σ: gmap loc val) locinfos PV:
-    (∀ (H: nvmHighGS Σ Ω), dom (locinfos H) = dom σ) →
-    ([∗ map] l ↦ h ∈ initial_heap σ, l ↦fh h) -∗
-    crashed_at ∅ -∗
-    persisted PV -∗
-    (∀ (H: nvmHighGS Σ Ω), valid_config σ locinfos H) ⊥ ==∗
-    ∃ (H: nvmHighGS Σ Ω), extra_state_interp ∗
-                          ([∗map] ℓ ↦ v; li ∈ σ; (locinfos H),
-                             persist_lb ℓ li.(li_prot) li.(li_σ0) ∗ ℓ ↦_AT^{li.(li_prot)} [li.(li_σ0)]) ⊥.
+  Lemma init_state_alloc `{baseG: !nvmBaseGS Σ Ω, preG: !nvmHighGpreS Σ Ω}
+    (σ__at σ__na: gmap loc val) PV OCV OPV:
+    dom σ__at ## dom σ__na →
+    dom OCV = ∅ →
+    dom (σ__at ∪ σ__na) ⊆ dom PV →
+    ([∗ map] l ↦ h ∈ initial_heap (σ__at ∪ σ__na), l ↦fh h) -∗
+    crashed_at_offset OCV -∗
+    rely_self crashed_at_name (crashed_at_pred OPV) -∗
+    persisted PV ==∗
+    ∃ (Hhigh: nvmHighGS Σ Ω), ∀ (locs__at locs__na : LocInfos Hhigh) (P: iProp Σ),
+    ⌜ dom locs__at = dom σ__at ⌝ -∗ ⌜dom locs__na = dom σ__na ⌝ -∗
+    (init_at_assertions σ__at locs__at ⊥ -∗
+     init_na_assertions σ__na locs__na ⊥ -∗
+     init_prots σ__at locs__at ⊥ ∗
+     init_prots σ__na locs__na ⊥ ∗ P) ==∗
+    extra_state_interp ∗ P.
   Proof.
-    iIntros (Hdom) "heap #CV #PV config".
-    iNamed "CV".
-    iAssert (crashed_at_offset OCV)%I as "#OCV".
-    { by iExists _. }
-    rewrite /extra_state_interp /highExtraStateInterp /interp.
+    iIntros (Hdisj HOCVdom HPVdom) "fmapstos #OCV #rely #PV".
+    rewrite /extra_state_interp /highExtraStateInterp.
     (* We choose to allocate in empty config, and use update to allocate new entries. *)
     iMod (gen_alocs_alloc ∅ OCV OPV  with "OCV rely") as (new_locs_name) "[newLocs newLocsFrags]".
     iMod (auth_map_map_alloc OCV OPV with "OCV rely") as (phy_history_name) "physHists".
@@ -111,83 +91,156 @@ Section high_adequacy.
     set (H := NvmHighG Σ Ω baseG preG full_predicates_name read_predicates_name pers_predicates_name
                 abs_history_name phy_history_name non_atomic_views_gname
                 preorders_name exclusive_locs_name shared_locs_name new_locs_name bumpers_name).
-    iSpecialize ("config" $! H).
-    iEval (rewrite /valid_config monPred_at_wand) in "config".
-    iSpecialize ("config" $! (∅, ∅, ∅) with "[//]").
-    iEval (rewrite ?monPred_at_big_sepM2) in "config".
-    iDestruct (big_sepM2_impl_dom_subseteq_with_resource
-                 (λ _ _ _, True)%I _ σ (locinfos H) σ (locinfos H) with "[-config] [] []") as "[resources preconfig]";
-      last iSpecialize ("config" with "preconfig").
-    { done. } { set_solver. } { iNamedAccu. }
-    { rewrite big_sepM2_forall.
-      iSplit; last done.
-      iPureIntro.
-      intros ℓ.
-      rewrite -?elem_of_dom.
-      set_solver. }
-    { admit. }
-    iNamed "resources".
-    iModIntro.
     iExists H.
-    rewrite /own_all_bumpers.
-    repeat (iExists ∅).
-    iFrameNamed.
-    rewrite ?big_sepM_empty ?big_sepM2_empty.
-    rewrite ?left_id.
-    iSplitL "newLocs".
-    { iExists OCV. iFrame "∗#". naive_solver. }
-    iSplit; first by iExists _.
-    repeat (iSplitPure; first (try (done || set_solver ))).
-    done.
+    iIntros "!>" (?????) "exchange".
+
+    iAssert (interp_pre ∅ ∅ ∅ ∅ ∅ ∅ ∅ ∅ ∅ ∅ ∅ ∅)
+      with "[newLocs physHists allBumpers history full_predicates
+             read_predicates pers_predicates allOrders naLocs atLocs naView]"
+      as "interp".
+    { rewrite /interp_pre.
+      iFrame "physHists history full_predicates read_predicates pers_predicates
+              allOrders naLocs atLocs naView allBumpers".
+      iSplitR; first by rewrite big_sepM_empty.
+      iSplitL "newLocs".
+      { iExists OCV. iFrame "newLocs OCV". iPureIntro. set_solver. }
+      iSplitR.
+      { iExists OPV. iFrame "rely". }
+      iSplitR; first by rewrite big_sepM2_empty.
+      iSplitR; first by rewrite big_sepM_empty.
+      iSplitR; first (iPureIntro; set_solver).
+      iSplitR; first (iPureIntro; set_solver).
+      iSplitR; first (iPureIntro; set_solver).
+      iSplitR; first (iPureIntro; rewrite restrict_empty; apply map_Forall_empty).
+      iSplitR; first by rewrite restrict_empty big_sepM_empty.
+      iSplitR; first by rewrite big_sepM2_empty.
+      iSplitR; first (iPureIntro; set_solver).
+      iSplitR; first by rewrite big_sepM2_empty.
+      iSplitR; first (iPureIntro; done).
+      iSplitR; first (iPureIntro; done).
+      iSplitR; first (iPureIntro; done).
+      iSplitR; first by rewrite big_sepM2_empty.
+      iSplitR; first by rewrite big_sepM2_empty.
+      iSplitR; first by rewrite big_sepM2_empty.
+      iSplitR; first (iPureIntro; apply map_Forall_empty).
+      by rewrite big_sepM2_empty. }
+
+    iEval (rewrite /initial_heap big_sepM_fmap /=) in "fmapstos".
+    rewrite big_sepM_union; last set_solver.
+    iDestruct "fmapstos" as "[atfmapstos nafmapstos]".
+    iMod (interp_pre_alloc_at_all OCV PV σ__at locs__at with "OCV PV interp atfmapstos") as
+      "(interp & init_at)"; [ done | set_solver | done | ].
+    iMod (interp_pre_alloc_na_all OCV PV σ__na locs__na with "OCV PV interp nafmapstos") as
+      "(interp & init_na)"; [ done | set_solver | done | set_solver | set_solver | ].
+    iDestruct ("exchange" with "init_at init_na") as "(init_at_prots & init_na_prots & P)".
+
+
+    iEval (rewrite /init_prots monPred_at_big_sepM2) in "init_na_prots".
+    iEval (rewrite /init_prots monPred_at_big_sepM2) in "init_at_prots".
+    iDestruct (big_sepM2_union with "init_na_prots init_at_prots") as "init_prots".
+    { apply map_disjoint_dom. set_solver. }
+    iFrame "P".
+    iModIntro.
+    iApply (interp_intro with "interp").
+    rewrite /init_prots -!map_fmap_union.
+    iEval (setoid_rewrite monPred_at_sep) in "init_prots".
+    iDestruct (big_sepM2_sep with "init_prots") as "[fulls perss]".
+    iSplitL "fulls".
+    - (* all_full_read_preds_hold *)
+      rewrite big_sepM2_fmap.
+      iApply (big_sepM2_impl with "fulls").
+      iIntros "!>" (ℓ v li Hσℓ Hlocℓ) "Hp".
+      rewrite /encoded_full_read_predicates_hold.
+      iExists (encode_predicate (li.(li_prot).(p_full))),
+                (encode_predicate (li.(li_prot).(p_read))), 0.
+      iSplitPure. { rewrite lookup_fmap Hlocℓ //. }
+      iSplitPure. { rewrite lookup_fmap Hlocℓ //. }
+      iSplitPure. { rewrite lookup_fmap Hσℓ //. }
+      rewrite !big_sepM2_singleton /=.
+      rewrite right_id_L.
+      rewrite lookup_singleton_ne //.
+      destruct (decide _); last naive_solver.
+      iPoseProof (no_buffer.into_no_buffer_at with "Hp") as "Hp".
+      rewrite !lookup_fmap /=.
+      assert (default ∅ ((λ _ : val, ∅) <$> σ__na !! ℓ) = (∅: view.view)) as -> by by destruct (σ__na !! ℓ).
+      iApply (predicate_holds_phi_decode_2 with "[] Hp"); first apply decode_encode.
+      done.
+    - (* all_pers_preds_hold *)
+      rewrite big_sepM2_fmap.
+      iApply (big_sepM2_impl with "perss").
+      iIntros "!>" (ℓ v li Hσℓ Hlocℓ) "Hp".
+      rewrite /encoded_pers_predicate_holds.
+      iExists (encode_predicate (li.(li_prot).(p_pers))), 0, 0,
+                (encode li.(li_σ0)), (Msg v ∅ ∅ ∅).
+      iSplitPure. { rewrite lookup_fmap Hlocℓ //. }
+      iSplitPure. { rewrite lookup_fmap Hσℓ //. }
+      iSplitPure. { rewrite lookup_singleton_eq //. }
+      iSplitPure. { rewrite lookup_singleton_eq //. }
+      iSplitPure. { rewrite /lookup_zero lookup_empty //. }
+      rewrite lookup_empty /=.
+      iSplitR "Hp"; first done.
+      iPoseProof (objective_at with "Hp") as "Hp".
+      iApply (predicate_holds_phi_decode_2 with "[] Hp"); first apply decode_encode.
+      done.
   Qed.
 
   (* FIXME: this should be treated by the [solve_inG] equivalent for [Ω]. *)
   Context (Build_nvmHighGpreS: ∀ Σ Ω (nvmBase: nvmBaseGS Σ Ω), nvmHighGpreS Σ Ω).
-  
-  (* ends missing proofs. *)    
+
+  (* [σ] is now the map of *initial values*; the store is [initial_heap σ].
+   * The caller provides [valid_config] (the obligation that the protocol
+   * predicates hold for the chosen initial states) and the program [Hwp] is
+   * handed the per-location starting assertions [persist_lb ∗ ↦_AT]. *)
   Theorem high_recv_adequacy Σ Ω `{!nvmBaseGpreS Σ Ω, !Perennial_preG Σ Ω}
-    s e r σ PV g φ φr φinv Φinv :
-    valid_heap σ →
-    (∀ `{!nvmBaseGS Σ Ω} `{!nvmHighGS Σ Ω} `{!PerennialG Σ},
-       ⊢
-        (* TODO: restore crash borrow after porting the dependencies *)
-        (* pre_borrowN n -∗ *)
-        validV ∅ -∗
-        persisted PV -∗ (
-          ■ (∀ σ nt, state_interp σ nt -∗ |={⊤,∅}=> ⌜ φinv σ ⌝) ∗
-          ■ (Φinv -∗ □ ∀ σ nt, state_interp σ nt -∗ |={⊤,∅}=> ⌜ φinv σ ⌝) ∗
-          wpr s ⊤ e r (λ v, ⌜φ v⌝) Φinv (λ v, ⌜φr v⌝))) →
-    recv_adequate (CS := nvm_crash_lang) s e r (σ, PV) g (λ v _ _, φ v) (λ v _ _, φr v) (λ σ _, φinv σ).
+    s e r (σ__at σ__na : gmap loc val) (PV : view.view) g φ φr φinv Φinv :
+    (dom σ__at ## dom σ__na) →
+    dom (σ__at ∪ σ__na) ⊆ dom PV →
+    (∀ (Hbase : nvmBaseGS Σ Ω) (Hhigh : nvmHighGS Σ Ω) (HP : PerennialG Σ),
+       ⊢ |==> ∃ (locs__at locs__na : LocInfos Hhigh),
+        ⌜ dom locs__at = dom σ__at ⌝ ∗ ⌜dom locs__na = dom σ__na ⌝ ∗
+        (init_at_assertions σ__at locs__at ⊥ -∗
+         init_na_assertions σ__na locs__na ⊥ -∗
+         validV ∅ -∗
+         init_prots σ__at locs__at ⊥ ∗
+         init_prots σ__na locs__na ⊥ ∗
+         ■ (∀ σ nt, state_interp σ nt -∗ |={⊤,∅}=> ⌜ φinv σ ⌝) ∗
+         ■ (Φinv -∗ □ ∀ σ nt, state_interp σ nt -∗ |={⊤,∅}=> ⌜ φinv σ ⌝) ∗
+         wpr s ⊤ e r (λ v, ⌜φ v⌝) Φinv (λ v, ⌜φr v⌝))) →
+        recv_adequate (CS := nvm_crash_lang) s e r (initial_heap (σ__at ∪ σ__na), PV) g (λ v _ _, φ v) (λ v _ _, φr v) (λ σ _, φinv σ).
   Proof using Build_nvmHighGpreS.
-    intros val Hwp.
+    intros Hdisj HPVdom Hwp.
     eapply (wp_recv_adequacy_inv _ _ _ _ _ _ _ _ _ _ _ _ _ _).
-    (* eapply (wp_recv_adequacy_inv _ _ _ nvmBaseDeltaGO _ _ _ _ _ _ _ _ _ _). *)
     iIntros (? ?) "".
     iStartProof.
     assert (∃ name_credit: cr_names, True) as [name_credit _].
     { by exists (Build_cr_names (xH) (xH)). }
-    (* iMod (credit_name_init (crash_borrow_ginv_number)) as *)
-        (* (name_credit) "(Hcred_auth & Hcred & Htok)". *)
-    (* iDestruct (cred_frag_split with "Hcred") as "(Hpre & Hcred)". *)
-    (* iAssert (|={⊤}=> crash_borrow_ginv)%I with "[Hcred]" as ">#Hinv". *)
-    (* { rewrite /crash_borrow_ginv. iApply (inv_alloc _). iNext. eauto. } *)
-
-    (* FIXME: some kind of typeclass failure? *)
-    iPoseProof (nvm_heap_ctx_alloc σ PV) as "heap"; first done.
-    iMod "heap" as (nvm_base_GS) "(interp & pts & #validV & crashedAt & #pers)".
+    iPoseProof (nvm_heap_ctx_alloc (initial_heap (σ__at ∪ σ__na)) PV) as "heap";
+      first apply valid_heap_initial_heap.
+    iMod "heap" as (nvm_base_GS)
+      "(interp & pts & #validV & crashedAt & #crashedOffset & #pers)".
+    (* Only extract [rely]; discarding [crashed_at_both] avoids [iFrame] later *)
+    (*    * pinning the goal's [nvm_heap_ctx] crash view to this [OCV] (≠ ∅). *)
+    iDestruct "crashedAt" as (OV OCV OPV) "(%veq & _ & rely)".
 
     set (highPreG := Build_nvmHighGpreS _ _ nvm_base_GS).
     set (PG := Build_PerennialG Σ Hinv (Build_credit_G Σ name_credit)).
 
-    iMod (extra_state_interp_alloc σ PV with "[$] [$] [#$]") as (nvm_high_GS) "extra"; first done.
-    
+    iMod (init_state_alloc σ__at σ__na PV ∅ OPV
+            with "pts crashedOffset rely pers")
+      as (nvm_high_GS) "init".
+    { set_solver. }
+    { set_solver. }
+    { set_solver. }
     iExists state_interp, global_state_interp, fork_post.
     iExists _, _.
     iExists (λ inv, Φinv)%I.
 
-    (* iDestruct (@cred_frag_to_pre_borrowN _ hG _ _ n with "Hpre") as "Hpre". *)
-    iDestruct (Hwp nvm_base_GS nvm_high_GS PG with "validV pers") as "(#H1 & #H2 & Hwp)".
-
+    iMod (Hwp nvm_base_GS nvm_high_GS PG) as (locs__at locs__na ? ?) "Hwp".
+    iMod ("init" $! locs__at locs__na _ with "[//] [//] [Hwp]") as "Hwp".
+    { iIntros "init_at init_na".
+      iDestruct ("Hwp" with "init_at init_na [//]") as "($ & $ & Hwp)".
+      iAccu. }
+    iDestruct "Hwp" as "(extra & #H1 & #H2 & Hwp)".
     iModIntro.
     iSplitR.
     { iApply "H1". }
@@ -197,7 +250,7 @@ Section high_adequacy.
     iFrame "#".
     by iExistsN.
     Unshelve.
-    - refine 0.
+    refine 0.
   Qed.
 
   (* Similar to the [recv_adequate] in Perennial except that:
@@ -226,61 +279,34 @@ Section high_adequacy.
     recv_adequate s e1 r1 σ1 φ φr.
   Proof. intros [????]. split; try naive_solver. Qed.
 
-  (* This is the simpler adequacy result. *)
-  Corollary high_recv_adequacy_simpl Σ Ω `{HbasePre : !nvmBaseGpreS Σ Ω, hP: !Perennial_preG Σ Ω} s e r σ PV φ φr:
-    valid_heap σ →
-    (∀ `{Hheap: !nvmBaseGS Σ Ω, Hhigh: !nvmHighGS Σ Ω, HP: !PerennialG Σ},
-      ⊢ validV ∅ -∗
-        persisted PV -∗
-        wpr s ⊤ e r (λ v, ⌜φ v⌝) True (λ v, ⌜φr v⌝)) →
-    recv_adequate s e r (σ, PV) (λ v _, φ v) (λ v _, φr v).
+  Theorem high_recv_adequacy_simple Σ Ω `{!nvmBaseGpreS Σ Ω, !Perennial_preG Σ Ω}
+    s (e e_rec : expr) (σ__at σ__na : gmap loc val) (PV : view.view) (φ φr : val → Prop) :
+    dom σ__at ## dom σ__na →
+    dom (σ__at ∪ σ__na) ⊆ dom PV →
+    (∀ (Hbase : nvmBaseGS Σ Ω) (Hhigh : nvmHighGS Σ Ω) (HP : PerennialG Σ),
+       ⊢ |==> ∃ (locs__at locs__na : LocInfos Hhigh),
+        ⌜ dom locs__at = dom σ__at ⌝ ∗ ⌜dom locs__na = dom σ__na ⌝ ∗
+        (init_at_assertions σ__at locs__at ⊥ -∗
+         init_na_assertions σ__na locs__na ⊥ -∗
+         validV ∅ -∗
+         init_prots σ__at locs__at ⊥ ∗
+         init_prots σ__na locs__na ⊥ ∗
+         wpr s ⊤ (e `at` ⊥) (e_rec `at` ⊥)
+           (λ v, ⌜ φ v.(val_val) ⌝)%I True%I (λ v, ⌜ φr v.(val_val) ⌝)%I)) →
+    recv_adequate s (e `at` ⊥) (e_rec `at` ⊥) (initial_heap (σ__at ∪ σ__na), PV)
+      (λ v _, φ v.(val_val)) (λ v _, φr v.(val_val)).
   Proof using Build_nvmHighGpreS.
-    intros val hyp.
+    intros Hdisj HPVdom Hwp.
     apply adequacy_impl.
-    eapply (high_recv_adequacy Σ Ω); first done.
-    intros nB nH nBD.
-    specialize (hyp nB nH nBD).
-    iIntros "validV pers".
-    iDestruct (hyp with "validV pers") as "wpr".
+    eapply (high_recv_adequacy Σ Ω); [ set_solver | set_solver | ].
+    intros.
+    specialize (Hwp Hbase Hhigh HP).
+    iMod Hwp as (locs__at locs__na) "($ & $ & Hwp)".
+    iIntros "!> init_at ini_na validV".
+    iDestruct ("Hwp" with "[$] [$] [$]") as "($ & $ & $)".
     iSplit.
-    { iIntros "!>" (? ?) "_". iApply fupd_mask_intro; naive_solver. }
-    iSplit.
-    { iIntros "!> ? !>". iIntros (? ?) "?".
-      iApply fupd_mask_intro; naive_solver. }
-    iFrame.
-  Qed.
-
-  Corollary base_recv_adequacy_simpl_crash_weakestpre Σ Ω (φc: ∀ Σ Ω (base: nvmBaseGS Σ Ω) (high: nvmHighGS Σ Ω), dProp Σ)
-    `{hPre : !nvmBaseGpreS Σ Ω, hP: !Perennial_preG Σ Ω} s (e r: expr) σ PV φ φr:
-    valid_heap σ →
-    (∀ `{Hheap: !nvmBaseGS Σ Ω, Hhigh: !nvmHighGS Σ Ω, HP: !PerennialG Σ},
-      ⊢ validV ∅ -∗
-        persisted PV -∗
-        (WPC e @ s; ⊤ {{ λ v, ⌜ φ v ⌝ }} {{ (φc Σ Ω Hheap Hhigh) }} ⊥) ∗
-        (* TODO: have an expert double check this modality *)
-        ■ ((φc Σ Ω Hheap Hhigh) -∗ ▷ <NG> (WPC r @ s; ⊤ {{ λ v, ⌜ φr v ⌝ }} {{ (φc Σ Ω Hheap Hhigh) }})) ⊥) →
-    recv_adequate s (e `at` ⊥) (r `at` ⊥) (σ, PV) (λ v _, φ v.(val_val)) (λ v _, φr v.(val_val)).
-  Proof using Build_nvmHighGpreS.
-    intros val hyp.
-    apply (high_recv_adequacy_simpl Σ Ω); first done.
-    iIntros (Hheap Hhigh HP) "#validV #persisted".
-    iPoseProof (hyp with "validV persisted") as "[WPC recover]".
-    iApply wpr_strong_mono.
-    - iApply (idempotence_wpr _ _ _ _ _).
-      + done.
-      + done.
-      + iApply (plainly_mono with "recover").
-        rewrite ?monPred_at_wand.
-        iIntros "Hwpc %i % Φc".
-        iSpecialize ("Hwpc" $! i with "[//] [$]").
-        rewrite ?monPred_at_later.
-        iModIntro.
-        rewrite /nextgen /=.
-        iIntros "!> #Hfrag".
-        iSpecialize ("Hwpc" with "Hfrag").
-        done.
-    - iApply (plainly_intro True); last done.
-      iIntros (_).
-      repeat iSplit; naive_solver. 
+    - iIntros "!>" (? ?) "_". iApply fupd_mask_intro; naive_solver.
+    - iIntros "!> ? !>". iIntros (? ?) "?".
+      iApply fupd_mask_intro; naive_solver.
   Qed.
 End high_adequacy.
