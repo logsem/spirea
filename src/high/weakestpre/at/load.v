@@ -163,7 +163,7 @@ Section wp_at.
     done.
   Qed.
 
-  Lemma wp_load_at ℓ ss s Q1 Q2 prot `{!ProtocolConditions prot} st E :
+  Lemma wp_load_at ℓ ss s Q1 Q2 prot `{!ProtocolConditions ℓ prot} st E :
     {{{
       ℓ ↦_AT^{prot} (ss ++ [s]) ∗
       (* The case where we read an already known write. *)
@@ -626,7 +626,7 @@ Section wp_at.
       iFrame "physHist".
   Qed.
 
-  Lemma wp_load_at_simple ℓ sI Q prot `{!ProtocolConditions prot} st E :
+  Lemma wp_load_at_simple ℓ sI Q prot `{!ProtocolConditions ℓ prot} st E :
       {{{
         ℓ ↦_AT^{prot} [sI] ∗
         <obj> (∀ sL vL, ⌜ sI ⊑ sL ⌝ -∗ prot.(p_read) sL vL -∗ Q sL vL ∗ prot.(p_read) sL vL)
@@ -668,7 +668,7 @@ Section wp_at.
     Qed.
 
   (* Load a location where the protocol invariant is persistent. *)
-  Lemma wp_load_at_simple_pers ℓ (sI : ST) prot `{!ProtocolConditions prot} st E
+  Lemma wp_load_at_simple_pers ℓ (sI : ST) prot `{!ProtocolConditions ℓ prot} st E
     `{∀ s v, Persistent (prot.(p_read) s v)} :
       {{{ ℓ ↦_AT^{prot} [sI] }}}
         !_AT #ℓ @ st; E

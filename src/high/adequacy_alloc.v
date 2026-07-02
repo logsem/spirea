@@ -40,7 +40,7 @@ Section adequacy_alloc.
     li_ST_countable :: Countable li_ST;
     li_ST_is_abstract :: AbstractState li_ST;
     li_prot: LocationProtocol li_ST;
-    li_prot_conds :: ProtocolConditions li_prot;
+    li_prot_conds :: ∀ ℓ, ProtocolConditions ℓ li_prot;
     li_σ0: li_ST;
   }.
   Notation LocInfos H := (gmap loc (@LocInfo _ _ _ H)).
@@ -131,7 +131,8 @@ Section adequacy_alloc.
                               ⌜ predicates_full !! ℓ = Some encp_full ⌝ ∗
                               ⌜ predicates_read !! ℓ = Some encp_read ⌝ ∗
                               ⌜ predicates_pers !! ℓ = Some encp_pers ⌝ ∗
-                              ■ (∀ encσ_p v_p encσ_f v_f MsgV_f,
+                              ■ (know_protocol_enc ℓ encp_full encp_read encp_pers order bump -∗
+                                 ∀ encσ_p v_p encσ_f v_f MsgV_f,
                                    ⌜ order encσ_p encσ_f ∨ encσ_p = encσ_f ⌝ -∗
                                    encoded_predicate_holds encp_pers encσ_p v_p (∅, ∅, ∅) -∗
                                    encoded_predicate_holds encp_full encσ_f v_f MsgV_f -∗
@@ -139,7 +140,7 @@ Section adequacy_alloc.
                                       ⌜ bump encσ_f = Some encσ_f' ⌝ ==∗
                                       ∃ P_full' P_pers',
                                         encp_full encσ_f' v_f ≡ Some P_full' ∗ encp_pers encσ_f' v_f ≡ Some P_pers' ∗
-                                        (nextgen_flush (P_full' ∗ P_pers': dPropO Σ)) MsgV_f) ∧
+                                        (nextgen_flush (⎡ crashed_in_enc ℓ encσ_f ⎤ -∗ P_full' ∗ P_pers': dPropO Σ)) MsgV_f) ∧
                                    (∀ encσ_c encσ_c' v_c MsgV_c,
                                       ⌜ bump encσ_c = Some encσ_c' ⌝ -∗
                                       ⌜ order encσ_p encσ_c ∨ encσ_p = encσ_c ⌝ -∗
@@ -147,7 +148,7 @@ Section adequacy_alloc.
                                       encoded_predicate_holds encp_read encσ_c v_c MsgV_c ==∗
                                       ∃ P_full' P_pers',
                                         encp_full encσ_c' v_c ≡ Some P_full' ∗ encp_pers encσ_c' v_c ≡ Some P_pers' ∗
-                                        (nextgen_flush (P_full' ∗ P_pers': dPropO Σ)) MsgV_c))) ∗
+                                        (nextgen_flush (⎡ crashed_in_enc ℓ encσ_c ⎤ -∗ P_full' ∗ P_pers': dPropO Σ)) MsgV_c))) ∗
     "#predReadNextgen" ∷ ([∗ map] ℓ ↦ pred_read; bumper ∈ predicates_read; bumpers,
                             ∀ e e' v TV, ■ (⌜ bumper e = Some e' ⌝ -∗ encoded_predicate_holds pred_read e v TV -∗
                                             ∃ (P: dPropO Σ), pred_read e' v ≡ Some P ∗ (nextgen_flush (P: dProp Σ)) TV)) ∗
@@ -158,7 +159,14 @@ Section adequacy_alloc.
       (λ _ bumper, ∀ e e', bumper e = Some e' → is_Some (bumper e'))
       bumpers⌝ ∗
     "#bumperSome" ∷ ([∗ map] ℓ ↦ abs_hist; bumper ∈ abs_hists; bumpers,
-                       ⌜ map_Forall (λ _ e, is_Some (bumper e)) abs_hist ⌝).
+                       ⌜ map_Forall (λ _ e, is_Some (bumper e)) abs_hist ⌝) ∗
+    "#locsOffsets" ∷ ([∗ map] ℓ ↦ offset ∈ offsets, offset_loc ℓ offset) ∗
+    "#locsProtocols" ∷ ([∗ map] ℓ ↦ order; bump ∈ orders; bumpers,
+                          ∃ encp_full encp_read encp_pers,
+                            ⌜ predicates_full !! ℓ = Some encp_full ⌝ ∗
+                            ⌜ predicates_read !! ℓ = Some encp_read ⌝ ∗
+                            ⌜ predicates_pers !! ℓ = Some encp_pers ⌝ ∗
+                            know_protocol_enc ℓ encp_full encp_read encp_pers order bump).
 
   (* Reassemble [interp] from [interp_pre] plus the two predicate-holds
    * components. *)
@@ -181,7 +189,7 @@ Section adequacy_alloc.
   Qed.
 
   Lemma interp_pre_insert_loc_at `{AbstractState ST, nvmHighGS}
-      ℓ OCV (prot : LocationProtocol ST) `{!ProtocolConditions prot}
+      ℓ OCV (prot : LocationProtocol ST) `{!ProtocolConditions ℓ prot}
       σ SV PV v
       phys_hists abs_hists global_pview predicates_full predicates_read predicates_pers
       orders bumpers na_locs at_locs offsets na_views :
@@ -244,13 +252,13 @@ Section adequacy_alloc.
     { done. }
 
     (* Add the predicate for the location. *)
-    iMod (own_all_preds_insert _ _ _ prot.(p_full) with "full_predicates") as "[full_predicates knowFullPred]".
+    iMod (own_all_preds_insert _ _ _ prot.(p_full) with "full_predicates") as "[full_predicates #knowFullPred]".
     { eapply map_dom_eq_lookup_None; last apply physHistsLook.
       congruence. }
-    iMod (own_all_preds_insert _ _ _ prot.(p_read) with "read_predicates") as "[read_predicates knowReadPred]".
+    iMod (own_all_preds_insert _ _ _ prot.(p_read) with "read_predicates") as "[read_predicates #knowReadPred]".
     { eapply map_dom_eq_lookup_None; last apply physHistsLook.
       congruence. }
-    iMod (own_all_preds_insert _ _ _ prot.(p_pers) with "pers_predicates") as "[pers_predicates knowPersPred]".
+    iMod (own_all_preds_insert _ _ _ prot.(p_pers) with "pers_predicates") as "[pers_predicates #knowPersPred]".
     { eapply map_dom_eq_lookup_None; last apply physHistsLook.
       congruence. }
 
@@ -375,15 +383,16 @@ Section adequacy_alloc.
         rewrite ?lookup_insert_eq.
         do 3 (iSplitPure; first done).
         iApply (plainly_intro emp); last done.
-        iIntros (_ ?????) "%HorderPF (%P_pers & #eqPers & persHolds) (%P_full & #eqFull & fullHolds)".
+        iIntros "_ #protEnc" (?????) "%HorderPF (%P_pers & #eqPers & persHolds) (%P_full & #eqFull & fullHolds)".
         iDestruct (encode_predicate_decode with "eqPers") as (σ_p) "%Hdecodeσ_p".
         iDestruct (encode_predicate_decode with "eqFull") as (σ_f) "%Hdecodeσ_f".
         iPoseProof (encode_predicate_extract with "eqPers persHolds") as "predPers".
         { done. }
         iPoseProof (encode_predicate_extract with "eqFull fullHolds") as "predFull".
         { done. }
-        (* FIXME: why does typeclass resolution break here? *)
-        iDestruct (pred_full_nextgen (prot := prot) $! MsgV_f σ_p v_p σ_f v_f) as "impl".
+        iPoseProof (know_protocol_enc_know_protocol with "protEnc") as "prot".
+        iDestruct (pred_full_nextgen with "prot") as "impl".
+        iSpecialize ("impl" $! σ_p v_p σ_f v_f).
         iEval (rewrite ?monPred_wand_force) in "impl".
         iDestruct ("impl" with "[%] [predPers] predFull") as "NGF".
         { destruct HorderPF; last by simplify_eq.
@@ -401,13 +410,10 @@ Section adequacy_alloc.
           iExists _, _.
           iSplit. { iPureIntro. simpl. reflexivity. }
           iSplit. { iPureIntro. simpl. reflexivity. }
-          iAssumption.
+          iDestruct (nextgen_crashed_in_enc_to_crashed_in ℓ prot σ_f encσ_f with "prot") as "crashedIn"; first done.
+          iApply (nextgen_flush_wand_trans with "crashedIn NGF").
         + iIntros (???? bumperEq HorderPC HorderCF) "(%P_read & #eqRead & readHolds)".
           iDestruct "NGF" as "[_ NGF]".
-          (* we need to instantiate the universal, but we cannot find the *)
-          (* instance for [s_c], because we don't know whether [decode e_c] *)
-          (* yields anything, not until after we instantiate [s_c]. but we can *)
-          (* get around it by case distinction. *)
           destruct (@decode ST _ _ encσ_c) as [ σ_c | ] eqn:Heqn.
           * iPoseProof (encode_predicate_extract with "eqRead readHolds") as "predRead".
             { done. }
@@ -426,9 +432,9 @@ Section adequacy_alloc.
             iExists _, _.
             iSplit. { iPureIntro. simpl. reflexivity. }
             iSplit. { iPureIntro. simpl. reflexivity. }
-            iAssumption.
-          * (* this is the spurious case, we will see that once we get hold of *)
-            (* [encode_bumper], we will just feed some random [ST] *)
+            iDestruct (nextgen_crashed_in_enc_to_crashed_in ℓ prot σ_c' encσ_c with "prot") as "crashedIn"; first done.
+            iApply (nextgen_flush_wand_trans with "crashedIn NGF").
+          * (* spurious case: [decode encσ_c = None] contradicts [bump encσ_c = Some] *)
             apply encode_bumper_Some_decode in bumperEq.
             destruct bumperEq as (s3' & bumperEq & bumperEq').
             rewrite Heqn in bumperEq.
@@ -485,15 +491,38 @@ Section adequacy_alloc.
       split; last done.
       apply encode_bumper_bump_to_valid. }
     (* bumperSome *)
-    iApply (big_sepM2_insert_2 with "[] bumperSome").
-    iPureIntro.
-    apply map_Forall_singleton.
-    rewrite encode_bumper_encode.
-    done.
+    iSplit.
+    { iApply (big_sepM2_insert_2 with "[] bumperSome").
+      iPureIntro.
+      apply map_Forall_singleton.
+      rewrite encode_bumper_encode.
+      done. }
+    (* [locsOffsets] *)
+    iSplit.
+    { rewrite big_sepM_insert.
+      2: { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
+      iFrame "#". }
+    (* [locsProtocols] *)
+    iApply (big_sepM2_insert_2 with "[]").
+    - iExists _, _, _.
+      rewrite ?lookup_insert_eq.
+      do 3 (iSplitPure; first done).
+      iApply know_protocol_know_protocol_enc.
+      iFrame "knowFullPred knowReadPred knowPersPred knowOrder knowBumper".
+    - iApply (big_sepM2_impl with "locsProtocols").
+      iIntros "!> %ℓ' %order' %bump' %orderLook %bumpLook (% & % & % & % & % & % & ?)".
+      iExists _, _, _.
+      assert (ℓ' ∈ dom abs_hists).
+      { apply elem_of_dom_2 in bumpLook. congruence. }
+      assert (ℓ ≠ ℓ') by congruence.
+      do 3 (rewrite lookup_insert_ne; last done).
+      do 3 (iSplitPure; first done).
+      done.
+    Unshelve. all: done.
   Qed.
 
   Lemma interp_pre_insert_loc_na `{AbstractState ST, nvmHighGS}
-      ℓ OCV (prot : LocationProtocol ST) `{!ProtocolConditions prot}
+      ℓ OCV (prot : LocationProtocol ST) `{!ProtocolConditions ℓ prot}
       σ SV PV v
       phys_hists abs_hists global_pview predicates_full predicates_read predicates_pers
       orders bumpers na_locs at_locs offsets na_views :
@@ -551,11 +580,11 @@ Section adequacy_alloc.
     { done. }
 
     (* Add the predicate to the ghost state of predicates. *)
-    iMod (own_all_preds_insert (ST := ST) with "full_predicates") as "[full_predicates knowFullPred]".
+    iMod (own_all_preds_insert (ST := ST) with "full_predicates") as "[full_predicates #knowFullPred]".
     { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
-    iMod (own_all_preds_insert (ST := ST) with "read_predicates") as "[read_predicates knowReadPred]".
+    iMod (own_all_preds_insert (ST := ST) with "read_predicates") as "[read_predicates #knowReadPred]".
     { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
-    iMod (own_all_preds_insert (ST := ST) with "pers_predicates") as "[pers_predicates knowPersPred]".
+    iMod (own_all_preds_insert (ST := ST) with "pers_predicates") as "[pers_predicates #knowPersPred]".
     { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
     (* add offset to offsets *)
     iMod (offset_auth_insert with "crashed_at offsets") as "[offsets #offset]".
@@ -692,14 +721,16 @@ Section adequacy_alloc.
         rewrite ?lookup_insert_eq.
         do 3 (iSplitPure; first done).
         iApply (plainly_intro emp); last done.
-        iIntros (_ ?????) "%HorderPF (%P_pers & #eqPers & persHolds) (%P_full & #eqFull & fullHolds)".
+        iIntros "_ #protEnc" (?????) "%HorderPF (%P_pers & #eqPers & persHolds) (%P_full & #eqFull & fullHolds)".
         iDestruct (encode_predicate_decode with "eqPers") as (σ_p) "%Hdecodeσ_p".
         iDestruct (encode_predicate_decode with "eqFull") as (σ_f) "%Hdecodeσ_f".
         iPoseProof (encode_predicate_extract with "eqPers persHolds") as "predPers".
         { done. }
         iPoseProof (encode_predicate_extract with "eqFull fullHolds") as "predFull".
         { done. }
-        iDestruct (pred_full_nextgen (prot := prot) $! MsgV_f σ_p v_p σ_f v_f) as "impl".
+        iPoseProof (know_protocol_enc_know_protocol with "protEnc") as "prot".
+        iDestruct (pred_full_nextgen with "prot") as "impl".
+        iSpecialize ("impl" $! σ_p v_p σ_f v_f).
         iEval (rewrite ?monPred_wand_force) in "impl".
         iDestruct ("impl" with "[%] [predPers] predFull") as "NGF".
         { destruct HorderPF; last by simplify_eq.
@@ -717,13 +748,10 @@ Section adequacy_alloc.
           iExists _, _.
           iSplit. { iPureIntro. simpl. reflexivity. }
           iSplit. { iPureIntro. simpl. reflexivity. }
-          iAssumption.
+          iDestruct (nextgen_crashed_in_enc_to_crashed_in ℓ prot σ_f encσ_f with "prot") as "crashedIn"; first done.
+          iApply (nextgen_flush_wand_trans with "crashedIn NGF").
         + iIntros (???? bumperEq HorderPC HorderCF) "(%P_read & #eqRead & readHolds)".
           iDestruct "NGF" as "[_ NGF]".
-          (* we need to instantiate the universal, but we cannot find the *)
-          (* instance for [s_c], because we don't know whether [decode e_c] *)
-          (* yields anything, not until after we instantiate [s_c]. but we can *)
-          (* get around it by case distinction. *)
           destruct (@decode ST _ _ encσ_c) as [ σ_c | ] eqn:Heqn.
           * iPoseProof (encode_predicate_extract with "eqRead readHolds") as "predRead".
             { done. }
@@ -742,9 +770,9 @@ Section adequacy_alloc.
             iExists _, _.
             iSplit. { iPureIntro. simpl. reflexivity. }
             iSplit. { iPureIntro. simpl. reflexivity. }
-            iAssumption.
-          * (* this is the spurious case, we will see that once we get hold of *)
-            (* [encode_bumper], we will just feed some random [ST] *)
+            iDestruct (nextgen_crashed_in_enc_to_crashed_in ℓ prot σ_c' encσ_c with "prot") as "crashedIn"; first done.
+            iApply (nextgen_flush_wand_trans with "crashedIn NGF").
+          * (* spurious case: [decode encσ_c = None] contradicts [bump encσ_c = Some] *)
             apply encode_bumper_Some_decode in bumperEq.
             destruct bumperEq as (s3' & bumperEq & bumperEq').
             rewrite Heqn in bumperEq.
@@ -801,11 +829,34 @@ Section adequacy_alloc.
       split; last done.
       apply encode_bumper_bump_to_valid. }
     (* bumperSome *)
-    iApply (big_sepM2_insert_2 with "[] bumperSome").
-    iPureIntro.
-    apply map_Forall_singleton.
-    rewrite encode_bumper_encode.
-    done.
+    iSplit.
+    { iApply (big_sepM2_insert_2 with "[] bumperSome").
+      iPureIntro.
+      apply map_Forall_singleton.
+      rewrite encode_bumper_encode.
+      done. }
+    (* [locsOffsets] *)
+    iSplit.
+    { rewrite big_sepM_insert.
+      2: { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
+      iFrame "#". }
+    (* [locsProtocols] *)
+    iApply (big_sepM2_insert_2 with "[]").
+    - iExists _, _, _.
+      rewrite ?lookup_insert_eq.
+      do 3 (iSplitPure; first done).
+      iApply know_protocol_know_protocol_enc.
+      iFrame "knowFullPred knowReadPred knowPersPred knowOrder knowBumper".
+    - iApply (big_sepM2_impl with "locsProtocols").
+      iIntros "!> %ℓ' %order' %bump' %orderLook %bumpLook (% & % & % & % & % & % & ?)".
+      iExists _, _, _.
+      assert (ℓ' ∈ dom abs_hists).
+      { apply elem_of_dom_2 in bumpLook. congruence. }
+      assert (ℓ ≠ ℓ') by congruence.
+      do 3 (rewrite lookup_insert_ne; last done).
+      do 3 (iSplitPure; first done).
+      done.
+    Unshelve. all: done.
   Qed.
 
   Lemma interp_pre_alloc_at_all `{Hhigh: nvmHighGS}

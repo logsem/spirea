@@ -264,6 +264,15 @@ Section IntoNGFlush.
     (∀ k (x : A), IntoNGFlush (ϕ k x) (ψ k x)) →
     IntoNGFlush ([∗ list] k↦x ∈ l, ϕ k x)%I ([∗ list] k↦x ∈ l, ψ k x)%I.
   Proof. revert ϕ ψ. induction l as [|x l IH]=> Φ ψ ? /=; apply _. Qed.
+
+  Lemma nextgen_flush_wand_trans P Q R :
+    ⊢ (<NGF> (P -∗ Q)) -∗ (<NGF> (Q -∗ R)) -∗ (<NGF> (P -∗ R)).
+  Proof.
+    iIntros "H1 H2".
+    iDestruct (nextgen_flush_sep with "[$H1 $H2]") as "H".
+    iApply (nextgen_flush_mono with "H").
+    apply bi.wand_trans.
+  Qed.
 End IntoNGFlush.
 
 

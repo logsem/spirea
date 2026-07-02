@@ -6,7 +6,7 @@ From self.high Require Import generational_resources abstract_state_instances pr
 Set Default Proof Using "Type*".
 
 Section constant_prot.
-  Context `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω, !PerennialG Σ}.
+  Context `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω}.
 
   Definition constant_prot (v1 : val) : LocationProtocol unit :=
     {|
@@ -15,8 +15,8 @@ Section constant_prot.
       p_pers := λ _ v2, ⌜ v1 = v2 ⌝%I;
       p_bumper := id |}.
 
-  #[global] Instance constant_prot_cond (v1 : val) :
-    ProtocolConditions (constant_prot v1).
+  #[global] Instance constant_prot_cond (v1 : val) ℓ :
+    ProtocolConditions ℓ (constant_prot v1).
   Proof.
     split; try apply _.
     - iIntros (? ?). rewrite /p_full /p_read /=.
@@ -26,13 +26,13 @@ Section constant_prot.
         iPureIntro.
         naive_solver.
     - rewrite /p_full /p_read /=.
-      iIntros (? ? ? ? _ _ ?).
+      iIntros "_" (? ? ? ? _ _ ?).
       iSplit.
       + do 2 iModIntro.
-        done.
+        by iIntros.
       + iIntros (? ?) "!> % _ _".
         do 2 iModIntro.
-        done.
+        by iIntros.
     - rewrite /p_read /=.
       iIntros (? ?) "%".
       by iModIntro.
@@ -48,17 +48,18 @@ Section constant_prot.
       p_bumper := id;
     |}.
 
-  #[global] Instance discrete_prot_cond:
-    ProtocolConditions discrete_prot.
+  #[global] Instance discrete_prot_cond ℓ:
+    ProtocolConditions ℓ discrete_prot.
   Proof.
     split; try apply _; rewrite /discrete_prot /=.
     - iIntros.
       iSplit; first naive_solver.
       iIntros "[$ _]".
-    - iIntros.
-      iSplit; first by do 2 iModIntro.
+    - iIntros "_".
+      iIntros.
+      iSplit; first by iIntros "!>!> _".
       iIntros (??) "!> %%%".
-      by do 2 iModIntro.
+      by iIntros "!>!> _".
     - iIntros.
       by iModIntro.
   Qed.

@@ -15,7 +15,7 @@ From self.lang Require Import syntax tactics lemmas.
 From self.base Require Import generational_resources primitive_laws.
 
 From self.high.lib Require Import abstract_state abstract_state_instances increasing_map protocols.
-From self.high Require Import monpred_simpl protocol locations crash_weakestpre weakestpre.
+From self.high Require Import monpred_simpl protocol locations crash_weakestpre weakestpre modalities.
 From self.high.modalities Require Import fence_sync_atomic.
 From self.high Require Import weakestpre_at weakestpre_na proofmode.
 
@@ -23,30 +23,6 @@ From self.examples.lib Require Import excl_list.
 
 From self Require Export lang.
 From self.high Require Export dprop.
-
-Section LocationAxioms.
-  Context `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω, !PerennialG Σ, AbstractState ST}.
-
-  Implicit Types (ℓ: loc) (σ s: ST) (prot: LocationProtocol ST).
-
-  Lemma mapsto_na_agree ℓ q1 q2 prot ss1 ss2:
-    ℓ ↦_{prot}^{q1} ss1 -∗
-    ℓ ↦_{prot}^{q2} ss2 -∗
-    ⌜ ss1 = ss2 ⌝.
-  Proof.
-  Admitted.
-
-  Lemma mapsto_na_flushed_agree ℓ q1 q2 prot s1 s2:
-    mapsto_na_flushed ℓ prot q1 s1 -∗
-    mapsto_na_flushed ℓ prot q2 s2 -∗
-    ⌜ s1 = s2 ⌝.
-  Proof.
-    iNamed 1.
-    iIntros "(% & % & pts' & _)".
-    iDestruct (mapsto_na_agree with "pts pts'") as %->.
-    by simplify_eq.
-  Qed.
-End LocationAxioms.
 
 (* A node is a pointer to a value and a pointer to the next node. *)
 Definition nil : expr := InjL #().
@@ -227,39 +203,7 @@ Section StackHist.
     - rewrite (eval_app_None _ [inr ()] _ Heqn) in H.
       congruence.
   Qed.
-  
-  (* Lemma eval_find_push n: ∀ h stk x xs, *)
-  (*   length h ≤ n → *)
-  (*   eval h stk = Some (x :: xs) → *)
-  (*   (* Case 1: x came from the initial stack *) *)
-  (*   (∃ popped, stk = popped ++ (x :: xs)) ∨ *)
-  (*   (* Case 2: x was pushed by h *) *)
-  (*   (∃ h1 h2, h = h1 ++ [inl x] ++ h2 ∧  *)
-  (*             eval h2 [] = Some [] ∧  *)
-  (*             eval h1 stk = Some xs). *)
-  (* Proof. *)
-  (*   induction n; simpl; intros ???? Hlength Heval. *)
-  (*   - destruct h as [ | ]; last (simpl in *; lia). *)
-  (*     simpl in Heval. *)
-  (*     simplify_eq. *)
-  (*     left. *)
-  (*     by (exists []). *)
-  (*   - destruct (last h) as [ [ | ] | ] eqn:Hlast. *)
-  (*     + apply last_Some in Hlast as [h' ->]. *)
-  (*       pose proof Heval as Heval'. *)
-  (*       apply eval_snoc_push_inv in Heval' as [Heval' <-]. *)
-  (*       right. *)
-  (*       exists h', []. *)
-  (*       done. *)
-  (*     + apply last_Some in Hlast as [h' ->]. *)
-  (*       rewrite length_app /= in Hlength. *)
-  (*       assert (length h' ≤ n) as Hlength' by lia. *)
-        
-  (*     + rewrite last_None in Hlast. *)
-  (*       rewrite Hlast /= in Heval. *)
-  (*       simplify_eq. *)
-  (*       left. *)
-  (*       by (exists []). *)
+
   Lemma paired_exists_aux h x xs1 xs2:
     eval h [] = Some (xs1 ++ x :: xs2) →
     ∃ h1 h2, h = h1 ++ inl x :: h2 ∧ eval h2 [] = Some xs1.
@@ -304,14 +248,55 @@ Section StackHist.
   Qed.
 End StackHist.
 
+Section seen_states.
+  Context `{nvmHighGS}.
+  Definition seen_states ℓ (h: history): dProp Σ :=
+    [∗ list] i ↦ _ ∈ h, seen_state ℓ (take i h).
+
+  Lemma seen_states_nil ℓ: ⊢ seen_states ℓ [].
+  Proof. rewrite /seen_states //. Qed.
+
+  Lemma seen_states_app ℓ h v:
+    seen_states ℓ h -∗ seen_state ℓ h -∗ seen_states ℓ (h ++ [v]).
+  Proof.
+    iIntros "seens seen".
+    rewrite /seen_states big_sepL_app.
+    iSplitL "seens".
+    - iApply (big_sepL_impl with "[$]").
+      iIntros "!>" (i x Hlook) "H".
+      apply lookup_lt_Some in Hlook.
+      rewrite take_app_le; last lia.
+      iFrame.
+    - rewrite big_sepL_singleton Nat.add_0_r.
+      rewrite take_app_length'; last done.
+      iFrame.
+  Qed.
+
+  Lemma seen_states_lookup ℓ h h':
+    h' ≠ h → h' ⊑ h → seen_states ℓ h -∗ seen_state ℓ h'.
+  Proof.
+    iIntros (Hneq [h'' ->]) "seens".
+    assert (length h' < length (h' ++ h'')).
+    { rewrite length_app.
+      destruct h''; simpl; last lia.
+      contradict Hneq.
+      rewrite app_nil_r //. }
+    assert (is_Some ((h' ++ h'') !! length h')) as [x ?] by (apply lookup_lt_is_Some; done).
+    iDestruct (big_sepL_lookup with "[$]") as "H"; first done.
+    assert (take (length h') (h' ++ h'') = h') as ->.
+    { rewrite take_app_length' //. }
+    done.
+  Qed.
+End seen_states.
+
 Section definitions.
-  Context `{!excl_listG (leibnizO (val + unit)) Σ Ω, !nvmBaseGS Σ Ω, !nvmHighGS Σ Ω, !PerennialG Σ}.
+  Context `{!excl_listG (leibnizO (val + unit)) Σ Ω, !nvmBaseGS Σ Ω, !nvmHighGS Σ Ω}.
 
   (* We assume a per-element predicate. *)
   Context (ϕ : val → dProp Σ) (γ: gname).
 
-  (* The per-element predicate must be stable under the <PCF> modality and not
-  use anything from the buffer. *)
+  (* The per-element predicate must be stable under the nextgen modality and not
+   * use anything from the buffer. *)
   Context `{∀ a, IntoNGFlush (ϕ a) (ϕ a),
             ∀ a, BufferFree (ϕ a)}.
 
@@ -331,7 +316,7 @@ Section definitions.
       p_pers := λ '(mk_numbered t v) v', ⌜ v = v' ⌝%I;
       p_bumper v := v |}.
 
-  Global Instance toNext_prot_conditions : ProtocolConditions toNext_prot.
+  Global Instance toNext_prot_conditions ℓ : ProtocolConditions ℓ toNext_prot.
   Proof.
     split; try apply _.
     - destruct s. simpl. apply _.
@@ -344,13 +329,13 @@ Section definitions.
         iPureIntro.
         naive_solver.
     - rewrite /p_full /p_read /=.
-      iIntros ([?] ? [?] ? _ _ ?).
+      iIntros "_" ([?] ? [?] ? _ _ ?).
       iSplit.
       + do 2 iModIntro.
-        done.
+        by iIntros.
       + iIntros ([?] ?) "!> % _ _".
         do 2 iModIntro.
-        done.
+        by iIntros.
     - rewrite /p_read /=.
       iIntros ([?] ?) "%".
       by iModIntro.
@@ -360,11 +345,6 @@ Section definitions.
 
   Definition cons_node v ℓtoNext := mk_discrete (InjRV (v, #ℓtoNext)).
   Definition nil_node := mk_discrete (InjLV #()).
-  
-  (* Definition nil_node_prot := constant_prot (InjLV #()). *)
-
-  (* Definition cons_node_prot (x : val) (ℓtoNext : loc) := *)
-  (*   constant_prot (InjRV (x, #ℓtoNext)). *)
 
   (* Representation predicate for a node. *)
   Fixpoint is_node ℓnode (xs : list val) : dProp Σ :=
@@ -435,7 +415,6 @@ Section definitions.
       + repeat iExists _. iFrame. iFrame "#".
   Qed.
 
-  (* TODO: need lemma about [mapsto_na] agreement. *)
   Lemma is_node_agree ℓnode xs1 xs2:
     is_node ℓnode xs1 -∗ is_node ℓnode xs2 -∗ ⌜ xs1 = xs2 ⌝.
   Proof.
@@ -473,9 +452,6 @@ Section definitions.
       "%eval" ∷ ⌜ eval h [] = Some xs ⌝ ∗
       "isNode" ∷ is_node ℓnode xs.
 
-  Definition seen_states ℓ (h: history): dProp Σ :=
-    ∀ h', ⌜ h' ≠ h ⌝ -∗ ⌜ h' `prefix_of` h ⌝ -∗ seen_state ℓ h'.
-  
   Definition toHead_prots ℓ :=
     {| p_full (h : history) (v : val) := (⎡ list_auth γ h ⎤ ∗ duplicable_inv h v ∗ ownϕ h ∗ seen_states ℓ h)%I;
        p_read (h : history) (v : val) := (duplicable_inv h v ∗ ownϕ h)%I;
@@ -483,13 +459,129 @@ Section definitions.
        p_bumper s := s;
     |}.
 
-  p_full ⊢ <NG> p_full.
-
-  seen_states ℓ h ⊢ <NG> seen_states ℓ h                  
-
-  #[global] Instance toHead_prot_conditions ℓ : ProtocolConditions (toHead_prots ℓ).
+  (* The lemma wasn't proved as a typeclass instance thus the manual lifting. *)
+  Lemma list_auth_token_nextgen l l' (h : history) :
+    l ≤ l' → l' ≤ length h →
+    ⎡ list_auth γ h ⎤ -∗ ⎡ list_token γ l ⎤ -∗
+    |==> <NG> ⎡ list_auth γ (take l' h) ∗ list_token γ l' ⎤.
   Proof.
-  Admitted.
+    iIntros (Hle Hle') "? ?".
+    iMod (list_auth_token_nextgen with "[$] [$]") as "NG"; [ done | done | ].
+    by iIntros "!>!>".
+  Qed.
+
+  Lemma seen_states_nextgen ℓ h h' :
+    h' ⊑ h →
+    ⎡ know_protocol ℓ (toHead_prots ℓ) ⎤ -∗ seen_states ℓ h -∗
+    <NG> (crashed_in (toHead_prots ℓ) ℓ h' -∗ seen_states ℓ h').
+  Proof.
+    iIntros (Hprefix) "#locationProtocol #seen".
+    iAssert ([∗ list] i↦_ ∈ h', <NG> (crashed_in (toHead_prots ℓ) ℓ h' -∗ seen_state ℓ (take i h')))%I
+      as "NG".
+    { iApply big_sepL_intro. iIntros "!>" (i ? Hlook).
+      apply lookup_lt_Some in Hlook.
+      assert (is_Some (h !! i)) as [? ?].
+      { apply lookup_lt_is_Some. eapply Nat.lt_le_trans; first done.
+        by apply prefix_length. }
+      iDestruct (big_sepL_lookup  with "seen") as "seen'"; first done.
+      assert (take i h = take i h') as <-.
+      { destruct Hprefix as [? ->]. rewrite take_app_le //. lia. }
+      iDestruct (nextgen_seen_state with "[$seen' $locationProtocol]") as "seenNG".
+      iApply (nextgen.nextgen_mono with "seenNG").
+      iIntros "H #crashedIn". iApply ("H" $! h' with "[%] crashedIn").
+      intro Hprefix'.
+      apply prefix_length in Hprefix'.
+      rewrite length_take in Hprefix'. lia. }
+    iDestruct (nextgen.nextgen_big_sepL with "NG") as "NG'".
+    iApply (nextgen.nextgen_mono with "NG'").
+    iIntros "H #?".
+    iApply (big_sepL_impl with "H").
+    iIntros "!>" (???) "impl".
+    by iApply "impl".
+  Qed.
+
+  #[export] Instance seen_states_buffer_free ℓ h : BufferFree (seen_states ℓ h).
+  Proof. apply _. Qed.
+
+  #[export] Instance duplicable_inv_buffer_free h v : BufferFree (duplicable_inv h v).
+  Proof. apply _. Qed.
+
+  #[export] Instance ownϕ_buffer_free h : BufferFree (ownϕ h).
+  Proof. rewrite /ownϕ. destruct (last h) as [[?|?]|]; apply _. Qed.
+
+  #[export] Instance embed_list_elem_into_ng_flush l :
+    IntoNGFlush ⎡ list_elem_with_rely γ l ⎤ ⎡ list_elem_with_rely γ l ⎤.
+  Proof. apply into_nextgen_into_nextgen_flushed. apply _. Qed.
+
+  Global Instance duplicable_inv_into_ng_flush h v :
+    IntoNGFlush (duplicable_inv h v) (duplicable_inv h v).
+  Proof.
+    rewrite /IntoNGFlush /duplicable_inv.
+    iNamed 1.
+    iModIntro.
+    iFrame.
+    done.
+  Qed.
+
+  Global Instance ownϕ_into_ng_flush h :
+    IntoNGFlush (ownϕ h) (ownϕ h).
+  Proof.
+    rewrite /ownϕ.
+    destruct (last h) as [[ v' | ] | ]; try apply into_nextgen_flushed.
+    apply disj_into_nextgen_flush; first done.
+    apply exist_into_nextgen_flush.
+    intros.
+    apply sep_into_nextgen_flush; last apply _.
+    apply into_nextgen_into_nextgen_flushed.
+    apply _.
+  Qed.
+
+  #[global] Instance toHead_prot_conditions ℓ : ProtocolConditions ℓ (toHead_prots ℓ).
+  Proof.
+    split; try apply _.
+    - intros h v. rewrite /toHead_prots /=. iSplit.
+      + iIntros "($ & $ & $ & $)".
+        naive_solver.
+      + iIntros "[? impl]". by iApply "impl".
+    - rewrite /toHead_prots /=.
+      iIntros "#prot" (σ_p v_p σ_f v_f ?) "tok (auth & inv & ownϕ & seen)".
+      assert (length σ_p ≤ length σ_f) by (by apply prefix_length).
+      iSplit.
+      + iMod (list_auth_token_nextgen _ (length σ_f) with "auth tok") as "list".
+        { done. } { done. }
+        iModIntro.
+        assert (take (length σ_f) σ_f = σ_f) as -> by (rewrite take_ge //).
+        iDestruct (seen_states_nextgen with "[$] [$]") as "seen"; first reflexivity.
+        iDestruct (nextgen_flush_nextgen with "list") as "list".
+        iDestruct (nextgen_flush_nextgen with "seen") as "seen".
+        iModIntro.
+        iIntros "#crashedIn".
+        iDestruct "list" as "[$ $]".
+        iFrame.
+        by iApply "seen".
+      + (* TODO: redesign protocol to grant pure facts earlier.  *)
+        iAssert (∀ σ_c, ⌜ σ_c ⊑ σ_f ⌝ -∗
+                   <NG> (crashed_in (toHead_prots ℓ) ℓ σ_c -∗ seen_states ℓ σ_c))%I with "[seen]"
+          as "seen".
+        { iIntros. by iApply (seen_states_nextgen with "[$] [$]"). }
+        iIntros (??) "!> [inv ownϕ] % %Hordercf".
+        assert (length σ_c ≤ length σ_f) by (by apply prefix_length).
+        assert (length σ_p ≤ length σ_c) by (by apply prefix_length).
+        iMod (list_auth_token_nextgen (length σ_p) (length σ_c) σ_f with "auth tok") as "list".
+        { done. } { done. }
+        assert (take (length σ_c) σ_f = σ_c) as ->.
+        { destruct Hordercf as [? ->]. rewrite take_app_le; last done. by rewrite take_ge. }
+        iDestruct ("seen" $! σ_c with "[//]") as "seen".
+        iModIntro.
+        iDestruct (nextgen_flush_nextgen with "list") as "list".
+        iDestruct (nextgen_flush_nextgen with "seen") as "seen".
+        iModIntro.
+        iIntros "#crashedIn".
+        iDestruct "list" as "[$ $]".
+        iFrame.
+        by iApply "seen".
+    - by iIntros (??) "? !>".
+  Qed.
 
   (* The representation predicate for the entire stack. *)
   Definition is_stack (ℓtoHead : loc) : dProp Σ :=
@@ -558,8 +650,7 @@ Section proof.
         iExists _. iFrame.
         done. }
       rewrite /ownϕ /= left_id.
-      iIntros (h' ? [? ?]).
-      destruct h'; done. }
+      iApply seen_states_nil. }
     iNext. iIntros (?) "?".
     iApply "ϕpost".
     iExists _. iFrame.
@@ -568,7 +659,7 @@ Section proof.
   Context (γ: gname).
 
   (* The stack is crash safe. *)
-  Lemma is_stack_post_crash ℓ :
+  Lemma is_stack_nextgen ℓ :
     is_stack ϕ γ ℓ -∗ <NG> if_rec ℓ (is_stack ϕ γ ℓ).
   Proof.
     iIntros "[% pts]".
@@ -580,7 +671,7 @@ Section proof.
     iFrame.
   Qed.
 
-  Lemma is_stack_synced_post_crash ℓ :
+  Lemma is_stack_synced_nextgen ℓ :
     is_stack ϕ γ ℓ -∗ is_synced ϕ γ ℓ -∗ <NG> (is_stack ϕ γ ℓ).
   Proof.
     iIntros "[% pts] [% S]".
@@ -610,7 +701,7 @@ Section proof.
     wp_apply (wp_flush_na with "nodePts").
     iIntros "(nodePts & #nodeFlushLb & _)".
     wp_pure1. wp_pure1. wp_pure1.
-    iAssert (∃ xs x', ⌜ last xs = Some x' ⌝ ∗ ℓtoNext ↦_{_} xs)%I with "[toNextPts]" as "toNextPts".
+    iAssert (∃ xs (x': numbered val), ⌜ last xs = Some x' ⌝ ∗ ℓtoNext ↦_{_} xs)%I with "[toNextPts]" as "toNextPts".
     { iExists _, _. iFrame. done. }
     iLöb as "IH".
     iDestruct "toNextPts" as (xs' [n' x'] lastEq) "toNextPts".
@@ -677,7 +768,7 @@ Section proof.
         iModIntro.
         iSplitL; last (iSplit; [by iModIntro | done]).
         rewrite /toHead_prots /duplicable_inv /=.
-        iFrame.
+        iFrame "list_auth".
         iSplitR "ϕ seen seens".
         { iExists ℓnode, (x :: xs).
           iSplit; first done.
@@ -691,17 +782,7 @@ Section proof.
           iPureIntro. rewrite last_app. done. }
         rewrite /ownϕ last_snoc.
         iSplitL "ϕ"; first by iLeft.
-        iIntros (h' ? Hprefix).
-        destruct (decide (σ_l = h')); simplify_list_eq; first done.
-        iApply "seens"; first done.
-        iPureIntro.
-        destruct Hprefix as [h'' ?].
-        destruct (last h'') eqn:Heqn.
-        + apply last_Some in Heqn as [h''' ->].
-          simplify_list_eq.
-          by eexists.
-        + apply last_None in Heqn as ->.
-          simplify_list_eq.
+        iApply (seen_states_app with "[$] [$]").
       - iSplitL ""; last iFrame.
         iModIntro.
         naive_solver. }
@@ -818,8 +899,9 @@ Section proof.
         subst ℓtoNext0.
         clear eq1.
         iAssert ⌜ ℓnext = ℓnext0 ⌝%I with "[toNextPts toNextPts']" as "<-".
-        { iDestruct "toNextPts'" as (?) "(% & toNextPts' & _)".
+        { iDestruct "toNextPts'" as (?) "(%lastEq' & toNextPts' & _)".
           iDestruct (mapsto_na_agree with "toNextPts toNextPts'") as %eq.
+          rewrite lastEq lastEq' in eq.
           by simplify_map_eq. }
         iClear "node' isNode headPts headPts' toNextPts toNextPts'".
         assert (eval (σ_l ++ [inr ()]) [] = Some xs) as Heval'.
@@ -836,25 +918,14 @@ Section proof.
           (* [view_incl] *)
           iSplitR; last done.
           destruct (decide (σ_l = h__push)); simplify_list_eq; first done.
-          iApply "seens"; first done.
-          iPureIntro.
+          iApply (seen_states_lookup with "[$]"); first done.
           destruct Hpair as (? & ? & ?).
           simplify_list_eq.
           by eexists. }
         iSplitL.
         2: {
           rewrite /ownϕ last_snoc left_id.
-          iIntros (h' ? Hprefix).
-          destruct (decide (σ_l = h')); simplify_list_eq; first done.
-          iApply "seens"; first done.
-          iPureIntro.
-          destruct Hprefix as [h'' ?].
-          destruct (last h'') eqn:Heqn.
-          + apply last_Some in Heqn as [h''' ->].
-            simplify_list_eq.
-            by eexists.
-          + apply last_None in Heqn as ->.
-            simplify_list_eq. }
+          iApply (seen_states_app with "[$] [$]"). }
         iExists ℓnext, xs.
         iSplit; first done.
         erewrite eval_snoc_pop; last eassumption.
@@ -880,7 +951,7 @@ Section proof.
         iApply ("IH" with "ϕpost").
   Qed.
 
-    Lemma wp_flush stack v s E:
+    Lemma wp_sync stack v s E:
     {{{ is_stack ϕ γ stack ∗ booked ϕ γ stack v }}}
       sync #stack @ s; E
     {{{ RET #(); ϕ v }}}.
@@ -952,8 +1023,9 @@ Section proof.
       iApply "ϕpost".
       done.
   Qed.
-  
-  Lemma wpc_sync (stack : loc) s E :
+
+  (* [sync] also make the library itself persist. *)
+  Lemma wp_sync' (stack : loc) s E :
     {{{ is_stack ϕ γ stack }}}
       sync #stack @ s ; E
     {{{ RET #(); is_synced ϕ γ stack }}}.

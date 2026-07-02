@@ -7,13 +7,13 @@ From self.high.lib Require Import increasing_map.
 
 From self.nextgen Require Import nextgen_promises.
 From self.base Require Import primitive_laws generational_resources.
-From self.high Require Export dprop predicates generational_resources.
+From self.high Require Export dprop predicates generational_resources protocol.
 From self.high.resources Require Import
   gen_ghost_map gen_ghost_map_map gen_alocs gen_predicates auth_map_map.
 From self.high.modalities Require Import nextgen_flush.
 From self.lang Require Import lang.
 
-Set Default Proof Using "Type*".
+Set Default Proof Using "Type".
 
 (* Convert a message to a thread_view corresponding to what is stored in the
 message. *)
@@ -253,7 +253,8 @@ Section state_interpretation.
         ⌜ predicates_full !! ℓ = Some encp_full ⌝ ∗
         ⌜ predicates_read !! ℓ = Some encp_read ⌝ ∗
         ⌜ predicates_pers !! ℓ = Some encp_pers ⌝ ∗
-        ■ (∀ encσ_p v_p encσ_f v_f MsgV_f,
+        ■ (know_protocol_enc ℓ encp_full encp_read encp_pers order bump -∗
+           ∀ encσ_p v_p encσ_f v_f MsgV_f,
              ⌜ order encσ_p encσ_f ∨ encσ_p = encσ_f ⌝ -∗
              encoded_predicate_holds encp_pers encσ_p v_p (∅, ∅, ∅) -∗
              encoded_predicate_holds encp_full encσ_f v_f MsgV_f -∗
@@ -262,7 +263,7 @@ Section state_interpretation.
                 ⌜ bump encσ_f = Some encσ_f' ⌝ ==∗
                 ∃ P_full' P_pers',
                   encp_full encσ_f' v_f ≡ Some P_full' ∗ encp_pers encσ_f' v_f ≡ Some P_pers' ∗
-                  (nextgen_flush (P_full' ∗ P_pers': dPropO Σ)) MsgV_f) ∧
+                  (nextgen_flush (⎡ crashed_in_enc ℓ encσ_f ⎤ -∗ P_full' ∗ P_pers': dPropO Σ)) MsgV_f) ∧
              (* second case: crash at [encσ_c ⊏ encσ_f] *)
              (∀ encσ_c encσ_c' v_c MsgV_c,
                 ⌜ bump encσ_c = Some encσ_c' ⌝ -∗
@@ -271,7 +272,7 @@ Section state_interpretation.
                 encoded_predicate_holds encp_read encσ_c v_c MsgV_c ==∗
                 ∃ P_full' P_pers',
                   encp_full encσ_c' v_c ≡ Some P_full' ∗ encp_pers encσ_c' v_c ≡ Some P_pers' ∗
-                  (nextgen_flush (P_full' ∗ P_pers': dPropO Σ)) MsgV_c))) ∗
+                  (nextgen_flush (⎡ crashed_in_enc ℓ encσ_c ⎤ -∗ P_full' ∗ P_pers': dPropO Σ)) MsgV_c))) ∗
 
       "#predReadNextgen" ∷ ([∗ map] ℓ ↦ pred_read; bumper ∈ predicates_read; bumpers,
         ∀ e e' v TV, ■ (⌜ bumper e = Some e' ⌝ -∗ encoded_predicate_holds pred_read e v TV -∗
@@ -288,7 +289,16 @@ Section state_interpretation.
             bumpers⌝ ∗
       (* All the abstract state are "valid" inputs to the bumpers. *)
       "#bumperSome" ∷ ([∗ map] ℓ ↦ abs_hist; bumper ∈ abs_hists; bumpers,
-        ⌜ map_Forall (λ _ e, is_Some (bumper e)) abs_hist ⌝).
+        ⌜ map_Forall (λ _ e, is_Some (bumper e)) abs_hist ⌝) ∗
+
+      (* additional knowledge for protocol recovery. *)
+      "#locsOffsets" ∷ ([∗ map] ℓ ↦ offset ∈ offsets, offset_loc ℓ offset) ∗
+      "#locsProtocols" ∷ ([∗ map] ℓ ↦ order; bump ∈ orders; bumpers,
+        ∃ encp_full encp_read encp_pers,
+          ⌜ predicates_full !! ℓ = Some encp_full ⌝ ∗
+          ⌜ predicates_read !! ℓ = Some encp_read ⌝ ∗
+          ⌜ predicates_pers !! ℓ = Some encp_pers ⌝ ∗
+          know_protocol_enc ℓ encp_full encp_read encp_pers order bump).
 
   Global Instance highExtraStateInterp : extraStateInterp Σ := {
     extra_state_interp := interp;

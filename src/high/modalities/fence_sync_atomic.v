@@ -50,7 +50,7 @@ Section post_fence_sync.
     fi_ST_countable :: Countable fi_ST;
     fi_ST_is_abstract :: AbstractState fi_ST;
     fi_prot: LocationProtocol fi_ST;
-    fi_prot_conds :: ProtocolConditions fi_prot;
+    fi_prot_conds :: ProtocolConditions fi_ℓ fi_prot;
     fi_σ: fi_ST;
     fi_σ_xchg: fi_ST;
     fi_post: dProp Σ

@@ -23,7 +23,7 @@ Section wp_na.
 
   Implicit Types (ℓ : loc) (σ : ST) (prot : LocationProtocol ST).
 
-  Lemma wp_alloc_na v s prot `{!ProtocolConditions prot} st E :
+  Lemma wp_alloc_na v s prot `{∀ ℓ, ProtocolConditions ℓ prot} st E :
     {{{ prot.(p_full) s v ∗ prot.(p_pers) s v }}}
       ref_NA v @ st; E
     {{{ ℓ, RET #ℓ; ℓ ↦_{prot} ([] ++ [s]) }}}.
@@ -86,11 +86,11 @@ Section wp_na.
     { done. }
 
     (* Add the predicate to the ghost state of predicates. *)
-    iMod (own_all_preds_insert (ST := ST) with "full_predicates") as "[full_predicates knowFullPred]".
+    iMod (own_all_preds_insert (ST := ST) with "full_predicates") as "[full_predicates #knowFullPred]".
     { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
-    iMod (own_all_preds_insert (ST := ST) with "read_predicates") as "[read_predicates knowReadPred]".
+    iMod (own_all_preds_insert (ST := ST) with "read_predicates") as "[read_predicates #knowReadPred]".
     { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
-    iMod (own_all_preds_insert (ST := ST) with "pers_predicates") as "[pers_predicates knowPersPred]".
+    iMod (own_all_preds_insert (ST := ST) with "pers_predicates") as "[pers_predicates #knowPersPred]".
     { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
     (* add offset to offsets *)
     iMod (offset_auth_insert with "crashed_at offsets") as "[offsets #offset]".
@@ -261,7 +261,7 @@ Section wp_na.
     iSplit.
     { iApply (big_sepM2_insert_2 with "[] bumpMono").
       iPureIntro. simpl.
-      apply encode_bumper_bump_mono. apply bumper_mono. }
+      apply encode_bumper_bump_mono. apply (bumper_mono (ℓ := ℓ)). }
     (* bumper = three domains *)
     iSplitPure; first set_solver.
     iSplitPure; first set_solver.
@@ -273,14 +273,16 @@ Section wp_na.
         rewrite ?lookup_insert_eq.
         do 3 (iSplitPure; first done).
         iApply (plainly_intro emp); last done.
-        iIntros (_ ?????) "%HorderPF (%P_pers & #eqPers & persHolds) (%P_full & #eqFull & fullHolds)".
+        iIntros "_ #protEnc" (?????) "%HorderPF (%P_pers & #eqPers & persHolds) (%P_full & #eqFull & fullHolds)".
         iDestruct (encode_predicate_decode with "eqPers") as (σ_p) "%Hdecodeσ_p".
         iDestruct (encode_predicate_decode with "eqFull") as (σ_f) "%Hdecodeσ_f".
         iPoseProof (encode_predicate_extract with "eqPers persHolds") as "predPers".
         { done. }
         iPoseProof (encode_predicate_extract with "eqFull fullHolds") as "predFull".
         { done. }
-        iDestruct (pred_full_nextgen (prot := prot) $! MsgV_f σ_p v_p σ_f v_f) as "impl".
+        iPoseProof (know_protocol_enc_know_protocol with "protEnc") as "prot".
+        iDestruct (pred_full_nextgen with "prot") as "impl".
+        iSpecialize ("impl" $! σ_p v_p σ_f v_f).
         iEval (rewrite ?monPred_wand_force) in "impl".
         iDestruct ("impl" with "[%] [predPers] predFull") as "NGF".
         { destruct HorderPF; last by simplify_eq.
@@ -298,13 +300,10 @@ Section wp_na.
           iExists _, _.
           iSplit. { iPureIntro. simpl. reflexivity. }
           iSplit. { iPureIntro. simpl. reflexivity. }
-          iAssumption.
+          iDestruct (nextgen_crashed_in_enc_to_crashed_in ℓ prot σ_f encσ_f with "prot") as "crashedIn"; first done.
+          iApply (nextgen_flush_wand_trans with "crashedIn NGF").
         + iIntros (???? bumperEq HorderPC HorderCF) "(%P_read & #eqRead & readHolds)".
           iDestruct "NGF" as "[_ NGF]".
-          (* we need to instantiate the universal, but we cannot find the *)
-          (* instance for [s_c], because we don't know whether [decode e_c] *)
-          (* yields anything, not until after we instantiate [s_c]. but we can *)
-          (* get around it by case distinction. *)
           destruct (@decode ST _ _ encσ_c) as [ σ_c | ] eqn:Heqn.
           * iPoseProof (encode_predicate_extract with "eqRead readHolds") as "predRead".
             { done. }
@@ -323,9 +322,9 @@ Section wp_na.
             iExists _, _.
             iSplit. { iPureIntro. simpl. reflexivity. }
             iSplit. { iPureIntro. simpl. reflexivity. }
-            iAssumption.
-          * (* this is the spurious case, we will see that once we get hold of *)
-            (* [encode_bumper], we will just feed some random [ST] *)
+            iDestruct (nextgen_crashed_in_enc_to_crashed_in ℓ prot σ_c' encσ_c with "prot") as "crashedIn"; first done.
+            iApply (nextgen_flush_wand_trans with "crashedIn NGF").
+          * (* spurious case: [decode encσ_c = None] contradicts [bump encσ_c = Some] *)
             apply encode_bumper_Some_decode in bumperEq.
             destruct bumperEq as (s3' & bumperEq & bumperEq').
             rewrite Heqn in bumperEq.
@@ -335,15 +334,12 @@ Section wp_na.
                  (%pred_full & %pred_read & %pred_pers &
                   %predFullLook & %predReadLook & %predPersLook & PostCrash)".
         iExists pred_full, pred_read, pred_pers.
-        assert (ℓ' ∈ dom abs_hists). {
-          apply elem_of_dom_2 in bumperLook.
-          congruence.
-        }
+        assert (ℓ' ∈ dom abs_hists).
+        { apply elem_of_dom_2 in bumperLook. congruence. }
         assert (ℓ ≠ ℓ') by congruence.
         do ? (rewrite lookup_insert_ne; last done).
         do 3 (iSplitPure; first done).
-        iApply "PostCrash".
-    }
+        iApply "PostCrash". }
     (* [read_nextgen] *)
     iSplit. {
       iApply (big_sepM2_insert_2 with "[] predReadNextgen").
@@ -382,12 +378,33 @@ Section wp_na.
       split; last done.
       apply encode_bumper_bump_to_valid. }
     (* bumperSome *)
-    iApply (big_sepM2_insert_2 with "[] bumperSome").
-    iPureIntro.
-    apply map_Forall_singleton.
-    rewrite encode_bumper_encode.
-    done.
-    (* For some reason, during proof the [ProtocolConditoins prot] can not be found? *)
+    iSplit.
+    { iApply (big_sepM2_insert_2 with "[] bumperSome").
+      iPureIntro.
+      apply map_Forall_singleton.
+      rewrite encode_bumper_encode.
+      done. }
+    (* [locsOffsets] *)
+    iSplit.
+    { rewrite big_sepM_insert.
+      2: { eapply map_dom_eq_lookup_None; last apply physHistsLook. congruence. }
+      iFrame "#". }
+    (* [locsProtocols] *)
+    iApply (big_sepM2_insert_2 with "[]").
+    - iExists _, _, _.
+      rewrite ?lookup_insert_eq.
+      do 3 (iSplitPure; first done).
+      iApply know_protocol_know_protocol_enc.
+      iFrame "knowFullPred knowReadPred knowPersPred knowOrder knowBumper".
+    - iApply (big_sepM2_impl with "locsProtocols").
+      iIntros "!> %ℓ' %order' %bump' %orderLook %bumpLook (% & % & % & % & % & % & ?)".
+      iExists _, _, _.
+      assert (ℓ' ∈ dom abs_hists).
+      { apply elem_of_dom_2 in bumpLook. congruence. }
+      assert (ℓ ≠ ℓ') by congruence.
+      do 3 (rewrite lookup_insert_ne; last done).
+      do 3 (iSplitPure; first done).
+      done.
     Unshelve. all: done.
   Qed.
 End wp_na.

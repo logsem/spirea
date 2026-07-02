@@ -88,14 +88,8 @@ Definition know_crash_frag_history_loc `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω}: iP
                         know_phys_hist_msg ℓ (OCV !!0 ℓ) (Msg v_c ∅ ∅ ∅) ∗
                         (* and any state we know are "persisted" will be ordered earlier than [σ_c] *)
                         (* TODO: the first half of this knowledge should really be part of the [crashed_at] rely *)
-                        ⌜ t - (OV !!0 ℓ) ≤ (OCV !!0 ℓ) - (OV !!0 ℓ) → OV !!0 ℓ ≤ OCV !!0 ℓ ∧ σ ⊑ σ_c ⌝).
-
-(* Definition crashed_in_impl OCV `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω}: iProp Σ := *)
-(*   [∗ map] ℓ ↦ t ∈ OCV, *)
-(*     □ (∀ (ST: Type) (_ : EqDecision ST) (_ : Countable ST) (_ : AbstractState ST) (bumper: ST → ST), *)
-(*          know_preorder_loc ℓ (abs_state_relation (ST := ST)) -∗ *)
-(*          know_bumper ℓ bumper -∗ *)
-(*          ∃ (σ: ST), crashed_in_loc ℓ σ ∗ know_frag_history_loc ℓ (max_nat_car t) (bumper σ)). *)
+                        ⌜ t - (OV !!0 ℓ) ≤ (OCV !!0 ℓ) - (OV !!0 ℓ) → OV !!0 ℓ ≤ OCV !!0 ℓ ∧ σ ⊑ σ_c ⌝ ∗
+                        ⌜ ¬ (σ_c ⊑ σ) → t ≤ OCV !!0 ℓ ⌝).
 
 Definition nextgen `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω} (P: dProp Σ): dProp Σ :=
   MonPred (λ TV, ⚡==> know_crash_frag_history_loc -∗ P (∅, ∅, ∅))%I _.

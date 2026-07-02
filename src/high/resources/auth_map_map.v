@@ -353,4 +353,30 @@ Section history.
         rewrite -not_elem_of_dom in Heqn2.
         set_solver.
   Qed.
+
+  #[global] Instance auth_map_map_frag_singleton_nextgen γ ℓ t msg:
+    IntoNextgen
+      (auth_map_map_frag_singleton histories_rel γ ℓ t msg)
+      (∀ OCV, ⌜ ℓ ∈ dom OCV ∧ t ≤ OCV !!0 ℓ ⌝ -∗
+              crashed_at_offset OCV -∗
+              auth_map_map_frag_singleton histories_rel γ ℓ t (discard_msg_views msg)).
+  Proof.
+    rewrite /IntoNextgen /auth_map_map_frag_singleton.
+    iNamed 1.
+    iModIntro.
+    iDestruct "crashed" as (OV OCV' tC) "[pickedC crashed]".
+    iDestruct "rely" as "[rely (%tH & %tC' & [%Hrel _] & pickedH & pickedC')]".
+    iDestruct "own_frag" as (tH') "[#pickedH' own_frag]".
+    iPickedInAgree "pickedC pickedC'".
+    iPickedInAgree "pickedH pickedH'".
+    destruct Hrel as (OCV'' & -> & ->).
+    iIntros (OCV) "%Hsurv offset".
+    iAssert ⌜ OCV = OCV'' ⌝%I as %<-.
+    { iDestruct "offset" as (?) "offsetBoth".
+      iDestruct (crashed_at_both_agree with "offsetBoth crashed") as %[-> ->].
+      done. }
+    rewrite /drop_above_map_uncurry fmap_auth_frag -insert_empty map_imap_insert map_imap_empty /=.
+    rewrite decide_True // insert_empty agree_map_to_agree.
+    iFrame "∗#".
+  Qed.
 End history.

@@ -24,7 +24,7 @@ Section wp_at.
 
   Implicit Types (ℓ : loc) (σ : ST) (prot : LocationProtocol ST).
 
-  Lemma wp_faa Q (R: ST → dProp Σ) σs σ_i ℓ prot `{!ProtocolConditions prot} (n_add: Z) st E :
+  Lemma wp_faa Q (R: ST → dProp Σ) σs σ_i ℓ prot `{!ProtocolConditions ℓ prot} (n_add: Z) st E :
     {{{ ℓ ↦_AT^{prot} (σs ++ [σ_i]) ∗
         □ (∀ σ_l (n_l: Z),
              (* we know that we won't read older state than [σ_i] *)
@@ -90,7 +90,7 @@ Section wp_at.
     iDestruct (know_full_encoded_history_lookup with "fullHist hist")
       as %(encσ_i & Hlookσ_i & Hdecodeσ_i).
 
-    iApply (wp_faa_alt with "[#] [$offsets $pts $val]").
+    iApply (wp_faa_alt with "[#] [$pts $offsets $val]").
     (* [val_safe_compare] proof *)
     { iIntros (t_l [v_l SV_l PV_l BV_l] leT physHistLook).
       simpl in leT.
@@ -169,7 +169,7 @@ Section wp_at.
     iDestruct ("above" with "[$]") as "%above".
 
     iAssert 
-      ⌜increasing_map (encode_relation sqsubseteq) (<[(t_l + 1)%nat := encode σ_t]> abs_hist)⌝%I as %incri.
+      ⌜ increasing_map (encode_relation (A := ST) sqsubseteq) (<[(t_l + 1)%nat := encode σ_t]> abs_hist) ⌝%I as %incri.
     {
       iApply (bi.pure_mono).
       { apply
@@ -321,7 +321,7 @@ Section wp_at.
         assert (t ≠ t_l). {
           intro eq.
           simplify_eq.
-          rewrite lookup_delete // in look1. }
+          rewrite lookup_delete_eq // in look1. }
         destruct (decide _); destruct (decide _); naive_solver. }
       
       (* We now insert [predR]. *)
@@ -339,7 +339,7 @@ Section wp_at.
         apply not_elem_of_singleton.
         lia. }
       { destruct TV as [[? ?] ?].
-        iDestruct (into_no_buffer_at with "predF") as "predF".
+        iDestruct (no_buffer.into_no_buffer_at with "predF") as "predF".
         destruct (decide _).
         - iApply (predicate_holds_phi with "predFullEquiv"); first reflexivity.
           iApply (monPred_mono with "predF").
@@ -415,7 +415,7 @@ Section wp_at.
       apply nolater. lia. }
     iFrameF "locationProtocol".
     iSplitPure.
-    { apply: increasing_map_insert_last; try done. lia.
+    { apply: increasing_map_insert_last; try done; first lia.
       etrans; done. }
     iSplit.
     (* { iFrame "frag absHist". } *)

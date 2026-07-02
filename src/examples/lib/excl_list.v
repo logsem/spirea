@@ -28,7 +28,7 @@ Section excl_list.
   Implicit Types (n p: nat) (l: list V) (v: leibnizO V).
   
   Definition drop_above p n (v: leibnizO V): option V :=
-    if decide (n ≤ p) then Some v else None.
+    if decide (n < p) then Some v else None.
 
   Notation excl_listR := (gmap_viewR nat (agreeR (leibnizO V))).
   
@@ -125,6 +125,10 @@ Section excl_list.
     iDestruct ("rely") as (n ?) "(rely & %t' & %Ht & picked2)".
     iPickedInAgree "picked1 picked2".
     destruct Ht as (n' & ? & ->).
+    (* [last l = Some v] forces [l] non-empty; needed for the strict [drop_above]
+       bound [length l - 1 < n']. *)
+    assert (length l ≠ 0) as Hlne.
+    { intros ?%nil_length_inv. naive_solver. }
     iSplitL "excl discards"; first iSplitL "excl".
     { iExists v.
       iSplit; first done.
@@ -157,6 +161,10 @@ Section excl_list.
       naive_solver.
   Qed.
 
+  Lemma dfrac_split_3_1: DfracOwn 1 = dfrac_excl ⋅ DfracOwn (1 / 2 / 2).
+    rewrite !dfrac_op_own. f_equal. rewrite -assoc (Qp.div_2 (1/2)) Qp.div_2 //.
+  Qed.
+
   Lemma list_auth_grow {γ l} v:
     list_auth γ l ==∗ list_auth γ (l ++ [v]) ∗ list_elem γ (l ++ [v]).
   Proof.
@@ -168,10 +176,9 @@ Section excl_list.
       rewrite lookup_map_seq_Some in Heq.
       rewrite lookup_ge_None_2 // in Heq; last lia.
       naive_solver. }
-
-    iDestruct "frag" as "[frag_half [frag_qtr discard]]".
-    iDestruct (gen_own_op with "[$frag_half $frag_qtr]") as "frag_excl".
-    rewrite -gmap_view_frag_op.
+    rewrite dfrac_split_3_1.
+    iEval (rewrite -(agree_idemp (to_agree v)) gmap_view_frag_op) in "frag".
+    iDestruct (gen_own_op with "frag") as "[frag_excl discard]".
     iMod (gen_own_update with "discard") as "discard".
     { apply gmap_view_frag_persist. }
     iDestruct (big_sepL_snoc with "[$discards $discard]") as "#discards'".
@@ -221,7 +228,7 @@ Section excl_list.
       destruct (lookup_lt_is_Some_2 l2 k ltac:(lia)).
       iDestruct (big_sepL_lookup _ _ k with "discards1") as "discard1"; first done.
       iDestruct (big_sepL_lookup _ _ k with "discards2") as "discard2"; first done.
-      iDestruct (gen_own_valid_2 with "discard1 discard2") as %[_ ?]%gmap_view_frag_op_valid_L.
+      iDestruct (gen_own_valid_2 with "discard1 discard2") as %[_ ?%to_agree_op_valid_L]%gmap_view_frag_op_valid.
       by simplify_map_eq.
     - iRight.
       iApply bi.pure_mono; first apply lookup_prefix.
@@ -230,7 +237,7 @@ Section excl_list.
       destruct (lookup_lt_is_Some_2 l2 k ltac:(lia)).
       iDestruct (big_sepL_lookup _ _ k with "discards1") as "discard1"; first done.
       iDestruct (big_sepL_lookup _ _ k with "discards2") as "discard2"; first done.
-      iDestruct (gen_own_valid_2 with "discard1 discard2") as %[_ ?]%gmap_view_frag_op_valid_L.
+      iDestruct (gen_own_valid_2 with "discard1 discard2") as %[_ ?%to_agree_op_valid_L]%gmap_view_frag_op_valid.
       by simplify_map_eq.
   Qed.
 
@@ -251,5 +258,59 @@ Section excl_list.
     iDestruct (token_to_rely with "token") as "#rely".
     iDestruct (rely_to_rely_self with "rely") as "$".
     done.
+  Qed.
+
+  Lemma map_imap_drop_above_to_excl (p : nat) (h : list V) :
+    map_imap (drop_above p) (to_excl_list h) = to_excl_list (take p h).
+  Proof.
+    apply map_eq. intros k.
+    rewrite map_lookup_imap /to_excl_list !lookup_map_seq_0.
+    destruct (decide (k < p)).
+    - rewrite lookup_take decide_True; last done.
+      destruct (h !! k) as [ v | ] eqn:Heq; rewrite Heq /=; last done.
+      rewrite /drop_above decide_True //.
+    - rewrite lookup_take_ge; last lia.
+      destruct (h !! k) as [ v | ] eqn:Heq; rewrite Heq /=; last done.
+      rewrite /drop_above decide_False //.
+  Qed.
+
+  Lemma list_auth_token_nextgen (γ : gname) (l l' : nat) (h : list V) :
+    l ≤ l' → l' ≤ length h →
+    list_auth γ h -∗ list_token γ l -∗
+    |==> ⚡==> (list_auth γ (take l' h) ∗ list_token γ l').
+  Proof.
+    intros.
+    iNamed 1. iIntros "tok".
+    iMod (list_token_strengthen l' with "tok") as "[tok _]"; first done.
+    iMod (token_pick (DS := [#]) _ _ _ _ [##]%HV (excl_list_trans l') with "[] tok")
+      as "[tok #picked]".
+    { exists l'. split; [lia | done]. }
+    { iIntros (i). inversion i. }
+    iModIntro.
+    iDestruct (big_sepL_impl with "discards []") as "discards".
+    { iIntros "!>" (k v ?) "?".
+      iDestruct (gen_own_nextgen with "[$]") as "?". iAccu. }
+    iDestruct (nextgen_big_sepL with "discards") as "discards".
+    iModIntro.
+    iDestruct "auth" as (t) "[#picked' auth]".
+    iPickedInAgree "picked picked'".
+    iSplitR "tok"; last done.
+    iSplitL "auth".
+    - iApply (gen_own_proper with "auth").
+      rewrite /excl_list_trans map_entry_lift_gmap_view_auth
+        map_imap_drop_above_to_excl //.
+    - iDestruct (big_sepL_take_drop _ _ l' with "discards") as "[discards _]".
+      iApply (big_sepL_impl with "[$]").
+      iIntros "!>" (k v Hlook) "(% & #picked' & discard)".
+      iPickedInAgree "picked picked'".
+      iApply (gen_own_proper with "[$]").
+      rewrite /excl_list_trans /map_entry_lift_gmap_view /gMapTrans_frag_lift /map_trans_frag_lift
+        /fmap_view /fmap_pair /gmap_view_frag /view_frag /=.
+      f_equiv.
+      rewrite -{2}insert_empty map_imap_insert map_imap_empty.
+      rewrite agree_option_map_to_agree /drop_above decide_True //.
+      apply lookup_lt_Some in Hlook.
+      rewrite length_take in Hlook.
+      lia.
   Qed.
 End excl_list.

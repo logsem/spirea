@@ -7,7 +7,7 @@ From self.high.lib Require Import increasing_map.
 From self.program_logic Require Import recovery_adequacy.
 From self.base Require Import wpr_lifting primitive_laws generational_resources cred_frag.
 From self.high Require Import
-  crash_weakestpre recovery_weakestpre generational_resources state_interpretation protocol locations adequacy_alloc.
+  crash_weakestpre generational_resources state_interpretation protocol locations adequacy_alloc.
 From self.high.modalities Require Import nextgen.
 From self.nextgen Require Import nextgen_promises.
 
@@ -123,6 +123,8 @@ Section high_adequacy.
       iSplitR; first by rewrite big_sepM2_empty.
       iSplitR; first by rewrite big_sepM2_empty.
       iSplitR; first (iPureIntro; apply map_Forall_empty).
+      iSplitR; first by rewrite big_sepM2_empty.
+      iSplitR; first by rewrite big_sepM_empty.
       by rewrite big_sepM2_empty. }
 
     iEval (rewrite /initial_heap big_sepM_fmap /=) in "fmapstos".
@@ -182,6 +184,9 @@ Section high_adequacy.
       iPoseProof (objective_at with "Hp") as "Hp".
       iApply (predicate_holds_phi_decode_2 with "[] Hp"); first apply decode_encode.
       done.
+      (* TODO: these are unused [ℓ] argument in [full_nobuf] or [pers_obj].
+       * It's probably better to restate those classes.  *)
+      Unshelve. all: done.
   Qed.
 
   (* FIXME: this should be treated by the [solve_inG] equivalent for [Ω]. *)

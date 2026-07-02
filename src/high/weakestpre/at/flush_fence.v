@@ -18,7 +18,7 @@ Section weakestpre.
   Context `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω, !PerennialG Σ, AbstractState ST}.
   
   Implicit Types (ℓ : loc) (prot: LocationProtocol ST) (σ σ_e: ST) (P Q: dProp Σ).
-  Lemma wp_flush_xchg ℓ prot `{!ProtocolConditions prot} σ_xchg σ st E Q:
+  Lemma wp_flush_xchg ℓ prot `{!ProtocolConditions ℓ prot} σ_xchg σ st E Q:
     {{{ ⎡ is_at_loc ℓ ⎤ ∗
         store_lb ℓ prot σ ∗
         <fence> seen_state ℓ σ_xchg ∗
@@ -135,7 +135,7 @@ Section weakestpre.
           lia. }
     (* restore [interp] *)
     iExistsN.
-    iFrameNamed.
+    repeat iFrameNamedF. done.
   Qed.
 End weakestpre.
 
@@ -450,6 +450,6 @@ Section weakestpre.
     iExistsN.
     (* TODO: for some reason [predReadNextgen]'s [<NGF>] modality is unfolded. *)
     rewrite /nextgen_flush /=.
-    iFrameNamed.
+    by repeat iFrameNamedF.
   Qed.
 End weakestpre.

@@ -519,6 +519,14 @@ Section crashed_in.
   Definition crashed_in_loc (ℓ: loc) (σ : ST) : iProp Σ :=
     ∃ eσ OCV, crashed_at_offset OCV ∗ ⌜ ℓ ∈ dom OCV ⌝ ∗ ⌜ decode eσ = Some σ ⌝ ∗ lastgen_frag_entry abs_history_name ℓ (OCV !!0 ℓ) eσ.
 
+  (* The encoded [crashed_in] assertion for use in [interp], it contains the
+   * additional knowledge for [persist_lb]. *)
+  Definition crashed_in_enc `{nvmHighGS} ℓ (eσ : positive) : iProp Σ :=
+    ∃ OCV, crashed_at_offset OCV ∗ ⌜ ℓ ∈ dom OCV ⌝ ∗
+           lastgen_frag_entry abs_history_name ℓ (OCV !!0 ℓ) eσ ∗
+           offset_loc ℓ (OCV !!0 ℓ) ∗
+           persisted_loc ℓ 0.
+
   Lemma crashed_in_loc_agree ℓ σ1 σ2:
     crashed_in_loc ℓ σ1 -∗ crashed_in_loc ℓ σ2 -∗ ⌜ σ1 = σ2 ⌝.
   Proof.

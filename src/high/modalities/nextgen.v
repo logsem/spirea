@@ -192,6 +192,21 @@ Section IntoNextgen.
     iIntros (Hc) "H". iDestruct "H" as (?) "HΦ". iPoseProof (Hc with "[$]") as "HΦ".
     iApply (nextgen_mono with "HΦ"). auto.
   Qed.
+
+  Lemma nextgen_big_sepL {A} (P : nat → A → dProp Σ) (l : list A) :
+    ([∗ list] n↦x ∈ l, <NG> P n x) ⊢ <NG> [∗ list] n↦x ∈ l, P n x.
+  Proof.
+    iModel.
+    rewrite /nextgen /=.
+    rewrite monPred_at_big_sepL nextgen_big_sepL.
+    iIntros "H".
+    iModIntro.
+    rewrite monPred_at_big_sepL.
+    iIntros "#?".
+    iApply (big_sepL_impl with "H").
+    iIntros "!>" (???) "impl".
+    by iApply "impl".
+  Qed.
 End IntoNextgen.
 
 Section nextgen_derived.

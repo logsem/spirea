@@ -34,7 +34,7 @@ Section wp_at.
    * [Q3]: the failure postcondition outside of fence.
    * [abs_hist'], [phys_hist']: observed history form the [mapsto_at] assertion.
    * [abs_hist], [phys_hist]: complete history from [interp]. *)
-  Lemma wp_cmpxchg_at Q1 Q2 Q3 (P R: ST → dProp Σ) σs σ_i ℓ prot `{!ProtocolConditions prot} v_i v_t st E :
+  Lemma wp_cmpxchg_at Q1 Q2 Q3 (P R: ST → dProp Σ) σs σ_i ℓ prot `{!ProtocolConditions ℓ prot} v_i v_t st E :
     {{{
       ℓ ↦_AT^{prot} (σs ++ [σ_i]) ∗
       (∀ σ_l v_l σ_p v_p,
@@ -560,7 +560,7 @@ Section wp_at.
 
   (** [Q1] is the resource we want to extract in case of success and and [Q2] is *)
   (** the resource we want to extract in case of failure. *)
-  Lemma wp_cas_at Q1 Q2 Q3 (P R: ST → dProp Σ) σs σ_i ℓ prot `{!ProtocolConditions prot} v_i v_t st E :
+  Lemma wp_cas_at Q1 Q2 Q3 (P R: ST → dProp Σ) σs σ_i ℓ prot `{!ProtocolConditions ℓ prot} v_i v_t st E :
     {{{
       ℓ ↦_AT^{prot} (σs ++ [σ_i]) ∗
       (∀ σ_l v_l σ_p v_p,

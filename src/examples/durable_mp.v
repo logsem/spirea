@@ -61,7 +61,7 @@ Section proof.
        p_pers (b : bool) v := ⌜ v = #b ⌝%I;
        p_bumper b := b; |}.
 
-  #[global] Instance inv_x_cond : ProtocolConditions inv_x.
+  #[global] Instance inv_x_cond ℓ : ProtocolConditions ℓ inv_x.
   Proof.
     split; try apply _; rewrite /p_full /p_read /p_pers /=.
     - intros.
@@ -69,9 +69,9 @@ Section proof.
       iIntros "[$ _]".
     - iIntros.
       iSplit.
-      + by do 2 iModIntro.
+      + by iIntros "!>!> _".
       + iIntros (??) "!> % % %".
-        by do 2 iModIntro.
+        by iIntros "!>!> _".
     - iIntros.
       by iModIntro.
   Qed.
@@ -184,7 +184,7 @@ Section proof.
        p_pers (b: bool) (v: val) := ⌜ v = #b ⌝%I;
        p_bumper := id; |}%I.
   
-  #[global] Instance inv_y_cond : ProtocolConditions inv_y.
+  #[global] Instance inv_y_cond ℓ : ProtocolConditions ℓ inv_y.
   Proof.
     split; try apply _; rewrite /p_full /p_read /p_pers /=.
     - intros.
@@ -192,7 +192,7 @@ Section proof.
       + iIntros "$".
         iIntros "$".
       + iIntros "[$ _]".
-    - iIntros (??????) "[% H]".
+    - iIntros "_" (??????) "[% H]".
       simplify_map_eq.
       iSplit.
       + destruct (σ_f); do 2 iModIntro; naive_solver.
@@ -216,7 +216,7 @@ Section proof.
        p_pers (b: bool) (v: val) := ⌜ v = #b ⌝%I;
        p_bumper := id; |}%I.
   
-  #[global] Instance inv_z_cond : ProtocolConditions inv_z.
+  #[global] Instance inv_z_cond ℓ : ProtocolConditions ℓ inv_z.
   Proof.
     split; try apply _; rewrite /p_full /p_read /p_pers /=.
     - intros.
@@ -224,17 +224,17 @@ Section proof.
       + iIntros "$".
         iIntros "$".
       + iIntros "[$ _]".
-    - iIntros (??????) "[% H]".
+    - iIntros "_" (??????) "[% H]".
       simplify_map_eq.
       iSplit.
-      + destruct (σ_f); do 2 iModIntro; last naive_solver.
+      + destruct (σ_f); iIntros "!>!> _"; last naive_solver.
         iSplitL; last done.
         iSplitR; first done.
         iDestruct "H" as "[[xPer _] $]".
         by iApply persist_lb_to_flush_lb.
       + iIntros (??) "!> [% H] % %".
         simplify_map_eq.
-        destruct (σ_c); do 2 iModIntro; last naive_solver.
+        destruct (σ_c); iIntros "!>!> _"; last naive_solver.
         iSplitL; last done.
         iSplitR; first done.
         iDestruct "H" as "[[xPer _] $]".

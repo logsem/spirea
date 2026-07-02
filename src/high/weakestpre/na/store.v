@@ -21,7 +21,7 @@ Section wp_na.
 
   Implicit Types (ℓ : loc) (σ : ST) (prot : LocationProtocol ST).
 
-  Lemma wp_store_na ℓ prot ss v s__last s st E `{!ProtocolConditions prot} :
+  Lemma wp_store_na ℓ prot ss v s__last s st E `{!ProtocolConditions ℓ prot} :
     last ss = Some s__last →
     s__last ⊑ s →
     {{{ mapsto_na ℓ prot 1 ss ∗ prot.(p_full) s v }}}
@@ -179,7 +179,7 @@ Section wp_na.
     iFrame "physHists naView history
             full_predicates read_predicates pers_predicates
             allOrders naLocs atLocs allBumpers".
-    iFrame "ptsMap crashedRely offsets".
+    iFrame "ptsMap crashedRely offsets locsOffsets locsProtocols".
     (* [oldViewsDiscarded] *)
       iSplit.
       { iEval (rewrite -(insert_id offsets ℓ (OCV !!0 ℓ) ltac:(done))).

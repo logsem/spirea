@@ -311,6 +311,7 @@ Section wp_at.
       iSplit; first iAssumption.
       iSplit; first iAssumption.
       iFrame (bumperBumpToValid).
+      iFrame "locsProtocols locsOffsets".
       (* "bumperSome" *)
       iApply (big_sepM2_update_left with "bumperSome"); eauto.
       iPureIntro. intros bumperSome.
@@ -342,8 +343,7 @@ Section wp_at.
 
       (* We re-establish [interp]. *)
       iExistsN.
-      iFrameNamedF.
-      iFrame "bumperSome". }
+      by repeat iFrameNamedF. }
   Qed.
 
     Lemma read_atomic_location_no_inv t_i t_l (physHist : history) absHist vm SVm FVm

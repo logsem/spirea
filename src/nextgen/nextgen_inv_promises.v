@@ -12,8 +12,8 @@ Definition endisΣ : gFunctors := #[ GFunctor (endisR) ].
 Global Instance subG_endisΣ Σ : subG (endisΣ) Σ → endisG Σ.
 Proof. solve_inG. Qed.
 Class endisNG Σ Ω :=
-  EnDisNG { ng_endisG :> endisG Σ;
-            ng_deps :> genInDepsG Σ Ω (endisR) [#] }.
+  EnDisNG { ng_endisG :: endisG Σ;
+            ng_deps :: genInDepsG Σ Ω (endisR) [#] }.
 Section endis.
   Context `{os: !endisNG Σ Ω}.
 

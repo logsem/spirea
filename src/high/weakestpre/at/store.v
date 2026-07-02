@@ -23,7 +23,7 @@ Section wp_at.
 
   Implicit Types (ℓ : loc) (σ : ST) (prot : LocationProtocol ST).
 
-  Lemma wp_store_at ℓ prot ss s_i s_t v_t st E `{!ProtocolConditions prot} :
+  Lemma wp_store_at ℓ prot ss s_i s_t v_t st E `{!ProtocolConditions ℓ prot} :
     {{{
       ℓ ↦_AT^{prot} (ss ++ [s_i]) ∗
       prot.(p_full) s_t v_t ∗
