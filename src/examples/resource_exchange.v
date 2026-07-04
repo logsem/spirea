@@ -1,8 +1,7 @@
-From Equations Require Import Equations.
 From iris.proofmode Require Import proofmode monpred.
 From iris.algebra Require Import gmap_view.
 From iris_named_props Require Import named_props.
-From nextgen Require Import cmra_morphism_extra gmap_view_transformation.
+From nextgen Require Import cmra_morphism_extra.
 
 From self Require Import extra solve_view_le encode_relation map_extra view_slice.
 
@@ -10,15 +9,15 @@ From self.lang Require Import syntax tactics lemmas.
 
 From self.base Require Import generational_resources primitive_laws.
 
-From self.high Require Import monpred_simpl protocol locations crash_weakestpre weakestpre.
+From self.high.lib Require Import abstract_state abstract_state_instances increasing_map protocols.
+From self.high Require Import monpred_simpl protocol locations crash_weakestpre weakestpre modalities.
 From self.high.modalities Require Import fence_sync_atomic.
-From self.high.lib Require Import abstract_state increasing_map.
-From self.high Require Import weakestpre_at weakestpre_exp proofmode.
+From self.high Require Import weakestpre_at weakestpre_na proofmode.
+
+From self.examples.lib Require Import excl_ops.
 
 From self Require Export lang.
 From self.high Require Export dprop.
-
-From self.examples.lib Require Import excl_ops.
 
 Set Default Proof Using "Type*".
 
@@ -44,7 +43,7 @@ End Program.
 
 (* We now define the abstract state used for the location [ℓ] *)
 Section Protocol.
-  Context `{!excl_opsG Σ Ω, !nvmBaseGS Σ Ω}.
+  Context `{!excl_opsG Σ Ω, !nvmBaseGS Σ Ω, !nvmHighGS Σ Ω}.
   Variables (γ: gname) (R: val → dProp Σ).
   Hypothesis (R_buffer_free: ∀ v, BufferFree (R v)).
   Hypothesis (R_NGF: ∀ v, IntoNGFlush (R v) (R v)).
@@ -90,14 +89,14 @@ Section Protocol.
   Qed.
   
   Definition prot : LocationProtocol ST :=
-  {| protocol.p_full := p_full;
-     protocol.p_read := p_read;
-     protocol.p_pers := p_pers;
+  {| protocol_defs.p_full := p_full;
+     protocol_defs.p_read := p_read;
+     protocol_defs.p_pers := p_pers;
      p_bumper h := h |}.
 
   #[local] Existing Instance into_nextgen_into_nextgen_flushed.
   
-  #[export] Instance prot_cond : ProtocolConditions prot.
+  #[export] Instance prot_cond ℓ : (ProtocolConditions ℓ prot).
   Proof.
     split; try done; try solve_proper; try apply _.
     - intros σ v.
@@ -118,7 +117,7 @@ Section Protocol.
       + iIntros "[? H]".
         by iApply "H".
     - rewrite /prot /p_full /p_read /p_pers /p_pure /=.
-      iIntros (σ_p v_p σ_f v_f) "%HorderPF [ops_token Hσ_p] [ops_auth R]".
+      iIntros "_" (σ_p v_p σ_f v_f) "%HorderPF [ops_token Hσ_p] [ops_auth R]".
       iSplit.
       + (* we pick [t] to be [excl_ops_trans (length σ_f)] *)
         iMod (ops_token_strengthen (length σ_f) with "ops_token") as "[ops_token _]".
@@ -128,13 +127,14 @@ Section Protocol.
         { iIntros (i'). inversion i'. }
         iModIntro.
         (* It's difficult to get [match .. with] to work with typeclasses. *)
-        destruct (last σ_f) as [[ w | ] | ]; iModIntro.
+        destruct (last σ_f) as [[ w | ] | ]; iIntros "!> _".
         * iDestruct "ops_auth" as (?) "[picked_in ops_auth]".
           iPickedInAgree "picked_out picked_in".
           iDestruct "R" as "[% R]".
           iFrame "∗%".
-          rewrite /excl_ops_trans map_entry_lift_gmap_view_auth /=.
+          rewrite /excl_ops_trans gmap_view_transformation.map_entry_lift_gmap_view_auth /=.
           iApply (gen_own_proper with "ops_auth").
+          f_equiv.
           f_equiv.
           rewrite map_equiv_iff.
           intros i.
@@ -147,8 +147,9 @@ Section Protocol.
           iPickedInAgree "picked_out picked_in".
           iDestruct "R" as "%".
           iFrame "∗%".
-          rewrite /excl_ops_trans map_entry_lift_gmap_view_auth /=.
+          rewrite /excl_ops_trans gmap_view_transformation.map_entry_lift_gmap_view_auth /=.
           iApply (gen_own_proper with "ops_auth").
+          f_equiv.
           f_equiv.
           rewrite map_equiv_iff.
           intros i.
@@ -161,8 +162,9 @@ Section Protocol.
           iPickedInAgree "picked_out picked_in".
           iDestruct "R" as "%".
           iFrame "∗%".
-          rewrite /excl_ops_trans map_entry_lift_gmap_view_auth /=.
+          rewrite /excl_ops_trans gmap_view_transformation.map_entry_lift_gmap_view_auth /=.
           iApply (gen_own_proper with "ops_auth").
+          f_equiv.
           f_equiv.
           rewrite map_equiv_iff.
           intros i.
@@ -179,14 +181,15 @@ Section Protocol.
         { by eexists. }
         { iIntros (i'). inversion i'. }
         iModIntro.
-        destruct (last σ_c) as [[ w | ] | ]; iModIntro.
+        destruct (last σ_c) as [[ w | ] | ]; iIntros "!> _".
         * iDestruct "ops_auth" as (?) "[picked_in ops_auth]".
           iPickedInAgree "picked_out picked_in".
           iDestruct "R" as "[% R]".
           iFrame "∗%".
-          rewrite /excl_ops_trans map_entry_lift_gmap_view_auth /=.
+          rewrite /excl_ops_trans gmap_view_transformation.map_entry_lift_gmap_view_auth /=.
           iAssert ⎡ ops_auth γ (length σ_c) ⎤%I with "[ops_auth]" as "ops_auth".
           { iApply (gen_own_proper with "ops_auth").
+            f_equiv.
             f_equiv.
             rewrite map_equiv_iff.
             intros i.
@@ -214,9 +217,10 @@ Section Protocol.
           iPickedInAgree "picked_out picked_in".
           iDestruct "R" as "%".
           iFrame "∗%".
-          rewrite /excl_ops_trans map_entry_lift_gmap_view_auth /=.
+          rewrite /excl_ops_trans gmap_view_transformation.map_entry_lift_gmap_view_auth /=.
           iAssert ⎡ ops_auth γ (length σ_c) ⎤%I with "[ops_auth]" as "$".
           { iApply (gen_own_proper with "ops_auth").
+            f_equiv.
             f_equiv.
             rewrite map_equiv_iff.
             intros i.
@@ -242,9 +246,10 @@ Section Protocol.
           iPickedInAgree "picked_out picked_in".
           iDestruct "R" as "%".
           iFrame "∗%".
-          rewrite /excl_ops_trans map_entry_lift_gmap_view_auth /=.
+          rewrite /excl_ops_trans gmap_view_transformation.map_entry_lift_gmap_view_auth /=.
           iAssert ⎡ ops_auth γ (length σ_c) ⎤%I with "[ops_auth]" as "$".
           { iApply (gen_own_proper with "ops_auth").
+            f_equiv.
             f_equiv.
             rewrite map_equiv_iff.
             intros i.
@@ -274,6 +279,7 @@ End Protocol.
 
 Section Proof.
   Context `{!excl_opsG Σ Ω, !nvmBaseGS Σ Ω, !nvmHighGS Σ Ω, !PerennialG Σ}.
+  Existing Instance excl_ops_inG.
   Variables (γ: gname) (R: val → dProp Σ).
   Hypothesis (R_buffer_free: ∀ v, BufferFree (R v)).
   Hypothesis (R_NGF: ∀ v, IntoNGFlush (R v) (R v)).
@@ -364,8 +370,10 @@ Section Proof.
     destruct (last σ_i) as [[ v | ] | ]; first destruct (HlastOp) as [-> safe]; wp_pures.
     - wp_bind (CmpXchg _ _ _).
       iEval (rewrite -(app_nil_l [σ_i])) in "is_stack".
+      (* FIXME: why cannot I type [Q] in-place? *)
+      set (Q := (λ (σ_l σ_t: list (val + ())), seen_state ℓ σ_l  ∗ ⎡ gen_own γ (gmap_view_frag (length σ_l) (DfracOwn 1) (to_agree ())) ⎤ ∗ ⌜ last σ_l = Some (inl v) ⌝ ∗ ⌜ length σ_l < length σ_t ⌝: dProp Σ)%I).
       iApply (wp_cmpxchg_at
-                (λ σ_l σ_t, seen_state ℓ σ_l ∗ ⎡ gen_own γ (gmap_view_frag (length σ_l) (DfracOwn 1) ()) ⎤ ∗ ⌜ last σ_l = Some (inl v) ⌝ ∗ ⌜ length σ_l < length σ_t ⌝)%I
+                Q
                 (λ _, True%I)
                 True%I
                 (λ _, True%I)
