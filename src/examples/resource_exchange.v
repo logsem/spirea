@@ -1,23 +1,10 @@
-From iris.proofmode Require Import proofmode monpred.
 From iris.algebra Require Import gmap_view.
 From iris_named_props Require Import named_props.
-From nextgen Require Import cmra_morphism_extra.
 
-From self Require Import extra solve_view_le encode_relation map_extra view_slice.
-
-From self.lang Require Import syntax tactics lemmas.
-
-From self.base Require Import generational_resources primitive_laws.
-
-From self.high.lib Require Import abstract_state abstract_state_instances increasing_map protocols.
-From self.high Require Import monpred_simpl protocol locations crash_weakestpre weakestpre modalities.
-From self.high.modalities Require Import fence_sync_atomic.
-From self.high Require Import weakestpre_at weakestpre_na proofmode.
+From self.high.lib Require Import abstract_state.
+From self.high Require Import protocol proofmode.
 
 From self.examples.lib Require Import excl_ops.
-
-From self Require Export lang.
-From self.high Require Export dprop.
 
 Set Default Proof Using "Type*".
 
@@ -295,7 +282,7 @@ Section Proof.
     apply bi.exist_persistent. intros.
     apply _.
   Qed.
-    
+
   Lemma wp_try_push ℓ w:
     val_is_unboxed (SOMEV w) →
     {{{ is_stack ℓ ∗ R w }}}
@@ -310,7 +297,7 @@ Section Proof.
               (λ _ _, True%I) (λ _, True%I) True%I
               (λ _, True%I) (λ σ, ⎡ ops_auth γ (length σ) ⎤)%I with "[$is_stack R]").
     { iIntros.
-      iSplitR. { iIntros "_". iPureIntro. left. done. }
+      iSplitR. { iIntros "!> _". iPureIntro. left. done. }
       iSplitL.
       - iIntros.
         iExists (σ_l ++ [inl w]).
@@ -379,7 +366,7 @@ Section Proof.
                 (λ _, True%I)
                 (λ σ_l, ⎡ ops_auth γ (length σ_l) ⎤ ∗ ⌜ last σ_l = Some (inl v) ⌝)%I with "[$is_stack]").
       { iIntros.
-        iSplitR. { iIntros "_". iPureIntro. left. done. }
+        iSplitR. { iIntros "!> _". iPureIntro. left. done. }
         iSplit.
         - iIntros.
           subst v_l.

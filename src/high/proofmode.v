@@ -1,16 +1,15 @@
 (* This file implements the tactics for working with NvmLang.
-
-Is is an adaptation of the tactics for HeapLang. *)
-
+ * This is an adaptation of the tactics for HeapLang. *)
 From iris.proofmode Require Import coq_tactics reduction.
 From iris.proofmode Require Export environments.
 From Perennial.Helpers Require Export ipm.
 
 From Perennial.program_logic Require Export language ectx_language ectxi_language.
 
-From self.base Require Import class_instances primitive_laws.
+From self.base Require Export class_instances primitive_laws generational_resources.
 From self.lang Require Export notation tactics.
-From self.high Require Import generational_resources crash_weakestpre weakestpre.
+From self.high Require Export generational_resources crash_weakestpre recovery_weakestpre.
+From self.high Require Export weakestpre weakestpre_at weakestpre_na modalities locations fence_sync_atomic.
 
 Set Default Proof Using "Type".
 Import uPred.

@@ -1049,4 +1049,4 @@ Section lemmas.
   Qed.
 End lemmas.
 
-Opaque mapsto_na mapsto_at store_lb flush_lb persist_lb seen_view crashed_in mapsto_na_flushed.
+Opaque mapsto_na mapsto_at store_lb flush_lb persist_lb seen_state crashed_in mapsto_na_flushed.

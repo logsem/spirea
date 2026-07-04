@@ -96,9 +96,13 @@ src/view_slice.v
 
 src/examples/lib/excl_ops.v
 src/examples/lib/excl_list.v
+src/examples/lib/gen_maps.v
+src/examples/bank.v
 src/examples/durable_mp.v
-src/examples/durable_treiber_stack.v
+src/examples/optimised_durable_mp.v
 src/examples/resource_exchange.v
+src/examples/durable_treiber_stack.v
+src/examples/read_optimized_reference.v
 
 ## PerennialNG
 perennial/base_logic/lib/wsat.v
@@ -117,16 +121,10 @@ perennial/program_logic/step_fupd_extra.v
 ## list of currently disabled files
 # src/base/crash_borrow.v
 # src/examples/atomic_persists.v
-# src/examples/bank.v
 # src/examples/crash_lock.v
 # src/examples/durable_ms_queue.v
 # src/examples/epoch_persistency.v
 # src/examples/flush_fence.v
-# src/examples/optimised_durable_mp.v
-# src/examples/read_optimized_reference.v
-# src/examples/simple_base.v
-# src/examples/simple-prot.v
-# src/examples/simple.v
 # src/examples/spin_lock.v
 # src/nextgen/nextgen_test.v
 # src/nextgen/lib/nextgen_later_credits.v

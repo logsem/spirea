@@ -23,13 +23,13 @@ _RocqProject: gen_RocqProject.sh config/paths config/flags config/source-list $(
 phony: ;
 .PHONY: phony
 
+# We do not clean _RocqProject since ProofGeneral and other editors need that,
+# and 'make clean' is often needed to remove the .vo files after a dependency update.
 clean: Makefile.coq
 	+@$(MAKE) -f Makefile.coq clean
 	@# Make sure not to enter the `_opam` folder.
 	find [a-z]*/ \( -name "*.d" -o -name "*.vo" -o -name "*.vo[sk]" -o -name "*.aux" -o -name "*.cache" -o -name "*.glob" -o -name "*.vio" \) -print -delete || true
 	rm -rf Makefile.coq Makefile.coq.conf .lia.cache builddep/* _build */_RocqProject
-	# We do not clean _RocqProject since ProofGeneral and other editors need that,
-	# and 'make clean' is often needed to remove the .vo files after a dependency update.
 .PHONY: clean
 
 # Create Coq Makefile.

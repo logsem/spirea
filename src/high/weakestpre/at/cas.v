@@ -40,7 +40,7 @@ Section wp_at.
       (∀ σ_l v_l σ_p v_p,
         (* we know that we won't read older state than [σ_i] *)
         ⌜ σ_i ⊑ σ_l ⌝ -∗
-        ((▷ prot.(p_read) σ_l v_l) -∗ ⌜ vals_compare_safe v_i v_l ⌝) ∗
+        (▷ (prot.(p_read) σ_l v_l -∗ ⌜ vals_compare_safe v_i v_l ⌝)) ∗
         (( (* in case of success *)
             ⌜ v_l = v_i ⌝ -∗  
             ∃ σ_t,
@@ -566,7 +566,7 @@ Section wp_at.
       (∀ σ_l v_l σ_p v_p,
         (* we know that we won't read older state than [σ_i] *)
         ⌜ σ_i ⊑ σ_l ⌝ -∗
-        ((▷ prot.(p_read) σ_l v_l) -∗ ⌜ vals_compare_safe v_i v_l ⌝) ∗
+        (▷ (prot.(p_read) σ_l v_l -∗ ⌜ vals_compare_safe v_i v_l ⌝)) ∗
         (( (* in case of success *)
             ⌜ v_l = v_i ⌝ -∗
             ∃ σ_t,

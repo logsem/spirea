@@ -7,22 +7,12 @@
    The recovery code ([recovery] below) relies on this being true and crashes
    otherwise. Hence showing safety of the recovery code ensures that the
    intuitive property that we expect to hold does indeed hold. *)
-
-From iris.proofmode Require Import proofmode.
-From iris.algebra Require Import excl.
 From iris_named_props Require Import named_props.
-From self.nextgen Require Import nextgen_promises.
+From iris.algebra Require Import excl.
 
-(* For [PerennialG] *)
-From self.base Require Import primitive_laws wpr_lifting.
-From self.high Require Import
-  generational_resources dprop protocol locations crash_weakestpre weakestpre wpc_proofmode modalities.
-From self.high.modalities Require Import fence_sync_atomic.
-From self.high.lib Require Import abstract_state abstract_state_instances protocols.
-From self.high Require Import weakestpre_at weakestpre_na.
+From self.high.lib Require Import abstract_state abstract_state_instances.
+From self.high Require Import protocol wpc_proofmode.
 From self.high Require Import recovery_weakestpre adequacy.
-
-From self.lang Require Import syntax notation tactics lemmas lang.
 
 Section program.
   Definition leftProg (y z : loc) : expr :=
@@ -613,7 +603,6 @@ Section proof.
 End proof.
 
 Section closed_proof.
-  (* crude way to avoid typeclass confusion *)
   Context `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω, !PerennialG Σ, !tokenG Σ Ω}.
   Lemma closed_wpr_spec (s: stuckness) x y z:
     ⊢ |==> ∃ γ__x γ__y γ__z,

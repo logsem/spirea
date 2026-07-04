@@ -24,26 +24,25 @@ Section wp_at.
 
   Implicit Types (ℓ : loc) (σ : ST) (prot : LocationProtocol ST).
 
-  Lemma wp_faa Q (R: ST → dProp Σ) σs σ_i ℓ prot `{!ProtocolConditions ℓ prot} (n_add: Z) st E :
+  Lemma wp_faa Q (R: ST → Z → dProp Σ) σs σ_i ℓ prot `{!ProtocolConditions ℓ prot} (n_add: Z) st E :
     {{{ ℓ ↦_AT^{prot} (σs ++ [σ_i]) ∗
-        □ (∀ σ_l (n_l: Z),
-             (* we know that we won't read older state than [σ_i] *)
-             ⌜ σ_i ⊑ σ_l ⌝ -∗
-             (∀ σ v, (▷ prot.(p_read) σ v) -∗ ⌜ ∃ (n: Z), v = #n ⌝) ∗
-             ( (* in case of success *)
-               ∃ σ_t,
-                 (* The state we write fits in the history. *)
-                 <obj> (prot.(p_full) σ_l #n_l -∗ ⌜ σ_l ⊑ σ_t ⌝) ∗
-                 (∀ σ_n v_n, ⌜ σ_l ⊑ σ_n ⌝ -∗ prot.(p_full) σ_l #n_l -∗
-                             prot.(p_full) σ_n v_n ∨
-                               (prot.(p_read) σ_n v_n ∧
-                                ∃ σ_n' v_n', ⌜ σ_n ⊑ σ_n' ⌝ ∗ prot.(p_full) σ_n' v_n') -∗
-                             ⌜ σ_t ⊑ σ_n ⌝) ∗
-                 (* Extract from the location we load. *)
-                 <obj> (prot.(p_full) σ_l #n_l -∗ prot.(p_read) σ_l #n_l ∗ R σ_l) ∗
-                 (* Establish the invariant for the value we store. *)
-                 (seen_state ℓ σ_l -∗ R σ_l ==∗ prot.(p_full) σ_t #(n_l + n_add) ∗ Q σ_l n_l σ_t))
-          ) }}}
+        (∀ σ_l (n_l: Z),
+           (* we know that we won't read older state than [σ_i] *)
+           ⌜ σ_i ⊑ σ_l ⌝ -∗
+           (∀ σ v, ▷ (prot.(p_read) σ v -∗ ⌜ ∃ (n: Z), v = #n ⌝)) ∗
+           ( (* in case of success *)
+             ∃ σ_t,
+               (* The state we write fits in the history. *)
+               <obj> (prot.(p_full) σ_l #n_l -∗ ⌜ σ_l ⊑ σ_t ⌝) ∗
+               (∀ σ_n v_n, ⌜ σ_l ⊑ σ_n ⌝ -∗ prot.(p_full) σ_l #n_l -∗
+                           prot.(p_full) σ_n v_n ∨
+                             (prot.(p_read) σ_n v_n ∧
+                              ∃ σ_n' v_n', ⌜ σ_n ⊑ σ_n' ⌝ ∗ prot.(p_full) σ_n' v_n') -∗
+                           ⌜ σ_t ⊑ σ_n ⌝) ∗
+               (* Extract from the location we load. *)
+               <obj> (prot.(p_full) σ_l #n_l -∗ prot.(p_read) σ_l #n_l ∗ R σ_l n_l) ∗
+               (* Establish the invariant for the value we store. *)
+               (seen_state ℓ σ_l -∗ R σ_l n_l ==∗ prot.(p_full) σ_t #(n_l + n_add) ∗ Q σ_l n_l σ_t))) }}}
       FAA #ℓ #n_add @ st; E
     {{{ σ_l σ_t (n_l: Z), RET #n_l;
         <fence> Q σ_l n_l σ_t ∗ ℓ ↦_AT^{prot} ((σs ++ [σ_i]) ++ [σ_t])

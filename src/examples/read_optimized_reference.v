@@ -1,19 +1,9 @@
-From iris.bi Require Import lib.fractional.
-From iris.proofmode Require Import ltac_tactics.
+From iris_named_props Require Import named_props.
+From iris.algebra Require Import excl.
 
-From self.base Require Import primitive_laws.
-From self.lang Require Import lang.
-From self.high Require Import dprop.
-
-From self.lang Require Import notation lang.
-From self.algebra Require Import view.
-From self.base Require Import primitive_laws class_instances.
-From self.high Require Import proofmode wpc_proofmode if_rec.
-From self.high Require Import dprop abstract_state_instances modalities
-     resources crash_weakestpre weakestpre weakestpre_na weakestpre_at
-     recovery_weakestpre lifted_modalities protocol protocols no_buffer
-     mapsto_na_flushed.
-From self.high.modalities Require Import fence.
+From self.high.lib Require Import abstract_state abstract_state_instances.
+From self.high Require Import protocol wpc_proofmode.
+From self.high Require Import recovery_weakestpre adequacy.
 
 (* Implementation. *)
 
@@ -44,18 +34,34 @@ Definition RR_recover : expr :=
     ("per", "vol").
 
 Section spec.
-  Context `{nvmG Σ}.
-  Context `{!stagedG Σ}.
+  Context `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω, !PerennialG Σ}.
 
-  Program Definition rr_prot : LocationProtocol (numbered val) :=
-    {| p_inv := λ '(mk_numbered t v) v', ⌜ v = v' ⌝%I;
+  Definition rr_prot : LocationProtocol (numbered val) :=
+    {| p_full := λ '(mk_numbered t v) v', ⌜ v = v' ⌝%I;
+       p_read := λ '(mk_numbered t v) v', ⌜ v = v' ⌝%I;
+       p_pers := λ '(mk_numbered t v) v', ⌜ v = v' ⌝%I;
        p_bumper v := v |}.
 
-  Global Instance rr_prot_conditions : ProtocolConditions rr_prot.
+  Global Instance rr_prot_conditions ℓ : ProtocolConditions ℓ rr_prot.
   Proof.
-    split; try apply _.
-    - destruct s. simpl. apply _.
-    - iIntros ([?] ?) "? /=". iModIntro. done.
+    split.
+    - intros ?? ?. done.
+    - intros [t v] v'. apply _.
+    - intros [t v] v'. apply _.
+    - intros [t v] v'. apply _.
+    - intros [t v] v'. rewrite /rr_prot /=.
+      iSplit; first naive_solver.
+      iIntros "[$ _]".
+    - iIntros "_" (σ_p v_p σ_f v_f) "% Hpers Hfull".
+      destruct σ_f as [tf vf].
+      iDestruct "Hfull" as %<-.
+      iSplit.
+      + iModIntro. iModIntro. iIntros "_". by iSplit.
+      + iIntros (σ_c v_c) "!> Hread % %".
+        destruct σ_c as [tc vc].
+        iDestruct "Hread" as %<-.
+        iModIntro. iModIntro. iIntros "_". by iSplit.
+    - iIntros ([t v] v') "->". by iModIntro.
   Qed.
 
   Definition is_RR (vrr : val) v : dProp Σ :=
@@ -74,25 +80,24 @@ Section spec.
   Lemma crash_condition_impl' n v ℓp (ℓv : loc) :
     ℓp ↦_{rr_prot} [mk_numbered n v] -∗
     persist_lb ℓp rr_prot (mk_numbered n v) -∗
-    <PC> is_recoverable_RR (#ℓp, #ℓv) v.
+    <NG> is_recoverable_RR (#ℓp, #ℓv) v.
   Proof.
-    iIntros "pPts perLb".
+    iIntros "pPts #perLb".
     iModIntro.
-    iDestruct "perLb" as "(per & Hh)".
-    iDestruct "Hh" as (sRec incl) "#crashedIn".
+    iDestruct "perLb" as "[per (%sRec & %incl & #crashedIn)]".
     iDestruct (crashed_in_if_rec with "crashedIn pPts")
-      as (??) "(%prefix & crashedIn2 & pPts)".
-    apply prefix_app_singleton in prefix as [-> ->].
+      as "(%σs' & %σ' & %pre & #crashedIn2 & pPts)".
+    iDestruct (crashed_in_agree with "crashedIn crashedIn2") as %->.
+    apply prefix_app_singleton in pre as [-> ->].
+    iDestruct (crashed_in_persist_lb with "crashedIn") as "#per2".
     simpl.
     iExists ℓp, ℓv, n.
     iSplitPure; first done.
-    simpl.
-    iFrame "pPts".
-    iFrame "per".
+    iFrame "pPts per2".
   Qed.
 
   Lemma is_RR_post_crash vrr v :
-    is_RR vrr v ⊢ <PC> is_recoverable_RR vrr v.
+    is_RR vrr v ⊢ <NG> is_recoverable_RR vrr v.
   Proof.
     iNamed 1.
     iApply (crash_condition_impl' with "pPts perLb").
@@ -123,7 +128,7 @@ Section spec.
     ℓp ↦_{rr_prot} [mk_numbered n v] -∗
     ℓv ↦_{rr_prot} [mk_numbered n v] -∗
     persist_lb ℓp rr_prot (mk_numbered n v) -∗
-    <PC> is_recoverable_RR (#ℓp, #ℓv) v.
+    <NG> is_recoverable_RR (#ℓp, #ℓv) v.
   Proof.
     iIntros "pPts vPts perLb".
     iApply is_RR_post_crash.
@@ -147,32 +152,35 @@ Section spec.
   Lemma crash_condition_impl_2 n v w ℓp (ℓv : loc) :
     ℓp ↦_{rr_prot} [mk_numbered n v; mk_numbered (n + 1) w] -∗
     persist_lb ℓp rr_prot (mk_numbered n v) -∗
-    <PC> ∃ u, is_recoverable_RR (#ℓp, #ℓv) u ∗ ⌜ u = v ∨ u = w ⌝.
+    <NG> ∃ u, is_recoverable_RR (#ℓp, #ℓv) u ∗ ⌜ u = v ∨ u = w ⌝.
   Proof.
-    iIntros "pPts perLb".
-    iCrashIntro.
-    iDestruct "perLb" as "[per (% & hi & crashedIn)]".
+    iIntros "pPts #perLb".
+    iModIntro.
+    iDestruct "perLb" as "[per (%sRec & %incl & #crashedIn)]".
     iDestruct (crashed_in_if_rec with "crashedIn pPts")
-      as (??) "(%pre & crashedIn2 & pPts)".
+      as "(%σs' & %σ' & %pre & #crashedIn2 & pPts)".
+    iDestruct (crashed_in_agree with "crashedIn crashedIn2") as %->.
     apply prefix_of_2 in pre as [eq | [eq | eq]].
-    { destruct ss'; inversion eq. }
-    - destruct ss'; inversion eq.
-      2: { destruct ss'; inversion eq. }
+    { destruct σs'; inversion eq. }
+    - destruct σs'; inversion eq.
+      2: { destruct σs'; inversion eq. }
+      subst σ'.
       iExists v.
       iSplit; last naive_solver.
-      repeat iExists _.
+      iExists _, _, n.
       iSplitPure; first done.
-      iFrameF "pPts".
+      iDestruct (crashed_in_persist_lb with "crashedIn") as "#per2".
       simpl.
-      iFrame "per".
-    - destruct ss'; inversion eq.
-      destruct ss'; inversion eq.
-      2: { simpl in eq. destruct ss'; inversion eq. }
+      iFrame "pPts per2".
+    - destruct σs' as [|? σs']; inversion eq.
+      destruct σs'; inversion eq.
+      2: { simpl in eq. destruct σs'; inversion eq. }
+      subst σ'.
       iExists w.
       iSplit; last naive_solver.
       iExists _, _, (n + 1).
       iSplitPure; first done.
-      iDestruct (crashed_in_persist_lb with "crashedIn2") as "#per2".
+      iDestruct (crashed_in_persist_lb with "crashedIn") as "#per2".
       simpl.
       iFrame "per2".
       iDestruct (mapsto_na_persist_lb with "pPts per2") as "HII".
@@ -183,7 +191,7 @@ Section spec.
   Lemma RR_read_spec rv (v : val) s E :
     is_RR rv v -∗
     WPC RR_read rv @ s; E {{ w, ⌜ v = w ⌝ ∗ is_RR rv v }}
-                          {{ <PC> is_recoverable_RR rv v }}%I.
+                          {{ <NG> is_recoverable_RR rv v }}%I.
   Proof.
     iNamed 1.
     rewrite /RR_read.
@@ -210,19 +218,19 @@ Section spec.
     is_RR rv v -∗
     WPC RR_write rv w @ s; E
       {{ _, is_RR rv w }}
-      {{ <PC> ∃ u, is_recoverable_RR rv u ∗ ⌜ u = v ∨ u = w ⌝}}%I.
+      {{ <NG> ∃ u, is_recoverable_RR rv u ∗ ⌜ u = v ∨ u = w ⌝}}%I.
   Proof.
     iNamed 1.
     rewrite /RR_write.
     wpc_pures.
-    { iApply post_crash_mono;
+    { iApply nextgen.nextgen_mono;
         last iApply (crash_condition_impl' with "pPts perLb").
       iIntros "H". iExists _. iFrame "H". naive_solver. }
 
     wpc_bind (_ <-_NA _)%E.
     iApply wpc_atomic_no_mask.
     iSplit.
-    { iApply post_crash_mono;
+    { iApply nextgen.nextgen_mono;
         last iApply (crash_condition_impl' with "pPts perLb").
       iIntros "H". iExists _. iFrame "H". naive_solver. }
     iApply (wp_store_na _ rr_prot _ _ _ (mk_numbered (n + 1) w) with "[$pPts]").
@@ -265,7 +273,7 @@ Section spec.
 
     iApply wpc_atomic_no_mask.
     iSplit. {
-      iApply post_crash_mono;
+      iApply nextgen.nextgen_mono;
         last iApply (crash_condition_impl' with "pPts pLb").
       iIntros "H". iExists _. iFrame "H". naive_solver. }
 
@@ -275,7 +283,7 @@ Section spec.
     { simpl. done. }
     iIntros "!> vPts".
     iSplit. {
-      iApply post_crash_mono;
+      iApply nextgen.nextgen_mono;
         last iApply (crash_condition_impl' with "pPts pLb").
       iIntros "H". iExists _. iFrame "H". naive_solver. }
     iModIntro.
@@ -290,7 +298,7 @@ Section spec.
     is_recoverable_RR rv v -∗
     WPC RR_recover rv @ s; E
       {{ rv2, is_RR rv2 v }}
-      {{ <PC> is_recoverable_RR rv v }}%I.
+      {{ <NG> is_recoverable_RR rv v }}%I.
   Proof.
     iNamed 1.
     rewrite /RR_recover.
@@ -314,7 +322,8 @@ Section spec.
     wpc_bind (ref_NA _)%E.
     iApply wpc_atomic_no_mask.
     iSplit. { iApply (crash_condition_impl' with "pPts perLb"). }
-    wp_apply (wp_alloc_na v (mk_numbered n v) rr_prot); simpl; first done.
+    wp_apply (wp_alloc_na v (mk_numbered n v) rr_prot with "[]").
+    { simpl. by iSplit. }
     iIntros (ℓv') "vPts".
     iSplit.
     { iModIntro.

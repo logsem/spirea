@@ -2,10 +2,6 @@ From iris.proofmode Require Import coq_tactics reduction.
 From iris.proofmode Require Export ltac_tactics.
 From Perennial.Helpers Require Export ipm NamedProps ProofCaching.
 
-From self Require Import ipm_tactics.
-From self.lang Require Import lang tactics.
-From self.base Require Import primitive_laws class_instances.
-From self.high Require Import generational_resources crash_weakestpre.
 From self.high Require Export proofmode.
 
 Import uPred.

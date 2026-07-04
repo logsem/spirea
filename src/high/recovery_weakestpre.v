@@ -9,14 +9,16 @@ From iris_named_props Require Import named_props.
 From self.program_logic Require Import crash_weakestpre recovery_weakestpre recovery_adequacy.
 
 From self Require Import view map_extra extra ipm_tactics if_non_zero view_slice solve_view_le.
-From self.base Require Import primitive_laws wpr_lifting.
+From self.base Require Import primitive_laws.
 From self.high Require Import dprop protocol generational_resources crash_weakestpre.
 From self.high.resources Require Import
   gen_ghost_map gen_ghost_map_map gen_alocs gen_predicates auth_map_map.
 From self.high.modalities Require Import nextgen.
 From self.nextgen Require Import nextgen_promises.
 
-Set Default Proof Using "Type*".
+From self.base Require Export wpr_lifting.
+
+Set Default Proof Using "Type".
 
 Section wpr.
   Context `{!nvmBaseGS Σ Ω, !nvmHighGS Σ Ω, !PerennialG Σ}.

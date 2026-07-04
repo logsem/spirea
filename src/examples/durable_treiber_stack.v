@@ -3,26 +3,13 @@ Treiber stack.
 
 The stack is implemented as a linked list and the pointer to the head the list
 is updated with a CAS. *)
-From iris.proofmode Require Import proofmode monpred.
 From iris.algebra Require Import gmap_view.
 From iris_named_props Require Import named_props.
-From nextgen Require Import cmra_morphism_extra gmap_view_transformation.
 
-From self Require Import extra solve_view_le encode_relation map_extra view_slice.
-
-From self.lang Require Import syntax tactics lemmas.
-
-From self.base Require Import generational_resources primitive_laws.
-
-From self.high.lib Require Import abstract_state abstract_state_instances increasing_map protocols.
-From self.high Require Import monpred_simpl protocol locations crash_weakestpre weakestpre modalities.
-From self.high.modalities Require Import fence_sync_atomic.
-From self.high Require Import weakestpre_at weakestpre_na proofmode.
+From self.high.lib Require Import abstract_state abstract_state_instances.
+From self.high Require Import protocol protocols proofmode.
 
 From self.examples.lib Require Import excl_list.
-
-From self Require Export lang.
-From self.high Require Export dprop.
 
 (* A node is a pointer to a value and a pointer to the next node. *)
 Definition nil : expr := InjL #().
@@ -740,7 +727,7 @@ Section proof.
                 [] h _ (toHead_prots ϕ γ stack)
                with "[$stackPts nodePts toNextPts ϕ]").
     { iIntros.
-      iSplitR. { iIntros "_". iPureIntro. left. done. }
+      iSplitR. { iIntros "!> _". iPureIntro. left. done. }
       iSplit.
       - iIntros.
         iExists (σ_l ++ [inl x]).
@@ -864,7 +851,7 @@ Section proof.
                   [] _ _ (toHead_prots ϕ γ stack)
                  with "[$stackPts headPts toNextPts node node']").
     { iIntros.
-      iSplitR. { iIntros "_". iPureIntro. left. done. }
+      iSplitR. { iIntros "!> _". iPureIntro. left. done. }
       iSplit.
       - iIntros.
         iExists (σ_l ++ [inr ()]).

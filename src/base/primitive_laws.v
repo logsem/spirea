@@ -1128,7 +1128,7 @@ Section lifting.
   Qed.
   
   Lemma wp_cmpxchg ℓ hist (v_i v_t : val) SV FV BV s E :
-    ⌜ (∀ (t : nat) (msg : message),
+    ▷ ⌜ (∀ (t : nat) (msg : message),
       SV !!0 ℓ ≤ t → hist !! t = Some msg → vals_compare_safe v_i (msg_val msg)) ⌝ -∗
     {{{ ℓ ↦h hist ∗ validV SV }}}
       CmpXchg #ℓ v_i v_t `at` (SV, FV, BV) @ s; E
@@ -1147,10 +1147,13 @@ Section lifting.
         ⌜ b = false ⌝ ∗ ⌜ SV3 = SV ⊔ SVm ⌝ ∗ ℓ ↦h hist)
     }}}.
   Proof.
-    iIntros (safe).
+    iIntros "#safe".
     iIntros "!>" (Φ) "[ℓPts Hval] HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
-    iIntros ([??] [] ns mj D κ κs k) "[interp extra] ? !>". iNamed "interp".
+    iIntros ([??] [] ns mj D κ κs k) "[interp extra] ?".
+    iMod "safe" as "%safe".
+    iModIntro.
+    iNamed "interp".
     simpl in *.
     subst g.
     (* From the points-to predicate we know that [hist] is in the heap at ℓ. *)
@@ -1242,7 +1245,7 @@ Section lifting.
   Qed.
 
   Lemma wp_cmpxchg_alt ℓ h (v_i v_t : val) SV FV BV OCV s E :
-    ⌜ ∀ (t : nat) (msg : message),
+    ▷ ⌜ ∀ (t : nat) (msg : message),
       Nat.add (OCV !!0 ℓ) (SV !!0 ℓ) ≤ t → h !! t = Some msg → vals_compare_safe v_i (msg_val msg) ⌝ -∗
     {{{ ℓ ↦fh h ∗ validV SV ∗ crashed_at_offset OCV }}}
       CmpXchg #ℓ v_i v_t `at` (SV, FV, BV) @ s; E
@@ -1262,10 +1265,13 @@ Section lifting.
     }}}.
   Proof.
     set hist := (drop_prefix h (OCV !!0 ℓ)).
-    iIntros (safe).
+    iIntros "#safe".
     iIntros "!>" (Φ) "(ℓPts & Hval & #offset) HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
-    iIntros ([??] [] ns mj D κ κs k) "[interp extra] ? !>". iNamed "interp".
+    iIntros ([??] [] ns mj D κ κs k) "[interp extra] ?".
+    iMod "safe" as "%safe".
+    iModIntro.
+    iNamed "interp".
     simpl in *.
     subst g.
     (* From the points-to predicate we know that [hist] is in the heap at ℓ. *)
@@ -1385,7 +1391,7 @@ Section lifting.
 
   (* Lemma wp_faa  *)
   Lemma wp_faa_alt ℓ h (n : Z) SV FV BV OCV s E :
-    ⌜ ∀ (t : nat) (msg : message),
+    ▷ ⌜ ∀ (t : nat) (msg : message),
       Nat.add (OCV !!0 ℓ) (SV !!0 ℓ) ≤ t → h !! t = Some msg → ∃ (n: Z), msg.(msg_val) = #n ⌝ -∗
     {{{ ℓ ↦fh h ∗ validV SV ∗ crashed_at_offset OCV }}}
       FAA #ℓ #n `at` (SV, FV, BV) @ s; E
@@ -1399,10 +1405,13 @@ Section lifting.
     }}}.
   Proof.
     set hist := (drop_prefix h (OCV !!0 ℓ)).
-    iIntros (safe).
+    iIntros "#safe".
     iIntros "!>" (Φ) "(ℓPts & Hval & #offset) HΦ".
     iApply (wp_lift_atomic_head_step_no_fork (Φ := Φ)); first done.
-    iIntros ([??] [] ns mj D κ κs k) "[interp extra] ? !>". iNamed "interp".
+    iIntros ([??] [] ns mj D κ κs k) "[interp extra] ?".
+    iMod "safe" as "%safe".
+    iModIntro.
+    iNamed "interp".
     simpl in *.
     subst g.
     (* From the points-to predicate we know that [hist] is in the heap at ℓ. *)
